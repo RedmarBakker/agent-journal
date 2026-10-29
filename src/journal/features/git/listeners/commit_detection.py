@@ -80,7 +80,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         worker_tasks = tuple(WorkerTask(n, owners[n]) for n in numbers if n in owners)
         completions = self.completions(event, sha, [n for n in numbers if n not in owners])
         next_task = self.next_tasks.holder_task(self.tasks.find(completions[-1])) if completions else None
-        commit = CommitDetected(sha=sha, closed=tuple(completions), next_task=next_task, worker_tasks=worker_tasks).placed(event.session, event.environment_id, event.provider, event.context, event.time)
+        commit = CommitDetected(sha=sha, closed=tuple(completions), next_task=next_task, worker_tasks=worker_tasks, agent=event.agent).placed(event.agent, event.context, event.time)
         return next((answer for answer in self.events.post(commit) if isinstance(answer, Decision)), None)
 
     def folder(self, event: ToolFinished) -> Path:

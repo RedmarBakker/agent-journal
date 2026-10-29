@@ -19,4 +19,4 @@ class SkillReadRecord(AgentListener[ToolFinished]):
 
     def loaded(self, event: ToolFinished, skill: Skill) -> None:
         digest = self.files.digest(skill)
-        self.agents.rewritten(self.agents.session_agent(event.session), Actor.system(), lambda time: time.skill_read(skill.name, digest, self.clock.time()))
+        self.agents.rewritten(event.agent, Actor.system(), lambda time: time.skill_read(skill.name, digest, self.clock.time()))

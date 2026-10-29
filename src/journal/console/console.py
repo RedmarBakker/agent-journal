@@ -1,6 +1,5 @@
 import argparse
 from functools import partial
-from dataclasses import replace
 import io
 import queue
 
@@ -18,9 +17,8 @@ from journal.support.missing_row import MissingRow
 from journal.support.caller import Caller
 from journal.console.support.verb_rules import VerbRules
 from journal.support.agent_role import AgentRole
-from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
-from journal.repositories.origin import Origin
+from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.scope import Scope
 from journal.container import Container
 from journal.support.project_shell import ProjectShell
@@ -33,21 +31,15 @@ HELP_FLAGS = ("-h", "--help")
 class Console:
     """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from. run_streamed runs a command whose printed lines a reply streams as they are printed, such as a merge that waits on the plugins."""
 
-    def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, verb_rules: VerbRules) -> None:
-        self.names, self.verb_rules = names, verb_rules
-        self.container, self.environments, self.agents, self.scope, self.row_verbs, self.shell = container, environments, agents, scope, row_verbs, shell
+    def __init__(self, container: Container, environments: Environments, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, verb_rules: VerbRules, seats: HookSeats) -> None:
+        self.names, self.verb_rules, self.seats = names, verb_rules, seats
+        self.container, self.environments, self.scope, self.row_verbs, self.shell = container, environments, scope, row_verbs, shell
         self.commands: dict[str, Command] = {}
         self._parsers: dict[AgentRole, argparse.ArgumentParser] = {}
 
     def add(self, command: type[Command]) -> None:
         self.commands[command.noun] = self.container.get(command)
         self._parsers.clear()
-
-    def attributed(self, caller: Caller) -> Caller:
-        if not caller.is_unnamed_agent():
-            return caller
-        present = self.agents.current()
-        return replace(caller, session=present.session, provider=present.provider) if present else caller
 
     def build_parsers(self) -> None:
         for role in self.verb_rules.roles():
@@ -77,8 +69,10 @@ class Console:
 
     def run_into(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
         environment = self.names.resolved(caller.environment).row_id
-        with self.scope.entered(Origin(lambda: environment, caller.actor, caller.role, caller.session)):
-            return self.captured(argv, caller, output, io.StringIO())
+        with self.scope.environment(environment):
+            seated = self.seats.caller_seated(caller)
+        with self.scope.entered(seated.origin(environment)):
+            return self.captured(argv, seated, output, io.StringIO())
 
     def with_verb(self, argv: list[str]) -> list[str]:
         command = self.commands.get(argv[0]) if argv else None
@@ -131,7 +125,7 @@ class Console:
         with CapturedStream.capture(output, err):
             try:
                 args = self.parser(caller.role).parse_args(argv)
-                code = self.perform(args, self.attributed(caller))
+                code = self.perform(args, caller)
             except argparse.ArgumentError as refused:
                 self.parser(caller.role).print_usage(err)
                 print(refused, file=err)

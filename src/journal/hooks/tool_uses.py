@@ -23,23 +23,19 @@ class ToolUses:
     def counted(self, event: AgentEvent) -> AgentEvent:
         if not isinstance(event, (ToolStarting, ToolFinished, Compacting)):
             return event
-        rows = self.agents.session_rows(event.session)
-        if not rows:
-            return event
         if isinstance(event, Compacting):
-            self.agents.save(rows[0].compacted(), Actor.system())
-            return event
-        return self.tool_counted(event, rows[0])
+            return event.counted(self.agents.rewritten(event.agent, Actor.system(), lambda row: row.compacted()))
+        return self.tool_counted(event, event.agent)
 
     def tool_counted(self, event: AgentEvent, agent: Agent) -> AgentEvent:
         if not isinstance(event, ToolStarting):
-            return event.counted(agent.tool_uses)
+            return event.counted(agent)
         call = event.call.recorded()
         if event.call.is_journal:
-            return event.counted(agent.tool_uses)
-        agent = self.agents.save(self.used(agent, call, event.time), Actor.system())
+            return event.counted(agent)
+        agent = self.agents.rewritten(agent, Actor.system(), lambda row: self.used(row, call, event.time))
         self.task_counted(agent)
-        return event.counted(agent.tool_uses).shape_counted(self.entries.shape_count(event.session, call.shape) + 1 if call.shape else 0)
+        return event.counted(agent).shape_counted(self.entries.shape_count(event.session, call.shape) + 1 if call.shape else 0)
 
     def task_counted(self, agent: Agent) -> None:
         task = self.tasks.holder_task(Ref.build(agent))

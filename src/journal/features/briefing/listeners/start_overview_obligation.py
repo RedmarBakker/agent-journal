@@ -13,4 +13,4 @@ class StartOverviewObligation(AgentListener[SessionStarted]):
     def handle(self, event: SessionStarted) -> None:
         if event.is_resume():
             return
-        self.agents.touch(self.agents.session_agent(event.session), Actor.system(), is_overview_read=False)
+        self.agents.touched(event.agent, Actor.system(), lambda row: {"is_overview_read": False})

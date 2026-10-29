@@ -22,6 +22,7 @@ RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
 
 
+
 @dataclass(frozen=True)
 class Tools:
     """The names a provider's agent uses for reading, writing, the shell and sending a subagent."""
@@ -73,6 +74,7 @@ def silent_tick(app, silent: float) -> list:
 
 def tick_at(app, later: float, silence_seconds: float) -> list:
     """A tick so many seconds after the held moment, once what came before it has settled on the worker thread, as the clock gives it, its answers handed back; the moment is set and the clock held again inside the tick lock, so the runtime's own tick never takes the moment for its own."""
+    from journal.engine.support.session_agents import SessionAgents
     from journal.events.agent.ticked import Ticked
     app.runtime().deferred.drain()
     clock = app.container.get(Clock)
@@ -81,7 +83,8 @@ def tick_at(app, later: float, silence_seconds: float) -> list:
     with clock.tick_lock:
         source.pin(clock.held_at + later)
         try:
-            return clock.ticked(Ticked(session="s1", environment_id=environment, time=source.seconds(), silence_seconds=silence_seconds))
+            agent = app.container.get(SessionAgents).agent("s1", environment)
+            return clock.ticked(Ticked(silence_seconds=silence_seconds, agent=agent).placed(agent, None, source.seconds()))
         finally:
             source.pin(clock.held_at)
 

@@ -4,7 +4,6 @@ import time
 from dataclasses import replace
 from typing import Iterator
 
-from journal.engine.support.session_agents import SessionAgents
 from journal.engine.nudger import Nudger
 from journal.engine.nudge import Nudge
 from journal.repositories.entries import Entries
@@ -37,6 +36,7 @@ from journal.features.faults.support.request_time_recorder import RequestTimeRec
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.support.sleep_loop import SleepLoop
 from journal.features.shell.support.sleep_loop_wait import SleepLoopWait
+from journal.hooks.support.hook_seats import HookSeats
 from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.restart_queue import RestartQueue
@@ -56,16 +56,18 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own. While a restart waits, a command that goes to the background at once would be cut off by it, so it is not started; a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit, and any other runs in the foreground until it passes the limit; a run whose card shows, or will, keeps its output for the card to open."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands, loops: SleepLoopWait) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands, loops: SleepLoopWait, seats: HookSeats) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
-        self.loops = loops
-        self.nudger, self.sessions = nudger, sessions
+        self.loops, self.seats = loops, seats
+        self.nudger = nudger
         self.config, self.caps, self.limits, self.worker, self.record, self.scope = config, caps, limits, worker, record, scope
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
         self.stages, self.recorder, self.guess, self.card, self.restarts = stages, recorder, guess, card, restarts
         self.wrappers_told: set[str] = set()
 
-    def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+    def run(self, posted: ShellRequest, unseated: Caller, environment: int) -> Iterator[bytes]:
+        with self.scope.environment(environment):
+            caller = self.seats.caller_seated(unseated)
         line = self.aliases.expanded(posted.line)
         if SleepLoop.matches(line):
             yield self.loop_waited(SleepLoop.parsed(line), caller, environment)
@@ -183,10 +185,9 @@ class ShellRunner:
         return self.labels.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
 
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
-        if caller.session is None:
+        if not caller.has_agent_row():
             return ""
-        agent = self.sessions.caller_agent(caller, caller.session, environment)
-        lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
+        lines = [line for note in notes if (line := self.nudger.deliver(caller.agent_row, note))]
         if caller.is_worker() or caller.subagent:
             return "".join(f"[journal] {line}\n" for line in lines)
         for line in lines:

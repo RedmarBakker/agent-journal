@@ -20,27 +20,25 @@ class ResearcherHooks:
 
     def bind(self, hook: Hook, environment: Environment) -> Agent:
         agent = self.sessions.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
-        self.assign_work(hook.session, environment, hook.provider)
+        self.assign_work(agent)
         return agent
 
     def started(self, hook: Hook, environment: Environment) -> None:
-        self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
-        self.assign_work(hook.researcher_session, environment, hook.provider)
+        self.assign_work(self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT))
 
-    def assign_work(self, session: str, environment: Environment, provider: str) -> None:
-        assignment = HelperAssignment(state=self.states.sent_first(AgentRole.SUBAGENT))
-        self.listeners.dispatch(assignment.placed(session, environment.row_id, provider, None, self.time_source.seconds()))
+    def assign_work(self, agent: Agent) -> None:
+        self.listeners.dispatch(HelperAssignment(state=self.states.sent_first(AgentRole.SUBAGENT), agent=agent).placed(agent, None, self.time_source.seconds()))
 
     def ended(self, hook: Hook, environment: Environment) -> None:
-        if not self.agents.session_rows(hook.researcher_session):
+        researchers = self.agents.session_rows(hook.researcher_session)
+        if not researchers:
             return
-        moment = self.time_source.seconds()
-        self.listeners.dispatch(SubagentEnded(subagent=hook.subagent, report=hook.subagent_report).placed(hook.researcher_session, environment.row_id, hook.provider, None, moment))
-        self.closed(hook.researcher_session, environment, hook.provider)
+        self.listeners.dispatch(SubagentEnded(subagent=hook.subagent, report=hook.subagent_report, agent=researchers[0]).placed(researchers[0], None, self.time_source.seconds()))
+        self.closed(researchers[0])
 
     def main_ended(self, hook: Hook, environment: Environment) -> None:
         for researcher in self.agents.researchers(hook.session):
-            self.closed(researcher.session, environment, hook.provider)
+            self.closed(researcher)
 
-    def closed(self, session: str, environment: Environment, provider: str) -> None:
-        self.listeners.dispatch(SessionEnded().placed(session, environment.row_id, provider, None, self.time_source.seconds()))
+    def closed(self, researcher: Agent) -> None:
+        self.listeners.dispatch(SessionEnded(agent=researcher).placed(researcher, None, self.time_source.seconds()))

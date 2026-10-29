@@ -6,8 +6,8 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.providers.support.file_writes import FileWrites
 from journal.support.hook import Hook
+from journal.models.agent import Agent
 from journal.support.hook_type import HookType
-from journal.models.environment import Environment
 from journal.providers.providers import Providers
 
 START_POSITION = -1
@@ -21,15 +21,15 @@ class TranscriptTurns:
         self._read: dict[str, int] = {}
         self._read_lock = threading.Lock()
 
-    def events(self, hook: Hook, environment: Environment) -> list[AgentEvent]:
+    def events(self, hook: Hook, agent: Agent) -> list[AgentEvent]:
         if hook.hook_type == HookType.MESSAGE_DISPLAY:
             return []
         with self._read_lock:
             saved = self.providers.lookup(hook.provider).authored_texts(self.config.root, hook.session, self._read.get(hook.session, START_POSITION))
             self._read[hook.session] = saved.time
-        turns = [TurnDisplayed(text=text, delta=text, turn_id=f"transcript:{hook.session}:{i}", final=True) for i, text in enumerate(saved.texts)]
+        turns = [TurnDisplayed(text=text, delta=text, turn_id=f"transcript:{hook.session}:{i}", final=True, agent=agent) for i, text in enumerate(saved.texts)]
         context = self.providers.lookup(hook.provider).status(hook.session, self.config.status_home).context
-        return [event.placed(hook.session, environment.row_id, hook.provider, context, self.clock.time(), hook.subagent) for event in [*saved.boundary_paths, *turns]]
+        return [event.placed(agent, context, self.clock.time(), hook.subagent) for event in [*(note.event(agent) for note in saved.boundary_paths), *turns]]
 
     def missed(self, session: str, provider: str, deadline: float) -> FileWrites:
         with self._read_lock:

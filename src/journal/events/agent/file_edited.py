@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from journal.events.agent.agent_event import AgentEvent
+from journal.models.agent import Agent
 from journal.models.edit import Edit
 
 
@@ -18,5 +19,5 @@ class FileEdited(AgentEvent):
     command: str = ""
 
     @classmethod
-    def build(cls, edit: Edit, environment_id: int) -> "FileEdited":
-        return cls(path=edit.path, edit_type=edit.edit_type, added=edit.added, removed=edit.removed, first_line=edit.first_line, last_line=edit.last_line, lines=edit.rows, command=edit.command, tool_use=edit.tool_use).placed(edit.session, environment_id, "", None, edit.time)
+    def build(cls, edit: Edit, agent: Agent) -> "FileEdited":
+        return cls(path=edit.path, edit_type=edit.edit_type, added=edit.added, removed=edit.removed, first_line=edit.first_line, last_line=edit.last_line, lines=edit.rows, command=edit.command, tool_use=edit.tool_use, agent=agent).placed(agent, None, edit.time)

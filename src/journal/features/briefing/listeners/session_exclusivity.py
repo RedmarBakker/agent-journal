@@ -14,6 +14,6 @@ class SessionExclusivity(AgentListener[SessionStarted]):
     def handle(self, event: SessionStarted) -> Decision | None:
         if event.subagent:
             return None
-        for counterpart in self.agents.running_peers(self.agents.session_agent(event.session)):
+        for counterpart in self.agents.running_peers(self.agents.newest_row(event.agent)):
             self.agents.save(counterpart.retired(event.time), Actor.system())
         return None

@@ -97,6 +97,9 @@ class Agents(ScopedRepository[Agent]):
     def session_agents(self, sessions: set[str]) -> dict[str, Agent]:
         return {agent.session: agent for agent in self.selected(self.query().filter_listed("session", sorted(sessions)))}
 
+    def newest_row(self, agent: Agent) -> Agent:
+        return self.find(agent.row_id)
+
     def session_agent(self, session: str) -> Agent:
         rows = self.session_rows(session)
         if not rows:

@@ -8,6 +8,7 @@ from worker_dispatch import dispatched
 
 from journal.app import App
 from journal.repositories.scope import Scope
+from journal.hooks.support.hook_seats import HookSeats
 from journal.config import Config
 from journal.support.caller import Caller
 from journal.providers.providers import Providers
@@ -62,7 +63,7 @@ def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_fro
     from journal.repositories.agents import Agents
     app.container.get(Agents).save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
     with app.container.get(Scope).environment(1):
-        attributed = app.console().attributed(Providers().caller({"CLAUDECODE": "1"}))
+        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
     assert attributed.session == "s1" and attributed.actor.actor_type == "agent", "an unnamed agent's shell is the live agent's"
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
@@ -94,7 +95,7 @@ def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_
 
 def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app: App):
     with app.container.get(Scope).environment(1):
-        attributed = app.console().attributed(Providers().caller({"CLAUDECODE": "1"}))
+        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
     assert attributed.actor.actor_type == "user", "a shell outside the journal is the user's"
 
 

@@ -34,7 +34,7 @@ class ReminderCommand(RecordCommand):
         return Reminder(text=args.text, keywords=self.keywords(args), due_at=self.moment(args.at) if args.at else None, every_minutes=args.every_minutes, every_tool_uses=args.every_tool_uses)
 
     def for_caller(self, row: Reminder, caller: Caller) -> Reminder:
-        return row.sent(self.clock.time(), self.agents.session_agent(caller.session).tool_uses if caller.session else 0)
+        return row.sent(self.clock.time(), self.agents.newest_row(caller.agent_row).tool_uses if caller.has_agent_row() else 0)
 
     def listed(self, row: Reminder) -> str:
         return f"{row.text} (at {row.due_at.astimezone().strftime(Reminder.MOMENT)})" if row.due_at else row.text

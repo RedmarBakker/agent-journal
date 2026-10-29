@@ -41,7 +41,7 @@ class Clock(Job):
     def _tick(self, agent: Agent) -> None:
         with self.tick_lock:
             time = self.time()
-            self.ticked(Ticked(session=agent.session, environment_id=agent.environment_id, time=time, silence_seconds=time - agent.update_time.timestamp()))
+            self.ticked(Ticked(silence_seconds=time - agent.update_time.timestamp(), agent=agent).placed(agent, None, time))
 
     def ticked(self, event: Ticked) -> list[object]:
         with self.tick_lock:

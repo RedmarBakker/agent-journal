@@ -18,7 +18,7 @@ class SkillObligation(AgentListener[AgentEvent]):
     def handle(self, event: AgentEvent) -> None:
         if not isinstance(event, (SessionStarted, PromptSubmitted)):
             return
-        agent = self.agents.session_agent(event.session)
+        agent = self.agents.newest_row(event.agent)
         data = self.reader.read(agent)
         due = data.mentioned(event.users_words()) if isinstance(event, PromptSubmitted) else data.start_debts(self.settings.texts(start_option(event)), agent.state)
         names = tuple(card.name for card in due)

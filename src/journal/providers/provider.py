@@ -27,7 +27,7 @@ from journal.support.decision import Decision
 from journal.support.hook import Hook
 from journal.support.hook_type import HookType
 from journal.support.response import Response
-from journal.events.agent.peer_message import PeerMessage
+from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.turn import Turn
 from journal.providers.support.past_session import PastSession
 from journal.providers.support.file_writes import FileWrites
@@ -192,7 +192,7 @@ class Provider(ABC):
     def texts(self, line: dict) -> list[str]: ...
 
     @abstractmethod
-    def peer_messages(self, line: dict) -> list[PeerMessage]: ...
+    def peer_messages(self, line: dict) -> list[PeerNote]: ...
 
     @staticmethod
     def last_line_start(path: Path, size: int) -> int:

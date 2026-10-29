@@ -52,6 +52,9 @@
                 "file": "src/journal/support/caller.py"
             },
             {
+                "file": "src/journal/hooks/support/hook_seats.py"
+            },
+            {
                 "file": "src/journal/support/actor_type.py"
             },
             {

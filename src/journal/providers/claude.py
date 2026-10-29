@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Iterator
 
 from journal.providers.support.line_count import LineCount
-from journal.events.agent.peer_message import PeerMessage
+from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.claude_row import ClaudeRow
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import TAIL_BYTES, Provider
@@ -189,7 +189,7 @@ class Claude(Provider):
         row = ClaudeRow.parsed(line)
         return [block.text for block in row.type_match("text") if block.text.strip()] if row.type == "assistant" else []
 
-    def peer_messages(self, line: dict) -> list[PeerMessage]:
+    def peer_messages(self, line: dict) -> list[PeerNote]:
         row = ClaudeRow.parsed(line)
         if not row.is_enqueued:
             return []
@@ -197,7 +197,7 @@ class Claude(Provider):
         if arrived is None:
             return []
         matched = SENDER_NAME_PATTERN.search(arrived[1]) or SENDER_ADDRESS_PATTERN.search(arrived[1])
-        return [PeerMessage(sender=matched[1] if matched else "another session", text=arrived[2].strip(), transcript_time=row.timestamp)]
+        return [PeerNote(sender=matched[1] if matched else "another session", text=arrived[2].strip(), transcript_time=row.timestamp)]
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
         skipped = [flag for flag in self.prompt_flags if choice.prompt_flags and flag not in args]

@@ -157,4 +157,4 @@ def wake_check(state: BaseState, event: Ticked, settings: Settings) -> Transitio
         return state.none()
     if event.silence_seconds < minutes * 60:
         return state.none()
-    return state.follow(Stop(session=event.session, environment_id=event.environment_id, prior_refusal=False, time=event.time), TasksNudges.STOPPED_WITH_WORK.create())
+    return state.follow(Stop(session=event.session, environment_id=event.environment_id, prior_refusal=False, time=event.time, agent=event.agent), TasksNudges.STOPPED_WITH_WORK.create())

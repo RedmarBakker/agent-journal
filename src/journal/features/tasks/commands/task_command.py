@@ -340,7 +340,7 @@ state: {task.state}
 
     def next(self, args: Namespace, caller: Caller) -> int:
         agent = self.sessions.agent(caller.agent_session, self.scope.id)
-        request = NextTasksRequest(session=agent.session, environment_id=self.scope.id, provider=agent.provider, time=self.time_source.moment().timestamp())
+        request = NextTasksRequest(agent=agent).placed(agent, None, self.time_source.moment().timestamp())
         assignment = self.assigners.resolved(agent).next_task(agent, request, args.quantity)
         if not assignment.has_task():
             print("no task to hand out now: the builder is handed its next task at a stop or when its task closes")

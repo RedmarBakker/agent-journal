@@ -20,6 +20,6 @@ class TranscriptScan(Listener[ClockTicked]):
         for agent in self.agents.program_main_agents():
             with self.scope.environment(agent.environment_id):
                 saved = self.turns.missed(agent.session, agent.provider, deadline)
-                turns = [TurnDisplayed(text=text, delta=text, turn_id=f"swept:{agent.session}:{event.time}:{i}", final=True) for i, text in enumerate(saved.texts)]
-                for scanned in [*saved.boundary_paths, *turns]:
-                    self.events.post(scanned.placed(agent.session, agent.environment_id, agent.provider, None, event.time))
+                turns = [TurnDisplayed(text=text, delta=text, turn_id=f"swept:{agent.session}:{event.time}:{i}", final=True, agent=agent) for i, text in enumerate(saved.texts)]
+                for scanned in [*(note.event(agent) for note in saved.boundary_paths), *turns]:
+                    self.events.post(scanned.placed(agent, None, event.time))

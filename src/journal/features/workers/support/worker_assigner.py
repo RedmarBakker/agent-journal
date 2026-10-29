@@ -1,5 +1,4 @@
 from journal.engine.command_events import CommandEvents
-from journal.events.agent.helper_assignment import HelperAssignment
 from journal.features.workers.states.working_task import WorkingTask
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
@@ -20,8 +19,6 @@ class WorkerAssigner:
 
     def assign(self, row: Worker) -> None:
         task_ids = self.tasks.holder_task_ids(Ref.build(row))
-        if task_ids and self.has_agent(row):
-            self.events.helper_assigned(HelperAssignment(state=WorkingTask(task_id=task_ids[0])), row.session, row.provider)
-
-    def has_agent(self, row: Worker) -> bool:
-        return bool(row.session) and bool(self.agents.session_rows(row.session))
+        agents = self.agents.session_rows(row.session) if row.session else []
+        if task_ids and agents:
+            self.events.helper_assigned(WorkingTask(task_id=task_ids[0]), agents[0])

@@ -11,7 +11,6 @@ from journal.repositories.setting_rows import SettingRows
 
 from journal.engine.engine_nudges import EngineNudges
 from journal.engine.nudger import Nudger
-from journal.engine.support.session_agents import SessionAgents
 from journal.events.moments.guard_failed import GuardFailed
 from journal.events.moments.session_unbound import SessionUnbound
 from journal.events.agent.agent_event import AgentEvent
@@ -31,6 +30,7 @@ from journal.hooks.translation import Translation
 from journal.support.actor import Actor
 from journal.models.entry import Entry
 from journal.hooks.support.hook_seats import HookSeats
+from journal.models.agent import Agent
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -50,9 +50,9 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, seats: HookSeats, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, seats: HookSeats, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
         self.time_source, self.phase, self.fault_log, self.settings = time_source, phase, fault_log, settings
-        self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
+        self.names, self.stages, self.nudger = names, stages, nudger
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.seats, self.launches = seats, launches
         self.transcript, self.recorder = transcript, recorder
@@ -71,16 +71,18 @@ class Receiver:
             if self.seats.is_unknown_session_end(hook):
                 return Decision()
             if researcher:
-                with self.scope.entered(Origin.agent_origin(self.seats.researcher_agent(hook, environment), hook.actor())):
-                    return self.sent_recorded(hook, environment)
-            with self.scope.entered(Origin.agent_origin(self.seats.agent(hook, environment), hook.actor())):
-                return self.sent_recorded(hook, environment) if hook.is_sent() else self.answered(hook, environment)
+                researcher_agent = self.seats.researcher_agent(hook, environment)
+                with self.scope.entered(Origin.agent_origin(researcher_agent, hook.actor())):
+                    return self.sent_recorded(hook, environment, researcher_agent)
+            agent = self.seats.agent(hook, environment)
+            with self.scope.entered(Origin.agent_origin(agent, hook.actor())):
+                return self.sent_recorded(hook, environment, agent) if hook.is_sent() else self.answered(hook, environment, agent)
 
-    def answered(self, hook: Hook, environment: Environment) -> Decision:
+    def answered(self, hook: Hook, environment: Environment, agent: Agent) -> Decision:
         with self.stages.timed("hook transcript"):
-            for saved in self.transcript.events(hook, environment):
+            for saved in self.transcript.events(hook, agent):
                 self._immediate(saved)
-        event = self.translation.event(hook, environment)
+        event = self.translation.event(hook, agent)
         with self.stages.timed("hook entry"):
             entry = self.recorded(hook, environment, event)
         decision = self._blocking(event, self.bus.answer_listeners(type(event)))
@@ -103,11 +105,11 @@ class Receiver:
             return self.worker_hooks.is_proven(hook) or self.checker_hooks.is_proven(hook)
         return self.launches.is_launch(environment.name, hook.launch)
 
-    def sent_recorded(self, hook: Hook, environment: Environment) -> Decision:
+    def sent_recorded(self, hook: Hook, environment: Environment, agent: Agent) -> Decision:
         if hook.silence_start:
-            returned = self.translation.returned(hook, environment)
+            returned = self.translation.returned(hook, agent)
             self._blocking(returned, self.helper_listeners.answer_listeners(returned))
-        event = self.translation.event(hook, environment)
+        event = self.translation.event(hook, agent)
         self.recorded(hook, environment, event)
         decision = self._blocking(event, self.helper_listeners.answer_listeners(event))
         for listener in self.helper_listeners.background_listeners(event):
@@ -168,7 +170,7 @@ class Receiver:
         self.deferred.add(partial(self.fault_log.reported, f"listener {name} before the hook's answer", UndeferredViewerWrite(f"{name} updated the viewer through {', '.join(writers)} before the hook answered")))
         if not self.settings.option(FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING):
             return decision
-        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), FaultsNudges.UNDEFERRED_VIEWER_WRITE.create(listener=name, writers=", ".join(writers)))
+        line = self.nudger.deliver(event.agent, FaultsNudges.UNDEFERRED_VIEWER_WRITE.create(listener=name, writers=", ".join(writers)))
         return decision.merged(Decision.allowed_with(line)) if line else decision
 
     def _guarded(self, listener: Listener, event: AgentEvent) -> Decision | None:
@@ -178,7 +180,7 @@ class Receiver:
         except Exception as fault:
             text = f"{type(listener).__name__} raised {type(fault).__name__}: {fault}"
             self.deferred.add(partial(self.guard_failure_recorded, event, type(listener).__name__, f"{type(fault).__name__}: {fault}", text))
-            line = self.nudger.refuse_with(self.sessions.agent(event.session, event.environment_id), EngineNudges.GUARD_FAILED.create(text=text))
+            line = self.nudger.refuse_with(event.agent, EngineNudges.GUARD_FAILED.create(text=text))
             return Decision.allowed_with(line) if line else None
 
     def guard_failure_recorded(self, event: AgentEvent, listener: str, fault: str, text: str) -> None:

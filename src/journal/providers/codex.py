@@ -14,7 +14,7 @@ from journal.support.hook_type import HookType
 from journal.providers.support.codex_row import CodexRow
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import Provider
-from journal.events.agent.peer_message import PeerMessage
+from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.turn import Turn
 from journal.providers.support.capability import Capability
 from journal.providers.support.mcp_tables import McpTables
@@ -189,7 +189,7 @@ class Codex(Provider):
     def turn_thoughts(self, project: Path, session: str) -> list[str]:
         return []
 
-    def peer_messages(self, line: dict) -> list[PeerMessage]:
+    def peer_messages(self, line: dict) -> list[PeerNote]:
         return []
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:

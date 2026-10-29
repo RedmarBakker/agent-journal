@@ -24,7 +24,6 @@ from journal.features.briefing.support.overview_commands import OverviewCommands
 from journal.features.tasks.active_task import ActiveTask
 from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
-from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.repositories.questions import Questions
 from journal.repositories.reminders import Reminders
@@ -136,12 +135,8 @@ class EnvironmentCommand(Command):
         return f"{subject}: " + "; ".join(rows) if rows else ""
 
     def overview_record(self, caller: Caller) -> None:
-        if caller.session is None:
-            return
-        try:
-            self.agents.save(self.agents.session_agent(caller.session).overview_read(self.time_source.moment().timestamp()), caller.actor)
-        except MissingRow:
-            return
+        if caller.has_agent_row():
+            self.agents.save(self.agents.newest_row(caller.agent_row).overview_read(self.time_source.moment().timestamp()), caller.actor)
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for row in self.rows():

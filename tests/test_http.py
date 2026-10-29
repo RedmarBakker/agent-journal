@@ -14,6 +14,9 @@ from journal.repositories.scope import Scope
 from journal.support.listener_queue import ListenerQueue
 
 MAIN = 1
+from journal.models.agent import Agent
+
+EVENT_AGENT = Agent(environment_id=1, session="s1", provider="claude")
 
 
 @pytest.fixture(scope="module")
@@ -89,9 +92,9 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
 
 def test_every_hook_event_carries_the_seconds_it_waited_for_the_boot():
     from journal.events.agent.stop import Stop
-    event = Stop().boot_delayed(1.5)
+    event = Stop(agent=EVENT_AGENT).boot_delayed(1.5)
     assert event.is_boot_delayed() and event.boot_wait_seconds == 1.5
-    assert not Stop().is_boot_delayed()
+    assert not Stop(agent=EVENT_AGENT).is_boot_delayed()
 
 
 def test_the_runtime_loads_while_booting_and_starts_its_workers_and_jobs_only_once_booted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

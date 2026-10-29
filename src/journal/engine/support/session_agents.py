@@ -5,7 +5,6 @@ from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.providers.providers import Providers
 from journal.support.actor import Actor
-from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
 
@@ -23,11 +22,6 @@ class SessionAgents:
         if current is not None:
             return self.agents.save(current.with_session(session, provider or current.provider), Actor.system())
         return self.created(session, environment_id, provider, self.states.first(), AgentRole.MAIN)
-
-    def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
-        if caller.session_role.is_helper():
-            return self.helper_agent(session, environment_id, caller.provider, caller.session_role)
-        return self.agent(session, environment_id, caller.provider)
 
     def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
         rows = self.session_rows(session)

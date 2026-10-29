@@ -100,6 +100,14 @@ SHAPES = CommandShape(TABLE)
 CLASSIFIER = CommandClassifier(TABLE, SHAPES)
 MAIN = 1
 """The id of main, the environment a fresh journal makes at boot: what a test reads directly, it reads there."""
+from journal.models.agent import Agent
+
+EVENT_AGENT = Agent(environment_id=1, session="s1", provider="claude")
+
+
+def agent_row(app: App, session: str = "s1", environment_id: int = 1, provider: str = "claude") -> Agent:
+    with app.container.get(Scope).environment(environment_id):
+        return app.container.get(SessionAgents).agent(session, environment_id, provider)
 
 
 def viewer(app, path: str, body: dict | None = None) -> dict:
@@ -827,7 +835,7 @@ def test_a_plugin_requires_a_skill_it_publishes_and_a_read_of_the_file_pays_it(s
     with pytest.raises(PluginFault, match="not a list of skill ids"):
         protocol.parsed_answer(json.dumps({"require_skills": "echo-guide"}))
     answer = protocol.parsed_answer(json.dumps({"require_skills": ["echo-guide", "echo-guide", "echo-missing"]}))
-    app.container.get(PluginRelay).applied(plugin, PromptSubmitted(prompt="x").placed("s1", MAIN, "claude", 0.0, 0.0), answer, "main", MAIN)
+    app.container.get(PluginRelay).applied(plugin, PromptSubmitted(agent=EVENT_AGENT, prompt="x").placed(Agent(environment_id=MAIN, session="s1", provider="claude"), 0.0, 0.0), answer, "main", MAIN)
     app.container.get(ListenerQueue).drain()
     assert agents.session_agent("s1").skills_due == ("echo-guide",), "a skill the plugin publishes is owed once, however often the line names it"
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
@@ -1132,7 +1140,7 @@ def ticked_minutes(app: App, *minutes: int) -> None:
     start = clock.time()
     with app.container.get(Scope).environment(1):
         for minute in minutes:
-            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
+            clock.ticked(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
 
 
 
@@ -1389,7 +1397,7 @@ def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_i
     app.runtime().deferred.drain()
     assert not any("new message" in line for line in typed), "the message's line is held behind the whisper still waiting"
     stopped = hook(app, "Stop")[1]
-    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=timing.time() + 30, silence_seconds=30.0))
+    app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + 30, silence_seconds=30.0))
     app.runtime().deferred.drain()
     held = stopped.get("decision") == "block" and "new message" in stopped.get("reason", "")
     assert held or any("reminder 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
@@ -2706,7 +2714,7 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
     transmitted.clear()
 
     def tick():
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=120.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=0.0, silence_seconds=120.0))
         app.runtime().deferred.drain()
     tick()
     assert transmitted == [], "a step just said is not said again"
@@ -2944,7 +2952,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     from journal.models.task import Task
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
-    tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
+    tool = json.loads(protocol.event_line(ToolStarting(agent=agent_row(app), call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed(agent_row(app, "s1", 1, "claude"), 0.2, 0.0), "main", "working"))
     assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls", "shell": "", "flag": ""}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"command_type": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
@@ -3020,7 +3028,7 @@ def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     asked = messages.last_user_message()
     assert [m.text for m in keyed] == ["third"] and keyed[0].row_id > asked.row_id, "a card of a key written again after the user's message is shown below it, the earlier one taken out"
     app.container.get(SecretValues).put("GITHUB_KEY", "ghp_0123456789abcdef")
-    line_text = app.container.get(PluginAgentRelay).decided(plugin, PromptSubmitted(prompt="x").placed("s1", 1, "claude", 0.0, 0.0), PluginAnswer(answer="tell", message="[journal] stop now [!reply:3] ghp_0123456789abcdef"))
+    line_text = app.container.get(PluginAgentRelay).decided(plugin, PromptSubmitted(agent=agent_row(app), prompt="x").placed(agent_row(app, "s1", 1, "claude"), 0.0, 0.0), PluginAnswer(answer="tell", message="[journal] stop now [!reply:3] ghp_0123456789abcdef"))
     assert line_text.context == "[plugin echo] (journal) stop now [!reply:3] [secret GITHUB_KEY]", "a plugin's words are its own, the journal's mark made plain and a secret masked"
     echo(app, hears=["messages.created"], holds=[])
     echo(app, "echo-two", hears=["messages.created"], holds=[])
@@ -3037,8 +3045,8 @@ def test_a_subagents_event_reaches_a_plugin_and_is_held_only_at_a_tool(app: App)
     from journal.events.agent.tool_starting import ToolStarting
     from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
     plugin = echo(app)
-    assert PluginAgentRelay.blocks(plugin, ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), subagent="a1")), "a subagent's tool is held like the agent's"
-    assert not PluginAgentRelay.blocks(plugin, PromptSubmitted(prompt="x", subagent="a1")) and PluginAgentRelay.blocks(plugin, PromptSubmitted(prompt="x")), "a subagent's other events are heard, never held"
+    assert PluginAgentRelay.blocks(plugin, ToolStarting(agent=agent_row(app), call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), subagent="a1")), "a subagent's tool is held like the agent's"
+    assert not PluginAgentRelay.blocks(plugin, PromptSubmitted(agent=agent_row(app), prompt="x", subagent="a1")) and PluginAgentRelay.blocks(plugin, PromptSubmitted(agent=agent_row(app), prompt="x")), "a subagent's other events are heard, never held"
 
 
 
@@ -5197,9 +5205,9 @@ def test_another_agents_question_is_owed_an_answer_until_the_agent_sends_it_one_
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     bus = app.container.get(Bus)
-    bus.dispatch(PeerMessage(sender="code-commandments-12", text="the fix is on main").placed("s1", 1, "claude", None, 0.0))
+    bus.dispatch(PeerMessage(agent=agent_row(app), sender="code-commandments-12", text="the fix is on main").placed(agent_row(app, "s1", 1, "claude"), None, 0.0))
     assert "asked you a question" not in json.dumps(hook(app, "Stop")[1]), "a message that asks nothing owes no answer"
-    bus.dispatch(PeerMessage(sender="code-commandments-12", text="the fix is on main.\nDoes your suite pass on it?").placed("s1", 1, "claude", None, 0.0))
+    bus.dispatch(PeerMessage(agent=agent_row(app), sender="code-commandments-12", text="the fix is on main.\nDoes your suite pass on it?").placed(agent_row(app, "s1", 1, "claude"), None, 0.0))
     owed = json.dumps(hook(app, "Stop")[1])
     assert "agent code-commandments-12 asked you a question" in owed and "SendMessage to code-commandments-12" in owed, "a question is named at the stop"
     hook(app, "PostToolUse", tool_name="SendMessage", tool_input={"to": "code-commandments-12", "message": "it passes"}, tool_response={})
@@ -5753,7 +5761,7 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
         app.container.get(Agents).save(Agent(environment_id=1, session="rv", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
         app.container.get(Agents).save(Agent(environment_id=1, session="s1:a1", provider="claude", state="researching", role=AgentRole.SUBAGENT), Actor.system())
     read = ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))
-    assert relay.helper_role(ToolStarting(call=read).placed("rv", 1, "claude", None, 1.0)) == AgentRole.REVIEWER and relay.helper_role(ToolStarting(call=read).placed("s1:a1", 1, "claude", None, 1.0)) == AgentRole.SUBAGENT, "a reviewer's and a subagent's events are known as theirs, never the main agent's"
+    assert relay.helper_role(ToolStarting(agent=agent_row(app), call=read).placed(Agent(environment_id=1, session="rv", provider="claude", role=AgentRole.REVIEWER), None, 1.0)) == AgentRole.REVIEWER and relay.helper_role(ToolStarting(agent=agent_row(app), call=read).placed(Agent(environment_id=1, session="s1:a1", provider="claude", role=AgentRole.SUBAGENT), None, 1.0)) == AgentRole.SUBAGENT, "a reviewer's and a subagent's events are known as theirs, never the main agent's"
 
 
 def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugin_holds_the_edit_or_only_hears_it(app: App):
@@ -7264,7 +7272,7 @@ def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_pla
 
     def ticked(minutes: float) -> None:
         monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
         app.runtime().deferred.drain()
 
     ticked(0)
@@ -8543,7 +8551,7 @@ def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_
     assert state() == "limited", "a turn refused on the usage limit holds the agent"
     hook(app, "StopFailure", **limit)
     assert [layer["state"] for layer in app.container.get(Agents).current().stack].count("limited") == 1, "a second refusal keeps the one hold"
-    tick = lambda seconds: app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=timing.time() + seconds, silence_seconds=seconds))
+    tick = lambda seconds: app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + seconds, silence_seconds=seconds))
     keystrokes.clear()
     console.run(["task", "create", "a line the journal would type", "--start"], USER)
     tick(60)
@@ -11183,7 +11191,7 @@ def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopp
         assert outputs.running(MAIN) == [] and outputs.background("s1") == [], "35 seconds after its last beat it is not running"
     assert app.container.get(RestartQueue).restart(MAIN, "") == [] and sent == [(MAIN, "restart", "journal")], "it never holds a restart"
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(StoppedOutputEnd).handle(Ticked(session="s1", environment_id=MAIN, time=clock.seconds(), silence_seconds=0.0))
+        app.container.get(StoppedOutputEnd).handle(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=clock.seconds(), silence_seconds=0.0))
         ended = outputs.find(output.id)
     assert ended.ended and ended.is_interrupted, "the next tick ends it as cut off"
 
@@ -12201,7 +12209,7 @@ def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_
 
     bus.listen(Ticked, Failing())
     bus.listen(Ticked, Hearing())
-    bus.dispatch_guarded(Ticked(session="s", environment_id=1, time=1.0, silence_seconds=0.0))
+    bus.dispatch_guarded(Ticked(agent=agent_row(app), session="s", environment_id=1, time=1.0, silence_seconds=0.0))
     assert len(heard) == 1, "one listener failing on a tick stops no other"
 
 
@@ -14182,7 +14190,7 @@ def test_a_watched_test_run_that_prints_without_a_total_is_told_once_to_give_one
     outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=90)), Actor.system())
     assert app.console().run(["output", "watch", "1"], AGENT).code == 0
     for _ in range(3):
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
     told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == ShellNudges.RUN_TOTAL_MISSING.key]
     assert len(told) == 1 and has_nudge(told[0], ShellNudges.RUN_TOTAL_MISSING, n=1), f"a watched test run printing dots with no total is told once to give one: {told}"
@@ -14208,7 +14216,7 @@ def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stre
     outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
     Heartbeat(folder).write(timing.time())
     for _ in range(2):
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
     hints = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.silent_run_streams"]
     assert len(hints) == 1 and has_nudge(hints[0], ShellNudges.SILENT_RUN_HINT, n=1, seconds=40), f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
@@ -14312,7 +14320,7 @@ def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_i
         return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
 
     def tick() -> None:
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
 
     outputs.watch(outputs.find(1), "", "Running /private/tmp/claude-501/suite", Actor.system())
     for _ in range(2):
@@ -14405,7 +14413,7 @@ def test_a_chained_runs_card_is_titled_by_its_test_run_never_by_the_sed_before_i
     testing = app.container.get(ActivityLabel).build("pytest tests")
     assert ran(2, f"{sed}\npytest tests", [sed, "pytest tests"]) == testing[:1].upper() + testing[1:], "a chain is titled by the part still running, the test run"
     flagged = ran(3, "true\n./checks.sh --all", ["true", "./checks.sh --all"])
-    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+    app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
     told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
     assert len(told) == 1 and has_nudge(told[0], ShellNudges.FLAGGED_TITLE, n=3, card_title=flagged), f"a foreground run showing a card has its title checked too: {flagged!r}, {told}"
@@ -14430,7 +14438,7 @@ def test_runs_of_different_lines_under_one_card_title_are_told_once_naming_both_
         outputs.save(outputs.find(n).backgrounded().watched(reader, title), Actor.system())
 
     def told() -> list[str]:
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
         app.runtime().deferred.drain()
         return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.give_each_run_its_own_title"]
 
@@ -14636,7 +14644,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})
     from journal.features.messages.listeners.record_turn import RecordTurn
     from journal.events.agent.turn_displayed import TurnDisplayed
-    app.container.get(RecordTurn).handle(TurnDisplayed(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s", turn_id="another-id").placed("s1", 1, "claude", 0.0, 0.0))
+    app.container.get(RecordTurn).handle(TurnDisplayed(agent=agent_row(app), text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s", turn_id="another-id").placed(agent_row(app, "s1", 1, "claude"), 0.0, 0.0))
     with app.container.get(Scope).environment(MAIN):
         assert len([m for m in messages.scoped() if "(the parser)" in m.text]) == 1, "a linked message keeps the key of the words it was recorded from, so the transcript's old text never records the turn again"
     with app.container.get(Scope).environment(MAIN):

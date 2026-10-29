@@ -19,7 +19,7 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
     def handle(self, event: SessionStarted) -> None:
         if event.subagent:
             return
-        starting = self.agents.session_agent(event.session)
+        starting = event.agent
         if starting.role.is_helper():
             return
         moment = datetime.fromtimestamp(event.time, timezone.utc)

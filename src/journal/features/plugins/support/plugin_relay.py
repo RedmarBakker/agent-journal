@@ -120,11 +120,9 @@ class PluginRelay:
     def helper_role(self, event: Event) -> AgentRole:
         if not isinstance(event, AgentEvent):
             return AgentRole.MAIN
-        agents = self.agents.matching(session=event.session)
-        return agents[0].role if agents else AgentRole.MAIN
+        return event.agent.role
 
     def agent_state(self, event: Event) -> str:
         if not isinstance(event, AgentEvent):
             return ""
-        agents = self.agents.matching(session=event.session)
-        return agents[0].state if agents else ""
+        return event.agent.state

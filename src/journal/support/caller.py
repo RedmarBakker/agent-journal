@@ -3,6 +3,8 @@ from dataclasses import dataclass, replace
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
+from journal.models.agent import Agent
+from journal.repositories.origin import Origin
 
 LOCAL_USER = 1
 
@@ -28,6 +30,13 @@ class Caller:
     subagent: bool = False
     subagent_session: str = ""
     person: int = LOCAL_USER
+    agent_row: Agent | None = None
+
+    def has_agent_row(self) -> bool:
+        return self.agent_row is not None
+
+    def origin(self, environment_id: int) -> Origin:
+        return Origin(lambda: environment_id, self.actor, self.role, self.session, self.agent_row)
 
     @classmethod
     def user(cls, environment: str) -> "Caller":

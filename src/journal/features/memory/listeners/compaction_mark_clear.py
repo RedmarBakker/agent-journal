@@ -11,6 +11,6 @@ class CompactionMarkClear(AgentListener[Compacting]):
         self.agents = agents
 
     def handle(self, event: Compacting) -> None:
-        agent = self.agents.session_agent(event.session)
+        agent = self.agents.newest_row(event.agent)
         if agent.threshold_due:
-            self.agents.touch(agent, Actor.system(), threshold_due=0)
+            self.agents.touched(agent, Actor.system(), lambda row: {"threshold_due": 0})

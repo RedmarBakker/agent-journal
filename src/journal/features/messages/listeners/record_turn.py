@@ -42,7 +42,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             self._record(event)
 
     def typed(self, event: TurnDisplayed, nudge: Nudge) -> None:
-        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), nudge)
+        line = self.nudger.deliver(event.agent, nudge)
         if line:
             self.supervisor.type(event.environment_id, line)
 

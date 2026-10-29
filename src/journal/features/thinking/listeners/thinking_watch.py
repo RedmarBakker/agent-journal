@@ -17,11 +17,11 @@ class ThinkingWatch(AgentListener[Ticked]):
         self.agents, self.entries = agents, entries
 
     def handle(self, event: Ticked) -> None:
-        agent = self.agents.session_agent(event.session)
+        agent = event.agent
         moves = self.entries.session_moves(MOVES, event.session)
         last = moves[0] if moves else None
         thinking = bool(last) and ThinkingWindow.opens(agent.state, last.entry_type, event.time - last.created_at.timestamp())
         if thinking and not agent.is_thinking():
-            self.agents.save(agent.thinking_started(event.time), Actor.system())
+            self.agents.rewritten(agent, Actor.system(), lambda row: row.thinking_started(event.time))
         elif agent.is_thinking() and not thinking:
-            self.agents.save(agent.thinking_ended(event.time), Actor.system())
+            self.agents.rewritten(agent, Actor.system(), lambda row: row.thinking_ended(event.time))

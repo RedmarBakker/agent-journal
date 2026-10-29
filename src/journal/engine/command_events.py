@@ -11,33 +11,43 @@ from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent.command_moved import CommandMoved
 from journal.events.agent.impasse_report import ImpasseReport
 from journal.events.agent.helper_assignment import HelperAssignment
+from journal.engine.base_state import BaseState
 from journal.events.bus import Bus
 from journal.models.agent import Agent
 from journal.models.command_output import CommandOutput
-from journal.repositories.scope import Scope
-from journal.support.caller import Caller
+from journal.support.caller import AGENT_REQUIRED, Caller
+from journal.support.rejection import Rejection
 
 
 class CommandEvents:
     """The events a command or the runner raises, dispatched here as a hook's are, a helper's reaching only the listeners its file allows: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a helper given its job by the journal, a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
 
-    def __init__(self, bus: Bus, audience: AgentEventAudience, clock: Clock, scope: Scope) -> None:
-        self.bus, self.audience, self.clock, self.scope = bus, audience, clock, scope
+    def __init__(self, bus: Bus, audience: AgentEventAudience, clock: Clock) -> None:
+        self.bus, self.audience, self.clock = bus, audience, clock
 
-    def moved(self, output: CommandOutput, session: str) -> None:
-        self.audience.dispatch(CommandMoved(output=output.row_id).placed(session, self.scope.id, "", None, self.clock.time()))
+    def moved(self, output: CommandOutput, caller: Caller) -> None:
+        agent = self.caller_agent(caller)
+        self.audience.dispatch(CommandMoved(output=output.row_id, agent=agent).placed(agent, None, self.clock.time()))
 
     def ended(self, output: CommandOutput, agent: Agent) -> None:
-        self.audience.dispatch(CommandEnded(output=output.row_id, status=output.status).placed(agent.session, self.scope.id, agent.provider, None, self.clock.time()))
+        self.audience.dispatch(CommandEnded(output=output.row_id, status=output.status, agent=agent).placed(agent, None, self.clock.time()))
 
     def wait_declared(self, subject: str, end_refs: str, caller: Caller) -> None:
-        self.audience.dispatch(WaitRequest(focus=subject, end_refs=end_refs).placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+        agent = self.caller_agent(caller)
+        self.audience.dispatch(WaitRequest(focus=subject, end_refs=end_refs, agent=agent).placed(agent, None, self.clock.time()))
 
     def wait_cleared(self, caller: Caller) -> None:
-        self.audience.dispatch(WaitCleared().placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+        agent = self.caller_agent(caller)
+        self.audience.dispatch(WaitCleared(agent=agent).placed(agent, None, self.clock.time()))
 
-    def helper_assigned(self, assignment: HelperAssignment, session: str, provider: str) -> None:
-        self.audience.dispatch(assignment.placed(session, self.scope.id, provider, None, self.clock.time()))
+    def helper_assigned(self, state: BaseState, agent: Agent) -> None:
+        self.audience.dispatch(HelperAssignment(state=state, agent=agent).placed(agent, None, self.clock.time()))
+
+    @staticmethod
+    def caller_agent(caller: Caller) -> Agent:
+        if not caller.has_agent_row():
+            raise Rejection(AGENT_REQUIRED)
+        return caller.agent_row
 
     def worker_merging(self, event: WorkerMerging) -> list[str]:
         return [answer.reason for answer in self.bus.dispatch(event) if isinstance(answer, Decision) and not answer.allowed]
@@ -53,4 +63,5 @@ class CommandEvents:
         self.bus.dispatch(event)
 
     def help_needed(self, reason: str, caller: Caller) -> None:
-        self.audience.dispatch(ImpasseReport(reason=reason).placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+        agent = self.caller_agent(caller)
+        self.audience.dispatch(ImpasseReport(reason=reason, agent=agent).placed(agent, None, self.clock.time()))

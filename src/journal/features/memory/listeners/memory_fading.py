@@ -4,7 +4,6 @@ from journal.events.agent.compacting import Compacting
 from journal.events.agent_listener import AgentListener
 from journal.chat.moment_cards import MomentCards
 from journal.features.memory.support.memory_owners import MemoryOwners
-from journal.repositories.agents import Agents
 from journal.models.memory import Memory
 from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
@@ -19,14 +18,14 @@ ROUNDS_LOOKED_BACK = 50
 class MemoryFading(AgentListener[Compacting]):
     """A compaction of an agent, the main agent or a worker, lowers every one of its own memories still shown by one, as the system, and says so in one card in the chat that keeps the round: each memory still shown and each faded to nought with its weight before and after, and each removed since the last round; a subagent's compaction fades none."""
 
-    def __init__(self, memories: Memories, owners: MemoryOwners, agents: Agents, scope: Scope, cards: MomentCards, messages: Messages) -> None:
-        self.memories, self.owners, self.agents, self.scope, self.cards, self.messages = memories, owners, agents, scope, cards, messages
+    def __init__(self, memories: Memories, owners: MemoryOwners, scope: Scope, cards: MomentCards, messages: Messages) -> None:
+        self.memories, self.owners, self.scope, self.cards, self.messages = memories, owners, scope, cards, messages
 
     def handle(self, event: Compacting) -> None:
         if event.subagent:
             return
         with self.scope.environment(event.environment_id):
-            owner = self.owners.agent_owner(self.agents.session_agent(event.session))
+            owner = self.owners.agent_owner(event.agent)
             lowered_memories = self.memories.fade_all(owner, Actor.system())
             removed = self.memories.removed_since(owner, self.last_round_at(event.session))
         if lowered_memories:
