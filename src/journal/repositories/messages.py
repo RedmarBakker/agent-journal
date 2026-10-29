@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from journal.db.connection import Connection
 from journal.events.bus import Bus
@@ -23,8 +23,8 @@ CHAT_PAGE_ROWS = 400
 
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
-# how many of the user's latest messages can still wait for an answer; an older one never holds the agent
-LATEST_USER_MESSAGES = 25
+# how long a message the agent read waits for its answer; one read longer ago never holds the agent
+WAITING_HOURS = 24
 
 
 class Messages(ScopedRepository[Message]):
@@ -105,10 +105,22 @@ class Messages(ScopedRepository[Message]):
         return [message for type_name in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", type_name).order("id"))]
 
     def unanswered(self) -> list[Message]:
-        recent = self.selected(self.main_chat().filter(author=Author.USER).without("text").order_descending("id").limit(LATEST_USER_MESSAGES))
-        read = [m for m in reversed(recent) if m.read_at and not m.is_terminal_line]
-        answered_reads = {m.read_position for m in read if self.answered(m) or self.agent_reaction(m)}
-        return [m for m in read if m.read_position not in answered_reads]
+        return self.selected(self.unanswered_query().without("text").order("id"))
+
+    def unanswered_ids(self) -> list[int]:
+        return sorted(int(id) for id in self.grouped_counts(self.unanswered_query(), "id"))
+
+    def unanswered_query(self) -> Query:
+        window_start = self.time_source.moment() - timedelta(hours=WAITING_HOURS)
+        read = self.main_chat().filter(author=Author.USER).filter_greater_equal("read_at", window_start).filter_unequal("data->kind", TERMINAL_LINE)
+        answered = sorted(self.answered_ids(window_start))
+        answered_reads = sorted(self.grouped_counts(read.filter_listed("id", answered), "read_position"))
+        return read.filter_unlisted("id", answered).filter_unlisted("read_position", answered_reads)
+
+    def answered_ids(self, window_start: datetime) -> set[int]:
+        replied = {int(target) for target in self.grouped_counts(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", window_start), "reply_target")}
+        linked = {Ref.parse(target).id for target in self.links.grouped_counts(self.links.query().filter(link_type=self.ANSWERS).filter_greater_equal("created_at", window_start), "target")}
+        return replied | linked | self.reactions.agent_reacted_ids(window_start)
 
     def latest_voice(self) -> Message | None:
         return next(iter(self.selected(self.main_voice().order_descending("id").limit(1))), None)

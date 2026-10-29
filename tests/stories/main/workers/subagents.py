@@ -44,20 +44,13 @@ def test_a_running_limit_of_zero_lets_every_subagent_through(story):
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
-def test_a_background_subagent_that_ended_runs_again_when_it_is_sent_a_message_and_is_counted_open(story):
+def test_a_background_subagent_that_ended_reads_finished_then_runs_again_when_it_is_sent_a_message_and_is_counted_open(story):
     story.agent_sends_subagent_in_the_background(RESEARCHER, "map the hooks", "a9")
+    story.expect_dispatch_card(active=True, state=SubagentState.ACTIVE.value, outcome=str(CardOutcome.RUNNING))
     story.subagent_ends("a9")
+    story.expect_dispatch_card(active=False, state=SubagentState.FINISHED.value, outcome=str(CardOutcome.PASSED))
     story.agent_messages_subagent("a9", "one more")
     story.user_opens("/journal/subagents")
     story.expect_viewer_rows("rows", "state", ["running"])
     story.expect_viewer_part(("counts", "open"), 1)
-    story.expect_stack(Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
-def test_a_subagents_dispatch_card_reads_finished_once_the_subagent_ends(story):
-    story.agent_sends_subagent_in_the_background(RESEARCHER, "map the hooks", "a7")
-    story.expect_dispatch_card(active=True, state=SubagentState.ACTIVE.value, outcome=str(CardOutcome.RUNNING))
-    story.subagent_ends("a7")
-    story.expect_dispatch_card(active=False, state=SubagentState.FINISHED.value, outcome=str(CardOutcome.PASSED))
     story.expect_stack(Ready)

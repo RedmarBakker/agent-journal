@@ -21,10 +21,9 @@ class MessagesDataReader:
         facts = LazyFacts("messages", {
 
             "unread_count": self.messages.unread_count,
-            "unanswered_rows": self.messages.unanswered,
             "unread": lambda: tuple(self.messages.unread_page_ids(INBOX_LINE_IDS)),
-            "unanswered": lambda: tuple(m.row_id for m in facts.unanswered_rows),
-            "unanswered_files": lambda: tuple(f"{self.config.files / 'message' / str(m.id)}/" for m in facts.unanswered_rows),
+            "unanswered": lambda: tuple(self.messages.unanswered_ids()),
+            "unanswered_files": lambda: tuple(f"{self.config.files / 'message' / str(n)}/" for n in facts.unanswered),
             "peer_questions": lambda: tuple(PeerQuestion(m.row_id, m.data[Message.PEER]) for m in self.messages.peer_questions()),
             "unread_comments": lambda: tuple(m.row_id for m in self.messages.unread_comments()),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
