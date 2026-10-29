@@ -1,0 +1,39 @@
+{
+  "fixture_kind": "supervisor-v1-gateway-policy",
+  "is_openclaw_config": false,
+  "status": "inert policy fixture; task 111 must assemble and validate the pinned OpenClaw config",
+  "runtime": {
+    "image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+    "version": "v2026.10.8",
+    "source_commit": "dc2523e5a5c7a309517fd7fa834add938231d526"
+  },
+  "network": {"bind": "lan", "port": 18789, "host_published": false},
+  "agent": {
+    "id": "supervisor",
+    "runtime_id": "openclaw",
+    "model": "openai/gpt-6.1-sol",
+    "thinking_default": "xhigh",
+    "fallbacks": []
+  },
+  "provider": {
+    "base_url": "https://api.openai.com/v1",
+    "api": "openai-responses",
+    "auth": "api-key",
+    "profile": "openai:supervisor-api",
+    "credential_file": "/run/secrets/supervisor_openai_api_key"
+  },
+  "tools": {
+    "mcp_server": "journal",
+    "allowlist": [
+      "journal__journal_supervisor-observe",
+      "journal__journal_supervisor-apply_maintenance",
+      "journal__journal_supervisor-receipt"
+    ],
+    "wildcards": false,
+    "shell_browser_filesystem_messages_delegation_and_admin": false
+  },
+  "hooks": {"enabled": false, "allowed_agent_ids": ["supervisor"], "allow_request_session_key": false},
+  "reconciliation_job": {"enabled": false, "interval_seconds": 300, "outbound_delivery": false},
+  "enrollment": {"enabled": false, "owner_authorized": false},
+  "secret_values_in_fixture": false
+}

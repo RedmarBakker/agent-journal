@@ -1,0 +1,83 @@
+{
+  "fixture_kind": "supervisor-v1-tenant-firewall-policy",
+  "is_applied_firewall_config": false,
+  "status": "reviewable policy fixture; B10 must realize and probe it on an authorized disposable tenant VM",
+  "default_policy": {
+    "host_ingress": "deny",
+    "host_egress": "deny",
+    "container_forward": "deny",
+    "established_return_traffic": true
+  },
+  "rules": [
+    {
+      "source": "10.76.20.20 (Gateway)",
+      "destination": "10.76.20.10 (writer)",
+      "protocol": "tcp",
+      "ports": [8421],
+      "action": "allow",
+      "purpose": "authenticated supervisor CLI and hook routes only"
+    },
+    {
+      "source": "10.76.20.20 (Gateway)",
+      "destination": "10.76.20.10 (writer)",
+      "protocol": "tcp",
+      "ports": [8440, 5432, 3306, 6379],
+      "action": "deny",
+      "purpose": "writer admin UI and database access"
+    },
+    {
+      "source": "Gateway",
+      "destination": "tenant VM host and other tenant networks",
+      "protocol": "any",
+      "action": "deny",
+      "purpose": "host services, socket proxies, and cross-tenant isolation"
+    },
+    {
+      "source": "Gateway",
+      "destination": "api.openai.com",
+      "protocol": "tcp",
+      "ports": [443],
+      "action": "allow through the tenant-managed egress proxy or maintained provider IP set",
+      "purpose": "configured provider API only; direct unlisted egress denied"
+    },
+    {
+      "source": "backup",
+      "destination": "the operator-selected repository endpoint",
+      "protocol": "operator-declared",
+      "ports": [],
+      "action": "allow only the endpoint and transport recorded for this tenant",
+      "purpose": "encrypted backup and restore"
+    },
+    {
+      "source": "backup",
+      "destination": "journal_management, gateway_link, provider_egress, other tenants",
+      "protocol": "any",
+      "ports": [],
+      "action": "deny",
+      "purpose": "backup service has repository-only egress"
+    },
+    {
+      "source": "owner/operator SSH or tenant VPN tunnel",
+      "destination": "127.0.0.1 on the tenant VM",
+      "protocol": "tcp",
+      "ports": [18440],
+      "action": "allow",
+      "purpose": "journal UI tunnel to writer port 8440"
+    },
+    {
+      "source": "worker or execution identity probe",
+      "destination": "database, provider secret service, writer admin port, Gateway state, other tenant networks",
+      "protocol": "any",
+      "ports": [],
+      "action": "deny and refuse enrollment if any probe succeeds",
+      "purpose": "B10 worker isolation acceptance"
+    }
+  ],
+  "required_probe_evidence": [
+    "Gateway identity can connect to writer supervisor port 8421",
+    "Gateway identity cannot connect to writer port 8440, database ports, host services, or unlisted egress",
+    "backup identity can reach only its declared repository endpoint",
+    "worker and execution identities cannot read provider credentials or tenant state and cannot connect to denied ports",
+    "each tenant VM has independent subnets, credentials, volumes, and host firewall state"
+  ]
+}

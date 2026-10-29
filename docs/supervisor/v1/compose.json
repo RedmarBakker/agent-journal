@@ -1,0 +1,132 @@
+{
+  "name": "agent-journal-supervisor-v1",
+  "services": {
+    "writer": {
+      "profiles": ["authorized-staging"],
+      "image": "agent-journal-supervisor-writer:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
+      "restart": "unless-stopped",
+      "environment": {
+        "JOURNAL_ADDRESS": "${JOURNAL_ADDRESS:?set a private tenant DNS name}",
+        "GIT_NAME": "Journal supervisor pilot",
+        "GIT_EMAIL": "journal-pilot@localhost"
+      },
+      "volumes": ["writer_state:/data", "supervisor_hints:/var/lib/journal-supervisor/hints"],
+      "ports": ["127.0.0.1:18440:8440"],
+      "expose": ["8421"],
+      "networks": {
+        "journal_management": {"ipv4_address": "10.76.10.10"},
+        "gateway_link": {"ipv4_address": "10.76.20.10"}
+      },
+      "read_only": true,
+      "tmpfs": ["/tmp", "/run"],
+      "cap_drop": ["ALL"],
+      "cap_add": ["SETUID", "SETGID"],
+      "security_opt": ["no-new-privileges:true"],
+      "healthcheck": {
+        "test": ["CMD-SHELL", "curl -fsS http://127.0.0.1:8440/ready"],
+        "interval": "30s",
+        "timeout": "5s",
+        "retries": 3,
+        "start_period": "60s"
+      },
+      "logging": {"driver": "local", "options": {"max-size": "10m", "max-file": "5"}}
+    },
+    "gateway": {
+      "profiles": ["authorized-staging"],
+      "image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+      "user": "1000:1000",
+      "group_add": ["10030"],
+      "working_dir": "/app",
+      "entrypoint": ["/bin/sh", "/run/pilot/gateway-entrypoint.sh"],
+      "configs": [
+        {"source": "gateway_entrypoint", "target": "/run/pilot/gateway-entrypoint.sh", "mode": "0555"},
+        {"source": "openclaw_config", "target": "/home/node/.openclaw/openclaw.json", "mode": "0444"}
+      ],
+      "environment": {"HOME": "/home/node", "OPENCLAW_GATEWAY_PORT": "18789"},
+      "secrets": [
+        {"source": "supervisor_openai_api_key", "target": "supervisor_openai_api_key"},
+        {"source": "openclaw_hook_token", "target": "openclaw_hook_token"},
+        {"source": "journal_supervisor_credential", "target": "journal_supervisor_credential"}
+      ],
+      "volumes": ["gateway_state:/home/node/.openclaw", "supervisor_hints:/var/lib/journal-supervisor/hints:ro"],
+      "expose": ["18789"],
+      "networks": {
+        "gateway_link": {"ipv4_address": "10.76.20.20"},
+        "provider_egress": {}
+      },
+      "read_only": true,
+      "tmpfs": ["/tmp"],
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],
+        "interval": "30s",
+        "timeout": "5s",
+        "retries": 3,
+        "start_period": "60s"
+      },
+      "restart": "unless-stopped"
+    },
+    "backup": {
+      "profiles": ["authorized-staging"],
+      "image": "restic/restic@sha256:8f5a62b422a2cb1277ea0dd6e826fe1acf649e5b9f02d60e5268d5fd1976255a",
+      "user": "10005:10005",
+      "entrypoint": ["/bin/sh", "/run/pilot/backup-entrypoint.sh"],
+      "configs": [{"source": "backup_entrypoint", "target": "/run/pilot/backup-entrypoint.sh", "mode": "0555"}],
+      "environment": {
+        "TENANT_ID": "${TENANT_ID:?set this one-tenant installation id}",
+        "BACKUP_EVERY": "900",
+        "RESTIC_PASSWORD_FILE": "/run/secrets/restic_password",
+        "RESTIC_REPOSITORY_FILE": "/run/secrets/restic_repository",
+        "AWS_SHARED_CREDENTIALS_FILE": "/run/secrets/backup_object_store_credentials"
+      },
+      "secrets": [
+        {"source": "restic_password", "target": "restic_password"},
+        {"source": "restic_repository", "target": "restic_repository"},
+        {"source": "backup_object_store_credentials", "target": "backup_object_store_credentials"}
+      ],
+      "volumes": ["writer_state:/data:ro", "gateway_state:/gateway:ro", "restore_candidate:/restore-candidate"],
+      "networks": ["backup_egress"],
+      "read_only": true,
+      "tmpfs": ["/tmp"],
+      "cap_drop": ["ALL"],
+      "cap_add": ["DAC_READ_SEARCH"],
+      "security_opt": ["no-new-privileges:true"],
+      "restart": "unless-stopped"
+    }
+  },
+  "networks": {
+    "journal_management": {"internal": true, "ipam": {"config": [{"subnet": "10.76.10.0/24"}]}},
+    "gateway_link": {"internal": true, "ipam": {"config": [{"subnet": "10.76.20.0/24"}]}},
+    "provider_egress": {},
+    "backup_egress": {}
+  },
+  "volumes": {
+    "writer_state": {},
+    "gateway_state": {
+      "driver": "local",
+      "driver_opts": {"type": "none", "o": "bind", "device": "${GATEWAY_STATE_PATH:?pre-create a tenant-specific directory owned by uid 1000 gid 10030 mode 0750}"}
+    },
+    "supervisor_hints": {
+      "driver": "local",
+      "driver_opts": {"type": "tmpfs", "device": "tmpfs", "o": "uid=10001,gid=10030,mode=2750,size=4m"}
+    },
+    "restore_candidate": {
+      "driver": "local",
+      "driver_opts": {"type": "none", "o": "bind", "device": "${RESTORE_CANDIDATE_PATH:?pre-create an empty tenant-specific directory owned by uid 10005}"}
+    }
+  },
+  "configs": {
+    "gateway_entrypoint": {"file": "./gateway-entrypoint.sh"},
+    "openclaw_config": {"file": "${OPENCLAW_CONFIG_FILE:?set the task-111 validated, owner-approved config}"},
+    "backup_entrypoint": {"file": "./backup-entrypoint.sh"}
+  },
+  "secrets": {
+    "supervisor_openai_api_key": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/supervisor_openai_api_key"},
+    "openclaw_hook_token": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/openclaw_hook_token"},
+    "journal_supervisor_credential": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/journal_supervisor_credential"},
+    "restic_password": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/restic_password"},
+    "restic_repository": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/restic_repository"},
+    "backup_object_store_credentials": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/backup_object_store_credentials"}
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "supervisor-v1",
+  "version": "1.0.0",
+  "title": "Supervisor pilot event bridge",
+  "description": "Spools task and check row references for the private supervisor runtime.",
+  "protocol": 1,
+  "program": "answer.py",
+  "hears": ["tasks.created", "checks.created", "checks.updated"],
+  "services": [
+    {
+      "name": "bridge",
+      "command": ["python3", "bridge_service.py"],
+      "when": "test -f \"$JOURNAL_PLUGIN_DATA/STAGING_AUTHORIZED\"",
+      "restart": "always",
+      "answers": true
+    }
+  ],
+  "health": {
+    "socket_env": "SUPERVISOR_HEALTH_SOCKET",
+    "request": "{\"health\":1}",
+    "answer": "{\"health\":\"up\",\"service\":\"<name>\"}"
+  },
+  "requires": {
+    "python3": {"check": "python3 --version", "hint": "Install Python 3 for the journal plugin service."}
+  }
+}

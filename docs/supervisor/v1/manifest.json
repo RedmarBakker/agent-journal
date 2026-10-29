@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "profile": "proactive-supervisor-pilot-v1",
+  "status": "artifact-only; staging acceptance required",
+  "tenant_model": "one dedicated Linux VM, one journal installation, one project, one designated plan per tenant",
+  "launch": {
+    "default_enabled": false,
+    "compose_profile": "authorized-staging",
+    "owner_operator_authorization_required": true,
+    "plugin_installed": false,
+    "enrollment_enabled": false,
+    "live_gate": "all B10 disposable-staging probes pass and the owner separately authorizes enrollment"
+  },
+  "topology": [
+    {
+      "name": "journal-writer",
+      "identity": "journal uid 10001, gid 10001 inside the writer image",
+      "image": "built from the reviewed repository commit and docker/Dockerfile",
+      "state_volume": "writer_state",
+      "networks": ["journal_management", "gateway_link"],
+      "ports": ["container 8421 on gateway_link", "container 8440 on journal_management; host loopback 18440 only"],
+      "health": "GET http://127.0.0.1:8440/ready"
+    },
+    {
+      "name": "openclaw-gateway-and-stdio-client",
+      "identity": "uid 1000, gid 1000, supplementary gid 10030 for read-only hint and Gateway-state backup access",
+      "image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+      "release": "v2026.10.8",
+      "source_commit": "dc2523e5a5c7a309517fd7fa834add938231d526",
+      "state_volume": "gateway_state",
+      "networks": ["gateway_link", "provider_egress"],
+      "ports": ["container 18789 on gateway_link; no host-published port"],
+      "mounts": ["gateway_state:/home/node/.openclaw", "supervisor_hints:/var/lib/journal-supervisor/hints:ro"],
+      "health": "GET http://127.0.0.1:18789/healthz"
+    },
+    {
+      "name": "journal-plugin-bridge",
+      "identity": "journal uid 10001 through the existing plugin service lifecycle; part of the trusted journal boundary, not an isolation boundary",
+      "source": "plugins/supervisor_v1; not installed by this profile",
+      "lifecycle": "journal PluginServices.start/stop and PluginHealth health socket",
+      "state_volume": "supervisor_hints",
+      "network": "none required",
+      "health": "SUPERVISOR_HEALTH_SOCKET answers the plugin manifest health request",
+      "process_environment": "inherits the standard plugin token and JOURNAL_ROOT; source review and owner-authorized installation are required"
+    },
+    {
+      "name": "normal-plan-driver",
+      "identity": "required dedicated execution uid/gid 10003 with a restricted container or equivalent profile",
+      "state_volume": "owner-bound plan worktree only; no writer database, Gateway state, or provider-secret mount",
+      "network": "designated journal CLI/hook route and owner-selected provider only",
+      "status": "not enforced by the current AgentLauncher; enrollment remains disabled until B10 proves the real bound driver path"
+    },
+    {
+      "name": "backup",
+      "identity": "uid/gid 10005 with DAC_READ_SEARCH; read-only state mounts and backup-only credentials",
+      "state_volume": "external encrypted repository; no Gateway or journal network access",
+      "schedule": "one snapshot per 15 minutes"
+    }
+  ],
+  "source_evidence": {
+    "gateway_image_digest": "https://github.com/openclaw/openclaw/pkgs/container/openclaw/versions",
+    "gateway_source": "https://github.com/openclaw/openclaw/tree/dc2523e5a5c7a309517fd7fa834add938231d526",
+    "gateway_health": "https://docs.openclaw.ai/gateway/health",
+    "backup_image_tags": "https://hub.docker.com/r/restic/restic/tags"
+  },
+  "backup_runtime": {"image": "restic/restic", "version": "0.17.3", "digest_pinned": true},
+  "network_policy_fixture": "firewall-policy.fixture.json",
+  "execution_identity_contract": {
+    "uid": 10003,
+    "gid": 10003,
+    "root_filesystem": "read-only",
+    "capabilities": [],
+    "no_new_privileges": true,
+    "writable_mounts": ["the single owner-bound plan worktree"],
+    "secret_mount": "codex_driver_credentials only after a supported execution adapter exists",
+    "network_allow": ["authenticated CLI/hook routes to the designated writer", "owner-selected provider endpoint when required"],
+    "network_deny": ["writer database", "Gateway state", "provider credential service", "admin ports", "other tenant networks"],
+    "status": "contract only; current AgentLauncher does not enforce it"
+  },
+  "worker_identity_contract": {
+    "uid": 10004,
+    "gid": 10004,
+    "root_filesystem": "read-only",
+    "capabilities": [],
+    "no_new_privileges": true,
+    "writable_mounts": ["the individual worker's own worktree only"],
+    "secret_mounts": [],
+    "network_allow": ["the bound journal CLI/hook route only when identity-verified"],
+    "network_deny": ["database", "Gateway state", "provider credentials", "writer admin port", "other tenant networks"],
+    "enrollment_rule": "refuse enrollment before credential or model call unless every active worker passes filesystem and network probes",
+    "status": "contract only; B10 worker inventory and denial probes required"
+  },
+  "networks": {
+    "journal_management": {"internal": true, "members": ["journal-writer"], "allowed": ["operator loopback tunnel to 18440"]},
+    "gateway_link": {"internal": true, "members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["gateway to the authenticated supervisor routes on writer 8421"]},
+    "provider_egress": {"members": ["openclaw-gateway-and-stdio-client"], "allowed": ["HTTPS to api.openai.com only; enforced by the tenant VM firewall"]},
+    "backup_egress": {"members": ["backup"], "allowed": ["the operator-selected encrypted backup repository only"]}
+  },
+  "network_enforcement": [
+    {"source": "Gateway", "destination": "writer", "allow": ["tcp/8421 supervisor routes only"], "deny": ["tcp/8440 admin UI", "database ports", "host services", "writer_state files"], "enforced_by": "tenant host firewall plus route-level credential scope"},
+    {"source": "execution or worker probe", "destination": "tenant private resources", "allow": ["the bound ordinary CLI/hook route when identity-verified"], "deny": ["database", "Gateway state", "provider secrets", "admin ports", "other tenant networks"], "enforced_by": "execution container profile and tenant host firewall; B10 probes required"}
+  ],
+  "host_ports": [
+    {"port": 18440, "bind": "127.0.0.1", "destination": "journal-writer:8440", "use": "owner/operator access through an SSH or tenant-VPN tunnel"}
+  ],
+  "volumes": {
+    "writer_state": {"mount": "/data", "owner": "journal:journal", "backup": true, "contains": ["journal record", "project checkout", "journal home"]},
+    "gateway_state": {"mount": "/home/node/.openclaw", "owner": "1000:10030", "mode": "0750", "storage": "tenant-specific host directory via local bind volume", "backup": true, "contains": ["Gateway-owned state; no provider key values"]},
+    "supervisor_hints": {"writer_mount": "/var/lib/journal-supervisor/hints", "gateway_mount": "/var/lib/journal-supervisor/hints:ro", "owner": "10001:10030", "storage": "4 MiB tmpfs", "backup": false, "contains": ["at most 1000 bounded row references and event timestamps"]},
+    "restore_candidate": {"mount": "/restore-candidate", "owner": "operator-provisioned uid 10005", "storage": "tenant-specific host directory via local bind volume", "backup": false, "contains": ["isolated restore output; never mounted by a running writer"]}
+  },
+  "secrets": [
+    {"name": "supervisor_openai_api_key", "owner": "tenant billing/project operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/supervisor_openai_api_key", "purpose": "dedicated API-key profile openai:supervisor-api"},
+    {"name": "openclaw_hook_token", "owner": "tenant operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/openclaw_hook_token", "purpose": "private hook authentication"},
+    {"name": "journal_supervisor_credential", "owner": "journal owner/operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway stdio client:/run/secrets/journal_supervisor_credential", "purpose": "single-installation, revocable supervisor scope; never a plugin token or owner cookie"},
+    {"name": "restic_password", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_password", "purpose": "encrypted backup repository"},
+    {"name": "restic_repository", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_repository", "purpose": "repository locator"},
+    {"name": "backup_object_store_credentials", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/backup_object_store_credentials", "purpose": "remote repository access only"},
+    {"name": "codex_driver_credentials", "owner": "plan owner", "mounted_to": "execution identity only after its isolation adapter exists", "purpose": "owner-selected ordinary codex Plan driver; not injected into Gateway", "status": "not wired; staging launch gate"}
+  ],
+  "backup": {
+    "snapshot_interval_seconds": 900,
+    "retention": {"daily": 7, "weekly": 4, "final_tag": "final"},
+    "rpo": "1 hour",
+    "rto": "4 hours",
+    "excluded_from_backup": ["/data/secrets", "/data/home/.codex", "/data/home/.claude", "/data/project/.journal/runtime"],
+    "restore_rule": "restore to restore_candidate with the writer stopped; verify and rotate installation epoch before any writer is allowed to start"
+  },
+  "launch_gates": {
+    "reviewed_writer_image_digest_recorded": false,
+    "private_routes_and_credential_scope": false,
+    "finite_model_request_and_cost_envelope": false,
+    "normal_driver_separate_execution_identity": false,
+    "gateway_effective_config_validated_against_pin": false,
+    "B10_disposable_staging_acceptance": false,
+    "active_worker_restricted_profile_verified_or_enrollment_refused": false,
+    "owner_enrollment_authorization": false
+  }
+}
