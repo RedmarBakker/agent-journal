@@ -212,6 +212,10 @@ class UserSteps:
         switches = get_answer(self.app, "/journal/settings", MAIN)[1][FEATURES]
         self.user_posted("/journal/settings", {FEATURES: {**switches, feature.name: True}}, f"user switches on {feature.name}")
 
+    def user_switches_off(self, feature: type) -> None:
+        switches = get_answer(self.app, "/journal/settings", MAIN)[1][FEATURES]
+        self.user_posted("/journal/settings", {FEATURES: {**switches, feature.name: False}}, f"user switches off {feature.name}")
+
     def plays_in(self, mode: str) -> None:
         self.mode = mode
         if self.setting(WorkersOptions.MODE) != mode:

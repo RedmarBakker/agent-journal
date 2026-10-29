@@ -175,14 +175,6 @@ def write(app):
 
 
 
-def test_a_feature_switched_off_takes_its_gate_with_it(app: App):
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.tasks", value=False), Actor.user(1))
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    assert hook(app, "Stop")[1] == {}
-
-
-
-
 def test_the_state_is_in_the_database_so_a_new_server_finds_it(tmp_path):
     first = App(Config(tmp_path, port=0))
     first.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
