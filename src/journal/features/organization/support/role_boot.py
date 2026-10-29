@@ -30,6 +30,10 @@ class RoleBoot:
         skills = f"Read these skills before you work: {', '.join(role.skills)}." if role.skills else ""
         return self.profiles.role_instructions("\n\n".join(part for part in (body, skills) if part))
 
+    def effort(self, worker: Worker) -> str:
+        role = self.organization.at(worker.contract).role(worker.role) if worker.role else None
+        return role.models.effort if role and worker.provider == "codex" else ""
+
     def version(self) -> str:
         return self.organization.contracts().version
 

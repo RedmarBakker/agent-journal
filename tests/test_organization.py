@@ -464,3 +464,35 @@ def test_a_seat_on_a_model_other_than_its_roles_contract_names_is_caught_and_one
     wrong = SeatModelGuard.mismatch(role, "claude", "opus")
     assert "runs on opus" in wrong and "names sonnet" in wrong and wrong.endswith("restart it on sonnet"), "a seat on another model is named with the model to restart it on"
     assert "no model" in SeatModelGuard.mismatch(role, "codex", ""), "a seat with no observed model is not trusted"
+
+
+def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_and_a_claude_one_with_none(app, tmp_path, monkeypatch):
+    from journal.features.organization.support.role_boot import RoleBoot
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.providers.codex import Codex
+    from journal.supervisor_link import SupervisorLink
+    from journal.support.caller import Caller
+    from tests.test_features import hook
+    from tests.worker_dispatch import dispatched
+    started = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("beta", "porter", cardinality="many", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("beta", roles=["keeper", "porter"])
+    organization.reload()
+    agent = Caller.agent("main", "s1", "claude")
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    for provider in ("codex", "claude"):
+        sent = dispatched(console, [f"Ada {provider}", "the job", "--changes", "the files of its task", "--role", "porter", "--provider", provider], agent)
+        assert sent.code == 0, sent.error
+    from journal.repositories.scope import Scope
+    with app.container.get(Scope).environment(1):
+        roles, runner = app.container.get(RoleBoot), app.container.get(WorkerRunner)
+        codex, claude = started
+        assert roles.effort(codex) == "max" and roles.effort(claude) == "", "only a Codex worker is given its Role's effort"
+        command = Codex().worker_command(runner.instructed(codex), codex.model, codex.resume, codex.session, roles.effort(codex))
+        assert command[-3:-1] == ["-c", "model_reasoning_effort=max"] and command[-1] == runner.instructed(codex), "the effort is set with -c before the brief"
+        assert "model_reasoning_effort" not in " ".join(Codex().worker_command("brief", "gpt-6-luna", "", "")), "no effort named, none set"

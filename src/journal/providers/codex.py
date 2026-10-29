@@ -228,10 +228,11 @@ class Codex(Provider):
     def worker_hook_file(self, folder: Path, runtime: Path) -> Path:
         return folder / self.home / self.settings_file
 
-    def worker_command(self, brief: str, model: str, resume: str, session: str) -> list[str]:
+    def worker_command(self, brief: str, model: str, resume: str, session: str, effort: str = "") -> list[str]:
         resumed = ["resume", resume] if resume else []
         selection = ["-m", model] if model else []
-        return ["codex", "exec", *resumed, "--json", *self.prompt_flags, *selection, brief]
+        reasoning = ["-c", f"model_reasoning_effort={effort}"] if effort else []
+        return ["codex", "exec", *resumed, "--json", *self.prompt_flags, *selection, *reasoning, brief]
 
     def worker_outcome(self, output: str, err: str) -> WorkerOutcome:
         events = CodexEvent.lines(output)

@@ -74,7 +74,7 @@ class WorkerRunner:
     def start(self, worker: Worker, actor: Actor) -> None:
         provider = self.providers.lookup(worker.provider)
         worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume), device=self.account.device()), actor)
-        command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session), *provider.worker_settings_flags(self.hook_settings(worker))]
+        command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session, self.roles.effort(worker)), *provider.worker_settings_flags(self.hook_settings(worker))]
         threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
 
     def hook_settings(self, worker: Worker) -> Path:

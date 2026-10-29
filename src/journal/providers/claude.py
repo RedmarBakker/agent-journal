@@ -227,7 +227,7 @@ class Claude(Provider):
     def hooks_ready(self, project: Path) -> HooksReady:
         return HooksReady.READY if self.is_wired(project) else HooksReady.UNWIRED
 
-    def worker_command(self, brief: str, model: str, resume: str, session: str) -> list[str]:
+    def worker_command(self, brief: str, model: str, resume: str, session: str, effort: str = "") -> list[str]:
         return ["claude", "-p", brief, "--model", model, "--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose", *self.session_flags(resume, session)]
 
     @staticmethod
