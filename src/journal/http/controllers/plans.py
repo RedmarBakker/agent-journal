@@ -8,6 +8,7 @@ from journal.features.tasks.active_task import ActiveTask
 from journal.http.controllers.controller import Controller
 from journal.http.plans.plan_outline import PlanOutline
 from journal.http.plans.plan_timeline import PlanTimeline
+from journal.http.plans.plan_team import PlanTeam
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.caller import Caller
@@ -31,9 +32,10 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, team: PlanTeam, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages) -> None:
         self.time_source, self.messages = time_source, messages
         self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
+        self.team_view = team
         self.plan_testing = testing
 
     def open_rows(self, query: Query) -> Query:
@@ -54,6 +56,9 @@ class PlanController(Controller[Plan]):
 
     def role_history(self, request: Request) -> Response:
         return Response.json(self.moments.roles_taken(self.repository.find(request.number("id"))))
+
+    def team(self, request: Request) -> Response:
+        return Response.json(self.team_view.build(self.repository.find(request.number("id"))))
 
     def plan_tasks(self, request: Request) -> Response:
         return Response.json(self.repository.plan_tasks(self.repository.find(request.number("id"))))

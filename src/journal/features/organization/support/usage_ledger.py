@@ -166,6 +166,16 @@ class UsageLedger:
             data = self._read()
             return {plan_id: self.estimate_data(data, plan_id, now, None) for plan_id in sorted(set(plan_ids))}
 
+    def seat_estimates(self, plan_id: int) -> dict[str, float | None]:
+        """Recorded estimates keyed by the OpenRig seat target for one plan."""
+        with self._lock:
+            records = self._read()["seats"].values()
+            return {
+                str(row["seat"]): float(amount) if isinstance(amount, (int, float)) and not isinstance(amount, bool) and math.isfinite(float(amount)) and amount >= 0 else None
+                for row in records if int(row.get("plan_id", 0)) == plan_id and row.get("seat")
+                for amount in (row.get("estimated_usd"),)
+            }
+
     def estimate_data(self, data: dict, plan_id: int, now: float, expected_seats: int | None) -> UsageEstimate:
         records = [row for row in data["seats"].values() if int(row["plan_id"]) == plan_id]
         if not records:

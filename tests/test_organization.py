@@ -2122,6 +2122,77 @@ def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(
     assert cards["missing cost"]["estimated_api_cost_usd"] is None, "a card without a recorded estimate says it is not reported"
 
 
+def test_an_organization_plan_team_serves_its_rig_seats_states_costs_and_caps(app, tmp_path):
+    from journal.features.organization.support.usage_ledger import UsageLedger
+    from journal.models.link import Link
+    from journal.models.rig import Rig
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.plans import PLAN_LINK, Plans
+    from journal.repositories.rigs import Rigs
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.time_source import TimeSource
+    from tests.in_process import got
+
+    _fixture, organization = loaded(app, tmp_path)
+    organization.reload()
+    user_set(app, "workers.seat_cap", 7)
+    user_set(app, "workers.cost_cap_dollars", 18.5)
+    plans, rigs, tasks, workers, links = (app.container.get(kind) for kind in (Plans, Rigs, Tasks, Workers, Links))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="Lay the floors", mode=PlanMode.ORGANIZATION), actor)
+        rig = rigs.save(Rig(environment_id=1, name=f"plan-{plan.id}"), actor)
+        plans.rig_linked(plan, rig, actor)
+
+        working = tasks.save(Task(environment_id=1, title="Lay the first boards"), actor)
+        waiting = tasks.save(Task(environment_id=1, title="Check the boards"), actor)
+        for task in (working, waiting):
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        builder = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="Lay the boards", profile="journal-senior", role="builder", plan_id=plan.id), actor)
+        scout = workers.save(Worker(environment_id=1, name="Grace Hopper", brief="Check the boards", profile="journal-medior", role="scout"), actor)
+        tasks.handover(working, Ref.build(builder), actor)
+        tasks.queued(waiting, Ref.build(scout), actor)
+
+        spec = {
+            "pods": [
+                {"id": "plan", "members": [{"id": "plan-agent"}]},
+                {"id": "alpha", "members": [
+                    {"id": "domain-agent"},
+                    {"id": f"builder-{builder.id}", "role": "builder"},
+                ]},
+                {"id": "beta", "members": [{"id": "domain-agent"}, {"id": "keeper", "role": "keeper"}]},
+            ],
+        }
+        path = app.config.home / "runtime" / "rigs" / rig.name / "rig.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(spec))
+        now = app.container.get(TimeSource).seconds()
+        seat = f"alpha-builder-{builder.id}@{rig.name}"
+        app.container.get(UsageLedger).observe(plan.id, seat, "native-session", 3.25, now)
+
+    status, answer = got(app, f"/journal/plans/{plan.id}/team", {"X-Journal-Env": "main"})
+    assert status == 200
+    domains = {domain["id"]: {seat["role_id"]: seat for seat in domain["seats"]} for domain in answer["domains"]}
+    builder_seat = domains["alpha"]["builder"]
+    scout_seat = domains["alpha"]["scout"]
+    keeper_seat = domains["beta"]["keeper"]
+    assert (builder_seat["state"], builder_seat["task_id"], builder_seat["task_title"]) == ("working", working.id, working.title)
+    assert builder_seat["estimated_api_cost_usd"] == 3.25, "the many Role seat carries its recorded ledger estimate"
+    assert (scout_seat["state"], scout_seat["task_id"], scout_seat["shared"]) == ("waiting", waiting.id, True), "a shared Role seat names the plan task waiting in its queue"
+    assert (keeper_seat["state"], keeper_seat["task_id"], keeper_seat["estimated_api_cost_usd"]) == ("idle", None, None), "an unstated seat is idle and its unmeasured cost stays explicit"
+    assert answer["seat_cap"] == 7 and answer["cost_cap_usd"] == 18.5
+    assert answer["estimated_api_cost_usd"] == 3.25, "the plan estimate uses its recorded seat amount"
+
+    from journal.http.sharing.shared_data import SharedData
+
+    with app.container.get(Scope).environment(1):
+        shared = app.container.get(SharedData).opened(Ref.build(plan))["plans"][0]
+    assert shared["plan_team"] == answer, "a shared plan preloads the same Team projection for read-only viewing"
+
+
 @pytest.mark.parametrize(
     ("schedule", "expected"),
     [

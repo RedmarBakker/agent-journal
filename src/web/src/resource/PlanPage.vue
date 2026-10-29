@@ -18,6 +18,7 @@ import {peek} from "../route.js";
 import {wholePlans} from "../composables/wholePlans.js";
 import PlanAgentSection from "./PlanAgentSection.vue";
 import PlanRoleHistory from "./PlanRoleHistory.vue";
+import PlanTeamSection from "./PlanTeamSection.vue";
 import {planAgents} from "../domain/planAgents.js";
 
 const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boolean, holding: Boolean, closable: {type: Boolean, default: true}});
@@ -111,6 +112,7 @@ async function run(act) {
             <PlanPageActions :plan="resource" :error="error" @run="run" />
         </template>
         <PlanAgentSection v-if="planAgents" :plan="resource" :read-only="readOnly" />
+        <PlanTeamSection v-if="planAgents && resource.mode === 'organization'" :plan="resource" :read-only="readOnly" :initial="readOnly ? resource.plan_team : null" />
         <PlanRoleHistory v-if="planAgents && resource.mode === 'solo'" :plan="resource" :initial="readOnly ? resource.plan_agent_roles : null" />
         <template v-if="resource.brief">
             <div class="brief">

@@ -209,6 +209,7 @@ class Routes:
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)
         router.get(f"{API}/plans/{{id}}/timeline", plans.timeline)
         router.get(f"{API}/plans/{{id}}/roles", plans.role_history)
+        router.get(f"{API}/plans/{{id}}/team", plans.team)
         router.post(f"{API}/plans/{{id}}/tasks", plans.add_task)
         router.post(f"{API}/plans/{{id}}/testing", plans.testing)
         router.post(f"{API}/plans/{{id}}/mode", plans.mode)

@@ -31,6 +31,12 @@ STATUS_FIELDS = ("sessionStatus", "session_status", "status")
 
 
 @dataclass(frozen=True)
+class SeatAddress:
+    pod: str
+    member: str
+
+
+@dataclass(frozen=True)
 class SeatMember:
     rig: str
     openrig_version: str
@@ -65,15 +71,32 @@ class SeatRuntime:
     def __init__(self, config: Config, settings: SettingRows, execute: Callable = subprocess.run) -> None:
         self.config, self.settings, self.execute = config, settings, execute
 
-    def member(self, rig: str, pod: str, member: str, selected_provider: str = "") -> SeatMember:
-        folder = self.config.home / "runtime" / "rigs" / rig
-        path = folder / "rig.yaml"
+    def roster(self, rig: str) -> tuple[SeatAddress, ...]:
+        spec = self.read_spec(rig)
+        return tuple(
+            SeatAddress(str(pod.get("id", "")), str(member.get("id", "")))
+            for pod in spec.get("pods", []) if isinstance(pod, dict)
+            for member in pod.get("members", []) if isinstance(member, dict) and member.get("id")
+        )
+
+    @staticmethod
+    def target(rig: str, pod: str, member: str) -> str:
+        return f"{pod}-{member}@{rig}"
+
+    def read_spec(self, rig: str) -> dict:
+        path = self.config.home / "runtime" / "rigs" / rig / "rig.yaml"
         if not path.is_file():
             raise Rejection(f"OpenRig spec for {rig} is missing at {path}")
         try:
             spec = json.loads(path.read_text())
         except (OSError, ValueError) as failed:
             raise Rejection(f"OpenRig spec for {rig} cannot be read: {failed}") from failed
+        if not isinstance(spec, dict):
+            raise Rejection(f"OpenRig spec for {rig} is not an object")
+        return spec
+
+    def member(self, rig: str, pod: str, member: str, selected_provider: str = "") -> SeatMember:
+        spec = self.read_spec(rig)
         for placed in spec.get("pods", []):
             if placed.get("id") != pod:
                 continue
@@ -87,7 +110,7 @@ class SeatRuntime:
                 self.generated_boundary(folder, candidate, provider, runtime)
                 return SeatMember(
                     rig, str(spec.get("openrig_version", spec.get("openrigVersion", ""))), pod, member,
-                    f"{pod}.{member}", f"{pod}-{member}@{rig}", provider, model, runtime,
+                    f"{pod}.{member}", self.target(rig, pod, member), provider, model, runtime,
                     str(environment.get(ACTOR, "")), str(environment.get(ACTOR_TOKEN, "")),
                     str(environment.get("JOURNAL_ENV", "")), str(environment.get("JOURNAL_ROOT", "")),
                     str(environment.get("PATH", "")), str(environment.get(JOURNAL_ACTIVE, "")),

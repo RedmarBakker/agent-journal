@@ -2,7 +2,9 @@ from journal.features.sharing.share_targets import ShareTargets
 from journal.features.sharing.shared_comments import SharedComments
 from journal.http.plans.plan_outline import PlanOutline
 from journal.http.plans.plan_timeline import PlanTimeline
+from journal.http.plans.plan_team import PlanTeam
 from journal.models.share import Share
+from journal.models.plan_mode import PlanMode
 from journal.repositories.docs import Docs
 from journal.repositories.plans import Plans
 from journal.repositories.reports import Reports
@@ -12,8 +14,9 @@ from journal.repositories.scope import Scope
 class SharedData:
     """What the share page reads of a link: the row it opens, a plan's outline, tasks, Role history and timeline, and visitors' comments."""
 
-    def __init__(self, targets: ShareTargets, docs: Docs, reports: Reports, plans: Plans, outline: PlanOutline, scope: Scope, comments: SharedComments, timeline: PlanTimeline) -> None:
+    def __init__(self, targets: ShareTargets, docs: Docs, reports: Reports, plans: Plans, outline: PlanOutline, scope: Scope, comments: SharedComments, timeline: PlanTimeline, team: PlanTeam) -> None:
         self.timeline = timeline
+        self.team = team
         self.targets, self.docs, self.reports, self.plans, self.outline, self.scope, self.comments = targets, docs, reports, plans, outline, scope, comments
 
     def build(self, share: Share) -> dict:
@@ -29,8 +32,11 @@ class SharedData:
         if target.type == "reports":
             return {"reports": [self.reports.find(target.id)]}
         plan = self.plans.find(target.id)
+        details = {**self.outline.build(plan), "plan_agent_roles": self.timeline.roles_taken(plan)}
+        if plan.mode == PlanMode.ORGANIZATION:
+            details["plan_team"] = self.team.build(plan)
         return {
-            "plans": [{**self.outline.build(plan), "plan_agent_roles": self.timeline.roles_taken(plan)}],
+            "plans": [details],
             "tasks": self.plans.plan_tasks(plan),
             "timeline": self.timeline.build(plan),
         }
