@@ -48,10 +48,9 @@ const state = computed(() => ({
     since: `since ${ago(stateAt(props.resource)) || "just now"}`,
 }));
 const worktree = (row) => (row.worktree ? (row.branch ? `Own worktree, branch ${row.branch}` : "Own worktree") : "The project's checkout");
-const pool = (row) => (row.pool_request ? (row.device ? `Runs on machine ${row.device}, from request ${row.pool_request}` : `Waiting for a machine to take request ${row.pool_request}`) : "");
 const facts = computed(() => {
     const row = props.resource;
-    return [workerLine(row) || "Its profile's model", worktree(row), pool(row), workerReusesLine(row), workerQueueLine(row) || workerReportsWhen(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
+    return [workerLine(row) || "Its profile's model", worktree(row), workerReusesLine(row), workerQueueLine(row) || workerReportsWhen(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
 });
 const parts = computed(() => [
     {key: "brief", title: "Brief", text: props.resource.brief, sub: `sent at ${clock(props.resource.created_at)}`, none: "No brief"},
@@ -77,8 +76,8 @@ const ACTIONS = {
     message: (id, text) => api.act("workers", id, "message", {text}),
 };
 const actions = computed(() => workerActions(props.resource, store.people.device));
-// the user changes when the worker reports; a pool worker reports after each task, so it is offered no choice
-const reportChoices = computed(() => (props.resource.pool_request || workerState(props.resource) === "finished" ? [] : REPORT_CHOICES));
+// the user changes when the worker reports
+const reportChoices = computed(() => (workerState(props.resource) === "finished" ? [] : REPORT_CHOICES));
 const chooseReport = (choice) => api.act("workers", props.resource.id, "report_choice", {choice});
 const {refusal, question, asking, perform, choose} = useInspectorActions(
     () => actions.value,

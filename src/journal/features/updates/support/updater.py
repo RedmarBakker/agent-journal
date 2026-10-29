@@ -330,7 +330,7 @@ class Updater:
             os.kill(os.getpid(), signal.SIGTERM)
             return
         host = self.supervisor.hosting()
-        outputs = self.queue.update_restart(host) if host is not None else []
+        outputs = self.queue.restart(host, "") if host is not None else []
         if outputs:
             self.card.step("Restarting once the running commands end")
         elif host is not None and self.queue.is_waiting(host):

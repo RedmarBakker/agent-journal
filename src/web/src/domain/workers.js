@@ -80,7 +80,6 @@ export function workerActivity(row, agent = null) {
     if (state === "reported") return queuedWords(row);
     if (state === "unfinished") return WORKER_WORDS.unfinished;
     if (row.state === "waiting for the usage limit") return "Waiting for the usage limit";
-    if (row.pool_request && !row.device) return "Waiting for a machine to take it";
     if ((row.runs || []).includes("testing")) return "Running its tests";
     return agent && agent.tool_running && agent.doing ? `Working: ${agent.doing}` : "Working on its task";
 }

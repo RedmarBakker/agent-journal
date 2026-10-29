@@ -81,14 +81,8 @@ class Workers(ScopedRepository[Worker]):
     def checkable_workers(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED).filter_unequal("review_pending", True).order("id"))
 
-    def running_pool_workers(self) -> list[Worker]:
-        return [worker for worker in self.running_workers() if worker.pool_request]
-
-    def local_workers(self) -> list[Worker]:
-        return [*self.running_locally(), *(worker for worker in self.checkable_workers() if not worker.pool_request)]
-
-    def running_locally(self) -> list[Worker]:
-        return [worker for worker in self.running_workers() if not worker.pool_request]
+    def busy_workers(self) -> list[Worker]:
+        return [*self.running_workers(), *self.checkable_workers()]
 
     def peers(self, sender: Worker) -> list[Worker]:
         return [worker for worker in self.scoped() if worker.dispatcher == sender.dispatcher and worker.id != sender.id and (worker.is_running() or worker.is_idle())]

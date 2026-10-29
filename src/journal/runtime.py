@@ -46,10 +46,6 @@ from journal.events.announcer import Announcer
 from journal.events.moments.server_replaced import ServerReplaced
 from journal.version import VERSION
 from journal.http.share_server import ShareServer
-from journal.sync.host_desk import HostDesk
-from journal.http.agents.agent_view_sender import AgentViewSender
-from journal.http.agents.agent_bar_writes import AgentBarWrites
-from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
 from journal.console.console import Console
 from journal.support.time_source import TimeSource
@@ -91,9 +87,6 @@ class Runtime:
                 self.bus.listen(listener.event_type(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
                 self.seeded(seed)
-            for host_writer in feature.host_writers:
-                self.registered(host_writer)
-        self.registered(AgentBarWrites)
         self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
@@ -124,7 +117,6 @@ class Runtime:
     def started(self) -> None:
         self.deferred.start()
         self.jobs.start()
-        self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
         self.replacement_announced()
         notices = self.container.get(BootNotices)
@@ -153,12 +145,7 @@ class Runtime:
             self.server._thread.join(1.0)
         self.stop()
 
-    def registered(self, host_writer: type[HostWriter]) -> None:
-        for type_name, writer in self.container.get(host_writer).makers().items():
-            self.container.get(HostDesk).register(type_name, writer)
-
     def stop(self) -> None:
-        self.container.get(AgentViewSender).stop()
         self.server.stop()
         self.share_server.stop()
         self.jobs.stop()

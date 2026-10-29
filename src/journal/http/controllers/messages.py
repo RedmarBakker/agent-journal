@@ -13,9 +13,6 @@ from journal.support.response import Response
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.agents import Agents
-from journal.repositories.environments import Environments
-from journal.sync.host_desk import HostDesk
-from journal.sync.hosts import Hosts
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
@@ -27,12 +24,12 @@ from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 
 class MessageController(Controller[Message]):
-    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it, and then found by the key the page sent it with once the host has made it."""
+    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user."""
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions, links: Links, targets: CommentTarget, references: MessageReference) -> None:
-        self.agents, self.environments, self.hosts, self.mentions, self.links, self.targets, self.references = agents, environments, hosts, mentions, links, targets, references
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, mentions: HubMentions, links: Links, targets: CommentTarget, references: MessageReference) -> None:
+        self.agents, self.mentions, self.links, self.targets, self.references = agents, mentions, links, targets, references
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
@@ -85,10 +82,6 @@ class MessageController(Controller[Message]):
         if request.body.get("on"):
             return self.comment(self.targets.checked(request.body["on"]), request)
         message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=request.body.get("idempotency", ""))
-        environment = self.environments.find(self.repository.scope.id)
-        if not self.hosts.is_host(environment):
-            self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
-            return Response.json({"idempotency": message.idempotency, "notice": self.hosts.waiting_notice(environment)}, 202)
         referred = [self.references.checked(reference) for reference in request.body.get("refers", [])]
         posted = self.repository.posted(message, request.actor)
         for target in referred:

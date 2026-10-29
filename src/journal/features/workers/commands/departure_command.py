@@ -10,7 +10,6 @@ from journal.events.worker_merging import WorkerMerging
 from journal.features.plugins.plugins_options import PluginsOptions
 from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
-from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.features.workers.support.affected_tests import AffectedTests
 from journal.features.workers.support.test_selection import TestSelection
 from journal.features.workers.support.test_turns import TestTurns
@@ -36,14 +35,14 @@ TESTING_HELD = "your clock-out was held by a plugin before the journal rebased y
 DELIVERY_HELD = "your tests passed, but a plugin held your work before it reaches the agent that sent you; fix what it found, then clock out again, and the journal runs your tests again"
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later; a pool worker does the same on its teammate's machine, and pushes its branch to origin at every clock-out so the merge sees each finished task. A worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked; a blocked task next in the queue stops it too, and a point proved not done stops the queue so the worker reports at once."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later. A worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked; a blocked task next in the queue stops it too, and a point proved not done stops the queue so the worker reports at once."""
 
     noun = "clock-out"
     default_verb = "record"
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner) -> None:
         self.assigner = assigner
-        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
+        self.workers, self.tasks, self.proofs, self.reports, self.branch = workers, tasks, proofs, reports, branch
         self.turns, self.settings, self.logs, self.events, self.time_source, self.affected = turns, settings, logs, events, time_source, affected
 
     def arguments(self, verbs) -> None:
@@ -85,28 +84,21 @@ class DepartureCommand(Command):
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
         following = self.assigner.following(worker)
-        if worker.pool_request:
-            self.push_branch(worker)
         if following is not None and self.continues_queue(worker, task, waiting):
             return self.advance_queue(worker, task, following, caller)
-        if worker.pool_request:
-            self.moves.ended(worker)
-        if self.moves.is_remote(worker):
-            self.moves.ask(worker, DELIVERED, {"report": args.report}, caller.actor)
-        else:
-            self.reports.delivered(worker, args.report, caller.actor)
+        self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
 
     def plugin_check(self, event_class: type[WorkerMerging], worker: Worker, task: Task, refusal_heading: str) -> None:
-        if not worker.worktree or worker.pool_request:
+        if not worker.worktree:
             return
         refusals = self.events.worker_merging(self.branch.merging_event(event_class, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
             raise Rejection(refusal_heading + "\n" + "\n".join(refusals))
 
     def is_journal_testing(self, worker: Worker) -> bool:
-        return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
+        return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
 
     def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
         folder = self.branch.folder(worker)
@@ -136,11 +128,6 @@ class DepartureCommand(Command):
         print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")
         return 0
 
-    def push_branch(self, worker: Worker) -> None:
-        outcome = self.branch.git("push", "origin", f"{self.branch.name(worker)}:refs/heads/{WorkerBranch.pool_branch(worker)}", cwd=self.branch.folder(worker))
-        if outcome.returncode != 0:
-            raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
-
     @staticmethod
     def is_blocked(waiting: list[Task]) -> bool:
         return bool(waiting) and waiting[0].state == TaskState.BLOCKED
@@ -154,5 +141,5 @@ class DepartureCommand(Command):
         return [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state in (ProofState.SHORT, ProofState.STALE)]
 
     def clashing(self, worker: Worker) -> str:
-        return "" if worker.pool_request else self.branch.rebased_onto_branch(worker)
+        return self.branch.rebased_onto_branch(worker)
 

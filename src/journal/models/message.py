@@ -98,9 +98,6 @@ class Message(Scoped, Commentable):
     def authored(self, session: str | None) -> "Message":
         return self.with_(session=session) if self.is_new and self.session is None and self.is_main_thread() else self
 
-    def host_fields(self) -> dict:
-        return {"text": self.text, "reply_target": self.reply_target, "idempotency": self.idempotency}
-
     def arrived(self) -> "Message":
         return self.with_event(MessageArrived(text=self.text))
 

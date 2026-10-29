@@ -34,7 +34,6 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
-from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.sync.team_account import TeamAccount
 from journal.support.time_source import TimeSource
@@ -51,12 +50,12 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
+        self.check, self.labels, self.hub, self.filer, self.account = check, labels, hub, filer, account
         self.destination = destination
 
     def arguments(self, verbs) -> None:
@@ -113,10 +112,6 @@ class TaskCommand(Command):
         pause.add_argument("--force", action="store_true", help="pause a worker's task in hand: the worker lets it go, keeps its commits and goes on with its queue")
         Waits.arguments(pause, "paused task's wait")
         self.verb(verbs, "resume", "pick a paused task up again").add_argument("n", type=int)
-        driving = self.verb(verbs, "drive", "work on a hub task from this environment: it reads as this environment's, and no other environment or machine drives it until you release it")
-        driving.add_argument("n", type=int)
-        driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
-        self.verb(verbs, "release", "let a hub task you drive go, so anyone may drive it").add_argument("n", type=int)
         priorities = self.verb(verbs, "priorities", "the open tasks you made at the default priority: confirm states that normal is right for each")
         priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
@@ -257,15 +252,6 @@ class TaskCommand(Command):
         task = self.taking.start(self.tasks.find(n), caller)
         paused = [f"{self.labels.name('task', previous)} paused"] if previous is not None else []
         print("\n".join([*paused, f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
-        return 0
-
-    def drive(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.find(args.n)
-        print(self.drives.drive_line(self.drives.takeover(task, caller.actor) if args.take_over else self.drives.drive(task, caller.actor)))
-        return 0
-
-    def release(self, args: Namespace, caller: Caller) -> int:
-        print(self.drives.release_line(self.drives.release(self.tasks.find(args.n), caller.actor)))
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:

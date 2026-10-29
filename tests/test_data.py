@@ -576,14 +576,6 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
 
 
 
-def team_placement(connection, bus, scope, config):
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.team_account import TeamAccount
-    from journal.sync.team_placement import TeamPlacement
-
-    return TeamPlacement(SharedTables(connection, bus, TimeSource()), team_scopes(connection, bus, scope), TeamAccount(config))
-
-
 def team_scopes(connection, bus, scope):
     from journal.features.registry import Registry
     from journal.features.standard import Standard
@@ -809,49 +801,6 @@ def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its
         team.store.close()
 
 
-
-
-def test_team_placement_puts_each_row_in_its_team_or_in_none(tmp_path):
-    import json
-    from journal.config import Config
-    from journal.models.entry import Entry
-    from journal.models.environment import Environment
-    from journal.models.rule import Rule
-    from journal.models.setting import Setting
-    from journal.models.task import Task
-    from journal.models.template import Template
-    from journal.models.user import User
-    from journal.repositories.environments import Environments
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.team_account import TEAM_FILE, TEAMS_FOLDER, TeamAccount
-    from journal.sync.team_placement import TeamPlacement
-
-    bus, scope, tasks, _, _ = team_journal(tmp_path, "a")
-    config = Config(tmp_path / "a")
-    (config.home / TEAM_FILE).unlink()
-    (config.home / TEAMS_FOLDER).mkdir()
-    (config.home / TEAMS_FOLDER / "k1.json").write_text(json.dumps({"team_key": "k1"}))
-    environments = Environments(tasks.connection, bus, TimeSource())
-    hub, session, shared, private = (environments.save(row, USER) for row in (Environment.hub("k1", "acme"), Environment.session("k1", "team"), Environment(name="open", team_key="k1"), Environment(name="mine")))
-    placement = TeamPlacement(SharedTables(tasks.connection, bus, TimeSource()), team_scopes(tasks.connection, bus, scope), TeamAccount(config))
-    placed = lambda *rows: [placement.team_key(row) for row in rows]
-
-    work = {}
-    for environment in (hub, session, shared, private):
-        with scope.environment(environment.row_id):
-            work[environment.name] = tasks.save(Task(environment_id=environment.row_id, title=f"in {environment.name}"), USER)
-    assert placed(hub, session, shared, private) == ["k1", "k1", "k1", ""], "an environment is in its team when it is the hub, a session or shared, and a private one in none"
-    assert placed(*(work[name] for name in ("acme", "team", "open", "mine"))) == ["k1", "k1", "k1", ""], "a row of an environment is placed with its environment, whose chat is shared or not"
-    links = Links(tasks.connection, bus, TimeSource())
-    together = links.save(Link(source=Ref.build(work["acme"]), target=Ref.build(work["team"]), link_type="mentions"), USER)
-    apart = links.save(Link(source=Ref.build(work["mine"]), target=Ref.build(work["acme"]), link_type="copied_from"), USER)
-    owner = links.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), link_type="owner"), USER)
-    assert placed(together, apart, owner) == ["k1", "", ""], "a link is in a team only when both its ends are in that team"
-    assert placed(User(id=2, name="Bob")) == ["k1"], "a person is in their team"
-    assert placed(Rule(text="a rule"), Template(title="a template"), Entry()) == ["", "", ""], "rules and templates are in no team, nor is a row kept on one machine"
-    team_setting, own_setting = WorkersOptions.WORKER_LIMIT.key, VoicesOptions.NAME.key
-    settings = [Setting(environment_id=0, key=team_setting), Setting(environment_id=0, key=own_setting), Setting(environment_id=shared.row_id, key=team_setting), Setting(environment_id=private.row_id, key=team_setting)]
-    assert placed(*settings) == ["k1", "", "k1", ""], "a project setting of the team's scope is in the home team, a person's in none, and one of an environment goes with it"
 
 
 def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_everything_in_it(tmp_path):

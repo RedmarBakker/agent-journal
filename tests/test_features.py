@@ -91,7 +91,6 @@ from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.messages.commands.message_command import DUPLICATE_REPLY_LINE
-from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as DRIVE_REFUSAL
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -1908,7 +1907,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
-        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+        return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
 
     def ask(number):
         with app.container.get(Scope).environment(1):
@@ -2010,7 +2009,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
         return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
-        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+        return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
 
     def ask(turns, number):
         with scope.environment(1):
@@ -2054,7 +2053,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     turns = fresh()
     with scope.environment(1):
         for number in (1, 2, 3):
-            turns.open_turn(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
+            turns.open_turn(SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
     resumed = turns.resume()
     for number in (1, 2, 3):
         assert until(lambda: len(started) == number) and started == list(range(1, number + 1)), "after a restart the waiting turns run in order, one at a time"
@@ -2106,7 +2105,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
     def ask(number, ids):
         with scope.environment(1):
             try:
-                results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), ids, SimpleNamespace())
+                results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1), ids, SimpleNamespace())
             except Rejection as refusal:
                 results[number] = f"refused: {refusal}"
 
@@ -2180,11 +2179,11 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
     user_set(app, WorkersOptions.TEST_RUNS.key, 1)
     with scope.environment(1):
-        result = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
+        run_output = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
     assert lines == ["pytest -q a.py b.py", "pytest -q c.py d.py", "pytest -q e.py"], "five ids with two to a run are three runs, the ids kept whole"
     assert most[0] == 1, "each run takes its own place in the budget"
-    assert "FAILED tests/a.py::t" in result and "2 passed" in result, "a failing first batch does not stop the others, and the result holds each batch's lines"
-    assert result.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
+    assert "FAILED tests/a.py::t" in run_output and "2 passed" in run_output, "a failing first batch does not stop the others, and the result holds each batch's lines"
+    assert run_output.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
 
 
 def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_reports_not_read_yet(app: App):
@@ -7300,40 +7299,6 @@ def test_a_worker_sent_back_whose_runs_end_twice_without_clocking_out_is_named_t
     assert told == ["1"], "the agent that dispatched it is told once, naming it"
 
 
-def pool_worker_on_a_queue(app: App, monkeypatch, report: list[str]):
-    """A pool worker on task 1 with task 2 queued behind it, its branch pushes recorded; its folder, its caller and the pushes."""
-    from journal.features.workers.commands.departure_command import DepartureCommand
-    from journal.repositories.workers import Workers
-    pushes = []
-    monkeypatch.setattr(DepartureCommand, "push_branch", lambda self, worker: pushes.append(worker.id))
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    app.console().run(["task", "create", "the follow-up", "--brief", "the follow-up: done when it is in"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(pool_request=41), Actor.system())
-    assert app.console().run(["worker", "queue", "1", "2", *report], AGENT).code == 0
-    return worktree, caller, pushes
-
-
-def test_a_pool_worker_with_the_default_choice_moves_on_after_its_first_task_and_reports_once_after_the_second(app: App, monkeypatch):
-    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, [])
-    committed(worktree, "notes1.md", "note\n")
-    assert "your next task, 2:" in proved_and_out(app, caller, "notes1.md:1").text, "it moves on after the first task"
-    committed(worktree, "notes2.md", "note\n")
-    last = proved_and_out(app, caller, "notes2.md:1")
-    assert "clocked out of task 2" in last.text, "and reports once, after the second"
-    assert pushes == [1, 1], "its branch is pushed at every clock-out, the one that moved on too"
-
-
-def test_a_pool_worker_dispatched_with_report_each_reports_after_each_task(app: App, monkeypatch):
-    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, ["--report", "each"])
-    committed(worktree, "notes1.md", "note\n")
-    out = proved_and_out(app, caller, "notes1.md:1")
-    assert "clocked out of task 1" in out.text and "your next task" not in out.text, "it reports after its first task"
-    assert pushes == [1]
-
-
 def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_different_work_raises_a_report(app: App, tmp_path):
     from types import SimpleNamespace
     from journal.features.shell.support.activity_label import ActivityLabel
@@ -7917,15 +7882,6 @@ RECONNECT_WAIT_SECONDS = 90
 
 
 
-@contextmanager
-def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
-    """Ada's and Bob's journals of one repository joined to a team server in this process, on the hub or, for a team from before it, not."""
-    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub) as (team, a, b, held, _):
-        yield team, a, b, held
-
-
-
-
 def ada_tasks(a: App) -> tuple:
     """A task in Ada's own environment, then one in the team's hub."""
     from journal.models.task import Task
@@ -7947,318 +7903,6 @@ def synced(check) -> bool:
             return True
         timing.sleep(0.05)
     return False
-
-
-
-
-def test_a_member_writes_a_hub_task_and_a_hub_message_on_their_own_journal_with_no_hosted_journal_and_both_reach_the_other(tmp_path, template_journal, monkeypatch):
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        [hub] = b.container.get(Environments).hubs()
-        posted = lambda path, body: urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": hub.name}), timeout=5)
-        assert posted("/journal/tasks", {"title": "Bob's hub task"}).status == 201
-        assert posted("/journal/messages", {"text": "Bob's word in the hub"}).status == 201, "a message in the hub is made on Bob's own journal, never asked of a host"
-        assert team.store.all("SELECT id FROM host_requests") == [], "and no host request is made"
-        in_hub = lambda repository, field, text: any(getattr(row, field) == text for row in a.container.get(repository).global_matching(environment_id=hub.row_id))
-        assert synced(lambda: in_hub(Tasks, "title", "Bob's hub task") and in_hub(Messages, "text", "Bob's word in the hub")), "both reach Ada's journal, in the hub"
-
-
-
-
-def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_reaches_bobs_journal_with_no_row_made_on_hers(tmp_path, template_journal, monkeypatch):
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.task_started import TaskStarted
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import Tasks
-    heard: list[TaskStarted] = []
-
-    class StartedTasks(Listener[TaskStarted]):
-        def handle(self, event: TaskStarted) -> None:
-            heard.append(event)
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        tasks, scope, main = a.container.get(Tasks), a.container.get(Scope), a.container.get(Environments).existing("main")
-        _, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
-        own_rows = len(tasks.global_matching(environment_id=main.row_id))
-        a.container.get(Links).save(Link(source=Ref.build(hub_task), target=Ref(Environment.table(), main.row_id), link_type=BOUND_LINK), Actor.user(1))
-        a.container.get(Bus).listen(TaskStarted, StartedTasks())
-        with scope.environment(main.row_id):
-            assert hub_task.id in {task.id for task in tasks.open_tasks()}, "bound, the hub task reads as the environment's work"
-            tasks.save(tasks.find(hub_task.id).started(datetime.now(timezone.utc)), Actor.user(1))
-        a.container.get(ListenerQueue).drain()
-        assert [event.bound_environment_ids for event in heard] == [(main.row_id,)] and "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "its start reaches the environment's agent"
-        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).state == TaskState.STARTED), "and arrives on Bob's journal with its next pull"
-        assert tasks.find(hub_task.id).environment_id != main.row_id and len(tasks.global_matching(environment_id=main.row_id)) == own_rows, "the task stays the hub's and no local task is made"
-        assert team.log.row("links", a.container.get(Links).all_matching(link_type=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
-
-
-def test_an_agent_view_reaches_the_team_server_for_a_shared_environment_and_the_hub_and_never_for_one_its_owner_has_not_shared(tmp_path, template_journal, monkeypatch):
-    from journal.http.agents.agent_view_sender import AgentViewSender
-    from journal.repositories.environments import Environments
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["environment", "create", "open"], USER).code == 0
-        shared = a.console().run(["environment", "share", "open"], USER)
-        assert shared.code == 0, shared.error
-        environments = a.container.get(Environments)
-        own, open_one, hub = environments.existing("main"), environments.existing("open"), environments.hubs()[0]
-        bobs_own = b.container.get(Environments).existing("main")
-        for journal in (a, b):
-            journal.container.get(AgentViewSender).send(timing.time() + 3600)
-        keys = set(team.agent_views.views_by_key)
-        assert {open_one.key, hub.key} <= keys, "the views of a shared environment and of the hub reach the team server"
-        assert own.key not in keys and bobs_own.key not in keys, "a person's environment they have not shared never sends its agent view to the team server"
-
-
-def test_on_a_team_not_yet_moved_to_the_hub_the_agent_view_of_every_environment_reaches_the_team_server_as_before(tmp_path, template_journal, monkeypatch):
-    from journal.http.agents.agent_view_sender import AgentViewSender
-    from journal.repositories.environments import Environments
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
-        a.container.get(AgentViewSender).send(timing.time() + 3600)
-        assert a.container.get(Environments).existing("main").key in team.agent_views.views_by_key, "a team from before the hub sees each person's agents as it always has"
-
-
-def test_a_hub_task_is_driven_from_one_environment_at_a_time_a_second_drive_refused_naming_its_holder_and_taken_over_only_with_the_flag_once_its_lease_lapses(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from journal.features.plans.support.plan_bindings import PlanBindings
-    from journal.models.support.ref import Ref
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        _, hub_task = ada_tasks(a)
-        number = str(hub_task.id)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
-        assert a.console().run(["environment", "create", "docs"], USER).code == 0
-        driven = a.console().run(["task", "drive", number], USER)
-        assert driven.code == 0 and "is driven from here by Ada" in driven.text, driven.error
-        assert a.container.get(Tasks).find(hub_task.id).driver == "Ada" and "the agent of main on" in a.container.get(Tasks).find(hub_task.id).driver_agent, "the hub row names the person and the agent driving it"
-        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).driver == "Ada"), "and Bob's journal shows who drives it"
-        here = a.console().run(["task", "drive", number], replace(USER, environment="docs"))
-        assert here.code == 1 and "is driven from main" in here.error, "a second environment on the same machine is refused, naming the holder"
-        bob = replace(USER, person=2)
-        elsewhere = b.console().run(["task", "drive", number], bob)
-        assert elsewhere.code == 1 and "held by Ada on " in elsewhere.error, "another machine is refused, naming the person and the device holding it"
-        early = b.console().run(["task", "drive", number, "--take-over"], bob)
-        assert early.code == 1 and "held by Ada on " in early.error, "a takeover before the lease lapses is refused"
-        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
-        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
-        unflagged = b.console().run(["task", "drive", number], bob)
-        assert unflagged.code == 1 and "only a takeover has it" in unflagged.error, "lapsed, it is still not taken without the flag"
-        taken = b.console().run(["task", "drive", number, "--take-over"], bob)
-        assert taken.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "Bob", taken.error
-        a.container.get(HubDrives).renewed(Ref.build(hub_task))
-        assert not a.container.get(PlanBindings).environment_id(hub_task), "Ada's journal lets the task go at its next renewal"
-        released = b.console().run(["task", "release", number], bob)
-        assert released.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "" and not team.leases.state(HubDrives.lease_name(Ref.build(hub_task)), lapsed).holder, released.error
-
-
-def test_sharing_an_environment_made_after_joining_sends_its_older_and_new_messages_and_tasks_whole_to_the_other_journal(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["environment", "create", "lab"], USER).code == 0
-        lab = a.container.get(Environments).existing("lab")
-
-        def written(when: str) -> tuple:
-            with a.container.get(Scope).environment(lab.row_id):
-                return (a.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text=f"{when} word"), Actor.user(1)),
-                        a.container.get(Tasks).save(Task(environment_id=lab.row_id, title=f"{when} task", brief=f"the {when} brief"), Actor.user(1)))
-
-        older = written("older")
-        assert team.log.row("tasks", older[1].id) is None, "while the environment is Ada's own, its rows stay off the server"
-        shared = a.console().run(["environment", "share", "lab"], USER)
-        assert shared.code == 0, shared.error
-        newer = written("newer")
-        on_b = lambda: [b.container.get(Environments).keyed(lab.key), b.container.get(Messages).global_matching(environment_id=lab.row_id), b.container.get(Tasks).global_matching(environment_id=lab.row_id)]
-        assert synced(lambda: on_b()[0] and {message.text for message in on_b()[1]} >= {"older word", "newer word"} and {task.title for task in on_b()[2]} >= {"older task", "newer task"}), "the shared environment arrives on Bob's journal with its older and its new messages and tasks"
-        tasks_on_b = {task.title: task for task in on_b()[2]}
-        assert (tasks_on_b["older task"].brief, tasks_on_b["older task"].id) == ("the older brief", older[1].id), "each arrives whole, under its own number, not as the changed columns of an update"
-        assert on_b()[0][0].name == "ada-lab", "Bob's journal knows it by Ada's name for it"
-
-
-def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_it_once_and_a_task_of_an_unbound_hub_plan_reaches_no_agent(tmp_path, template_journal, monkeypatch):
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.engine.support.session_agents import SessionAgents
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.task_closed import TaskClosed
-    from journal.models.link import Link
-    from journal.models.plan import Plan
-    from journal.models.plan_state import PlanState
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.plans import Plans
-    from journal.repositories.tasks import PLAN_LINK, Tasks
-    heard: list[TaskClosed] = []
-
-    class ClosedTasks(Listener[TaskClosed]):
-        def handle(self, event: TaskClosed) -> None:
-            heard.append(event)
-
-    def finished_by_bob(task_id: int) -> None:
-        tasks = b.container.get(Tasks)
-        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
-            tasks.save(tasks.find(task_id).completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2))
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        a.console().run(["environment", "overview"], AGENT)
-        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
-        _, driven = ada_tasks(a)
-        with a.container.get(Scope).environment(hub.row_id):
-            plan = a.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), Actor.user(1))
-            planned = a.container.get(Tasks).save(Task(environment_id=hub.row_id, title="in the team's plan"), Actor.user(1))
-        a.container.get(Links).save(Link(source=Ref.build(planned), target=Ref.build(plan), link_type=PLAN_LINK), Actor.user(1))
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=driven.id)) and bool(b.container.get(Tasks).global_matching(id=planned.id))), "both hub tasks are on Bob's journal"
-        assert a.console().run(["task", "drive", str(driven.id)], USER).code == 0
-        assert a.console().run(["task", "start", str(driven.id)], AGENT).code == 0
-        assert a.container.get(SessionAgents).top("s1").task_id == driven.id
-        a.container.get(Bus).listen(TaskClosed, ClosedTasks())
-        finished_by_bob(planned.id)
-        finished_by_bob(driven.id)
-        assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.COMPLETED and a.container.get(Tasks).find(planned.id).state == TaskState.COMPLETED), "Bob's finishes reach Ada's journal"
-        assert synced(lambda: any(event.task_id == driven.id for event in heard)), "the driven task's finish is heard on Ada's journal"
-        assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "completed", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
-        assert "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "it reaches the agent of that environment"
-        assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"
-
-
-def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journal_or_its_lease_taken_over_with_its_link_gone_one_line_to_the_agent_and_the_old_drivers_write_refused(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.drive_ended import DriveEnded
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
-    ended: list[DriveEnded] = []
-
-    class EndedDrives(Listener[DriveEnded]):
-        def handle(self, event: DriveEnded) -> None:
-            ended.append(event)
-
-    def hub_task(title: str) -> Task:
-        with a.container.get(Scope).environment(hub.row_id):
-            return a.container.get(Tasks).save(Task(environment_id=hub.row_id, title=title), Actor.user(1))
-
-    def bobs(task_id: int, write) -> None:
-        tasks = b.container.get(Tasks)
-        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
-            write(tasks, tasks.find(task_id))
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        a.console().run(["environment", "overview"], AGENT)
-        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
-        deleted, finished, taken = [hub_task(title) for title in ("to be deleted", "to be finished", "to be taken over")]
-        assert synced(lambda: all(b.container.get(Tasks).global_matching(id=task.id) for task in (deleted, finished, taken))), "the three hub tasks are on Bob's journal"
-        for task in (deleted, finished, taken):
-            assert a.console().run(["task", "drive", str(task.id)], USER).code == 0
-        a.container.get(Bus).listen(DriveEnded, EndedDrives())
-        bobs(deleted.id, lambda tasks, task: tasks.delete(task, Actor.user(2)))
-        bobs(finished.id, lambda tasks, task: tasks.save(task.completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2)))
-        assert synced(lambda: {event.row_id for event in ended} >= {deleted.id, finished.id}), "the deletion and the finish end Ada's drives as they arrive"
-        a.container.get(HubDrives).renewed_at = clock.monotonic()
-        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
-        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
-        assert b.console().run(["task", "drive", str(taken.id), "--take-over"], replace(USER, person=2)).code == 0
-        a.container.get(HubDrives).renewed(Ref.build(taken))
-        a.container.get(ListenerQueue).drain()
-        assert not a.container.get(Links).all_matching(link_type=BOUND_LINK), "each binding is released"
-        assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
-        why = {event.row_id: event.reason for event in ended}
-        assert "deleted it on another journal" in why[deleted.id] and "marked it completed on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
-        machine = a.container.get(StateMachine)
-        assert all(event.environment_id == main.row_id and "s1" in {agent.session for agent in machine.audience(event)} for event in ended), "in the environment that drove it, to its agent"
-        assert a.container.get(Tasks).find(finished.id).state == TaskState.COMPLETED
-        for task in (finished, taken):
-            refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
-            assert refused.code == 1 and DRIVE_REFUSAL.format(name="", noun="task", n=task.id) in refused.error, refused.error
-        assert a.console().run(["task", "rename", str(deleted.id), "Ada's name for it"], USER).code == 1, "a deleted task is not written either"
-
-
-
-
-
-
-
-
-def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own_branch_held_and_hosted_by_the_machine_that_started_it_and_a_start_of_a_held_one_is_refused(tmp_path, template_journal, monkeypatch):
-    from journal.models.environment_type import EnvironmentType
-    from journal.repositories.environments import Environments
-    from journal.sync.hosts import Hosts
-    bob = replace(USER, person=2)
-
-    def session(journal, name: str):
-        sessions = journal.container.get(Environments).session_rows([name])
-        return sessions[0] if sessions else None
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        started = a.console().run(["session", "start", "review"], USER)
-        assert started.code == 0 and "held by this machine, its host, on its branch journal/session-review" in started.text, started.error
-        assert b.console().run(["session", "start", "release"], bob).code == 0
-        assert synced(lambda: session(a, "release") is not None and session(b, "review") is not None), "each journal holds both sessions"
-        hub = a.container.get(Environments).hubs()[0]
-        review = session(a, "review")
-        assert (review.environment_type, review.team_key, review.branch) == (EnvironmentType.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
-        a_hosts, b_hosts = a.container.get(Hosts), b.container.get(Hosts)
-        assert a_hosts.is_host(session(a, "review")) and not a_hosts.is_host(session(a, "release")), "Ada's machine hosts the session it holds and not Bob's"
-        assert b_hosts.is_host(session(b, "release")) and not b_hosts.is_host(session(b, "review")), "and Bob's machine the one it holds"
-        refused = b.console().run(["session", "start", "review"], bob)
-        assert refused.code == 1 and "session:review is held by Ada" in refused.error, refused.error
-        assert not b_hosts.is_host(session(b, "review")), "a refused start leaves the session to the machine holding it"
-
-
-def test_a_message_bob_writes_in_a_session_ada_holds_reaches_the_agent_of_the_session_on_adas_machine_named_as_his(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-
-    def session(journal):
-        sessions = journal.container.get(Environments).session_rows(["review"])
-        return sessions[0] if sessions else None
-
-    def lines() -> list[str]:
-        return [entry.data.get("line") for entry in a.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["session", "start", "review"], USER).code == 0
-        assert posted(a, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200, "the session's agent runs on Ada's machine, which holds it"
-        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
-        with b.container.get(Scope).environment(session(b).row_id):
-            message = b.container.get(Messages).save(Message(environment_id=session(b).row_id, author=Author.USER, text="the release notes are ready"), Actor.user(2))
-        assert message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in the session as one of its people"
-        assert synced(lambda: f"new message {message.id} from Bob" in lines()), lines()
-        assert a.container.get(Messages).find(message.id).sender.startswith("Bob, one of the people you work for"), "and the agent reads it as his"
 
 
 
@@ -8301,112 +7945,6 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         made = b.container.get(Messages).global_matching(idempotency="bob-1")
         assert made and made[0].data.get(Message.TEAMMATE) == "Bob", "the claiming machine makes the waiting message as Bob's"
         assert f"new message {made[0].id} from Bob" in lines(), lines()
-
-
-
-
-
-
-
-
-def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_the_team_so_no_row_is_overwritten_and_every_link_still_points_at_its_row(tmp_path, template_journal, monkeypatch):
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.models.link import Link
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        main = a.container.get(Environments).existing("main")
-        bobs_main = b.container.get(Environments).existing("main")
-        with b.container.get(Scope).environment(bobs_main.row_id):
-            bobs = b.container.get(Tasks).save(Task(environment_id=bobs_main.row_id, title="Bob's own"), Actor.user(2))
-        with a.container.get(Scope).environment(main.row_id):
-            adas = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's, before sharing"), Actor.user(1))
-            a.container.get(Connection).execute("UPDATE tasks SET id = ? WHERE id = ?", (bobs.id, adas.id))
-            a.container.get(Connection).cache.cleared()
-            note = a.container.get(Messages).save(Message(environment_id=main.row_id, author=Author.USER, text="Ada's note"), Actor.user(1))
-        mention = a.container.get(Links).save(Link(source=Ref("tasks", bobs.id), target=Ref.build(note), link_type="mentions"), Actor.user(1))
-        shared = a.console().run(["environment", "share", "main"], USER)
-        assert shared.code == 0, shared.error
-        moved_main = a.container.get(Environments).keyed(main.key)[0]
-        [moved] = [task for task in a.container.get(Tasks).global_matching(environment_id=moved_main.row_id) if task.title == "Ada's, before sharing"]
-        assert moved_main.row_id != main.row_id and moved.id != bobs.id, "an environment made before joining, and a task whose number falls in Bob's block, are moved into Ada's own numbers when shared"
-        [moved_note] = [message for message in a.container.get(Messages).global_matching(environment_id=moved_main.row_id) if message.text == "Ada's note"]
-        [moved_link] = a.container.get(Links).all_matching(link_type="mentions", target=Ref.build(moved_note))
-        assert moved_link.source == Ref.build(moved), "and the link on Ada's journal points at the task's new number"
-        assert synced(lambda: any(task.id == moved.id and task.title == "Ada's, before sharing" for task in b.container.get(Tasks).global_matching())), "the shared task reaches Bob under its new number"
-        assert b.container.get(Tasks).find(bobs.id).title == "Bob's own" and team.log.row("tasks", bobs.id) is None, "and no row is overwritten, on Bob's journal or on the server"
-        assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=moved_link.id)] == [(moved_link.source, moved_link.target)]), "the link reaches Bob still pointing at its task and its note"
-
-
-
-
-def test_a_removed_member_has_their_drives_and_leases_freed_their_shared_chats_withdrawn_from_the_team_and_keeps_their_environments(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import HubDrives
-    bob = replace(USER, person=2)
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        _, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)))
-        assert b.console().run(["environment", "create", "lab"], bob).code == 0
-        lab = b.container.get(Environments).existing("lab")
-        with b.container.get(Scope).environment(lab.row_id):
-            note = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's lab note"), Actor.user(2))
-        assert b.console().run(["environment", "share", "lab"], bob).code == 0
-        driven = b.console().run(["task", "drive", str(hub_task.id)], bob)
-        assert driven.code == 0, driven.error
-        lease = HubDrives.lease_name(Ref.build(hub_task))
-        assert synced(lambda: team.log.row("environments", lab.row_id) is not None and bool(a.container.get(Environments).keyed(lab.key)) and a.container.get(Tasks).find(hub_task.id).driver == "Bob"), "Bob's shared lab and his drive reach the team"
-        assert team.leases.state(lease, timing.time()).holder == "Bob"
-
-        removed = a.console().run(["team", "remove", "2"], USER)
-        assert removed.code == 0 and "is removed from the team" in removed.text, removed.error
-        assert team.leases.state(lease, timing.time()).holder == "", "the removed member's leases are freed"
-        assert team.log.row("environments", lab.row_id) is None and team.log.row("messages", note.id) is None, "their shared chat is withdrawn from the server, its rows with it"
-        assert synced(lambda: not a.container.get(Environments).keyed(lab.key) and not a.container.get(Messages).global_matching(id=note.id) and a.container.get(Tasks).find(hub_task.id).driver == ""), "and from every colleague's journal, the hub task no longer named as theirs to drive"
-        assert b.container.get(Environments).keyed(lab.key) and b.container.get(Messages).global_matching(id=note.id) and b.container.get(Environments).existing("main"), "the removed member's own journal keeps their environments and chats"
-
-
-def test_a_hosted_journal_of_a_team_on_the_hub_lists_only_the_hub_the_sessions_and_the_shared_environments(tmp_path, template_journal, monkeypatch):
-    from journal.http.controllers.environments import EnvironmentController
-    from journal.http.listing import Listing
-    from journal.repositories.environments import Environments
-    from journal.sync.hosting import HOSTED_FILE
-    bob = replace(USER, person=2)
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        for name in ("lab", "open"):
-            assert b.console().run(["environment", "create", name], bob).code == 0
-        assert b.console().run(["environment", "share", "open"], bob).code == 0
-        listed = lambda: {row["name"] for row in b.container.get(EnvironmentController).listed(Listing.query_listing({}))["rows"]}
-        assert {"main", "lab", "open"} <= listed(), "a member's own journal lists its own environments"
-        (b.config.home / HOSTED_FILE).touch()
-        hub = b.container.get(Environments).hubs()[0].name
-        assert listed() == {hub, "team", "open"}, "a hosted journal lists the hub, the Team chat and the shared environment, never one not shared, its own main among them"
-
-
-def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
-        assert not a.container.get(TeamAccount).is_on_hub() and not a.container.get(Environments).hubs(), "a team not yet moved to the hub has no hub until journal team migrate makes one"
-        main = a.container.get(Environments).existing("main")
-        with a.container.get(Scope).environment(main.row_id):
-            own = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's own"), Actor.user(1))
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task to Bob as before"
-        assert team.log.row("tasks", own.id) is not None, "and to the team server"
-
-
 
 
 
@@ -8611,48 +8149,6 @@ def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
     assert "a new reader states what it selects with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
 
 
-
-
-def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and_goes_at_once_when_none_runs(app: App, monkeypatch):
-    from journal.features.shell.jobs.restart_wait import RestartWait
-    from journal.features.shell.support.restart_queue import RestartQueue
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    sent = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: sent.append((environment_id, verb, fields.get("name"))))
-    monkeypatch.setattr(SupervisorLink, "hosting", lambda link: MAIN)
-    monkeypatch.setattr(SupervisorLink, "running", lambda link, environments: [e for e in environments if e.row_id == MAIN])
-    folder = app.config.root / "long-run"
-    folder.mkdir()
-    with app.container.get(Scope).environment(MAIN):
-        output = app.container.get(CommandOutputs).save(CommandOutput(chain="long-run", command="sleep 600", session="s1", folder=str(folder)).backgrounded(), Actor.system())
-    queue, wait = app.container.get(RestartQueue), app.container.get(RestartWait)
-    assert [waited.id for waited in queue.restart(MAIN, "")] == [output.id] and sent == [], "the restart waits and names the running command"
-    wait.tick(0.0)
-    assert sent == [] and queue.waiting() == [MAIN], "it keeps waiting while the command runs"
-    later = app.config.root / "later-run"
-    later.mkdir()
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(CommandOutputs).save(CommandOutput(chain="later-run", command="sleep 900", session="s2", folder=str(later)).backgrounded(), Actor.system())
-    (folder / "done").write_text("1")
-    wait.tick(0.0)
-    assert sent == [(MAIN, "restart", "journal")] and queue.waiting() == [], "it goes by itself once the command it waited on ended, never waiting on one started after it was asked"
-    (later / "done").write_text("1")
-    (folder / "done").unlink()
-    assert queue.restart(MAIN, str(folder)) == [] and len(sent) == 2, "the command asking for the restart is never waited on"
-    (folder / "done").write_text("1")
-    assert queue.restart(MAIN, "") == [] and len(sent) == 3, "with nothing running the restart goes at once"
-    from journal.models.pool_job import PoolJob
-    from journal.repositories.pool_jobs import PoolJobs
-    jobs = app.container.get(PoolJobs)
-    job = jobs.save(PoolJob(request_id=7, environment_key="k", account_id=1, worker_id=1, profile="journal-medior").started(1.0), Actor.system())
-    assert queue.restart(MAIN, "") == [] and len(sent) == 4, "a pool worker running here never holds a restart asked by hand"
-    assert queue.update_restart(MAIN) == [] and len(sent) == 4 and queue.is_waiting(MAIN), "an update's restart waits while a pool worker taken up here runs"
-    wait.tick(0.0)
-    assert len(sent) == 4, "and keeps waiting while it runs"
-    jobs.save(job.finished(2.0), Actor.system())
-    wait.tick(0.0)
-    assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
 
 def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopped_beating_is_ended_and_holds_no_restart(app: App, monkeypatch):
