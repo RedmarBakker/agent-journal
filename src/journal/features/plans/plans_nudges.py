@@ -11,6 +11,7 @@ class PlansNudges:
     MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} runs tests at phase end; phase {{phase}} is still open. write this task's tests now; run them when it ends", repeat=Timeout.seconds(0))
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", repeat=Timeout.seconds(0))
+    COORDINATOR_MODE = Nudge("plans", "now_coordinating_plans", "you now coordinate the plans: each plan's own Plan agent does its work; write no code", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}", repeat=Timeout.seconds(0), longest_characters=1540, longest_reason="it contains the brief of the next task")
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
     PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))

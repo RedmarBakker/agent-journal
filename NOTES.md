@@ -1914,6 +1914,14 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
 - Journal replaces the dispatch runtime that agentic-organization's ARCHITECTURE.md plans.
 - While the sweep runs, a setting switches between the old agent modes and the new model, off until phase 8 removes
   both the old modes and the setting.
+- That setting is plans.plan_agents, "Plan agents instead of work modes", the user's to set. It is a second `Modes`, on
+  the plans feature: on, it puts CoordinatingPlans at the bottom of the main agent's stack, and the Work mode setting
+  is not used; off, it picks nothing and the work mode's floor stands (the first feature in the registry whose
+  setting picks a floor wins, and plans comes before workers). Conduct is folded by floor class, so a new-model conduct
+  is a `mode_conduct` pair on CoordinatingPlans and listens only while the switch is on, and the builder's,
+  orchestrator's and solo agent's conduct, on their own floors, only while it is off. CoordinatingPlans extends
+  Orchestrating for its state behaviour (the main agent orchestrates and never writes code) without its conduct.
+  WorkMode reads the floor in force the same way, so commands and listeners follow the switch too.
 - The refactor is one sweep in plan 1's order; the reviewers' advice to run Roles on today's workers first was not
   taken (reports 1 and 2).
 - Stored (task 43): a plan's mode is its `mode` column, a `PlanMode`, solo by default; migration 76 makes every plan

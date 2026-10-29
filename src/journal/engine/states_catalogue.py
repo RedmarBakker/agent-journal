@@ -10,11 +10,12 @@ from journal.engine.states.ended import Ended
 from journal.engine.states.demand_block import DemandBlock
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.engine.support.settings import Settings
+from journal.support.option import Option
 from journal.support.agent_role import AgentRole
 
 
 class StatesCatalogue:
-    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode a feature's setting picks, Idle when none does, while every helper's is Void, with the state its role works in from its start pushed over it when it has one."""
+    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode picked by the first feature, in the registry's order, whose setting picks one, Idle when none does, while every helper's is Void, with the state its role works in from its start pushed over it when it has one."""
 
     ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Void, DemandBlock, Panicking, LockedOut)
 
@@ -66,8 +67,11 @@ class StatesCatalogue:
         return self.role_floors.get(role, Void)()
 
     def mode_state(self, settings: Settings) -> type[BaseState]:
-        picks = [modes.states.get(str(settings.value(modes.option))) for modes in self.modes]
+        picks = [modes.states.get(settings.value(modes.option)) for modes in self.modes]
         return next((state for state in picks if state), type(self.first()))
+
+    def mode_options(self) -> list[Option]:
+        return [modes.option for modes in self.modes]
 
     def is_mode_floor(self, state: BaseState) -> bool:
         return any(type(state) in modes.states.values() for modes in self.modes)

@@ -2227,6 +2227,56 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert nudge_reached(app, use("e.py"), PlansNudges.BUILDER_MODE)
 
 
+def test_plan_agents_instead_of_work_modes_sets_the_old_modes_conduct_aside_while_on_and_brings_it_back_when_off(app: App):
+    """The switch picks the floor of the main agent's stack, and a mode's conduct is given to its floor alone: on, the floor coordinates the plans and no work mode's conduct is heard; off, the work mode set is the floor again."""
+    from journal.features.plans.plans_options import PlansOptions
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    use = lambda name: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
+    dispatch = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal worker dispatch 'Ada Lovelace' 'the job' --changes 'the files of its task' --tests 'Scoped tests' --profile journal-medior --model sonnet"}, tool_use_id=f"t-{timing.time()}")[1])
+    floor = lambda: app.container.get(Agents).session_agent("s1").stack[0]["state"]
+    assert app.container.get(SettingRows).option(PlansOptions.PLAN_AGENTS) is False, "the switch is off until the user turns it on"
+    user_set(app, "workers.builder_may_dispatch", False)
+    assert nudge_reached(app, dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "off, the builder's conduct refuses the dispatch it was not allowed"
+    user_set(app, "plans.plan_agents", True)
+    assert nudge_reached(app, use("a.py"), PlansNudges.COORDINATOR_MODE) and floor() == "coordinating_plans", "on, the floor coordinates the plans and says so once"
+    assert not has_nudge(dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "and the builder's conduct is not heard"
+    user_set(app, "workers.mode", "solo")
+    assert floor() == "coordinating_plans" and not has_nudge(use("b.py"), WorkersNudges.SOLO_MODE), "the work mode set is not used while the switch is on"
+    user_set(app, "plans.plan_agents", False)
+    assert nudge_reached(app, use("c.py"), WorkersNudges.SOLO_MODE) and floor() == "soloing", "off again, the work mode set is the floor"
+
+
+def test_a_conduct_given_to_the_plan_agents_floor_is_folded_only_there_and_the_old_modes_conduct_never_is(app: App):
+    from journal.engine.conduct import Conduct
+    from journal.features.feature import Feature
+    from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+    from journal.features.plans.states.plans_ready import PlansReady
+    from journal.features.registry import Registry
+    from journal.features.reports.orchestrator_reports_conduct import OrchestratorReportsConduct
+    from journal.features.workers.builder_conduct import BuilderConduct
+    from journal.features.workers.orchestrator_conduct import OrchestratorConduct
+    from journal.features.workers.solo_conduct import SoloConduct
+    from journal.features.workers.states.orchestrating import Orchestrating
+    from journal.features.workers.states.soloing import Soloing
+    from journal.support.agent_role import AgentRole
+
+    class TrialConduct(Conduct):
+        pass
+
+    class Trial(Feature[None]):
+        name = "trial"
+        mode_conduct = ((CoordinatingPlans, TrialConduct),)
+
+    registry = app.container.get(Registry)
+    trial = Registry((*registry.features, Trial), registry.settings, registry.standard_commands, tuple(registry.helper(role) for role in AgentRole.helpers()))
+    old_floors, old_conducts = (PlansReady, Orchestrating, Soloing), {BuilderConduct, OrchestratorConduct, SoloConduct, OrchestratorReportsConduct}
+    assert trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans) == (TrialConduct,), "a new-model conduct is folded on the Plan agents floor, and no old mode's conduct is"
+    assert {conduct for floor in old_floors for conduct in trial.mode_conducts(AgentRole.MAIN, floor)} == old_conducts, "each old mode's conduct is folded on its own floor, never a new-model one"
+    assert CoordinatingPlans in trial.mode_states(), "the listener index is built for the Plan agents floor"
+
+
 def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one_that_stalls(app: App):
     from journal.db.connection import Connection
     from journal.models.plan_state import PlanState

@@ -35,7 +35,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.measure_lines import MeasureLines
 from journal.features.workers.fitness_options import FitnessOptions
-from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions, MODE_SETTINGS
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.tasks.states.external_wait import ExternalWait
 
@@ -55,7 +55,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, a worker that stopped at the usage limit is named with the time it goes on by itself, a worker whose processes pass the memory warning is named once, and in orchestrator mode a stop is refused while work this agent sent out waits clocked out, naming each worker, but for one it awaits, the worker itself or a run in its worktree, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line; with the fitness warnings on, each failing measure's one line, as often as its nudge repeats; and in orchestrator mode a merged worker's model that did not fit its work, too strong or too weak, is named in one short line."""
 
     def on_setting_changed(self, event: SettingChanged, settings: Settings) -> Transition:
-        return self.pop() if event.setting == WorkersOptions.MODE.key and self.is_mode_bound() else self.none()
+        return self.pop() if event.setting in MODE_SETTINGS and self.is_mode_bound() else self.none()
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, measure_check)

@@ -1320,6 +1320,7 @@ messages.sweep_after = 10  (the user sets it)
 messages.fold_marks_seconds = 10
 plans.testing = 'none'
 plans.test_commands = 'pytest, journal suite'
+plans.plan_agents = False  (the user sets it)
 sequences.say_every = 10
 usage.check_minutes = 15
 workers.lockout_seconds = 30
@@ -1746,6 +1747,7 @@ plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}
 plans.now_building  [plans]  you are now the builder
+plans.now_coordinating_plans  [plans]  you now coordinate the plans: each plan's own Plan agent does its work; write no code
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
 plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`

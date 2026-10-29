@@ -1,3 +1,4 @@
+from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.support.plan_approval import PlanApproval
 from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
@@ -76,3 +77,6 @@ class WorkersOptions:
     ALLOWED_MODELS = Option("workers.allowed_models", "Models each role may run on", "One line for each provider and role, such as claude journal-medior: sonnet, opus; the models a dispatch, a reviewer or a verifier of that role may run on, the minimum and the maximum being the ends of what is listed; one asking for another is moved to the nearest listed", ["claude journal-medior: sonnet, opus", "claude journal-senior: sonnet, opus", "claude reviewer: sonnet", "claude verifier: sonnet", "codex journal-medior: gpt-6-luna, gpt-6.1-sol", "codex journal-senior: gpt-6-luna, gpt-6.1-sol", "codex reviewer: gpt-6.1-sol", "codex verifier: gpt-6.1-sol"], option_type="lines")
     POOL_PROFILES = Option("workers.pool_profiles", "Profiles a pool worker may use", "The worker profiles, one per line, a teammate may dispatch to the team's pool; a pool request naming another is refused", ["journal-medior"], option_type="lines", setter=USER)
     COMPLETION_COMMANDS = Option("workers.completion_commands", "Commands after a worker's worktree is made", "Your own shell commands, one per line, run inside a worker's worktree once it is made, such as installing its dependencies; receiving the same values as the commands before", [], option_type="lines", scope=OptionScope.MACHINE)
+
+
+MODE_SETTINGS = (WorkersOptions.MODE.key, PlansOptions.PLAN_AGENTS.key)
