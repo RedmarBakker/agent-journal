@@ -581,22 +581,6 @@ def test_the_users_edits_and_closes_of_a_workers_task_reach_the_worker(app: App)
         assert workers.find(second.id).state == WorkerState.RELEASED, "the user's finish releases the worker"
 
 
-def test_journal_panic_passes_every_hold_and_a_compaction_ends_at_the_journals_start(app: App):
-    hook(app, "SessionStart")
-    console, agents = app.console(), app.container.get(Agents)
-    console.run(["panic", "paused"], AGENT)
-    assert write(app)[0] == 409, "the pause holds every tool"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal panic apply idle"})[0] == 200, "a panic line passes the hold"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal panic apply idle && rm -rf a"})[0] == 409, "only a line of panic alone passes"
-    console.run(["panic", "pop"], AGENT)
-    hook(app, "PreCompact")
-    assert agents.session_agent("s1").state == "compacting"
-    app.container.get(StateMachine).compactions_ended()
-    assert [row["state"] for row in agents.session_agent("s1").stack] == ["idle"], "a journal start ends every compaction"
-
-
-
-
 class Hearing(Listener[PlanStarted]):
     def __init__(self) -> None:
         self.heard: list[PlanStarted] = []

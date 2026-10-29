@@ -440,6 +440,7 @@ class AgentSteps:
         for feature in runtime.registry.features:
             for seed in feature.seeds:
                 runtime.seeded(seed)
+        runtime.compactions_closed()
         self.app.container.get(ProfileFiles).write_all()
         self.observed("the journal starts again", None, None)
 

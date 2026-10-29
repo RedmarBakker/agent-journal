@@ -89,6 +89,9 @@ class Runtime:
             for seed in feature.seeds:
                 self.seeded(seed)
         self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
+        self.compactions_closed()
+
+    def compactions_closed(self) -> None:
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 
