@@ -59,7 +59,7 @@ class PluginRunner:
 
     def program_run(self, plugin: Plugin, environment: str, line: str, window: float, report: Callable[[str], None] | None = None) -> PluginAnswer:
         folder = self.folders.folder(plugin)
-        with tempfile.TemporaryFile("w+") as input_file, tempfile.TemporaryFile("w+") as error_file:
+        with tempfile.TemporaryFile("w+", dir=self.config.home / "runtime") as input_file, tempfile.TemporaryFile("w+", dir=self.config.home / "runtime") as error_file:
             input_file.write(line + "\n")
             input_file.seek(0)
             process = subprocess.Popen([str(folder / plugin.manifest.program)], cwd=folder, env=self.environment(plugin, environment), stdin=input_file, stdout=subprocess.PIPE, stderr=error_file, bufsize=0, start_new_session=True)
