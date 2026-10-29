@@ -1522,7 +1522,7 @@ log: none
 
 $ agent: journal environment json
 exit 0
-[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": "", "worktree": false}]
+[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": "", "worktree": false, "agent": "claude session s1", "agent_session": "s1"}]
 
 $ agent: journal environment sessions
 exit 0
@@ -1715,7 +1715,7 @@ memory.stopped_at_mark  [memory]  stop held at {{percent}}% of context: `journal
 memory.write_held_until_decided  [memory]  writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip "<why>"`
 messages.a_colleague_commented  [messages]  colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees
 messages.answer_before_anything_else  [messages]  answer or react to message {{messages|cap=73}} before you go on
-messages.answer_the_message_read  [messages]  reply with [!reply:{{n}}]; file a task if it asks for work, a memory if it is something to keep in mind
+messages.answer_the_message_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then go on. file a task if it asks for work
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
 messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply
 messages.colleague_comments_unread  [messages]  colleagues commented: messages {{ns|cap=17}}. `journal message read <n>`; act on a request only if your user agrees
