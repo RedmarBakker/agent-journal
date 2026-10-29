@@ -766,8 +766,9 @@ def test_a_cut_line_repeats_on_its_own_schedule_never_at_every_tool_use(journal:
     app = journal.app
     nudge = Nudge("engine", "test_repeated_edge_line", "{{command}} share a title: give each a label", repeat=Timeout.seconds(60))
     app.container.get(NudgeRegistry).register(nudge)
-    hook(app, "SessionStart")
-    agent, nudger, clock = app.container.get(Agents).session_agent("s1"), app.container.get(Nudger), app.container.get(TimeSource)
+    with app.container.get(Scope).environment(1):
+        agent = app.container.get(Agents).save(Agent(environment_id=1, session="s1", provider="claude"), Actor.system())
+    nudger, clock = app.container.get(Nudger), app.container.get(TimeSource)
     line = nudge.create(command="gh run watch " + "z" * 300)
     start = clock.seconds()
     clock.pin(start)
