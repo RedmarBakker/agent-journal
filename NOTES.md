@@ -1916,3 +1916,19 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   both the old modes and the setting.
 - The refactor is one sweep in plan 1's order; the reviewers' advice to run Roles on today's workers first was not
   taken (reports 1 and 2).
+
+## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
+
+Phase 3 proves each unverified point on a hand-built rig. What happens when a point fails is decided now, not after.
+
+- Must hold, or phase 7 is not built on OpenRig and its seats are built in journal instead (a long-lived journal
+  agent per seat, on the Nudger and the stack of states): journal's agent token reaches a seat and its journal
+  commands work; journal's hooks and OpenRig's activity hooks both fire in one seat; a seat's cost can be read
+  (OpenRig's usage readers or the transcript); a seat can be added to a running rig.
+- May fail with a journal-side workaround, and phase 7 goes on: queue order and fairness on a shared seat (journal
+  orders the queue itself); blocking a direct `rig send` (journal's route check stays the only gate); multi-device
+  (organization plans run on the machine of the main agent's environment).
+- May fail and be deferred: pausing a plan by rig snapshot (a paused plan's seats are stopped and started fresh with
+  their Role's guidance and the task's log).
+- Phases 4 to 6 do not depend on OpenRig and stand either way. The trial report names each point's result and which
+  of these applies; the decision to go on is recorded here.
