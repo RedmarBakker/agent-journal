@@ -302,6 +302,7 @@ class Routes:
         router.post(f"{API}/library/revoke", library.revoke)
         router.get(f"{API}/library/people", library.people)
         router.post(f"{API}/library/password", library.password)
+        router.get(f"{API}/library/copies", library.copies)
         router.get(f"{API}/library/items", library.items_listed)
         router.get(f"{API}/library/items/{{item_type}}/{{name}}", library.item)
         router.post(f"{API}/library/items/{{item_type}}/{{name}}/import", library.import_item)

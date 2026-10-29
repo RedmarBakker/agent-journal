@@ -33,6 +33,8 @@ def test_the_library_page_reads_the_connection_without_its_token_and_publishes_a
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_library_page_names_the_fields_edited_in_the_copy_here_so_it_offers_the_replace(story):
     original = story.a_library_holds_a_sequence_imported_here("Review Day", "read it")
+    story.user_opens("/journal/library/items/sequence/review-day")
+    story.expect_viewer_part(("edited_fields",), [])
     story.user_types(f"sequence edit {story.sequence_number(COPY)} --steps 'my own way'")
     story.user_opens("/journal/library/items/sequence/review-day")
     story.expect_viewer_part(("edited_fields",), ["steps"])
@@ -41,4 +43,6 @@ def test_the_library_page_names_the_fields_edited_in_the_copy_here_so_it_offers_
     story.user_presses("/journal/library/items/sequence/review-day/update", {"replace": True})
     story.user_opens("/journal/library/items/sequence/review-day")
     story.expect_viewer_part(("edited_fields",), [])
+    story.user_opens("/journal/library/copies")
+    story.expect_viewer_part(("copies", 0, "version"), 2)
     story.expect_stack(story.agents.subject, Ready)

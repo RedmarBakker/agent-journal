@@ -7,6 +7,7 @@ import Segmented from "../kit/Segmented.vue";
 import SidePanel from "../kit/SidePanel.vue";
 import TextArea from "../kit/TextArea.vue";
 import TextInput from "../kit/TextInput.vue";
+import LibraryStanding from "../resource/LibraryStanding.vue";
 
 const props = defineProps({profile: {type: Object, required: true}, used: {type: String, default: ""}});
 const emit = defineEmits(["close", "save"]);
@@ -88,6 +89,9 @@ const canSave = computed(() => dirty.value && /^[a-z0-9_-]+$/i.test(draft.value.
             </FormField>
             <template v-if="profile.shipped">
                 <p class="profile-panel-note">The journal ships this profile; setup puts it back as shipped.</p>
+            </template>
+            <template v-else-if="profile.name">
+                <LibraryStanding type="profile" :reference="profile.name" :place="profile.name" />
             </template>
         </div>
         <template #foot>

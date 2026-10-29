@@ -53,3 +53,28 @@ test("a copy edited here is not updated by a press but offered to be replaced, n
     read.mockRestore();
     updated.mockRestore();
 });
+
+test("a sequence's panel names the library version its copy came from, and publishes it with its note", async () => {
+    const LibraryStanding = (await import("../src/resource/LibraryStanding.vue")).default;
+    const status = vi.spyOn(api, "library").mockResolvedValue({connected: true});
+    const copies = vi.spyOn(api, "libraryCopies").mockResolvedValue({copies: [{item_type: "sequence", name: "release", version: 3, place: "sequences:7"}]});
+    const publish = vi.spyOn(api, "publishLibraryItem").mockResolvedValue({number: 4});
+    const root = mounted(LibraryStanding, {type: "sequence", reference: 7, place: "sequences:7"});
+    await settled();
+    expect(root.textContent).toContain("From the library: version 3");
+    [...root.querySelectorAll("button")].find((b) => b.textContent.includes("Publish to the library")).click();
+    await settled();
+    [...root.querySelectorAll("button")].find((b) => b.textContent.trim() === "Publish").click();
+    await settled();
+    expect(publish).toHaveBeenLastCalledWith("sequence", "7", "", null);
+    [status, copies, publish].forEach((spy) => spy.mockRestore());
+});
+
+test("with no library connected a panel shows nothing of the library", async () => {
+    const LibraryStanding = (await import("../src/resource/LibraryStanding.vue")).default;
+    const status = vi.spyOn(api, "library").mockResolvedValue({connected: false});
+    const root = mounted(LibraryStanding, {type: "template", reference: 2, place: "templates:2"});
+    await settled();
+    expect(root.textContent.trim()).toBe("");
+    status.mockRestore();
+});

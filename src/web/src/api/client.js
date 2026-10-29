@@ -470,6 +470,16 @@ export class ApiClient {
         return this.get(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}`);
     }
 
+    // every copy here that came from the library, with the version it came from and the row or file it is
+    libraryCopies() {
+        return this.get("/library/copies");
+    }
+
+    // publishes a sequence or template, by its number, or a profile, by its name, as the library's next version
+    publishLibraryItem(type, reference, note, description) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/publish`, {reference, note, description}, LONG_WAIT_MS);
+    }
+
     // imports a library item's version as this journal's own copy
     importLibraryItem(type, name, version) {
         return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version});

@@ -10,6 +10,7 @@ import {useWriting} from "../composables/writing.js";
 import OptionsPicker from "./OptionsPicker.vue";
 import Comments from "./Comments.vue";
 import Links from "./Links.vue";
+import LibraryStanding from "./LibraryStanding.vue";
 import SequenceRuns from "./SequenceRuns.vue";
 import SequenceSteps from "./SequenceSteps.vue";
 import CheckResult from "./CheckResult.vue";
@@ -47,6 +48,7 @@ const kind = computed(() => meta(table.value));
 const body = computed(() => bodyOf(props.resource));
 const sections = computed(() => sectionsOf(props.resource.body));
 const SHOWN_APART = ["triggers", "sequences", "messages", "questions"];
+const LIBRARY_TYPES = {sequences: "sequence", templates: "template"};
 const MEMORY_TABLES = ["memories", "rules", "reminders"];
 const edits = computed(() => editsOf(props.resource));
 const editing = ref(false);
@@ -112,6 +114,9 @@ async function follow() {
         </template>
         <template v-if="table === 'templates'">
             <ResourceMadeFor :types="resource.targets" />
+        </template>
+        <template v-if="LIBRARY_TYPES[table] && !readOnly">
+            <LibraryStanding :type="LIBRARY_TYPES[table]" :reference="resource.id" :place="`${table}:${resource.id}`" />
         </template>
         <template v-if="table === 'triggers'">
             <TriggerEditor :resource="resource" />

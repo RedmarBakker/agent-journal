@@ -7,6 +7,7 @@ from journal.features.library.support.library_connect import LibraryConnect
 from journal.sync.team_url import TeamUrl
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.library_publish import LibraryPublish
+from journal.features.library.support.library_copy import LibraryCopy
 from journal.features.library.support.library_update import LibraryUpdate
 from journal.http.support.request import Request
 from journal.support.rejection import Rejection
@@ -16,7 +17,7 @@ from sync_server.item_query import ItemQuery
 
 
 class LibraryController:
-    """The team's library as the viewer reads and changes it, through the very support classes the library command uses: connecting and disconnecting, whether and to whom this journal is connected, the admin's invitations, devices, people and a password change, the items with the version imported of each, one item's versions with the fields edited in the copy here, and importing, updating and publishing an item."""
+    """The team's library as the viewer reads and changes it, through the very support classes the library command uses: connecting and disconnecting, whether and to whom this journal is connected, the admin's invitations, devices, people and a password change, the items with the version imported of each, one item's versions with the fields edited in the copy here, every copy here with the version it came from, and importing, updating and publishing an item."""
 
     def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, importing: LibraryImport, updating: LibraryUpdate, publishing: LibraryPublish, connecting: LibraryConnect) -> None:
         self.account, self.schema, self.items = account, schema, items
@@ -80,6 +81,12 @@ class LibraryController:
             raise Rejection("publishing takes the number of the sequence or template, or the name of the profile, as reference")
         version = self.publishing.published(request.params["item_type"], str(request.body["reference"]), str(request.body.get("note", "")), request.body.get("description"))
         return Response.json(asdict(version))
+
+    def copies(self, request: Request) -> Response:
+        if not self.account.is_connected():
+            return Response.json({"copies": []})
+        items = self.items.library_rows(self.account.connection().key)
+        return Response.json({"copies": [asdict(LibraryCopy.create(item, self.items.local_rows(item))) for item in items if self.items.has_copy(item, self.account.config.root)]})
 
     def imported_version(self, key: str, item_type: str, name: str) -> int:
         imported = self.items.imported(key, item_type, name)
