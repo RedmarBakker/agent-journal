@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from journal.events.models.updated import Updated
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.models.support.ref import Ref
@@ -10,7 +11,7 @@ from journal.support.missing_row import MissingRow
 from journal.support.time_source import TimeSource
 
 CAUSE_TABLES = ("tasks", "plans", "docs", "reports")
-WRITTEN_FIELDS = ("title", "brief", "body", "abstract")
+TEXT_FIELDS = ("title", "brief", "body", "abstract")
 REPLY_WINDOW_SECONDS = 120
 
 
@@ -28,12 +29,15 @@ class ReplyCause:
         for requested in requested_messages:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
-    def edited(self, row: Model, actor: Actor) -> None:
-        for requested in self.requested(row, actor):
+    def edited(self, event: Updated) -> None:
+        if not event.has_changed_fields(TEXT_FIELDS):
+            return
+        row = event.model
+        for requested in self.requested(row, event.actor):
             if Ref.build(row) in self.links.targets(requested, Messages.SUBJECT_LINK):
                 continue
-            self.links.linked(Ref.build(requested), Ref.build(row), Messages.EDIT_LINK, actor)
-            self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
+            self.links.linked(Ref.build(requested), Ref.build(row), Messages.EDIT_LINK, event.actor)
+            self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, event.actor)
 
     def requested(self, row: Model, actor: Actor) -> list[Message]:
         if not actor.is_agent_actor() or row.table() not in CAUSE_TABLES:

@@ -16,6 +16,9 @@ class Updated(ModelEvent):
     def previous_row(self, type_name: type[M]) -> M | None:
         return self.previous if isinstance(self.previous, type_name) else None
 
+    def has_changed_fields(self, names: tuple[str, ...]) -> bool:
+        return any(name in names for name in self.changed())
+
     def changed(self) -> tuple[str, ...]:
         if self.previous is None:
             return ()

@@ -60,10 +60,7 @@ class AgentActivity:
         self.jobs, self.numbers, self.settings, self.scoring, self.measures = jobs, numbers, settings, scoring, measures
 
     def page(self, agents: list[Agent]) -> list[dict]:
-        return [self.row(item, [] if self.has_ended(item) else self.session_entries(item.session)) for item in agents]
-
-    def has_ended(self, agent: Agent) -> bool:
-        return self.states.restored(agent.state, agent.data).final
+        return [self.row(item, [] if self.states.has_ended(item) else self.session_entries(item.session)) for item in agents]
 
     def session_entries(self, session: str) -> list:
         newest = [*self.entries.agent_kinds_newest(session, list(STATUS), 1), *self.entries.agent_kinds_newest(session, [*TOOL_KINDS, PART_START, PART_END], 1),
@@ -82,7 +79,7 @@ class AgentActivity:
         moves = [e for e in hooks if Entries.is_kind(e, tuple(STATUS))]
         last = moves[-1] if moves else None
         type_name = last.entry_type if last else ""
-        state = self.states.restored(agent.state, agent.data)
+        state = self.states.top(agent)
         waiting_state, enabled = self.current.wait_text(agent)
         provider = self.providers.lookup(agent.provider)
         status = provider.status(agent.session, self.config.status_home)
@@ -117,8 +114,7 @@ class AgentActivity:
 
     def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
-        specs = {spec.key: spec for spec in self.measures.specs(agent.measures.mode)}
-        measures = [self.measure(state, specs[state.key]) for state in agent.measures.states if state.key in specs]
+        measures = [self.measure(state, spec) for state, spec in self.measures.paired(agent.measures)]
         return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "measures": measures, "band": agent.band.value, "band_changed_at": agent.band_changed_at, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     @staticmethod
@@ -142,7 +138,7 @@ class AgentActivity:
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = self.time_source.seconds()
-        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.has_ended(agent) else []
+        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.states.has_ended(agent) else []
 
     @staticmethod
     def reported(last) -> str:

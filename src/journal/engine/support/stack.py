@@ -13,6 +13,9 @@ class Stack:
     def top(self) -> BaseState:
         return self.states[-1]
 
+    def bottom(self) -> BaseState:
+        return self.states[0]
+
     def with_top(self, state: BaseState) -> "Stack":
         return Stack((*self.states[:-1], state))
 

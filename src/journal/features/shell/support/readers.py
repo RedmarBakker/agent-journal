@@ -21,7 +21,6 @@ RULES_VERSION = 2
 
 KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
-JOURNAL_COMMAND_READERS = ("worker-merge",)
 # the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
 SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge")
 
@@ -154,7 +153,7 @@ class Readers:
         return next((line.removeprefix(STAMP) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
 
     def journal_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
+        return [reader for reader in self.all() if reader.reads_journal_output(self.aliases.names()) and not self.owner(reader.name)]
 
     def plugin_aliases_read(self, reader: Reader) -> list[Alias]:
         plugin_aliases = self.aliases.plugin_aliases()
@@ -167,10 +166,6 @@ class Readers:
         aliases = self.plugin_aliases_read(reader)
         if aliases:
             raise Rejection(f"reader {reader.name} would read a plugin's alias, journal {', journal '.join(alias.name for alias in aliases)}, which has its own")
-
-    def reads_journal_output(self, reader: Reader) -> bool:
-        aliases = self.aliases.index()
-        return reader.name not in JOURNAL_COMMAND_READERS and any(name not in aliases for name in reader.commands.journal_commands())
 
     def default_names(self) -> set[str]:
         path = self.config.readers / DEFAULTS_FILE
@@ -203,7 +198,7 @@ class Readers:
         self.stored_file(reader, ".pattern", reader.text())
 
     def stored_file(self, reader: Reader, suffix: str, text: str) -> None:
-        if self.reads_journal_output(reader):
+        if reader.reads_journal_output(self.aliases.names()):
             raise Rejection(f"reader {reader.name} would read a journal command, which the journal shows whole: read a program's output instead")
         name = reader.name
         self.config.readers.mkdir(parents=True, exist_ok=True)

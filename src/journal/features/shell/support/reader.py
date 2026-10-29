@@ -22,6 +22,7 @@ TOPIC_LABEL_PREFIX = "topic label: "
 PREFIXES = (PROGRESS_PREFIX, LABEL_PREFIX, COMMANDS_PREFIX, STEP_PREFIX, TOPIC_PREFIX, FINISHED_PREFIX, FAILED_PREFIX, SUMMARY_PREFIX, TOPIC_LABEL_PREFIX)
 SCRIPT_SECONDS = 30
 STAGE_VARIABLE = "JOURNAL_OUTPUT_STAGE"
+JOURNAL_COMMAND_READERS = ("worker-merge",)
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,9 @@ class Reader:
 
     def is_progress_line(self, line: str) -> bool:
         return self.is_counting() and bool(re.search(self.progress_pattern, line))
+
+    def reads_journal_output(self, alias_names: frozenset[str]) -> bool:
+        return self.name not in JOURNAL_COMMAND_READERS and any(name not in alias_names for name in self.commands.journal_commands())
 
     def matches(self, command: str) -> bool:
         return bool(self.pattern) and self.pattern in command

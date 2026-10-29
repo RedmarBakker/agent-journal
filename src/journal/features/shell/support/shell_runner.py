@@ -189,7 +189,7 @@ class ShellRunner:
         if not caller.has_agent_row():
             return ""
         lines = [line for note in notes if (line := self.nudger.deliver(caller.agent_row, note))]
-        return self.returns.chosen(self.states.stack(caller.agent_row).states[0]).note_lines(lines, environment)
+        return self.returns.chosen(self.states.stack(caller.agent_row).bottom()).note_lines(lines, environment)
 
     def remove_plugin_alias_readers(self, line: str) -> None:
         alias = self.aliases.line_alias(line)

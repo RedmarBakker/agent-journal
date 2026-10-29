@@ -49,8 +49,7 @@ class SessionAgents:
         return Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=top.name, data=top.serialized(), stack=tuple(layers.serialized()), role=role)
 
     def top(self, session: str) -> BaseState:
-        agent = self.agents.session_agent(session)
-        return self.states.restored(agent.state, agent.data)
+        return self.states.top(self.agents.session_agent(session))
 
     def blocks_tools(self, session: str) -> bool:
         return any(self.states.restored(layer["state"], layer.get("data", {})).blocks_tools() for layer in self.agents.session_agent(session).stack)

@@ -59,6 +59,12 @@ class StatesCatalogue:
         state = self._states.get(name) or self._states["idle"]
         return state.restored(data or {})
 
+    def top(self, agent: Agent) -> BaseState:
+        return self.restored(agent.state, agent.data)
+
+    def has_ended(self, agent: Agent) -> bool:
+        return self.top(agent).final
+
     def first(self) -> BaseState:
         return self.restored("idle", {})
 
@@ -73,7 +79,7 @@ class StatesCatalogue:
         return any(type(state) in modes.states.values() for modes in self.modes)
 
     def floor(self, stack: Stack, settings: Settings) -> Stack:
-        return Stack((stack.states[0].floored(self.mode_state(settings)), *stack.states[1:]))
+        return Stack((stack.bottom().floored(self.mode_state(settings)), *stack.states[1:]))
 
     @staticmethod
     def helper_layers(first_state: BaseState) -> Stack:
@@ -86,10 +92,10 @@ class StatesCatalogue:
         return [base for base in type(self.first()).__mro__ if getattr(base, "name", "") == "idle"][-1]
 
     def stack(self, agent: Agent) -> Stack:
-        return Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.restored(agent.state, agent.data))
+        return Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.top(agent))
 
     def stack_base(self, state: BaseState) -> Stack:
         return Stack((state,)) if self.is_bottom(state) else Stack((self.first(), state))
 
     def reset_stack(self, stack: Stack) -> Stack:
-        return Stack(stack.states[0].reset_states(stack.states))
+        return Stack(stack.bottom().reset_states(stack.states))

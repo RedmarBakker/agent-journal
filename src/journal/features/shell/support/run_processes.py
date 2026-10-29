@@ -12,9 +12,10 @@ class RunProcesses:
     commands: dict[int, str] = field(default_factory=dict)
 
     def sampled(self, output: int, subtree: ProcessTree, classifier: CommandClassifier) -> None:
-        self.tests.setdefault(output, set()).update(row.pid for row in subtree.tests())
-        if subtree.has_inner_command(classifier):
-            self.commands[output] = subtree.inner_command(classifier)
+        self.tests.setdefault(output, set()).update(subtree.test_pids())
+        command = subtree.inner_command(classifier)
+        if command is not None:
+            self.commands[output] = command
 
     def test_count(self, output: int) -> int:
         return len(self.tests.get(output, ()))

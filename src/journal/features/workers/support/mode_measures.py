@@ -44,6 +44,10 @@ class ModeMeasures:
         builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), open_work_wait, MESSAGE_WAIT, COMPLETION_RATE)
         return {SOLO_MODE: (open_work_wait, MESSAGE_WAIT, COMPLETION_RATE), BUILDER_MODE: builder, ORCHESTRATOR_MODE: orchestrator}.get(mode, ())
 
+    def paired(self, measures: MeasureStates) -> list[tuple[MeasureState, MeasureSpec]]:
+        specs = {spec.key: spec for spec in self.specs(measures.mode)}
+        return [(state, specs[state.key]) for state in measures.states if state.key in specs]
+
     def worked(self, agent: Agent, mode: str, time: float) -> MeasureStates:
         previous = agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)
         source = MeasureSource(agent, time, self.free_places, self.active_workers, self.tasks, previous.started_at)

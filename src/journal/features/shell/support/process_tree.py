@@ -36,11 +36,8 @@ class ProcessTree:
             level = [child for row in level for child in children.get(row.pid, [])]
         return ProcessTree(members)
 
-    def tests(self) -> list[ProcessRow]:
-        return [row for row in self.rows if TEST_PROCESS.search(row.command)]
+    def test_pids(self) -> set[int]:
+        return {row.pid for row in self.rows if TEST_PROCESS.search(row.command)}
 
-    def has_inner_command(self, classifier: CommandClassifier) -> bool:
-        return any(classifier.process_command(row.command) for row in self.rows)
-
-    def inner_command(self, classifier: CommandClassifier) -> str:
-        return next(classifier.process_command(row.command) for row in self.rows if classifier.process_command(row.command))
+    def inner_command(self, classifier: CommandClassifier) -> str | None:
+        return next((classifier.process_command(row.command) for row in self.rows if classifier.process_command(row.command)), None)

@@ -88,7 +88,7 @@ class StateMachine:
         return [agent for agent in unended if self.features.receives_row_event(type(event).feature_name, agent.role)]
 
     def mode_change(self, stored_stack: Stack, stack: Stack) -> tuple[Nudge, ...]:
-        bottom, previous_bottom = stack.states[0], stored_stack.states[0]
+        bottom, previous_bottom = stack.bottom(), stored_stack.bottom()
         return bottom.mode_lines() if type(bottom) is not type(previous_bottom) and self.states.is_mode_floor(previous_bottom) else ()
 
     def row_assignments(self, event: RowEvent) -> None:
@@ -112,22 +112,22 @@ class StateMachine:
         event = event.with_data(self.readers.agent_data(agent))
         if isinstance(event, ToolStarting):
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
-        transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.agent_conducts(agent.role, type(stack.states[0])), type(event)))
+        transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.agent_conducts(agent.role, type(stack.bottom())), type(event)))
         machine_answer = self.answer_moves(stack, transition, agent.role, settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         agent = self._store(agent, machine_answer, event.key, Actor.system())
         nudge_lines = [(nudge, line) for nudge in (*mode_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
-        queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(machine_answer.stack.states[0], nudge, event))
+        queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(machine_answer.stack.bottom(), nudge, event))
         lines = [line for _, line in nudge_lines if line not in queued]
         lines, remarks = self.answer_lines(lines, event), (*queued, *self.overflow_lines(lines, event))
         keystrokes = tuple(line for nudge in transition.terminal_lines if (line := self.nudger.deliver(agent, nudge)))
         reasons = [line for refusal in (transition.refusal, *transition.extra_refusals) if refusal and (line := self.nudger.refuse_with(agent, refusal))]
         if reasons:
-            return MachineReply(agent, machine_answer.stack.states[0], Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks)
+            return MachineReply(agent, machine_answer.stack.bottom(), Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks)
         if machine_answer.refusal and (line := self.nudger.refuse_with(agent, machine_answer.refusal.nudge)):
-            return MachineReply(agent, machine_answer.stack.states[0], Decision.refuse(line), keystrokes, remarks)
-        answered = MachineReply(agent, machine_answer.stack.states[0], Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
+            return MachineReply(agent, machine_answer.stack.bottom(), Decision.refuse(line), keystrokes, remarks)
+        answered = MachineReply(agent, machine_answer.stack.bottom(), Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
         if transition.next_event is not None:
             return self.joined_answers(answered, self.stack_reply(agent, transition.next_event))
         return answered.merged(self.stack_reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
@@ -158,7 +158,7 @@ class StateMachine:
         if machine_answer.refusal:
             raise Rejection(machine_answer.refusal.nudge.rendered())
         keystrokes = tuple(line for nudge in machine_answer.nudges if (line := self.nudger.deliver(resolved, nudge)))
-        return MachineReply(resolved, machine_answer.stack.states[0], Decision(), keystrokes)
+        return MachineReply(resolved, machine_answer.stack.bottom(), Decision(), keystrokes)
 
     def top_state(self) -> Settings:
         return Settings.applied(self.settings, self.features.options())
@@ -203,7 +203,7 @@ class StateMachine:
             return stack.with_top(destination)
         if self.states.is_bottom(destination):
             return Stack((destination,))
-        return Stack((*stack.states[0].reset_states(stack.states)[:1], destination))
+        return Stack((*stack.bottom().reset_states(stack.states)[:1], destination))
 
     def _store(self, agent: Agent, machine_answer: MachineAnswer, cause: str, actor: Actor) -> Agent:
         stack, destination = machine_answer.stack, machine_answer.stack.top()
