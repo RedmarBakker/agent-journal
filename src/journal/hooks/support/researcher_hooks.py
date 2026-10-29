@@ -8,6 +8,8 @@ from journal.models.environment import Environment
 from journal.repositories.agents import Agents
 from journal.support.agent_role import AgentRole
 from journal.support.hook import Hook
+from journal.support.researcher_session import ResearcherSession
+from journal.events.agent.subagent_started import SubagentStarted
 from journal.models.agent import Agent
 from journal.support.time_source import TimeSource
 
@@ -23,21 +25,21 @@ class ResearcherHooks:
         self.assign_work(agent)
         return agent
 
-    def started(self, hook: Hook, environment: Environment) -> None:
-        self.assign_work(self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT))
+    def started(self, event: SubagentStarted) -> None:
+        self.assign_work(self.sessions.helper_agent(ResearcherSession.joined(event.session, event.subagent), event.environment_id, event.provider, AgentRole.SUBAGENT))
 
     def assign_work(self, agent: Agent) -> None:
         self.listeners.dispatch(HelperAssignment(state=self.states.sent_first(AgentRole.SUBAGENT), agent=agent).placed(agent, None, self.time_source.seconds()))
 
-    def ended(self, hook: Hook, environment: Environment) -> None:
-        researchers = self.agents.session_rows(hook.researcher_session)
+    def ended(self, event: SubagentEnded) -> None:
+        researchers = self.agents.session_rows(ResearcherSession.joined(event.session, event.subagent))
         if not researchers:
             return
-        self.listeners.dispatch(SubagentEnded(subagent=hook.subagent, report=hook.subagent_report, agent=researchers[0]).placed(researchers[0], None, self.time_source.seconds()))
+        self.listeners.dispatch(SubagentEnded(subagent=event.subagent, report=event.report, agent=researchers[0]).placed(researchers[0], None, self.time_source.seconds()))
         self.closed(researchers[0])
 
-    def main_ended(self, hook: Hook, environment: Environment) -> None:
-        for researcher in self.agents.researchers(hook.session):
+    def main_ended(self, event: SessionEnded) -> None:
+        for researcher in self.agents.researchers(event.session):
             self.closed(researcher)
 
     def closed(self, researcher: Agent) -> None:

@@ -55,3 +55,11 @@ class Role:
     @classmethod
     def runs_alias(cls, alias: Alias) -> bool:
         raise NotImplementedError
+
+    @classmethod
+    def has_transcript(cls) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def has_researchers(cls) -> bool:
+        raise NotImplementedError

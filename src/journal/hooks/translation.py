@@ -20,6 +20,9 @@ from journal.hooks.support.turn_gatherer import TurnGatherer
 from journal.hooks.tool_uses import ToolUses
 from journal.support.hook_type import HookType
 from journal.models.agent import Agent
+from journal.models.environment import Environment
+from journal.events.moments.hook_unbound import HookUnbound
+from journal.events.moments.session_unbound import SessionUnbound
 from journal.providers.providers import Providers
 from journal.repositories.entries import Entries
 
@@ -42,6 +45,10 @@ class Translation:
         HookType.SESSION_END: lambda hook, calls, agent: SessionEnded(agent=agent),
     }
 
+    UNBOUND = {
+        HookType.SESSION_START: SessionUnbound,
+    }
+
     def __init__(self, config: Config, providers: Providers, turns: TurnGatherer, entries: Entries, clock: Clock, uses: ToolUses, calls: ToolCalls) -> None:
         self.config, self.providers, self.turns = config, providers, turns
         self.entries, self.clock, self.uses, self.calls = entries, clock, uses, calls
@@ -49,6 +56,12 @@ class Translation:
     def event(self, hook: Hook, agent: Agent) -> AgentEvent:
         placed = self.placed(self.EVENTS[hook.hook_type](hook, self.calls, agent), hook, agent)
         return self.turns.fold(self.uses.counted(placed.boot_delayed(hook.boot_wait_seconds).hooked(hook.key())))
+
+    def unbound(self, hook: Hook, environment: Environment) -> HookUnbound:
+        return self.UNBOUND.get(hook.hook_type, HookUnbound)(environment_id=environment.row_id, session=hook.session, environment=environment.name)
+
+    def events(self, hook: Hook, agent: Agent) -> tuple[AgentEvent, ...]:
+        return (self.returned(hook, agent), self.event(hook, agent)) if hook.silence_start else (self.event(hook, agent),)
 
     def returned(self, hook: Hook, agent: Agent) -> JournalReturned:
         return self.placed(JournalReturned(silence_start=float(hook.silence_start), agent=agent), hook, agent)

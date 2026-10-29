@@ -28,6 +28,7 @@ class Hook:
     boot_wait_seconds: float = 0.0
     firing: str = ""
     silence_start: str = ""
+    researcher: bool = False
 
     @classmethod
     def parse(cls, body: dict, environment: str, provider: str, launch: str) -> "Hook":
@@ -63,7 +64,7 @@ class Hook:
 
     def researcher_hook(self) -> "Hook":
         body = {key: value for key, value in self.body.items() if key not in SUBAGENT_KEYS}
-        return replace(self, session=self.researcher_session, body={**body, "session_id": self.researcher_session})
+        return replace(self, session=self.researcher_session, body={**body, "session_id": self.researcher_session}, researcher=True)
 
     def stamped(self, started_ms: int) -> "Hook":
         return replace(self, started_ms=started_ms)

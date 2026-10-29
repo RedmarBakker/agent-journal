@@ -56,3 +56,11 @@ class MainRole(Role):
     @classmethod
     def runs_alias(cls, alias: Alias) -> bool:
         return True
+
+    @classmethod
+    def has_transcript(cls) -> bool:
+        return True
+
+    @classmethod
+    def has_researchers(cls) -> bool:
+        return True

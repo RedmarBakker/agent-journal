@@ -15,6 +15,7 @@ class AgentEvent(Event):
     typing_delay: ClassVar[float] = 0.0
     is_work: ClassVar[bool] = False
     is_turn_end: ClassVar[bool] = False
+    reads_transcript: ClassVar[bool] = True
 
     agent: Agent = field(compare=False)
     session: str = ""

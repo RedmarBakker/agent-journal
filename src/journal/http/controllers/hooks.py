@@ -38,16 +38,17 @@ class HookController:
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, "")).silenced(request.headers.get(SILENCE_HEADER, ""))
-        hook = self.sender_stamped(stamped, request)
-        if hook.subagent and hook.is_pre_tool_use():
-            self.announce(hook)
-        elif hook.is_pre_tool_use():
-            self.announced.withdraw(hook.environment, hook.session, self.shell_parts(hook))
+        sender_hook = self.actor_stamped(stamped, request)
+        if sender_hook.subagent and sender_hook.is_pre_tool_use():
+            self.announce(sender_hook)
+        elif sender_hook.is_pre_tool_use():
+            self.announced.withdraw(sender_hook.environment, sender_hook.session, self.shell_parts(sender_hook))
+        hook = sender_hook.researcher_hook() if sender_hook.is_researcher() else sender_hook
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
 
     @staticmethod
-    def sender_stamped(hook: Hook, request: Request) -> Hook:
+    def actor_stamped(hook: Hook, request: Request) -> Hook:
         actor, token = request.headers.get(ACTOR_HEADER, ""), request.headers.get(ACTOR_TOKEN_HEADER)
         worker, verifier, reviewer = Actor.stamp_number(actor, ActorType.WORKER), Actor.stamp_number(actor, ActorType.VERIFIER), Actor.stamp_number(actor, ActorType.REVIEWER)
         if worker is not None:

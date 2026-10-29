@@ -2340,10 +2340,10 @@ HELPER_VERBS = {
     "subagent": ["doc create", "doc ready", "doc show", "doc update", "output read", "plan add", "plan brief", "plan create", "plan phase", "plan ready", "plan show", "plan todos", "report create", "report ready", "report show", "report update", "rule list", "rule read", "search find", "task list", "task show"],
 }
 HELPER_LISTENERS = {
-    "worker": ["CompactionMarkClear", "ContextThresholdCheck", "HookAnswer", "MemoryFading", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
-    "reviewer": ["HookAnswer", "PluginAgentRelay", "ReviewerTestFailed", "ReviewerTestPassed"],
-    "verifier": ["HookAnswer", "PluginAgentRelay"],
-    "subagent": ["HookAnswer", "PluginAgentRelay", "SubagentTurnRecord"],
+    "worker": ["CompactionMarkClear", "ContextThresholdCheck", "HookAnswer", "MemoryFading", "PluginAgentRelay", "RecordEdit", "ResearcherEnd", "ResearcherStart", "ResearchersClosed", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
+    "reviewer": ["HookAnswer", "PluginAgentRelay", "ResearcherEnd", "ResearcherStart", "ResearchersClosed", "ReviewerTestFailed", "ReviewerTestPassed"],
+    "verifier": ["HookAnswer", "PluginAgentRelay", "ResearcherEnd", "ResearcherStart", "ResearchersClosed"],
+    "subagent": ["HookAnswer", "PluginAgentRelay", "ResearcherEnd", "ResearcherStart", "ResearchersClosed", "SubagentTurnRecord"],
 }
 
 

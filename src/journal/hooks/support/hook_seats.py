@@ -20,14 +20,13 @@ class HookSeats:
         self.sessions, self.workers, self.checkers, self.researchers, self.agents, self.scope = sessions, workers, checkers, researchers, agents, scope
 
     def agent(self, hook: Hook, environment: Environment) -> Agent:
+        if hook.researcher:
+            return self.researchers.bind(hook, environment)
         if hook.worker is not None:
             return self.workers.bind(hook, environment)
         if hook.is_sent():
             return self.checkers.bind(hook, environment)
         return self.sessions.agent(hook.session, environment.row_id, hook.provider)
-
-    def researcher_agent(self, hook: Hook, environment: Environment) -> Agent:
-        return self.researchers.bind(hook, environment)
 
     def is_unknown_session_end(self, hook: Hook) -> bool:
         return hook.is_session_end() and not self.agents.matching(session=hook.session)

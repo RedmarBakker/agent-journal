@@ -16,6 +16,9 @@ from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.engine.delivery import Delivery
 from journal.engine.hook_answer import HookAnswer
+from journal.features.workers.listeners.researcher_end import ResearcherEnd
+from journal.features.workers.listeners.researcher_start import ResearcherStart
+from journal.features.workers.listeners.researchers_closed import ResearchersClosed
 from journal.engine.row_assignment import RowAssignment
 from journal.events.rows.task_closed import TaskClosed
 from journal.engine.state_machine import StateMachine
@@ -85,6 +88,8 @@ class Runtime:
         self.machine.index_listeners()
         self.bus.add_answer_listener(AgentEvent, self.container.get(HookAnswer), Blocking.ANSWER)
         self.bus.add_answer_listener(RowEvent, self.container.get(RowEventDelivery), Blocking.NEXT_DECISION)
+        for researcher_listener in (ResearcherStart, ResearcherEnd, ResearchersClosed):
+            self.bus.add_answer_listener(researcher_listener.event_type(), self.container.get(researcher_listener), Blocking.NEXT_DECISION)
         self.bus.listen(Created, Creations())
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
         self.container.get(TeamWrites).listen()
