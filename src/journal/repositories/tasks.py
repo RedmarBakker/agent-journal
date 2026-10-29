@@ -255,7 +255,7 @@ class Tasks(ScopedRepository[Task]):
 
     def guard_worker_task(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         owner = self.holder(task)
-        if owner is not None and owner != holder and owner.type == WORKERS and not actor.is_user():
+        if owner is not None and owner != holder and owner.type == WORKERS and not actor.can_move_worker_tasks():
             raise Rejection(HOLDER_REFUSAL.format(task=task.id, worker=owner.id))
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:

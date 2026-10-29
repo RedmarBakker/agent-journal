@@ -36,7 +36,7 @@ class SettingsCommand(Command):
 
     def set(self, args: Namespace, caller: Caller) -> int:
         option = self.option(args.key)
-        if option.setter == USER and not caller.actor.is_user():
+        if option.setter == USER and not caller.actor.can_set_user_options():
             raise Rejection(f"{option.key} is the user's to set, on the Settings page")
         self.settings.set(option.key, option.parsed(args.value), caller.actor)
         print(f"{option.key} = {self.shown(option)}")

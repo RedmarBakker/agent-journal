@@ -283,7 +283,7 @@ class TaskCommand(Command):
 
     def complete(self, args: Namespace, caller: Caller) -> int:
         holdings = self.tasks.task_worker_holdings({args.n})
-        if args.n in holdings and not caller.actor.is_user():
+        if args.n in holdings and not caller.actor.can_move_worker_tasks():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
         task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
         print(f"{self.labels.name('task', task)} done")

@@ -6,7 +6,7 @@ from journal.support.actor_type import ActorType
 SUBAGENT_SEPARATOR = ":"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Actor:
     """Who did something: the system, an agent by its session, a user by their id, a plugin by its name, the user's paired phone by its number, an external agent of another project by its name, a worker by its number, or a verifier or a reviewer the journal sent by its number. Stored as one string, kind:id, on every row and every entry."""
 
@@ -15,48 +15,56 @@ class Actor:
 
     @classmethod
     def system(cls) -> "Actor":
-        return cls(ActorType.SYSTEM)
+        return cls.instance(ActorType.SYSTEM, "")
 
     @classmethod
     def subagent(cls, session: str, subagent_session: str) -> "Actor":
-        return cls(ActorType.AGENT, f"{session}{SUBAGENT_SEPARATOR}{subagent_session}")
+        return cls.instance(ActorType.AGENT, f"{session}{SUBAGENT_SEPARATOR}{subagent_session}")
 
     @classmethod
     def agent(cls, session: str) -> "Actor":
-        return cls(ActorType.AGENT, session)
+        return cls.instance(ActorType.AGENT, session)
 
     @classmethod
     def user(cls, id: int) -> "Actor":
-        return cls(ActorType.USER, str(id))
+        return cls.instance(ActorType.USER, str(id))
 
     @classmethod
     def plugin(cls, name: str) -> "Actor":
-        return cls(ActorType.PLUGIN, name)
+        return cls.instance(ActorType.PLUGIN, name)
 
     @classmethod
     def phone(cls, id: int) -> "Actor":
-        return cls(ActorType.PHONE, str(id))
+        return cls.instance(ActorType.PHONE, str(id))
 
     @classmethod
     def external(cls, name: str) -> "Actor":
-        return cls(ActorType.EXTERNAL, name)
+        return cls.instance(ActorType.EXTERNAL, name)
 
     @classmethod
     def worker(cls, id: int) -> "Actor":
-        return cls(ActorType.WORKER, str(id))
+        return cls.instance(ActorType.WORKER, str(id))
 
     @classmethod
     def verifier(cls, id: int) -> "Actor":
-        return cls(ActorType.VERIFIER, str(id))
+        return cls.instance(ActorType.VERIFIER, str(id))
 
     @classmethod
     def reviewer(cls, id: int) -> "Actor":
-        return cls(ActorType.REVIEWER, str(id))
+        return cls.instance(ActorType.REVIEWER, str(id))
 
     @classmethod
     def parse(cls, stamp: str) -> "Actor":
         type_name, _, id = stamp.partition(":")
-        return cls(ActorType(type_name), id)
+        return cls.instance(ActorType(type_name), id)
+
+    @staticmethod
+    def instance(actor_type: ActorType, id: str) -> "Actor":
+        return next((kind for kind in Actor.__subclasses__() if kind.fits(actor_type, id)), Actor)(actor_type, id)
+
+    @classmethod
+    def fits(cls, actor_type: ActorType, id: str) -> bool:
+        return actor_type == cls.kind
 
     @staticmethod
     def stamp_number(stamp: str, type_name: ActorType) -> int | None:
@@ -80,6 +88,24 @@ class Actor:
 
     def is_subagent(self) -> bool:
         return self.is_agent() and SUBAGENT_SEPARATOR in self.id
+
+    def can_set_user_options(self) -> bool:
+        return False
+
+    def can_approve_plans_alone(self) -> bool:
+        return False
+
+    def can_move_worker_tasks(self) -> bool:
+        return False
+
+    def can_read_comments(self) -> bool:
+        return False
+
+    def __eq__(self, compared: object) -> bool:
+        return isinstance(compared, Actor) and (self.actor_type, self.id) == (compared.actor_type, compared.id)
+
+    def __hash__(self) -> int:
+        return hash((self.actor_type, self.id))
 
     @property
     def stamp(self) -> str:

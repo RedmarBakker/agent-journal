@@ -1825,3 +1825,15 @@ def test_a_sequence_template_and_profile_travel_as_portable_bodies_and_come_back
     assert TemplateBody.template(TemplateBody.text(template)) == template
     profile = Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT, model="opus")
     assert ProfileBody.profile(ProfileBody.text(profile)) == Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT), "the model a machine sets stays behind"
+
+
+def test_every_actor_stamp_reads_back_as_its_kinds_class_with_the_same_stamp():
+    from journal.support.actor import Actor
+    from journal.support.actor_type import ActorType
+    from journal.support.agent_actor import AgentActor
+    from journal.support.subagent_actor import SubagentActor
+    stamps = [kind.value if kind == ActorType.SYSTEM else f"{kind.value}:7" for kind in ActorType] + ["agent:s1:a2"]
+    for stamp in stamps:
+        actor = Actor.parse(stamp)
+        assert actor.stamp == stamp and type(actor) is not Actor and Actor.parse(actor.stamp) == actor, stamp
+    assert type(Actor.parse("agent:s1")) is AgentActor and type(Actor.parse("agent:s1:a2")) is SubagentActor, "a subagent's stamp is its own kind"

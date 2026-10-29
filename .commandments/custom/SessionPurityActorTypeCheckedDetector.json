@@ -46,7 +46,7 @@
         ],
         "reject": [
             {
-                "file": "src/journal/support/actor.py"
+                "file": "src/journal/support/*actor*.py"
             },
             {
                 "file": "src/journal/support/caller.py"

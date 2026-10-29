@@ -235,7 +235,7 @@ class Messages(ScopedRepository[Message]):
     def read(self, message: Message, actor: Actor, tool_use: int) -> Message:
         if self.owners.is_colleague(actor, message.environment_id):
             return message
-        if message.is_comment() and actor.is_user():
+        if message.is_comment() and actor.can_read_comments():
             return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
         return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use, self.commented_writing(message)), actor)
 

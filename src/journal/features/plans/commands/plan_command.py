@@ -229,10 +229,10 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.is_user() and not self.is_approving_orchestrator(caller):
+        if not caller.actor.can_approve_plans_alone() and not self.is_approving_orchestrator(caller):
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.is_user() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
+        if not caller.actor.can_approve_plans_alone() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.approve(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
