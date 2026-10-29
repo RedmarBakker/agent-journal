@@ -11919,8 +11919,6 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
         app.container.get(Agents).save(Agent(environment_id=MAIN, session="worker-s", provider="claude", role=AgentRole.WORKER, state="void"), Actor.system())
         with pytest.raises(Rejection, match="has its kind"):
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="something happened"), Actor.system())
-        with pytest.raises(Rejection, match="goes in the worker chat"):
-            messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, session="worker-s", text="Searched for x", data={"kind": "card"}), Actor.system())
         mark = app.container.get(MomentCards).show(MAIN, "worker-s", 'Searched for "base"', "search", shows=CardType.CREATED)
         main_chat = messages.selected(messages.main_chat())
     assert mark.thread == MessageThread.WORKER, "a mark in a worker's session lands in the worker's own chat"

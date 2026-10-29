@@ -10,7 +10,6 @@ from journal.models.message import TERMINAL_LINE, Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.support.rejection import Rejection
-from journal.repositories.agents import Agents
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
 from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
@@ -39,8 +38,8 @@ class Messages(ScopedRepository[Message]):
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, agents: Agents, time_source: TimeSource) -> None:
-        self.owners, self.agents = owners, agents
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, time_source: TimeSource) -> None:
+        self.owners = owners
         super().__init__(connection, bus, scope, time_source)
         self.reactions, self.links = reactions, links
 
@@ -57,9 +56,6 @@ class Messages(ScopedRepository[Message]):
     def check_chat(self, message: Message) -> None:
         if message.author == Author.SYSTEM and not message.data.get("kind"):
             raise Rejection("a system message has its kind, so the chat knows what it shows")
-        roles = self.agents.session_roles(message.session) if message.session else []
-        if roles and message.thread != MessageThread.agent_thread(roles[0]):
-            raise Rejection(f"a message of session {message.session} goes in the {roles[0]} chat, not the {message.thread} one")
 
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))

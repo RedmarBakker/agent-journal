@@ -3,8 +3,6 @@ from journal.chat.card_category import CardCategory
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.models.author import Author
 from journal.models.message import Message
-from journal.support.message_thread import MessageThread
-from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.support.answer_phase import AnswerPhase
 
@@ -22,8 +20,8 @@ FINAL = "final"
 class ProcessCards:
     """Writes every process card: one message per process, found again by its key and updated in place, found and written in one transaction so two shows of one card at once never make two, its data naming the process card class that refreshes it and whether its process still runs; a card whose process ran and ended, done or failed, is final and never written again but by a reader written anew reading its still kept output."""
 
-    def __init__(self, messages: Messages, agents: Agents, phase: AnswerPhase) -> None:
-        self.messages, self.agents, self.phase = messages, agents, phase
+    def __init__(self, messages: Messages, phase: AnswerPhase) -> None:
+        self.messages, self.phase = messages, phase
 
     def show(self, contents: ProcessCardContents) -> Message:
         with self.messages.writing():
@@ -43,8 +41,7 @@ class ProcessCards:
             open_card = older[0].data.get("active") or older[0].data.get(FINAL)
             ended = {FINAL: True} if open_card and not contents.active else {}
             return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data={**self.docked_data(older[0], data), **ended}), contents.actor)
-        roles = self.agents.session_roles(contents.session) if contents.session else []
-        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, thread=MessageThread.agent_thread(roles[0]) if roles else MessageThread.MAIN, text=contents.label, data=data), contents.actor)
+        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, thread=contents.thread, text=contents.label, data=data), contents.actor)
 
     def is_shown(self, contents: ProcessCardContents) -> bool:
         return bool(self.messages.keyed(contents.key, contents.actor))
