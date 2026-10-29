@@ -3,7 +3,7 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.helper_assignment import HelperAssignment
 from journal.events.agent.session_ended import SessionEnded
 from journal.events.agent.subagent_ended import SubagentEnded
-from journal.helpers.helper_listeners import HelperListeners
+from journal.helpers.role_listeners import RoleListeners
 from journal.models.environment import Environment
 from journal.repositories.agents import Agents
 from journal.support.agent_role import AgentRole
@@ -15,7 +15,7 @@ from journal.support.time_source import TimeSource
 class ResearcherHooks:
     """A subagent's own row: made at its start in the subagent's role, which puts it to work researching, and put to work again at its start and each of its hooks when its row rests on Void, as one an old end left there does, answering its tool uses as a helper's, and at its end, when it has a row, popped back to Void and ended, as every researcher row of a main session is when that session ends."""
 
-    def __init__(self, sessions: SessionAgents, agents: Agents, listeners: HelperListeners, states: StatesCatalogue, time_source: TimeSource) -> None:
+    def __init__(self, sessions: SessionAgents, agents: Agents, listeners: RoleListeners, states: StatesCatalogue, time_source: TimeSource) -> None:
         self.sessions, self.agents, self.listeners, self.states, self.time_source = sessions, agents, listeners, states, time_source
 
     def bind(self, hook: Hook, environment: Environment) -> Agent:

@@ -1,8 +1,10 @@
-from journal.support.agent_role import AgentRole
+from typing import Callable
+
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.models.plugin import Plugin
 from journal.support.actor import Actor
+from journal.models.support.plugin_manifest import PluginManifest
 from journal.repositories.repository import Repository
 from journal.support.time_source import TimeSource
 
@@ -28,11 +30,8 @@ class Plugins(Repository[Plugin]):
     def lookup(self, name: str) -> Plugin:
         return self.single(name=name)
 
-    def hearers(self, event: str, actor: object) -> list[Plugin]:
-        return [plugin for plugin in self.enabled() if event in plugin.manifest.events and actor != Actor.plugin(plugin.name)]
-
-    def helper_hearers(self, event: str, actor: object, role: AgentRole) -> list[Plugin]:
-        return [plugin for plugin in self.hearers(event, actor) if plugin.manifest.reaches_role(event, role)]
+    def hearers(self, event: str, actor: object, reached: Callable[[PluginManifest], bool]) -> list[Plugin]:
+        return [plugin for plugin in self.enabled() if event in plugin.manifest.events and actor != Actor.plugin(plugin.name) and reached(plugin.manifest)]
 
     def other_plugins(self, name: str) -> list[Plugin]:
         return [plugin for plugin in self.all() if plugin.name != name]

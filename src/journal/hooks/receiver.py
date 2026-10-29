@@ -24,7 +24,7 @@ from journal.support.hook import Hook
 from journal.hooks.support.transcript_turns import TranscriptTurns
 from journal.hooks.support.checker_hooks import CheckerHooks
 from journal.hooks.support.researcher_hooks import ResearcherHooks
-from journal.helpers.helper_listeners import HelperListeners
+from journal.helpers.role_listeners import RoleListeners
 from journal.hooks.support.worker_hooks import WorkerHooks
 from journal.hooks.translation import Translation
 from journal.support.actor import Actor
@@ -50,7 +50,7 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, seats: HookSeats, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, seats: HookSeats, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, checker_hooks: CheckerHooks, helper_listeners: RoleListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
         self.time_source, self.phase, self.fault_log, self.settings = time_source, phase, fault_log, settings
         self.names, self.stages, self.nudger = names, stages, nudger
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope

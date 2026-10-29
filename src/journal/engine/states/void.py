@@ -18,6 +18,12 @@ class Void(BaseState):
     title = "Not at work"
     conduct_free = True
 
+    def floored(self, mode: type[BaseState]) -> BaseState:
+        return self
+
+    def reset_states(self, states: tuple[BaseState, ...]) -> tuple[BaseState, ...]:
+        return states[:2]
+
     def takes_pushes(self) -> bool:
         return False
 

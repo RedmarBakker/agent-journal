@@ -10,6 +10,7 @@ from journal.engine.states.void import Void
 from journal.events.listener import Listener
 from journal.features.feature import Feature
 from journal.features.role import ENGINE, Role
+from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
 
 
@@ -57,3 +58,11 @@ class Helper(Role):
     @classmethod
     def receives_row_event(cls, feature_name: str) -> bool:
         return feature_name == ENGINE or feature_name in cls.feature_names()
+
+    @classmethod
+    def reaches_plugin(cls, manifest: PluginManifest, key: str) -> bool:
+        return manifest.reaches_role(key, cls.role)
+
+    @classmethod
+    def takes_plugin_lines(cls) -> bool:
+        return False

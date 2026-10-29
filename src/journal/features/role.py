@@ -5,6 +5,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.demand import Demand
 from journal.features.feature import Feature
+from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
 
 ENGINE = "engine"
@@ -41,4 +42,12 @@ class Role:
 
     @classmethod
     def runs(cls, command: type[Command], verb: str) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def reaches_plugin(cls, manifest: PluginManifest, key: str) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def takes_plugin_lines(cls) -> bool:
         raise NotImplementedError

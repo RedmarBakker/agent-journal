@@ -1593,15 +1593,15 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
             return {}
 
     catalogue = StatesCatalogue(ModeRegistry())
-    assert isinstance(catalogue.apply_mode(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
+    assert isinstance(catalogue.floor(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
     from journal.engine.states.void import Void
     from journal.support.agent_role import AgentRole
     from journal.features.workers.states.working_task import WorkingTask
-    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator"), AgentRole.WORKER).states for layers in ((Orchestrating(), WorkingTask(task_id=4)), (WorkingTask(task_id=4),), (Void(),))]
-    assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Void, WorkingTask], [Void, WorkingTask], [Void]], "a helper's stack rests on Void, never on the main agent's mode, and keeps its work above it"
+    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator")).states for layers in ((Void(), WorkingTask(task_id=4)), (Void(),))]
+    assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Void, WorkingTask], [Void]], "a helper's stack rests on Void, never on the main agent's mode, and keeps its work above it"
     planned = Orchestrating().respond(SessionStarted(agent=EVENT_AGENT, time=1.0).with_data(of(started)), settings("orchestrator"))
     assert isinstance(planned.pushed, OrchestratingPlan) and planned.pushed.plan_id == 2, "a started plan is pushed over the mode state as the orchestrator's plan state"
-    assert type(catalogue.apply_mode(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
+    assert type(catalogue.floor(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
     stop = Orchestrating().respond(Stop(agent=EVENT_AGENT).with_data(of(None)), settings("orchestrator"))
     assert stop.refusal is not None and "next: 3, 4" in stop.refusal.rendered() and "dispatch a worker on each you can" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch, in its assigner's turn"
     from dataclasses import replace as replaced
@@ -1619,7 +1619,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     assert isinstance(Orchestrating().respond(TaskStarted(environment_id=1, time=2.0, task_id=7, title="x", plan_id=0).with_data(of(None)), settings("orchestrator")).pushed, Delegating), "a task started in the orchestrator's mode is delegating, not working"
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(agent=EVENT_AGENT, time=2.0).with_data(of(None)), settings("orchestrator"))
     assert delegating.refusal is not None and "give it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
-    assert isinstance(catalogue.apply_mode(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
+    assert isinstance(catalogue.floor(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
     assert Soloing().respond(ToolStarting(agent=EVENT_AGENT, call=shell("journal worker dispatch 'Mr. Smith' 'the job' --profile journal-medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
     assert Soloing().respond(ToolStarting(agent=EVENT_AGENT, call=shell("ls")).with_data(of(None)), settings("solo")).refusal is None
 
@@ -2896,7 +2896,7 @@ def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
 
 def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder(app: App):
     from journal.events.agent.tool_finished import ToolFinished
-    from journal.helpers.helper_listeners import HelperListeners
+    from journal.helpers.role_listeners import RoleListeners
     from journal.models.worker import Worker
     from journal.providers.claude import Claude
     from journal.repositories.edits import Edits
@@ -2914,8 +2914,8 @@ def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
         assert app.container.get(Edits).agent_edits("wd", 0.0, 10), "the edit recorder its file allows runs on the worker's hook"
-    finished = ToolFinished(agent=EVENT_AGENT, call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset(), CLASSIFIER), output="").placed(Agent(environment_id=1, session="wd", provider="claude"), None, 1.0)
-    reached = {listener.registered_class().__name__ for listener in app.container.get(HelperListeners).listeners(finished)}
+    finished = ToolFinished(agent=EVENT_AGENT, call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset(), CLASSIFIER), output="").placed(app.container.get(Agents).session_agent("wd"), None, 1.0)
+    reached = {listener.registered_class().__name__ for listener in app.container.get(RoleListeners).listeners(finished)}
     assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord"}, "while the main agent's deferred recorders never hear it"
 
 
@@ -2956,7 +2956,7 @@ def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name
     registry, machine, agents, entries = app.container.get(Registry), app.container.get(StateMachine), app.container.get(Agents), app.container.get(Entries)
     helper = registry.helper(role)
     with app.container.get(Scope).environment(1):
-        agents.save(Agent(environment_id=1, session="sweep", provider="claude", state=helper.first_state.name, role=role), Actor.system())
+        app.container.get(SessionAgents).helper_agent("sweep", 1, "claude", role)
     main_uses = agents.session_agent("s1").tool_uses
     write = Claude().call("Write", {"file_path": str(app.config.root / "a.py"), "content": "x"}, frozenset(), CLASSIFIER)
     events = (ToolStarting(agent=EVENT_AGENT, call=write), Stop(agent=EVENT_AGENT), PromptSubmitted(agent=EVENT_AGENT, prompt="please look at the parser"))
@@ -2995,9 +2995,9 @@ def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
         machine.push("wr", 1, Void(), Actor.user(1), "a state over the job")
         machine.reset("wr", 1, Actor.user(1), "journal panic idle")
     assert [layer["state"] for layer in agents.session_agent("wr").stack] == ["void", "working_task"], "a reset worker keeps Void and its job, and loses what was over it"
-    swapped = machine.placed(Stack((Void(), WorkingTask(task_id=1))), Void(), AgentRole.WORKER)
+    swapped = machine.placed(Stack((Void(), WorkingTask(task_id=1))), Void())
     assert [type(state) for state in swapped.states] == [Void], "a swap on a helper keeps Void at the bottom, never idle"
-    assert [state.name for state in machine.placed(Stack((Void(),)), WorkingTask(task_id=1), AgentRole.WORKER).states] == ["void", "working_task"]
+    assert [state.name for state in machine.placed(Stack((Void(),)), WorkingTask(task_id=1)).states] == ["void", "working_task"]
 
 
 def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that_counts_regularly_is_no_finding():
@@ -3108,3 +3108,15 @@ def test_a_command_runs_in_the_origin_of_its_caller(app: App):
     app.container.get(Bus).listen(Created, OriginReading(scope, read))
     app.console().run(["task", "create", "lay the floors"], USER)
     assert read and set(read) == {(USER.actor, USER.role)}, "every write a command makes runs in its caller's origin"
+
+
+def test_a_stack_is_floored_and_reset_by_its_bottom_state():
+    from journal.engine.states.void import Void
+    from journal.features.tasks.states.ready import Ready
+    from journal.features.workers.states.orchestrating import Orchestrating
+    from journal.features.workers.states.working_task import WorkingTask
+    void, working = Void(), WorkingTask(task_id=1)
+    assert void.floored(Orchestrating) is void, "a helper's floor is never turned into a mode state"
+    assert type(Ready().floored(Orchestrating)) is Orchestrating, "a main floor takes the work mode's state"
+    assert void.reset_states((void, working, Ready())) == (void, working), "a helper keeps its floor and its work on a reset"
+    assert type(Ready().reset_states((Ready(), working))[0]) is Ready and len(Ready().reset_states((Ready(), working))) == 1, "a main agent keeps one fresh floor"

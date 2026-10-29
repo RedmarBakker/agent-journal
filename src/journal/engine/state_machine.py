@@ -118,7 +118,7 @@ class StateMachine:
     def stack_reply(self, agent: Agent, event: AgentEvent | RowEvent) -> MachineReply:
         settings = self.top_state()
         stored_stack = self.states.stack(agent)
-        stack = self.states.floor(stored_stack, settings, agent.role)
+        stack = self.states.floor(stored_stack, settings)
         mode_change = self.mode_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
         if isinstance(event, ToolStarting):
@@ -158,7 +158,7 @@ class StateMachine:
 
     def reset(self, session: str, environment_id: int, actor: Actor, text: str) -> MachineReply:
         agent = self.sessions.agent(session, environment_id)
-        return self.manual(agent, self.states.reset_stack(self.states.stack(agent), agent.role), actor, text)
+        return self.manual(agent, self.states.reset_stack(self.states.stack(agent)), actor, text)
 
     def compactions_ended(self) -> list[MachineReply]:
         return [self.manual(agent, self.states.stack(agent).popped(), Actor.system(), JOURNAL_START) for agent in self.agents.global_state(Compacting.name)]
@@ -175,7 +175,7 @@ class StateMachine:
         return Settings.applied(self.settings, self.features.options())
 
     def answer_moves(self, stack: Stack, transition: Transition, role: AgentRole, settings: Settings, data: FeatureData) -> MachineAnswer:
-        placed = self.placed(stack, transition.target, role)
+        placed = self.placed(stack, transition.target)
         return self.hook_machine(placed, self.moved(placed, transition), settings, data)
 
     def hook_machine(self, previous: Stack, following: Stack, settings: Settings, data: FeatureData) -> MachineAnswer:
@@ -209,10 +209,12 @@ class StateMachine:
             return stack.popped()
         return stack
 
-    def placed(self, stack: Stack, destination: BaseState, role: AgentRole) -> Stack:
+    def placed(self, stack: Stack, destination: BaseState) -> Stack:
         if type(destination) is type(stack.top()):
             return stack.with_top(destination)
-        return self.states.stack_base(destination, role)
+        if self.states.is_bottom(destination):
+            return Stack((destination,))
+        return Stack((*stack.states[0].reset_states(stack.states)[:1], destination))
 
     def _store(self, agent: Agent, machine_answer: MachineAnswer, cause: str, actor: Actor) -> Agent:
         stack, destination = machine_answer.stack, machine_answer.stack.top()

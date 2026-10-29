@@ -140,6 +140,12 @@ class BaseState:
         set_fields = [f"{field.name}={getattr(self, field.name)}" for field in fields(self) if getattr(self, field.name) != field.default and not isinstance(getattr(self, field.name), (float, Timeout))]
         return f"{self.name}({', '.join(set_fields)})" if set_fields else self.name
 
+    def floored(self, mode: type["BaseState"]) -> "BaseState":
+        return self if type(self) is mode else mode.restored(self.serialized())
+
+    def reset_states(self, states: tuple["BaseState", ...]) -> tuple["BaseState", ...]:
+        return (self.restored({}),)
+
     @classmethod
     def restored(cls, data: dict) -> "BaseState":
         kinds = {field.name: field.type for field in fields(cls)}

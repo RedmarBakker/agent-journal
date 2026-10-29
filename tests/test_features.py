@@ -5754,8 +5754,9 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     from journal.repositories.agents import Agents
     from journal.repositories.plugins import Plugins
     from journal.support.agent_role import AgentRole
+    from journal.features.registry import Registry
     plugins, relay = app.container.get(Plugins), app.container.get(PluginRelay)
-    reaching = lambda role: [plugin.name for plugin in plugins.helper_hearers("file_edited", None, role)]
+    reaching = lambda role: [plugin.name for plugin in plugins.hearers("file_edited", None, lambda manifest: app.container.get(Registry).role_file(role).reaches_plugin(manifest, "file_edited"))]
     assert reaching(AgentRole.WORKER) == ["asks"] and reaching(AgentRole.REVIEWER) == reaching(AgentRole.VERIFIER) == reaching(AgentRole.SUBAGENT) == [], "a manifest that reaches workers reaches no reviewer, verifier or researcher"
     with app.container.get(Scope).environment(1):
         app.container.get(Agents).save(Agent(environment_id=1, session="rv", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())

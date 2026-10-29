@@ -1,4 +1,5 @@
 from journal.engine.base_state import BaseState
+from journal.engine.support.stack import Stack
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
@@ -21,19 +22,20 @@ class SessionAgents:
         current = self.agents.environment_main_agent(environment_id)
         if current is not None:
             return self.agents.save(current.with_session(session, provider or current.provider), Actor.system())
-        return self.created(session, environment_id, provider, self.states.first(), AgentRole.MAIN)
+        return self.created(session, environment_id, provider, Stack((self.states.first(),)), AgentRole.MAIN)
 
     def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
         rows = self.session_rows(session)
-        return rows[0] if rows else self.created(session, environment_id, provider, self.states.sent_first(role), role)
+        return rows[0] if rows else self.created(session, environment_id, provider, self.states.helper_layers(self.states.sent_first(role)), role)
 
     def session_rows(self, session: str) -> list[Agent]:
         if not session:
             raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
         return self.agents.session_rows(session)
 
-    def created(self, session: str, environment_id: int, provider: str | None, bottom: BaseState, role: AgentRole) -> Agent:
-        return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
+    def created(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:
+        top = layers.top()
+        return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=top.name, data=top.serialized(), stack=tuple(layers.serialized()), role=role), Actor.system())
 
     def top(self, session: str) -> BaseState:
         agent = self.agents.session_agent(session)

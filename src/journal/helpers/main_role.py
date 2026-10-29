@@ -8,6 +8,7 @@ from journal.engine.demand_conduct import DemandConduct
 from journal.engine.safety_conduct import SafetyConduct
 from journal.features.feature import Feature
 from journal.features.role import Role
+from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
 
 
@@ -42,4 +43,12 @@ class MainRole(Role):
 
     @classmethod
     def runs(cls, command: type[Command], verb: str) -> bool:
+        return True
+
+    @classmethod
+    def reaches_plugin(cls, manifest: PluginManifest, key: str) -> bool:
+        return True
+
+    @classmethod
+    def takes_plugin_lines(cls) -> bool:
         return True
