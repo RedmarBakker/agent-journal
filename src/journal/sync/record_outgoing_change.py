@@ -77,7 +77,9 @@ class RecordOutgoingChange(Listener[ModelEvent]):
     def team_person(self, team_key: str) -> Callable[[str], str]:
         team = self.accounts.keyed(team_key)
         home, theirs = Actor.user(self.account.user_number()).stamp, Actor.user(team.user_number()).stamp
-        return (lambda stamp: theirs if stamp == home else stamp) if team.key else (lambda stamp: stamp)
+        if not team.key:
+            return lambda stamp: stamp
+        return lambda stamp: theirs if stamp == home else stamp
 
     @staticmethod
     def names(event: ModelEvent, action: str) -> tuple[str, ...] | None:

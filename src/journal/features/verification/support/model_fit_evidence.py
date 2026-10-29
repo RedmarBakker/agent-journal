@@ -36,4 +36,6 @@ class ModelFitEvidence:
         edits = self.work.job_edits(worker)
         parts = [f"### {edit.path} (+{edit.added} -{edit.removed})\n" + "\n".join(f"- {line}" for line in edit.old_text[:EDIT_CHARS].splitlines()) + "\n" + "\n".join(f"+ {line}" for line in edit.new_text[:EDIT_CHARS].splitlines()) for edit in edits]
         text = "\n\n".join(parts)
-        return text[:DIFF_CHARS] + ("\n\n(the diff goes on)" if len(text) > DIFF_CHARS else "") if text else "(no edits are kept for this work)"
+        if not text:
+            return "(no edits are kept for this work)"
+        return text[:DIFF_CHARS] + ("\n\n(the diff goes on)" if len(text) > DIFF_CHARS else "")

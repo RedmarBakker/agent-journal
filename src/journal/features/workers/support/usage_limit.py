@@ -14,9 +14,15 @@ class UsageLimit:
         if found is None:
             return 0.0
         hour, minute, half = int(found.group(1)), int(found.group(2) or 0), (found.group(3) or "").lower()
-        hour = hour % 12 + (12 if half == "pm" else 0) if half else hour
+        hour = UsageLimit.clock_hour(hour, half)
         if hour > 23 or minute > 59:
             return 0.0
         start = datetime.fromtimestamp(now).astimezone()
         reset = start.replace(hour=hour, minute=minute, second=0, microsecond=0)
         return (reset if reset > start else reset + timedelta(days=1)).timestamp()
+
+    @staticmethod
+    def clock_hour(hour: int, half: str) -> int:
+        if not half:
+            return hour
+        return hour % 12 + (12 if half == "pm" else 0)
