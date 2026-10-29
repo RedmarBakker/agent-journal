@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
@@ -20,7 +21,7 @@ class UntotaledRunRecord(AgentListener[Ticked]):
                 self.outputs.save(output.total_requested(event.time), Actor.system())
 
     def is_untotaled(self, output, time: float) -> bool:
-        if output.ended or output.is_total_asked or time - output.creation_time.timestamp() < TOTAL_WAIT_SECONDS or self.labels.line_label(output.command) not in LONG_RUNS:
+        if output.ended or output.is_total_asked or not Timeout.seconds(TOTAL_WAIT_SECONDS).started(output.creation_time.timestamp()).is_elapsed(time) or self.labels.line_label(output.command) not in LONG_RUNS:
             return False
         view = self.views.view(output)
         return bool(view.lines) and not view.fraction

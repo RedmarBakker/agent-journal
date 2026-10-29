@@ -1,6 +1,7 @@
 import time
 from dataclasses import asdict
 
+from journal.support.timeout import Timeout
 from journal.features.team.support.repository_identity import RepositoryIdentity
 from journal.features.team.support.team_join import TeamJoin
 from journal.features.workers.support.pool_overview import PoolOverview
@@ -62,7 +63,7 @@ class TeamController:
         answer = TeamRequests.reached(self.link.people)
         rows = self.environments.rows()
         checked_at = self.time_source.seconds()
-        return Response.json({"people": [{"id": person.id, "name": person.name, "role": person.role, "me": person.id == request.actor.number(), "online": checked_at - person.pulled_at < ONLINE_SECONDS, "seen_at": person.pulled_at, "environments": [{"id": row.row_id, "name": row.name} for row in rows if self.owners.owner_number(row.row_id) == person.id]} for person in answer.people]})
+        return Response.json({"people": [{"id": person.id, "name": person.name, "role": person.role, "me": person.id == request.actor.number(), "online": not Timeout.seconds(ONLINE_SECONDS).started(person.pulled_at).is_elapsed(checked_at), "seen_at": person.pulled_at, "environments": [{"id": row.row_id, "name": row.name} for row in rows if self.owners.owner_number(row.row_id) == person.id]} for person in answer.people]})
 
     def password(self, request: Request) -> Response:
         TeamRequests.reached(lambda: self.link.change_password(str(request.body.get("old", "")), str(request.body.get("new", ""))))

@@ -1,4 +1,5 @@
 import time as timing
+from journal.support.timeout import Timeout
 from journal.support.time_source import TimeSource
 
 VIEWER_WINDOW_SECONDS = 15.0
@@ -17,4 +18,4 @@ class ViewerPresence:
             self.time = self.time_source.seconds()
 
     def open(self) -> bool:
-        return self.time_source.seconds() - self.time < VIEWER_WINDOW_SECONDS
+        return not Timeout.seconds(VIEWER_WINDOW_SECONDS).started(self.time).is_elapsed(self.time_source.seconds())

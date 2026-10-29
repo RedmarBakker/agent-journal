@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
 
+from journal.support.timeout import Timeout
 from journal.events.models.updated import Updated
 from journal.models.message import Message
 from journal.models.model import Model
@@ -43,7 +43,7 @@ class ReplyCause:
         if not actor.is_agent_actor() or row.table() not in CAUSE_TABLES:
             return []
         reply = self.messages.latest_voice()
-        if reply is None or not reply.reply_target or self.time_source.moment() - reply.created_at > timedelta(seconds=REPLY_WINDOW_SECONDS):
+        if reply is None or not reply.reply_target or Timeout.seconds(REPLY_WINDOW_SECONDS).started(reply.created_at.timestamp()).is_exceeded(self.time_source.seconds()):
             return []
         try:
             requested = self.messages.find(reply.reply_target)

@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.engine.clock import Clock
 from journal.models.browser_session import BrowserSession
 from journal.http.support.session_cookie import SessionCookie
@@ -29,7 +30,7 @@ class MemberSessions:
         return members is not None and session.person not in members
 
     def current(self) -> set[int] | None:
-        if self.clock.time() - self.read_at > CHECK_SECONDS:
+        if Timeout.seconds(CHECK_SECONDS).started(self.read_at).is_exceeded(self.clock.time()):
             self.read_at = self.clock.time()
             try:
                 self.members = {person.id for person in self.link.people().people}

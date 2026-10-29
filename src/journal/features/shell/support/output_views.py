@@ -2,6 +2,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_view import OutputView
@@ -39,7 +40,7 @@ class OutputViews:
         return self.readers.found(output.watch_reader)
 
     def is_silent(self, output: CommandOutput, view: OutputView) -> bool:
-        return not output.ended and self.time_source.seconds() - output.creation_time.timestamp() >= SILENT_SECONDS and not view.figure and not self.card_lines(output, view)
+        return not output.ended and Timeout.seconds(SILENT_SECONDS).started(output.creation_time.timestamp()).is_elapsed(self.time_source.seconds()) and not view.figure and not self.card_lines(output, view)
 
     def measured(self, output: CommandOutput) -> OutputView:
         files = OutputFiles(Path(output.folder))

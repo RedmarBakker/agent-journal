@@ -4,6 +4,7 @@ import time
 from dataclasses import replace
 from typing import Iterator
 
+from journal.support.timeout import Timeout
 from journal.engine.nudger import Nudger
 from journal.engine.nudge import Nudge
 from journal.repositories.entries import Entries
@@ -148,7 +149,7 @@ class ShellRunner:
                     self.starting_reader_watch(folder, caller)
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
-            if limit > 0 and (immediate or time.monotonic() - began >= limit):
+            if limit > 0 and (immediate or Timeout.seconds(limit).started(began).is_elapsed(time.monotonic())):
                 folder.moved()
                 part = self.readers.read_part(reader, request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)

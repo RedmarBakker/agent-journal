@@ -1,5 +1,6 @@
 import json
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.features.updates.support.update_path_record import UpdatePathRecord
 from journal.features.updates.support.update_pause import UPDATE_PAUSE_SECONDS
@@ -17,7 +18,7 @@ class UpdatePathFile:
         return UpdatePathRecord.read(json.loads(self.path.read_text()))
 
     def is_unfinished(self, version: str, time: float) -> bool:
-        return self.record().is_unfinished(version) and time - self.path.stat().st_mtime <= UPDATE_PAUSE_SECONDS
+        return self.record().is_unfinished(version) and not Timeout.seconds(UPDATE_PAUSE_SECONDS).started(self.path.stat().st_mtime).is_exceeded(time)
 
     def closed(self) -> None:
         self.path.write_text(json.dumps(self.record().closed_record().as_data()))

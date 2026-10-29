@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.features.workers.support.fitness_points import FitnessPoints
@@ -23,4 +24,4 @@ class LoadTickRecord(AgentListener[Ticked]):
 
     @staticmethod
     def is_stale(agent: Agent, time: float) -> bool:
-        return agent.is_main() and time - agent.work_queue.measured_at >= STALE_SECONDS
+        return agent.is_main() and Timeout.seconds(STALE_SECONDS).started(agent.work_queue.measured_at).is_elapsed(time)

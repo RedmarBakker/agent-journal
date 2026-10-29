@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.engine.job import Job
 from journal.features.health.health_options import HealthOptions
@@ -19,7 +20,7 @@ class DatabaseBackup(Job):
     def tick(self, time: float) -> None:
         minutes = self.settings.integer(HealthOptions.BACKUP_MINUTES)
         copies = self.copies()
-        if not minutes or (copies and time - copies[0].stat().st_mtime < 60 * minutes):
+        if not minutes or (copies and not Timeout.minutes(minutes).started(copies[0].stat().st_mtime).is_elapsed(time)):
             return
         self.folder().mkdir(parents=True, exist_ok=True)
         self.backup.write(self.folder() / f"journal-{datetime.fromtimestamp(time).strftime('%Y%m%d-%H%M%S')}.db")

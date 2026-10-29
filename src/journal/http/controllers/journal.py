@@ -1,6 +1,7 @@
 import os
 import time as timing
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.engine.lifecycle import Lifecycle
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
@@ -91,7 +92,7 @@ class JournalController:
             activity = self.activity.page([agent])[0] if agent else None
             work = self.current.work(agent) if agent else None
             task = TaskBlock(work.task.row_id, work.task.title, work.wait_text) if work else None
-            silent = activity is not None and activity["status"] in ("busy", "working") and timing.time() - activity["heard_at"].timestamp() > SILENCE_LIMIT_SECONDS
+            silent = activity is not None and activity["status"] in ("busy", "working") and Timeout.seconds(SILENCE_LIMIT_SECONDS).started(activity["heard_at"].timestamp()).is_exceeded(timing.time())
             return EnvironmentData(environment, activity, task, self.questions.open_count(), self.messages.unread_count(), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
 
     def bar(self, request: Request) -> Response:

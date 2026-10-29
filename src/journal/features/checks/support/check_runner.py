@@ -8,6 +8,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.features.checks.support.check_output import CheckOutput
 from journal.features.checks.support.finished_run import FinishedRun
@@ -85,7 +86,7 @@ class CheckRunner:
         output_text, saved = [], self.time_source.seconds()
         for line in process.stdout:
             output_text.append(line)
-            if self.time_source.seconds() - saved >= INTERVAL_SECONDS:
+            if Timeout.seconds(INTERVAL_SECONDS).started(saved).is_elapsed(self.time_source.seconds()):
                 self.progressed(check, started, replace(CheckOutput.progress("".join(output_text), started), process=process.pid), actor)
                 saved = self.time_source.seconds()
         code = process.wait()

@@ -1,6 +1,7 @@
 import subprocess
 import time
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.features.voices.support.builtin_catalogue import BuiltinCatalogue
 from journal.features.voices.support.voice import Voice
@@ -32,7 +33,7 @@ class VoiceChoice:
         return self.voice().instruction(self.title(), self.first_name())
 
     def git_name(self) -> str:
-        if time.monotonic() - self.git_name_read_at < RECENCY_SECONDS:
+        if not Timeout.seconds(RECENCY_SECONDS).started(self.git_name_read_at).is_elapsed(time.monotonic()):
             return self.last_git_name
         self.last_git_name, self.git_name_read_at = self.git_user_first_name(), time.monotonic()
         return self.last_git_name

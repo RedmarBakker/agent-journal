@@ -1,6 +1,7 @@
 import time
 from typing import Callable
 
+from journal.support.timeout import Timeout
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.models.environment import Environment
 from journal.models.plan import Plan
@@ -50,7 +51,7 @@ class HubDrives:
         return row if lease.holder else self.repositories[type(row)].save(row.with_(driver="", driver_agent=""), actor)
 
     def renew(self) -> None:
-        if time.monotonic() - self.renewed_at < RENEW_SECONDS:
+        if not Timeout.seconds(RENEW_SECONDS).started(self.renewed_at).is_elapsed(time.monotonic()):
             return
         self.renewed_at = time.monotonic()
         for ref in self.bindings.bound_refs():

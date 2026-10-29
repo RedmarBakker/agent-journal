@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
 from journal.features.workers.support.half_life import HalfLife
 from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.support.queue_walk import QueueWalk
@@ -31,7 +32,7 @@ class LoadSeries:
         rho = series[-1][1]
         counted = [item for item in items if item.is_cleared_in(moment - window, moment)]
         sorted_waiting = sorted((item for item in items if item.is_waiting(moment)), key=lambda item: (item.arrived_at, item.ref))
-        calm_dispatches, busy_dispatches = self.dispatch_counts(series, [time for time in dispatches if moment - window < time <= moment])
+        calm_dispatches, busy_dispatches = self.dispatch_counts(series, [time for time in dispatches if Timeout.seconds(window).started(time).is_active(moment)])
         return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting), oldest_wait_minutes=round(sum((moment - item.arrived_at) / 60 for item in sorted_waiting[:1]), 2),
                          wait_minutes=round(wait, 2), little=round(arrivals * wait / 60, 2), busy_minutes=self.stretch(series, lambda point: point[1] >= self.busy_at and point[2] > 0),
                          low_minutes=self.stretch(series, lambda point: point[1] < self.low_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),

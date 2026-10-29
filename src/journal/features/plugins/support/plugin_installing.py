@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.features.plugins.support.plugin_aliases import PluginAliases
 from journal.features.plugins.support.plugin_preview import PluginPreview
@@ -215,7 +216,7 @@ class PluginInstalling:
     @staticmethod
     def clear_stale_fetches(home: Path) -> None:
         for stale in home.glob(".fetching-*"):
-            if time.time() - stale.stat().st_mtime > 2 * DOWNLOAD_SECONDS:
+            if Timeout.seconds(2 * DOWNLOAD_SECONDS).started(stale.stat().st_mtime).is_exceeded(time.time()):
                 shutil.rmtree(stale, ignore_errors=True)
 
     @staticmethod

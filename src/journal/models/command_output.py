@@ -1,6 +1,7 @@
 from typing import ClassVar
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
 from journal.events.rows.output_full_bar import OutputFullBar
 from journal.events.rows.silent_output_found import SilentOutputFound
 from journal.events.rows.output_total_missing import OutputTotalMissing
@@ -48,7 +49,7 @@ class CommandOutput(Scoped):
         return (self.update_time - self.creation_time).total_seconds()
 
     def has_run_long(self, time: float) -> bool:
-        return self.moved or time - self.creation_time.timestamp() >= CARD_DELAY_SECONDS
+        return self.moved or Timeout.seconds(CARD_DELAY_SECONDS).started(self.creation_time.timestamp()).is_elapsed(time)
 
     def headline(self) -> str:
         first, *remainder = self.command.splitlines() or [""]

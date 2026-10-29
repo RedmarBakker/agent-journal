@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+from journal.support.timeout import Timeout
 from journal.features.workers.support.closeness import Closeness
 from journal.features.workers.support.fitness_score import FitnessScore
 from journal.features.workers.fitness_options import FitnessOptions
@@ -57,7 +58,7 @@ class ModeMeasures:
     def scored(measures: MeasureStates, mode_specs: tuple[MeasureSpec, ...], warmup_seconds: float) -> FitnessScore:
         specs = {spec.key: spec for spec in mode_specs}
         weighed = [(specs[state.key], specs[state.key].closeness(state.value, specs[state.key].range)) for state in measures.states if state.is_measured and state.key in specs and specs[state.key].weight]
-        if not weighed or measures.latest_time() - measures.started_at < warmup_seconds:
+        if not weighed or not Timeout.seconds(warmup_seconds).started(measures.started_at).is_elapsed(measures.latest_time()):
             return FitnessScore(measures.mode, 100, is_measured=False, version=SCORE_VERSION)
         score = round(100 * sum(spec.weight * closeness for spec, closeness in weighed) / sum(spec.weight for spec, _ in weighed))
         return FitnessScore(measures.mode, score, parts=tuple((spec.key, round(100 * closeness)) for spec, closeness in weighed), version=SCORE_VERSION)

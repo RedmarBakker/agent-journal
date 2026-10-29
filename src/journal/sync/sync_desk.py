@@ -3,6 +3,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.models.environment import UNKNOWN_TEAM_KEY
 from journal.repositories.environments import Environments
 from journal.repositories.outgoing_changes import OutgoingChanges
@@ -34,7 +35,7 @@ from sync_server.sync_answer import SyncAnswer
 # the longest one side of the sync waits for the other's lock before that is a fault
 LOCK_SECONDS = 120
 # how often a journal of a team not on the hub asks its team server whether a migration has moved the team there
-HUB_ASK_SECONDS = 60
+HUB_CHECK_SECONDS = 60
 
 
 class SyncDesk:
@@ -78,7 +79,7 @@ class SyncDesk:
             self.environments.keys_learnt(summary.key, Actor.system())
 
     def hub_learnt(self) -> None:
-        if self.account.is_on_hub() or time.monotonic() - self.hub_asked_at < HUB_ASK_SECONDS:
+        if self.account.is_on_hub() or not Timeout.seconds(HUB_CHECK_SECONDS).started(self.hub_asked_at).is_elapsed(time.monotonic()):
             return
         self.hub_asked_at = time.monotonic()
         if self.link.summary(self.account.address()).on_hub:

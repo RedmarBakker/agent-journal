@@ -3,6 +3,7 @@ from argparse import Namespace
 from pathlib import Path
 from datetime import datetime, timezone
 
+from journal.support.timeout import Timeout
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.secrets.support.browser_logins import WINDOW_SECONDS
@@ -158,7 +159,7 @@ class SecretCommand(Command):
 
     def waited(self, secret: Secret) -> int:
         began = self.time_source.seconds()
-        while self.secrets.find(secret.row_id).login_started_at and self.time_source.seconds() - began < WINDOW_SECONDS:
+        while self.secrets.find(secret.row_id).login_started_at and not Timeout.seconds(WINDOW_SECONDS).started(began).is_elapsed(self.time_source.seconds()):
             time.sleep(1)
         finished = self.secrets.find(secret.row_id)
         print(f"logged in to {finished.title}" if finished.session_at else f"no login to {finished.title} is saved")

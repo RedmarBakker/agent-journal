@@ -140,7 +140,7 @@ class ExternalWait(Wait):
         return None if data.part(TasksPart).current_task else data.next_work()
 
     def reminder(self, progress: Mapping[str, WaitProgress], moment: float) -> Timeout:
-        printing = any(progress[ref].output_time >= moment - CHECK_REMINDER.amount for ref in self.targets() if ref in progress)
+        printing = any(not CHECK_REMINDER.started(progress[ref].output_time).is_exceeded(moment) for ref in self.targets() if ref in progress)
         return (PRINTING_REMINDER if printing else CHECK_REMINDER).started(self.check_reminder.start)
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:

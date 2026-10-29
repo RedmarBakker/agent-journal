@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from journal.sync.agent_rows import AgentRows
 from journal.sync.team_refusal import TeamRefusal
@@ -22,7 +23,7 @@ class RemoteAgents:
 
     def read(self, environment: Environment, request_at: float) -> list[dict]:
         entry = self.cache.get(environment.key)
-        if entry and request_at - entry.updated_at < CACHE_SECONDS:
+        if entry and not Timeout.seconds(CACHE_SECONDS).started(entry.updated_at).is_elapsed(request_at):
             return entry.rows
         rows = [{**row, "remote": True} for row in self.fetched(environment.key)]
         self.cache[environment.key] = AgentRows(rows, request_at)

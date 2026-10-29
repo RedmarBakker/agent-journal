@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
@@ -27,7 +28,7 @@ class RecordTypedPrompt(AgentListener[PromptSubmitted]):
             return
         text, moment, key = event.prompt.strip(), self.time_source.moment(), VoiceKey.hooked("typed", event.hook_key)
         repeats = self.messages.prompt_repeats(text)
-        if self.is_scheduled(event.session, text, moment.timestamp()) or any(moment.timestamp() - message.creation_time.timestamp() >= SCHEDULE_SECONDS for message in repeats):
+        if self.is_scheduled(event.session, text, moment.timestamp()) or any(Timeout.seconds(SCHEDULE_SECONDS).started(message.creation_time.timestamp()).is_elapsed(moment.timestamp()) for message in repeats):
             for message in repeats:
                 if not message.is_scheduled_prompt:
                     self.messages.save(message.scheduled(), Actor.system())

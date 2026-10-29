@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.silent_run import SilentRun
@@ -23,4 +24,4 @@ class SilentRuns:
         return tuple(SilentRun(output.row_id, output.command, int(current_seconds - output.creation_time.timestamp())) for output in moved_outputs if self.is_silent(output, current_seconds))
 
     def is_silent(self, output: CommandOutput, current_seconds: float) -> bool:
-        return self.labels.line_label(output.command) in LONG_RUNS and OutputFiles(Path(output.folder)).size() == 0 and current_seconds - output.creation_time.timestamp() >= SILENCE_SECONDS
+        return self.labels.line_label(output.command) in LONG_RUNS and OutputFiles(Path(output.folder)).size() == 0 and Timeout.seconds(SILENCE_SECONDS).started(output.creation_time.timestamp()).is_elapsed(current_seconds)

@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.support.card_outcome import CardOutcome
 import time
 
@@ -20,7 +21,7 @@ class LeakAlarm(AgentListener[Ticked]):
         self._said_at = 0.0
 
     def handle(self, event: Ticked) -> None:
-        if not self.masks.leaks or self.time_source.seconds() - self._said_at < ALARM_INTERVAL_SECONDS:
+        if not self.masks.leaks or not Timeout.seconds(ALARM_INTERVAL_SECONDS).started(self._said_at).is_elapsed(self.time_source.seconds()):
             return
         variables = sorted({variable for variable, _ in self.masks.leaks})
         self.masks.leaks.clear()

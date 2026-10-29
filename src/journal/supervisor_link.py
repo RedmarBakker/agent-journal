@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import time
+from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from pathlib import Path
 
@@ -63,7 +64,7 @@ class SupervisorLink:
 
     def is_queue_open(self, environment_id: int) -> bool:
         oldest = self.typed.queue_start(environment_id)
-        return self.typed.is_working(environment_id) and (oldest is None or self.time_source.seconds() - oldest < self.settings.integer(FOREGROUND_OPTION))
+        return self.typed.is_working(environment_id) and (oldest is None or not Timeout.seconds(self.settings.integer(FOREGROUND_OPTION)).started(oldest).is_elapsed(self.time_source.seconds()))
 
     def working(self, environment_id: int) -> None:
         self.typed.work(environment_id)

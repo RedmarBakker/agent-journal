@@ -1,5 +1,6 @@
 import re
 import subprocess
+from journal.support.timeout import Timeout
 from journal.models.support.worker_task import WorkerTask
 from pathlib import Path
 
@@ -53,7 +54,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         return self.commit(event, head.sha, head.body if self.is_agents(event, head) else "")
 
     def is_agents(self, event: ToolFinished, head: HeadCommit) -> bool:
-        if self.time_source.seconds() - head.committed <= COMMIT_WINDOW_SECONDS:
+        if not Timeout.seconds(COMMIT_WINDOW_SECONDS).started(head.committed).is_exceeded(self.time_source.seconds()):
             return True
         starts = self.entries.tool_starts(event.session, last=RECENT_TOOL_STARTS)
         return any(part.text.startswith("git commit") for start in starts for part in start.recorded_call().parts)

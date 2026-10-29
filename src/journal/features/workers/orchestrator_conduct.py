@@ -109,7 +109,7 @@ def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     if started is None:
         return ()
     interval = settings.integer(WorkersOptions.PRIORITIES_MINUTES) * 60
-    if started.priorities_phase == started.current_phase and not (interval and event.time - started.priorities_at >= interval):
+    if started.priorities_phase == started.current_phase and not (interval and Timeout.seconds(interval).started(started.priorities_at).is_elapsed(event.time)):
         return ()
     return (WorkersNudges.PRIORITIES.create(plan=started.plan_id, phase=started.current_phase),)
 

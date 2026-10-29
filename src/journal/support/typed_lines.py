@@ -1,3 +1,4 @@
+from journal.support.timeout import Timeout
 from journal.support.option import Option
 from journal.support.queued_line import QueuedLine
 from journal.support.typed_line import TypedLine
@@ -71,7 +72,7 @@ class TypedLines:
         self._held = [h for h in self._held if h.environment_id != environment_id]
 
     def is_recent(self, environment_id: int, seconds: float) -> bool:
-        return self.time_source.seconds() - self._sent_at.get(environment_id, 0.0) < seconds
+        return not Timeout.seconds(seconds).started(self._sent_at.get(environment_id, 0.0)).is_elapsed(self.time_source.seconds())
 
     def is_waiting(self, environment_id: int) -> bool:
         return any(t.environment_id == environment_id for t in self._waiting)
@@ -93,10 +94,10 @@ class TypedLines:
         moment = self.time_source.seconds()
         self._sent_at[environment_id] = moment
         self._waiting.append(TypedLine(environment_id, line, moment))
-        self._recent = [t for t in self._recent if moment - t.time < RECENT_SECONDS] + [TypedLine(environment_id, line, moment)]
+        self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment)]
 
     def contains(self, environment_id: int, prompt: str) -> bool:
-        return any(t.matches_prompt(environment_id, prompt) for t in self._recent if self.time_source.seconds() - t.time < RECENT_SECONDS)
+        return any(t.matches_prompt(environment_id, prompt) for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(self.time_source.seconds()))
 
     def confirm(self, environment_id: int, prompt: str) -> bool:
         matches = [t for t in self._waiting if t.matches_prompt(environment_id, prompt)]
@@ -120,7 +121,7 @@ class TypedLines:
         line = keystrokes.line if queued is None else f"{keystrokes.line}{TypedLine.SEPARATOR}{queued.line.removeprefix(JOURNAL_PREFIX).strip()}"
         repeat = TypedLine(keystrokes.environment_id, line, time, keystrokes.tries + 1)
         self._waiting[self._waiting.index(keystrokes)] = repeat
-        self._recent = [t for t in self._recent if time - t.time < RECENT_SECONDS] + [repeat]
+        self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(time)] + [repeat]
         return repeat
 
     def abandon(self, keystrokes: TypedLine) -> None:

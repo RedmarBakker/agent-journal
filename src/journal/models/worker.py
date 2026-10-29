@@ -267,10 +267,10 @@ class Worker(Helper):
         return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
 
     def is_unanswered(self, time: float, seconds: float, tested_at: float = 0.0) -> bool:
-        return self.is_delivered() and not self.review_pending and time - max(self.silence.timeout.start, tested_at) > seconds
+        return self.is_delivered() and not self.review_pending and Timeout.seconds(seconds).started(max(self.silence.timeout.start, tested_at)).is_exceeded(time)
 
     def is_retirable(self, time: float, seconds: float) -> bool:
-        return not self.adopted and not self.is_active() and not self.review_pending and time - self.moves.last_time() > seconds
+        return not self.adopted and not self.is_active() and not self.review_pending and Timeout.seconds(seconds).started(self.moves.last_time()).is_exceeded(time)
 
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted

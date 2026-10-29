@@ -125,7 +125,7 @@ class RequestTimeRecorder:
         self.slow_tally = self.slow_tally.flagged(route, points, self.clock.time())
 
     def check_gathered(self, moment: float) -> None:
-        if moment - self.checked_at < CHECK_INTERVAL_SECONDS or not self.settings.option(FaultsOptions.REPORT):
+        if not Timeout.seconds(CHECK_INTERVAL_SECONDS).started(self.checked_at).is_elapsed(moment) or not self.settings.option(FaultsOptions.REPORT):
             return
         self.checked_at = moment
         self.deferred.add(lambda: self.report_gathered(self.clock.time()))

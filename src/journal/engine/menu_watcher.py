@@ -66,7 +66,7 @@ class MenuWatcher(Job):
         return menu.asking_permission() and self.launches.skips_prompts(environment)
 
     def is_drawing(self, environment: int, moment: float) -> bool:
-        return self._menu_changed_at[environment] == moment and moment - self.supervisor.last_screen_change(environment) < STILLNESS_SECONDS
+        return self._menu_changed_at[environment] == moment and not Timeout.seconds(STILLNESS_SECONDS).started(self.supervisor.last_screen_change(environment)).is_elapsed(moment)
 
     def decided(self, menu: Menu, triggered: bool, agent: Agent) -> tuple[str, str] | None:
         trust_all = menu.trusting_all() if menu.reviewing_hooks() else None

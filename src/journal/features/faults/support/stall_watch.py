@@ -3,6 +3,7 @@ import threading
 import time
 import traceback
 
+from journal.support.timeout import Timeout
 from journal.repositories.setting_rows import SettingRows
 from journal.features.faults.faults_options import FaultsOptions
 
@@ -38,7 +39,7 @@ class StallWatch:
         while True:
             time.sleep(CHECK_SECONDS)
             with self.lock:
-                overdue_requests = [(ident, path) for ident, (began, path) in self.running.items() if time.monotonic() - began > STALL_SECONDS and ident not in self.written]
+                overdue_requests = [(ident, path) for ident, (began, path) in self.running.items() if Timeout.seconds(STALL_SECONDS).started(began).is_exceeded(time.monotonic()) and ident not in self.written]
                 self.written.update(ident for ident, _ in overdue_requests)
             for ident, path in overdue_requests:
                 self.write(ident, path)

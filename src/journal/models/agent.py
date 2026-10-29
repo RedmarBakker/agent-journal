@@ -1,6 +1,7 @@
 from typing import ClassVar
 from dataclasses import dataclass, field, replace
 
+from journal.support.timeout import Timeout
 from journal.events.rows.user_paused import UserPaused
 from journal.events.rows.sequence_run_started import SequenceRunStarted
 from journal.events.rows.sequence_run_transferred import SequenceRunTransferred
@@ -186,7 +187,7 @@ class Agent(Scoped):
 
     def authored_total(self, moment: float, seconds: float) -> int:
         last_commit = self.committed_lines[-1][0] if self.committed_lines else 0.0
-        provisional = sum(lines for time, lines in self.edited_lines if last_commit < time and moment - seconds < time <= moment)
+        provisional = sum(lines for time, lines in self.edited_lines if last_commit < time and Timeout.seconds(seconds).started(time).is_active(moment))
         return self.committed_total(moment, seconds) + provisional
 
     def is_sha_counted(self, sha: str) -> bool:

@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from journal.support.timeout import Timeout
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.events.feature_data import FeatureData
@@ -30,7 +31,7 @@ class MeasureLines:
     def block_lines(data: FeatureData, settings: Settings, time: float) -> tuple[Nudge, ...]:
         workers = data.part(WorkersPart)
         state = workers.measures.state("high_queue_minutes")
-        if not state.is_failing or time - state.changed_at < settings.decimal(FitnessOptions.EDIT_WAIT_MINUTES) * 60:
+        if not state.is_failing or not Timeout.minutes(settings.decimal(FitnessOptions.EDIT_WAIT_MINUTES)).started(state.changed_at).is_elapsed(time):
             return ()
         maker = MeasureLines.makers().get((workers.measures.mode, state.key))
         return maker(state, data, settings) if maker else ()

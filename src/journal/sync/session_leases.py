@@ -1,5 +1,6 @@
 import time
 
+from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
@@ -56,7 +57,7 @@ class SessionLeases:
         return f"session {environment.team_name} is {holder}: your message waits on the team server and reaches the session's agent once a machine holds it; journal session start {environment.team_name} claims it"
 
     def renew(self) -> None:
-        if time.monotonic() - self.renewed_at < RENEW_SECONDS:
+        if not Timeout.seconds(RENEW_SECONDS).started(self.renewed_at).is_elapsed(time.monotonic()):
             return
         self.renewed_at = time.monotonic()
         for name in self.account.hosted_sessions():

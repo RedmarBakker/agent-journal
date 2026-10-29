@@ -27,7 +27,7 @@ class WorkerSilence:
         return not self.is_reported and self.timeout.is_elapsed(time)
 
     def is_split_due(self, time: float) -> bool:
-        return self.is_reported and not self.is_split_advised and time - self.timeout.start >= DISPATCHER_SPAN_SHARE * self.timeout.amount
+        return self.is_reported and not self.is_split_advised and Timeout.seconds(DISPATCHER_SPAN_SHARE * self.timeout.amount).started(self.timeout.start).is_elapsed(time)
 
     def dispatcher_minutes(self) -> int:
         return int(DISPATCHER_SPAN_SHARE * self.timeout.amount // 60)

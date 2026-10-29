@@ -1,4 +1,5 @@
 from typing import ClassVar
+from journal.support.timeout import Timeout
 from journal.support.task_notification import TaskNotification
 from dataclasses import dataclass
 
@@ -42,7 +43,7 @@ class Subagent(Scoped):
         return bool(self.session) and self.state in (SubagentState.FINISHED, SubagentState.STOPPED, SubagentState.ENDED)
 
     def is_current(self, time: float) -> bool:
-        return self.is_running() or time - self.ended_at < CURRENT_SECONDS
+        return self.is_running() or not Timeout.seconds(CURRENT_SECONDS).started(self.ended_at).is_elapsed(time)
 
     def answered(self, session: str) -> "Subagent":
         return self.with_(session=session)
