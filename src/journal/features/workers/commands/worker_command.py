@@ -276,7 +276,7 @@ class WorkerCommand(Command):
             self.worker_profile(args.profile)
         role = self.roles.role(args.role) if args.role else None
         if role and self.roles.needs_worktree(role) and not args.worktree:
-            raise Rejection(f"{role.id} runs each job as its own instance in its own worktree: add --worktree, with its library folders")
+            raise Rejection(f"{role.id} runs each job in a worktree of its own: add --worktree, with its library folders")
         return role
 
     def worker_profile(self, profile: str) -> None:

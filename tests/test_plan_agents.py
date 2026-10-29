@@ -197,9 +197,9 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     assert taken.code == 0, taken.error
     top = lambda: agents.find(agent_id).stack[-1]
     assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
-    status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "notes.md", "content": "a finding"})
+    status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "findings.txt", "content": "a finding"})
     assert status == 409 and "has no write tool" in body["error"], "acting as a Role that writes nothing, a write is refused"
-    status, body = planned("PreToolUse", tool_name="Read", tool_input={"file_path": "notes.md"})
+    status, body = planned("PreToolUse", tool_name="Read", tool_input={"file_path": "findings.txt"})
     assert status == 200, f"a tool the Role names goes through: {body}"
     assert planned("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "and a journal command always does"
     guided = lambda: [entry.data["line"] for entry in app.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("key") == "organization.you_act_as_the_role"]
