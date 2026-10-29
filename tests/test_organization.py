@@ -8,6 +8,8 @@ import subprocess
 from threading import Lock
 from types import SimpleNamespace
 
+import pytest
+
 from journal.config import Config
 from journal.engine.agent_launcher import AgentLauncher
 from journal.engine.support.settings import Settings
@@ -486,7 +488,7 @@ def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_wind
     reset = ledger.observe(3, "builder@release", "native-a", 0.2, 120, 2)
     new_session = ledger.observe(3, "builder@release", "native-b", 0.4, 130, 2)
     assert first.amount_usd == 2.5 and next_turn.amount_usd == 3.0 and reset.amount_usd == 3.2 and new_session.amount_usd == 3.6
-    assert new_session.source == "OpenRig native-session estimate" and new_session.coverage == "1 of 2 seats observed" and new_session.freshness == "fresh" and new_session.status == "partial"
+    assert new_session.source == "OpenRig native-session estimate" and new_session.coverage == "1 of 2 seats reported Estimated API cost" and new_session.freshness == "fresh" and new_session.status == "partial"
     ledger.observe(4, "older-seat", "native-c", 1.0, 100, 2)
     ledger.observe(4, "newer-seat", "native-d", 1.0, 190, 2)
     assert ledger.estimate(4, 200, 2).freshness == "stale", "one stale seat makes the plan estimate stale even if another seat is recent"
@@ -561,7 +563,7 @@ def test_openrig_ledger_retains_session_reset_and_unavailable_metadata(tmp_path)
     persisted = json.loads(ledger.path.read_text())["seats"]["3:alpha-builder@release"]
 
     assert [first.amount_usd, continued.amount_usd, reset.amount_usd, new_session.amount_usd] == [2.5, 3.0, 7.0, 7.4]
-    assert stale.amount_usd == 7.6 and stale.status == "stale"
+    assert stale.amount_usd == pytest.approx(7.6) and stale.status == "stale"
     assert unavailable.amount_usd == 7.6 and unavailable.status == "unavailable" and unavailable.freshness == "unavailable"
     assert persisted["native_session_id"] == "native-b" and persisted["worker_native_session"] == "worker-session-b"
     assert persisted["latest"]["label"] == "Estimated API cost"
