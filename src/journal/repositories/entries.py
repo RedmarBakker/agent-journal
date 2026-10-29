@@ -141,14 +141,14 @@ class Entries(ScopedRepository[Entry]):
         shown = self.query().filter(actor=Actor.agent(session)).filter_alternatives(self.query().filter_listed("entry_type", part_kinds), tools)
         return list(reversed(self.selected(shown.without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))))
 
-    def session_kind_entries(self, type_name: str, session: str) -> list[Entry]:
-        return [entry for entry in self.kind_entries(type_name) if entry.is_session(session)]
+    def session_kind_entries(self, type_name: str, session: str, last: int = 50) -> list[Entry]:
+        return self.selected(self.query().filter(entry_type=type_name, actor=Actor.agent(session)).order_descending("id").limit(last))
 
     def line_entries(self, session: str, line: str) -> list[Entry]:
         return self.selected(self.lines(session).filter_json("data->line", line).order("id"))
 
     def session_moves(self, kinds: tuple[str, ...], session: str, last: int = 200) -> list[Entry]:
-        return [entry for entry in self.kind_entries_scoped(last) if entry.entry_type in kinds and entry.actor and entry.actor.id == session]
+        return self.selected(self.query().filter_listed("entry_type", kinds).filter(actor=Actor.agent(session)).order_descending("id").limit(last))
 
     def tool_ends(self, session: str, last: int = 500) -> list[Entry]:
         return self.selected(self.query().filter_listed("entry_type", (events.TOOL_FINISHED, events.TOOL_FAILED)).filter(actor=Actor.agent(session)).order_descending("id").limit(last))
