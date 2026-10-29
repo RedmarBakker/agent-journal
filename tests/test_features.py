@@ -7337,6 +7337,7 @@ def test_a_worker_that_ends_without_clocking_out_has_its_commits_named_unchecked
 
 
 def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter(app: App):
+    from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.worker import Worker
     from journal.support.actor import Actor
 
@@ -7352,11 +7353,12 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter(app: App):
         def start(worker, actor, prompt, ended):
             started.append((worker, actor, prompt, ended))
 
-    runner.seats = Seats()
+    seats = Seats()
+    runner.seats = seats
     runner.instructed = lambda current: current.brief
     worker = Worker(name="Ada Lovelace", brief="write the patch", role="builder", plan_id=8)
-    assert worker.role == "builder" and worker.plan_id == 8
-    runner.start(worker, Actor.system())
+    assert runner.seats is seats and runner.seats.applies(worker) and worker.role == "builder" and worker.plan_id == 8
+    WorkerRunner.start(runner, worker, Actor.system())
     assert len(started) == 1 and started[0][0] == worker and started[0][1] == Actor.system()
     assert "write the patch" in started[0][2] and started[0][3] == runner.finish_seat
 

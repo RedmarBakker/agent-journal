@@ -622,7 +622,7 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
         "id": "builder", "agent_ref": "local:agents/alpha-builder", "runtime": "codex",
         "model": "gpt-6-luna", "env": {"JOURNAL_ACTOR": "worker:7", "JOURNAL_ACTOR_TOKEN": "seat-token",
         "JOURNAL_ENV": "development", "JOURNAL_ROOT": str(config.root), "PATH": str(config.home / "bin") + os.pathsep + "/usr/bin",
-        "AGENT_JOURNAL_ACTIVE": "1", "AGENT_SHELL": "1"},
+        "AGENT_JOURNAL_ACTIVE": "1", "JOURNAL_AGENT_SHELL": "1"},
         "codex_permissions": {"sandbox": "workspace-write", "approval": "never"},
     }]}]}))
     agent = spec.parent / "agents" / "alpha-builder"
