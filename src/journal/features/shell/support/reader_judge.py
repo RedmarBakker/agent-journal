@@ -90,9 +90,10 @@ class ReaderJudge:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
 
-    def one_word_title_report(self, output: CommandOutput, title: str) -> ReaderReport | None:
-        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE) or GitCommands.is_git(self.shapes.command_name(Alias.resolved(output.command, self.aliases.index()))):
-            return None
+    def is_one_word_title_due(self, output: CommandOutput, title: str) -> bool:
+        return not self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE) and not GitCommands.is_git(self.shapes.command_name(Alias.resolved(output.command, self.aliases.index())))
+
+    def one_word_title_report(self, output: CommandOutput, title: str) -> ReaderReport:
         reader = output.watch_reader
         return ReaderReport(environment_id=output.environment_id, reader=reader, output=output.id, command=output.command, session=output.session, findings=(f'{SINGLE_WORD_TITLE}: "{title}"',), fixes=("give the reader a label that says what runs, such as 'Running the rename tool', and a --topic that names it: journal reader add " + (reader or "<name>") + " --label ... --topic ...",))
 

@@ -39,5 +39,8 @@ class ProcessTree:
     def tests(self) -> list[ProcessRow]:
         return [row for row in self.rows if TEST_PROCESS.search(row.command)]
 
+    def has_inner_command(self, classifier: CommandClassifier) -> bool:
+        return any(classifier.process_command(row.command) for row in self.rows)
+
     def inner_command(self, classifier: CommandClassifier) -> str:
-        return next((command for row in self.rows if (command := classifier.process_command(row.command))), "")
+        return next(classifier.process_command(row.command) for row in self.rows if classifier.process_command(row.command))

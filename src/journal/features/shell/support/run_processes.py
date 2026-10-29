@@ -13,8 +13,8 @@ class RunProcesses:
 
     def sampled(self, output: int, subtree: ProcessTree, classifier: CommandClassifier) -> None:
         self.tests.setdefault(output, set()).update(row.pid for row in subtree.tests())
-        if inner := subtree.inner_command(classifier):
-            self.commands[output] = inner
+        if subtree.has_inner_command(classifier):
+            self.commands[output] = subtree.inner_command(classifier)
 
     def test_count(self, output: int) -> int:
         return len(self.tests.get(output, ()))

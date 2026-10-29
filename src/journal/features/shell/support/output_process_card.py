@@ -41,16 +41,17 @@ class OutputProcessCard(ProcessCard):
         self.auto_dock, self.git_titles, self.aliases, self.labels, self.git, self.text = auto_dock, git_titles, aliases, labels, git, text
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
-    def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
-        if self.mark_policy.forbids_mark(output):
-            return None
+    def is_carded(self, output: CommandOutput) -> bool:
+        return not self.mark_policy.forbids_mark(output)
+
+    def card_contents(self, output: CommandOutput) -> ProcessCardContents:
         view = self.views.view(output)
         part = self.text.shown(self.shown_part(output))
         data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "complete_unended": view.complete_unended, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output), FINAL: output.ended}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardType.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
     def stored_contents(self, outputs: list[CommandOutput]) -> list[ProcessCardContents]:
-        return [contents for output in outputs if OutputFiles(Path(output.folder)).is_stored() and (contents := self.card_contents(output))]
+        return [self.card_contents(output) for output in outputs if OutputFiles(Path(output.folder)).is_stored() and self.is_carded(output)]
 
     def refresh(self, message: Message) -> dict:
         output = self.outputs.find(message.data["output"])
