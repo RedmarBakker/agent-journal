@@ -1,5 +1,6 @@
-import {describe, expect, test} from "vitest";
+import {afterEach, describe, expect, test} from "vitest";
 import {mainChat, threadTurns} from "../src/domain/thread.js";
+import {store} from "../src/state/store.js";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
 const message = (id, seconds, fields = {}) => ({table: "messages", id, created_at: at(seconds), author: "user", text: "", files: [], data: {}, comments_on: [], idempotency: "", ...fields});
@@ -7,6 +8,39 @@ const pending = (key, seconds, fields = {}) => ({table: "messages", id: 0, key: 
 const card = (id, seconds, data, text = "") => message(id, seconds, {author: "system", text, data});
 const turns = (messages, pend = [], older = false) => threadTurns(messages, pend, older).turns;
 const keys = (list) => list.map((t) => t.key);
+
+describe("command cards", () => {
+    afterEach(() => {
+        store.spec = null;
+    });
+
+    test.each([
+        ["family", {}],
+        ["worker", {worker: "Lady Lovelace"}],
+        ["subagent run", {run: "subagent:s1:a1", run_title: "Subagent", run_noun: "actions"}],
+    ])("stay separate when consecutive cards share a %s", (_name, extra) => {
+        store.spec = {
+            marks: {
+                groups: [],
+                families: [{key: "commands", title: "Commands"}],
+                kinds: [{key: "commands", family: "commands", group: "work", turns: [], messages: [], covers: [], shown: true}],
+            },
+        };
+        const commands = [1, 2, 3].map((id) => card(id, id, {kind: "card", shows: "commands", ...extra}, `Command ${id}`));
+        expect(turns(commands).map((turn) => [turn.kind, turn.id])).toEqual([["card", 1], ["card", 2], ["card", 3]]);
+    });
+
+    test("stay separate without a card registry", () => {
+        const commands = [1, 2, 3].map((id) => card(id, id, {kind: "card", shows: "commands"}, "Command finished"));
+        expect(turns(commands).map((turn) => turn.id)).toEqual([1, 2, 3]);
+    });
+
+    test("split the groups of other cards around them", () => {
+        const change = (id) => card(id, id, {kind: "card"}, "Task changed");
+        const command = card(3, 3, {kind: "card", shows: "commands"}, "Command finished");
+        expect(turns([change(1), change(2), command, change(4), change(5)]).map((turn) => turn.id)).toEqual([1, 2, 3, 4, 5]);
+    });
+});
 
 describe("a message just sent", () => {
     test("shows once while only the placeholder exists", () => {

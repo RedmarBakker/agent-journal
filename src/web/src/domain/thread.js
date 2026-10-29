@@ -277,6 +277,10 @@ function gather(out, units, run, turn) {
     out.push(place);
 }
 
+function isCommandCard(turn) {
+    return turn.kind === "card" && turn.data.shows === "commands";
+}
+
 function grouped(turns) {
     const out = [];
     const units = new Map();
@@ -286,6 +290,11 @@ function grouped(turns) {
         run = [];
     };
     for (const turn of turns) {
+        if (isCommandCard(turn)) {
+            close();
+            out.push(turn);
+            continue;
+        }
         if (runOf(turn)) {
             close();
             gather(out, units, runOf(turn), turn);
