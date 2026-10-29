@@ -17,6 +17,7 @@ import {PLANNED, PLAN_STATES, reviewersLine, statusOf} from "../domain/plans.js"
 import {peek} from "../route.js";
 import {wholePlans} from "../composables/wholePlans.js";
 import PlanAgentSection from "./PlanAgentSection.vue";
+import PlanRoleHistory from "./PlanRoleHistory.vue";
 import {planAgents} from "../domain/planAgents.js";
 
 const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boolean, holding: Boolean, closable: {type: Boolean, default: true}});
@@ -110,6 +111,7 @@ async function run(act) {
             <PlanPageActions :plan="resource" :error="error" @run="run" />
         </template>
         <PlanAgentSection v-if="planAgents" :plan="resource" :read-only="readOnly" />
+        <PlanRoleHistory v-if="planAgents && resource.mode === 'solo'" :plan="resource" :initial="readOnly ? resource.plan_agent_roles : null" />
         <template v-if="resource.brief">
             <div class="brief">
                 <Folded :name="`plans:${resource.id}:brief`" :at="220" :keep="160">

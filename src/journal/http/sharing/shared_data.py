@@ -10,7 +10,7 @@ from journal.repositories.scope import Scope
 
 
 class SharedData:
-    """What the share page reads of a link: the row it opens, a plan in outline with its tasks, and the comments visitors left, as the journal holds each."""
+    """What the share page reads of a link: the row it opens, a plan's outline, tasks, Role history and timeline, and visitors' comments."""
 
     def __init__(self, targets: ShareTargets, docs: Docs, reports: Reports, plans: Plans, outline: PlanOutline, scope: Scope, comments: SharedComments, timeline: PlanTimeline) -> None:
         self.timeline = timeline
@@ -29,4 +29,8 @@ class SharedData:
         if target.type == "reports":
             return {"reports": [self.reports.find(target.id)]}
         plan = self.plans.find(target.id)
-        return {"plans": [self.outline.build(plan)], "tasks": self.plans.plan_tasks(plan), "timeline": self.timeline.build(plan)}
+        return {
+            "plans": [{**self.outline.build(plan), "plan_agent_roles": self.timeline.roles_taken(plan)}],
+            "tasks": self.plans.plan_tasks(plan),
+            "timeline": self.timeline.build(plan),
+        }

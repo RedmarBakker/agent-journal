@@ -52,6 +52,9 @@ class PlanController(Controller[Plan]):
     def timeline(self, request: Request) -> Response:
         return Response.json(self.moments.build(self.repository.find(request.number("id"))))
 
+    def role_history(self, request: Request) -> Response:
+        return Response.json(self.moments.roles_taken(self.repository.find(request.number("id"))))
+
     def plan_tasks(self, request: Request) -> Response:
         return Response.json(self.repository.plan_tasks(self.repository.find(request.number("id"))))
 

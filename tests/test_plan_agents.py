@@ -269,6 +269,14 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     assert taken.code == 0, taken.error
     top = lambda: agents.find(agent_id).stack[-1]
     assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
+    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
+    [step_task] = plans.plan_tasks(plans.find(plan))
+    assert status == 200 and history["current_role"] == "keeper", "the solo plan reports the Role its Plan agent acts as now"
+    assert [(step["role"], step["task"], step["title"]) for step in history["steps"]] == [("keeper", step_task.row_id, step_task.title)], "each Role step is linked to its plan task"
+    from journal.http.sharing.shared_data import SharedData
+    from journal.models.support.ref import Ref
+    shared = app.container.get(SharedData).opened(Ref.build(plans.find(plan)))
+    assert shared["plans"][0]["plan_agent_roles"] == history, "a shared plan preloads the same Role history without an authenticated journal request"
     status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "findings.txt", "content": "a finding"})
     assert status == 409 and nudge_reached(app, body["error"], OrganizationNudges.ROLE_WRITES_NOTHING, role="keeper"), "acting as a Role that writes nothing, a write is refused"
     status, body = planned("PreToolUse", tool_name="Read", tool_input={"file_path": "findings.txt"})
@@ -285,6 +293,8 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     console.run(["environment", "overview"], lead)
     assert top()["state"] == "role_work" and len(guided()) > 1, "after a compaction it is the Role it was, told its guidance again"
     assert console.run(["role", "done"], lead).code == 0 and top()["state"] != "role_work", "the step's end pops it"
+    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
+    assert status == 200 and history["current_role"] == "" and len(history["steps"]) == 1, "a finished Role leaves the timeline and no longer appears as current"
 
 
 def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, supervisors: Supervisors, tmp_path):

@@ -174,6 +174,10 @@ export class ApiClient {
         return this.get(this.here(`/plans/${id}/timeline`));
     }
 
+    planRoles(id) {
+        return this.get(this.here(`/plans/${id}/roles`));
+    }
+
     changelog(skip) {
         return this.get(`/updates/changelog${query({skip})}`);
     }

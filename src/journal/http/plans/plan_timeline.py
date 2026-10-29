@@ -1,24 +1,67 @@
+from journal.engine.support.stack_history import StackHistory
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.http.plans.timeline_moment import TimelineMoment
 from journal.models.message import Message
 from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.task import Task
 from journal.models.task_state import TaskState
+from journal.repositories.entries import Entries
 from journal.repositories.messages import Messages
 from journal.repositories.plans import Plans
 from journal.repositories.task_logs import TaskLogs
 
 
 class PlanTimeline:
-    """A plan's task events and Plan agent messages, oldest first."""
+    """A plan's task events and Plan agent history, oldest first."""
 
-    def __init__(self, plans: Plans, task_logs: TaskLogs, messages: Messages, plan_agents: PlanAgents) -> None:
-        self.plans, self.task_logs, self.messages, self.plan_agents = plans, task_logs, messages, plan_agents
+    def __init__(self, plans: Plans, task_logs: TaskLogs, messages: Messages, plan_agents: PlanAgents, entries: Entries) -> None:
+        self.plans, self.task_logs, self.messages, self.plan_agents, self.entries = plans, task_logs, messages, plan_agents, entries
 
     def build(self, plan: Plan) -> list[TimelineMoment]:
         moments = [moment for task in self.plans.plan_tasks(plan) for moment in self.moments(task)]
         moments.extend(self.communications(plan))
         return sorted(moments, key=lambda m: m.time)
+
+    def roles_taken(self, plan: Plan) -> dict:
+        if plan.mode != PlanMode.SOLO:
+            return {"current_role": "", "steps": []}
+        agent, environment = self.plan_agents.agent(plan), self.plan_agents.environment(plan)
+        if environment is None:
+            return {"current_role": "", "steps": []}
+
+        tasks = {task.row_id: task.title for task in self.plans.plan_tasks(plan)}
+        steps = []
+        for entry in self.entries.global_matching(environment_id=environment.row_id, entry_type=StackHistory.KIND):
+            before = {
+                (layer.get("data", {}).get("role"), layer.get("data", {}).get("version"))
+                for layer in entry.data.get("before", [])
+                if layer.get("state") == "role_work"
+            }
+            after = [layer for layer in entry.data.get("after", []) if layer.get("state") == "role_work"]
+            for layer in after:
+                data = layer.get("data", {})
+                role = data.get("role", "")
+                if not role or (role, data.get("version")) in before:
+                    continue
+                plan_state = next(
+                    (
+                        candidate.get("data", {})
+                        for candidate in reversed(entry.data.get("after", []))
+                        if candidate.get("state") == "following_plan" and candidate.get("data", {}).get("plan_id") == plan.row_id
+                    ),
+                    {},
+                )
+                task_id = plan_state.get("task_id", 0)
+                steps.append({"role": role, "task": task_id, "title": tasks.get(task_id, ""), "time": entry.created_at.timestamp()})
+
+        current_role = ""
+        if agent:
+            stack = agent.stack or ({"state": agent.state, "data": agent.data},)
+            top = stack[-1]
+            if top.get("state") == "role_work":
+                current_role = top.get("data", {}).get("role", "")
+        return {"current_role": current_role, "steps": steps}
 
     def communications(self, plan: Plan) -> list[TimelineMoment]:
         environment = self.plan_agents.environment(plan)
