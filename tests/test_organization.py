@@ -231,6 +231,46 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
 
 
+def test_generated_member_bash_environment_prefers_its_project_journal_command(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "claude")
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-path-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    project_journal = tmp_path / "project" / ".journal" / "bin" / "journal"
+    monkeypatch.setattr(writer, "command", lambda: project_journal)
+
+    spec_path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(spec_path.read_text())
+    planner = next(member for pod in spec["pods"] for member in pod["members"] if member["id"] == "planner")
+    project_journal.parent.mkdir(parents=True, exist_ok=True)
+    project_journal.write_text("#!/bin/sh\nprintf 'project-journal:%s\\n' \"$*\"\n")
+    project_journal.chmod(0o700)
+
+    global_bin = tmp_path / "global-bin"
+    global_bin.mkdir()
+    global_journal = global_bin / "journal"
+    global_journal.write_text("#!/bin/sh\nprintf 'global-journal:%s\\n' \"$*\"\n")
+    global_journal.chmod(0o700)
+    seat_bin = tmp_path / "openrig-seat-bin"
+    seat_bin.mkdir()
+    seat_rig = seat_bin / "rig"
+    seat_rig.write_text("#!/bin/sh\nexit 0\n")
+    seat_rig.chmod(0o700)
+    environment = {"PATH": os.pathsep.join((str(seat_bin), str(global_bin))), "BASH_ENV": planner["env"]["BASH_ENV"]}
+
+    try:
+        resolved = subprocess.run(["/bin/bash", "-c", "journal task show 117"], cwd=tmp_path, env=environment,
+                                  capture_output=True, text=True, check=True)
+    finally:
+        project_journal.unlink()
+
+    assert planner["env"]["PATH"].split(os.pathsep)[0] == str(project_journal.parent)
+    assert planner["env"]["PROMPT_COMMAND"].endswith(writer.shell_path_command())
+    assert Path(planner["env"]["BASH_ENV"]).read_text().strip() == writer.shell_path_command()
+    assert resolved.stdout.strip() == "project-journal:task show 117", "the member's noninteractive shell runs the generated project command over a global journal"
+
+
 def test_journal_organization_audit_finds_a_planted_cross_pod_queue_transition(app, tmp_path, monkeypatch):
     from journal.support.caller import Caller
 

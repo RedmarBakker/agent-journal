@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -133,7 +134,23 @@ class RigSpecs:
     def variables(self, worker: SeatWorker) -> dict[str, str]:
         launched = self.setup.variables(worker.environment, worker.actor, worker.token)
         path = (str(self.command().parent), *filter(None, (os.environ.get("PATH", ""),)))
-        return {**{name: launched[name] for name in SEAT_VARIABLES}, "PATH": os.pathsep.join(path)}
+        shell_path_command = self.shell_path_command()
+        prompt_command = "; ".join(filter(None, (launched.get("PROMPT_COMMAND", ""), shell_path_command)))
+        return {**{name: launched[name] for name in SEAT_VARIABLES}, "PATH": os.pathsep.join(path),
+                "BASH_ENV": str(self.shell_path_file()), "PROMPT_COMMAND": prompt_command}
+
+    def shell_path_command(self) -> str:
+        """Put this project's journal bin first after OpenRig's login shell startup."""
+        command_folder = shlex.quote(str(self.command().parent))
+        return f'PATH={command_folder}${{PATH:+":$PATH"}}; export PATH'
+
+    def shell_path_file(self) -> Path:
+        """Restore this project's journal bin in noninteractive Bash shells."""
+        path = self.config.home / "runtime" / "journal-shell-path.sh"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{self.shell_path_command()}\n")
+        path.chmod(OWNER_ONLY)
+        return path
 
     def permissions(self, provider: Provider, seat: Seat, cwd: Path) -> dict:
         if provider.openrig_permissions_field == "codex_permissions":
