@@ -11,7 +11,7 @@ const {fixtures, apiMock} = vi.hoisted(() => ({
     },
 }));
 
-vi.mock("../src/api/client.js", () => ({api: apiMock}));
+vi.mock("../src/api/client.js", () => ({api: apiMock, onWrite: vi.fn()}));
 vi.mock("../src/composables/poll.js", () => ({
     usePoll: (key, options = {}) => {
         fixtures.poller = key;
