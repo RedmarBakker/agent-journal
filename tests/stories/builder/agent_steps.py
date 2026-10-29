@@ -453,6 +453,14 @@ class AgentSteps:
             (self.app.config.root / ".claude/skills" / name / path).write_text(text)
         self.observed("the project holds a skill of its own", None, None)
 
+    def the_project_holds_a_file(self, path: str, data: bytes) -> None:
+        (self.app.config.root / path).write_bytes(data)
+        self.observed("the project holds a file", None, None)
+
+    def the_project_file_is_removed(self, path: str) -> None:
+        (self.app.config.root / path).unlink()
+        self.observed("a project file is removed", None, None)
+
     def the_skill_folder_is_removed(self, name: str) -> None:
         shutil.rmtree(self.app.config.root / ".claude/skills" / name)
         self.observed("the skill's folder is removed", None, None)

@@ -5,6 +5,7 @@ from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.portable_body import PortableBody
 from journal.features.library.support.profile_body import ProfileBody
+from journal.features.library.support.file_body import FileBody
 from journal.features.library.support.reader_body import ReaderBody
 from journal.features.library.support.skill_body import SkillBody
 from journal.features.library.support.sequence_body import SequenceBody
@@ -53,6 +54,8 @@ class LibraryUpdate:
             return ReaderBody.text(self.profiles.config.root / str(item.file_path))
         if item.item_type == "skill":
             return SkillBody.text((self.profiles.config.root / str(item.file_path)).parent)
+        if item.item_type in ("document", "file"):
+            return FileBody.text(FileBody.file_name(item.body), (self.profiles.config.root / str(item.file_path)).read_bytes())
         if item.item_type == "profile":
             imported = ProfileBody.profile(item.body)
             view = self.profiles.read(imported.name)
@@ -69,6 +72,9 @@ class LibraryUpdate:
             folder = (self.profiles.config.root / str(item.file_path)).parent
             SkillBody.save(folder, body)
             return SkillBody.text(folder)
+        if item.item_type in ("document", "file"):
+            (self.profiles.config.root / str(item.file_path)).write_bytes(self.link.file(item.item_type, item.name, self.link.item(item.item_type, item.name).versions[-1].number, FileBody.file_name(body)))
+            return body
         if item.item_type == "profile":
             self.profiles.saved(ProfileBody.profile(body))
             return body

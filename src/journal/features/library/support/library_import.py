@@ -3,6 +3,7 @@ from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.profile_body import ProfileBody
+from journal.features.library.support.file_body import FileBody
 from journal.features.library.support.reader_body import ReaderBody
 from journal.features.library.support.skill_body import SkillBody
 from journal.features.skills.support.skill_files import HOMES
@@ -44,7 +45,7 @@ class LibraryImport:
             raise Rejection(f"{item_type} {name} is imported already: journal library update {item_type} {name}")
         version = self.version(item_type, name, number)
         item = self.items.save(LibraryItem(library_key=key, item_type=item_type, name=name, version=version.number, body=version.body), actor)
-        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file, "reader": self.reader_file, "skill": self.skill_folder}
+        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file, "reader": self.reader_file, "skill": self.skill_folder, "document": self.project_file, "file": self.project_file}
         if item_type not in writers:
             raise Rejection(f"the library imports {', '.join(writers)} here; {item_type} is not one of them")
         return writers[item_type](item, actor, accepted)
@@ -97,6 +98,15 @@ class LibraryImport:
             raise Rejection(f"a skill named {item.name} exists here already: the library's copy is not written over it")
         skill_file = SkillBody.save(folder, item.body)
         return self.items.save(item.with_(file_path=str(skill_file.relative_to(self.config.root))), actor)
+
+    def project_file(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
+        file_name = FileBody.file_name(item.body)
+        path = self.config.root / file_name
+        if path.exists():
+            self.items.delete(item, actor)
+            raise Rejection(f"a file named {file_name} exists here already: the library's copy is not written over it")
+        path.write_bytes(self.link.file(item.item_type, item.name, item.version, file_name))
+        return self.items.save(item.with_(file_path=file_name), actor)
 
     @staticmethod
     def powers(sequence: Sequence) -> str:

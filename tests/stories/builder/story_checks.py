@@ -195,6 +195,9 @@ class StoryChecks:
     def expect_no_project_file(self, path: str) -> None:
         assert not (self.app.config.root / path).exists(), f"{path} is still in the project"
 
+    def expect_project_file_holds(self, path: str, data: bytes) -> None:
+        assert (self.app.config.root / path).read_bytes() == data, f"{path} does not hold the bytes it was published with"
+
     def expect_project_file_is(self, path: str, text: str) -> None:
         assert (self.app.config.root / path).read_text() == text, f"{path} changed"
 
