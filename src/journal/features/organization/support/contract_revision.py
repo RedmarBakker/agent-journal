@@ -29,7 +29,8 @@ class ContractRevision:
 
     def extract(self, folder: Path, sha: str, target: Path) -> None:
         prefix = InnerRepositories.git(folder, "rev-parse", "--show-prefix").stdout.strip().rstrip("/")
-        archive = subprocess.run(["git", "-C", str(folder), "archive", "--format=tar", sha, *([f"{prefix}/"] if prefix else [])], capture_output=True, timeout=ARCHIVE_SECONDS)
+        top = InnerRepositories.git(folder, "rev-parse", "--show-toplevel").stdout.strip()
+        archive = subprocess.run(["git", "-C", top, "archive", "--format=tar", sha, *([f"{prefix}/"] if prefix else [])], capture_output=True, timeout=ARCHIVE_SECONDS)
         if archive.returncode != 0:
             raise RevisionUnreadable(f"The version {sha[:12]} holds no {folder.name} folder: {archive.stderr.decode(errors='replace').strip()}")
         target.mkdir(parents=True)
