@@ -127,7 +127,7 @@ watch(
                 :aria-label="pinned ? 'Unpin the card' : 'Pin the card'"
                 @click="togglePin"
             >
-                <Icon name="pin" />
+                <Icon name="pin" :style="{fill: pinned ? 'currentColor' : 'none'}" />
             </Btn>
             <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout">
                 <Icon name="bubble" />

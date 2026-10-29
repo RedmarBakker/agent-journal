@@ -23,7 +23,9 @@ export const MOST_DOCKED_RUNS = 6;
 export function keptRuns(runs, most = MOST_DOCKED_RUNS) {
     const over = runs.length - most;
     if (over <= 0) return runs;
-    const cleared = new Set(runs.filter((m) => m.data.ending).slice(0, over).map((m) => m.id));
+    const now = Date.now() / 1000;
+    const leaving = (m) => m.data.ending && !m.data.pinned && !(m.data.undock_at > now);
+    const cleared = new Set(runs.filter(leaving).slice(0, over).map((m) => m.id));
     return runs.filter((m) => !cleared.has(m.id));
 }
 
