@@ -779,7 +779,7 @@ def team_journal(tmp_path, name: str):
     from journal.events.rows.environment_unshared import EnvironmentUnshared
     from journal.events.models.synced_deletion import SyncedDeletion
     from journal.repositories.pending_uploads import PendingUploads
-    from journal.sync.attachments import Attachments
+    from journal.features.messages.support.attachments import Attachments
     from journal.sync.pulled_file_removal import PulledFileRemoval
     from journal.sync.record_withdrawal import RecordWithdrawal
     from journal.repositories.journal_backup import JournalBackup

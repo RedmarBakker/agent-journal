@@ -46,23 +46,11 @@ from journal.events.announcer import Announcer
 from journal.events.moments.server_replaced import ServerReplaced
 from journal.version import VERSION
 from journal.http.share_server import ShareServer
-from journal.sync.team_writes import TeamWrites
-from journal.events.models.synced import Synced
-from journal.events.models.synced_creation import SyncedCreation
-from journal.events.models.synced_deletion import SyncedDeletion
-from journal.events.models.synced_update import SyncedUpdate
-from journal.events.rows.environment_unshared import EnvironmentUnshared
-from journal.sync.pulled_file_removal import PulledFileRemoval
-from journal.sync.record_withdrawal import RecordWithdrawal
-from journal.sync.pulled_settings import PulledSettings
-from journal.sync.pulled_files import PulledFiles
-from journal.sync.record_purge import RecordPurge
 from journal.sync.host_desk import HostDesk
 from journal.http.agents.agent_view_sender import AgentViewSender
 from journal.http.agents.agent_bar_writes import AgentBarWrites
 from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
-from journal.events.models.purged import Purged
 from journal.console.console import Console
 from journal.support.time_source import TimeSource
 
@@ -92,13 +80,6 @@ class Runtime:
             self.bus.add_answer_listener(researcher_listener.event_type(), self.container.get(researcher_listener), Blocking.NEXT_DECISION)
         self.bus.add_answer_listener(Created, Creations(), Blocking.ANSWER)
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
-        self.container.get(TeamWrites).listen()
-        self.bus.listen(Synced, self.container.get(PulledSettings))
-        self.bus.listen(SyncedCreation, self.container.get(PulledFiles))
-        self.bus.listen(SyncedUpdate, self.container.get(PulledFiles))
-        self.bus.listen(SyncedDeletion, self.container.get(PulledFileRemoval))
-        self.bus.listen(Purged, self.container.get(RecordPurge))
-        self.bus.listen(EnvironmentUnshared, self.container.get(RecordWithdrawal))
         self.bus.listen(Deleted, self.container.get(UnlinkDeleted))
         assigners = self.container.get(AssignerIndex)
         for feature in self.registry.features:

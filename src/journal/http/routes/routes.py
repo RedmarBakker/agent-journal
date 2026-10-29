@@ -15,8 +15,6 @@ from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
 from journal.http.controllers.mode import ModeController
 from journal.http.controllers.sync import SyncController
-from journal.http.controllers.sync_desk import SyncDeskController
-from journal.http.controllers.team import TeamController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
 from journal.http.controllers.login_controller import LoginController
@@ -119,31 +117,6 @@ class Routes:
         router.post(f"{API}/updates/force", get(UpdateController).force_update)
         router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
-        router.get_unscoped(f"{API}/sync/team", get(SyncDeskController).guarded(get(SyncDeskController).team))
-        router.get_unscoped(f"{API}/sync/teams", get(SyncDeskController).guarded(get(SyncDeskController).teams))
-        router.post_unscoped(f"{API}/sync/state", get(SyncDeskController).guarded(get(SyncDeskController).state))
-        router.get_unscoped(f"{API}/sync/query", get(SyncDeskController).guarded(get(SyncDeskController).query))
-        router.post_unscoped(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))
-        router.get_unscoped(f"{API}/sync/batch", get(SyncDeskController).guarded(get(SyncDeskController).batch))
-        router.post_unscoped(f"{API}/sync/pushed", get(SyncDeskController).guarded(get(SyncDeskController).pushed))
-        router.post_unscoped(f"{API}/sync/delivery", get(SyncDeskController).guarded(get(SyncDeskController).delivery))
-        router.post_unscoped(f"{API}/sync/files-sent", get(SyncDeskController).guarded(get(SyncDeskController).files_sent))
-        router.post_unscoped(f"{API}/sync/upgrade-claimed", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_claimed))
-        router.post_unscoped(f"{API}/sync/upgrade-finished", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_finished))
-        router.post_unscoped(f"{API}/sync/copy", get(SyncDeskController).guarded(get(SyncDeskController).copy))
-        router.get(f"{API}/team", get(TeamController).show)
-        router.post(f"{API}/team/join", get(TeamController).join)
-        router.post(f"{API}/team/check", get(TeamController).check)
-        router.post(f"{API}/team/leave", get(TeamController).leave)
-        router.post(f"{API}/team/invite", get(TeamController).invite)
-        router.post(f"{API}/team/open", get(TeamController).opening)
-        router.post(f"{API}/team/password", get(TeamController).password)
-        router.post(f"{API}/team/people/{{id}}/password", get(TeamController).password_reset)
-        router.get(f"{API}/team/people", get(TeamController).people)
-        router.get(f"{API}/team/pool", get(TeamController).pool)
-        router.post(f"{API}/team/pool/{{id}}/stop", get(TeamController).pool_stop)
-        router.get(f"{API}/team/devices", get(TeamController).devices)
-        router.post(f"{API}/team/devices/{{id}}/revoke", get(TeamController).revoke)
         router.get(f"{API}/people", get(PeopleController).show)
         router.get(f"{API}/team-chat", get(TeamChatController).show)
         router.post(f"{API}/team-chat/claim", get(TeamChatController).claim)
@@ -183,7 +156,7 @@ class Routes:
         router.get(f"{API}/environments/filling", environments.filling)
         self.listed(router, "environments", environments)
         router.post(f"{API}/environments", environments.store)
-        self.acts(router, "environments", environments, "launch", "stop", "remove", "share", "unshare")
+        self.acts(router, "environments", environments, "launch", "stop", "remove")
         router.post(f"{API}/environments/{{id}}/worktree-removal", environments.worktree_removal)
         worktrees = get(WorktreeController)
         router.get(f"{API}/worktrees", worktrees.index)

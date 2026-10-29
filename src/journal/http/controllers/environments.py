@@ -12,10 +12,9 @@ from journal.http.support.model_fields import ModelFields
 from journal.support.worktree import Worktree
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.rejection import Rejection
-from journal.features.team.support.start_rule import StartRule
+from journal.features.git.support.start_rule import StartRule
 from journal.features.git.support.worktree_removal import WorktreeRemoval
 from journal.features.git.support.worktree_hosts import WorktreeHosts
-from journal.features.team.support.environment_sharing import EnvironmentSharing
 from journal.db.query import Query
 from journal.sync.hosting import Hosting
 from journal.sync.team_account import TeamAccount
@@ -27,9 +26,9 @@ class EnvironmentController(Controller[Environment]):
     repository: Environments
 
     def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing, hosts: WorktreeHosts, hosting: Hosting, account: TeamAccount) -> None:
+                 hydration: SessionHydration, removal: WorktreeRemoval, hosts: WorktreeHosts, hosting: Hosting, account: TeamAccount) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
-        self.owners, self.starts, self.hydration, self.removal, self.sharing, self.hosts = owners, starts, hydration, removal, sharing, hosts
+        self.owners, self.starts, self.hydration, self.removal, self.hosts = owners, starts, hydration, removal, hosts
         self.hosting, self.account = hosting, account
 
     def list_query(self) -> Query:
@@ -73,12 +72,6 @@ class EnvironmentController(Controller[Environment]):
             raise Rejection(refusal)
         self.supervisor.stop(environment.row_id)
         return Response.json(environment)
-
-    def share(self, request: Request) -> Response:
-        return Response.json(self.sharing.shared(self.repository.find(request.number("id")), request.actor))
-
-    def unshare(self, request: Request) -> Response:
-        return Response.json(self.sharing.unshared(self.repository.find(request.number("id")), request.actor))
 
     def worktree_removal(self, request: Request) -> Response:
         return Response.json({"line": self.removal.removed(self.repository.find(request.number("id")).name)})

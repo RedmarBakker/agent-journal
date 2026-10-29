@@ -1,5 +1,5 @@
 from journal.features.workers.support.allowed_models import AllowedModels
-from journal.features.team.support.start_rule import StartRule
+from journal.features.git.support.start_rule import StartRule
 from journal.providers.support.profile_type import ProfileType
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace

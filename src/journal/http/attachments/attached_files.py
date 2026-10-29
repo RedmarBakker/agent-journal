@@ -2,7 +2,7 @@ import mimetypes
 from urllib.parse import quote
 
 from journal.http.attachments.attached_file import AttachedFile
-from journal.sync.attachments import Attachments
+from journal.features.messages.support.attachments import Attachments
 from journal.http.attachments.file_request import FileRequest
 from journal.http.attachments.file_view import FileView
 from journal.models.message import Message

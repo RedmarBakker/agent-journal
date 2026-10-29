@@ -1,7 +1,6 @@
 from typing import ClassVar
 
 from journal.db.connection import Connection
-from journal.models.outgoing_change import OutgoingChange
 
 
 class Migration:
@@ -30,7 +29,7 @@ class Migration:
 
     @staticmethod
     def queue_rename(connection: Connection, table: str, old: str, new: str) -> None:
-        queue = OutgoingChange.table()
+        queue = "outgoing_changes"
         if not connection.all(f"PRAGMA table_info({queue})"):
             return
         for column in ("fields", "changed_at"):
