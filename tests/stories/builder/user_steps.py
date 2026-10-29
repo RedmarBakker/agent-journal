@@ -218,6 +218,9 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/sequences/{sequence}/triggers", {"triggers": triggers}, MAIN)
         self.observed("user sets the sequence's triggers", None, None)
 
+    def template_number(self, title: str) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/templates", MAIN)[1]["rows"] if row["title"] == title)
+
     def sequence_number(self, title: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/sequences", MAIN)[1]["rows"] if row["title"] == title)
 

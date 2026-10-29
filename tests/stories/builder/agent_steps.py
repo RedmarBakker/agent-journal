@@ -14,6 +14,10 @@ from journal.version import VERSION
 from journal.support.listener_queue import ListenerQueue
 from journal.events.journal_updated import JournalUpdated
 from journal.events.announcer import Announcer
+from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.repositories.sequences import Sequences
+from journal.repositories.templates import Templates
+from journal.support.actor import Actor
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.repositories.command_outputs import CommandOutputs
@@ -422,6 +426,30 @@ class AgentSteps:
 
     def plugin_source(self) -> str:
         return f"file://{self.app.config.root / PLUGIN_SOURCE_FOLDER}"
+
+    def journal_starts_again(self) -> None:
+        runtime = self.app.runtime()
+        for feature in runtime.registry.features:
+            for seed in feature.seeds:
+                runtime.seeded(seed)
+        self.app.container.get(ProfileFiles).write_all()
+        self.observed("the journal starts again", None, None)
+
+    def an_older_journal_wrote_the_template(self, title: str, brief: str) -> None:
+        templates = self.app.container.get(Templates)
+        shipped = next(template for template in templates.all() if template.title == title)
+        templates.save(shipped.with_(brief=brief), Actor.system())
+        self.observed("an older journal wrote a shipped template", None, None)
+
+    def an_older_journal_wrote_the_sequence(self, title: str, steps: tuple) -> None:
+        sequences = self.app.container.get(Sequences)
+        shipped = next(sequence for sequence in sequences.all() if sequence.title == title)
+        sequences.save(shipped.with_(steps=steps), Actor.system())
+        self.observed("an older journal wrote a shipped sequence", None, None)
+
+    def a_shipped_profiles_file_was_changed(self, name: str, body: str) -> None:
+        (self.app.container.get(ProfileFiles).folder() / f"{name}.md").write_text(f"---\nname: {name}\n---\n{body}\n")
+        self.observed("a shipped profile's file was changed", None, None)
 
     def journal_starts_after_an_update(self) -> None:
         self.app.container.get(Announcer).announce(JournalUpdated(previous=EARLIER_JOURNAL, current=VERSION))
