@@ -152,7 +152,7 @@ class TestTurns:
 
     def foreground_output(self, output, started: float):
         deadline = started + self.settings.integer(FOREGROUND_OPTION)
-        while self.is_still_running(output, deadline):
+        while self.is_output_pending(output, deadline):
             time.sleep(POLL_SECONDS)
             output = self.outputs.find(output.row_id)
         return output
@@ -238,5 +238,5 @@ class TestTurns:
         value = str(self.settings.option(WorkersOptions.TEST_WAITING)).strip()
         return int(value) if value else None
 
-    def is_still_running(self, output, deadline: float) -> bool:
+    def is_output_pending(self, output, deadline: float) -> bool:
         return output is not None and not output.ended and self.time_source.seconds() < deadline
