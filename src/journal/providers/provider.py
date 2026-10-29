@@ -58,6 +58,10 @@ class Provider(ABC):
     """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else. A worktree's hooks are written once from the main checkout, where its program reads them, never inside the worktree."""
 
     name: ClassVar[str]
+    openrig_runtime: ClassVar[str]
+    openrig_permissions_field: ClassVar[str]
+    openrig_hook_resource_type: ClassVar[str]
+    openrig_hook_resource_path: ClassVar[str]
     title: ClassVar[str]
     program: ClassVar[str]
     home: ClassVar[str]

@@ -33,7 +33,7 @@ OWNER_ONLY = 0o600
 
 
 class RigSpecs:
-    """Writes an organization plan's rig for the pinned OpenRig into .journal/runtime/rigs/<rig>, with provider-specific runtimes, hooks and permissions; seats and links come from the plan's Role and Domain contracts, and every member boots as the journal worker it is given. The rig spec holds worker tokens and is owner-only. Specs are written as JSON, which is YAML."""
+    """Writes an organization plan's pinned OpenRig specs from its Role and Domain contracts: a Plan pod and one pod per staffed domain, linked by containment, with provider-specific runtimes, hooks, models and permissions; each member boots as its journal worker with guidance and skills, and the token-bearing rig spec is owner-only. Specs are written as JSON, which is YAML."""
 
     def __init__(self, config: Config, providers: Providers, setup: HelperSetup, seats: RigSeats, skills: SkillIds, files: SkillFiles, folder: ContractFolder, settings: SettingRows) -> None:
         self.config, self.providers, self.setup, self.seats = config, providers, setup, seats
@@ -80,7 +80,7 @@ class RigSpecs:
 
     def permissions(self, provider: Provider, seat: Seat, cwd: Path) -> dict:
         if provider.openrig_permissions_field == "codex_permissions":
-            return {"sandbox": "workspace-write" if seat.writes else "read-only", "approval": "never", **({"network_access": False} if seat.writes else {})}
+            return {"sandbox": "workspace-write" if seat.writes else "read-only", "approval": "never", **({"network_access": True} if seat.writes else {})}
         if provider.openrig_permissions_field != "claude_permissions":
             raise ValueError(f"OpenRig permissions are not configured for {provider.name}")
         allow = [f"Read({cwd.resolve()}/**)"] if "Read" in seat.tools else []
@@ -101,7 +101,8 @@ class RigSpecs:
         path = folder / provider.openrig_hook_resource_path
         if provider.openrig_hook_resource_type == "codex_config_fragment":
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(self.codex_hook_fragment(provider, provider.hook_command(self.config.root)))
+            command = provider.hook_command(self.config.root)
+            path.write_text(self.codex_hook_fragment(provider, command))
             return path
         return self.setup.hook_settings(provider, folder, path)
 

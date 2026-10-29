@@ -16,6 +16,8 @@ class Seat:
     skills: tuple[str, ...]
     tools: tuple[str, ...]
     writes: bool
+    provider: str
+    effort: str
 
     def logical_id(self) -> str:
         return f"{self.pod}.{self.member}"

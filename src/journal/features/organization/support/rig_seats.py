@@ -20,7 +20,7 @@ PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to th
 
 
 class RigSeats:
-    """Who sits in an organization plan's rig and how they are linked: the Plan agent on the strongest model allowed for its configured profile, and for each domain the plan staffs its Domain agent and its Roles of cardinality plan, linked by containment; journal Roles sit in the organization's own rig and many Roles are added per job."""
+    """Who sits in an organization plan's rig and how they are linked: the Plan agent on the strongest model allowed for its configured profile, and for each domain its Domain agent and plan Roles linked by containment; journal Roles sit in the organization's own rig and many Roles are added per job."""
 
     def __init__(self, providers: Providers, tools: ToolIds, allowed: AllowedModels, settings: SettingRows) -> None:
         self.providers, self.tools, self.allowed, self.settings = providers, tools, allowed, settings

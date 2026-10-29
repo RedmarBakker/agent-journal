@@ -174,6 +174,7 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     planner = members["planner"]
     environment = planner["env"]
     assert planner["runtime"] == "claude-code" and planner["model"] == "sonnet" and environment[ACTOR] == "worker:29" and environment[ACTOR_TOKEN] == "token-alpha-planner"
+    assert "effort" not in planner
     assert environment[AGENT_SHELL] == environment[JOURNAL_ACTIVE] == "1" and environment["JOURNAL_ENV"] == "main"
     assert environment["JOURNAL_ROOT"] == str(app.config.root)
     assert environment["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
@@ -209,7 +210,7 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
     planner = members["planner"]
     assert planner["runtime"] == "codex" and planner["model"] == "gpt-6-luna" and planner["effort"] == "max"
-    assert planner["codex_permissions"] == {"sandbox": "workspace-write", "approval": "never", "network_access": False}
+    assert planner["codex_permissions"] == {"sandbox": "workspace-write", "approval": "never", "network_access": True}
     assert "claude_permissions" not in planner
     assert members["plan-agent"]["runtime"] == "codex" and members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
     assert members["plan-agent"]["codex_permissions"] == {"sandbox": "read-only", "approval": "never"}
@@ -223,8 +224,9 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     assert agent_spec["resources"]["runtime_resources"] == [{"id": "journal-hooks", "path": "runtime/journal-hooks.toml", "runtime": "codex", "type": "codex_config_fragment"}]
     hooks = tomllib.loads((agent / "runtime" / "journal-hooks.toml").read_text())["hooks"]
     assert hooks["SessionStart"][0]["hooks"][0]["type"] == "command"
-    assert "hook.sh codex" in hooks["PreToolUse"][0]["hooks"][0]["command"]
-    assert str(app.config.root) in hooks["UserPromptSubmit"][0]["hooks"][0]["command"]
+    provider_command = app.container.get(RigSeats).providers.lookup("codex").hook_command(app.config.root)
+    assert hooks["PreToolUse"][0]["hooks"][0]["command"] == provider_command
+    assert hooks["UserPromptSubmit"][0]["hooks"][0]["command"] == provider_command
 
 
 def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_and_effort(app, tmp_path, monkeypatch):

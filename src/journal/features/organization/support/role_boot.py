@@ -1,5 +1,6 @@
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
+from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support.tool_ids import ToolIds
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.models.worker import Worker
@@ -32,11 +33,19 @@ class RoleBoot:
 
     def effort(self, worker: Worker) -> str:
         role = self.organization.at(worker.contract).role(worker.role) if worker.role else None
-        return role.models.effort if role and worker.provider == "codex" else ""
+        return self.effort_for(role.models, worker.provider) if role else ""
 
     def version(self) -> str:
         return self.organization.contracts().version
 
     @staticmethod
     def model(role: Role, provider: str) -> str:
-        return role.models.for_provider(provider)
+        return RoleBoot.model_for(role.models, provider)
+
+    @staticmethod
+    def model_for(models: RoleModels, provider: str) -> str:
+        return models.for_provider(provider)
+
+    @staticmethod
+    def effort_for(models: RoleModels, provider: str) -> str:
+        return models.effort if provider == "codex" else ""
