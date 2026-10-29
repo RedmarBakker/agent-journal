@@ -2007,3 +2007,8 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   plan's Plan agent (`plan_agent`), as a `reported_to` link carrying `RoleEscalated`, said to it by `HubConduct`; with
   neither running, it is a card to the user in the dispatcher's chat. Nothing makes Domain or Plan agents yet, so today
   every report reaches the user.
+- The OpenRig trial's decision (report 8, 2026-10-29): all four points that must hold do hold (journal's token in a
+  seat, journal's and OpenRig's hooks together in one seat, a seat's cost readable, a seat added to a running rig),
+  so phase 7 is built on OpenRig 0.7.5. Queue order is arrival order, so journal feeds a shared seat itself; OpenRig
+  enforces no edges, so seats get deny rules and journal's route check stays the gate; pausing by snapshot is deferred;
+  organization plans stay on the main agent's machine; merging a seat's work through journal moves to phase 7.
