@@ -548,6 +548,10 @@ Each phase ends with something that runs. Phases 1 to 5 are done and proven by `
   line is taken apart at `&&` and `;` (`Chain`); a pipe is one pipeline. Claude's own wrapping (`source`, `setopt`,
   `eval '…' < /dev/null`, `pwd -P >| file`) is run in silence; the parts inside the eval are the agent's and are
   recorded, each with what it is doing (`Doing`), its output and its duration (`running` and `ran` entries).
+- Codex has no shell prefix: its hook answer to an allowed `Bash` call rewrites the command to
+  `sh hooks/run.sh --command '<line>'` (`Codex.reply`, `updatedInput`), so its lines reach the same runner and move to the
+  background alike. run.sh runs a line as it is outside a journal launch (`AGENT_JOURNAL_ACTIVE` unset). Every streamed
+  run ends with the exit line on a line of its own, the background move too, so a move's last note never swallows it.
 - A worker in the agent's own shell runs the parts in order and stops where the shell would; the foreground
   process shows each part's output as it lands. Past the limit it returns at once with the output file and the
   chain goes on in the background; the journal types one line when it ends. The limit is `shell.foreground`

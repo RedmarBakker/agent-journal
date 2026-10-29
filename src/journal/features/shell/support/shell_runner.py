@@ -109,7 +109,7 @@ class ShellRunner:
                 yield block
         if cap.is_direct() or folder.is_finished():
             self.closed(folder, request, caller, cap)
-            yield f"{'' if last == b'\n' else chr(10)}{EXIT} {ended[0] if ended else 0}\n".encode()
+        yield f"{'' if last == b'\n' else chr(10)}{EXIT} {ended[0] if ended else 0}\n".encode()
 
     def worked(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: queue.Queue, ended: list[int], faults: list[Exception], environment: int) -> None:
         with self.scope.environment(environment):
@@ -156,7 +156,7 @@ class ShellRunner:
                 watching = self.watch_lines(number, part, alias, reader, caller)
                 moved = [] if any(line.key == ShellNudges.WATCH_VIEW.key for line in watching) else [ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder))]
                 notes = self.send_notes(caller, environment, [*display.notes, *moved, *watching])
-                yield f"{notes}{EXIT} 0\n".encode()
+                yield notes.encode()
                 return
             time.sleep(TICK_SECONDS)
             tick += 1

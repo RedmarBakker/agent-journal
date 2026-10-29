@@ -49,6 +49,8 @@ CONTEXT_LIMIT_LINES = 8
 # the mark the provider draws before a result or an error shown under the line that caused it
 OUTPUT_CORNER = "⎿"
 HOOK_SCRIPT = Path(__file__).resolve().parents[1] / "hooks" / "hook.sh"
+# the journal's shell runner: Claude reaches it as its shell prefix, Codex by a shell line rewritten to call it
+RUN_SCRIPT = HOOK_SCRIPT.with_name("run.sh")
 PATH_KEYS = ("file_path", "path", "notebook_path")
 
 VERSION_3_HOOKS = ("/.journal/src/hook.sh", "/.journal/hook.py", "/.journal/journal hook")

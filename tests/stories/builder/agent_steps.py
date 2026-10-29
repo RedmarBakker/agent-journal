@@ -119,6 +119,9 @@ class AgentSteps:
     def agent_runs_in_the_shell(self, line: str) -> None:
         self.hooked(f"agent runs in the shell {line.split()[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": line})
 
+    def agent_runs_in_the_shell_as_argv(self, *argv: str) -> None:
+        self.hooked(f"agent runs in the shell {argv[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": list(argv)})
+
     def agent_sends_subagent(self, role: str, job: str) -> None:
         self.hooked("agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_input={"subagent_type": role, "description": job, "task_name": job, "prompt": job, "model": SUBAGENT_MODEL})
 

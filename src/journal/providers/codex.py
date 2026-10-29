@@ -13,7 +13,7 @@ from typing import Iterator
 from journal.support.hook_type import HookType
 from journal.providers.support.codex_row import CodexRow
 from journal.providers.support.profile_view import ProfileView
-from journal.providers.provider import Provider
+from journal.providers.provider import RUN_SCRIPT, Provider
 from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.turn import Turn
 from journal.providers.support.capability import Capability
@@ -33,8 +33,12 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
+from journal.support.decision import Decision
+from journal.support.hook import Hook
+from journal.support.response import Response
 
 SCRIPT_FLAGS = ("-c", "-lc")
+SHELL_TOOL = "Bash"
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
 CONTEXT_LIMIT_NONE = 0
 
@@ -49,7 +53,7 @@ class Codex(Provider):
     home = ".codex"
     settings_file = "hooks.json"
     decoders = {
-        "Bash": lambda input: Codex.shell_line(input.get("command", "")),
+        SHELL_TOOL: lambda input: Codex.shell_line(input.get("command", "")),
         "apply_patch": lambda input: FileEdit(PatchPaths.build(input), *LineCount.patch(input)),
         "write_file": lambda input: FileWrite(str(input.get("path", "") or input.get("file_path", "")), LineCount.lines(input.get("content"))),
         "read_file": lambda input: FileRead(str(input.get("path", "") or input.get("file_path", "")), bool(input.get("offset") or input.get("limit"))),
@@ -198,6 +202,25 @@ class Codex(Provider):
 
     def launch_environment(self, runner: Path) -> dict[str, str]:
         return {}
+
+    def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
+        if decision.allowed and self.is_runner_line(hook):
+            return self.runner_run(hook, decision, copy_key)
+        return super().reply(hook, decision, copy_key)
+
+    @staticmethod
+    def is_runner_line(hook: Hook) -> bool:
+        return hook.is_pre_tool_use() and hook.tool == SHELL_TOOL and bool(Codex.shell_line(hook.input.get("command", "")).command)
+
+    def runner_run(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
+        response = super().reply(hook, decision, copy_key)
+        command = self.runner_command(self.shell_line(hook.input.get("command", "")).line_with_shell())
+        answer = {**response.body.get("hookSpecificOutput", {}), "hookEventName": hook.hook_type.value, "permissionDecision": "allow", "updatedInput": {"command": command}}
+        return Response(response.status, {**response.body, "hookSpecificOutput": answer})
+
+    @staticmethod
+    def runner_command(line: str) -> str:
+        return shlex.join(["sh", str(RUN_SCRIPT), "--command", line])
 
     def resume(self, session: str) -> tuple[str, ...]:
         return ("resume", session)
