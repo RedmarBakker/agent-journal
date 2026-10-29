@@ -30,7 +30,7 @@ POLL_REPEAT_COMMANDS = 3
 WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
 WAIT_REASON = re.compile(r"--why[ =](?:\"([^\"]*)\"|'([^']*)'|(\S+))")
 POLLED_OUTPUT = re.compile(r"^journal output (?:status|read) (\d+)(?: --tail \d+)?$")
-AWAIT_REFUSAL_COUNT = 2
+WAIT_REFUSAL_LIMIT = 2
 
 
 class TasksConduct(Conduct):
@@ -112,7 +112,7 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
         return state.none()
     arguments = shlex.split(wait_line)
     wait_name = arguments[2] if len(arguments) > 2 else "the process"
-    if await_count(tasks.command_lines[:-1]) >= AWAIT_REFUSAL_COUNT:
+    if wait_count(tasks.command_lines[:-1]) >= WAIT_REFUSAL_LIMIT:
         return reasoned_wait(state, wait_line, wait_name, estimate.seconds_text())
     if tasks.current_task:
         return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
