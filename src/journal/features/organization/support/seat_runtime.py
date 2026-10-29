@@ -83,8 +83,11 @@ class SeatRuntime:
     def target(rig: str, pod: str, member: str) -> str:
         return f"{pod}-{member}@{rig}"
 
+    def spec_folder(self, rig: str) -> Path:
+        return self.config.home / "runtime" / "rigs" / rig
+
     def read_spec(self, rig: str) -> dict:
-        path = self.config.home / "runtime" / "rigs" / rig / "rig.yaml"
+        path = self.spec_folder(rig) / "rig.yaml"
         if not path.is_file():
             raise Rejection(f"OpenRig spec for {rig} is missing at {path}")
         try:
@@ -96,6 +99,7 @@ class SeatRuntime:
         return spec
 
     def member(self, rig: str, pod: str, member: str, selected_provider: str = "") -> SeatMember:
+        folder = self.spec_folder(rig)
         spec = self.read_spec(rig)
         for placed in spec.get("pods", []):
             if placed.get("id") != pod:
