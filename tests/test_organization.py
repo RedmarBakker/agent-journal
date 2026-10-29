@@ -1,10 +1,22 @@
-from pathlib import Path
 from datetime import timedelta
+from contextlib import nullcontext
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+from threading import Lock
+from types import SimpleNamespace
 
+from journal.config import Config
+from journal.engine.agent_launcher import AgentLauncher
 from journal.engine.support.settings import Settings
 from journal.events.agent.line_delivered import LineDelivered
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.feature_data import FeatureData
+from journal.events.bus import Bus
+from journal.events.listener import Listener
+from journal.events.rows.role_escalated import RoleEscalated
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.role_conduct import RoleConduct
 from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
@@ -17,28 +29,43 @@ from journal.features.organization.support.organization_data_reader import Organ
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
+from journal.features.organization.support import seat_runner as seat_runner_module
+from journal.features.organization.support import seat_runtime as seat_runtime_module
+from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
+from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.tool_ids import ToolIds
 from journal.support.inner_repositories import InnerRepositories
 from journal.features.tasks.states.ready import Ready
+from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.workers_data import WorkersData
+from journal.features.workers.organization_options import OrganizationOptions
 from journal.models.support.ref import Ref
 from journal.models.agent import Agent
+from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
+from journal.repositories.agents import Agents
+from journal.repositories.domain_rows import DomainRows
 from journal.repositories.scope import Scope
 from journal.repositories.approvals import Approvals
 from journal.repositories.questions import Questions
+from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.caller import Caller
+from journal.support.rejection import Rejection
 import pytest
 
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.providers.support.profile_type import ProfileType
-from tests.test_features import booted
+from tests.test_features import booted, hook
 from tests.test_engine import CLASSIFIER
+from tests.user_settings import user_set
 
 
 @pytest.fixture(scope="module")
@@ -716,14 +743,6 @@ def test_seat_monitor_requires_fresh_openrig_idle_evidence_after_job_start(monke
 
 
 def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_path, monkeypatch):
-    import json
-    import os
-    import shutil
-    import subprocess
-    from journal.config import Config
-    from journal.features.organization.support.seat_runtime import SeatRuntime
-    from journal.features.workers.organization_options import OrganizationOptions
-
     config = Config.rooted(tmp_path)
     spec = config.home / "runtime" / "rigs" / "release" / "rig.yaml"
     spec.parent.mkdir(parents=True)
@@ -781,21 +800,79 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     assert ["rig", "send", member.target, "write the patch", "--json"] in calls
 
 
-def _seat_failure_world(app, tmp_path):
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.role_escalated import RoleEscalated
-    from journal.models.agent import Agent
-    from journal.models.plan import Plan
-    from journal.models.worker import Worker
-    from journal.models.worker_state import WorkerState
-    from journal.repositories.agents import Agents
-    from journal.repositories.domain_rows import DomainRows
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import Scope
-    from journal.repositories.workers import Workers
-    from journal.support.actor import Actor
+@pytest.mark.parametrize(("rig_on_path", "installed", "expected"), [
+    (False, "", "OpenRig's rig command is not on PATH"),
+    (True, "", "could not read the installed OpenRig version"),
+    (True, "0.7.4", "OpenRig is 0.7.4; workers.openrig_version requires 0.7.5"),
+])
+def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_pinned_in_settings(app, tmp_path, monkeypatch, rig_on_path, installed, expected):
+    worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
+    finisher = _seat_failure_finisher(workers, tmp_path)
 
+    class Settings:
+        @staticmethod
+        def option(option):
+            return "0.7.5" if option == OrganizationOptions.OPENRIG_VERSION else ""
+
+    calls, session_calls = [], []
+
+    def execute(arguments, **_kwargs):
+        calls.append(arguments)
+        return subprocess.CompletedProcess(arguments, 0, f"rig version {installed}\n", "")
+
+    monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda _program: "/usr/bin/rig" if rig_on_path else None)
+    runtime = SeatRuntime(SimpleNamespace(), Settings(), execute)
+    runtime.session = lambda *_args: session_calls.append(True)
+    member = SimpleNamespace(openrig_version="0.7.4", target="alpha-builder@release")
+    runner = object.__new__(SeatRunner)
+    identity = SeatJobIdentity.from_worker(worker)
+    runner._guard = Lock()
+    runner._finishing = set()
+    runner._active = {worker.id}
+    runner._active_jobs = {worker.id: identity}
+    runner.workers = workers
+    runner.runtime = runtime
+    runner.config = SimpleNamespace(home=tmp_path)
+    runner.scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    runner.member = lambda _worker: member
+
+    runner.monitor_existing(worker, identity, actor, finisher.finish_seat)
+
+    current = workers.find(worker.row_id)
+    assert current.run_end.startswith(f"seat failed: {expected}"), "boot recovery leaves a clear failure on the organization job"
+    assert len(escalated) == 1 and expected in escalated[0][1], "the Domain agent receives the version refusal"
+    assert session_calls == [] and not runner._active, "recovery refuses before attaching to a session and releases its monitor"
+    assert calls == ([["rig", "--version"]] if rig_on_path else [])
+
+
+@pytest.mark.parametrize(("rig_on_path", "installed"), [(False, ""), (True, "0.7.4")])
+def test_a_solo_plan_agent_starts_when_openrig_is_missing_or_wrong(app, monkeypatch, rig_on_path, installed):
+    launches = []
+    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, provider, resume: launches.append((environment, provider, resume)))
+    which = shutil.which
+    monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda program, *args, **kwargs: ("/usr/bin/rig" if rig_on_path else None) if program == "rig" else which(program, *args, **kwargs))
+    if rig_on_path:
+        monkeypatch.setattr(SeatRuntime, "run", lambda _self, *args, **_kwargs: subprocess.CompletedProcess(["rig", *args], 0, f"rig version {installed}\n", ""))
+    console = app.console()
+    user, agent = Caller.user("main"), Caller.agent("main", "s1", "claude")
+
+    with app.container.get(Scope).environment(1):
+        user_set(app, "plans.plan_agents", True)
+        user_set(app, "workers.openrig_version", "0.7.5")
+        hook(app, "SessionStart")
+        console.run(["environment", "overview"], agent)
+        created = console.run(["plan", "create", "solo without OpenRig", "--brief", "the plan is done"], user)
+        plan_id = int(created.text.split()[1].rstrip(":"))
+        console.run(["plan", "add", str(plan_id), "the first solo step"], user)
+        assert console.run(["plan", "approve", str(plan_id)], user).code == 0
+        started = console.run(["plan", "start", str(plan_id)], user)
+        app.runtime().deferred.drain()
+
+    assert started.code == 0 and app.container.get(Plans).find(plan_id).mode == PlanMode.SOLO
+    assert launches == [(f"plan-{plan_id}", "claude", ())], "a solo Plan agent still starts without invoking the pinned OpenRig runtime"
+
+
+def _seat_failure_world(app, tmp_path):
     loaded(app, tmp_path)[1].reload()
     escalated = []
 
@@ -819,10 +896,6 @@ def _seat_failure_world(app, tmp_path):
 
 
 def _seat_failure_finisher(workers, tmp_path):
-    from threading import Lock
-    from types import SimpleNamespace
-    from journal.features.workers.support.worker_runner import WorkerRunner
-
     runner = object.__new__(WorkerRunner)
     runner._locks = {}
     runner._locks_lock = Lock()
@@ -835,10 +908,6 @@ def _seat_failure_finisher(workers, tmp_path):
 
 
 def _seat_monitor(worker, workers, runtime, now, timeout_minutes):
-    from threading import Lock
-    from types import SimpleNamespace
-    from journal.features.organization.support.seat_runner import SeatRunner
-
     runner = object.__new__(SeatRunner)
     runner._guard = Lock()
     runner._finishing = set()
@@ -851,11 +920,6 @@ def _seat_monitor(worker, workers, runtime, now, timeout_minutes):
 
 
 def test_a_dead_seat_requeues_its_job_and_escalates_to_its_domain_agent(app, tmp_path, monkeypatch):
-    from types import SimpleNamespace
-    from journal.features.organization.support import seat_runner as seat_runner_module
-    from journal.features.organization.support.seat_runner import SeatJobIdentity
-    from journal.models.worker_state import WorkerState
-
     monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: False)
     worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
@@ -872,11 +936,6 @@ def test_a_dead_seat_requeues_its_job_and_escalates_to_its_domain_agent(app, tmp
 
 
 def test_a_stuck_seat_times_out_its_job_and_escalates_to_its_domain_agent(app, tmp_path, monkeypatch):
-    from types import SimpleNamespace
-    from journal.features.organization.support import seat_runner as seat_runner_module
-    from journal.features.organization.support.seat_runner import SeatJobIdentity
-    from journal.models.worker_state import WorkerState
-
     monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
     worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
@@ -901,15 +960,6 @@ def test_a_stuck_seat_times_out_its_job_and_escalates_to_its_domain_agent(app, t
 
 
 def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitored_job(app, tmp_path, monkeypatch):
-    import subprocess
-    from threading import Lock
-    from contextlib import nullcontext
-    from types import SimpleNamespace
-    from journal.features.organization.support import seat_runtime as seat_runtime_module
-    from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
-    from journal.features.organization.support.seat_runtime import SeatRuntime
-    from journal.models.worker_state import WorkerState
-
     worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
     finisher = _seat_failure_finisher(workers, tmp_path)
     calls = []
