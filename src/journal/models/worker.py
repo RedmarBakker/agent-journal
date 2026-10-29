@@ -66,6 +66,7 @@ class Worker(Helper):
     helper_type: str = "worker"
     profile: str | None = None
     role: str = ""
+    plan_id: int = 0
     worktree: bool = False
     repositories: tuple[str, ...] = ()
     library_links: tuple[str, ...] = ()

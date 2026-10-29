@@ -14,6 +14,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.organization.support.role_boot import RoleBoot
+from journal.features.organization.support.role_instances import RoleInstances
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.worker_launch import WorkerLaunch
@@ -74,7 +75,7 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances) -> None:
         self.time_source = time_source
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
@@ -83,7 +84,7 @@ class WorkerCommand(Command):
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents, self.work_mode = branch, settings, actions, subagents, work_mode
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
-        self.pool, self.account, self.roles = pool, account, roles
+        self.pool, self.account, self.roles, self.instances = pool, account, roles, instances
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -176,6 +177,8 @@ class WorkerCommand(Command):
         if self.is_test_command_missing():
             raise Rejection(TEST_COMMAND_MISSING)
         role = self.dispatched_role(args)
+        if role and (instance := self.instances.existing(role, self.assignment(args.task, caller))):
+            return self.queue(Namespace(n=instance.id, report=None, tasks=[args.task], first=False), caller)
         output = self.workers.local_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
@@ -192,7 +195,7 @@ class WorkerCommand(Command):
         testing = self.testing_template(args.tests)
         brief = "\n\n".join(part for part in (self.roles.instructions(role) if role else "", task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part)
         profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
-        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", plan_id=self.instances.plan_of(task) if role else 0, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
@@ -271,7 +274,10 @@ class WorkerCommand(Command):
             raise Rejection("a Role runs on this machine: dispatch it without --pool")
         if args.profile:
             self.worker_profile(args.profile)
-        return self.roles.role(args.role) if args.role else None
+        role = self.roles.role(args.role) if args.role else None
+        if role and self.roles.needs_worktree(role) and not args.worktree:
+            raise Rejection(f"{role.id} runs each job as an instance of its own, in a worktree of its own: add --worktree, with its library folders")
+        return role
 
     def worker_profile(self, profile: str) -> None:
         if self.profiles.profile_type(profile) != ProfileType.WORKER:

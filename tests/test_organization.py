@@ -120,20 +120,23 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     started = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
-    loaded(app, tmp_path)
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("beta", "porter", cardinality="plan", writes=True, tools=["read_files", "edit_files"], skills=["ids"], model=fixture.model("sonnet", True))
+    fixture.domain("beta", roles=["keeper", "porter"])
+    organization.reload()
     agent = Caller.agent("main", "s1", "claude")
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], agent)
     refused = lambda *argv: dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", *argv], agent)
-    assert "one of them" in refused().error and "one of them" in refused("--role", "builder", "--profile", "journal-medior").error, "a job names a profile or a Role, one of them"
+    assert "one of them" in refused().error and "one of them" in refused("--role", "porter", "--profile", "journal-medior").error, "a job names a profile or a Role, one of them"
     assert "no Role" in refused("--role", "nobody").error and "does not write" in refused("--role", "scout").error, "an unknown Role and a Role that does not write are refused"
-    sent = refused("--role", "builder", "--provider", "claude")
+    sent = refused("--role", "porter", "--provider", "claude")
     assert sent.code == 0, sent.error
     [worker] = started
     assert worker.model == "sonnet" and worker.profile is None, "the Role's model for the provider, and no profile"
     instructions = app.container.get(WorkerRunner).instructed(worker)
-    assert "Guidance of alpha." in instructions and "Guidance of builder." in instructions and "Read these skills before you work: ids." in instructions and "the job" in instructions, "the domain's and the Role's guidance, its skills and the job"
+    assert "Guidance of beta." in instructions and "Guidance of porter." in instructions and "Read these skills before you work: ids." in instructions and "the job" in instructions, "the domain's and the Role's guidance, its skills and the job"
 
 
 def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_and_an_approval_required_action_waits_for_the_user(app, tmp_path):
@@ -189,3 +192,53 @@ def test_the_real_organization_folder_loads_with_no_problems(app):
     contracts = app.container.get(Organization).reload()
     assert [(problem.path, problem.rule, problem.message) for problem in contracts.problems] == []
     assert len(contracts.domains) == 13 and Counter(role.cardinality for role in contracts.roles) == {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}
+
+
+def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_for_journal_and_plan_and_a_worktree_of_its_own_for_many(app, tmp_path, monkeypatch):
+    from journal.features.organization.support.role_instances import RoleInstances
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.support.ref import Ref
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.supervisor_link import SupervisorLink
+    from journal.support.actor import Actor
+    from journal.support.caller import Caller
+    from tests.test_features import hook
+    from tests.worker_dispatch import dispatched
+    started = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "steward", cardinality="journal", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.role("beta", "porter", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "steward"])
+    fixture.domain("beta", roles=["keeper", "porter"])
+    contracts = organization.reload()
+    agent = Caller.agent("main", "s1", "claude")
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    workers = app.container.get(Workers)
+    send = lambda name, *argv: dispatched(console, [name, f"the job of {name}", "--changes", "the files of its task", *argv], agent)
+
+    first = send("Ada Lovelace", "--role", "steward")
+    assert first.code == 0 and len(started) == 1, first.error
+    second = send("Grace Hopper", "--role", "steward")
+    assert second.code == 0 and len(started) == 1 and len(workers.role_instances("steward")) == 1, "a second job for a journal Role starts no second instance"
+    assert [task.id for task in app.container.get(Tasks).queue(Ref.build(workers.role_instances("steward")[0]))] == [2], "the second job waits in the one instance's queue"
+
+    assert "worktree of its own" in send("Ida Rhodes", "--role", "builder").error and len(started) == 1, "a many Role asks for a worktree of its own and starts nothing without it"
+
+    instances = app.container.get(RoleInstances)
+    porter = contracts.role("porter")
+    task = app.container.get(Tasks).find(1)
+    workers.save(Worker(environment_id=1, name="Edith Clarke", brief="b", role="porter", plan_id=7, state=WorkerState.REPORTED), Actor.system())
+    workers.save(Worker(environment_id=1, name="Mary Kenneth", brief="b", role="porter", plan_id=8, state=WorkerState.DISPATCHED), Actor.system())
+    assert instances.existing(contracts.role("builder"), task) is None, "many has no instance to join"
+    assert instances.existing(porter, task) is None, "a task in no plan is a plan of its own, so a plan Role starts an instance for it"
+    monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 8)
+    assert instances.existing(porter, task).name == "Mary Kenneth", "a plan Role has one instance for each plan"
+    monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 9)
+    assert instances.existing(porter, task) is None, "and another plan gets its own"

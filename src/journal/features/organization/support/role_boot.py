@@ -1,3 +1,4 @@
+from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.tool_ids import ToolIds
@@ -24,6 +25,10 @@ class RoleBoot:
         body = role.profile(domain.guidance if domain else "", self.tools.words(role.tools)).body
         skills = f"Read these skills before you work: {', '.join(role.skills)}." if role.skills else ""
         return self.profiles.role_instructions("\n\n".join(part for part in (body, skills) if part))
+
+    @staticmethod
+    def needs_worktree(role: Role) -> bool:
+        return role.cardinality is Cardinality.MANY
 
     @staticmethod
     def model(role: Role, provider: str) -> str:
