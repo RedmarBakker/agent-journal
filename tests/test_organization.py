@@ -526,7 +526,9 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
     user_set(first, "workers.organization_folder", str(fixture.root))
     hook(first, "SessionStart")
     first.console().run(["environment", "overview"], agent)
-    assert all(send(first.console(), name).code == 0 for name in ("Ada Lovelace", "Grace Hopper", "Ida Rhodes")) and len(started) == 1, "one instance, the other two jobs queued on it"
+    user_set(first, "workers.testing", "Hand the tests over")
+    sent = [send(first.console(), name) for name in ("Ada Lovelace", "Grace Hopper", "Ida Rhodes")]
+    assert [outcome.code for outcome in sent] == [0, 0, 0] and len(started) == 1, ([outcome.error for outcome in sent], "one instance, the other two jobs queued on it")
     first.runtime().stop()
     second = main_journal(Config(tmp_path, port=0))
     second.runtime().start()
