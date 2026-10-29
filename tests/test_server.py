@@ -667,6 +667,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         assert any(e["entry_type"] == "updated" and e["data"]["table"] == "tasks" and "completed_at" in e["data"]["changed"] for e in entries)
         assert any(e["entry_type"] == "SessionStarted" for e in entries)
         hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(tmp_path / "a.py"), "old_string": "x", "new_string": "y"}, tool_response={"structuredPatch": [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]})
+        app.runtime().deferred.drain()
         edit = call(server, "GET", "/journal/agents/1/edits")[1]["edits"][0]
         assert [r["line_type"] for r in edit["rows"]] == ["ctx", "del", "add", "ctx"] and edit["first_line"] == 7 and edit["last_line"] == 9
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-9")

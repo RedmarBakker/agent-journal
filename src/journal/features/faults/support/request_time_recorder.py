@@ -79,19 +79,20 @@ class RequestTimeRecorder:
 
     def counted(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.tally.measured("developer.hooks" if method == HOOK else "developer.requests", ms)
-        timing = Timing(method=method, route=path, ms=ms, time=self.clock.time(), loads=loads)
+        timing = Timing(method=method, route=path, ms=ms, time=self.clock.time(), loads=self.timing_loads(loads))
         if method == HOOK:
             self.windowed("developer.hooks", path.rsplit("/", 1)[-1], timing)
         elif not path.startswith(HOOK_ROUTE):
             self.windowed("developer.requests", f"{method} {self.route(path)}", timing)
         self.tally.logged(timing)
-        self.models_counted(loads)
+        self.models_counted(timing.loads)
         if method == HOOK:
             self.tally.measured(f"developer.hooks.{path.rsplit('/', 1)[-1]}", ms)
 
+    def timing_loads(self, loads: RequestLoads) -> RequestLoads:
+        return loads if self.settings.option(FaultsOptions.LOADS) else RequestLoads()
+
     def models_counted(self, loads: RequestLoads) -> None:
-        if not self.settings.option(FaultsOptions.LOADS):
-            return
         for count in loads.counts:
             self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)
 

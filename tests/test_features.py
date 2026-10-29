@@ -1121,6 +1121,7 @@ def ticked_minutes(app: App, *minutes: int) -> None:
 
 def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_averages_from_the_tabs_numbers_and_resets_them(app: App):
     user_set(app, "faults.developer", True)
+    user_set(app, "faults.count_loads", True)
     from collections import Counter
     from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     from journal.models.support.request_loads import RequestLoads
