@@ -377,9 +377,14 @@ $ agent: journal plan brief 1 'A customer can pay by card'
 exit 0
 plan 1 brief set
 
+$ agent: journal plan mode 1 solo
+exit 0
+plan 1 is worked in solo mode
+
 $ agent: journal plan show 1
 exit 0
 plan 1 draft: The shop's checkout
+mode: solo
 phase 1: The cart (complete when the cart adds up)
    3  open     The cart sums its lines
 phase 2: Paying by card (complete when a card pays) [checkpoint]
@@ -779,6 +784,11 @@ A functional design says what is to be built, never how: anyone, the user or a c
 - Must have: - [ ] one requirement per line, each one something to tick off
 - Open questions: what still has to be decided, each asked through the journal
 - Not in this version: what is left out on purpose
+schedule: none
+
+$ agent: journal template schedule 1 none
+exit 0
+template 1 schedule: none
 
 $ agent: journal template dock 1
 exit 0

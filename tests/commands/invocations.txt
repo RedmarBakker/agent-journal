@@ -58,6 +58,7 @@ agent plan todos 1 2 4
 agent plan testing 1 "Tests at each phase end"
 agent plan rephase 1 2 --title "Paying by card"
 agent plan brief 1 "A customer can pay by card"
+agent plan mode 1 solo
 agent plan show 1
 agent plan list
 agent plan review 1
@@ -137,6 +138,7 @@ agent report ready --help
 agent template create "Find what is missing" --brief "Read the plan against its goal" --applies-to plan --purpose critique
 agent template list
 agent template show 1
+agent template schedule 1 none
 agent template dock 1
 agent template undock 1
 agent collection create "Checkout" --abstract "everything about paying"
