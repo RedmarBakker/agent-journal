@@ -1,4 +1,5 @@
 from journal.engine.agent_launcher import AgentLauncher
+from journal.events.rows.plan_started import PlanStarted
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.support.plan_bindings import PlanBindings
@@ -36,15 +37,15 @@ class PlanAgents:
     def is_on(self) -> bool:
         return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
 
-    def started(self, plan_id: int, starter_environment_id: int, actor: Actor) -> None:
+    def started(self, event: PlanStarted) -> None:
         if not self.is_on():
             return
-        plan = self.plans.find(plan_id)
+        plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
         environment = self.environment(plan) or self.environments.lookup(f"plan-{plan.id}")
         if self.is_running(environment):
             return
         self.bindings.bind(plan, environment.row_id, actor)
-        agent = self.agent(plan) or self.prepared(plan, environment, self.provider(starter_environment_id), actor)
+        agent = self.agent(plan) or self.prepared(plan, environment, self.provider(event.environment_id), actor)
         resume = self.providers.lookup(agent.provider).resume(agent.session) if agent.session else ()
         self.launcher.start_in_worktree(environment.name, agent.provider, resume)
 
