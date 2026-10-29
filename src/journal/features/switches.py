@@ -25,7 +25,7 @@ class Switches(Listener[Event]):
 
     def handle(self, event: Event) -> object:
         with self.scope.environment(self.event_environment(event)):
-            if not self.registry.is_enabled(self.feature):
+            if not self.registry.is_enabled(self.feature) or not self.inner.accepts(event):
                 return None
             return self.inner.handle(event)
 

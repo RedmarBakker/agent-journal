@@ -49,6 +49,12 @@
                 "file": "src/journal/support/*actor*.py"
             },
             {
+                "file": "src/journal/features/switches.py"
+            },
+            {
+                "file": "src/journal/events/listener.py"
+            },
+            {
                 "file": "src/journal/support/caller.py"
             },
             {
