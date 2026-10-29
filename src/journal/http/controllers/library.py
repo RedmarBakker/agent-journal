@@ -16,7 +16,7 @@ from sync_server.item_query import ItemQuery
 
 
 class LibraryController:
-    """The team's library as the viewer reads and changes it, through the very support classes the library command uses: connecting and disconnecting, whether and to whom this journal is connected, the admin's invitations, devices, people and a password change, the items with the version imported of each, one item's versions, and importing, updating and publishing an item."""
+    """The team's library as the viewer reads and changes it, through the very support classes the library command uses: connecting and disconnecting, whether and to whom this journal is connected, the admin's invitations, devices, people and a password change, the items with the version imported of each, one item's versions with the fields edited in the copy here, and importing, updating and publishing an item."""
 
     def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, importing: LibraryImport, updating: LibraryUpdate, publishing: LibraryPublish, connecting: LibraryConnect) -> None:
         self.account, self.schema, self.items = account, schema, items
@@ -62,7 +62,10 @@ class LibraryController:
     def item(self, request: Request) -> Response:
         answer = LibraryLink(self.account, self.schema).item(request.params["item_type"], request.params["name"])
         imported = self.imported_version(self.account.connection().key, answer.item.item_type, answer.item.name)
-        return Response.json({**asdict(answer), "imported_version": imported})
+        return Response.json({**asdict(answer), "imported_version": imported, "edited_fields": self.edited_fields(answer.item.item_type, answer.item.name) if imported else []})
+
+    def edited_fields(self, item_type: str, name: str) -> list[str]:
+        return self.updating.edited_fields(self.items.imported(self.account.connection().key, item_type, name))
 
     def import_item(self, request: Request) -> Response:
         item = self.importing.imported(request.params["item_type"], request.params["name"], request.body.get("version"), request.actor, bool(request.body.get("accept")))

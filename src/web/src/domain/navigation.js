@@ -9,6 +9,7 @@ export const PAGES = {
     git: {title: "Git", icon: "branch", text: "The project's branches, recent commits and open pull requests"},
     attachments: {title: "Attachments", icon: "paperclip", text: "Files attached to messages, tasks and other rows"},
     secrets: {title: "Secrets", icon: "key", text: "Keys and logins the agent may use without ever seeing them"},
+    library: {title: "Library", icon: "book", text: "The sequences, templates and profiles your team shares, to import and update"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},
     plugins: {title: "Plugins", icon: "plug", text: "Installed plugins, with their dashboards and settings"},
     requests: {title: "Requests", icon: "inbox", text: "The tasks teammates have asked of you"},

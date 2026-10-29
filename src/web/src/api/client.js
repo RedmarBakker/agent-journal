@@ -459,6 +459,27 @@ export class ApiClient {
         return this.post("/library/password", {old, new: fresh});
     }
 
+    // the library's items, each with its newest version and the version this journal imported, by kind and words
+    libraryItems(type, search) {
+        const query = new URLSearchParams(Object.entries({type, search}).filter(([, value]) => value));
+        return this.get(`/library/items${query.size ? `?${query}` : ""}`);
+    }
+
+    // one library item with every version and its note, and the version this journal imported
+    libraryItem(type, name) {
+        return this.get(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}`);
+    }
+
+    // imports a library item's version as this journal's own copy
+    importLibraryItem(type, name, version) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version});
+    }
+
+    // updates the imported copy to the newest version; replace writes over a copy edited here
+    updateLibraryItem(type, name, replace) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace});
+    }
+
     // how this journal stands with its team, or that it has joined none
     team() {
         return this.get("/team");
