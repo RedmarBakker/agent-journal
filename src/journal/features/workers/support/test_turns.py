@@ -47,7 +47,7 @@ class TestTurns:
     def run_batches(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another team machine: its tests run there")
-        folder, runs = str(self.branch.folder(worker)), []
+        folder, runs = str(self.branch.place(worker)), []
         for batch in self.batches(ids):
             turn = self.open_turn(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):
@@ -69,7 +69,7 @@ class TestTurns:
         return "\n".join([*(self.result(turn, text) for turn, text in runs), f"{len(runs)} runs: {passed} passed, {failed} failed"])
 
     def checked(self, worker: Worker, ids: str, caller: Caller) -> tuple[TestTurn, str]:
-        folder = str(self.branch.folder(worker))
+        folder = str(self.branch.place(worker))
         turn = self.open_turn(worker, ids, f"{self.command(folder)} {ids}", folder)
         if not self.waited(turn):
             raise Rejection("your test run was taken back before it ran: clock out again")

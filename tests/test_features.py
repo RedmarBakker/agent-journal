@@ -4894,7 +4894,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
         def save(self, row, actor):
             return row
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments), app.container.get(TimeSource))
 
     def ask(number):
         with app.container.get(Scope).environment(1):
@@ -5048,7 +5048,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -5150,7 +5150,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     def fresh():
         started.clear(), gates.clear(), results.clear(), stops.clear()
         gates.update({n: threading.Event() for n in range(1, 5)})
-        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -5242,7 +5242,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
         (folders[name] / "tests").mkdir(parents=True)
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_RUNS.key, 3)
     results = {}
 
@@ -5318,7 +5318,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             going.pop()
             yield outcome
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
     user_set(app, WorkersOptions.TEST_RUNS.key, 1)
@@ -5328,6 +5328,39 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
     assert most[0] == 1, "each run takes its own place in the budget"
     assert "FAILED tests/a.py::t" in result and "2 passed" in result, "a failing first batch does not stop the others, and the result holds each batch's lines"
     assert result.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
+
+
+def test_a_worker_without_a_worktree_has_its_tests_run_in_the_checkout_it_works_in(app: App):
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    settings, scope, folders = app.container.get(SettingRows), app.container.get(Scope), []
+
+    class Crew:
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name="Mr. Faraday")
+
+        def save(self, row, actor):
+            return row
+
+    class Runner:
+        def run(self, request, caller, environment):
+            folders.append(request.cwd)
+            yield b"1 passed in 0.1s\n__journal_exit 0\n"
+
+    branch = app.container.get(WorkerBranch)
+    turns = TestTurns(app.container.get(TurnRows), Runner(), branch, app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
+    faraday = Worker(id=7, environment_id=1, name="Mr. Faraday", worktree=False)
+    with scope.environment(1):
+        turn, result = turns.checked(faraday, "tests/a.py", SimpleNamespace())
+    assert folders == [str(branch.place(faraday))] and folders[0] != str(branch.folder(faraday)), "the run is in the checkout it works in, never a worktree it does not have"
+    assert turn.folder == folders[0] and "1 passed" in result, "and its clock-out run passes"
 
 
 def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_reports_not_read_yet(app: App):
