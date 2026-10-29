@@ -58,6 +58,10 @@ class Claude(Provider):
 
     user_line_key = "systemMessage"
     name = "claude"
+    openrig_runtime = "claude-code"
+    openrig_permissions_field = "claude_permissions"
+    openrig_hook_resource_type = "claude_settings_fragment"
+    openrig_hook_resource_path = "runtime/journal-hooks.json"
     title = "Claude Code"
     program = "claude"
     prompt_flags = ("--dangerously-skip-permissions",)

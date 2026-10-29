@@ -1,4 +1,4 @@
-import json
+import hashlib
 import json
 import os
 import re
@@ -37,12 +37,20 @@ from journal.support.worktree import Worktree
 SCRIPT_FLAGS = ("-c", "-lc")
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
 CONTEXT_LIMIT_NONE = 0
+CONTEXTLESS_HOOKS = frozenset(("PreCompact", "SessionEnd", "SubagentStop", "Stop"))
+MATCHERLESS_HOOKS = frozenset(("UserPromptSubmit", "Stop", "Interrupt"))
+SESSION_END_TIMEOUT = 3
 
 
 class Codex(Provider):
     """OpenAI's Codex: the journal reads no thoughts, no messages between sessions and no subagent transcripts from its rollouts, so it offers none of them. A worktree reads the main checkout's hooks file through a link, so its hooks name the main root and nothing is written inside it; Codex trusts hooks per project path, so the main checkout's trust is given to the worktree's path too."""
 
     name = "codex"
+    openrig_runtime = "codex"
+    openrig_permissions_field = "codex_permissions"
+    openrig_hook_resource_type = "codex_config_fragment"
+    openrig_hook_resource_path = "runtime/journal-hooks.toml"
+    supports_reasoning_effort = True
     title = "Codex"
     program = "codex"
     prompt_flags = ("--dangerously-bypass-approvals-and-sandbox",)
@@ -88,6 +96,38 @@ class Codex(Provider):
     def config_folder() -> Path:
         return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
+    @staticmethod
+    def openrig_config_path() -> Path:
+        folder = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+        return (folder if folder.is_absolute() else Path.home() / ".codex") / "config.toml"
+
+    def openrig_hook_trust_records(self, hooks: dict) -> tuple[tuple[str, str], ...]:
+        config_path = self.openrig_config_path()
+        current = tomllib.loads(config_path.read_text()) if config_path.is_file() else {}
+        current_hooks = current.get("hooks", {})
+        source = str(config_path.resolve() if config_path.is_file() else config_path.absolute())
+        records = []
+        for event, groups in hooks.items():
+            present = current_hooks.get(event, [])
+            for group_offset, group in enumerate(groups):
+                matcher = group.get("matcher", "")
+                commands = [handler.get("command") for handler in group.get("hooks", [])]
+                existing_index = next((index for index, value in enumerate(present)
+                                       if value.get("matcher", "") == matcher and [handler.get("command") for handler in value.get("hooks", [])] == commands), None)
+                group_index = existing_index if existing_index is not None else len(present) + group_offset
+                for handler_index, handler in enumerate(group.get("hooks", [])):
+                    normalized = {"type": "command", "command": handler["command"], "async": handler.get("async") is True}
+                    for name in ("timeout", "statusMessage", "additionalContextLimit"):
+                        if handler.get(name) is not None:
+                            normalized[name] = handler[name]
+                    identity = {"event_name": self.state_name(event), "hooks": [normalized]}
+                    if "matcher" in group and event not in MATCHERLESS_HOOKS:
+                        identity["matcher"] = matcher
+                    canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    digest = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                    records.append((f"{source}:{self.state_name(event)}:{group_index}:{handler_index}", digest))
+        return tuple(records)
+
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         hooks = self.wire_hooks(root, script, command)
         Worktree.linked(folder / self.home / self.settings_file, hooks)
@@ -112,8 +152,9 @@ class Codex(Provider):
         return {key.rsplit(":", 3)[1] for key, state in states.items() if key.startswith(f"{hooks}:") and key.count(":") >= 3 and state.get("enabled", True)}
 
     @staticmethod
-    def state_name(type_name: HookType) -> str:
-        return re.sub(r"(?<!^)(?=[A-Z])", "_", type_name.value).lower()
+    def state_name(type_name: HookType | str) -> str:
+        name = type_name.value if isinstance(type_name, HookType) else type_name
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
     @staticmethod
     def shell_line(command) -> ShellLine:
@@ -251,4 +292,11 @@ class Codex(Provider):
             return message
 
     def hook_block(self, command: str) -> dict:
-        return {type_name.value: [{"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": 60, "additionalContextLimit": CONTEXT_LIMIT_NONE}]}] for type_name in self.hook_kinds}
+        hooks = {}
+        for type_name in self.hook_kinds:
+            event = type_name.value
+            handler = {"type": "command", "command": command, "timeout": SESSION_END_TIMEOUT if event == "SessionEnd" else 60}
+            if event not in CONTEXTLESS_HOOKS:
+                handler["additionalContextLimit"] = CONTEXT_LIMIT_NONE
+            hooks[event] = [{"matcher": "", "hooks": [handler]}]
+        return hooks

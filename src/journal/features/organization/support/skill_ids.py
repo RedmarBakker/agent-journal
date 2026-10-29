@@ -14,6 +14,8 @@ class SkillIds:
         self.folder, self.files = folder, files
 
     def known(self, path: Path) -> frozenset[str]:
+        return frozenset((*self.folders(path), *(skill.name for skill in self.files.catalogue())))
+
+    def folders(self, path: Path) -> dict[str, Path]:
         named = self.folder.named()
-        found = [file.parent.name for root in (path, named.parent / ROOT_SKILLS) if root.is_dir() for file in root.rglob(SKILL_FILE)]
-        return frozenset((*found, *(skill.name for skill in self.files.catalogue())))
+        return {file.parent.name: file.parent for root in (path, named.parent / ROOT_SKILLS) if root.is_dir() for file in root.rglob(SKILL_FILE)}

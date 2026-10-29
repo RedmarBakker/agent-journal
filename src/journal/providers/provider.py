@@ -71,6 +71,11 @@ class Provider(ABC):
     model_tiers: ClassVar[dict[str, ModelTier]] = {}
     # the program's models from the cheapest to the strongest, which the models a role may run on are chosen from
     model_ranking: ClassVar[tuple[str, ...]] = ()
+    openrig_runtime: ClassVar[str]
+    openrig_permissions_field: ClassVar[str]
+    openrig_hook_resource_type: ClassVar[str]
+    openrig_hook_resource_path: ClassVar[str]
+    supports_reasoning_effort: ClassVar[bool] = False
     settings_files: ClassVar[tuple[str, ...]]
     settings_extras: ClassVar[dict] = {}
     foreign_settings: ClassVar[tuple[str, ...]] = ()
@@ -278,6 +283,9 @@ class Provider(ABC):
 
     def hook_block(self, command: str) -> dict:
         return {type_name.value: [{"hooks": [{"type": "command", "command": command}]}] for type_name in self.hook_kinds}
+
+    def openrig_hook_trust_records(self, hooks: dict) -> tuple[tuple[str, str], ...]:
+        return ()
 
     def wire_hooks(self, project: Path, script: Path, command: str) -> Path:
         for counterpart in self.foreign_settings:

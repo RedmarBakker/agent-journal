@@ -11,4 +11,8 @@ class ToolIds:
         return tool.replace("_", "").isalnum() and tool == tool.lower() and not tool[0].isdigit()
 
     def words(self, tools: tuple[str, ...]) -> str:
-        return ", ".join(dict.fromkeys(word for tool in tools for word in ROLE_TOOLS.get(tool, ())))
+        return ", ".join(self.provider_tools(tools))
+
+    @staticmethod
+    def provider_tools(tools: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(word for tool in tools for word in ROLE_TOOLS.get(tool, ())))

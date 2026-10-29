@@ -1,5 +1,6 @@
-from datetime import timedelta
 from contextlib import nullcontext
+from datetime import timedelta
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,9 @@ import shutil
 import subprocess
 from threading import Lock
 from types import SimpleNamespace
+import tomllib
+
+import pytest
 
 import pytest
 
@@ -37,6 +41,9 @@ from journal.features.organization.support import seat_runner as seat_runner_mod
 from journal.features.organization.support import seat_runtime as seat_runtime_module
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.rig_seats import RigSeats
+from journal.features.organization.support.rig_specs import DENIED, RigSpecs
+from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.organization.support.tool_ids import ToolIds
 from journal.features.organization.support.usage_ledger import UsageEstimate, UsageLedger, UsageReading
 from journal.support.inner_repositories import InnerRepositories
@@ -44,6 +51,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.organization_options import OrganizationOptions
+from journal.features.workers.workers_options import WorkersOptions
 from journal.models.support.ref import Ref
 from journal.models.agent import Agent
 from journal.models.plan import Plan
@@ -62,13 +70,14 @@ from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.support.caller import Caller
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.rejection import Rejection
-import pytest
 
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.providers.support.profile_type import ProfileType
+from journal.providers.support.helper_setup import JOURNAL_ACTIVE
+from journal.support.agent_token import AgentToken
 from tests.test_features import booted, hook
 from tests.test_engine import CLASSIFIER
 from tests.user_settings import user_set
@@ -110,6 +119,175 @@ def loaded(app, tmp_path, **setup):
     fixture = OrganizationFixture(tmp_path / "organization").write()
     user_set(app, "workers.organization_folder", str(fixture.root))
     return fixture, app.container.get(Organization)
+
+
+def plan_contracts(app, tmp_path):
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "planner", cardinality="plan", writes=True, tools=["read_files", "edit_files", "run_tests"], skills=["ids"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "planner"], skills=["ids"])
+    return organization.reload()
+
+
+def use_provider(app, monkeypatch, name):
+    providers = app.container.get(RigSeats).providers
+    for provider in providers.all():
+        for marker in provider.inherited_markers:
+            monkeypatch.delenv(marker, raising=False)
+    for marker in providers.lookup(name).inherited_markers:
+        monkeypatch.setenv(marker, "active-session")
+
+
+def test_a_plan_rig_places_its_plan_agent_domain_agent_and_plan_roles_by_contract_containment(app, tmp_path):
+    contracts = plan_contracts(app, tmp_path)
+    seats = app.container.get(RigSeats)
+    providers = seats.providers
+    placed = seats.seats("plan-29", contracts, ("alpha",), providers.lookup("claude"))
+    assert [(seat.qualified, seat.pod, seat.member, seat.model) for seat in placed] == [
+        ("plan", "plan", "plan-agent", "opus"),
+        ("domain:alpha", "alpha", "domain-agent", "sonnet"),
+        ("role:alpha/planner", "alpha", "planner", "sonnet"),
+    ], "journal and many Roles stay out of a plan rig"
+    assert [(source.logical_id(), target.logical_id()) for source, target in seats.links(contracts, placed)] == [
+        ("plan.plan-agent", "alpha.domain-agent"),
+        ("alpha.domain-agent", "alpha.planner"),
+    ], "the links come from the containment edges"
+    codex = seats.seats("plan-29", contracts, ("alpha",), providers.lookup("codex"))
+    assert [(seat.qualified, seat.model, seat.effort) for seat in codex] == [
+        ("plan", "gpt-6.1-sol", "xhigh"),
+        ("domain:alpha", "gpt-6.1-sol", "xhigh"),
+        ("role:alpha/planner", "gpt-6-luna", "max"),
+    ], "Codex seats use contract model and effort, with the configured plan selection"
+
+
+def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models_and_permissions(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "claude")
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(path.read_text())
+    members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
+    assert spec["version"] == "0.2" and [pod["id"] for pod in spec["pods"]] == ["plan", "alpha"]
+    assert spec["edges"] == [{"kind": "delegates_to", "from": "plan.plan-agent", "to": "alpha.domain-agent"}]
+    assert spec["pods"][1]["edges"] == [{"kind": "delegates_to", "from": "domain-agent", "to": "planner"}]
+    planner = members["planner"]
+    environment = planner["env"]
+    assert planner["runtime"] == "claude-code" and planner["model"] == "sonnet" and environment[ACTOR] == "worker:29" and environment[ACTOR_TOKEN] == "token-alpha-planner"
+    assert environment[AGENT_SHELL] == environment[JOURNAL_ACTIVE] == "1" and environment["JOURNAL_ENV"] == "main"
+    assert environment["JOURNAL_ROOT"] == str(app.config.root)
+    assert environment["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
+    assert planner["claude_permissions"]["deny"] == list(DENIED)
+    assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" not in planner["claude_permissions"]["deny"]
+    assert "Bash(journal *)" in planner["claude_permissions"]["allow"]
+    assert {"Edit", "Write", "Bash"}.issubset(planner["claude_permissions"]["allow"])
+    assert "Bash(rig queue *)" in planner["claude_permissions"]["deny"]
+    domain = members["domain-agent"]
+    assert {"Edit", "Write"}.issubset(domain["claude_permissions"]["deny"])
+    assert path.stat().st_mode & 0o777 == 0o600, "the rig file holds worker tokens"
+
+    agent = path.parent / "agents" / "alpha-planner"
+    agent_spec = json.loads((agent / "agent.yaml").read_text())
+    uses = agent_spec["profiles"]["default"]["uses"]
+    assert agent_spec["version"] == "1.0" and {"ids", "journal"}.issubset(uses["skills"])
+    assert agent_spec["defaults"]["runtime"] == "claude-code"
+    assert uses["runtime_resources"] == ["journal-hooks"]
+    assert agent_spec["resources"]["runtime_resources"] == [{"id": "journal-hooks", "path": "runtime/journal-hooks.json", "runtime": "claude-code", "type": "claude_settings_fragment"}]
+    assert (agent / "skills" / "ids" / "SKILL.md").read_text() == "---\nname: ids\n---\nA skill.\n"
+    hooks = json.loads((agent / "runtime" / "journal-hooks.json").read_text())["hooks"]
+    assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
+
+
+def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "codex")
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-codex-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(path.read_text())
+    members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
+    planner = members["planner"]
+    assert planner["runtime"] == "codex" and planner["model"] == "gpt-6-luna" and planner["effort"] == "max"
+    assert planner["codex_permissions"] == {"sandbox": "workspace-write", "approval": "never", "network_access": False}
+    assert "claude_permissions" not in planner
+    assert members["plan-agent"]["runtime"] == "codex" and members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
+    assert members["plan-agent"]["codex_permissions"] == {"sandbox": "read-only", "approval": "never"}
+    assert planner["env"][ACTOR_TOKEN] == "token-alpha-planner"
+    assert planner["env"]["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
+
+    agent = path.parent / "agents" / "alpha-planner"
+    agent_spec = json.loads((agent / "agent.yaml").read_text())
+    assert agent_spec["defaults"]["runtime"] == "codex"
+    assert agent_spec["profiles"]["default"]["uses"]["runtime_resources"] == ["journal-hooks"]
+    assert agent_spec["resources"]["runtime_resources"] == [{"id": "journal-hooks", "path": "runtime/journal-hooks.toml", "runtime": "codex", "type": "codex_config_fragment"}]
+    hooks = tomllib.loads((agent / "runtime" / "journal-hooks.toml").read_text())["hooks"]
+    assert hooks["SessionStart"][0]["hooks"][0]["type"] == "command"
+    assert "hook.sh codex" in hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert str(app.config.root) in hooks["UserPromptSubmit"][0]["hooks"][0]["command"]
+
+
+def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_and_effort(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "codex")
+    user_set(app, OrganizationOptions.PLAN_PROFILE.key, "organization-plan-review")
+    user_set(app, OrganizationOptions.PLAN_EFFORT.key, "xhigh")
+    user_set(app, WorkersOptions.ALLOWED_MODELS.key, ["codex organization-plan-review: gpt-6-luna"])
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-restricted-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    members = {member["id"]: member for pod in json.loads(path.read_text())["pods"] for member in pod["members"]}
+    plan = members["plan-agent"]
+    assert plan["runtime"] == "codex" and plan["model"] == "gpt-6-luna" and plan["effort"] == "xhigh"
+    assert plan["codex_permissions"]["sandbox"] == "read-only"
+
+
+def test_a_codex_plan_rig_trusts_only_the_generated_journal_hooks(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "codex")
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    original_config = '[[hooks.SessionStart]]\nmatcher = ""\n[[hooks.SessionStart.hooks]]\ntype = "command"\ncommand = "echo unrelated"\n'
+    config_path.write_text(original_config)
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-codex-trusted-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    fragment = path.parent / "agents" / "alpha-planner" / "runtime" / "journal-hooks.toml"
+    parsed = tomllib.loads(fragment.read_text())["hooks"]
+    generated = {event: groups for event, groups in parsed.items() if event != "state"}
+    state = parsed["state"]
+    existing = tomllib.loads(config_path.read_text()).get("hooks", {})
+    expected = {}
+    commands = []
+    for event, groups in generated.items():
+        current_groups = existing.get(event, [])
+        for group_offset, group in enumerate(groups):
+            group_index = len(current_groups) + group_offset
+            for handler_index, handler in enumerate(group["hooks"]):
+                commands.append(handler["command"])
+                normalized = {"type": "command", "command": handler["command"], "async": handler.get("async") is True}
+                for name in ("timeout", "statusMessage", "additionalContextLimit"):
+                    if handler.get(name) is not None:
+                        normalized[name] = handler[name]
+                identity = {"event_name": Codex.state_name(event), "hooks": [normalized]}
+                if "matcher" in group and event not in ("UserPromptSubmit", "Stop", "Interrupt"):
+                    identity["matcher"] = group["matcher"]
+                serialized = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                digest = "sha256:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+                key = f"{config_path.resolve()}:{Codex.state_name(event)}:{group_index}:{handler_index}"
+                expected[key] = {"trusted_hash": digest}
+
+    assert len(expected) == 9 and len(commands) == 9
+    assert all("hook.sh codex" in command and str(app.config.root) in command for command in commands)
+    assert all("additionalContextLimit" not in generated[event][0]["hooks"][0] for event in ("PreCompact", "SessionEnd", "SubagentStop", "Stop"))
+    assert generated["SessionEnd"][0]["hooks"][0]["timeout"] == 3
+    assert state == expected, "the member trusts each exact journal hook command and no unrelated command"
+    assert all("echo unrelated" not in key for key in state)
+    assert config_path.read_text() == original_config, "spec generation leaves the Codex configuration untouched"
 
 
 def test_the_loader_reads_the_domains_and_roles_the_folder_holds_and_ignores_what_is_not_one(app, tmp_path):
