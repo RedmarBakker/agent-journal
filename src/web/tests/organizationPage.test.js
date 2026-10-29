@@ -106,19 +106,19 @@ test("the Organization page reads its real folder, shows contract problems, and 
     expect(host.textContent).toContain("Running: 4");
 
     host.querySelector('[aria-label="Open Account manager"]').click();
-    await until(() => host.textContent.includes("Listen first, then explain the recommendation."));
+    await until(() => document.body.textContent.includes("Listen first, then explain the recommendation."));
     expect(api.organizationRole).toHaveBeenCalledWith("sales", "account-manager");
-    expect(host.textContent).toContain("Responsible for");
-    expect(host.textContent).toContain("Customer needs");
-    expect(host.textContent).toContain("Not responsible for");
-    expect(host.textContent).toContain("A customer request");
-    expect(host.textContent).toContain("A service recommendation");
-    expect(host.textContent).toContain("governance");
-    expect(host.textContent).toContain("read_files");
-    expect(host.textContent).toContain("production_deployment");
-    expect(host.textContent).toContain("escalates_to");
-    expect(host.textContent).toContain("sales-lead");
-    expect(host.textContent).toContain("AGENTS.md");
+    expect(document.body.textContent).toContain("Responsible for");
+    expect(document.body.textContent).toContain("Customer needs");
+    expect(document.body.textContent).toContain("Not responsible for");
+    expect(document.body.textContent).toContain("A customer request");
+    expect(document.body.textContent).toContain("A service recommendation");
+    expect(document.body.textContent).toContain("governance");
+    expect(document.body.textContent).toContain("read_files");
+    expect(document.body.textContent).toContain("production_deployment");
+    expect(document.body.textContent).toContain("escalates_to");
+    expect(document.body.textContent).toContain("sales-lead");
+    expect(document.body.textContent).toContain("AGENTS.md");
 
     [...host.querySelectorAll("button")].find((button) => button.textContent.includes("Read the folder again")).click();
     await until(() => host.textContent.includes("fedcba9876543210fedcba9876543210fedcba98"));
