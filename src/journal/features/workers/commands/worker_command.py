@@ -193,7 +193,7 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        brief = "\n\n".join(part for part in (self.roles.instructions(role) if role else "", task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part)
+        brief = "\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part)
         profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
         worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=self.instances.plan_of(task) if role else 0, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)

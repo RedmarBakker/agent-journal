@@ -182,10 +182,10 @@ def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_a
     assert contracts.domain("alpha") is None and len([problem for problem in contracts.problems if problem.path == "domains/alpha/domain.toml"]) == 2, "an unknown phase and an empty name are each a problem and the domain is left out"
 
 
-REAL_FOLDER = "/Users/redmarbakker/Code/transportklok/transportklok-workspace/agentic-organization"
+REAL_FOLDER = __import__("os").environ.get("JOURNAL_ORGANIZATION_FOLDER", "")
 
 
-@pytest.mark.skipif(not __import__("os").path.isdir(REAL_FOLDER), reason="the workspace's organization folder is not on this machine")
+@pytest.mark.skipif(not REAL_FOLDER, reason="JOURNAL_ORGANIZATION_FOLDER names no agentic-organization folder to read")
 def test_the_real_organization_folder_loads_with_no_problems(app):
     from collections import Counter
     from journal.features.organization.support.organization import Organization

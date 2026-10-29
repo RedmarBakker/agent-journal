@@ -2,6 +2,7 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.tool_ids import ToolIds
 from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.models.worker import Worker
 from journal.support.rejection import Rejection
 
 
@@ -19,8 +20,12 @@ class RoleBoot:
             raise Rejection(f"{role_id} does not write: a job that only reads goes to a subagent")
         return role
 
-    def instructions(self, role: Role) -> str:
-        domain = self.organization.contracts().domain(role.domain)
+    def instructions(self, worker: Worker) -> str:
+        contracts = self.organization.at(worker.contract)
+        role = contracts.role(worker.role)
+        if role is None:
+            return ""
+        domain = contracts.domain(role.domain)
         body = role.profile(domain.guidance if domain else "", self.tools.words(role.tools)).body
         skills = f"Read these skills before you work: {', '.join(role.skills)}." if role.skills else ""
         return self.profiles.role_instructions("\n\n".join(part for part in (body, skills) if part))

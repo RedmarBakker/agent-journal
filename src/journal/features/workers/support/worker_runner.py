@@ -11,6 +11,7 @@ from journal.supervisor_link import SupervisorLink
 from journal.support.lockout_option import LOCKOUT_OPTION
 from journal.config import Config
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.role_boot import RoleBoot
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.support.agent_token import AgentToken
@@ -57,9 +58,9 @@ LOCKOUT_VARIABLE = "JOURNAL_LOCKOUT_SECONDS"
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization, roles: RoleBoot) -> None:
         self.time_source, self.supervisor = time_source, supervisor
-        self.organization = organization
+        self.organization, self.roles = organization, roles
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup
@@ -84,9 +85,10 @@ class WorkerRunner:
         return path
 
     def instructed(self, worker: Worker) -> str:
-        if worker.resume or worker.profile is None:
+        if worker.resume or (worker.profile is None and not worker.role):
             return worker.brief
-        return "\n\n".join(part for part in (self.profiles.worker_instructions(worker.profile), self.libraries.note(worker), worker.brief) if part)
+        told = self.roles.instructions(worker) if worker.role else self.profiles.worker_instructions(worker.profile)
+        return "\n\n".join(part for part in (told, self.libraries.note(worker), worker.brief) if part)
 
     def run_scoped(self, worker: Worker, command: list[str], actor: Actor) -> None:
         with self.scope.environment(worker.environment_id):
