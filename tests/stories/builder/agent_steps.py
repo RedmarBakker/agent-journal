@@ -1,4 +1,3 @@
-from journal.support.typed_lines import WAKE_LINE
 from tests.stories.builder.story_agent import StoryAgent
 import json
 import shutil
@@ -75,9 +74,6 @@ class AgentSteps:
 
     def agent_is_prompted(self, agent: StoryAgent, text: str) -> None:
         self.hooked(agent, "the user prompts the agent", "UserPromptSubmit", prompt=text)
-
-    def agent_is_woken_by_the_typed_line(self, agent: StoryAgent) -> None:
-        self.hooked(agent, "the wake line wakes the agent", "UserPromptSubmit", prompt=WAKE_LINE)
 
     def agent_is_prompted_in_a_new_turn(self, agent: StoryAgent, text: str) -> None:
         pass_time(self.app, TURN_GAP_SECONDS)

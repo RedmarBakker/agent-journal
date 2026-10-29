@@ -136,6 +136,7 @@ def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     app = main_journal(Config(root, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
     app.runtime().start()
     return app
@@ -4847,6 +4848,45 @@ def test_a_two_step_path_drives_one_card_from_its_start_to_its_final_version(app
     assert card.paused() is None and "did not finish" in updating.problem and updating.data().step_count == 0, "a walk that went quiet past a step's time holds the card no longer"
 
 
+def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
+    from journal.support.typed_lines import TypedLines
+    lines = app.container.get(TypedLines)
+    slow = " | ".join(f"HOOK /hooks/Stop{n} took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source" for n in range(8))
+    app.container.get(SupervisorLink).type_whole(1, "[journal] " + slow, 0.0)
+    assert len(lines.overdue(1, 10 ** 12)) == 1, "only the first segment goes into the box"
+    held = lines.batched(1)
+    assert held is not None and held.line.startswith("[journal] HOOK /hooks/Stop") and held.line.endswith("Stop7 took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source"), "the rest waits, whole, until the first is seen back"
+
+
+def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still_the_journals(app: App):
+    import time as timing
+    from journal.support.typed_line import TypedLine
+    from journal.features.checks.support.check_output import CheckOutput
+    from journal.support.typed_lines import TypedLines
+    issues = " ".join(f"#{n} [detector-report] ArrayBagDetector - Opened by somebody, handle with care" for n in range(600, 700))
+    notified = CheckOutput.summary(issues)
+    assert len(notified) <= 310 and notified.endswith("handle with care"), "a failing check tells the agent only the end of its output"
+    segments = TypedLine.split("[journal] " + issues, "[journal]")
+    assert len(segments) > 1 and all(len(segment) <= TypedLine.LONGEST_CHARACTERS and segment.startswith("[journal] ") and not segment.endswith("...") for segment in segments), "a line longer than one line holds is typed in whole marked pieces, never cut short"
+    assert " ".join(segment.removeprefix("[journal] ") for segment in segments) == issues
+    slow = " | ".join(f"HOOK /hooks/Stop{n} took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source" for n in range(8))
+    assert all(segment.endswith("at its source") for segment in TypedLine.split("[journal] " + slow, "[journal]")), "lines typed together are split between lines, never inside one"
+    both = TypedLines(app.container.get(TimeSource))
+    both.typed(1, "[journal] first line")
+    both.typed(1, "[journal] second line")
+    assert both.confirm(1, "[journal] first line\n[journal] second line") and not both.is_waiting(1), "a prompt carrying two typed lines confirms both"
+    line = segments[0]
+    keystrokes = TypedLines(app.container.get(TimeSource))
+    keystrokes.typed(1, line)
+    first = keystrokes.overdue(1, timing.time())[0]
+    keystrokes._recent = []
+    keystrokes.retry(first, timing.time())
+    segment = line[200:320].replace(" ", "\n", 1)
+    assert keystrokes.contains(1, segment), "a piece of a line typed again, broken by the terminal, is the journal's, not the user's"
+    assert not keystrokes.contains(1, "handle with care"), "a short answer of the user's that sits inside a typed line stays the user's"
+    assert keystrokes.confirm(1, segment) and not keystrokes.is_waiting(1), "a piece arriving is the line arriving, so it is not typed a third time"
+
+
 def test_a_status_a_program_answered_or_a_number_with_a_unit_is_never_named_a_missing_link():
     from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     text = "the server answered 200 in 2 ms, HTTP 404 for the old path, and the build took 300 s"
@@ -4955,6 +4995,41 @@ def test_journal_update_follow_sets_the_branch_the_journal_follows_and_unfollow_
     assert followed.code == 0 and followed.text.startswith("following the branch development: development at ccccccc is out") and updating.branch() == "development", "the branch is set and its head read at once"
     assert source.branches_asked == [("https://github.com/jessegall/agent-journal", "development")], "the followed branch's head is asked for"
     assert console.run(["update", "unfollow"], AGENT).text == "following the releases again\n" and updating.branch() == "", "unfollow clears the branch"
+
+
+def test_a_stopped_agent_gets_its_first_line_at_once_and_a_working_one_gets_them_batched(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    keystrokes = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields["line"]))
+    user_set(app, "delivery.batch_seconds", 5)
+    link, clock = app.container.get(SupervisorLink), app.container.get(TimeSource)
+
+    def waited() -> None:
+        clock.pin(clock.seconds() + 6)
+        link.silence(1, 6)
+        clock.unpin()
+
+    link.type(1, "new message 2")
+    assert keystrokes == ["[journal] new message 2"], "a stopped agent's first line goes at once"
+    hook(app, "UserPromptSubmit", prompt="[journal] new message 2")
+    app.runtime().deferred.drain()
+    link.resting(1)
+    link.type(1, "new message 3")
+    waited()
+    assert keystrokes == ["[journal] new message 2", "[journal] new message 3"], "once the last is confirmed, the next goes after its own batch time"
+    link.type(1, "the user put 👍 on message 2")
+    waited()
+    assert keystrokes[-1] == "[journal] new message 3", "a line behind one not yet seen back still waits, so it never lands in the prompt box"
+    hook(app, "UserPromptSubmit", prompt="[journal] new message 3")
+    app.runtime().deferred.drain()
+    link.working(1)
+    link.type(1, "new message 4")
+    app.container.get(Clock).tick(app.container.get(Clock).time())
+    assert "[journal] new message 4" not in " ".join(keystrokes), "a working agent's line waits for its next tool use or the batch window"
+    user_set(app, "delivery.batch_seconds", 0)
+
+
+
 
 
 def test_a_running_codex_workers_transcript_is_found_by_its_rollouts_folder_before_its_session_is_known(app: App, tmp_path, monkeypatch):

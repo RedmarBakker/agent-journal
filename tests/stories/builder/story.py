@@ -47,14 +47,12 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.viewer_status, self.viewer_answer = 0, {}
         self.closers: list = []
         self.typed: list[str] = []
-        self.typed_from = 0
         self.mode = BUILDER_MODE
 
     def reach(self, fixture: type[StateFixture]) -> None:
         self.fixture = self.copies.reached(self, fixture)
         self.observed("", None, None)
         self.path = [f"starts from {fixture.__name__}"]
-        self.typed_from = len(self.typed)
         self.stack_checked_at = -1
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 

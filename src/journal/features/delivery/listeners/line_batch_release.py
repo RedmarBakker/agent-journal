@@ -4,7 +4,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class LineBatchRelease(AgentListener[Ticked]):
-    """On the clock, an agent that stopped with lines waiting for it is woken, since no hook of its own comes to carry them."""
+    """The lines queued for the batch window go in as one once it is over, on the clock, since nothing else may happen in the meantime."""
 
     def __init__(self, supervisor: SupervisorLink) -> None:
         self.supervisor = supervisor

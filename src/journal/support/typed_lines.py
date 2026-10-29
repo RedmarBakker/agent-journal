@@ -1,21 +1,24 @@
 from journal.support.timeout import Timeout
+from journal.support.option import Option
 from journal.support.queued_line import QueuedLine
 from journal.support.typed_line import TypedLine
 from journal.support.time_source import TimeSource
 
 RECENT_SECONDS = 60.0
+BATCH_SECONDS = 5.0
+BATCH_OPTION = Option("delivery.batch_seconds", "Type lines at most every", "Seconds after a line is typed before the next may go; the first line goes at once. Lines held meanwhile are typed together as one line, each once. 0 types each at once", BATCH_SECONDS, unit="seconds")
 JOURNAL_PREFIX = "[journal]"
-WAKE_LINE = f"{JOURNAL_PREFIX} new lines for you come with this prompt"
 
 
 class TypedLines:
-    """The lines for the agents, held until a hook's answer carries them, and the one wake line typed into a stopped agent's terminal so its prompt carries them: the wake line is confirmed by the prompt that contains its words, and until then it may have been lost; a woken agent counts as working until it stops again, so no second line is ever typed meanwhile. An environment paused holds every line until it is resumed; one disabled drops every line until it is enabled; clear empties what it holds: what the agent missed, the read at its next start tells it."""
+    """The lines typed to the agents and not yet seen again as a prompt: a line is confirmed by the prompt that contains its words, and until then it may have been lost. A line for an agent with one still unconfirmed is queued, since a line typed while the agent has another in its queue lands in its prompt box and its Enter only breaks the line. An environment paused queues every line until it is resumed; one disabled drops every line until it is enabled; clear empties its queue: what the agent missed, the read at its next start tells it."""
 
     def __init__(self, time_source: TimeSource) -> None:
         self.time_source = time_source
         self._waiting: list[TypedLine] = []
         self._held: list[QueuedLine] = []
         self._recent: list[TypedLine] = []
+        self._sent_at: dict[int, float] = {}
         self._disabled_ids: set[int] = set()
         self._paused_ids: set[int] = set()
         self._working_ids: set[int] = set()
@@ -57,6 +60,9 @@ class TypedLines:
     def is_working(self, environment_id: int) -> bool:
         return environment_id in self._working_ids
 
+    def queue_start(self, environment_id: int) -> float | None:
+        return min((h.line_at for h in self._held if h.environment_id == environment_id), default=None)
+
     def pending_lines(self, environment_id: int) -> list[str]:
         return self.matching_lines(lambda h: h.environment_id == environment_id)
 
@@ -74,6 +80,9 @@ class TypedLines:
     def clear(self, environment_id: int) -> None:
         self._held = [h for h in self._held if h.environment_id != environment_id]
 
+    def is_recent(self, environment_id: int, seconds: float) -> bool:
+        return not Timeout.seconds(seconds).started(self._sent_at.get(environment_id, 0.0)).is_elapsed(self.time_source.seconds())
+
     def is_waiting(self, environment_id: int) -> bool:
         return any(t.environment_id == environment_id for t in self._waiting)
 
@@ -82,14 +91,17 @@ class TypedLines:
             return
         self._held.append(line)
 
-    def has_instructions(self, environment_id: int) -> bool:
-        return any(h.environment_id == environment_id and not h.is_remark for h in self._held)
-
-    def wake_delay(self, environment_id: int) -> float:
-        return max((h.delay_seconds for h in self._held if h.environment_id == environment_id and not h.is_remark), default=0.0)
+    def batched(self, environment_id: int) -> QueuedLine | None:
+        blocked = [h for h in self._held if h.environment_id == environment_id and not h.is_remark]
+        if not blocked:
+            return None
+        self._held = [h for h in self._held if h not in blocked]
+        lines = [h.line.removeprefix(JOURNAL_PREFIX).strip() for h in blocked]
+        return QueuedLine(environment_id, f"{JOURNAL_PREFIX} {TypedLine.SEPARATOR.join(lines)}", max(h.delay_seconds for h in blocked))
 
     def typed(self, environment_id: int, line: str) -> None:
         moment = self.time_source.seconds()
+        self._sent_at[environment_id] = moment
         self._waiting.append(TypedLine(environment_id, line, moment))
         self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment)]
 
@@ -101,6 +113,12 @@ class TypedLines:
         self._waiting = [t for t in self._waiting if t not in matches]
         return bool(matches)
 
+    def confirm_naming(self, environment_id: int, message_id: int) -> bool:
+        matched = [t for t in self._waiting if t.environment_id == environment_id and message_id in t.message_numbers()]
+        for keystrokes in matched:
+            self._waiting.remove(keystrokes)
+        return bool(matched)
+
     def waiting_count(self, environment_id: int) -> int:
         return sum(1 for t in self._waiting if t.environment_id == environment_id)
 
@@ -108,7 +126,9 @@ class TypedLines:
         return [t for t in self._waiting if t.environment_id == environment_id and t.time <= previous]
 
     def retry(self, keystrokes: TypedLine, time: float) -> TypedLine:
-        repeat = TypedLine(keystrokes.environment_id, keystrokes.line, time, keystrokes.tries + 1)
+        queued = self.batched(keystrokes.environment_id)
+        line = keystrokes.line if queued is None else f"{keystrokes.line}{TypedLine.SEPARATOR}{queued.line.removeprefix(JOURNAL_PREFIX).strip()}"
+        repeat = TypedLine(keystrokes.environment_id, line, time, keystrokes.tries + 1)
         self._waiting[self._waiting.index(keystrokes)] = repeat
         self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(time)] + [repeat]
         return repeat
