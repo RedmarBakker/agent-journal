@@ -23,3 +23,6 @@ class PhoneActor(Actor):
 
     def can_disconnect_phone(self) -> bool:
         return True
+
+    def chosen_way[T](self, user_way: T, agent_way: T) -> T:
+        return user_way

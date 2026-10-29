@@ -70,8 +70,11 @@ class Plan(Scoped, Commentable):
             return counted
         return counted.with_event(PlanReviewed(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def approved(self, time: float, user_origin: bool, comment_id: int | None = None) -> "Plan":
-        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin, comment_id=comment_id))
+    def user_approved(self, time: float, comment_id: int | None = None) -> "Plan":
+        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True, comment_id=comment_id))
+
+    def agent_approved(self, time: float) -> "Plan":
+        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def task_startable(self, task_id: int) -> "Plan":
         if self.state.is_unapproved():
@@ -103,8 +106,11 @@ class Plan(Scoped, Commentable):
     def delegated(self, time: float) -> "Plan":
         return self.moved(PlanState.DELEGATED).with_event(PlanDelegated(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def postponed(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.PAUSED).with_(pauser=USER_PAUSER if user_origin else AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def user_postponed(self, time: float) -> "Plan":
+        return self.moved(PlanState.PAUSED).with_(pauser=USER_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True))
+
+    def agent_postponed(self, time: float) -> "Plan":
+        return self.moved(PlanState.PAUSED).with_(pauser=AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def with_return(self, time: float) -> "Plan":
         return self.with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=True))
@@ -130,8 +136,11 @@ class Plan(Scoped, Commentable):
     def finished(self, time: float) -> "Plan":
         return self.moved(PlanState.FINISHED).with_event(PlanFinished(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def cancelled(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def user_cancelled(self, time: float) -> "Plan":
+        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True))
+
+    def agent_cancelled(self, time: float) -> "Plan":
+        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def moved(self, state: PlanState) -> "Plan":
         if not self.state.can_become(state):

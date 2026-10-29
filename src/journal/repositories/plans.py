@@ -1,3 +1,4 @@
+from typing import Callable
 from datetime import datetime, timezone
 from journal.db.connection import Connection
 from journal.db.query import Query
@@ -35,15 +36,27 @@ class Plans(ScopedRepository[Plan]):
         super().__init__(connection, bus, scope, time_source)
         self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
 
-    def approve(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
+    def user_approved(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
+        return self.approval(plan, actor, lambda time: plan.user_approved(time, comment_id))
+
+    def agent_approved(self, plan: Plan, actor: Actor) -> Plan:
+        return self.approval(plan, actor, plan.agent_approved)
+
+    def approval(self, plan: Plan, actor: Actor, approved: Callable[[float], Plan]) -> Plan:
         if plan.is_reviewing():
             raise Rejection(f"plan {plan.id} is in review: it can be approved once its reviewers are back and their findings are in it")
         if plan.state in (PlanState.STARTED, PlanState.FINISHED, PlanState.CANCELLED):
             return plan
-        return self.save(plan.approved(self._time().timestamp(), actor.is_user(), comment_id), actor)
+        return self.save(approved(self._time().timestamp()), actor)
 
-    def cancel(self, plan: Plan, actor: Actor) -> list[Task]:
-        self.save(plan.cancelled(self.time_source.moment().timestamp(), actor.is_user()), actor)
+    def user_cancelled(self, plan: Plan, actor: Actor) -> list[Task]:
+        return self.cancellation(plan, actor, plan.user_cancelled)
+
+    def agent_cancelled(self, plan: Plan, actor: Actor) -> list[Task]:
+        return self.cancellation(plan, actor, plan.agent_cancelled)
+
+    def cancellation(self, plan: Plan, actor: Actor, cancelled_plan: Callable[[float], Plan]) -> list[Task]:
+        self.save(cancelled_plan(self.time_source.moment().timestamp()), actor)
         cancelled = []
         for task in self.plan_tasks(plan):
             if task.is_closed() or self.is_shared(task, plan):
@@ -297,9 +310,15 @@ class Plans(ScopedRepository[Plan]):
     def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
-    def postpone(self, plan: Plan, actor: Actor) -> Plan:
+    def user_postponed(self, plan: Plan, actor: Actor) -> Plan:
+        return self.postponement(plan, actor, plan.user_postponed)
+
+    def agent_postponed(self, plan: Plan, actor: Actor) -> Plan:
+        return self.postponement(plan, actor, plan.agent_postponed)
+
+    def postponement(self, plan: Plan, actor: Actor, postponed_plan: Callable[[float], Plan]) -> Plan:
         time = self.time_source.moment()
-        postponed = self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)
+        postponed = self.save(postponed_plan(time.timestamp()), actor)
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
             self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
         return postponed

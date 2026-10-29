@@ -113,6 +113,9 @@ class Actor:
     def can_share_environments(self) -> bool:
         return False
 
+    def chosen_way[T](self, user_way: T, agent_way: T) -> T:
+        return agent_way
+
     def __eq__(self, compared: object) -> bool:
         return isinstance(compared, Actor) and (self.actor_type, self.id) == (compared.actor_type, compared.id)
 

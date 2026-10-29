@@ -32,3 +32,6 @@ class UserActor(Actor):
 
     def can_share_environments(self) -> bool:
         return True
+
+    def chosen_way[T](self, user_way: T, agent_way: T) -> T:
+        return user_way

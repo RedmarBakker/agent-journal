@@ -8,7 +8,7 @@ from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 from journal.features.workers.support.work_mode import WorkMode
 
-MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, PlanState.PAUSED: lambda plan, time: plan.postponed(time, False)}
+MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, PlanState.PAUSED: Plan.agent_postponed}
 
 
 class PlanDelegation(Listener[Updated]):

@@ -234,7 +234,7 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         if not caller.actor.can_approve_plans_alone() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
             raise Rejection(APPROVAL_REFUSAL)
-        plan = self.plans.approve(plan, caller.actor)
+        plan = caller.actor.chosen_way(self.plans.user_approved, self.plans.agent_approved)(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
@@ -283,7 +283,7 @@ class PlanCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.postpone(self.plans.find(args.n), caller.actor)
+        plan = caller.actor.chosen_way(self.plans.user_postponed, self.plans.agent_postponed)(self.plans.find(args.n), caller.actor)
         print(f"plan {plan.id} paused")
         return 0
 
@@ -313,7 +313,7 @@ class PlanCommand(Command):
 
     def cancel(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        cancelled = self.plans.cancel(plan, caller.actor)
+        cancelled = caller.actor.chosen_way(self.plans.user_cancelled, self.plans.agent_cancelled)(plan, caller.actor)
         print(f"plan {plan.id} cancelled" + (f", with tasks {', '.join(str(t.id) for t in cancelled)}" if cancelled else ""))
         return 0
 
