@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 
 const api = {launchAgent: vi.fn(), stopAgentIn: vi.fn(), page: (name) => `/chat?env=${name}`};
-vi.mock("../src/api/client.js", () => ({api}));
+vi.mock("../src/api/client.js", async (importOriginal) => ({...(await importOriginal()), api}));
 vi.mock("../src/kit/MenuPanel.vue", () => ({default: {props: ["anchor"], template: "<div class='menu-panel'><slot /></div>"}}));
 
 const {default: PlanAgentSection} = await import("../src/resource/PlanAgentSection.vue");
