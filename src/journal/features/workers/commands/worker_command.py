@@ -3,6 +3,7 @@ from journal.features.team.support.start_rule import StartRule
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 from journal.features.workers.support.report_argument import ReportArgument
+from journal.features.organization.support.cardinality import Cardinality
 
 from journal.repositories.setting_rows import SettingRows
 from journal.features.tasks.active_task import ActiveTask
@@ -35,6 +36,7 @@ from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.models.worker_state import WorkerState
+from journal.models.plan_mode import PlanMode
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
@@ -197,7 +199,10 @@ class WorkerCommand(Command):
         testing = self.testing_template(args.tests)
         brief = "\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part)
         profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
-        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=self.instances.plan_of(task) if role else 0, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        plan_id = self.instances.plan_of(task) if role else 0
+        organization_plan = plan_id and self.plans.find(plan_id).mode is PlanMode.ORGANIZATION
+        worktree = args.worktree or bool(organization_plan and role and role.cardinality is Cardinality.MANY and role.has_worktree())
+        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=plan_id, worktree=worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)

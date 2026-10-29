@@ -235,6 +235,27 @@ class SeatRuntime:
     def send(self, seat: SeatMember, text: str) -> None:
         self.run("send", seat.target, text, "--json")
 
+    def start_rig(self, spec: Path) -> None:
+        self.run("up", str(spec), "--json")
+
+    def rig_exists(self, rig: str) -> bool:
+        return self.run("ps", "--nodes", "--json", "--rig", rig, check=False).returncode == 0
+
+    def launch_node(self, rig: str, logical_id: str) -> None:
+        self.run("launch", rig, logical_id, "--json")
+
+    def expand(self, rig: str, pod: Path, root: Path) -> None:
+        self.run("expand", rig, str(pod), "--json", "--rig-root", str(root))
+
+    def add(self, rig: str, pod: str, member: Path, root: Path) -> None:
+        self.run("add", rig, pod, str(member), "--json", "--rig-root", str(root))
+
+    def remove_node(self, rig: str, logical_id: str) -> None:
+        self.run("remove", rig, logical_id, "--json")
+
+    def edge(self, rig: str, source: str, target: str) -> None:
+        self.run("edge", "add", rig, source, target, "--kind", "delegates_to", "--json")
+
     def launch(self, seat: SeatMember, reason: str) -> None:
         self.run("seat", "launch", "--fresh", seat.target, "--reason", reason, "--operator", "journal", "--json")
 

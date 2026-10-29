@@ -28,6 +28,7 @@ from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
 from journal.features.organization.support.hub_routes import HubRoutes
+from journal.features.organization.support.cardinality import Cardinality
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -248,8 +249,13 @@ class WorkerActions:
         return f"it went straight on to task {task.id} from its queue, in its own session and worktree", task.id
 
     def merged_worktree_line(self, worker: Worker) -> str:
+        role = self.runner.roles.organization.at(worker.contract).role(worker.role) if worker.contract and worker.role else None
+        if role and role.cardinality is Cardinality.MANY and worker.plan_id and self.runner.seats.applies(worker):
+            self.runner.seats.retire(worker)
         if not worker.worktree:
             return ""
+        if role and role.cardinality is Cardinality.MANY:
+            return self.branch.dropped(worker)
         clashing = self.branch.rebased_onto_branch(worker)
         if clashing:
             return f"its worktree stays as it was, since {clashing}"
