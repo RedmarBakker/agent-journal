@@ -25,13 +25,15 @@ class ContractReader:
 
     def read(self) -> Contracts:
         try:
-            root = self.folder.path()
+            root, commit = self.folder.source()
         except RevisionUnreadable as unreadable:
-            return Contracts((), (), (ContractProblem(self.folder.version(), "version", str(unreadable)),), "")
+            named = self.folder.named()
+            return Contracts((), (), (ContractProblem(self.folder.version(), "version", str(unreadable)),), "", str(named) if named else "", "")
         if root is None:
-            return Contracts((), (), (), "")
+            return Contracts((), (), (), "", "", "")
         if not root.is_dir():
-            return Contracts((), (), (ContractProblem(str(root), "folder", f"The organization folder {root} does not exist; set it on the Settings page"),), "")
+            named = self.folder.named()
+            return Contracts((), (), (ContractProblem(str(root), "folder", f"The organization folder {root} does not exist; set it on the Settings page"),), "", str(named) if named else "", "")
         known, problems, domains, roles, present = self.skills.known(root), [], [], [], {}
         for folder in self.folders(root / DOMAINS):
             domain = self.domain(root, folder, known, problems)
@@ -43,7 +45,8 @@ class ContractReader:
                 problems.append(ContractProblem(self.relative(root, folder), "domain", f"domain {folder.name} has Roles but no readable domain.toml; its Roles are left out"))
         problems += self.rules.check(tuple(domains), tuple(roles), present)
         bad = {problem.path for problem in problems if problem.is_error()}
-        return Contracts(tuple(domain for domain in domains if self.path_of(domain) not in bad), tuple(role for role in roles if self.rules.role_path(role) not in bad), tuple(problems), self.digest(root))
+        named = self.folder.named()
+        return Contracts(tuple(domain for domain in domains if self.path_of(domain) not in bad), tuple(role for role in roles if self.rules.role_path(role) not in bad), tuple(problems), self.digest(root), str(named) if named else "", commit)
 
     def has_changed(self, read: Contracts) -> bool:
         root = self.folder.named()

@@ -142,6 +142,18 @@ export class ApiClient {
         return this.post(this.here("/settings"), body);
     }
 
+    organization() {
+        return this.get(this.here("/organization"));
+    }
+
+    organizationRole(domain, role) {
+        return this.get(this.here(`/organization/roles/${encoded(domain)}/${encoded(role)}`));
+    }
+
+    reloadOrganization() {
+        return this.post(this.here("/organization/reload"), {});
+    }
+
     releases() {
         return this.get("/updates");
     }

@@ -13,7 +13,7 @@ LONG_TEXTS = ("guidance",)
 
 
 class OrganizationController:
-    """The agentic organization for the viewer in one answer: its domains with their Roles, the problems found in its files, the version read, each domain's board of plans and its live counts; the counts are also the rows of domain_counts, which the viewer's sync keeps current, and reload reads the folder again."""
+    """The viewer's organization data: source path and commit, domains with their Roles and live counts, contract problems and plan boards; a Role detail keeps its full contract and guidance for the side panel."""
 
     def __init__(self, organization: Organization, domain_plans: DomainPlans, counts: DomainCounts) -> None:
         self.organization, self.domain_plans, self.counts = organization, domain_plans, counts
@@ -26,8 +26,13 @@ class OrganizationController:
 
     def shown(self, contracts) -> dict:
         counts = {row.name: row for row in self.counts.all_matching()}
-        return {"version": contracts.version, "problems": [asdict(problem) for problem in contracts.problems],
+        return {"folder": contracts.folder, "commit": contracts.commit, "version": contracts.version, "problems": [asdict(problem) for problem in contracts.problems],
                 "domains": [self.domain(domain, contracts.roles_of(domain.id), counts.get(domain.id)) for domain in contracts.domains]}
+
+    def role_contract(self, request: Request) -> Response:
+        domain_id, role_id = request.params["domain"], request.params["role"]
+        role = next((role for role in self.organization.contracts().roles if role.domain == domain_id and role.id == role_id), None)
+        return Response.json(asdict(role)) if role else Response.absent(f"no Role {role_id} in domain {domain_id}")
 
     def domain(self, domain: Domain, roles: tuple[Role, ...], count) -> dict:
         shown = {name: value for name, value in asdict(domain).items() if name not in LONG_TEXTS}

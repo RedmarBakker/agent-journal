@@ -111,6 +111,7 @@ class Routes:
         router.post(f"{API}/developer/nudges/reset", get(NudgeCountController).reset)
         organization = get(OrganizationController)
         router.get(f"{API}/organization", organization.index)
+        router.get(f"{API}/organization/roles/{{domain}}/{{role}}", organization.role_contract)
         router.post(f"{API}/organization/reload", organization.reload)
         self.listed(router, "domain_counts", get(DomainCountController))
         router.get(f"{API}/developer/readers", get(ReaderMeasureController).index)

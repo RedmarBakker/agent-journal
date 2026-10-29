@@ -19,6 +19,13 @@ class ContractFolder:
     def version(self) -> str:
         return str(self.settings.option(OrganizationOptions.VERSION)).strip()
 
+    def source(self) -> tuple[Path | None, str]:
+        folder, ref = self.named(), self.version()
+        if not folder or not folder.is_dir():
+            return folder, ""
+        if ref:
+            return self.revision.snapshot(folder, ref)
+        return folder, self.revision.commit(folder, "HEAD")
+
     def path(self) -> Path | None:
-        folder = self.named()
-        return self.revision.extracted(folder, self.version()) if folder and folder.is_dir() and self.version() else folder
+        return self.source()[0]

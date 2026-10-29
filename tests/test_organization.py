@@ -5,6 +5,7 @@ from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support.tool_ids import ToolIds
+from journal.support.inner_repositories import InnerRepositories
 import pytest
 
 from journal.providers.claude import Claude
@@ -559,7 +560,13 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     from journal.repositories.workers import Workers
     from journal.support.actor import Actor
     from tests.in_process import answered, got
-    loaded(app, tmp_path)[1].reload()
+    fixture, organization = loaded(app, tmp_path)
+    git = lambda *args: InnerRepositories.git(fixture.root, "-c", "user.name=Test", "-c", "user.email=test@example.com", *args)
+    assert git("init", "-q").returncode == 0
+    git("add", "-A")
+    assert git("commit", "-q", "-m", "organization").returncode == 0
+    commit = git("rev-parse", "HEAD").stdout.strip()
+    organization.reload()
     tasks, workers, plans, links, counts = (app.container.get(kind) for kind in (Tasks, Workers, Plans, Links, DomainCounts))
     actor, now = Actor.system(), datetime.now(timezone.utc)
     env = {"X-Journal-Env": "main"}
@@ -582,9 +589,12 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         assert {row.name: row.roles for row in counts.all_matching()}["beta"] == {"keeper": {"instances": 0, "queued": 0}}, "an instance that is released stops being counted, and so does its queue"
         assert {row.name: row.plans_active for row in counts.all_matching()}["beta"] == 0, "and beta's plan is no longer active once its task is done"
     status, shown = got(app, "/journal/organization", env)
+    assert shown["folder"] == str(fixture.root) and shown["commit"] == commit, "the page answer names the actual folder and the commit it reads"
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
     builder_role = next(role for role in alpha["roles"] if role["id"] == "builder")
     assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
+    status, builder_contract = got(app, "/journal/organization/roles/alpha/builder", env)
+    assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
     assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "active": True, "tasks": [built.id, looked.id], "done": 0}], "with the counts and the board of plans"
     listed = got(app, "/journal/domain_counts", env)[1]["rows"]
     assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"

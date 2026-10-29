@@ -14,12 +14,14 @@ CONTAINMENT = "contains"
 
 @dataclass(frozen=True)
 class Contracts:
-    """Every domain and Role read from the organization folder, what was wrong in the files left out, and a digest of the bytes read."""
+    """Every domain and Role read from the organization folder, what was wrong in the files left out, the digest of the bytes, and the source path and commit read."""
 
     domains: tuple[Domain, ...]
     roles: tuple[Role, ...]
     problems: tuple[ContractProblem, ...]
     version: str
+    folder: str = ""
+    commit: str = ""
 
     def is_empty(self) -> bool:
         return not self.domains and not self.roles

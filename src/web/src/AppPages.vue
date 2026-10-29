@@ -8,6 +8,7 @@ import GitPage from "./pages/GitPage.vue";
 import Home from "./pages/Home.vue";
 import Index from "./pages/Index.vue";
 import IntegrationsPage from "./pages/IntegrationsPage.vue";
+import OrganizationPage from "./pages/OrganizationPage.vue";
 import PluginsPage from "./pages/PluginsPage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import SearchPage from "./pages/SearchPage.vue";
@@ -51,6 +52,7 @@ const open = (row) => peek(row.table, row.id);
         <template #requests><RequestsPage /></template>
         <template #worker><WorkerHome /></template>
         <template #mcp><IntegrationsPage /></template>
+        <template #organization><OrganizationPage /></template>
         <template #resources><ResourcesPage /></template>
         <template #file><FilePage /></template>
         <template #default><Index :table="route.page" /></template>

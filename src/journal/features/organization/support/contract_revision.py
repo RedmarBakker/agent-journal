@@ -18,14 +18,21 @@ class ContractRevision:
         self.config = config
 
     def extracted(self, folder: Path, ref: str) -> Path:
-        commit = InnerRepositories.git(folder, "rev-parse", "--verify", f"{ref}^{{commit}}")
-        if commit.returncode != 0:
+        return self.snapshot(folder, ref)[0]
+
+    def snapshot(self, folder: Path, ref: str) -> tuple[Path, str]:
+        sha = self.commit(folder, ref)
+        if not sha:
             raise RevisionUnreadable(f"The version {ref} is not a commit of the repository holding {folder}; name a branch, a tag or a commit, or clear the version")
-        sha = commit.stdout.strip()
         target = self.config.home / "organization" / sha[:12]
         if not target.is_dir():
             self.extract(folder, sha, target)
-        return target
+        return target, sha
+
+    @staticmethod
+    def commit(folder: Path, ref: str) -> str:
+        commit = InnerRepositories.git(folder, "rev-parse", "--verify", f"{ref}^{{commit}}")
+        return commit.stdout.strip() if commit.returncode == 0 else ""
 
     def extract(self, folder: Path, sha: str, target: Path) -> None:
         prefix = InnerRepositories.git(folder, "rev-parse", "--show-prefix").stdout.strip().rstrip("/")
