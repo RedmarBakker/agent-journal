@@ -216,7 +216,7 @@ class StateMachine:
         resolved = self.agents.save(agent.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())), actor)
         self.delivery.moved(agent.environment_id, typist.moves)
         if self.is_moved(agent, stack):
-            self.changes.moved(agent, stack.serialized(), cause, actor, previous.removed_states(stack))
+            self.changes.moved(agent, stack.serialized(), cause, actor, previous.removed_states(stack), stack.removed_states(previous))
         return resolved
 
     @staticmethod

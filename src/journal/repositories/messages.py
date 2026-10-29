@@ -25,6 +25,8 @@ CHAT_PAGE_ROWS = 400
 NEWEST_SHOWN = 2000
 # how long a message the agent read waits for its answer; one read longer ago never holds the agent
 WAITING_HOURS = 24
+# the most cards a chat keeps docked above it, which the viewer reads apart from the chat's pages
+DOCKED_CARD_COUNT = 50
 
 
 class Messages(ScopedRepository[Message]):
@@ -164,6 +166,11 @@ class Messages(ScopedRepository[Message]):
         if previous:
             query = query.filter_less("created_at", self.find(previous).created_at.isoformat())
         return query
+
+    def docked_cards(self, chat: Query) -> list[Message]:
+        docked = chat.filter_json("data->docked", True)
+        shown = docked.filter_alternatives(docked.filter_null("data->undock_at"), docked.filter_greater("data->undock_at", self.time_source.seconds()))
+        return self.selected(shown.order_descending("id").limit(DOCKED_CARD_COUNT))
 
     def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))

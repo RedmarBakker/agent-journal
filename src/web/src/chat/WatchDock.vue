@@ -135,7 +135,9 @@ watch(
             <template v-if="stoppable">
                 <RunStop :what="what" above @stop="stop" />
             </template>
-            <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
+            <template v-if="!card.waiting_run || !card.active">
+                <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
+            </template>
         </template>
         <template v-if="statuses.length">
             <ul class="watch-dock-statuses">

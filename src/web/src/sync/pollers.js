@@ -20,6 +20,11 @@ const newest = () => (store.entries.length ? store.entries[store.entries.length 
 const polledTo = {env: "", id: 0};
 const busy = () => Boolean(store.bar && store.bar.length) || isActive(agent.value && agent.value.status);
 
+// the cards docked above a chat, read apart from its pages so a card older than the newest page is still drawn
+function readDockedCards({session}) {
+    return (session ? api.chat(session, {docked: true}) : api.list("messages", {docked: true})).then((got) => got.rows || []);
+}
+
 // the steps of every reviewer the journal sent here, read from each one's own chat, its newest steps
 function readReviewSteps() {
     return api
@@ -114,6 +119,7 @@ export const POLLERS = Object.freeze({
     "team.chat": {read: () => api.teamChat(), every: 10000},
     "side.thread": {read: () => api.sideThread(), every: 3000},
     "outputs.running": {read: () => api.runningOutputs(), every: 3000},
+    "messages.docked": {read: readDockedCards, every: 1000, by: ({session}) => session || "main"},
     "mcp.servers": {read: () => api.mcp(), every: 30000},
     "developer.readers": {read: () => api.developerReaders(), every: 5000},
     "share.page": {read: () => sharedData(), every: 20000},

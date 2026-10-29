@@ -41,6 +41,7 @@ import RunMenu from "./RunMenu.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
 import {dockedDump, dockedRows, isRun, keptRuns, streamRows} from "../domain/docks.js";
+import {useDockedCards} from "../composables/dockedCards.js";
 import {useRunGroup} from "../composables/runGroup.js";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
@@ -128,7 +129,8 @@ const {waiting: waitingNow, open: waitingOpen, anchor: waitingAnchor, toggle: to
 const planCard = computed(() => cardPlan(rows("plans"), planCardChoice.value));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
 const dockNow = useSharedNow();
-const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));
+const dockCards = useDockedCards(chat);
+const rowDocks = computed(() => dockedRows(dockCards.value, dockNow.value));
 // the runs docked are drawn together (chat/DockGroup.vue), as cards or, from three at once, folded into one compact row; the rows docked
 // from their inspectors are drawn alone
 const runDocks = computed(() => keptRuns(rowDocks.value.filter(isRun)));

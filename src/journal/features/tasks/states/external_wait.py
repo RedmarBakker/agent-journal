@@ -70,6 +70,10 @@ class ExternalWait(Wait):
     def is_output_wait(self) -> bool:
         return any(target.startswith(f"{CommandOutput.table()}:") for target in self.targets())
 
+    def wait_output_ids(self) -> set[int]:
+        prefix = f"{CommandOutput.table()}:"
+        return {int(target.removeprefix(prefix)) for target in self.targets() if target.startswith(prefix)}
+
     def targets(self) -> list[str]:
         return [ref for ref in self.end_refs.split(",") if ref]
 

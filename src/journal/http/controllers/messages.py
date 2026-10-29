@@ -36,6 +36,8 @@ class MessageController(Controller[Message]):
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
+        if request.query.get("docked"):
+            return self.docked_listed(self.repository.main_chat())
         if request.query.get("comments"):
             return self.comments_listed(Listing.query_listing(request.query))
         if "on" not in request.query:
@@ -63,7 +65,13 @@ class MessageController(Controller[Message]):
         rows, has_older = self.repository.message_page(chat, listing.limit, listing.upper_id, listing.lower_id)
         return RowListPage(rows=rows, is_last_page=not has_older)
 
+    def docked_listed(self, chat: Query) -> Response:
+        rows = self.repository.docked_cards(chat)
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0)))
+
     def agent_chat(self, request: Request) -> Response:
+        if request.query.get("docked"):
+            return self.docked_listed(self.repository.agent_chat(request.params["session"]))
         listing = Listing.query_listing(request.query)
         page = self.chat_page(self.repository.agent_chat(request.params["session"]), listing)
         return Response.json(RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=Counts(all=len(page["rows"]), open=0, unread=0)))

@@ -229,6 +229,11 @@ class StoryChecks:
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
 
+    def expect_card_data(self, n: int, **fields) -> None:
+        data = self.api_row("messages", n).get("data") or {}
+        card_fields = {name: data.get(name) for name in fields}
+        assert card_fields == fields, f"the card of message {n} holds {card_fields}, not {fields}"
+
     def expect_newest_agent_message(self, text: str) -> None:
         agent_rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
         newest = max(agent_rows, key=lambda row: row["id"]) if agent_rows else {}

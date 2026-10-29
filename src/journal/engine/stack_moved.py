@@ -7,7 +7,7 @@ from journal.models.agent import Agent
 
 @dataclass(frozen=True, kw_only=True)
 class StackMoved(Event):
-    """An agent's stack changed: the agent as it was, the state on top before, the state on top after, the event that caused it, when, and the states the move removed, with the wait seconds they count against the agent."""
+    """An agent's stack changed: the agent as it was, the state on top before, the state on top after, the event that caused it, when, the states the move removed, with the wait seconds they count against the agent, and the states it added."""
 
     agent: Agent
     old_top: str
@@ -15,6 +15,7 @@ class StackMoved(Event):
     cause: str
     moved_at: float
     removed_states: tuple[BaseState, ...]
+    added_states: tuple[BaseState, ...]
 
     def counted_wait_seconds(self, uncounted_seconds: int) -> int:
         return sum(state.counted_wait_seconds(self.moved_at, uncounted_seconds) for state in self.removed_states)

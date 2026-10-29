@@ -99,6 +99,9 @@ class BaseState:
     def counted_wait_seconds(self, ended_at: float, uncounted_seconds: int) -> int:
         return 0
 
+    def wait_output_ids(self) -> set[int]:
+        return set()
+
     def is_mode_bound(self) -> bool:
         return False
 

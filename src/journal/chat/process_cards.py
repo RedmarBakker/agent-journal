@@ -13,6 +13,8 @@ PINNED = "pinned"
 LAST_PROGRESS_KEY = "last_progress"
 DOCK_TIME_KEY = "dock_at"
 UNDOCK_TIME_KEY = "undock_at"
+# a card of a run an agent waits for, kept docked until the wait ends
+WAITING_RUN = "waiting_run"
 # the mark a card takes when the process it shows ran and ended, done or failed: from then on it is never written again
 FINAL = "final"
 
@@ -62,4 +64,4 @@ class ProcessCards:
 
     @staticmethod
     def docked_data(older: Message, data: dict) -> dict:
-        return {**{key: older.data[key] for key in (DOCKED, PINNED, DOCK_TIME_KEY, LAST_PROGRESS_KEY) if key in older.data}, **data}
+        return {**{key: older.data[key] for key in (DOCKED, PINNED, DOCK_TIME_KEY, LAST_PROGRESS_KEY, WAITING_RUN) if key in older.data}, **data}

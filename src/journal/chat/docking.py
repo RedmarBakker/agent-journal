@@ -21,7 +21,7 @@ from journal.repositories.triggers import Triggers
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.chat.auto_dock import AutoDock
-from journal.chat.process_cards import DOCKED, PINNED, UNDOCK_TIME_KEY
+from journal.chat.process_cards import DOCK_TIME_KEY, DOCKED, PINNED, UNDOCK_TIME_KEY, WAITING_RUN
 from journal.chat.row_process_card import RowProcessCard
 from journal.events.announcer import Announcer
 from journal.events.moments.row_docked import RowDocked
@@ -32,6 +32,7 @@ from journal.repositories.scope import Scope
 
 # a link that names a row of the journal, table:number
 ROW_LINK = re.compile(r"^[a-z_]+:\d+$")
+WAIT_DOCK_REFUSAL = "this run stays docked while the agent waits for it: end the wait or stop the run first"
 
 
 
@@ -86,7 +87,15 @@ class Docking:
         return self.saved_with(unpinned, {} if unpinned.data.get("active") else self.auto_dock.undock_fields(unpinned), actor)
 
     def release(self, message: Message, actor: Actor) -> Message:
+        if message.data.get(WAITING_RUN) and message.data.get("active"):
+            raise Rejection(WAIT_DOCK_REFUSAL)
         return self.saved_with(message, {DOCKED: False, PINNED: False}, actor)
+
+    def wait_lock(self, message: Message, actor: Actor) -> Message:
+        return self.saved_with(message, {WAITING_RUN: True, DOCKED: True, DOCK_TIME_KEY: 0, UNDOCK_TIME_KEY: None}, actor)
+
+    def wait_release(self, message: Message, actor: Actor) -> Message:
+        return self.saved_with(message, {WAITING_RUN: False}, actor)
 
     def saved_with(self, message: Message, data: dict, actor: Actor) -> Message:
         return self.messages.save(message.with_merged("data", data), actor)

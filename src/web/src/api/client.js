@@ -14,8 +14,8 @@ function query(fields) {
 
 // which part of a list a read asks for, which keys it apart from the other parts of the same list: its newest page, a page
 // before or after a row, its changes since a moment, rows by id, and each of those among its closed rows
-const readKind = ({before, after, since, ids = [], tasks = [], closed = false}) =>
-    [closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
+const readKind = ({before, after, since, ids = [], tasks = [], closed = false, docked = false}) =>
+    [docked ? "docked" : "", closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
 
 const NO_ENV = "the page does not know its environment yet";
 
@@ -190,14 +190,15 @@ export class ApiClient {
     }
 
     // a resource's rows: a page with its counts, one row, a new one, a change, and an act on one
-    list(table, {limit, before, after, since, ids = [], tasks = [], closed = false} = {}) {
-        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), tasks: tasks.join(","), closed: closed ? "1" : ""})}`);
-        return this.get(path, `${table}.${readKind({before, after, since, ids, tasks, closed})}`);
+    list(table, {limit, before, after, since, ids = [], tasks = [], closed = false, docked = false} = {}) {
+        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), tasks: tasks.join(","), closed: closed ? "1" : "", docked: docked ? "1" : ""})}`);
+        return this.get(path, `${table}.${readKind({before, after, since, ids, tasks, closed, docked})}`);
     }
 
     // the own chat of a worker or a subagent, by its session
-    chat(session, {limit, before, since} = {}) {
-        return this.get(this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since})}`), `chats/${session}.${readKind({before, since})}`);
+    chat(session, {limit, before, since, docked = false} = {}) {
+        const path = this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since, docked: docked ? "1" : ""})}`);
+        return this.get(path, `chats/${session}.${readKind({before, since, docked})}`);
     }
 
     show(table, id) {

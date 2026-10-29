@@ -30,7 +30,15 @@ class WaitTargets:
 
     @staticmethod
     def wait_check_ids(stack: tuple) -> set[int]:
-        prefix = f"{Check.table()}:"
+        return WaitTargets.wait_row_ids(stack, Check.table())
+
+    @staticmethod
+    def wait_output_ids(stack: tuple) -> set[int]:
+        return WaitTargets.wait_row_ids(stack, CommandOutput.table())
+
+    @staticmethod
+    def wait_row_ids(stack: tuple, table: str) -> set[int]:
+        prefix = f"{table}:"
         return {int(ref.removeprefix(prefix)) for frame in stack if frame.get("state") == EXTERNAL_WAIT for ref in frame.get("data", {}).get("end_refs", "").split(",") if ref.startswith(prefix)}
 
     @staticmethod
