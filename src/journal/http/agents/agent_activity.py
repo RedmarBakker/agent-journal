@@ -40,6 +40,7 @@ from journal.features.workers.support.measure_spec import MeasureSpec
 from journal.features.workers.support.mode_measures import ModeMeasures
 from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
+from journal.features.usage.support.process_usage_store import ProcessUsageStore
 
 STATUS = {events.STOP: "idle", events.SESSION_STARTED: "idle", events.SESSION_ENDED: "stopped", events.COMPACTING: "compacting", events.PROMPT_SUBMITTED: "busy", events.TOOL_STARTING: "busy", events.TOOL_FINISHED: "busy", events.TOOL_FAILED: "busy", events.SUBAGENT_STARTED: "busy", events.SUBAGENT_ENDED: "busy"}
 HISTORY_ENTRIES = 5
@@ -53,8 +54,8 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText) -> None:
-        self.time_source, self.labels, self.text = time_source, labels, text
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText, process_usage: ProcessUsageStore) -> None:
+        self.time_source, self.labels, self.text, self.process_usage = time_source, labels, text, process_usage
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
         self.jobs, self.numbers, self.settings, self.scoring, self.measures = jobs, numbers, settings, scoring, measures
 
@@ -110,6 +111,7 @@ class AgentActivity:
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": StatusLoad.measured(agent),
+            "processes": self.process_usage.agent_fields(agent),
             **self.rolling(),
         }
 

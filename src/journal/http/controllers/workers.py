@@ -22,6 +22,7 @@ from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.worker_todos import WorkerTodos
 from journal.repositories.workers import Workers
+from journal.features.usage.support.process_usage_store import ProcessUsageStore
 
 ACTIVE_WORKER_STATES = (WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED)
 
@@ -31,8 +32,8 @@ class WorkerController(Controller[Worker]):
 
     repository: Workers
 
-    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos, agents: Agents, runs: WorkerRuns, providers: Providers, config: Config) -> None:
-        self.runs, self.providers, self.config = runs, providers, config
+    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos, agents: Agents, runs: WorkerRuns, providers: Providers, config: Config, process_usage: ProcessUsageStore) -> None:
+        self.runs, self.providers, self.config, self.process_usage = runs, providers, config, process_usage
         self.repository, self.reports, self.actions, self.tasks, self.proofs, self.todos, self.agents = workers, reports, actions, tasks, proofs, todos, agents
 
     def check(self, request: Request) -> Response:
@@ -91,7 +92,7 @@ class WorkerController(Controller[Worker]):
         former_tasks, queues, finished, worked = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows), self.tasks.worked_tasks(rows)
         labels, merging = self.runs.labels(rows), self.runs.merging(rows)
         return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []), "worked": [WorkedTask.read(task, finished.get(w.row_id, [])) for task in worked.get(w.row_id, [])],
-                 "holds": self.all_task_ids(w.row_id, views, queues), "agent": agents[w.session].row_id if w.session in agents else 0, "context": self.context(agents.get(w.session)), "report": reports[w.row_id], "runs": labels.get(w.session, []), "merging": w.row_id in merging} for w in rows]
+                 "holds": self.all_task_ids(w.row_id, views, queues), "agent": agents[w.session].row_id if w.session in agents else 0, "context": self.context(agents.get(w.session)), "report": reports[w.row_id], "runs": labels.get(w.session, []), "merging": w.row_id in merging, "processes": self.process_usage.worker_fields(w)} for w in rows]
 
     def context(self, agent: Agent | None) -> int | None:
         if agent is None or not agent.has_program():

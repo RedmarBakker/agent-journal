@@ -82,6 +82,12 @@ const quiet = computed(() => (props.entry.time ? quietOf(props.entry.time, now.v
                         <span class="aw-kind">{{ facts.pace }} an hour</span>
                     </p>
                 </template>
+                <template v-if="facts.processes">
+                    <p class="aw-line" data-fact="processes" title="What the agent's own processes take of this machine">
+                        <span class="aw-key">Machine</span>
+                        <span class="aw-kind">{{ facts.processes }}</span>
+                    </p>
+                </template>
                 <template v-if="facts.contextLeft !== null">
                     <p class="aw-line" data-fact="context">
                         <span class="aw-key">Context left</span>

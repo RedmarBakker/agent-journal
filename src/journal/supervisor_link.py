@@ -18,6 +18,7 @@ from journal.support.supervisor_reply import SupervisorReply
 from journal.support.supervisor_socket import SupervisorSocket
 from journal.repositories.environments import Environments
 from journal.support.time_source import TimeSource
+from journal.support.process_usage import ProcessUsage
 
 JOURNAL_PREFIX = "[journal]"
 LINE_ERASE = "\x15"
@@ -161,6 +162,9 @@ class SupervisorLink:
 
     def memory(self, environment_id: int) -> dict[int, int]:
         return self._send(environment_id, "memory", {}).groups
+
+    def usage(self, environment_id: int, groups: set[int]) -> dict[int, ProcessUsage]:
+        return self._send(environment_id, "usage", {"groups": sorted(groups)}).usage
 
     def stop_service(self, environment_id: int, name: str) -> None:
         self._send(environment_id, "stop", {"name": name})

@@ -37,6 +37,7 @@ function environmentEntry(standing) {
         says: agent.last_message || "",
         doing: agent.doing || "",
         model: agent.model || "",
+        facts: {queued: null, done: null, pace: null, contextLeft: null, processes: processesText(agent.processes)},
         time: seconds(agent.heard_at),
         since: 0,
         waits: Boolean(standing.questions || agent.awaiting),
@@ -46,6 +47,18 @@ function environmentEntry(standing) {
 }
 
 const WORKER_STATES = {running: "working", reported: "waiting", finished: "stopped"};
+
+const GIGABYTE = 1024 ** 3;
+const MEGABYTE = 1024 ** 2;
+
+// what an agent's processes take of the machine, as its cell shows it: CPU 34%, 1.2 GB; nothing until the journal has sampled them
+export function processesText(processes) {
+    if (!processes) {
+        return null;
+    }
+    const memory = processes.resident_bytes >= GIGABYTE ? `${(processes.resident_bytes / GIGABYTE).toFixed(1)} GB` : `${Math.round(processes.resident_bytes / MEGABYTE)} MB`;
+    return `CPU ${Math.round(processes.cpu_percent)}%, ${memory}`;
+}
 
 const HOUR = 3600;
 const perHour = (done, from, to) => (to > from ? Math.round((done * HOUR * 10) / (to - from)) / 10 : 0);
@@ -60,6 +73,7 @@ function workerFacts(worker, now) {
         done: read ? done : null,
         pace: done ? perHour(done, seconds(worker.created_at), ended) : null,
         contextLeft: typeof worker.context === "number" ? Math.max(0, 100 - worker.context) : null,
+        processes: processesText(worker.processes),
     };
 }
 

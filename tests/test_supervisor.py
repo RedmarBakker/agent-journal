@@ -803,3 +803,9 @@ def test_the_supervisor_raises_the_open_file_limit_a_login_shell_starts_it_with(
         assert raised >= min(OPEN_FILES, hard if hard != resource.RLIM_INFINITY else OPEN_FILES), "a supervisor started from a terminal's 256 open files runs the journal and its test runs with room for more"
     finally:
         resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+
+
+def test_group_usage_parsed_sums_the_requested_groups():
+    from supervisor.group_usage import GroupUsage, KILOBYTE
+    listing = "  41  2048  12.5\n  41  1024   1.5\n  77   512  40.0\n"
+    assert GroupUsage.parsed(listing, {41, 99}) == {41: GroupUsage(14.0, 3072 * KILOBYTE), 99: GroupUsage(0.0, 0)}, "the asked groups alone, each summed over its processes, a group with no process at nought"

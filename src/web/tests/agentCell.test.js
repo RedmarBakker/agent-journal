@@ -47,18 +47,18 @@ describe("the four facts of a worker's cell", () => {
         store.rows = {};
         const worker = {id: 5, name: "", brief: "b", state: "clocked in", created_at: 0, updated_at: 7200, agent: 9, context: 35, queue: [{id: 1, title: "a"}, {id: 2, title: "b"}], finished: [3, 4, 6, 7]};
         const [cell] = orchestraOf({environments: []}, [worker], {id: 7, session: "s7"}, "main", 7200);
-        expect(cell.facts).toEqual({queued: 2, done: 4, pace: 2, contextLeft: 65});
+        expect(cell.facts).toEqual({queued: 2, done: 4, pace: 2, contextLeft: 65, processes: null});
     });
 
     test("a worker on its first task shows its queue and nothing finished, with no pace and no context it did not report", () => {
         const worker = {id: 5, name: "", brief: "b", state: "clocked in", created_at: 0, updated_at: 1, agent: 0, context: null, queue: [{id: 1, title: "a"}], finished: []};
         const [cell] = orchestraOf({environments: []}, [worker], {id: 7, session: "s7"}, "main", 3600);
-        expect(cell.facts).toEqual({queued: 1, done: 0, pace: null, contextLeft: null});
+        expect(cell.facts).toEqual({queued: 1, done: 0, pace: null, contextLeft: null, processes: null});
     });
 
     test("a worker not yet read by id shows no queue and no finished count", () => {
         const worker = {id: 5, name: "", brief: "b", state: "clocked in", created_at: 0, updated_at: 1};
         const [cell] = orchestraOf({environments: []}, [worker], {id: 7, session: "s7"}, "main", 3600);
-        expect(cell.facts).toEqual({queued: null, done: null, pace: null, contextLeft: null});
+        expect(cell.facts).toEqual({queued: null, done: null, pace: null, contextLeft: null, processes: null});
     });
 });

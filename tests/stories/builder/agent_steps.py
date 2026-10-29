@@ -17,6 +17,9 @@ from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
 from journal.features.shell.support.shell_runner import EXIT
 from journal.engine.clock import Clock
 from journal.http.controllers.hooks import FIRING_HEADER, SILENCE_HEADER
+from journal.features.usage.support.process_usage_store import ProcessUsageStore
+from journal.support.process_usage import ProcessUsage
+from journal.repositories.agents import Agents
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
 from tests.replay import pass_time
@@ -366,6 +369,11 @@ class AgentSteps:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         self.observed(f"the project holds {name}", None, None)
+
+    def agent_processes_sampled(self, usage: ProcessUsage) -> None:
+        agent = self.app.container.get(Agents).session_agent(self.main_session())
+        self.app.container.get(ProcessUsageStore).replaced({(agent.environment_id, agent.session): usage}, {})
+        self.observed("the machine is sampled for the agent", None, None)
 
     def project_folder_lost(self, name: str) -> None:
         shutil.rmtree(self.app.config.root / name)

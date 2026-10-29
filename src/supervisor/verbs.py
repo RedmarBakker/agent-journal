@@ -4,6 +4,7 @@ import os
 import traceback
 from pathlib import Path
 
+from supervisor.group_usage import GroupUsage
 from supervisor.health_check import HealthCheck
 from supervisor.inbox import PROTOCOL
 from supervisor.reply import Reply
@@ -13,7 +14,7 @@ from supervisor.service import Service
 if TYPE_CHECKING:
     from supervisor.supervisor import Supervisor
 
-VERBS = ("hello", "start", "stop", "restart", "list", "keys", "type", "send", "band", "group", "memory")
+VERBS = ("hello", "start", "stop", "restart", "list", "keys", "type", "send", "band", "group", "memory", "usage")
 
 
 class Verbs:
@@ -64,6 +65,9 @@ class Verbs:
 
     def memory(self, request: Request) -> Reply:
         return Reply.success(groups={str(pid): size for pid, size in self.supervisor.services.memory().items()})
+
+    def usage(self, request: Request) -> Reply:
+        return Reply.success(usage={str(group): usage.fields() for group, usage in GroupUsage.sampled(set(request.needs("groups").groups)).items()})
 
     def band(self, request: Request) -> Reply:
         request.needs("left", "middle", "right")
