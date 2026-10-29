@@ -284,12 +284,14 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
     ):
         status, body = task_hook("Bash", {"command": command})
         assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SOLO_DISPATCH), f"the task agent refuses {command.split()[2]}"
+    task_caller = Caller.agent(f"task-{task.id}", "task-session", "claude")
+    assert console.run(["environment", "overview"], task_caller).code == 0, "the task agent reads its environment before working"
     status, body = task_hook("Write", {"file_path": "src/footer.py", "content": "x"})
     assert status == 200, body.get("error", "the task agent may write its own task")
 
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "src/footer.py", "content": "x"})
     assert status == 409, "the main agent writes no code"
-    completed = console.run(["task", "complete", str(task.id), "--how", "the footer names the shop"], Caller.agent(f"task-{task.id}", "task-session", "claude"))
+    completed = console.run(["task", "complete", str(task.id), "--how", "the footer names the shop"], task_caller)
     assert completed.code == 0, completed.error
     app.runtime().deferred.drain()
     assert environment.row_id in supervisors.stops, "its close stops its agent"
