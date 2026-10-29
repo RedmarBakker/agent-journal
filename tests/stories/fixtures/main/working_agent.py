@@ -11,7 +11,7 @@ class WorkingAgent(StateFixture):
     parent = NewSession
 
     def steps(self, story) -> None:
-        story.agent_looks_at_the_overview(story.agents.subject)
+        story.agent_looks_at_the_overview(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

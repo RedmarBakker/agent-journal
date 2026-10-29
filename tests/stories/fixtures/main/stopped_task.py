@@ -7,7 +7,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class StoppedTask(StateFixture):
-    """The user wakes a stopped agent after ten quiet minutes, and the agent stopped with its task in hand: start.started_task."""
+    """The user wakes a stopped agent after ten quiet minutes, and the agent stopped with its task in hand: story.tasks.started."""
 
     stack = (Ready, Working)
 
@@ -16,7 +16,7 @@ class StoppedTask(StateFixture):
     settings = ((TasksOptions.WAKE_MINUTES, 10),)
 
     def steps(self, story) -> None:
-        story.agent_stops(story.agents.subject)
+        story.agent_stops(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+        story.expect_refused(story.agents.main, TasksNudges.TASK_CONTINUATION)

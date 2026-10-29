@@ -22,7 +22,7 @@ def test_the_session_that_took_over_reads_the_overview_before_it_writes(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -30,22 +30,22 @@ def test_the_session_that_took_over_reads_the_overview_before_it_writes(story):
 def test_a_session_of_the_other_provider_takes_over_too(story):
     story.other_provider_session_starts()
     story.expect_agent_session(story.main_session())
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_takeover_keeps_the_followed_plan_in_hand(story):
     story.second_session_starts()
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_takeover_while_the_agent_waits_keeps_the_wait(story):
     story.second_session_starts()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
 
@@ -56,7 +56,7 @@ def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_n
     story.replaced_session_stops(first)
     story.expect_allowed()
     story.expect_agent_session(story.main_session())
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -67,5 +67,5 @@ def test_a_session_of_the_other_provider_shows_none_of_the_status_the_first_sess
     story.expect_agent_bar_reported()
     story.other_provider_session_starts()
     story.expect_agent_bar_empty()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

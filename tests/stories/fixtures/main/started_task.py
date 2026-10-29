@@ -6,15 +6,15 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class StartedTask(StateFixture):
-    """The agent at work has created the footer and started it, named to the story as start.started_task."""
+    """The agent at work has created the footer and started it, named to the story as story.tasks.started."""
 
     stack = (Ready, Working)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.started_task = story.agent_takes_a_task(story.agents.subject, "the footer")
+        self.tasks.started = story.agent_takes_a_task(story.agents.main, "the footer")
 
     def expected(self, story) -> None:
-        story.expect_task(self.started_task, state=TaskState.STARTED)
-        story.expect_stack(story.agents.subject, Ready, Working)
+        story.expect_task(self.tasks.started, state=TaskState.STARTED)
+        story.expect_stack(story.agents.main, Ready, Working)

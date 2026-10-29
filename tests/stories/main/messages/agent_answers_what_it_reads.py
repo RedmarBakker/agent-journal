@@ -46,7 +46,7 @@ def test_every_tool_waits_after_the_set_uses_until_the_agent_replies(story):
 
 @story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reaction_instead_of_a_reply_lifts_the_hold(story):
-    story.agent_reacts(story.agents.subject, story.fixture.message, "👍")
+    story.agent_reacts(story.agents.subject, story.messages.first, "👍")
     story.agent_reads(story.agents.subject)
     story.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
@@ -71,7 +71,7 @@ def test_a_stop_under_the_hold_goes_through(story):
     story.agent_stops(story.agents.subject)
     story.expect_allowed()
     story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.fixture.message)
+    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.messages.first)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
@@ -85,7 +85,7 @@ def test_the_hold_leaves_the_task_in_hand_as_it_was(story):
     story.agent_replies(story.agents.subject, message, "nearly")
     story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -99,8 +99,8 @@ def test_the_hold_over_a_plan_returns_to_the_plan(story):
     story.agent_replies(story.agents.subject, message, "one task in")
     story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
@@ -115,7 +115,7 @@ def test_a_message_the_agent_never_read_never_holds_its_tools(story):
 
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_is_never_held_for_the_agents_messages(story):
-    worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.fixture.briefed)
+    worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.briefed)
     story.agent_clocks_in(story.agents.workers.get(worker))
     message = story.user_sends_message("is the parser done?")
     story.agent_reads_message(story.agents.subject, message)

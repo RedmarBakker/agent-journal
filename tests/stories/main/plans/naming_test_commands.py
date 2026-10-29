@@ -16,8 +16,8 @@ def test_a_plan_with_no_test_commands_holds_writes_until_they_are_named(story):
     story.expect_refused(story.agents.subject, PlansNudges.TEST_COMMANDS_NEEDED)
     story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan, NamingTestCommands)
 
 
@@ -26,6 +26,6 @@ def test_naming_the_test_commands_lets_the_plan_go_on(story):
     story.user_sets(PlansOptions.TEST_COMMANDS, "journal suite")
     story.agent_writes(story.agents.subject, "a.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

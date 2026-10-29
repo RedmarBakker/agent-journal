@@ -17,5 +17,5 @@ class SilentWorker(StateFixture):
         story.agent_is_quiet_past(story.agents.workers.first(), SILENCE.amount)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.workers.get(self.worker), WorkersNudges.WORKER_LOG_DUE)
+        story.expect_agent_told(story.agents.workers.first(), WorkersNudges.WORKER_LOG_DUE)
         story.expect_agent_not_told(story.agents.main, WorkersNudges.SILENT_WORKER)

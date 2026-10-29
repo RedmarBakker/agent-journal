@@ -11,5 +11,5 @@ def test_an_alias_call_runs_a_real_command_which_lifts_a_wait_where_a_journal_co
     story.agent_runs(story.agents.subject, "await 'the build' --until false")
     story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.fixture.alias} -s")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.aliases.first} -s")
     story.expect_stack(story.agents.subject, Ready)

@@ -15,10 +15,10 @@ class PlanReturn(StateFixture):
     parent = PausedPlanOutsideTask
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"plan return {self.plan} yes")
+        story.agent_runs(story.agents.main, f"plan return {self.plans.first} yes")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_plan(self.plan, state=PlanState.STARTED)
-        story.expect_task(self.fix, state=TaskState.STARTED)
-        story.expect_stack(story.agents.subject, Ready, FollowingPlan, Working)
+        story.expect_plan(self.plans.first, state=PlanState.STARTED)
+        story.expect_task(self.tasks.outside, state=TaskState.STARTED)
+        story.expect_stack(story.agents.main, Ready, FollowingPlan, Working)

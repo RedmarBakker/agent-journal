@@ -7,7 +7,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class VerifierJudgingDismissal(StateFixture):
-    """The agent searched a background run by hand until the journal read it with a reader of its own and raised a report on it, the agent dismissed the report with a reason, and the verifier the journal sent to judge that started: start.verifier."""
+    """The agent searched a background run by hand until the journal read it with a reader of its own and raised a report on it, the agent dismissed the report with a reason, and the verifier the journal sent to judge that started: story.agents.verifiers.first()."""
 
     stack = (Ready,)
 
@@ -16,14 +16,14 @@ class VerifierJudgingDismissal(StateFixture):
     settings = ((FOREGROUND_OPTION, 1),)
 
     def steps(self, story) -> None:
-        output = story.agent_runs_a_command(story.agents.subject, "sh -c 'echo started; sleep 3'")
+        output = story.agent_runs_a_command(story.agents.main, "sh -c 'echo started; sleep 3'")
         for _ in range(HAND_READS):
-            story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {output} --grep started")
+            story.agent_runs_in_the_shell(story.agents.main, f"journal output read {output} --grep started")
         story.background_run_ends(output)
         report = story.told_number(ShellNudges.REPORT_RAISED, "n")
-        story.agent_runs(story.agents.subject, f"reader dismiss {report} --why 'the run printed one line, which the reader shows'")
-        self.verifier = story.newest("verifiers")
-        story.agent_starts_a_session(story.agents.verifiers.get(self.verifier))
+        story.agent_runs(story.agents.main, f"reader dismiss {report} --why 'the run printed one line, which the reader shows'")
+        self.verifiers.first = story.newest("verifiers")
+        story.agent_starts_a_session(story.agents.verifiers.first())
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

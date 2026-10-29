@@ -17,5 +17,5 @@ def test_a_paused_agent_is_refused_its_writes_and_told_to_carry_on_when_resumed(
     story.expect_refused(story.agents.subject, PausingNudges.PAUSED)
     story.user_resumes_the_agent()
     story.expect_agent_told(story.agents.subject, PausingNudges.RESUMED)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

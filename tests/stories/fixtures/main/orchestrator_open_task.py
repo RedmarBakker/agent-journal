@@ -14,7 +14,7 @@ class OrchestratorOpenTask(StateFixture):
     settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
-        story.agent_reads(story.agents.subject)
+        story.agent_reads(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Orchestrating)
+        story.expect_stack(story.agents.main, Orchestrating)

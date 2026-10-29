@@ -14,8 +14,8 @@ class EndedTask(StateFixture):
     parent = StartedTask
 
     def steps(self, story) -> None:
-        story.agent_ends_the_session(story.agents.subject)
+        story.agent_ends_the_session(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_task(self.started_task, state=TaskState.STARTED)
-        story.expect_stack(story.agents.subject, Ready, Working, Ended)
+        story.expect_task(self.tasks.started, state=TaskState.STARTED)
+        story.expect_stack(story.agents.main, Ready, Working, Ended)

@@ -12,7 +12,7 @@ from tests.stories.fixtures.main.written_document import WrittenDocument
 
 @story(WrittenDocument, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_comment_on_a_document_asks_for_the_reply_and_the_change_in_the_document(story):
-    comment = story.user_comments_on("docs", story.fixture.document, "put the copyright in the footer too")
+    comment = story.user_comments_on("docs", story.documents.first, "put the copyright in the footer too")
     story.agent_reads_message(story.agents.subject, comment)
     story.expect_agent_told(story.agents.subject, MessagesNudges.COMMENT_READ, n=comment)
     story.expect_agent_not_told(story.agents.subject, MessagesNudges.MESSAGE_READ)
@@ -25,5 +25,5 @@ def test_a_comment_with_a_task_in_hand_leaves_the_task_as_it_was(story):
     comment = story.user_comments_on("docs", document, "put the copyright in the footer too")
     story.agent_reads_message(story.agents.subject, comment)
     story.expect_agent_told(story.agents.subject, MessagesNudges.COMMENT_READ, n=comment)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, FollowingSequence)

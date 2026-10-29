@@ -6,15 +6,15 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 class DraftPlan(StateFixture):
-    """The agent drafted a plan, which starts the plan building sequence: start.plan, a draft with no phase."""
+    """The agent drafted a plan, which starts the plan building sequence: story.plans.first, a draft with no phase."""
 
     stack = (Ready, FollowingSequence)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.plan = story.agent_creates_plan(story.agents.subject, "the site", "the site is built")
+        self.plans.first = story.agent_creates_plan(story.agents.main, "the site", "the site is built")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.DRAFT)
-        story.expect_stack(story.agents.subject, Ready, FollowingSequence)
+        story.expect_plan(self.plans.first, state=PlanState.DRAFT)
+        story.expect_stack(story.agents.main, Ready, FollowingSequence)

@@ -17,7 +17,7 @@ def test_the_task_start_is_counted_as_a_kind_of_stack_change_and_with_no_story_r
     story.expect_command_passed()
     story.expect_command_text(TASK_START_CAUSE)
     story.expect_command_text("no full scenario run has written")
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -27,5 +27,5 @@ def test_a_kind_the_last_story_run_did_not_walk_is_marked(story):
     story.story_run_walked("no state > idle on session_started")
     story.agent_runs(story.agents.subject, "developer transitions")
     story.expect_command_text("no story walks it")
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

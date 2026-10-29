@@ -12,10 +12,10 @@ def test_a_fixture_is_seeded_once_and_its_copy_is_the_state_the_seeder_reached(a
     pinned_clock(app, monkeypatch)
     seeded = Story(app, VoidProvider, SettingReads(), copies)
     seeded.reach(StartedTask)
-    reached = (seeded.fixture.started_task, seeded.stack(), seeded.api_row("tasks", seeded.fixture.started_task)["state"])
+    reached = (seeded.tasks.started, seeded.stack(), seeded.api_row("tasks", seeded.tasks.started)["state"])
     assert set(copies.copies) == {(NewSession, VoidProvider.name), (WorkingAgent, VoidProvider.name), (StartedTask, VoidProvider.name)}, "the fixture and each one it builds on are kept once"
 
     journal.reset()
     copied = Story(app, VoidProvider, SettingReads(), copies)
     copied.reach(StartedTask)
-    assert (copied.fixture.started_task, copied.stack(), copied.api_row("tasks", copied.fixture.started_task)["state"]) == reached, "a story from the copy starts from the rows and the stack the seeder reached"
+    assert (copied.tasks.started, copied.stack(), copied.api_row("tasks", copied.tasks.started)["state"]) == reached, "a story from the copy starts from the rows and the stack the seeder reached"

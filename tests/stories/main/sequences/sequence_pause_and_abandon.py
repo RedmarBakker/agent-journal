@@ -14,7 +14,7 @@ FIRST_STEP = 1
 @story(PausedSequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_paused_run_keeps_its_state_and_following_again_says_the_step(story):
     story.agent_runs(story.agents.subject, "sequence follow")
-    story.expect_agent_told(story.agents.subject, SequencesNudges.CURRENT_STEP, n=story.fixture.sequence, step=FIRST_STEP)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.CURRENT_STEP, n=story.sequences.first, step=FIRST_STEP)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
@@ -23,7 +23,7 @@ def test_a_pause_with_no_reason_is_refused(story):
     story.agent_runs(story.agents.subject, "sequence follow")
     story.agent_runs(story.agents.subject, "sequence pause")
     story.expect_command_refused()
-    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_PAUSED, n=story.fixture.sequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_PAUSED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
@@ -33,7 +33,7 @@ def test_an_abandon_names_the_steps_it_skips_and_waits_for_sure(story):
     story.agent_runs(story.agents.subject, "sequence abandon --why 'the release moved to Friday'")
     story.expect_command_refused()
     story.expect_command_text("push the tag")
-    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.fixture.sequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
@@ -42,7 +42,7 @@ def test_an_abandon_with_sure_ends_the_run_and_says_so(story):
     story.agent_runs(story.agents.subject, "sequence follow")
     story.agent_runs(story.agents.subject, "sequence abandon --why 'the release moved to Friday' --sure")
     story.expect_command_passed()
-    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.fixture.sequence)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -50,7 +50,7 @@ def test_an_abandon_with_sure_ends_the_run_and_says_so(story):
 def test_an_abandon_before_the_step_is_taken_up_is_refused(story):
     story.agent_runs(story.agents.subject, "sequence abandon --why 'the release moved to Friday' --sure")
     story.expect_command_refused()
-    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.fixture.sequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
@@ -62,7 +62,7 @@ def test_an_abandoned_inner_sequence_gives_the_outer_back_with_its_step(story):
     story.agent_runs(story.agents.subject, "sequence follow")
     story.agent_runs(story.agents.subject, "sequence abandon --why 'the tag waits for the review' --sure")
     story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ABANDONED, n=inner)
-    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=FIRST_STEP)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=FIRST_STEP)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 

@@ -6,16 +6,16 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 class SequenceRun(StateFixture):
-    """The agent at work wrote the release sequence and started it, its first step said: start.sequence."""
+    """The agent at work wrote the release sequence and started it, its first step said: story.sequences.first."""
 
     stack = (Ready, FollowingSequence)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.sequence = story.agent_creates_sequence(story.agents.subject, "release", "raise the version | push the tag")
-        story.agent_runs(story.agents.subject, f"sequence run {self.sequence}")
+        self.sequences.first = story.agent_creates_sequence(story.agents.main, "release", "raise the version | push the tag")
+        story.agent_runs(story.agents.main, f"sequence run {self.sequences.first}")
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=self.sequence, step=1)
-        story.expect_stack(story.agents.subject, Ready, FollowingSequence)
+        story.expect_agent_told(story.agents.main, SequencesNudges.PENDING_STEP, n=self.sequences.first, step=1)
+        story.expect_stack(story.agents.main, Ready, FollowingSequence)

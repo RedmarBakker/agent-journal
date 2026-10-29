@@ -5,17 +5,17 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class GuardedSequenceRun(StateFixture):
-    """The agent at work wrote a release sequence whose first step holds file edits and lets git status through, and started it, its first step said: start.sequence."""
+    """The agent at work wrote a release sequence whose first step holds file edits and lets git status through, and started it, its first step said: story.sequences.first."""
 
     stack = (Ready, FollowingSequence)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, "sequence create 'release' --step 'Check | look at the status first' --hold-edits --allow-commands 'git status*' --step 'Tag | push the tag'")
-        self.sequence = story.created_number("sequence")
-        story.agent_runs(story.agents.subject, f"sequence run {self.sequence}")
+        story.agent_runs(story.agents.main, "sequence create 'release' --step 'Check | look at the status first' --hold-edits --allow-commands 'git status*' --step 'Tag | push the tag'")
+        self.sequences.first = story.created_number("sequence")
+        story.agent_runs(story.agents.main, f"sequence run {self.sequences.first}")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_stack(story.agents.subject, Ready, FollowingSequence)
+        story.expect_stack(story.agents.main, Ready, FollowingSequence)

@@ -6,16 +6,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class DispatchedWorker(StateFixture):
-    """The agent sent a worker on the briefed task and waits on it; the worker's session started but it has not clocked in: start.worker."""
+    """The agent sent a worker on the briefed task and waits on it; the worker's session started but it has not clocked in: story.agents.workers.first()."""
 
     stack = (Ready, ExternalWait)
 
     parent = BriefedTask
 
     def steps(self, story) -> None:
-        self.worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", self.briefed)
-        story.agent_starts_a_session(story.agents.workers.get(self.worker))
+        self.workers.first = story.agent_dispatches_worker(story.agents.main, "Lady Lovelace", self.tasks.briefed)
+        story.agent_starts_a_session(story.agents.workers.first())
 
     def expected(self, story) -> None:
-        story.expect_worker(self.worker, state=WorkerState.DISPATCHED)
-        story.expect_task(self.briefed, delegated=True)
+        story.expect_worker(self.workers.first, state=WorkerState.DISPATCHED)
+        story.expect_task(self.tasks.briefed, delegated=True)

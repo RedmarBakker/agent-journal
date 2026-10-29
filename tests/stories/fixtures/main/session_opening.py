@@ -13,7 +13,7 @@ class SessionOpening(StateFixture):
 
     def steps(self, story) -> None:
         story.user_switches_on(Skills)
-        story.agent_starts_a_session(story.agents.subject)
+        story.agent_starts_a_session(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

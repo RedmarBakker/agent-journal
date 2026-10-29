@@ -5,16 +5,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PausedSequenceRun(StateFixture):
-    """The agent took up the first step of the running release sequence and paused the run, saying why: start.sequence."""
+    """The agent took up the first step of the running release sequence and paused the run, saying why: story.sequences.first."""
 
     stack = (Ready, FollowingSequence)
 
     parent = SequenceRun
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, "sequence follow")
-        story.agent_runs(story.agents.subject, "sequence pause --why 'the user wants the footer first'")
+        story.agent_runs(story.agents.main, "sequence follow")
+        story.agent_runs(story.agents.main, "sequence pause --why 'the user wants the footer first'")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_stack(story.agents.subject, Ready, FollowingSequence)
+        story.expect_stack(story.agents.main, Ready, FollowingSequence)

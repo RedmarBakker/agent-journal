@@ -9,5 +9,5 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_start_pauses_no_task_of_the_main_agent(story):
     story.agent_starts_a_session(story.agents.subject)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

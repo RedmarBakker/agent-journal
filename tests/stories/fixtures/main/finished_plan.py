@@ -5,16 +5,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class FinishedPlan(StateFixture):
-    """The agent completed both tasks of the plan, so the plan is done: start.plan, start.first_task and start.second_task."""
+    """The agent completed both tasks of the plan, so the plan is done: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready,)
 
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"task complete {self.first_task} --how done")
-        story.agent_runs(story.agents.subject, f"task complete {self.second_task} --how done")
+        story.agent_runs(story.agents.main, f"task complete {self.tasks.first} --how done")
+        story.agent_runs(story.agents.main, f"task complete {self.tasks.second} --how done")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.FINISHED)
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_plan(self.plans.first, state=PlanState.FINISHED)
+        story.expect_stack(story.agents.main, Ready)

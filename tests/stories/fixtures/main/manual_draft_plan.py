@@ -5,16 +5,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class ManualDraftPlan(StateFixture):
-    """The agent gave up the plan building sequence its draft started, to build the draft step by step itself: start.plan."""
+    """The agent gave up the plan building sequence its draft started, to build the draft step by step itself: story.plans.first."""
 
     stack = (Ready,)
 
     parent = DraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, "sequence follow")
-        story.agent_runs(story.agents.subject, "sequence abandon --why 'the plan is built step by step right here' --sure")
+        story.agent_runs(story.agents.main, "sequence follow")
+        story.agent_runs(story.agents.main, "sequence abandon --why 'the plan is built step by step right here' --sure")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.DRAFT)
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_plan(self.plans.first, state=PlanState.DRAFT)
+        story.expect_stack(story.agents.main, Ready)

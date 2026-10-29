@@ -16,7 +16,7 @@ REVIEWER = "journal-plan-reviewer"
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.BUILDER_DISPATCH_ALLOWED, False)
 def test_a_builder_may_not_dispatch_a_worker_when_the_user_turned_it_off(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.tasks.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_refused(story.agents.subject, WorkersNudges.MODE_REFUSAL)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -24,7 +24,7 @@ def test_a_builder_may_not_dispatch_a_worker_when_the_user_turned_it_off(story):
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.BUILDER_DISPATCH_ALLOWED, True)
 def test_a_builder_allowed_to_dispatch_is_let_through(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.tasks.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
@@ -32,7 +32,7 @@ def test_a_builder_allowed_to_dispatch_is_let_through(story):
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.BUILDER_QUEUE_ALLOWED, False)
 def test_a_builder_may_not_queue_a_workers_next_task_when_the_user_turned_it_off(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker queue {story.agents.workers.first()} {story.fixture.briefed}")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker queue {story.agents.workers.first()} {story.tasks.briefed}")
     story.expect_refused(story.agents.subject, WorkersNudges.MODE_REFUSAL)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
@@ -50,7 +50,7 @@ def test_a_builder_sends_a_subagent_only_while_the_user_allows_it(story):
 
 @story(SoloAgent, mode=SOLO_MODE, subject=AgentRole.MAIN)
 def test_a_solo_agent_may_not_dispatch_a_worker_nor_send_one_its_next_job(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.tasks.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_refused(story.agents.subject, WorkersNudges.SOLO_DISPATCH)
     story.agent_runs_in_the_shell(story.agents.subject, "journal worker send 1 'the next job'")
     story.expect_refused(story.agents.subject, WorkersNudges.SOLO_DISPATCH)

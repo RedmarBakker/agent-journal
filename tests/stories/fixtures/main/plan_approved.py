@@ -5,14 +5,14 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PlanApproved(StateFixture):
-    """The user approved the plan they made in the viewer, not yet started: start.plan, start.first_task and start.second_task."""
+    """The user approved the plan they made in the viewer, not yet started: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready,)
 
     parent = UserDraftedPlan
 
     def steps(self, story) -> None:
-        story.user_approves_plan(self.plan)
+        story.user_approves_plan(self.plans.first)
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.APPROVED)
+        story.expect_plan(self.plans.first, state=PlanState.APPROVED)

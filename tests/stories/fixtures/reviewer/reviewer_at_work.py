@@ -5,7 +5,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class ReviewerAtWork(StateFixture):
-    """With a reviewer on in orchestrator mode, the working worker proved both points and clocked out, so the journal sent a reviewer on its work, whose session started: start.reviewer."""
+    """With a reviewer on in orchestrator mode, the working worker proved both points and clocked out, so the journal sent a reviewer on its work, whose session started: story.agents.reviewers.first()."""
 
     stack = (Orchestrating,)
 
@@ -14,11 +14,11 @@ class ReviewerAtWork(StateFixture):
     settings = ((ReviewingOptions.REVIEWER, True),)
 
     def steps(self, story) -> None:
-        story.agent_proves(story.agents.workers.get(self.worker), 1, "parser.py:12, test_reads passes")
-        story.agent_proves(story.agents.workers.get(self.worker), 2, "parser.py:30, test_names passes")
-        story.agent_clocks_out(story.agents.workers.get(self.worker), "the parser is done")
-        self.reviewer = story.newest("reviewers")
-        story.agent_starts_a_session(story.agents.reviewers.get(self.reviewer))
+        story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
+        story.agent_proves(story.agents.workers.first(), 2, "parser.py:30, test_names passes")
+        story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
+        self.reviewers.first = story.newest("reviewers")
+        story.agent_starts_a_session(story.agents.reviewers.first())
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Orchestrating)
+        story.expect_stack(story.agents.main, Orchestrating)

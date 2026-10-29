@@ -7,24 +7,24 @@ from tests.stories.fixtures.main.manual_draft_plan import ManualDraftPlan
 
 
 class TwoPhasePlan(StateFixture):
-    """The agent built the drafted plan into two phases with one task each, the first ending at a checkpoint, the user approved it in the viewer, and the agent started it: start.plan, start.first_phase_task in hand and start.second_phase_task waiting."""
+    """The agent built the drafted plan into two phases with one task each, the first ending at a checkpoint, the user approved it in the viewer, and the agent started it: story.plans.first, story.tasks.first_phase in hand and story.tasks.second_phase waiting."""
 
     stack = (Ready, FollowingPlan)
 
     parent = ManualDraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"plan phase {self.plan} 'Layout' --when 'the layout stands' --checkpoint")
-        story.agent_runs(story.agents.subject, f"plan phase {self.plan} 'Content' --when 'the pages hold their words'")
-        self.first_phase_task = story.agent_adds_plan_task(story.agents.subject, self.plan, "the grid")
-        self.second_phase_task = story.agent_adds_plan_task(story.agents.subject, self.plan, "the about page")
-        story.agent_runs(story.agents.subject, f"plan todos {self.plan} 1 {self.first_phase_task}")
-        story.agent_runs(story.agents.subject, f"plan todos {self.plan} 2 {self.second_phase_task}")
-        story.agent_runs(story.agents.subject, f"plan ready {self.plan}")
-        story.user_approves_plan(self.plan)
-        story.agent_runs(story.agents.subject, f"plan start {self.plan}")
+        story.agent_runs(story.agents.main, f"plan phase {self.plans.first} 'Layout' --when 'the layout stands' --checkpoint")
+        story.agent_runs(story.agents.main, f"plan phase {self.plans.first} 'Content' --when 'the pages hold their words'")
+        self.tasks.first_phase = story.agent_adds_plan_task(story.agents.main, self.plans.first, "the grid")
+        self.tasks.second_phase = story.agent_adds_plan_task(story.agents.main, self.plans.first, "the about page")
+        story.agent_runs(story.agents.main, f"plan todos {self.plans.first} 1 {self.tasks.first_phase}")
+        story.agent_runs(story.agents.main, f"plan todos {self.plans.first} 2 {self.tasks.second_phase}")
+        story.agent_runs(story.agents.main, f"plan ready {self.plans.first}")
+        story.user_approves_plan(self.plans.first)
+        story.agent_runs(story.agents.main, f"plan start {self.plans.first}")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.STARTED)
-        story.expect_task(self.first_phase_task, state=TaskState.STARTED)
-        story.expect_stack(story.agents.subject, Ready, FollowingPlan)
+        story.expect_plan(self.plans.first, state=PlanState.STARTED)
+        story.expect_task(self.tasks.first_phase, state=TaskState.STARTED)
+        story.expect_stack(story.agents.main, Ready, FollowingPlan)

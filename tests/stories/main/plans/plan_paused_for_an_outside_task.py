@@ -16,33 +16,33 @@ from tests.stories.fixtures.main.plan_return import PlanReturn
 @story(PausedPlanOutsideTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_writes_and_stops_wait_until_the_agent_says_where_it_returns(story):
     story.agent_writes(story.agents.subject, "build.py")
-    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.fixture.plan, task=story.fixture.fix)
+    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
     story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.fixture.plan, task=story.fixture.fix)
+    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
     story.expect_stack(story.agents.subject, Ready, Working, ChoosingPlanReturn)
 
 
 @story(PlanReturn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_after_yes_the_plan_goes_on_once_the_outside_task_is_done(story):
-    story.agent_runs(story.agents.subject, f"task complete {story.fixture.fix} --how 'the build passes'")
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.outside} --how 'the build passes'")
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(PausedPlanOutsideTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_no_leaves_the_plan_paused_and_the_outside_task_in_hand(story):
-    story.agent_runs(story.agents.subject, f"plan return {story.fixture.plan} no")
-    story.expect_plan(story.fixture.plan, state=PlanState.PAUSED)
+    story.agent_runs(story.agents.subject, f"plan return {story.plans.first} no")
+    story.expect_plan(story.plans.first, state=PlanState.PAUSED)
     story.agent_writes(story.agents.subject, "build.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.fix, state=TaskState.STARTED)
+    story.expect_task(story.tasks.outside, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(AgentPausedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_taking_up_a_task_of_the_paused_plan_follows_the_plan_again_and_asks_nothing(story):
-    story.agent_runs(story.agents.subject, f"task start {story.fixture.second_task}")
+    story.agent_runs(story.agents.subject, f"task start {story.tasks.second}")
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION)
-    story.expect_task(story.fixture.second_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

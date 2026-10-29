@@ -6,15 +6,15 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class TaskQueue(StateFixture):
-    """The agent works on the footer with the header filed after it, still open: start.started_task and start.next_open."""
+    """The agent works on the footer with the header filed after it, still open: story.tasks.started and story.tasks.open."""
 
     stack = (Ready, Working)
 
     parent = StartedTask
 
     def steps(self, story) -> None:
-        self.next_open = story.agent_creates_task(story.agents.subject, "the header")
+        self.tasks.open = story.agent_creates_task(story.agents.main, "the header")
 
     def expected(self, story) -> None:
-        story.expect_task(self.next_open, state=TaskState.OPEN)
-        story.expect_task(self.started_task, state=TaskState.STARTED)
+        story.expect_task(self.tasks.open, state=TaskState.OPEN)
+        story.expect_task(self.tasks.started, state=TaskState.STARTED)

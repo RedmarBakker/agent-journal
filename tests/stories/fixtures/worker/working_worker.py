@@ -15,8 +15,8 @@ class WorkingWorker(StateFixture):
     parent = DispatchedWorker
 
     def steps(self, story) -> None:
-        story.agent_clocks_in(story.agents.workers.get(self.worker))
+        story.agent_clocks_in(story.agents.workers.first())
 
     def expected(self, story) -> None:
-        story.expect_worker(self.worker, state=WorkerState.READY)
-        story.expect_stack(story.agents.workers.get(self.worker), Void, WorkingTask)
+        story.expect_worker(self.workers.first, state=WorkerState.READY)
+        story.expect_stack(story.agents.workers.first(), Void, WorkingTask)

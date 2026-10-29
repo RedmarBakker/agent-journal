@@ -4,17 +4,17 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class ErrorsReader(StateFixture):
-    """The agent at work added the reader errors for lines holding error, and ran a command whose kept output holds one: start.reader and start.output."""
+    """The agent at work added the reader errors for lines holding error, and ran a command whose kept output holds one: story.readers.first and story.outputs.first."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.reader = "errors"
-        story.agent_runs(story.agents.subject, f"reader add {self.reader} --pattern 'error' --about 'the error lines'")
-        self.output = story.agent_runs_a_command(story.agents.subject, "printf 'an error\\nfine\\n' | head -2")
+        self.readers.first = "errors"
+        story.agent_runs(story.agents.main, f"reader add {self.readers.first} --pattern 'error' --about 'the error lines'")
+        self.outputs.first = story.agent_runs_a_command(story.agents.main, "printf 'an error\\nfine\\n' | head -2")
 
     def expected(self, story) -> None:
         story.expect_new_output()
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

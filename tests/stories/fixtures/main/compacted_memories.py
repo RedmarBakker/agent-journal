@@ -7,19 +7,19 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class CompactedMemories(StateFixture):
-    """The agent kept a heavy and a light memory, and its context was compacted: the heavy one is a weight lighter, the light one has faded out, and the start lists the memories but names no takeover: start.heavy_memory, start.light_memory."""
+    """The agent kept a heavy and a light memory, and its context was compacted: the heavy one is a weight lighter, the light one has faded out, and the start lists the memories but names no takeover: story.memories.heavy, story.memories.light."""
 
     stack = (Ready, ReadingOverview)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.heavy_memory = story.agent_adds_memory(story.agents.subject, "the footer links go in a list", HEAVIEST)
-        self.light_memory = story.agent_adds_memory(story.agents.subject, "the header waits on the logo", LOWEST_WEIGHT)
+        self.memories.heavy = story.agent_adds_memory(story.agents.main, "the footer links go in a list", HEAVIEST)
+        self.memories.light = story.agent_adds_memory(story.agents.main, "the header waits on the logo", LOWEST_WEIGHT)
         story.context_is_compacted()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
-        story.expect_agent_not_told(story.agents.subject, BriefingNudges.TAKEOVER)
-        story.expect_row("memories", self.heavy_memory, {"weight": HEAVIEST - 1})
-        story.expect_row_absent("memories", self.light_memory)
+        story.expect_agent_told(story.agents.main, BriefingNudges.ENVIRONMENT_MEMORIES)
+        story.expect_agent_not_told(story.agents.main, BriefingNudges.TAKEOVER)
+        story.expect_row("memories", self.memories.heavy, {"weight": HEAVIEST - 1})
+        story.expect_row_absent("memories", self.memories.light)

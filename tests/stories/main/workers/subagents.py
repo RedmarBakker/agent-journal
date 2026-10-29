@@ -27,7 +27,7 @@ def test_a_subagents_tool_use_is_never_held_by_the_agents_hold(story):
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.SUBAGENT_LIMIT, 1)
 def test_a_subagent_sent_past_the_running_limit_is_refused(story):
-    story.expect_subagent_stack(story.fixture.subagent, Void, Researching)
+    story.expect_stack(story.agents.subagent, Void, Researching)
     story.agent_sends_subagent(story.agents.subject, RESEARCHER, "find where the grammar is read")
     story.expect_refused(story.agents.subject, WorkersNudges.SUBAGENT_OVERFLOW, running=1)
     story.expect_stack(story.agents.subject, Ready)
@@ -36,7 +36,7 @@ def test_a_subagent_sent_past_the_running_limit_is_refused(story):
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.SUBAGENT_LIMIT, 0)
 def test_a_running_limit_of_zero_lets_every_subagent_through(story):
-    story.expect_subagent_stack(story.fixture.subagent, Void, Researching)
+    story.expect_stack(story.agents.subagent, Void, Researching)
     story.agent_sends_subagent(story.agents.subject, REVIEWER, "review the parser plan")
     story.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)

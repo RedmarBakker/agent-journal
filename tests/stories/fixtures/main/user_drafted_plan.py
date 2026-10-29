@@ -5,16 +5,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class UserDraftedPlan(StateFixture):
-    """The user made a plan in the viewer with two tasks, each with a brief a worker can prove, not yet approved: start.plan, start.first_task and start.second_task."""
+    """The user made a plan in the viewer with two tasks, each with a brief a worker can prove, not yet approved: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.plan = story.user_creates_plan("p", "b")
-        self.first_task = story.user_adds_plan_task(self.plan, "first")
-        self.second_task = story.user_adds_plan_task(self.plan, "second")
+        self.plans.first = story.user_creates_plan("p", "b")
+        self.tasks.first = story.user_adds_plan_task(self.plans.first, "first")
+        self.tasks.second = story.user_adds_plan_task(self.plans.first, "second")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.DRAFT)
+        story.expect_plan(self.plans.first, state=PlanState.DRAFT)

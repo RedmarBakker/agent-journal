@@ -12,7 +12,7 @@ class AgentImpasse(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, "stuck 'the build fails and nothing else is open'")
+        story.agent_runs(story.agents.main, "stuck 'the build fails and nothing else is open'")
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready, Impasse)
+        story.expect_stack(story.agents.main, Ready, Impasse)

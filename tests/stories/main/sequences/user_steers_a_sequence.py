@@ -14,20 +14,20 @@ FIRST_STEP, SECOND_STEP = 1, 2
 def test_the_user_skips_the_last_step_and_the_run_ends(story):
     story.user_skips_the_step()
     story.user_skips_the_step()
-    story.expect_agent_told(story.agents.subject, SequencesNudges.STEP_OMISSION, n=story.fixture.sequence, step=SECOND_STEP)
-    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ENDED, n=story.fixture.sequence)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.STEP_OMISSION, n=story.sequences.first, step=SECOND_STEP)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ENDED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_user_ends_the_sequence(story):
     story.user_ends_the_sequence()
-    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_CANCELLED, n=story.fixture.sequence)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_CANCELLED, n=story.sequences.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(PausedSequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_skip_while_the_run_is_paused_moves_on_to_the_next_step(story):
     story.user_skips_the_step()
-    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=SECOND_STEP)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=SECOND_STEP)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)

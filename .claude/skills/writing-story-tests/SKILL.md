@@ -48,6 +48,10 @@ Before a line of a story, write down for yourself what the feature does in each 
   agent the story is about, `story.agents.main`, `story.agents.workers.first()` or `story.agents.workers.get(n)`, the same
   for reviewers and verifiers, and `story.agents.subagent`: `story.agent_runs(story.agents.subject, "clock-in")`,
   `story.expect_agent_told(story.agents.main, WorkersNudges.WORKER_REPORTED)`.
+- A fixture keeps the rows it made by kind, `self.tasks.started = story.agent_takes_a_task(story.agents.main, "the footer")`,
+  its helpers as `self.workers.first`, and plays its steps as `story.agents.main`; a story reads them on the story by
+  kind, `story.tasks.started`, `story.plans.first`, `story.messages.second`, and the helpers from `story.agents`, never
+  from the fixture itself. Each row's name says which row it is: started, briefed, first, second, open.
 - Play the agent through `story.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
 - A setting the story needs is set with `@setting(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting, repeated for more:
   the user sets it through the viewer's route after the start fixture and before the first step, and the story fails

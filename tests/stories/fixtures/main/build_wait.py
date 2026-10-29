@@ -6,14 +6,14 @@ from tests.stories.fixtures.main.task_queue import TaskQueue
 
 
 class BuildWait(StateFixture):
-    """The agent with the footer in hand and the header open waits on the build: start.started_task and start.next_open."""
+    """The agent with the footer in hand and the header open waits on the build: story.tasks.started and story.tasks.open."""
 
     stack = (Ready, Working, ExternalWait)
 
     parent = TaskQueue
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, "await 'the build' --until false")
+        story.agent_runs(story.agents.main, "await 'the build' --until false")
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
+        story.expect_stack(story.agents.main, Ready, Working, ExternalWait)

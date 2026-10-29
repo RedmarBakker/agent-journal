@@ -5,7 +5,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class VerifierJudgingModel(StateFixture):
-    """With every merge sampled, the orchestrator checked both proofs of its delivered worker and merged its work, so the journal sent a verifier to judge whether the worker's model fit, whose session started: start.verifier."""
+    """With every merge sampled, the orchestrator checked both proofs of its delivered worker and merged its work, so the journal sent a verifier to judge whether the worker's model fit, whose session started: story.agents.verifiers.first()."""
 
     stack = (Orchestrating,)
 
@@ -14,11 +14,11 @@ class VerifierJudgingModel(StateFixture):
     settings = ((WorkersOptions.MODEL_FIT_SAMPLE, 1),)
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"worker check {self.worker} 1")
-        story.agent_runs(story.agents.subject, f"worker check {self.worker} 2")
-        story.agent_runs(story.agents.subject, f"worker merge {self.worker}")
-        self.verifier = story.newest("verifiers")
-        story.agent_starts_a_session(story.agents.verifiers.get(self.verifier))
+        story.agent_runs(story.agents.main, f"worker check {self.workers.first} 1")
+        story.agent_runs(story.agents.main, f"worker check {self.workers.first} 2")
+        story.agent_runs(story.agents.main, f"worker merge {self.workers.first}")
+        self.verifiers.first = story.newest("verifiers")
+        story.agent_starts_a_session(story.agents.verifiers.first())
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Orchestrating)
+        story.expect_stack(story.agents.main, Orchestrating)

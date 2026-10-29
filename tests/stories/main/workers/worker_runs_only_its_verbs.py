@@ -50,17 +50,17 @@ def test_a_worker_may_not_ask_the_user_a_question(story):
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_run_its_own_verbs(story):
-    story.agent_runs_cleanly(story.agents.workers.first(), f"task show {story.fixture.briefed}")
+    story.agent_runs_cleanly(story.agents.workers.first(), f"task show {story.tasks.briefed}")
     story.agent_runs_cleanly(story.agents.workers.first(), "todo add 'read the parser'")
     story.agent_runs_cleanly(story.agents.workers.first(), "proof 1 'parser.py:12, test_reads passes'")
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_dispatch_a_worker(story):
-    story.agent_runs(story.agents.workers.first(), f"worker dispatch 'Mr. Babbage' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs(story.agents.workers.first(), f"worker dispatch 'Mr. Babbage' --task {story.tasks.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_command_refused()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

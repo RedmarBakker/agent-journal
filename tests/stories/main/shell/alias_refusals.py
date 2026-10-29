@@ -10,13 +10,13 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_line_an_alias_runs_typed_by_hand_is_refused_with_the_alias(story):
     story.agent_runs_in_the_shell(story.agents.subject, "git status")
-    story.expect_refused(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.fixture.alias)
+    story.expect_refused(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.aliases.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_alias_itself_goes_through_and_may_chain(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.fixture.alias} && ls")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.aliases.first} && ls")
     story.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
@@ -25,32 +25,32 @@ def test_the_alias_itself_goes_through_and_may_chain(story):
 def test_a_line_that_starts_like_the_alias_but_runs_another_command_goes_through(story):
     story.agent_runs_in_the_shell(story.agents.subject, "git log")
     story.expect_allowed()
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.fixture.alias)
+    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.aliases.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_alias_run_whose_line_a_longer_alias_runs_is_refused_with_the_longer(story):
     story.agent_runs(story.agents.subject, "alias add gts 'git status -s'")
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.fixture.alias} -s")
-    story.expect_refused(story.agents.subject, ShellNudges.MORE_SPECIFIC_ALIAS, name="gts", called=story.fixture.alias)
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal {story.aliases.first} -s")
+    story.expect_refused(story.agents.subject, ShellNudges.MORE_SPECIFIC_ALIAS, name="gts", called=story.aliases.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_edited_alias_refuses_its_new_line_and_lets_the_old_one_through(story):
-    story.agent_runs(story.agents.subject, f"alias edit {story.fixture.alias} --line 'git diff'")
+    story.agent_runs(story.agents.subject, f"alias edit {story.aliases.first} --line 'git diff'")
     story.expect_command_passed()
     story.agent_runs_in_the_shell(story.agents.subject, "git status")
     story.expect_allowed()
     story.agent_runs_in_the_shell(story.agents.subject, "git diff")
-    story.expect_refused(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.fixture.alias)
+    story.expect_refused(story.agents.subject, ShellNudges.ALIASED_LINE, name=story.aliases.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_removed_alias_refuses_nothing(story):
-    story.agent_runs(story.agents.subject, f"alias remove {story.fixture.alias}")
+    story.agent_runs(story.agents.subject, f"alias remove {story.aliases.first}")
     story.expect_command_passed()
     story.agent_runs_in_the_shell(story.agents.subject, "git status")
     story.expect_allowed()
@@ -66,6 +66,6 @@ def test_an_alias_named_like_a_journal_command_is_refused(story):
 
 @story(GitStatusAlias, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_alias_named_like_another_alias_is_refused(story):
-    story.agent_runs(story.agents.subject, f"alias add {story.fixture.alias} 'echo again'")
-    story.expect_command_text(f"an alias named {story.fixture.alias} exists")
+    story.agent_runs(story.agents.subject, f"alias add {story.aliases.first} 'echo again'")
+    story.expect_command_text(f"an alias named {story.aliases.first} exists")
     story.expect_stack(story.agents.subject, Ready)

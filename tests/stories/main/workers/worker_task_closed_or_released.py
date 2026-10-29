@@ -12,16 +12,16 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_user_cancelling_a_workers_task_leaves_it_cancelled_and_undelegated(story):
-    story.user_cancels_task(story.fixture.briefed, "not needed")
-    story.expect_task(story.fixture.briefed, state=TaskState.CANCELLED)
+    story.user_cancels_task(story.tasks.briefed, "not needed")
+    story.expect_task(story.tasks.briefed, state=TaskState.CANCELLED)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_user_pausing_a_workers_task_takes_it_from_the_worker(story):
-    story.user_pauses_task(story.fixture.briefed, "later")
-    story.expect_task(story.fixture.briefed, state=TaskState.PAUSED)
+    story.user_pauses_task(story.tasks.briefed, "later")
+    story.expect_task(story.tasks.briefed, state=TaskState.PAUSED)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -33,16 +33,16 @@ def test_releasing_a_worker_still_out_waits_for_its_stop_and_then_opens_its_queu
     story.agent_runs(story.agents.subject, f"worker stop {story.agents.workers.first()}")
     story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()}")
     story.expect_command_passed()
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN, delegated=False)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN, delegated=False)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_the_user_cancels_while_its_work_waits_releases_the_worker_unmerged(story):
-    story.user_cancels_task(story.fixture.briefed, "not needed")
+    story.user_cancels_task(story.tasks.briefed, "not needed")
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
-    story.expect_task(story.fixture.briefed, state=TaskState.CANCELLED)
+    story.expect_task(story.tasks.briefed, state=TaskState.CANCELLED)
     story.expect_stack(story.agents.subject, Ready)
 
 

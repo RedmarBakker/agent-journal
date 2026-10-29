@@ -24,7 +24,7 @@ def test_a_worker_compacting_is_held_and_then_back_at_its_work_still_clocked_in(
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_session_ending_before_clock_out_leaves_it_ended_on_its_work(story):
     story.agent_ends_the_session(story.agents.subject)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask, Ended)
 
 
@@ -38,5 +38,5 @@ def test_a_worker_session_ending_after_clock_out_keeps_it_delivered(story):
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_prompt_to_the_worker_leaves_its_stack(story):
     story.agent_is_prompted(story.agents.subject, "the dispatcher asks how far the parser is")
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

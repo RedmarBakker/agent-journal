@@ -48,7 +48,7 @@ def test_the_write_hold_leaves_the_task_in_hand_as_it_was(story):
     story.agent_reads_message(story.agents.subject, message)
     story.agent_writes(story.agents.subject, "a.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 

@@ -15,4 +15,4 @@ class SkillsFeature(StateFixture):
         story.user_switches_on(Skills)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

@@ -7,7 +7,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class UnansweredMessage(StateFixture):
-    """The user holds every tool from the first use after a read, so the agent's next tool after reading the message was refused until it answers: start.message."""
+    """The user holds every tool from the first use after a read, so the agent's next tool after reading the message was refused until it answers: story.messages.first."""
 
     stack = (Ready, DemandBlock)
 
@@ -16,8 +16,8 @@ class UnansweredMessage(StateFixture):
     settings = ((MessagesOptions.TOOL_BLOCK_LIMIT, 0),)
 
     def steps(self, story) -> None:
-        story.agent_reads(story.agents.subject)
+        story.agent_reads(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=self.message)
-        story.expect_stack(story.agents.subject, Ready, DemandBlock)
+        story.expect_refused(story.agents.main, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=self.messages.first)
+        story.expect_stack(story.agents.main, Ready, DemandBlock)

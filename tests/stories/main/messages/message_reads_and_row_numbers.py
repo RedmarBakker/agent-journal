@@ -26,14 +26,14 @@ def test_a_message_read_alone_goes_through(story):
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reply_naming_a_row_that_does_not_exist_is_asked_to_correct_it(story):
-    reply = story.agent_replies_with_number(story.agents.subject, story.fixture.message, f"yes, task {MISSING_ROW} is done")
+    reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, f"yes, task {MISSING_ROW} is done")
     story.expect_agent_told(story.agents.subject, MessagesNudges.MISSING_ROWS, n=reply)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_users_own_message_cannot_be_linked_by_the_agent(story):
-    story.agent_runs(story.agents.subject, f"message amend-links {story.fixture.message} task")
+    story.agent_runs(story.agents.subject, f"message amend-links {story.messages.first} task")
     story.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)
 

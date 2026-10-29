@@ -19,4 +19,4 @@ class ViewerConsoleError(StateFixture):
         story.viewer_logs_a_console_error(ERROR, STACK)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, ClientErrorsNudges.LOGGED, errors=ClientErrorsNudges.errors(1))
+        story.expect_agent_told(story.agents.main, ClientErrorsNudges.LOGGED, errors=ClientErrorsNudges.errors(1))

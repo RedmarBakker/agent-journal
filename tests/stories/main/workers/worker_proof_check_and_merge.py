@@ -16,7 +16,7 @@ def test_checked_proofs_let_the_work_be_merged(story):
     story.agent_runs(story.agents.subject, f"worker check {story.agents.workers.first()} 2")
     story.agent_runs(story.agents.subject, f"worker merge {story.agents.workers.first()}")
     story.expect_command_passed()
-    story.expect_task(story.fixture.briefed, state=TaskState.COMPLETED)
+    story.expect_task(story.tasks.briefed, state=TaskState.COMPLETED)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -25,7 +25,7 @@ def test_a_merge_with_an_unchecked_point_is_refused(story):
     story.agent_runs(story.agents.subject, f"worker merge {story.agents.workers.first()}")
     story.expect_command_refused()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -51,5 +51,5 @@ def test_a_worker_whose_finished_queue_waits_to_be_merged_is_released_only_with_
     story.expect_command_refused()
     story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()} --drop")
     story.expect_command_passed()
-    story.expect_task(story.fixture.first_task, delegated=False)
+    story.expect_task(story.tasks.first, delegated=False)
     story.expect_stack(story.agents.subject, Ready)

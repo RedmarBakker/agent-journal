@@ -8,9 +8,9 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_agents_reply_is_a_message_row_of_its_own_answering_the_users_and_no_comment(story):
-    story.agent_replies(story.agents.subject, story.fixture.message, "Hello back.")
+    story.agent_replies(story.agents.subject, story.messages.first, "Hello back.")
     reply = story.newest("messages")
-    story.expect_message(reply, author="agent", reply_target=story.fixture.message, text="Hello back.", acknowledgement=False)
+    story.expect_message(reply, author="agent", reply_target=story.messages.first, text="Hello back.", acknowledgement=False)
     story.user_opens("/journal/messages?comments=1")
     story.expect_viewer_count("rows", 0)
     story.expect_stack(story.agents.subject, Ready)
@@ -32,10 +32,10 @@ def test_a_reply_in_the_column_hangs_under_its_comment_and_one_in_the_chat_is_ta
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_same_face_again_takes_the_reaction_off(story):
-    story.user_reacts(story.fixture.message, "👍")
+    story.user_reacts(story.messages.first, "👍")
     story.user_opens("/journal/reactions")
     story.expect_viewer_rows("rows", "emoji", ["👍"])
-    story.user_reacts(story.fixture.message, "👍")
+    story.user_reacts(story.messages.first, "👍")
     story.user_opens("/journal/reactions")
     story.expect_viewer_count("rows", 0)
     story.expect_stack(story.agents.subject, Ready)

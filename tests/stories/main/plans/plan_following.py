@@ -13,39 +13,39 @@ from tests.stories.fixtures.main.started_plan import StartedPlan
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plans_tasks_follow_in_order_until_it_finishes(story):
-    story.agent_runs(story.agents.subject, f"task complete {story.fixture.first_task} --how done")
-    story.expect_task(story.fixture.second_task, state=TaskState.STARTED)
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
+    story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
-    story.agent_runs(story.agents.subject, f"task complete {story.fixture.second_task} --how done")
-    story.expect_plan(story.fixture.plan, state=PlanState.FINISHED)
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_FINISHED, n=story.fixture.plan)
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.second} --how done")
+    story.expect_plan(story.plans.first, state=PlanState.FINISHED)
+    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_FINISHED, n=story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_starting_an_approved_plan_puts_its_first_task_in_hand(story):
-    story.agent_runs(story.agents.subject, f"plan start {story.fixture.plan}")
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
+    story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_approved_plan_starts_by_itself_at_a_session_start(story):
     story.agent_resumes_the_session(story.agents.subject)
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_paused_plan_task_resumed_carries_on_the_plan(story):
-    story.agent_runs(story.agents.subject, f"task pause {story.fixture.first_task} 'a look at the logs first'")
-    story.agent_runs(story.agents.subject, f"task resume {story.fixture.first_task}")
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
+    story.agent_runs(story.agents.subject, f"task pause {story.tasks.first} 'a look at the logs first'")
+    story.agent_runs(story.agents.subject, f"task resume {story.tasks.first}")
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

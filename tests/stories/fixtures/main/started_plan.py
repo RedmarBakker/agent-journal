@@ -7,16 +7,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class StartedPlan(StateFixture):
-    """The agent at work started the approved plan, so its first task is in hand and its second waits: start.plan, start.first_task and start.second_task."""
+    """The agent at work started the approved plan, so its first task is in hand and its second waits: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready, FollowingPlan)
 
     parent = PlanApproved
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"plan start {self.plan}")
+        story.agent_runs(story.agents.main, f"plan start {self.plans.first}")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.STARTED)
-        story.expect_task(self.first_task, state=TaskState.STARTED)
-        story.expect_stack(story.agents.subject, Ready, FollowingPlan)
+        story.expect_plan(self.plans.first, state=PlanState.STARTED)
+        story.expect_task(self.tasks.first, state=TaskState.STARTED)
+        story.expect_stack(story.agents.main, Ready, FollowingPlan)

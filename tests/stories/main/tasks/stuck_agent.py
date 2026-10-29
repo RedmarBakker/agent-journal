@@ -23,7 +23,7 @@ def test_stuck_with_tasks_open_is_refused(story):
 def test_a_task_in_hand_counts_as_work_left(story):
     story.agent_runs_in_the_shell(story.agents.subject, "journal stuck 'the build fails'")
     story.expect_refused(story.agents.subject, TasksNudges.IMPASSE_REFUSAL, count=1)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -58,5 +58,5 @@ def test_an_agent_stuck_on_its_task_in_hand_waits_over_it_until_its_next_tool_us
     story.agent_runs(story.agents.subject, "stuck 'the build fails on the footer'")
     story.expect_stack(story.agents.subject, Ready, Working, Impasse)
     story.agent_reads(story.agents.subject)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

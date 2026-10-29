@@ -8,7 +8,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(MessageWithFile, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_reading_a_message_names_its_file_and_how_to_caption_it_and_then_its_caption(story):
-    message = story.fixture.message
+    message = story.messages.first
     story.agent_runs(story.agents.subject, f"message read {message}")
     story.expect_command_text("shot one.png")
     story.expect_command_text(f'`journal message tag {message} "shot one.png"')
@@ -24,7 +24,7 @@ def test_reading_a_message_names_its_file_and_how_to_caption_it_and_then_its_cap
 def test_unread_messages_read_together_ask_a_caption_only_of_the_one_with_a_picture(story):
     plain = story.user_sends_message("and the header too")
     story.agent_runs(story.agents.subject, "message unread")
-    story.expect_command_text(f'`journal message tag {story.fixture.message} "shot one.png"')
+    story.expect_command_text(f'`journal message tag {story.messages.first} "shot one.png"')
     story.expect_command_text_without(f"journal message tag {plain}")
     story.expect_stack(story.agents.subject, Ready)
 

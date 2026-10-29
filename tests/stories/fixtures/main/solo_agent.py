@@ -14,7 +14,7 @@ class SoloAgent(StateFixture):
     settings = ((WorkersOptions.MODE, SOLO_MODE),)
 
     def steps(self, story) -> None:
-        story.agent_reads(story.agents.subject)
+        story.agent_reads(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Soloing)
+        story.expect_stack(story.agents.main, Soloing)

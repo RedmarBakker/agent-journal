@@ -108,5 +108,5 @@ def test_a_relative_path_goes_through(story):
 def test_a_journal_command_chained_with_another_is_refused_with_a_task_in_hand(story):
     story.agent_runs_in_the_shell(story.agents.subject, "journal task list && ls")
     story.expect_refused(story.agents.subject, ShellNudges.JOURNAL_COMMAND_ISOLATION)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

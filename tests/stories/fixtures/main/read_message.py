@@ -5,16 +5,16 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 class ReadMessage(StateFixture):
-    """The user asked whether the footer is done, and the agent read the message and has not answered yet: start.message."""
+    """The user asked whether the footer is done, and the agent read the message and has not answered yet: story.messages.first."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.message = story.user_sends_message("is the footer done?")
-        story.agent_reads_message(story.agents.subject, self.message)
+        self.messages.first = story.user_sends_message("is the footer done?")
+        story.agent_reads_message(story.agents.main, self.messages.first)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, MessagesNudges.MESSAGE_READ, n=self.message)
-        story.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_COMMAND)
+        story.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ, n=self.messages.first)
+        story.expect_agent_told(story.agents.main, MessagesNudges.REPLY_COMMAND)

@@ -5,14 +5,14 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class BriefedTask(StateFixture):
-    """The agent at work has filed the parser, open, its brief two points a worker proves, named to the story as start.briefed."""
+    """The agent at work has filed the parser, open, its brief two points a worker proves, named to the story as story.tasks.briefed."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.briefed = story.agent_creates_briefed_task(story.agents.subject, "the parser", "- reads the grammar\n- names each rule")
+        self.tasks.briefed = story.agent_creates_briefed_task(story.agents.main, "the parser", "- reads the grammar\n- names each rule")
 
     def expected(self, story) -> None:
-        story.expect_task(self.briefed, state=TaskState.OPEN)
+        story.expect_task(self.tasks.briefed, state=TaskState.OPEN)

@@ -10,7 +10,7 @@ from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_an_ended_subagent_is_back_at_its_research_at_its_next_tool_use(story):
-    story.subagent_ends(story.fixture.subagent)
+    story.subagent_ends(story.agents.subagent.agent_id)
     story.expect_stack(story.agents.subject, Void, Researching, Ended)
     story.agent_reads(story.agents.subject)
     story.expect_allowed()

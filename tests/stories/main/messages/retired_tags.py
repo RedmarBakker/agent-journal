@@ -8,7 +8,7 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_old_reply_tag_in_a_turn_is_stripped_answers_nothing_and_tells_the_agent(story):
-    story.agent_closes_its_turn(story.agents.subject, f"[!reply:{story.fixture.message}]\nGood evening. At your service.")
+    story.agent_closes_its_turn(story.agents.subject, f"[!reply:{story.messages.first}]\nGood evening. At your service.")
     story.expect_newest_agent_message("Good evening. At your service.")
     story.expect_agent_told(story.agents.subject, MessagesNudges.RETIRED_TAGS)
     story.agent_closes_its_turn(story.agents.subject, '[!todo="Fix the footer"]\nThe footer overlaps the form.')

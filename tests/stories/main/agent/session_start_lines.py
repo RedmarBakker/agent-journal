@@ -24,5 +24,5 @@ def test_a_start_lists_what_waits_for_the_agent(story):
     story.user_sends_message("is the footer done?")
     story.agent_starts_a_session(story.agents.subject)
     story.expect_agent_told(story.agents.subject, BriefingNudges.PENDING_ITEMS)
-    story.expect_task(story.fixture.next_open, state=TaskState.OPEN)
+    story.expect_task(story.tasks.open, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, Working)

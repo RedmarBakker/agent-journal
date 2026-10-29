@@ -21,12 +21,13 @@ from tests.stories.builder.main_session import MAIN_SESSION
 from tests.stories.builder.worker_steps import WorkerSteps, worker_session
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.story_checks import StoryChecks
+from tests.stories.builder.story_rows import StoryRows
 from tests.stories.builder.user_steps import UserSteps
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, StoryChecks):
-    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines the journal gave, the hook's verdict and the command's outcome, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its fixture is the one it began from, whose rows the story reads as fixture.<row>, asked at the end whether the story used them all."""
+class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, StoryChecks, StoryRows):
+    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines the journal gave, the hook's verdict and the command's outcome, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its fixture is the one it began from, whose rows the story reads by kind, story.tasks.started, and its agents as story.agents, asked at the end whether the story used them all."""
 
     def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies) -> None:
         self.copies = copies
@@ -75,13 +76,13 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: lambda: worker_session(agent.number), AgentRole.SUBAGENT: self.subagent_scope_session, AgentRole.REVIEWER: lambda: self.checker_session(Reviewers, agent.number), AgentRole.VERIFIER: lambda: self.checker_session(Verifiers, agent.number)}[agent.role]()
 
     def subagent_scope_session(self) -> str:
-        return ResearcherSession.joined(self.main_session(), self.fixture.subagent)
+        return ResearcherSession.joined(self.main_session(), self.agents.subagent.agent_id)
 
     def hook_session_of(self, agent: StoryAgent) -> str:
         return self.main_session() if agent.role == AgentRole.SUBAGENT else self.session_of(agent)
 
     def hook_fields_of(self, agent: StoryAgent) -> dict:
-        return {"agent_id": self.fixture.subagent} if agent.role == AgentRole.SUBAGENT else {}
+        return {"agent_id": agent.agent_id} if agent.role == AgentRole.SUBAGENT else {}
 
     def main_session(self) -> str:
         return self.main_session_id

@@ -12,8 +12,8 @@ class AgentPausedPlan(StateFixture):
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"plan pause {self.plan}")
+        story.agent_runs(story.agents.main, f"plan pause {self.plans.first}")
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.PAUSED)
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_plan(self.plans.first, state=PlanState.PAUSED)
+        story.expect_stack(story.agents.main, Ready)

@@ -8,17 +8,17 @@ RESEARCHER = "journal-researcher"
 
 
 class StartedSubagent(StateFixture):
-    """The agent sent a researcher subagent and it started, working on a stack of its own while the agent's stays as it was: start.subagent."""
+    """The agent sent a researcher subagent and it started, working on a stack of its own while the agent's stays as it was: story.agents.subagent."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.subagent = "agent-first"
-        story.agent_sends_subagent(story.agents.subject, RESEARCHER, "find where the parser is called")
-        story.subagent_starts(self.subagent, RESEARCHER)
+        self.subagents.first = "agent-first"
+        story.agent_sends_subagent(story.agents.main, RESEARCHER, "find where the parser is called")
+        story.subagent_starts(self.subagents.first, RESEARCHER)
 
     def expected(self, story) -> None:
-        story.expect_subagent_stack(self.subagent, Void, Researching)
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.subagent, Void, Researching)
+        story.expect_stack(story.agents.main, Ready)

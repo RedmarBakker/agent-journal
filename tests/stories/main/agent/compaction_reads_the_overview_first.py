@@ -14,7 +14,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 def test_after_a_compaction_a_write_waits_for_the_overview(story):
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
@@ -32,7 +32,7 @@ def test_the_overview_ends_the_wait_and_the_work_goes_on(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -40,7 +40,7 @@ def test_the_overview_ends_the_wait_and_the_work_goes_on(story):
 def test_a_stop_before_the_overview_is_refused(story):
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_STOP)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
@@ -49,5 +49,5 @@ def test_a_resumed_session_needs_no_overview(story):
     story.agent_resumes_the_session(story.agents.subject)
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

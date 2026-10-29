@@ -28,7 +28,7 @@ def test_an_orchestrator_stop_with_an_open_task_names_it_to_dispatch(story):
 
 @story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_that_stops_with_a_task_in_hand_is_told_to_delegate_it(story):
-    story.agent_runs(story.agents.subject, f"task start {story.fixture.briefed}")
+    story.agent_runs(story.agents.subject, f"task start {story.tasks.briefed}")
     story.agent_stops(story.agents.subject)
     story.expect_agent_told(story.agents.subject, WorkersNudges.TASK_DELEGATION)
     story.expect_stack(story.agents.subject, Orchestrating, Delegating)
@@ -55,5 +55,5 @@ def test_back_in_builder_mode_a_stop_takes_the_open_task_up_instead_of_naming_it
     story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
     story.agent_stops(story.agents.subject)
     story.expect_agent_not_told(story.agents.subject, WorkersNudges.ORCHESTRATE)
-    story.expect_task(story.fixture.briefed, state=TaskState.STARTED)
+    story.expect_task(story.tasks.briefed, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

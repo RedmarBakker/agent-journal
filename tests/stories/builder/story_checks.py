@@ -7,7 +7,6 @@ from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from tests.full_project import MAIN
-from journal.support.researcher_session import ResearcherSession
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.worker_steps import worker_session
@@ -321,10 +320,6 @@ class StoryChecks:
         expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
         row_fields = {name: row.get(name) for name in expected_fields}
         assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
-
-    def expect_subagent_stack(self, subagent: str, *states: type) -> None:
-        stack = self.session_stack(ResearcherSession.joined(self.main_session(), subagent))
-        assert stack == [state.name for state in states], f"subagent {subagent}'s stack is {stack}; told {[line.key for line in self.said]}"
 
     def floor(self) -> type:
         return Workers.modes.states[self.mode]

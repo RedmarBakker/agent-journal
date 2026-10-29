@@ -6,15 +6,14 @@ FILE = "shot one.png"
 
 
 class MessageWithFile(StateFixture):
-    """The user attached a screenshot to the first of their two unread messages: start.message."""
+    """The user attached a screenshot to the first of their two unread messages: story.messages.first."""
 
     stack = (Ready,)
 
     parent = TwoUnreadMessages
 
     def steps(self, story) -> None:
-        self.message = self.first_message
-        story.user_attaches_file(self.message, FILE, b"PNG")
+        story.user_attaches_file(self.messages.first, FILE, b"PNG")
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready)
+        story.expect_stack(story.agents.main, Ready)

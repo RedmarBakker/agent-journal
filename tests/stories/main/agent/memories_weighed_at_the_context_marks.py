@@ -30,7 +30,7 @@ def test_skipping_at_the_mark_ends_the_weighing(story):
     story.agent_runs(story.agents.subject, "memory skip 'nothing new to keep'")
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -62,7 +62,7 @@ def test_a_reading_past_two_marks_asks_for_the_highest_only(story):
     story.agent_consumes_context(story.agents.subject, SECOND)
     story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=SECOND)
     story.expect_agent_not_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
 
@@ -70,7 +70,7 @@ def test_a_reading_past_two_marks_asks_for_the_highest_only(story):
 def test_a_reading_below_the_first_mark_asks_nothing(story):
     story.agent_consumes_context(story.agents.subject, FIRST - 1)
     story.expect_agent_not_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -81,5 +81,5 @@ def test_a_codex_session_whose_rollout_reaches_a_mark_weighs_its_memories_before
     story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_refused(story.agents.subject, MemoryNudges.DECISION_EDIT_BLOCK)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)

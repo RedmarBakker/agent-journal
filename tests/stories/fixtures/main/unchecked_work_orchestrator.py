@@ -16,7 +16,7 @@ class UncheckedWorkOrchestrator(StateFixture):
     parent = OrchestratorWorkerDelivered
 
     def steps(self, story) -> None:
-        story.agent_is_quiet_for(story.agents.subject, minutes=CLEARING_WAIT_RANGE.fail_level * 2)
+        story.agent_is_quiet_for(story.agents.main, minutes=CLEARING_WAIT_RANGE.fail_level * 2)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Orchestrating)
+        story.expect_stack(story.agents.main, Orchestrating)

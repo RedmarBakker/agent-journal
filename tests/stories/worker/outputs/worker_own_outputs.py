@@ -16,7 +16,7 @@ POLLED_OUTPUT = 1
 def test_a_worker_may_list_its_outputs(story):
     story.agent_runs(story.agents.subject, "output list")
     story.expect_command_passed()
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
@@ -27,5 +27,5 @@ def test_a_worker_stopping_with_its_own_output_running_is_refused_with_its_numbe
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, WorkersNudges.OUTPUT_UNFINISHED, n=output)
     story.background_run_ends(output)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

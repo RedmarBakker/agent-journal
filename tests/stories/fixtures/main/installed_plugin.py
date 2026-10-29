@@ -8,15 +8,15 @@ ECHO = Path(__file__).parents[3] / "plugins" / "echo"
 
 
 class InstalledPlugin(StateFixture):
-    """The user installed the echo plugin from its folder, on: start.plugin."""
+    """The user installed the echo plugin from its folder, on: story.plugins.first."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.plugin = "echo"
+        self.plugins.first = "echo"
         story.user_types(f"plugin install {ECHO} --yes")
 
     def expected(self, story) -> None:
-        story.expect_command_text(f"installed {self.plugin}, on")
+        story.expect_command_text(f"installed {self.plugins.first}, on")

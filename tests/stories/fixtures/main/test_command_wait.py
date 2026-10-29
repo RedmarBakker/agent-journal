@@ -7,7 +7,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class TestCommandWait(StateFixture):
-    """The project names no test commands, and the agent started the approved plan, so the plan waits for them: start.plan, start.first_task and start.second_task."""
+    """The project names no test commands, and the agent started the approved plan, so the plan waits for them: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready, FollowingPlan, NamingTestCommands)
 
@@ -16,7 +16,7 @@ class TestCommandWait(StateFixture):
     settings = ((PlansOptions.TEST_COMMANDS, ""),)
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"plan start {self.plan}")
+        story.agent_runs(story.agents.main, f"plan start {self.plans.first}")
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready, FollowingPlan, NamingTestCommands)
+        story.expect_stack(story.agents.main, Ready, FollowingPlan, NamingTestCommands)

@@ -26,7 +26,7 @@ def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
     story.background_run_ends(output)
     story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_END)
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 

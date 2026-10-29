@@ -37,7 +37,7 @@ def test_a_remark_rides_a_stop_refused_for_the_task_in_hand_beside_the_refusal(s
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_task(story.fixture.started_task, state="started")
+    story.expect_task(story.tasks.started, state="started")
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -54,7 +54,7 @@ def test_a_remark_rides_a_stop_made_while_a_sequence_runs(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
     story.agent_stops(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_row("sequences", story.fixture.sequence, {})
+    story.expect_row("sequences", story.sequences.first, {})
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 

@@ -8,7 +8,7 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_second_message_read_soon_after_names_only_what_to_do(story):
-    story.agent_replies(story.agents.subject, story.fixture.message, "not yet")
+    story.agent_replies(story.agents.subject, story.messages.first, "not yet")
     second = story.user_sends_message("and the header?")
     story.agent_reads_message(story.agents.subject, second)
     story.expect_agent_told(story.agents.subject, MessagesNudges.MESSAGE_READ, n=second)
@@ -18,7 +18,7 @@ def test_a_second_message_read_soon_after_names_only_what_to_do(story):
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_message_read_past_the_span_of_tool_uses_names_the_reply_command_again(story):
-    story.agent_replies(story.agents.subject, story.fixture.message, "not yet")
+    story.agent_replies(story.agents.subject, story.messages.first, "not yet")
     story.agent_reads(story.agents.subject, count=REPLY_COMMAND_SPAN_USES)
     second = story.user_sends_message("and the header?")
     story.agent_reads_message(story.agents.subject, second)

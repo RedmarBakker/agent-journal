@@ -23,5 +23,5 @@ def test_a_proof_by_the_worker_starts_a_new_quiet_span(story):
     story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
     story.agent_is_quiet_past(story.agents.workers.first(), DISPATCHER_SECONDS)
     story.expect_agent_not_told(story.agents.subject, WorkersNudges.SILENT_WORKER)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

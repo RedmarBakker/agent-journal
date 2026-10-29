@@ -7,16 +7,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PausedPlan(StateFixture):
-    """The user paused the started plan in the viewer, which pauses its task in hand and frees the agent: start.plan, start.first_task and start.second_task."""
+    """The user paused the started plan in the viewer, which pauses its task in hand and frees the agent: story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready,)
 
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.user_pauses_plan(self.plan)
+        story.user_pauses_plan(self.plans.first)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_POSTPONED, n=self.plan)
-        story.expect_plan(self.plan, state=PlanState.PAUSED)
-        story.expect_task(self.first_task, state=TaskState.PAUSED)
+        story.expect_agent_told(story.agents.main, PlansNudges.PLAN_POSTPONED, n=self.plans.first)
+        story.expect_plan(self.plans.first, state=PlanState.PAUSED)
+        story.expect_task(self.tasks.first, state=TaskState.PAUSED)

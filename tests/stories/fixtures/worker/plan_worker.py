@@ -6,18 +6,18 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PlanWorker(StateFixture):
-    """The agent sent one worker on the whole approved plan and it clocked in on the first task, the second queued behind it: start.worker."""
+    """The agent sent one worker on the whole approved plan and it clocked in on the first task, the second queued behind it: story.agents.workers.first()."""
 
     stack = (Ready, ExternalWait)
 
     parent = PlanApproved
 
     def steps(self, story) -> None:
-        self.worker = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", self.plan)
-        story.agent_starts_a_session(story.agents.workers.get(self.worker))
-        story.agent_clocks_in(story.agents.workers.get(self.worker))
+        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
+        story.agent_starts_a_session(story.agents.workers.first())
+        story.agent_clocks_in(story.agents.workers.first())
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plan, state=PlanState.DELEGATED)
-        story.expect_task(self.first_task, delegated=True)
-        story.expect_task(self.second_task, delegated=True)
+        story.expect_plan(self.plans.first, state=PlanState.DELEGATED)
+        story.expect_task(self.tasks.first, delegated=True)
+        story.expect_task(self.tasks.second, delegated=True)

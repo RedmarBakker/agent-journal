@@ -7,14 +7,14 @@ TITLE, ABSTRACT, TEXT = "the footer", "where the links go", "## Layout\n\nThe fo
 
 
 class WrittenDocument(StateFixture):
-    """The agent wrote a document from a file, which started the sequence a new document starts: start.document."""
+    """The agent wrote a document from a file, which started the sequence a new document starts: story.documents.first."""
 
     stack = (Ready, FollowingSequence)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.document = story.agent_writes_a_document(story.agents.subject, TITLE, ABSTRACT, TEXT)
+        self.documents.first = story.agent_writes_a_document(story.agents.main, TITLE, ABSTRACT, TEXT)
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.subject, Ready, FollowingSequence)
+        story.expect_stack(story.agents.main, Ready, FollowingSequence)

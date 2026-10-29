@@ -14,7 +14,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_agents_own_reaction_is_never_told_back(story):
-    story.agent_reacts(story.agents.subject, story.fixture.message, "🙏")
+    story.agent_reacts(story.agents.subject, story.messages.first, "🙏")
     story.agent_reads(story.agents.subject)
     story.expect_agent_not_told(story.agents.subject, MessagesNudges.USER_REACTION)
     story.expect_stack(story.agents.subject, Ready)
@@ -22,7 +22,7 @@ def test_the_agents_own_reaction_is_never_told_back(story):
 
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_two_different_reactions_are_each_told(story):
-    reply = story.agent_replies_with_number(story.agents.subject, story.fixture.message, "it is")
+    reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "it is")
     story.user_reacts(reply, "🎉")
     story.expect_agent_told(story.agents.subject, MessagesNudges.USER_REACTION, n=reply, emoji="🎉")
     story.user_reacts(reply, "👀")
@@ -37,7 +37,7 @@ def test_a_reaction_leaves_the_task_in_hand_as_it_was(story):
     reply = story.agent_replies_with_number(story.agents.subject, message, "nearly")
     story.user_reacts(reply, "👍")
     story.expect_agent_told(story.agents.subject, MessagesNudges.USER_REACTION, n=reply, emoji="👍")
-    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -47,6 +47,6 @@ def test_a_reaction_leaves_a_followed_plan_as_it_was(story):
     story.agent_reads_message(story.agents.subject, message)
     reply = story.agent_replies_with_number(story.agents.subject, message, "one task in")
     story.user_reacts(reply, "👍")
-    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

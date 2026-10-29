@@ -5,15 +5,15 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 class TwoUnreadMessages(StateFixture):
-    """The user sent two messages the agent has not read: start.first_message and start.second_message."""
+    """The user sent two messages the agent has not read: story.messages.first and story.messages.second."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.first_message = story.user_sends_message("is the footer done?")
-        self.second_message = story.user_sends_message("and the header?")
+        self.messages.first = story.user_sends_message("is the footer done?")
+        self.messages.second = story.user_sends_message("and the header?")
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=self.second_message)
+        story.expect_agent_told(story.agents.main, MessagesNudges.NEW_MESSAGE, n=self.messages.second)

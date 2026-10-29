@@ -11,16 +11,16 @@ FILES = {"type": "heading", "text": "Files", "level": 3}
 def test_a_plugins_dashboard_is_written_by_its_program_alone(story):
     story.agent_runs(story.agents.subject, "dashboard set a.py a.py")
     story.expect_command_refused()
-    story.user_opens(f"/journal/plugins/{story.plugin_number(story.fixture.plugin)}/dashboard")
+    story.user_opens(f"/journal/plugins/{story.plugin_number(story.plugins.first)}/dashboard")
     story.expect_viewer_shows("pages", None)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(InstalledPlugin, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plugins_dashboard_is_drawn_from_the_lines_it_wrote_one_line_per_key_rewritten_in_place(story):
-    story.plugin_runs(story.fixture.plugin, "dashboard set a.py a.py --badge '2 sins' --tone warn --heading Files")
-    story.plugin_runs(story.fixture.plugin, "dashboard set b.py b.py --badge clean --tone good --heading Files")
-    story.plugin_runs(story.fixture.plugin, "dashboard set a.py a.py --badge '1 sin' --tone warn --heading Files")
-    story.user_opens(f"/journal/plugins/{story.plugin_number(story.fixture.plugin)}/dashboard")
+    story.plugin_runs(story.plugins.first, "dashboard set a.py a.py --badge '2 sins' --tone warn --heading Files")
+    story.plugin_runs(story.plugins.first, "dashboard set b.py b.py --badge clean --tone good --heading Files")
+    story.plugin_runs(story.plugins.first, "dashboard set a.py a.py --badge '1 sin' --tone warn --heading Files")
+    story.user_opens(f"/journal/plugins/{story.plugin_number(story.plugins.first)}/dashboard")
     story.expect_viewer_part(("pages", "start", "view", "children"), [FILES, {"type": "list", "items": [{"label": "a.py", "badge": "1 sin", "tone": "warn", "note": ""}, {"label": "b.py", "badge": "clean", "tone": "good", "note": ""}]}])
     story.expect_stack(story.agents.subject, Ready)

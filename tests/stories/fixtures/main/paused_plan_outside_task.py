@@ -7,16 +7,16 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PausedPlanOutsideTask(StateFixture):
-    """With the plan it paused, the agent took up a task outside it, and at its first write the journal asks whether it returns to the plan once that task is done: start.fix."""
+    """With the plan it paused, the agent took up a task outside it, and at its first write the journal asks whether it returns to the plan once that task is done: story.tasks.outside."""
 
     stack = (Ready, Working, ChoosingPlanReturn)
 
     parent = AgentPausedPlan
 
     def steps(self, story) -> None:
-        self.fix = story.agent_takes_a_task(story.agents.subject, "the broken build")
-        story.agent_writes(story.agents.subject, "build.py")
+        self.tasks.outside = story.agent_takes_a_task(story.agents.main, "the broken build")
+        story.agent_writes(story.agents.main, "build.py")
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=self.plan, task=self.fix)
-        story.expect_stack(story.agents.subject, Ready, Working, ChoosingPlanReturn)
+        story.expect_refused(story.agents.main, PlansNudges.PLAN_RETURN_QUESTION, n=self.plans.first, task=self.tasks.outside)
+        story.expect_stack(story.agents.main, Ready, Working, ChoosingPlanReturn)

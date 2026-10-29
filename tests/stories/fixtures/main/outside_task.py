@@ -7,17 +7,17 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class OutsideTask(StateFixture):
-    """The agent paused the plan's first task and took up a task outside the plan, worked on top of the plan: start.outside_task, with start.plan, start.first_task and start.second_task."""
+    """The agent paused the plan's first task and took up a task outside the plan, worked on top of the plan: story.tasks.outside, with story.plans.first, story.tasks.first and story.tasks.second."""
 
     stack = (Ready, FollowingPlan, Working)
 
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.subject, f"task pause {self.first_task} 'something else first'")
-        self.outside_task = story.agent_takes_a_task(story.agents.subject, "outside")
+        story.agent_runs(story.agents.main, f"task pause {self.tasks.first} 'something else first'")
+        self.tasks.outside = story.agent_takes_a_task(story.agents.main, "outside")
 
     def expected(self, story) -> None:
-        story.expect_task(self.outside_task, state=TaskState.STARTED)
-        story.expect_task(self.first_task, state=TaskState.PAUSED)
-        story.expect_stack(story.agents.subject, Ready, FollowingPlan, Working)
+        story.expect_task(self.tasks.outside, state=TaskState.STARTED)
+        story.expect_task(self.tasks.first, state=TaskState.PAUSED)
+        story.expect_stack(story.agents.main, Ready, FollowingPlan, Working)

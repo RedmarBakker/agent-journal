@@ -23,7 +23,7 @@ def test_a_worker_stop_with_open_todos_is_told_them(story):
     story.agent_runs(story.agents.subject, "todo add 'read the grammar'")
     story.agent_stops(story.agents.subject)
     story.expect_agent_told(story.agents.subject, WorkersNudges.OPEN_TODOS, count=1)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
@@ -33,7 +33,7 @@ def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
     story.agent_runs(story.agents.subject, "todo check 1")
     story.agent_stops(story.agents.subject)
     story.expect_agent_not_told(story.agents.subject, WorkersNudges.OPEN_TODOS)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
@@ -41,7 +41,7 @@ def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
 def test_a_worker_never_runs_git(story):
     story.agent_runs_in_the_shell(story.agents.subject, "git commit -am done")
     story.expect_refused(story.agents.subject, WorkersNudges.WORKER_GIT_REFUSAL)
-    story.expect_task(story.fixture.briefed, delegated=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 

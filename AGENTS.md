@@ -204,6 +204,8 @@ assert appears in it; every assert lives inside an expect method of the builder.
   `story.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
   `story.agents` holds the subject, the main agent, `workers.first()` and `workers.get(n)`, the same for reviewers and
   verifiers, and the subagent; there are no main_ or worker_ twins of a step.
+- **Its rows by kind**: the rows its fixture made are read on the story by kind and name, `story.tasks.started`,
+  `story.plans.first`, `story.messages.second`; a fixture keeps them as `self.tasks.started` and plays as `story.agents.main`.
 - **It closes on its stack**: every story's last line is `story.expect_stack(...)`, and the run fails one that does not.
 - **It names its work mode and its subject**: `@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)`, never left
   to a default; a mode list, or `ALL_MODES`, runs it once per mode, its stack naming the mode's bottom state as
