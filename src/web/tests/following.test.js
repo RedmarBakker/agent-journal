@@ -67,7 +67,7 @@ test("a pane told the reader scrolled up stops following without measuring", () 
     expect([away.value, box.scrollTop]).toEqual([true, 600]);
 });
 
-test("a chat resting within a quarter of its height above its foot settles there once unscrolled for five seconds, and one further up never moves", () => {
+test("a pane resting within a quarter of its height above its foot settles there once unscrolled for five seconds, and one further up never moves", () => {
     vi.useFakeTimers();
     try {
         const near = pane(1000 - 400 - 400 * SETTLE_SHARE);
