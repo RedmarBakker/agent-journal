@@ -12955,7 +12955,7 @@ def test_a_timed_out_judge_ends_the_suite_card_after_its_await_was_cleared(app: 
         [running] = app.container.get(Messages).with_key(f"watch:{output.id}")
         assert running.data["active"] and running.data["docked"], "the suite output stays docked as running while its judge is still going"
 
-    suite = suite_script("suite_for_output_card")
+    suite = suite_script()
     monkeypatch.setattr(suite, "JUDGE", Path(__file__))
     monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(2)"])
     monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
