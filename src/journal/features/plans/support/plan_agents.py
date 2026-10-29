@@ -16,7 +16,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class PlanAgents:
-    """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation; a pause or an end stops it, and environment, binding, row and link stay for its next start."""
+    """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
     def __init__(self, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, launcher: AgentLauncher, supervisor: SupervisorLink, settings: SettingRows, providers: Providers) -> None:
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
@@ -33,9 +33,13 @@ class PlanAgents:
     def is_running(self, environment: Environment) -> bool:
         return self.supervisor.runs(environment.row_id)
 
-    def started(self, plan: Plan, starter_environment_id: int, actor: Actor) -> None:
-        if not self.settings.option(PlansOptions.PLAN_AGENTS):
+    def is_on(self) -> bool:
+        return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
+
+    def started(self, plan_id: int, starter_environment_id: int, actor: Actor) -> None:
+        if not self.is_on():
             return
+        plan = self.plans.find(plan_id)
         environment = self.environment(plan) or self.environments.lookup(f"plan-{plan.id}")
         if self.is_running(environment):
             return
@@ -54,7 +58,9 @@ class PlanAgents:
         starter = self.agents.environment_main_agent(environment_id)
         return starter.provider if starter and starter.provider else self.providers.default().name
 
-    def stopped(self, plan: Plan) -> None:
-        environment = self.environment(plan)
+    def stopped(self, plan_id: int) -> None:
+        if not self.is_on():
+            return
+        environment = self.environment(self.plans.find(plan_id))
         if environment and self.is_running(environment):
             self.supervisor.stop(environment.row_id)
