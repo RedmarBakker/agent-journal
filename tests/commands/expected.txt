@@ -1752,7 +1752,7 @@ messages.unread_messages_to_read  [messages]  {{count}} messages unread: `journa
 messages.write_held_until_read  [messages]  {{count}} unread messages. run `journal message unread` before any other write
 messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
-organization.action_waits_for_the_user  [organization]  {{action}} always waits for the user: ask with `journal question ask`, and do it only once the answer allows it
+organization.action_waits_for_the_user  [organization]  {{action}} waits for the user: ask with `journal question ask "<may I?>"`, act once the answer allows it
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
