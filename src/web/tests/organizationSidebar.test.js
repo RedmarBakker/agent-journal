@@ -71,6 +71,7 @@ beforeEach(() => {
     location.hash = "#/organization";
     store.booted = true;
     store.settings = {plans: {plan_agents: true}, workers: {organization_folder: "/workspace/agentic-organization"}};
+    store.spec = {version: "test"};
     store.people = {me: 1, hosted: false, people: [{id: 2, name: "Ada"}], owners: {11: 2, 12: 2, 13: 2}};
     store.sideMini = false;
     store.pluginPage = null;
