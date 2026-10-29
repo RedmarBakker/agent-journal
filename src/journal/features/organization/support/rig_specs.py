@@ -54,21 +54,28 @@ OWNER_ONLY = 0o600
 
 
 class RigSpecs:
-    """Writes an organization plan's pinned OpenRig specs from its Role and Domain contracts: a Plan pod and one pod per staffed domain, linked by containment, with provider-specific runtimes, hooks, models and permissions; each member boots as its journal worker with guidance and skills, and the token-bearing rig spec is owner-only. Specs are written as JSON, which is YAML."""
+    """Writes pinned OpenRig specs for organization plan rigs and the shared rig for journal-cardinality Roles, with provider runtimes, hooks, models, permissions, guidance and skills."""
 
     def __init__(self, config: Config, providers: Providers, setup: HelperSetup, seats: RigSeats, skills: SkillIds, files: SkillFiles, folder: ContractFolder, settings: SettingRows) -> None:
         self.config, self.providers, self.setup, self.seats = config, providers, setup, seats
         self.skills, self.files, self.folder, self.settings = skills, files, folder, settings
 
     def write(self, rig: str, contracts: Contracts, domains: tuple[str, ...], cwd: Path, workers: Callable[[Seat], SeatWorker], provider: Provider | None = None) -> Path:
+        provider = provider or self.providers.shell_provider(os.environ)
+        seats = self.seats.seats(rig, contracts, domains, provider)
+        links = self.seats.links(contracts, seats)
+        return self.write_seats(rig, seats, links, cwd, workers, f"The journal's organization plan {rig}.")
+
+    def write_shared(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> Path:
+        return self.write_seats(rig, seats, links, cwd, workers, f"The journal's shared organization Roles in {rig}.")
+
+    def write_seats(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str) -> Path:
         folder = self.spec_folder(rig)
         if folder.exists():
             shutil.rmtree(folder)
-        provider = provider or self.providers.shell_provider(os.environ)
-        seats = self.seats.seats(rig, contracts, domains, provider)
         for seat in seats:
             self.agent(folder / "agents" / seat.agent(), seat)
-        path = self.written(folder / "rig.yaml", self.spec(rig, seats, self.seats.links(contracts, seats), cwd, workers))
+        path = self.written(folder / "rig.yaml", self.spec(rig, seats, links, cwd, workers, summary))
         path.chmod(OWNER_ONLY)
         return path
 
@@ -98,10 +105,10 @@ class RigSpecs:
     def spec_folder(self, rig: str) -> Path:
         return self.config.home / "runtime" / "rigs" / rig
 
-    def spec(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> dict:
+    def spec(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str = "") -> dict:
         cwd = cwd.resolve()
         pods = [self.pod(pod, tuple(seat for seat in seats if seat.pod == pod), links, cwd, workers) for pod in dict.fromkeys(seat.pod for seat in seats)]
-        return {"version": RIG_SPEC_VERSION, "name": rig, "summary": f"The journal's organization plan {rig}.", "pods": pods,
+        return {"version": RIG_SPEC_VERSION, "name": rig, "summary": summary or f"The journal's organization plan {rig}.", "pods": pods,
                 "edges": [self.edge(source.logical_id(), target.logical_id()) for source, target in links if source.pod != target.pod]}
 
     def pod(self, pod: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path | Callable[[Seat], Path], workers: Callable[[Seat], SeatWorker]) -> dict:

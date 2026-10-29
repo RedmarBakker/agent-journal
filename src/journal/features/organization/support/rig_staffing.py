@@ -29,7 +29,7 @@ from journal.support.rejection import Rejection
 
 
 class RigStaffing:
-    """Start an organization plan with its Plan seat, then grow only the domain pod and Role seat that gets a job."""
+    """Start each plan's rig, keep shared journal Roles in one organization rig, and add only the seats each job needs."""
 
     def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers) -> None:
         self.organization = organization
@@ -76,41 +76,84 @@ class RigStaffing:
         if self.is_running(plan, provider):
             self.runtime.stop(f"{PLAN_POD}-{PLAN_AGENT}@{rig.name}", f"plan {plan.id} stopped")
 
-    def role(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str, environment: str, cwd: Path) -> Seat:
+    def role_placement(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str, environment: str, cwd: Path) -> tuple[Rig, Seat]:
+        domain = contracts.domain(role.domain)
+        if domain is None:
+            raise Rejection(f"Role {role.id} has no Domain {role.domain} in its contract")
+        provider = self.providers.lookup(provider_name)
+        domain_seat = self.seats.domain_agent(domain, provider)
+        role_seat = self.worker_seat(role, domain, worker, provider)
+        if role.cardinality is Cardinality.JOURNAL:
+            rig = self.shared_rig(plan, contracts, domain_seat, role_seat, worker, environment, cwd)
+            return rig, role_seat
+
         rig_id = self.plans.rig_id(plan)
         if not rig_id:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {role.id}")
         rig = self.find_rig(rig_id)
-        domain = contracts.domain(role.domain)
-        if domain is None:
-            raise Rejection(f"Role {role.id} has no Domain {role.domain} in its contract")
+        plan_seat = self.seats.plan_agent(rig.name, provider)
+        self.place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker, environment, cwd, True)
+        return rig, role_seat
+
+    def shared_rig(self, plan: Plan, contracts: Contracts, domain_seat: Seat, role_seat: Seat, worker: int, environment: str, cwd: Path) -> Rig:
+        name = self.shared_rig_name(plan.environment_id)
+        matches = self.rigs.global_matching(name=name, environment_id=plan.environment_id)
+        if not matches:
+            seats = (domain_seat, role_seat)
+            links = self.seats.links(contracts, seats)
+            path = self.specs.write_shared(name, seats, links, cwd,
+                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment))
+            self.runtime.start_rig(path)
+            return self.rigs.save(Rig(environment_id=plan.environment_id, name=name), Actor.system())
+
+        rig = matches[0]
+        path = self.specs.spec_folder(rig.name) / "rig.yaml"
+        if not path.exists():
+            seats = (domain_seat, role_seat)
+            links = self.seats.links(contracts, seats)
+            path = self.specs.write_shared(rig.name, seats, links, cwd,
+                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment))
+            self.runtime.start_rig(path)
+            return rig
+
+        running = self.runtime.rig_exists(rig.name)
+        self.place_role(rig, plan, contracts, None, domain_seat, role_seat, worker, environment, cwd, running)
+        if not running:
+            self.runtime.start_rig(path)
+        return rig
+
+    @staticmethod
+    def shared_rig_name(environment_id: int) -> str:
+        return f"organization-{environment_id}"
+
+    def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
+                   worker: int, environment: str, cwd: Path, running: bool) -> None:
         path = self.specs.spec_folder(rig.name) / "rig.yaml"
         try:
             spec = json.loads(path.read_text())
         except (OSError, ValueError) as failed:
             raise Rejection(f"OpenRig spec for plan {plan.id} cannot be read at {path}: {failed}") from failed
 
-        provider = self.providers.lookup(provider_name)
-        plan_seat = self.seats.plan_agent(rig.name, provider)
-        domain_seat = self.seats.domain_agent(domain, provider)
-        role_seat = self.worker_seat(role, domain, worker, provider)
-        links = self.seats.links(contracts, (plan_seat, domain_seat, role_seat))
+        seats = tuple(seat for seat in (plan_seat, domain_seat, role_seat) if seat is not None)
+        links = self.seats.links(contracts, seats)
         pods = spec.setdefault("pods", [])
-        pod = next((value for value in pods if value.get("id") == domain.id), None)
+        pod = next((value for value in pods if value.get("id") == domain_seat.pod), None)
         if pod is None:
             fragment, pod = self.specs.pod_fragment(
-                rig.name, domain.id, (domain_seat, role_seat), links,
+                rig.name, domain_seat.pod, (domain_seat, role_seat), links,
                 lambda seat: cwd if seat.qualified == role_seat.qualified else self.config.root,
                 lambda seat: self.seat_worker(seat, role_seat, worker, environment),
             )
-            self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
+            if running:
+                self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
             pods.append(pod)
         elif not any(member.get("id") == role_seat.member for member in pod.get("members", [])):
             fragment, member = self.specs.member_fragment(
                 rig.name, role_seat, cwd,
                 self.seat_worker(role_seat, role_seat, worker, environment),
             )
-            self.runtime.add(rig.name, domain.id, fragment, self.specs.spec_folder(rig.name))
+            if running:
+                self.runtime.add(rig.name, domain_seat.pod, fragment, self.specs.spec_folder(rig.name))
             pod.setdefault("members", []).append(member)
 
         edges = spec.setdefault("edges", [])
@@ -124,9 +167,9 @@ class RigStaffing:
                 if edge not in edges:
                     edges.append(edge)
         self.specs.written(path, spec).chmod(OWNER_ONLY)
-        for source, target in links:
-            self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
-        return role_seat
+        if running:
+            for source, target in links:
+                self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
 
     def remove_role(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str) -> None:
         if role.cardinality is not Cardinality.MANY:

@@ -1,4 +1,4 @@
-"""Run journal worker jobs inside their plan's persistent OpenRig Role seat."""
+"""Run organization Role jobs in plan rigs or a shared OpenRig seat."""
 
 import threading
 import time
@@ -11,23 +11,26 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.rig_staffing import RigStaffing
-from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
+from journal.features.organization.support.role import Role
+from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime, SeatSession
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
+from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
+from journal.models.task import Task
 from journal.models.worker import JOB_STARTS, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
+from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
-from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.actor import Actor
 from journal.support.process_check import ProcessCheck
 from journal.support.rejection import Rejection
@@ -49,16 +52,18 @@ class SeatJobIdentity:
     worker_id: int
     generation: tuple[int, str, float] | None
     started_at: float = field(compare=False)
+    task_id: int = field(default=0, compare=False)
+    plan_id: int = field(default=0, compare=False)
 
     @classmethod
-    def from_worker(cls, worker: Worker) -> "SeatJobIdentity":
+    def from_worker(cls, worker: Worker, task_id: int = 0, plan_id: int = 0) -> "SeatJobIdentity":
         generation = next(((index, move, time) for index, (move, time) in reversed(tuple(enumerate(worker.moves.steps)))
                            if move in JOB_STARTS), None)
-        return cls(worker.row_id, worker.id, generation, worker.job_start_time() or worker.began)
+        return cls(worker.row_id, worker.id, generation, worker.job_start_time() or worker.began, task_id, plan_id)
 
 
 class SeatRunner:
-    """Run each plan Role in its persistent seat, and each many Role in its one-job seat."""
+    """Run plan Roles in their plan rig, journal Roles in a shared rig with fresh jobs, and many Roles in one-job seats."""
 
     def __init__(self, config: Config, organization: Organization, plans: Plans, workers: Workers,
                  environments: Environments, settings: SettingRows, scope: Scope,
@@ -78,27 +83,66 @@ class SeatRunner:
         self._guard = threading.Lock()
 
     def applies(self, worker: Worker) -> bool:
-        if not worker.role or not worker.plan_id or not worker.contract:
+        if not worker.role or not worker.contract:
             return False
-        role = self.organization.at(worker.contract).role(worker.role)
-        plan = self.plans.find(worker.plan_id)
-        return bool(role and plan.mode is PlanMode.ORGANIZATION and role.cardinality in (Cardinality.PLAN, Cardinality.MANY))
+        role = self.role_for(worker)
+        if role is None:
+            return False
+        if role.cardinality is Cardinality.JOURNAL:
+            return self.job_plan(worker) is not None
+        plan = self.plans.find(worker.plan_id) if worker.plan_id else None
+        return bool(plan and plan.mode is PlanMode.ORGANIZATION and role.cardinality in (Cardinality.PLAN, Cardinality.MANY))
+
+    def role_for(self, worker: Worker) -> Role | None:
+        return self.organization.at(worker.contract).role(worker.role) if worker.contract and worker.role else None
+
+    def job_task(self, worker: Worker) -> Task | None:
+        holder = Ref.build(worker)
+        task = self.tasks.holder_task(holder)
+        if task is not None:
+            return task
+        queued = self.tasks.queue(holder)
+        return queued[0] if queued else None
+
+    def job_plan(self, worker: Worker, task: Task | None = None) -> Plan | None:
+        task = task or self.job_task(worker)
+        plans = self.plans.containing(task) if task else []
+        if plans:
+            return plans[0]
+        return self.plans.find(worker.plan_id) if worker.plan_id else None
+
+    def job_context(self, worker: Worker, prompt: str, actor: Actor) -> tuple[Worker, SeatJobIdentity, str]:
+        role = self.role_for(worker)
+        if role is None or role.cardinality is not Cardinality.JOURNAL:
+            return worker, SeatJobIdentity.from_worker(worker), prompt
+        task = self.job_task(worker)
+        plan = self.job_plan(worker, task)
+        plan_id = plan.row_id if plan else worker.plan_id
+        if plan_id and worker.plan_id != plan_id:
+            worker = self.workers.save(worker.with_(plan_id=plan_id), actor)
+        identity = SeatJobIdentity.from_worker(worker, task.id if task else 0, plan_id)
+        if task and plan:
+            prompt = "\n\n".join((f"This job is task {task.id} ({task.title}) in plan {plan.id} ({plan.title}). Keep the work and report with this plan.", prompt))
+        elif task:
+            prompt = "\n\n".join((f"This job is task {task.id} ({task.title}).", prompt))
+        return worker, identity, prompt
 
     def member(self, worker: Worker) -> SeatMember:
+        role = self.role_for(worker)
+        if role is None:
+            raise Rejection(f"the contract for plan {worker.plan_id} no longer has Role {worker.role}")
+        if not worker.plan_id:
+            raise Rejection(f"worker {worker.id} has no plan for Role {worker.role}")
         plan = self.plans.find(worker.plan_id)
         rig_id = self.plans.rig_id(plan)
-        if not rig_id:
+        if role.cardinality is not Cardinality.JOURNAL and not rig_id:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {worker.role}")
-        rig = self.staffing.find_rig(rig_id)
-        role = self.organization.at(worker.contract).role(worker.role)
-        if role is None:
-            raise Rejection(f"the contract for plan {plan.id} no longer has Role {worker.role}")
         model = role.models.for_provider(worker.provider)
         if not model:
             raise Rejection(f"Role {worker.role} has no model selected for provider {worker.provider}")
         provider = self.providers.lookup(worker.provider)
-        seat = self.staffing.role(plan, self.organization.at(worker.contract), role, worker.id, worker.provider,
-                                  self.environments.find(worker.environment_id).name, self.branch.place(worker))
+        rig, seat = self.staffing.role_placement(plan, self.organization.at(worker.contract), role, worker.id, worker.provider,
+                                                self.environments.find(worker.environment_id).name, self.branch.place(worker))
         member = self.runtime.member(rig.name, role.domain, seat.member, worker.provider)
         runtime = getattr(provider, "openrig_runtime", "")
         if runtime and member.runtime != runtime:
@@ -118,7 +162,7 @@ class SeatRunner:
 
     def start(self, worker: Worker, actor: Actor, prompt: str,
               ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
-        identity = SeatJobIdentity.from_worker(worker)
+        worker, identity, prompt = self.job_context(worker, prompt, actor)
         send_existing = False
         with self._guard:
             if worker.id in self._active:
@@ -153,7 +197,18 @@ class SeatRunner:
                 self.runtime.check_version(member.openrig_version)
                 environment = self.environments.find(worker.environment_id).name
                 token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
+                fresh = self.is_journal_role(worker)
                 session = self.runtime.session(member, worker.resume)
+                if fresh:
+                    self.launch_fresh(member, worker, identity, session)
+                    session = None
+                if session is None and fresh:
+                    deadline = time.monotonic() + STARTUP_SECONDS
+                    while session is None and time.monotonic() < deadline:
+                        if self.current_job(identity) is None:
+                            return
+                        time.sleep(POLL_SECONDS)
+                        session = self.runtime.session(member)
                 if session is None or not ProcessCheck.is_running(session.pid):
                     raise Rejection(f"OpenRig seat {member.target} stopped before worker {worker.id}'s next job was sent")
                 current = self.current_job(identity)
@@ -197,11 +252,16 @@ class SeatRunner:
                 return
         if self.current_job(identity) is None:
             return
+        fresh = self.is_journal_role(worker)
         session = self.runtime.session(member, worker.resume)
+        if fresh:
+            self.launch_fresh(member, worker, identity, session)
+            session = None
         if session is None:
-            if worker.resume:
+            if worker.resume and not fresh:
                 raise Rejection(f"OpenRig seat {member.target} stopped; this version cannot resume the session, so it was left unchanged")
-            self.runtime.launch(member, f"journal worker {worker.id} starts task {identity.started_at or self.time_source.seconds()}")
+            if not fresh:
+                self.runtime.launch(member, f"journal worker {worker.id} starts task {identity.task_id or identity.started_at or self.time_source.seconds()}")
             deadline = time.monotonic() + STARTUP_SECONDS
             while session is None and time.monotonic() < deadline:
                 time.sleep(POLL_SECONDS)
@@ -230,6 +290,16 @@ class SeatRunner:
                 time.sleep(POLL_SECONDS)
         self.monitor(current, identity, member, session.session, actor, ended, identity.started_at or started_at)
 
+    def is_journal_role(self, worker: Worker) -> bool:
+        role = self.role_for(worker)
+        return bool(role and role.cardinality is Cardinality.JOURNAL)
+
+    def launch_fresh(self, member: SeatMember, worker: Worker, identity: SeatJobIdentity, session: SeatSession | None) -> None:
+        reason = f"journal worker {worker.id} starts task {identity.task_id or identity.started_at} with a fresh context"
+        if session is not None and ProcessCheck.is_running(session.pid):
+            self.runtime.stop(member.target, reason)
+        self.runtime.launch(member, reason)
+
     def monitor(self, worker: Worker, identity: SeatJobIdentity, member: SeatMember, native_session: str,
                 actor: Actor, ended: Callable[[Worker, SeatJobIdentity, int, Actor], None], started_at: float) -> None:
         usage_at = 0.0
@@ -240,7 +310,7 @@ class SeatRunner:
                 return
             if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
                 if current.state != WorkerState.STOPPED:
-                    self.record_usage(current, member, native_session, self.time_source.seconds(), actor)
+                    self.record_usage(current, member, native_session, self.time_source.seconds(), actor, identity)
                 self.finish_once(worker, identity, 0, actor, ended)
                 return
             if not self.tasks.holder_task_ids(Ref.build(current)) and self.tasks.finished_task_ids(Ref.build(current)):
@@ -274,11 +344,11 @@ class SeatRunner:
                 self.finish_once(current, identity, END_UNWATCHED, actor, ended)
                 return
             if now - usage_at >= USAGE_POLL_SECONDS:
-                self.record_usage(current, member, native_session, now, actor)
+                self.record_usage(current, member, native_session, now, actor, identity)
                 usage_at = now
 
-    def record_usage(self, worker: Worker, member: SeatMember, native_session: str, now: float, actor: Actor) -> None:
-        plan_id = worker.plan_id
+    def record_usage(self, worker: Worker, member: SeatMember, native_session: str, now: float, actor: Actor, identity: SeatJobIdentity) -> None:
+        plan_id = identity.plan_id or worker.plan_id
         estimate = None
         if plan_id:
             reading = self.runtime.usage_cost(member.target)
@@ -302,7 +372,7 @@ class SeatRunner:
         if estimate is not None:
             decision = self.caps.plan_cost(estimate)
             if decision.status == "exceeded":
-                self.escalation.cap_reached(worker, decision.reason, Actor.system())
+                self.escalation.cap_reached(worker, decision.reason, Actor.system(), plan_id)
                 plan = self.plans.find(plan_id)
                 if plan.state in (PlanState.STARTED, PlanState.DELEGATED):
                     self.plans.agent_postponed(plan, Actor.system())
@@ -362,7 +432,7 @@ class SeatRunner:
         if worker.pid <= 0:
             self.start(worker, actor, prompt, ended)
             return
-        identity = SeatJobIdentity.from_worker(worker)
+        worker, identity, _prompt = self.job_context(worker, prompt, actor)
         with self._guard:
             if worker.id in self._active:
                 return

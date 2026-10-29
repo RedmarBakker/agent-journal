@@ -5,6 +5,7 @@ from journal.features.organization.hub_conduct import HubConduct
 from journal.features.organization.listeners.board_standing_record import BoardStandingRecord
 from journal.features.organization.listeners.domain_count_record import DomainCountRecord
 from journal.features.organization.listeners.role_ending_report import RoleEndingReport
+from journal.features.organization.listeners.role_queue_feeder import RoleQueueFeeder
 from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
 from journal.features.organization.listeners.role_stuck_report import RoleStuckReport
 from journal.features.organization.listeners.role_task_domain import RoleTaskDomain
@@ -25,7 +26,7 @@ class OrganizationFeature(Feature[OrganizationData]):
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
     conduct = (OrganizationConduct, HubConduct)
-    listeners = (RoleTaskDomain, BoardStandingRecord, DomainCountRecord, RoleEndingReport)
+    listeners = (RoleTaskDomain, RoleQueueFeeder, BoardStandingRecord, DomainCountRecord, RoleEndingReport)
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
     helper_listeners = {AgentRole.WORKER: (RoleStuckReport, RoleRefusalReport)}

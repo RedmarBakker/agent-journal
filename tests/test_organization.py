@@ -54,21 +54,24 @@ from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.support.ref import Ref
 from journal.models.agent import Agent
+from journal.models.link import Link
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.models.task_state import TaskState
+from journal.models.support.report_choice import ReportChoice
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.environments import Environments
+from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 from journal.repositories.approvals import Approvals
 from journal.repositories.questions import Questions
 from journal.repositories.plans import Plans
-from journal.repositories.tasks import Tasks
+from journal.repositories.tasks import PLAN_LINK, Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
@@ -407,6 +410,34 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
         "plan": ["plan-agent"], "alpha": ["domain-agent", "planner"],
     }, "the used Domain and Role appear, while the other Domain and unassigned Roles stay out"
     assert grown["edges"] == [{"kind": "delegates_to", "from": "plan.plan-agent", "to": "alpha.domain-agent"}]
+
+
+def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_seat(app, tmp_path, monkeypatch):
+    _fixture, organization = loaded(app, tmp_path)
+    contracts = organization.reload()
+    user_set(app, "workers.openrig_version", "0.7.5")
+    calls = []
+
+    def run(_runtime, *arguments, check=True):
+        calls.append(arguments)
+        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plans, workers, runner = (app.container.get(kind) for kind in (Plans, Workers, SeatRunner))
+        first_plan = plans.save(Plan(environment_id=1, title="First plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        second_plan = plans.save(Plan(environment_id=1, title="Second plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        worker = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="scout", contract=contracts.version,
+                                     plan_id=first_plan.id, provider="claude", model="opus"), actor)
+        first = runner.member(worker)
+        second = runner.member(workers.save(worker.with_(plan_id=second_plan.id), actor))
+        spec = json.loads((app.config.home / "runtime" / "rigs" / "organization-1" / "rig.yaml").read_text())
+
+    members = {member["id"] for pod in spec["pods"] for member in pod["members"]}
+    assert first.rig == second.rig == "organization-1" and first.logical_id == second.logical_id == "alpha.scout", "both plans use the same shared Role seat"
+    assert len([call for call in calls if call[0] == "up"]) == 1 and members == {"domain-agent", "scout"}, "the shared rig starts once and has no plan-specific Role copy"
 
 
 def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_then_drops_both_after_merge(app, tmp_path, monkeypatch):
@@ -1077,12 +1108,12 @@ def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tm
     member = SimpleNamespace(target="alpha-builder@release", rig="release")
 
     with pytest.raises(Rejection, match="Estimated API cost"):
-        runner.record_usage(worker, member, "worker-session", 20.0, Actor.system())
+        runner.record_usage(worker, member, "worker-session", 20.0, Actor.system(), SimpleNamespace(plan_id=4))
 
     assert paused == [plan] and len(stopped) == 1 and stopped[0][0] == member.target
-    assert order == ["notify", "pause", "stop"] and notified[0][1].startswith("the plan's Estimated API cost")
+    assert order == ["notify", "pause", "stop"] and notified[0][1].startswith("the plan's Estimated API cost") and notified[0][-1] == 4
     assert "not money billed" in stopped[0][1]
-    assert ledger.estimate(3, 20.0, 1).status == "estimated"
+    assert ledger.estimate(4, 20.0, 1).status == "estimated"
     limits = ledger.subscription_limits(20.0)
     assert limits.status == "available" and limits.limits["five_hour"]["used_percentage"] == 40.0
 
@@ -1193,6 +1224,8 @@ def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monito
     prior_job = Worker(id=8, name="Ada Lovelace", role="builder", plan_id=8, contract="contract", provider="codex", model="gpt-6-luna", resume="thread-9", pid=0).moved("dispatched", 10)
     worker = prior_job.moved("sent a job", 20)
     runner = object.__new__(SeatRunner)
+    role = SimpleNamespace(cardinality=Cardinality.PLAN, models=SimpleNamespace(for_provider=lambda _provider: "gpt-6-luna"))
+    runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
     runner._guard = threading.Lock()
     runner._active = {worker.id}
     from journal.features.organization.support.seat_runner import SeatJobIdentity
@@ -1214,8 +1247,6 @@ def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monito
         send=lambda _member, prompt: sent.append(prompt),
     )
     runner.environments = SimpleNamespace(find=lambda _environment: SimpleNamespace(name="development"))
-    role = SimpleNamespace(models=SimpleNamespace(for_provider=lambda _provider: "gpt-6-luna"))
-    runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
     runner.workers = SimpleNamespace(find=lambda _row: worker, save=lambda current, _actor: saved.append(current) or current)
     runner.time_source = SimpleNamespace(seconds=lambda: 30)
     runner.monitor = lambda *args: None
@@ -1245,7 +1276,7 @@ def test_a_codex_job_runs_on_its_selected_role_seat_and_saves_the_native_session
         send=lambda _member, prompt: sent.append(prompt),
     )
     runner.environments = SimpleNamespace(find=lambda _environment: SimpleNamespace(name="development"))
-    role = SimpleNamespace(models=SimpleNamespace(for_provider=lambda provider: "gpt-6-luna" if provider == "codex" else ""))
+    role = SimpleNamespace(cardinality=Cardinality.PLAN, models=SimpleNamespace(for_provider=lambda provider: "gpt-6-luna" if provider == "codex" else ""))
     runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
     runner.capacity_available = lambda _worker: True
     runner.workers = SimpleNamespace(find=lambda _row: worker, save=lambda current, _actor: saved.append(current) or current)
@@ -1969,6 +2000,70 @@ def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_an
         command = Codex().worker_command(runner.instructed(codex), codex.model, codex.resume, codex.session, roles.effort(codex))
         assert command[-3:-1] == ["-c", "model_reasoning_effort=max"] and command[-1] == runner.instructed(codex), "the effort is set with -c before the brief"
         assert "model_reasoning_effort" not in " ".join(Codex().worker_command("brief", "gpt-6-luna", "", "")), "no effort named, none set"
+
+
+def test_a_journal_role_queue_serves_a_second_plan_before_a_second_task_from_the_first(app, tmp_path):
+    _fixture, organization = loaded(app, tmp_path)
+    contracts = organization.reload()
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plans, tasks, links, workers = (app.container.get(kind) for kind in (Plans, Tasks, Links, Workers))
+        first_plan = plans.save(Plan(environment_id=1, title="First plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        second_plan = plans.save(Plan(environment_id=1, title="Second plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        first, next_first, last_first, next_second = (tasks.save(Task(environment_id=1, title=title, brief=title), actor)
+                                                      for title in ("A1", "A2", "A3", "B1"))
+        for task in (first, next_first, last_first):
+            links.save(Link(source=Ref.build(task), target=Ref.build(first_plan), link_type=PLAN_LINK), actor)
+        links.save(Link(source=Ref.build(next_second), target=Ref.build(second_plan), link_type=PLAN_LINK), actor)
+        worker = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="scout", contract=contracts.version,
+                                     plan_id=first_plan.id, provider="claude", model="opus"), actor)
+        holder = Ref.build(worker)
+        tasks.handover(first, holder, actor)
+        for task in (next_first, last_first, next_second):
+            tasks.queued(task, holder, actor)
+
+        queue = [task.id for task in tasks.queue(holder)]
+        choice = workers.find(worker.id).report_choice
+
+    assert queue == [next_second.id, next_first.id, last_first.id], "the second plan gets its turn before the first plan gets a second queued task"
+    assert choice == ReportChoice(1), "the shared Role reports after each task so its next job starts with a fresh context"
+
+
+def test_a_journal_role_job_carries_its_queued_plan_and_task(app, tmp_path):
+    _fixture, organization = loaded(app, tmp_path)
+    contracts = organization.reload()
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plans, tasks, links, workers = (app.container.get(kind) for kind in (Plans, Tasks, Links, Workers))
+        first_plan = plans.save(Plan(environment_id=1, title="First plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        second_plan = plans.save(Plan(environment_id=1, title="Second plan", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        task = tasks.save(Task(environment_id=1, title="Second plan task", brief="Work for the second plan."), actor)
+        links.save(Link(source=Ref.build(task), target=Ref.build(second_plan), link_type=PLAN_LINK), actor)
+        worker = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="scout", contract=contracts.version,
+                                     plan_id=first_plan.id, provider="claude", model="opus"), actor)
+        tasks.queued(task, Ref.build(worker), actor)
+        current, identity, prompt = app.container.get(SeatRunner).job_context(worker, "Work on the queued task.", actor)
+
+    assert current.plan_id == second_plan.id and identity.plan_id == second_plan.id, "the worker's active plan follows the queued task"
+    assert identity.task_id == task.id and f"task {task.id} ({task.title}) in plan {second_plan.id} ({second_plan.title})" in prompt, "the seat receives both the task and its plan"
+
+
+def test_a_journal_role_job_stops_its_old_session_and_launches_a_fresh_context(app, monkeypatch):
+    calls = []
+
+    def run(_runtime, *arguments, check=True):
+        calls.append(arguments)
+        return subprocess.CompletedProcess(["rig", *arguments], 0, "{}", "")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
+    worker = Worker(id=18, name="Ada Lovelace", role="scout")
+    member = SimpleNamespace(target="alpha-scout@organization-1")
+    identity = SeatJobIdentity.from_worker(worker, task_id=57, plan_id=3)
+    app.container.get(SeatRunner).launch_fresh(member, worker, identity, SimpleNamespace(pid=4321))
+
+    assert calls[0][:3] == ("seat", "stop", member.target), "the previous conversation is stopped before another plan's job"
+    assert calls[1][:4] == ("seat", "launch", "--fresh", member.target) and "task 57" in calls[1][5], "the next job launches in a fresh OpenRig session with its task id"
 
 
 def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_no_job_to_a_second_instance(tmp_path, monkeypatch):

@@ -33,13 +33,14 @@ class RoleEscalation:
             return
         self.links.save(Link(source=Ref.build(worker), target=Ref.build(recipient), link_type=ESCALATED_LINK).with_event(RoleEscalated(environment_id=recipient.environment_id, recipient=recipient.session, report=f"{head}: {why} ({tail})")), actor)
 
-    def cap_reached(self, worker: Worker, reason: str, actor: Actor) -> None:
+    def cap_reached(self, worker: Worker, reason: str, actor: Actor, plan_id: int = 0) -> None:
         role = self.organization.at(worker.contract).role(worker.role)
         if role is None:
             return
-        report = (f"plan {worker.plan_id} was paused after its Estimated API cost reached the configured cap: "
+        plan_id = plan_id or worker.plan_id
+        report = (f"plan {plan_id} was paused after its Estimated API cost reached the configured cap: "
                   f"{reason} (Role {role.id} of {role.domain}, worker {worker.id}, {worker.name})")
-        self.cap_notice(worker, "Estimated API cost cap reached", report, "cost", actor)
+        self.cap_notice(worker, "Estimated API cost cap reached", report, "cost", actor, plan_id)
 
     def seat_cap_waiting(self, worker: Worker, reason: str, actor: Actor) -> None:
         role = self.organization.at(worker.contract).role(worker.role)
@@ -47,10 +48,10 @@ class RoleEscalation:
             return
         report = (f"seat for plan {worker.plan_id} is paused at the shared OpenRig seat cap; {reason} "
                   f"(Role {role.id} of {role.domain}, worker {worker.id}, {worker.name})")
-        self.cap_notice(worker, "Shared OpenRig seat cap reached", report, "seats", actor)
+        self.cap_notice(worker, "Shared OpenRig seat cap reached", report, "seats", actor, worker.plan_id)
 
-    def cap_notice(self, worker: Worker, label: str, report: str, key: str, actor: Actor) -> None:
-        plan_agent_id = self.plans.agent_id(self.plans.find(worker.plan_id))
+    def cap_notice(self, worker: Worker, label: str, report: str, key: str, actor: Actor, plan_id: int) -> None:
+        plan_agent_id = self.plans.agent_id(self.plans.find(plan_id)) if plan_id else 0
         plan_agent = self.agents.unended_agent(plan_agent_id) if plan_agent_id else None
         if plan_agent is not None:
             self.links.save(Link(source=Ref.build(worker), target=Ref.build(plan_agent), link_type=ESCALATED_LINK).with_event(
