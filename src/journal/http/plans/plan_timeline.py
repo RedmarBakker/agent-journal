@@ -30,7 +30,7 @@ class PlanTimeline:
         if environment is None:
             return {"current_role": "", "steps": []}
 
-        tasks = self.plans.plan_tasks(plan)
+        tasks = {task.row_id: task.title for task in self.plans.plan_tasks(plan)}
         steps = []
         for entry in self.entries.global_matching(environment_id=environment.row_id, entry_type=StackHistory.KIND):
             before = {
@@ -44,17 +44,10 @@ class PlanTimeline:
                 role = data.get("role", "")
                 if not role or (role, data.get("version")) in before:
                     continue
-                task = next(
-                    (
-                        task
-                        for task in tasks
-                        if task.started_at
-                        and task.started_at <= entry.created_at
-                        and (task.completed_at is None or entry.created_at <= task.completed_at)
-                    ),
-                    None,
+                task_id = data.get("task_id", 0)
+                steps.append(
+                    {"role": role, "task": task_id, "title": tasks.get(task_id, ""), "time": entry.created_at.timestamp()}
                 )
-                steps.append({"role": role, "task": task.row_id if task else 0, "title": task.title if task else "", "time": entry.created_at.timestamp()})
 
         current_role = ""
         if agent:

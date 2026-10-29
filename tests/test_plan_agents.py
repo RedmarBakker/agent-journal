@@ -268,9 +268,11 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     taken = console.run(["role", "take", "keeper"], lead)
     assert taken.code == 0, taken.error
     top = lambda: agents.find(agent_id).stack[-1]
-    assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
-    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
     [step_task] = plans.plan_tasks(plans.find(plan))
+    assert (top()["state"], top()["data"]["role"], top()["data"]["task_id"]) == (
+        "role_work", "keeper", step_task.row_id
+    ), "the Role is pushed with the plan task it took on"
+    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
     assert status == 200 and history["current_role"] == "keeper", "the solo plan reports the Role its Plan agent acts as now"
     assert [(step["role"], step["task"], step["title"]) for step in history["steps"]] == [("keeper", step_task.row_id, step_task.title)], "each Role step is linked to its plan task"
     from journal.http.sharing.shared_data import SharedData

@@ -11,5 +11,5 @@ class OrganizationConduct(Conduct):
 
     def on_role_taken(self, event: RoleTaken, settings: Settings) -> Transition:
         contracts = event.data.part(OrganizationPart).contracts
-        work = RoleWork(role=event.role, version=contracts.version)
+        work = RoleWork(role=event.role, version=contracts.version, task_id=event.task_id)
         return self.push(work, *work.guidance(contracts))

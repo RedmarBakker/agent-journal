@@ -5,9 +5,10 @@ from journal.engine.command_events import CommandEvents
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_queue import RoleQueue
-from journal.features.tasks.active_task import ActiveTask
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.tasks.active_task import ActiveTask
 from journal.models.plan_mode import PlanMode
+from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.caller import Caller
@@ -19,8 +20,18 @@ class RoleCommand(Command):
 
     noun = "role"
 
-    def __init__(self, events: CommandEvents, organization: Organization, plan_agents: PlanAgents, scope: Scope, queue: RoleQueue, tasks: Tasks, taking: ActiveTask) -> None:
-        self.events, self.organization, self.plan_agents, self.scope = events, organization, plan_agents, scope
+    def __init__(
+        self,
+        events: CommandEvents,
+        organization: Organization,
+        plan_agents: PlanAgents,
+        scope: Scope,
+        queue: RoleQueue,
+        tasks: Tasks,
+        taking: ActiveTask,
+        plans: Plans,
+    ) -> None:
+        self.events, self.organization, self.plan_agents, self.scope, self.plans = events, organization, plan_agents, scope, plans
         self.queue, self.tasks, self.taking = queue, tasks, taking
 
     def arguments(self, verbs) -> None:
@@ -39,7 +50,8 @@ class RoleCommand(Command):
             raise Rejection(f"no Role {args.role} in the organization; its Roles are {', '.join(known.id for known in contracts.roles) or 'none'}")
         if role.waits_in_queue():
             return self.queued(role, args, caller)
-        self.events.role_taken(role.id, caller)
+        task = self.plans.started_task(plan)
+        self.events.role_taken(role.id, task.row_id if task else 0, caller)
         print(f"you act as {role.title} for this step")
         return 0
 

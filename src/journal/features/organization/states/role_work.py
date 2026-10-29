@@ -19,13 +19,14 @@ from journal.features.plans.plans_part import PlansPart
 
 @dataclass(frozen=True)
 class RoleWork(BaseState):
-    """A solo Plan agent acting as one Role for a step, by the Role's id and the contracts' version at the push: the Role read at that version refuses what RolePolicy refuses a worker of it, and a tool its tools do not name, a journal command never; the Role's and its domain's guidance are sent again when the state is back on top, after a compaction among others; a second Role waits for this one's end, and journal role done pops it."""
+    """A solo Plan agent acting as one Role for a task, by the Role's id, the task's id and the contracts' version at the push: the Role read at that version refuses what RolePolicy refuses a worker of it, and a tool its tools do not name, a journal command never; the Role's and its domain's guidance are sent again when the state is back on top, after a compaction among others; a second Role waits for this one's end, and journal role done pops it."""
 
     name = "role_work"
     title = "Working as a Role"
 
     role: str = ""
     version: str = ""
+    task_id: int = 0
 
     def subject(self) -> str:
         return f"Role {self.role}"
