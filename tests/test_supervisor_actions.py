@@ -7,7 +7,9 @@ import pytest
 from journal.config import Config
 from journal.db.connection import Connection
 from journal.models.entry import Entry
+from journal.repositories.environments import Environments
 from journal.repositories.entries import Entries
+from journal.repositories.links import Links
 from journal.repositories.scope import PROJECT, Scope
 from journal.support.actor import Actor
 from journal.support.large_reads import LargeReads
@@ -334,7 +336,8 @@ def test_receipt_tombstone_survives_trim_and_restart(connection, bus, scope, tmp
         entries.trim(entries.last_id(), 0)
     connection.close()
     restarted = Connection(connection.path, Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes(), LargeReads())
-    restarted_entries = Entries(restarted, bus, scope, TimeSource())
+    restarted_scope = Scope(Environments(restarted, bus, TimeSource()), Links(restarted, bus, TimeSource()))
+    restarted_entries = Entries(restarted, bus, restarted_scope, TimeSource())
     restarted_admissions = SupervisorAdmissions(restarted_entries, {MODEL: ("0.10", "0.20")}, lambda: clock[0])
     installation = restarted_admissions.start_installation(TOKEN, "boot-2")
     assert installation["epoch"] > run["epoch"]
