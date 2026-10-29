@@ -106,7 +106,6 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
-from journal.features.shell.support.shell_runner import ShellRunner
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.tasks.tasks_part import TasksPart
@@ -1149,13 +1148,16 @@ def test_a_line_longer_than_its_longest_is_cut_when_sent_and_the_cut_recorded(jo
 
 
 def test_a_shared_journal_reset_stops_and_joins_a_background_chain_before_removing_its_files(journal: SharedJournal):
+    import os
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+
     app = journal.app
     user_set(app, "shell.foreground", 1)
     hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "sleep 30"})
-    assert status == 200, body
     runner = app.container.get(ShellRunner)
+    request = ShellRequest("sleep 30", str(app.config.root), "/bin/sh", dict(os.environ))
+    b"".join(runner.run(request, AGENT, 1))
     with runner._active_lock:
         thread, output = next(iter(runner._active.items()))
     assert thread.is_alive() and output.folder.exists(), "a moved command keeps its chain thread and output folder"
