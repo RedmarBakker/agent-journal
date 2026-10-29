@@ -16,13 +16,13 @@ LOAD_WINDOW_MINUTES, LOAD_HALF_LIFE_MINUTES = 30, 10
 SETTLE_MARGIN_MINUTES = 20
 BURST_GAP_MINUTES = 5
 MEASURE_FEATURES = ("workers.builder_", "workers.orchestrator_", "workers.solo_")
-# lines that report work arriving for the agent, a message of the user's or a worker's delivery, not counted against the quiet limit
-NOTICE_KEYS = ("messages.", "workers.work_ready")
+# lines that report an event of the agent's own work loop, a message of the user's, a worker's delivery or a worker left without work, not counted against the quiet limit
+NOTICE_KEYS = ("messages.", "workers.work_ready", "workers.worker_has_no_work_left")
 
 
 @dataclass(frozen=True)
 class Settling:
-    """How a run's measures settle, worked out from its trace and samples: for each burst of arrivals, those closer together than the measure's limit being one burst, since a measure cannot settle before the next arrival lands, and no burst for the load in a scenario with no arrivals, whose load is the agent's own work, the minutes from its last arrival until each measure is on and stays on, against that measure's limit (its window plus three half-lives, nought when unsmoothed, plus twenty minutes); the band changes an hour, its first measuring out of no band not counted; the measure lines an hour, of every line the agent heard in any hook of an action, and every line but a refusal or a notice of work arriving an hour; and the mean score."""
+    """How a run's measures settle, worked out from its trace and samples: for each burst of arrivals, those closer together than the measure's limit being one burst, since a measure cannot settle before the next arrival lands, and no burst for the load in a scenario with no arrivals, whose load is the agent's own work, the minutes from its last arrival until each measure is on and stays on, against that measure's limit (its window plus three half-lives, nought when unsmoothed, plus twenty minutes); the band changes an hour, its first measuring out of no band not counted; the measure lines an hour, of every line the agent heard in any hook of an action, and every other feature's line but a refusal or a notice of the agent's work loop an hour, the measure lines having their own limit; and the mean score."""
 
     scenario: Scenario
     trace: tuple[TraceEntry, ...]
@@ -69,7 +69,7 @@ class Settling:
         if self.measure_lines_hourly() > 6:
             failing.append(f"{self.measure_lines_hourly():.1f} measure lines an hour, past 6")
         if self.lines_hourly() > 10:
-            failing.append(f"{self.lines_hourly():.1f} lines an hour that are neither refusals nor notices of work arriving, past 10")
+            failing.append(f"{self.lines_hourly():.1f} lines an hour from other features that are neither refusals nor notices of the agent's work loop, past 10")
         return failing
 
     def hours(self) -> float:
@@ -83,7 +83,7 @@ class Settling:
         return sum(1 for key in self.keys_heard if key.startswith(MEASURE_FEATURES)) / self.hours()
 
     def lines_hourly(self) -> float:
-        return sum(1 for entry in self.trace if not entry.refused for key in entry.nudges if not key.startswith(NOTICE_KEYS)) / self.hours()
+        return sum(1 for entry in self.trace if not entry.refused for key in entry.nudges if not key.startswith(NOTICE_KEYS + MEASURE_FEATURES)) / self.hours()
 
     def mean_score(self) -> float:
         scores = [scored.score for sample in self.samples if (scored := self.scoring(sample.measures)).is_measured]

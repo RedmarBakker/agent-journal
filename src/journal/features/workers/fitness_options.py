@@ -18,6 +18,6 @@ class FitnessOptions:
     OPEN_WORK_WAIT_PASS = Option("workers.open_work_wait_pass", "Fitness: share of the hour waiting with work open passes under", "The share under which a failing measure of waiting with work open passes again", 0.15)
     EDIT_WAIT_MINUTES = Option("workers.write_block_minutes", "Fitness: minutes the worker queue fails before writes wait", "The minutes the worker queue held high may fail before the agent's writes wait until it clears the oldest worker; reads and journal commands go through", 15, unit="min")
     SCORE_WARMUP_MINUTES = Option("workers.score_warmup_minutes", "Fitness: minutes measured before a score", "The minutes a work mode is measured before the agent's fitness is scored in it", 30, unit="min")
-    BAND_MINUTES = Option("workers.band_minutes", "Fitness: least minutes in a band", "The minutes a band stays before it changes again, but for leaving high on an empty queue", 20, unit="min")
+    BAND_MINUTES = Option("workers.band_minutes", "Fitness: least minutes in a band", "The minutes a band stays before it changes again, but for leaving high on an empty queue", 30, unit="min")
     EMPTY_QUEUE_MINUTES = Option("workers.empty_queue_minutes", "Fitness: empty worker queue leaves high after", "The minutes the worker queue stands empty before a high band leaves high", 15, unit="min")
 
