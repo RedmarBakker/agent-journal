@@ -1,32 +1,11 @@
-# The team server's paths go to the sync server, but only with the journal's protocol header, a request without it answered 404
-# before it reaches the server; the hooks and the CLI go to no one, and every other path to the hosted journal.
-@sync path /login /accept /install /signin-links /signin-links/* /host-requests /host-requests/* /pool-requests /device-requests /agent-views /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /password /upload /upgrade /backups /team /team/* /files/* /leases /leases/*
-handle @sync {
+# The team server's paths go to the sync server, but only with the journal's protocol header, a request without it
+# answered 404 before it reaches the server; every other path is answered 404 too.
+@library path /login /accept /install /invite /devices /devices/* /people /people/* /password /backups /library /items /items/*
+handle @library {
 	@unmarked not header X-Journal-Protocol *
 	respond @unmarked 404
 	reverse_proxy 127.0.0.1:8470
 }
-@closed path /hooks/* /cli /cli/* /shell/*
-handle @closed {
-	respond 404
-}
-# A browser reaches the hosted journal only with a session, which only the one-time link a member's own journal opens
-# sets; every other request goes to the team server's setup page, which claims a server with no admin yet and forbids
-# everything once it has one, so nothing reaches the hosted journal.
-@stranger {
-	not path /open
-	not header Cookie *journal_session=*
-}
-handle @stranger {
-	rewrite * /setup
-	reverse_proxy 127.0.0.1:8470
-}
 handle {
-	reverse_proxy 127.0.0.1:8421 {
-		flush_interval -1
-	}
-}
-# The hosted journal starts only once the first journal has joined this server; until then its paths say so.
-handle_errors 502 {
-	respond "The team's journal opens here once the first journal has connected to this server: give this URL in your own journal's Settings, Team." 503
+	respond 404
 }
