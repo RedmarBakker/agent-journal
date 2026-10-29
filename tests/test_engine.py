@@ -2859,7 +2859,7 @@ def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_al
     from journal.features.workers.support.allowed_models import AllowedModels
     from journal.providers.providers import Providers
     from journal.providers.provider import Provider
-    lines = ["claude journal-medior: sonnet, opus", "claude reviewer: sonnet", "claude verifier: haiku, opus", "codex journal-medior: gpt-5.6-sol, gpt-6-astra"]
+    lines = ["claude journal-medior: sonnet, opus", "claude reviewer: sonnet", "claude verifier: haiku, opus", "codex journal-medior: gpt-6.1-sol"]
     allowed = AllowedModels(SimpleNamespace(texts=lambda option: tuple(lines)), Providers())
     assert allowed.clamped("claude", "journal-medior", "sonnet") == ("sonnet", ""), "an allowed model is left alone"
     moved, said = allowed.clamped("claude", "journal-medior", "haiku")
@@ -2868,7 +2868,9 @@ def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_al
     assert allowed.clamped("claude", "verifier", "sonnet")[0] == "opus", "between two as near, the stronger"
     assert allowed.clamped("claude", "journal-medior", "claude-haiku-5-5")[0] == "claude-sonnet-5-5", "a full model name keeps all but its tier"
     assert allowed.clamped("claude", "some-worker-profile", "haiku")[0] == "sonnet", "a role with no line takes journal-medior's"
-    assert allowed.clamped("codex", "journal-medior", "gpt-6-luna")[0] == "gpt-5.6-sol" and allowed.clamped("codex", "journal-medior", "gpt-6.1-sol")[0] == "gpt-6-astra", "Codex is held to the same from its own list"
+    assert allowed.clamped("codex", "journal-medior", "gpt-6-luna")[0] == "gpt-6.1-sol" and allowed.clamped("codex", "journal-medior", "gpt-6.1-sol")[0] == "gpt-6.1-sol", "Codex is held to the same from its own list"
+    assert Providers().lookup("codex").model_ranking == ("gpt-6-luna", "gpt-6.1-sol"), "Codex knows only its two allowed models"
+    assert AllowedModels(SimpleNamespace(texts=lambda option: ()), Providers()).strongest("codex", "reviewer") == "gpt-6.1-sol", "with no line a role may run on any ranked model"
     assert allowed.clamped("claude", "journal-medior", "some-unranked-model") == ("some-unranked-model", ""), "a model not on the provider's list is not judged"
     assert allowed.strongest("claude", "verifier") == "opus" and allowed.strongest("claude", "reviewer") == "sonnet"
 
