@@ -9,6 +9,7 @@ from journal.repositories.scope import Scope
 from tests.full_project import MAIN
 from journal.support.researcher_session import ResearcherSession
 from tests.in_process import get_answer
+from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.worker_steps import worker_session
 from journal.features.workers.feature import Workers
 from tests.stories.builder.mode_floor import ModeFloor
@@ -21,40 +22,28 @@ HOOK_DURATION = re.compile(r"\b[A-Za-z]+: \d+ ms\b")
 class StoryChecks:
     """The checks a story makes on what its last step brought: what the agent was told, by registry key and values, whether the hook let it through, whether the command passed, the stack and the rows, read through the API; a failing check says what was lines instead and the stack."""
 
-    def expect_agent_told(self, nudge: Nudge, **values) -> None:
-        self.expect_told_to(self.scoped_session(), nudge, values)
-
-    def expect_main_told(self, nudge: Nudge, **values) -> None:
-        self.expect_told_to(self.main_session(), nudge, values)
+    def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
+        self.expect_told_to(self.session_of(agent), nudge, values)
 
     def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
         assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account()}"
 
-    def expect_worker_told(self, worker: int, nudge: Nudge, **values) -> None:
-        self.expect_told_to(worker_session(worker), nudge, values)
-
-    def expect_agent_not_told(self, nudge: Nudge, **values) -> None:
-        self.expect_not_told_to(self.scoped_session(), nudge, values)
+    def expect_agent_not_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
+        self.expect_not_told_to(self.session_of(agent), nudge, values)
 
     def told_number(self, nudge: Nudge, name: str) -> int:
         return int(next(line.values[name] for line in reversed(self.said) if line.key == nudge.key))
 
-    def expect_main_stack(self, *states: type) -> None:
-        stack = self.session_stack(self.main_session())
-        assert stack == [state.name for state in states], f"the main agent's stack is {stack}"
-
-    def expect_main_not_told(self, nudge: Nudge) -> None:
-        self.expect_not_told_to(self.main_session(), nudge, {})
-
     def expect_not_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
         assert not any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} told {nudge.key} {values}; {self.account()}"
 
-    def expect_agent_told_nothing(self) -> None:
-        assert not self.said, f"told something; {self.account()}"
+    def expect_agent_told_nothing(self, agent: StoryAgent) -> None:
+        told = [line for line in self.said if line.session == self.session_of(agent)]
+        assert not told, f"told something; {self.account()}"
 
-    def expect_refused(self, nudge: Nudge, **values) -> None:
+    def expect_refused(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
-        self.expect_agent_told(nudge, **values)
+        self.expect_agent_told(agent, nudge, **values)
 
     def expect_one_entry_of_firing(self, firing: str) -> None:
         with self.app.container.get(Scope).environment(1):
@@ -76,10 +65,6 @@ class StoryChecks:
     def expect_newest_message_text(self, text: str) -> None:
         newest = self.api_row("messages", self.newest("messages"))
         assert newest["text"] == text, f"the newest message reads {newest['text']!r}, not {text!r}"
-
-    def expect_main_refused(self, nudge: Nudge, **values) -> None:
-        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
-        self.expect_main_told(nudge, **values)
 
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
@@ -220,9 +205,9 @@ class StoryChecks:
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 
-    def expect_stack(self, *states: type) -> None:
-        stack = self.stack()
-        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack is {stack}; told {[line.key for line in self.said]}"
+    def expect_stack(self, agent: StoryAgent, *states: type) -> None:
+        stack = self.session_stack(self.session_of(agent))
+        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack of the {agent.role} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
     def expect_task_in(self, environment: str, n: int, state: str) -> None:
@@ -336,10 +321,6 @@ class StoryChecks:
         expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
         row_fields = {name: row.get(name) for name in expected_fields}
         assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
-
-    def expect_worker_stack(self, worker: int, *states: type) -> None:
-        stack = self.session_stack(worker_session(worker))
-        assert stack == [state.name for state in states], f"worker {worker}'s stack is {stack}; told {[line.key for line in self.said]}"
 
     def expect_subagent_stack(self, subagent: str, *states: type) -> None:
         stack = self.session_stack(ResearcherSession.joined(self.main_session(), subagent))

@@ -12,20 +12,20 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 POLLED_OUTPUT = 1
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_may_list_its_outputs(story):
-    story.agent_runs("output list")
+    story.agent_runs(story.agents.subject, "output list")
     story.expect_command_passed()
     story.expect_task(story.fixture.briefed, delegated=True)
-    story.expect_stack(Void, WorkingTask)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(FOREGROUND_OPTION, 1)
 def test_a_worker_stopping_with_its_own_output_running_is_refused_with_its_number(story):
-    output = story.agent_runs_a_command(f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
-    story.agent_stops()
-    story.expect_refused(WorkersNudges.OUTPUT_UNFINISHED, n=output)
+    output = story.agent_runs_a_command(story.agents.subject, f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, WorkersNudges.OUTPUT_UNFINISHED, n=output)
     story.background_run_ends(output)
     story.expect_task(story.fixture.briefed, delegated=True)
-    story.expect_stack(Void, WorkingTask)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)

@@ -12,7 +12,7 @@ class TestingTask(StateFixture):
     parent = StartedTask
 
     def steps(self, story) -> None:
-        story.agent_runs(f"task test {self.started_task}")
+        story.agent_runs(story.agents.subject, f"task test {self.started_task}")
 
     def expected(self, story) -> None:
         story.expect_task(self.started_task, state=TaskState.TESTING)

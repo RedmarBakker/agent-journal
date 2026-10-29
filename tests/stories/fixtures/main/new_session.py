@@ -8,7 +8,7 @@ class NewSession(StateFixture):
     stack = (Ready,)
 
     def steps(self, story) -> None:
-        story.agent_starts_a_session()
+        story.agent_starts_a_session(story.agents.subject)
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

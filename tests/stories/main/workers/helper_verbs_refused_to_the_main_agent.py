@@ -7,9 +7,9 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 HELPER_LINES = ("tests turn tests/test_parser.py", "clock-in", "clock-out 'done'", "review record 'all points pass'", "verdict model right 'it fit'", "proof 1 'parser.py:12'", "todo list")
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_main_agent_is_refused_every_verb_only_a_helper_runs(story):
     for line in HELPER_LINES:
-        story.agent_runs(line)
+        story.agent_runs(story.agents.subject, line)
         story.expect_command_refused()
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

@@ -11,20 +11,20 @@ from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_third_poll_in_a_row_of_the_same_output_is_refused_with_the_await(story):
-    output = story.agent_runs_a_command("echo hi | head -1")
-    story.agent_runs_in_the_shell(f"journal output status {output}")
-    story.agent_runs_in_the_shell(f"journal output status {output}")
+    output = story.agent_runs_a_command(story.agents.subject, "echo hi | head -1")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal output status {output}")
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal output status {output}")
     story.expect_allowed()
-    story.agent_runs_in_the_shell(f"journal output status {output}")
-    story.expect_refused(TasksNudges.OUTPUT_POLL_REFUSAL, n=output)
-    story.expect_stack(Ready)
+    story.agent_runs_in_the_shell(story.agents.subject, f"journal output status {output}")
+    story.expect_refused(story.agents.subject, TasksNudges.OUTPUT_POLL_REFUSAL, n=output)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_same_command_run_again_and_again_is_named(story):
     for _ in range(POLL_REPEAT_COMMANDS):
-        story.agent_runs_in_the_shell("git status")
-    story.expect_agent_told(TasksNudges.STOP_POLLING, times=POLL_REPEAT_COMMANDS, command="git status")
-    story.expect_stack(Ready)
+        story.agent_runs_in_the_shell(story.agents.subject, "git status")
+    story.expect_agent_told(story.agents.subject, TasksNudges.STOP_POLLING, times=POLL_REPEAT_COMMANDS, command="git status")
+    story.expect_stack(story.agents.subject, Ready)

@@ -11,21 +11,21 @@ from tests.stories.fixtures.main.context_mark_task import ContextMarkTask
 FIRST = MemoryThresholds.CONTEXT[0]
 
 
-@story(ContextMarkTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_after_a_compaction_the_first_mark_asks_again(story):
-    story.agent_runs("memory skip 'nothing new to keep'")
+    story.agent_runs(story.agents.subject, "memory skip 'nothing new to keep'")
     story.context_is_compacted()
-    story.agent_looks_at_the_overview()
-    story.agent_consumes_context(1)
-    story.agent_consumes_context(FIRST)
-    story.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=FIRST)
-    story.expect_stack(Ready, Working, WeighingMemories)
+    story.agent_looks_at_the_overview(story.agents.subject)
+    story.agent_consumes_context(story.agents.subject, 1)
+    story.agent_consumes_context(story.agents.subject, FIRST)
+    story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
+    story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
 
-@story(ContextMarkTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_lower_reading_starts_the_marks_again_without_a_compaction(story):
-    story.agent_runs("memory skip 'nothing new to keep'")
-    story.agent_consumes_context(1)
-    story.agent_consumes_context(FIRST)
-    story.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=FIRST)
-    story.expect_stack(Ready, Working, WeighingMemories)
+    story.agent_runs(story.agents.subject, "memory skip 'nothing new to keep'")
+    story.agent_consumes_context(story.agents.subject, 1)
+    story.agent_consumes_context(story.agents.subject, FIRST)
+    story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
+    story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)

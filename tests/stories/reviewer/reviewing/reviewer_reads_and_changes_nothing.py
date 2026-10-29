@@ -7,17 +7,17 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.reviewer.reviewer_at_work import ReviewerAtWork
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, scope=AgentRole.REVIEWER)
+@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
 def test_a_reviewer_reads_and_is_refused_a_write(story):
-    story.agent_reads()
+    story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.agent_writes("parser.py")
-    story.expect_refused(ReviewingNudges.REVIEWER_WRITES)
-    story.expect_stack(Void, Reviewing)
+    story.agent_writes(story.agents.subject, "parser.py")
+    story.expect_refused(story.agents.subject, ReviewingNudges.REVIEWER_WRITES)
+    story.expect_stack(story.agents.subject, Void, Reviewing)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, scope=AgentRole.REVIEWER)
+@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
 def test_a_reviewer_stopping_before_its_report_is_refused(story):
-    story.agent_stops()
-    story.expect_refused(ReviewingNudges.REPORT_REQUEST)
-    story.expect_stack(Void, Reviewing)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, ReviewingNudges.REPORT_REQUEST)
+    story.expect_stack(story.agents.subject, Void, Reviewing)

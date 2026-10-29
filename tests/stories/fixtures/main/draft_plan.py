@@ -13,8 +13,8 @@ class DraftPlan(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.plan = story.agent_creates_plan("the site", "the site is built")
+        self.plan = story.agent_creates_plan(story.agents.subject, "the site", "the site is built")
 
     def expected(self, story) -> None:
         story.expect_plan(self.plan, state=PlanState.DRAFT)
-        story.expect_stack(Ready, FollowingSequence)
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence)

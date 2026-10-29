@@ -13,9 +13,9 @@ class PlanWorker(StateFixture):
     parent = PlanApproved
 
     def steps(self, story) -> None:
-        self.worker = story.agent_dispatches_worker_on_plan("Lady Lovelace", self.plan)
-        story.worker_session_starts(self.worker)
-        story.worker_clocks_in(self.worker)
+        self.worker = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", self.plan)
+        story.agent_starts_a_session(story.agents.workers.get(self.worker))
+        story.agent_clocks_in(story.agents.workers.get(self.worker))
 
     def expected(self, story) -> None:
         story.expect_plan(self.plan, state=PlanState.DELEGATED)

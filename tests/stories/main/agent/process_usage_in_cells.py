@@ -11,11 +11,11 @@ MAIN_USAGE = ProcessUsage(34.4, 1_288_490_188)
 AGENT_PROCESSES = ("environments", 0, "agent", "processes")
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_environments_agent_carries_what_its_processes_take_once_the_machine_is_sampled(story):
     story.user_opens("/journal/summary")
     story.expect_viewer_part(AGENT_PROCESSES, None)
-    story.agent_processes_sampled(MAIN_USAGE)
+    story.agent_processes_sampled(story.agents.subject, MAIN_USAGE)
     story.user_opens("/journal/summary")
     story.expect_viewer_part(AGENT_PROCESSES, asdict(MAIN_USAGE))
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

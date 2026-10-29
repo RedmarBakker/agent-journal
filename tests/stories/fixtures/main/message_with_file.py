@@ -17,4 +17,4 @@ class MessageWithFile(StateFixture):
         story.user_attaches_file(self.message, FILE, b"PNG")
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

@@ -10,34 +10,34 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.compacting_task import CompactingTask
 
 
-@story(CompactingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_message_while_compacting_pushes_nothing_over_the_compaction(story):
     story.user_sends_message("is the footer done?")
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working, Compacting)
+    story.expect_stack(story.agents.subject, Ready, Working, Compacting)
 
 
-@story(CompactingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_compaction_that_never_starts_again_is_dropped_by_the_next_tool_use(story):
-    story.agent_reads()
+    story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.expect_agent_not_told(BriefingNudges.OVERVIEW_FIRST)
+    story.expect_agent_not_told(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(CompactingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_prompt_while_compacting_ends_the_compaction(story):
-    story.agent_is_prompted("go on with the footer")
-    story.agent_reads()
+    story.agent_is_prompted(story.agents.subject, "go on with the footer")
+    story.agent_reads(story.agents.subject)
     story.expect_allowed()
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(CompactingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_while_compacting_ends_it_and_the_task_in_hand_answers(story):
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)

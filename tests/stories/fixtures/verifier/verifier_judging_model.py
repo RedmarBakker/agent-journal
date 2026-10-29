@@ -14,11 +14,11 @@ class VerifierJudgingModel(StateFixture):
     settings = ((WorkersOptions.MODEL_FIT_SAMPLE, 1),)
 
     def steps(self, story) -> None:
-        story.agent_runs(f"worker check {self.worker} 1")
-        story.agent_runs(f"worker check {self.worker} 2")
-        story.agent_runs(f"worker merge {self.worker}")
+        story.agent_runs(story.agents.subject, f"worker check {self.worker} 1")
+        story.agent_runs(story.agents.subject, f"worker check {self.worker} 2")
+        story.agent_runs(story.agents.subject, f"worker merge {self.worker}")
         self.verifier = story.newest("verifiers")
-        story.verifier_session_starts(self.verifier)
+        story.agent_starts_a_session(story.agents.verifiers.get(self.verifier))
 
     def expected(self, story) -> None:
-        story.expect_stack(Orchestrating)
+        story.expect_stack(story.agents.subject, Orchestrating)

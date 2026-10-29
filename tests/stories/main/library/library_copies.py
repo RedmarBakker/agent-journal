@@ -7,7 +7,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 COPY = "Review Day (from the library)"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_library_copy_takes_a_new_version_while_unedited_and_once_edited_waits_for_replace(story):
     original = story.a_library_holds_a_sequence_imported_here("Review Day", "read it")
     copy = story.sequence_number(COPY)
@@ -26,10 +26,10 @@ def test_a_library_copy_takes_a_new_version_while_unedited_and_once_edited_waits
     story.user_types("library update sequence review-day --replace")
     story.user_types(f"sequence show {copy}")
     story.expect_command_text("a third way")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_what_was_imported_keeps_working_once_the_library_is_gone(story):
     story.a_library_holds_a_sequence_imported_here("Tea Time", "brew")
     story.library_server_stops()
@@ -39,10 +39,10 @@ def test_what_was_imported_keeps_working_once_the_library_is_gone(story):
     story.user_types("library disconnect")
     story.user_types("sequence list")
     story.expect_command_text("Tea Time (from the library)")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_library_commands_with_no_library_connected_name_the_connect_line(story):
     story.user_types("library list")
     story.expect_command_text("journal library connect")
@@ -50,4 +50,4 @@ def test_library_commands_with_no_library_connected_name_the_connect_line(story)
     story.expect_command_text("journal library connect")
     story.user_types("library publish sequence 1")
     story.expect_command_text("journal library connect")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

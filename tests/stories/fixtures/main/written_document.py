@@ -14,7 +14,7 @@ class WrittenDocument(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.document = story.agent_writes_a_document(TITLE, ABSTRACT, TEXT)
+        self.document = story.agent_writes_a_document(story.agents.subject, TITLE, ABSTRACT, TEXT)
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, FollowingSequence)
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence)

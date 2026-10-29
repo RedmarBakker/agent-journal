@@ -7,12 +7,12 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worktree_worker import WorktreeWorker
 
 
-@story(WorktreeWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(WorktreeWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_whose_rebase_waited_is_rebased_at_its_clock_out(story):
-    story.main_agent_runs(f"worker rebase {story.fixture.worker}")
-    story.agent_runs("proof 1 'parser.py:12, test_reads passes'")
-    story.agent_runs("proof 2 'parser.py:30, test_names passes'")
-    story.agent_runs("clock-out 'the parser is done'")
+    story.agent_runs(story.agents.main, f"worker rebase {story.agents.workers.first()}")
+    story.agent_runs(story.agents.subject, "proof 1 'parser.py:12, test_reads passes'")
+    story.agent_runs(story.agents.subject, "proof 2 'parser.py:30, test_names passes'")
+    story.agent_runs(story.agents.subject, "clock-out 'the parser is done'")
     story.expect_command_passed()
-    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED, rebase_due=False)
-    story.expect_stack(Void)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED, rebase_due=False)
+    story.expect_stack(story.agents.subject, Void)

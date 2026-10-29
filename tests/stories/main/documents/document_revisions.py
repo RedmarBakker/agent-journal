@@ -9,37 +9,37 @@ from tests.stories.fixtures.main.written_document import TEXT, WrittenDocument
 WITH_RISKS = TEXT + "\n## Risks\n\nNone\n"
 
 
-@story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WrittenDocument, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(DocsOptions.REVISION_WINDOW, 30)
 def test_edits_within_the_window_fold_into_one_revision_until_it_is_kept(story):
     document = story.fixture.document
-    story.agent_rewrites_the_document(document, WITH_RISKS)
-    story.agent_rewrites_the_document(document, WITH_RISKS)
-    story.agent_runs(f"doc revisions {document}")
+    story.agent_rewrites_the_document(story.agents.subject, document, WITH_RISKS)
+    story.agent_rewrites_the_document(story.agents.subject, document, WITH_RISKS)
+    story.agent_runs(story.agents.subject, f"doc revisions {document}")
     story.expect_command_line_count(1)
     story.expect_command_text("added Risks")
-    story.agent_runs(f"doc keep {document}")
+    story.agent_runs(story.agents.subject, f"doc keep {document}")
     story.expect_command_text(f"revision 1 of doc {document} kept; the next edit opens revision 2")
-    story.agent_runs(f"doc keep {document}")
+    story.agent_runs(story.agents.subject, f"doc keep {document}")
     story.expect_command_text(f"revision 1 of doc {document} is already saved")
-    story.agent_rewrites_the_document(document, TEXT)
-    story.agent_runs(f"doc revisions {document}")
+    story.agent_rewrites_the_document(story.agents.subject, document, TEXT)
+    story.agent_runs(story.agents.subject, f"doc revisions {document}")
     story.expect_command_line_count(2)
-    story.agent_runs(f"doc revision {document} 1")
+    story.agent_runs(story.agents.subject, f"doc revision {document} 1")
     story.expect_command_text("## Risks")
-    story.agent_runs(f"doc revision {document} 3")
+    story.agent_runs(story.agents.subject, f"doc revision {document} 3")
     story.expect_command_text(f"doc {document} has revisions 1 to 2")
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WrittenDocument, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(DocsOptions.REVISION_WINDOW, 0)
 def test_with_no_window_each_edit_opens_the_next_revision_and_the_page_cannot_keep_one_kept(story):
     document = story.fixture.document
-    story.agent_rewrites_the_document(document, WITH_RISKS)
-    story.agent_rewrites_the_document(document, TEXT)
+    story.agent_rewrites_the_document(story.agents.subject, document, WITH_RISKS)
+    story.agent_rewrites_the_document(story.agents.subject, document, TEXT)
     story.user_opens(f"/journal/docs/{document}/revisions")
     story.expect_viewer_list_count(2)
     story.user_presses(f"/journal/docs/{document}/keep", {})
     story.expect_viewer_refused("")
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)

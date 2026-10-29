@@ -13,18 +13,18 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 DISPATCHER_SECONDS = SILENCE.amount * DISPATCHER_SPAN_SHARE
 
 
-@story(SilentWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(SilentWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_is_told_to_log_once_in_a_quiet_span(story):
-    story.agent_is_quiet_past(0)
-    story.expect_agent_not_told(WorkersNudges.WORKER_LOG_DUE)
-    story.expect_worker(story.fixture.worker, state=WorkerState.READY)
-    story.expect_stack(Void, WorkingTask)
+    story.agent_is_quiet_past(story.agents.subject, 0)
+    story.expect_agent_not_told(story.agents.subject, WorkersNudges.WORKER_LOG_DUE)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_that_clocked_out_is_never_called_quiet(story):
-    story.agent_is_quiet_past(SILENCE.amount)
-    story.expect_agent_not_told(WorkersNudges.WORKER_LOG_DUE)
-    story.expect_main_not_told(WorkersNudges.SILENT_WORKER)
-    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED)
-    story.expect_stack(Void)
+    story.agent_is_quiet_past(story.agents.subject, SILENCE.amount)
+    story.expect_agent_not_told(story.agents.subject, WorkersNudges.WORKER_LOG_DUE)
+    story.expect_agent_not_told(story.agents.main, WorkersNudges.SILENT_WORKER)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
+    story.expect_stack(story.agents.subject, Void)

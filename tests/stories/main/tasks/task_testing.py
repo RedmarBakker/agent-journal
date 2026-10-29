@@ -10,30 +10,30 @@ from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.testing_task import TestingTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
 @setting(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
 def test_a_test_run_on_a_long_task_suggests_putting_it_in_testing(story):
-    story.agent_runs_in_the_shell("pytest -q")
-    story.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
-    story.agent_reads()
-    story.agent_runs_in_the_shell("pytest -q")
-    story.expect_agent_told(TasksNudges.TESTING_SUGGESTION, n=story.fixture.started_task)
-    story.expect_stack(Ready, Working)
+    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q")
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.TESTING_SUGGESTION)
+    story.agent_reads(story.agents.subject)
+    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q")
+    story.expect_agent_told(story.agents.subject, TasksNudges.TESTING_SUGGESTION, n=story.fixture.started_task)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(TestingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TestingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_in_testing_is_completed_when_its_run_passes(story):
-    run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 0'")
-    story.agent_runs(f"output test {run}")
+    run = story.agent_runs_a_command(story.agents.subject, "sh -c 'seq 1 300; exit 0'")
+    story.agent_runs(story.agents.subject, f"output test {run}")
     story.expect_task(story.fixture.started_task, state=TaskState.COMPLETED)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(TestingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TestingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_in_testing_is_paused_when_its_run_fails(story):
-    run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 3'")
-    story.agent_runs(f"output test {run}")
+    run = story.agent_runs_a_command(story.agents.subject, "sh -c 'seq 1 300; exit 3'")
+    story.agent_runs(story.agents.subject, f"output test {run}")
     story.expect_task(story.fixture.started_task, state=TaskState.PAUSED)
-    story.expect_agent_told(TasksNudges.TEST_FAILURE, n=story.fixture.started_task)
-    story.expect_stack(Ready)
+    story.expect_agent_told(story.agents.subject, TasksNudges.TEST_FAILURE, n=story.fixture.started_task)
+    story.expect_stack(story.agents.subject, Ready)

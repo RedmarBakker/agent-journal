@@ -15,8 +15,8 @@ class CompactionSkillReads(StateFixture):
     parent = CompactionSkills
 
     def steps(self, story) -> None:
-        story.agent_reads_a_skill(JOURNAL_SKILL)
-        story.agent_reads_a_skill(ETIQUETTE_SKILL)
+        story.agent_reads_a_skill(story.agents.subject, JOURNAL_SKILL)
+        story.agent_reads_a_skill(story.agents.subject, ETIQUETTE_SKILL)
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, Working, ReadingOverview)
+        story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)

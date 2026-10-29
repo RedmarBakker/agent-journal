@@ -9,14 +9,14 @@ from tests.stories.fixtures.worker.dispatched_worker import DispatchedWorker
 WORKER_NAME = "Lady Lovelace"
 
 
-@story(DispatchedWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_report_reaches_the_agent_that_waited_on_it_ends_the_wait_and_leaves_the_workers_to_act_on(story):
-    story.agent_runs(f"worker report {story.fixture.worker} 'the parser reads the grammar'")
+    story.agent_runs(story.agents.subject, f"worker report {story.agents.workers.first()} 'the parser reads the grammar'")
     story.expect_command_passed()
-    story.expect_agent_told(WorkersNudges.WORKER_REPORTED, n=story.fixture.worker)
-    story.expect_worker(story.fixture.worker, state=WorkerState.REPORTED)
-    story.agent_runs("worker open")
+    story.expect_agent_told(story.agents.subject, WorkersNudges.WORKER_REPORTED, n=story.agents.workers.first())
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.REPORTED)
+    story.agent_runs(story.agents.subject, "worker open")
     story.expect_command_text_without(WORKER_NAME)
-    story.agent_runs("worker list")
+    story.agent_runs(story.agents.subject, "worker list")
     story.expect_command_text(WORKER_NAME)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

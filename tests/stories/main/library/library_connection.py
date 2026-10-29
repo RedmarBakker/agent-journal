@@ -7,7 +7,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 EMAIL, PASSWORD = "ada@example.com", "correct horse battery"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_journal_connects_to_one_library_by_its_password_sees_its_status_logs_in_again_and_disconnects(story):
     library = story.a_library_server_runs()
     story.user_types(f"library connect {library} --email {EMAIL}")
@@ -24,4 +24,4 @@ def test_a_journal_connects_to_one_library_by_its_password_sees_its_status_logs_
     story.expect_command_text("disconnected")
     story.user_types("library status")
     story.expect_command_text("connected to no library")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

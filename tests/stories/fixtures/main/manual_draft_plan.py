@@ -12,9 +12,9 @@ class ManualDraftPlan(StateFixture):
     parent = DraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs("sequence follow")
-        story.agent_runs("sequence abandon --why 'the plan is built step by step right here' --sure")
+        story.agent_runs(story.agents.subject, "sequence follow")
+        story.agent_runs(story.agents.subject, "sequence abandon --why 'the plan is built step by step right here' --sure")
 
     def expected(self, story) -> None:
         story.expect_plan(self.plan, state=PlanState.DRAFT)
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

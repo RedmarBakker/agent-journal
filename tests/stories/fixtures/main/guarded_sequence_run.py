@@ -12,10 +12,10 @@ class GuardedSequenceRun(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        story.agent_runs("sequence create 'release' --step 'Check | look at the status first' --hold-edits --allow-commands 'git status*' --step 'Tag | push the tag'")
+        story.agent_runs(story.agents.subject, "sequence create 'release' --step 'Check | look at the status first' --hold-edits --allow-commands 'git status*' --step 'Tag | push the tag'")
         self.sequence = story.created_number("sequence")
-        story.agent_runs(f"sequence run {self.sequence}")
+        story.agent_runs(story.agents.subject, f"sequence run {self.sequence}")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_stack(Ready, FollowingSequence)
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence)

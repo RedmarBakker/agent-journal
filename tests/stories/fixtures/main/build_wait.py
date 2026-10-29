@@ -13,7 +13,7 @@ class BuildWait(StateFixture):
     parent = TaskQueue
 
     def steps(self, story) -> None:
-        story.agent_runs("await 'the build' --until false")
+        story.agent_runs(story.agents.subject, "await 'the build' --until false")
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, Working, ExternalWait)
+        story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)

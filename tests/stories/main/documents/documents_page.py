@@ -14,7 +14,7 @@ def old_document(n: int, title: str, deleted: float) -> str:
     return "---\n" + json.dumps({"n": n, "title": title, "abstract": "what is broken", "deleted": deleted}) + "\n---\n" + FINDINGS
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_version_3_documents_are_brought_in_once_for_the_whole_project_and_found_by_their_words(story):
     story.project_file_holding("old/001/doc.md", old_document(1, "Audit of the package", 0))
     story.project_file_holding("old/002/doc.md", old_document(2, "Gone", 1.0))
@@ -28,10 +28,10 @@ def test_version_3_documents_are_brought_in_once_for_the_whole_project_and_found
     story.expect_viewer_rows("rows", "title", ["Audit of the package"])
     story.user_opens("/journal/docs/search?words=pluralises+noun")
     story.expect_viewer_first_hit(story.newest("docs"), "pluralises the wrong noun")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(MessageWithFile, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(MessageWithFile, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_file_attached_to_a_message_is_listed_on_the_documents_page_by_its_type_and_words(story):
     story.user_opens("/journal/attachments?file_type=images")
     story.expect_viewer_shows("total", 1)
@@ -42,4 +42,4 @@ def test_a_file_attached_to_a_message_is_listed_on_the_documents_page_by_its_typ
     story.expect_viewer_shows("total", 0)
     story.user_opens("/journal/attachments?search=footer")
     story.expect_viewer_shows("total", 1)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

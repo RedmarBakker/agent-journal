@@ -8,13 +8,13 @@ from tests.stories.fixtures.main.new_session import NewSession
 FIRING = "f-1"
 
 
-@story(NewSession, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(NewSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_hook_sent_twice_is_answered_the_same_and_moves_nothing_the_second_time(story):
-    story.agent_writes_in_one_firing("footer.py", FIRING)
-    story.expect_refused(BriefingNudges.OVERVIEW_REQUEST)
-    story.agent_writes_in_one_firing("footer.py", FIRING)
+    story.agent_writes_in_one_firing(story.agents.subject, "footer.py", FIRING)
+    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
+    story.agent_writes_in_one_firing(story.agents.subject, "footer.py", FIRING)
     story.expect_refused_by_anything()
     story.expect_refusal_text(BriefingNudges.OVERVIEW_REQUEST.title)
-    story.expect_agent_told_nothing()
+    story.expect_agent_told_nothing(story.agents.subject)
     story.expect_one_entry_of_firing(FIRING)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

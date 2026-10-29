@@ -11,18 +11,18 @@ from tests.stories.fixtures.main.unanswered_message import UnansweredMessage
 EM_DASHES = "The build — the one from last night — is green."
 
 
-@story(UnansweredMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_waiting_rides_a_refused_tool_use_beside_the_refusal(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_writes("src/app.py")
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_writes(story.agents.subject, "src/app.py")
     story.expect_refused_by_anything()
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready, DemandBlock)
+    story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
-@story(BuildWait, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_made_while_the_agent_waits_rides_the_tool_use_that_ends_the_wait(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_reads()
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_reads(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)

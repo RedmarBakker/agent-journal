@@ -8,9 +8,9 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 FACES = [face for voice in BuiltinCatalogue.ALL for face in voice.emoji.split()]
 
 
-@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_every_built_in_voice_can_put_each_of_its_own_faces_on_a_message(story):
     for face in FACES:
-        story.agent_reacts(story.fixture.message, face)
+        story.agent_reacts(story.agents.subject, story.fixture.message, face)
         story.expect_command_text(f"{face} on message {story.fixture.message}")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

@@ -1,7 +1,7 @@
 def test_the_worker_writes(story):
     # @sin StoryStepOutsideScopeDetector
-    story.worker_writes(story.fixture.worker, "parser.py")
+    story.worker_writes(story.agents.workers.first(), "parser.py")
     # @righteous StoryStepOutsideScopeDetector
-    story.agent_writes("parser.py")
+    story.agent_writes(story.agents.subject, "parser.py")
     # @righteous StoryStepOutsideScopeDetector
-    story.main_agent_stops()
+    story.agent_stops(story.agents.main)

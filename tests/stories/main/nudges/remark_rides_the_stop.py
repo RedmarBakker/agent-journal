@@ -18,50 +18,50 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 EM_DASHES = "The build — the one from last night — is green."
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_waiting_when_the_agent_stops_holds_that_stop_once_and_the_next_stop_goes_through(story):
-    story.agent_closes_its_turn("I ran journal task start 3 because the user wants it.")
-    story.agent_stops()
+    story.agent_closes_its_turn(story.agents.subject, "I ran journal task start 3 because the user wants it.")
+    story.agent_stops(story.agents.subject)
     story.expect_refused_by_anything()
     story.expect_last_answer_carries(EtiquetteNudges.SHOP_TALK_WARNING)
     story.expect_last_answer_carries(EtiquetteNudges.SECOND_PERSON)
-    story.agent_stops_again()
+    story.agent_stops_again(story.agents.subject)
     story.expect_allowed()
     story.expect_last_answer_without(EtiquetteNudges.SHOP_TALK_WARNING)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_refused_for_the_task_in_hand_beside_the_refusal(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
     story.expect_task(story.fixture.started_task, state="started")
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(BuildWait, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_made_while_the_agent_waits(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_stops()
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_stops(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready, Working, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_made_while_a_sequence_runs(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_stops()
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_stops(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
     story.expect_row("sequences", story.fixture.sequence, {})
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(ContextMarkTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_the_stop_held_at_a_context_mark_beside_its_hold(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_stops()
-    story.expect_refused(MemoryNudges.UNDECIDED_STOP)
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready, Working, WeighingMemories)
+    story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)

@@ -16,10 +16,10 @@ class WorktreeWorker(StateFixture):
 
     def steps(self, story) -> None:
         story.project_is_a_git_repository()
-        self.worker = story.agent_dispatches_worktree_worker("Lady Lovelace", self.briefed)
-        story.worker_session_starts(self.worker)
-        story.worker_clocks_in(self.worker)
+        self.worker = story.agent_dispatches_worktree_worker(story.agents.subject, "Lady Lovelace", self.briefed)
+        story.agent_starts_a_session(story.agents.workers.get(self.worker))
+        story.agent_clocks_in(story.agents.workers.get(self.worker))
 
     def expected(self, story) -> None:
         story.expect_worker(self.worker, state=WorkerState.READY)
-        story.expect_worker_stack(self.worker, Void, WorkingTask)
+        story.expect_stack(story.agents.workers.get(self.worker), Void, WorkingTask)

@@ -13,11 +13,11 @@ class PlanWorkerDelivered(StateFixture):
     parent = PlanWorker
 
     def steps(self, story) -> None:
-        story.worker_proves(self.worker, 1, "first.py:3, test_first passes")
-        story.worker_clocks_out(self.worker, "the first is done")
-        story.worker_proves(self.worker, 1, "second.py:3, test_second passes")
-        story.worker_clocks_out(self.worker, "the plan is done")
+        story.agent_proves(story.agents.workers.get(self.worker), 1, "first.py:3, test_first passes")
+        story.agent_clocks_out(story.agents.workers.get(self.worker), "the first is done")
+        story.agent_proves(story.agents.workers.get(self.worker), 1, "second.py:3, test_second passes")
+        story.agent_clocks_out(story.agents.workers.get(self.worker), "the plan is done")
 
     def expected(self, story) -> None:
         story.expect_worker(self.worker, state=WorkerState.DELIVERED)
-        story.expect_agent_told(WorkersNudges.WORK_READY)
+        story.expect_agent_told(story.agents.subject, WorkersNudges.WORK_READY)

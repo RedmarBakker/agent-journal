@@ -16,8 +16,8 @@ class UnansweredMessage(StateFixture):
     settings = ((MessagesOptions.TOOL_BLOCK_LIMIT, 0),)
 
     def steps(self, story) -> None:
-        story.agent_reads()
+        story.agent_reads(story.agents.subject)
 
     def expected(self, story) -> None:
-        story.expect_refused(MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=self.message)
-        story.expect_stack(Ready, DemandBlock)
+        story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=self.message)
+        story.expect_stack(story.agents.subject, Ready, DemandBlock)

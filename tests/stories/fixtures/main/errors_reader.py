@@ -12,9 +12,9 @@ class ErrorsReader(StateFixture):
 
     def steps(self, story) -> None:
         self.reader = "errors"
-        story.agent_runs(f"reader add {self.reader} --pattern 'error' --about 'the error lines'")
-        self.output = story.agent_runs_a_command("printf 'an error\\nfine\\n' | head -2")
+        story.agent_runs(story.agents.subject, f"reader add {self.reader} --pattern 'error' --about 'the error lines'")
+        self.output = story.agent_runs_a_command(story.agents.subject, "printf 'an error\\nfine\\n' | head -2")
 
     def expected(self, story) -> None:
         story.expect_new_output()
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

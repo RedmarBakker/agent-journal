@@ -11,22 +11,22 @@ from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.two_phase_plan import TwoPhasePlan
 
 
-@story(TwoPhasePlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TwoPhasePlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, False)
 def test_a_phase_end_with_auto_mode_off_waits_for_the_user(story):
-    story.agent_runs(f"task complete {story.fixture.first_phase_task} --how done")
-    story.agent_stops()
-    story.expect_agent_told(PlansNudges.CHECKPOINT_PHASE_END, n=story.fixture.plan)
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.first_phase_task} --how done")
+    story.agent_stops(story.agents.subject)
+    story.expect_agent_told(story.agents.subject, PlansNudges.CHECKPOINT_PHASE_END, n=story.fixture.plan)
     story.expect_task(story.fixture.second_phase_task, state=TaskState.OPEN)
-    story.expect_stack(Ready, FollowingPlan)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(TwoPhasePlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TwoPhasePlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_checkpoint_in_auto_mode_goes_straight_on_to_the_next_phase(story):
-    story.agent_runs(f"task complete {story.fixture.first_phase_task} --how done")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.first_phase_task} --how done")
     story.expect_task(story.fixture.second_phase_task, state=TaskState.STARTED)
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_stack(Ready, FollowingPlan)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)

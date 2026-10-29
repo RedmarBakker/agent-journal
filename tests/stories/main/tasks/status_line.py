@@ -7,12 +7,12 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_status_line_names_the_task_in_hand_and_what_the_agent_is_stuck_on(story):
     story.user_opens("/journal/summary")
     story.expect_viewer_part(("environments", 0, "task", "id"), story.fixture.started_task)
     story.expect_viewer_part(("environments", 0, "task", "wait_text"), "")
-    story.agent_runs("stuck 'stuck on the login'")
+    story.agent_runs(story.agents.subject, "stuck 'stuck on the login'")
     story.user_opens("/journal/summary")
     story.expect_viewer_part(("environments", 0, "task", "wait_text"), "stuck on the login")
-    story.expect_stack(Ready, Working, Impasse)
+    story.expect_stack(story.agents.subject, Ready, Working, Impasse)

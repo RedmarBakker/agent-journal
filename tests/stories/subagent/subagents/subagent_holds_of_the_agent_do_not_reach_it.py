@@ -7,13 +7,13 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_sequence_step_that_holds_the_main_agents_writes_never_holds_the_subagent(story):
-    story.main_agent_runs("sequence create 'release' --steps 'raise the version | push the tag'")
+    story.agent_runs(story.agents.main, "sequence create 'release' --steps 'raise the version | push the tag'")
     sequence = story.created_number("sequence")
-    story.main_agent_runs(f"sequence run {sequence}")
-    story.main_agent_writes("version.py")
-    story.expect_main_refused(SequencesNudges.STEP_EDIT_BLOCK, n=sequence)
-    story.agent_writes("notes.md")
+    story.agent_runs(story.agents.main, f"sequence run {sequence}")
+    story.agent_writes(story.agents.main, "version.py")
+    story.expect_refused(story.agents.main, SequencesNudges.STEP_EDIT_BLOCK, n=sequence)
+    story.agent_writes(story.agents.subject, "notes.md")
     story.expect_allowed()
-    story.expect_stack(Void, Researching)
+    story.expect_stack(story.agents.subject, Void, Researching)

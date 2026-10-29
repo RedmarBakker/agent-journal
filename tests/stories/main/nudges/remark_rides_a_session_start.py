@@ -8,17 +8,17 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 EM_DASHES = "The build — the one from last night — is green."
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_waiting_when_a_session_starts_rides_the_start(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_starts_a_session()
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_starts_a_session(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_waiting_when_the_session_resumes_rides_the_resume(story):
-    story.agent_closes_its_turn(EM_DASHES)
-    story.agent_resumes_the_session()
+    story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
+    story.agent_resumes_the_session(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

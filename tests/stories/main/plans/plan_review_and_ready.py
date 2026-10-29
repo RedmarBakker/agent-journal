@@ -7,32 +7,32 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.draft_plan import DraftPlan
 
 
-@story(DraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_agent_can_neither_ready_a_plan_with_no_phase_nor_approve_it(story):
-    story.agent_runs(f"plan ready {story.fixture.plan}")
+    story.agent_runs(story.agents.subject, f"plan ready {story.fixture.plan}")
     story.expect_command_refused()
-    story.agent_runs(f"plan approve {story.fixture.plan}")
+    story.agent_runs(story.agents.subject, f"plan approve {story.fixture.plan}")
     story.expect_command_refused()
     story.expect_plan(story.fixture.plan, state=PlanState.DRAFT)
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(DraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_phase_with_no_task_is_not_ready(story):
-    story.agent_runs(f"plan phase {story.fixture.plan} 'Layout' --when 'the layout stands'")
-    story.agent_runs(f"plan ready {story.fixture.plan}")
+    story.agent_runs(story.agents.subject, f"plan phase {story.fixture.plan} 'Layout' --when 'the layout stands'")
+    story.agent_runs(story.agents.subject, f"plan ready {story.fixture.plan}")
     story.expect_command_refused()
     story.expect_plan(story.fixture.plan, state=PlanState.DRAFT)
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(DraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_ready_plan_is_not_started_before_the_user_approves(story):
-    grid = story.agent_adds_plan_task(story.fixture.plan, "the grid")
-    story.agent_runs(f"plan phase {story.fixture.plan} 'Layout' --when 'the layout stands'")
-    story.agent_runs(f"plan todos {story.fixture.plan} 1 {grid}")
-    story.agent_runs(f"plan ready {story.fixture.plan}")
+    grid = story.agent_adds_plan_task(story.agents.subject, story.fixture.plan, "the grid")
+    story.agent_runs(story.agents.subject, f"plan phase {story.fixture.plan} 'Layout' --when 'the layout stands'")
+    story.agent_runs(story.agents.subject, f"plan todos {story.fixture.plan} 1 {grid}")
+    story.agent_runs(story.agents.subject, f"plan ready {story.fixture.plan}")
     story.expect_plan(story.fixture.plan, state=PlanState.READY)
-    story.agent_runs(f"plan start {story.fixture.plan}")
+    story.agent_runs(story.agents.subject, f"plan start {story.fixture.plan}")
     story.expect_command_refused()
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)

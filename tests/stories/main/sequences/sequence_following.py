@@ -13,44 +13,44 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 FIRST_STEP, SECOND_STEP = 1, 2
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_step_never_taken_up_cannot_be_moved_on(story):
-    story.agent_runs("sequence next")
+    story.agent_runs(story.agents.subject, "sequence next")
     story.expect_command_refused()
-    story.expect_agent_not_told(SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=SECOND_STEP)
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=SECOND_STEP)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_sequence_of_one_step_ends_at_its_first_next(story):
-    sequence = story.agent_creates_sequence("tag", "push the tag")
-    story.agent_runs(f"sequence run {sequence}")
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence next")
-    story.expect_agent_told(SequencesNudges.SEQUENCE_ENDED, n=sequence)
-    story.expect_stack(Ready)
+    sequence = story.agent_creates_sequence(story.agents.subject, "tag", "push the tag")
+    story.agent_runs(story.agents.subject, f"sequence run {sequence}")
+    story.agent_runs(story.agents.subject, "sequence follow")
+    story.agent_runs(story.agents.subject, "sequence next")
+    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_ENDED, n=sequence)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_running_the_running_sequence_again_starts_no_second_run(story):
-    story.agent_runs(f"sequence run {story.fixture.sequence}")
-    story.expect_stack(Ready, FollowingSequence)
+    story.agent_runs(story.agents.subject, f"sequence run {story.fixture.sequence}")
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_sequence_runs_over_the_task_in_hand_and_gives_it_back_at_its_end(story):
-    sequence = story.agent_creates_sequence("tag", "push the tag")
-    story.agent_runs(f"sequence run {sequence}")
-    story.expect_stack(Ready, Working, FollowingSequence)
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence next")
+    sequence = story.agent_creates_sequence(story.agents.subject, "tag", "push the tag")
+    story.agent_runs(story.agents.subject, f"sequence run {sequence}")
+    story.expect_stack(story.agents.subject, Ready, Working, FollowingSequence)
+    story.agent_runs(story.agents.subject, "sequence follow")
+    story.agent_runs(story.agents.subject, "sequence next")
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_sequence_show_lists_the_steps(story):
-    story.agent_runs(f"sequence show {story.fixture.sequence}")
+    story.agent_runs(story.agents.subject, f"sequence show {story.fixture.sequence}")
     story.expect_command_passed()
     story.expect_command_text("push the tag")
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)

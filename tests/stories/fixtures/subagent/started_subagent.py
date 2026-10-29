@@ -16,9 +16,9 @@ class StartedSubagent(StateFixture):
 
     def steps(self, story) -> None:
         self.subagent = "agent-first"
-        story.agent_sends_subagent(RESEARCHER, "find where the parser is called")
+        story.agent_sends_subagent(story.agents.subject, RESEARCHER, "find where the parser is called")
         story.subagent_starts(self.subagent, RESEARCHER)
 
     def expected(self, story) -> None:
         story.expect_subagent_stack(self.subagent, Void, Researching)
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

@@ -9,17 +9,17 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.verifier.verifier_judging_dismissal import VerifierJudgingDismissal
 
 
-@story(VerifierJudgingDismissal, mode=BUILDER_MODE, scope=AgentRole.VERIFIER)
+@story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_sound_verdict_ends_the_verifier_and_tells_the_agent_nothing_against_it(story):
-    story.agent_runs(f"verdict give {SOUND_VERDICT} 'the reader shows the one line the run printed'")
+    story.agent_runs(story.agents.subject, f"verdict give {SOUND_VERDICT} 'the reader shows the one line the run printed'")
     story.expect_command_passed()
-    story.expect_main_not_told(ShellNudges.REPORT_REFUTED)
-    story.expect_stack(Void, Verifying, Ended)
+    story.expect_agent_not_told(story.agents.main, ShellNudges.REPORT_REFUTED)
+    story.expect_stack(story.agents.subject, Void, Verifying, Ended)
 
 
-@story(VerifierJudgingDismissal, mode=BUILDER_MODE, scope=AgentRole.VERIFIER)
+@story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_verdict_against_the_dismissal_tells_the_agent_its_dismissal_was_refuted(story):
-    story.agent_runs(f"verdict give {REFUTED_VERDICT} 'the reader hides the line the run printed'")
+    story.agent_runs(story.agents.subject, f"verdict give {REFUTED_VERDICT} 'the reader hides the line the run printed'")
     story.expect_command_passed()
-    story.expect_main_told(ShellNudges.REPORT_REFUTED)
-    story.expect_stack(Void, Verifying, Ended)
+    story.expect_agent_told(story.agents.main, ShellNudges.REPORT_REFUTED)
+    story.expect_stack(story.agents.subject, Void, Verifying, Ended)

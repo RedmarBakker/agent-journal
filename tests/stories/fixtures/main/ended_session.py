@@ -12,7 +12,7 @@ class EndedSession(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        story.agent_ends_the_session()
+        story.agent_ends_the_session(story.agents.subject)
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, Ended)
+        story.expect_stack(story.agents.subject, Ready, Ended)

@@ -10,30 +10,30 @@ from tests.stories.fixtures.main.outside_task import OutsideTask
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 
 
-@story(OutsideTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(OutsideTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_user_pausing_the_plan_meanwhile_leaves_the_outside_task_in_hand(story):
     story.user_pauses_plan(story.fixture.plan)
     story.expect_plan(story.fixture.plan, state=PlanState.PAUSED)
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
-    story.agent_runs(f"task complete {story.fixture.outside_task} --how done")
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.outside_task} --how done")
     story.expect_plan(story.fixture.plan, state=PlanState.PAUSED)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(OutsideTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(OutsideTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_plan_carries_on_after_the_outside_task_completes(story):
-    story.agent_runs(f"task complete {story.fixture.outside_task} --how done")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.outside_task} --how done")
     story.expect_task(story.fixture.outside_task, state=TaskState.COMPLETED)
     story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_stack(Ready, FollowingPlan)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(PausedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(PausedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_the_user_paused_stays_quiet_at_the_stop(story):
-    story.agent_stops()
+    story.agent_stops(story.agents.subject)
     story.expect_allowed()
     story.expect_task(story.fixture.first_task, state=TaskState.PAUSED)
     story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
     story.expect_plan(story.fixture.plan, state=PlanState.PAUSED)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

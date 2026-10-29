@@ -13,8 +13,8 @@ class DispatchedWorker(StateFixture):
     parent = BriefedTask
 
     def steps(self, story) -> None:
-        self.worker = story.agent_dispatches_worker("Lady Lovelace", self.briefed)
-        story.worker_session_starts(self.worker)
+        self.worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", self.briefed)
+        story.agent_starts_a_session(story.agents.workers.get(self.worker))
 
     def expected(self, story) -> None:
         story.expect_worker(self.worker, state=WorkerState.DISPATCHED)

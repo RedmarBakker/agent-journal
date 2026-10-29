@@ -14,10 +14,10 @@ class OutsideTask(StateFixture):
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(f"task pause {self.first_task} 'something else first'")
-        self.outside_task = story.agent_takes_a_task("outside")
+        story.agent_runs(story.agents.subject, f"task pause {self.first_task} 'something else first'")
+        self.outside_task = story.agent_takes_a_task(story.agents.subject, "outside")
 
     def expected(self, story) -> None:
         story.expect_task(self.outside_task, state=TaskState.STARTED)
         story.expect_task(self.first_task, state=TaskState.PAUSED)
-        story.expect_stack(Ready, FollowingPlan, Working)
+        story.expect_stack(story.agents.subject, Ready, FollowingPlan, Working)

@@ -23,5 +23,5 @@ def provider(program: type) -> pytest.MarkDecorator:
     return getattr(pytest.mark, PROVIDER_MARK).with_args(program)
 
 
-def story(start: type, mode: str | tuple[str, ...], scope: AgentRole) -> pytest.MarkDecorator:
-    return getattr(pytest.mark, START_MARK).with_args(start, mode, scope)
+def story(fixture: type, mode: str | tuple[str, ...], subject: AgentRole) -> pytest.MarkDecorator:
+    return getattr(pytest.mark, START_MARK).with_args(fixture, mode, subject)

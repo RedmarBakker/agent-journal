@@ -10,32 +10,32 @@ from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Claude)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_switched_off(story):
-    story.agent_reads()
+    story.agent_reads(story.agents.subject)
     story.expect_hook_duration_shown()
     story.user_sets(FaultsOptions.HOOK_TIME_COPY, False)
-    story.agent_reads()
+    story.agent_reads(story.agents.subject)
     story.expect_no_hook_duration()
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(NewSession, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(NewSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Claude)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_refusal(story):
-    story.agent_writes("footer.py")
-    story.expect_refused(BriefingNudges.OVERVIEW_REQUEST)
+    story.agent_writes(story.agents.subject, "footer.py")
+    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
     story.expect_hook_duration_shown()
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Codex)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_codex_stop_shows_its_duration_to_the_user_alone(story):
-    story.agent_stops()
+    story.agent_stops(story.agents.subject)
     story.expect_hook_duration_shown()
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

@@ -12,8 +12,8 @@ class GitStatusAlias(StateFixture):
 
     def steps(self, story) -> None:
         self.alias = "gt"
-        story.agent_runs(f"alias add {self.alias} 'git status'")
+        story.agent_runs(story.agents.subject, f"alias add {self.alias} 'git status'")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

@@ -14,11 +14,11 @@ class ReviewerAtWork(StateFixture):
     settings = ((ReviewingOptions.REVIEWER, True),)
 
     def steps(self, story) -> None:
-        story.worker_proves(self.worker, 1, "parser.py:12, test_reads passes")
-        story.worker_proves(self.worker, 2, "parser.py:30, test_names passes")
-        story.worker_clocks_out(self.worker, "the parser is done")
+        story.agent_proves(story.agents.workers.get(self.worker), 1, "parser.py:12, test_reads passes")
+        story.agent_proves(story.agents.workers.get(self.worker), 2, "parser.py:30, test_names passes")
+        story.agent_clocks_out(story.agents.workers.get(self.worker), "the parser is done")
         self.reviewer = story.newest("reviewers")
-        story.reviewer_session_starts(self.reviewer)
+        story.agent_starts_a_session(story.agents.reviewers.get(self.reviewer))
 
     def expected(self, story) -> None:
-        story.expect_stack(Orchestrating)
+        story.expect_stack(story.agents.subject, Orchestrating)

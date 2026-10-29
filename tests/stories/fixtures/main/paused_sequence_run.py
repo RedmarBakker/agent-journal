@@ -12,9 +12,9 @@ class PausedSequenceRun(StateFixture):
     parent = SequenceRun
 
     def steps(self, story) -> None:
-        story.agent_runs("sequence follow")
-        story.agent_runs("sequence pause --why 'the user wants the footer first'")
+        story.agent_runs(story.agents.subject, "sequence follow")
+        story.agent_runs(story.agents.subject, "sequence pause --why 'the user wants the footer first'")
 
     def expected(self, story) -> None:
         story.expect_command_passed()
-        story.expect_stack(Ready, FollowingSequence)
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence)

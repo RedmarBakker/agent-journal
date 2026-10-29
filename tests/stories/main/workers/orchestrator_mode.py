@@ -11,49 +11,49 @@ from tests.stories.fixtures.main.orchestrator_open_task import OrchestratorOpenT
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_switching_to_orchestrator_mode_names_the_mode(story):
     story.user_sets(WorkersOptions.MODE, ORCHESTRATOR_MODE)
-    story.expect_agent_told(WorkersNudges.ORCHESTRATOR_MODE)
-    story.agent_reads()
-    story.expect_stack(Orchestrating)
+    story.expect_agent_told(story.agents.subject, WorkersNudges.ORCHESTRATOR_MODE)
+    story.agent_reads(story.agents.subject)
+    story.expect_stack(story.agents.subject, Orchestrating)
 
 
-@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_stop_with_an_open_task_names_it_to_dispatch(story):
-    story.agent_stops()
-    story.expect_agent_told(WorkersNudges.ORCHESTRATE, count=1)
-    story.expect_stack(Orchestrating)
+    story.agent_stops(story.agents.subject)
+    story.expect_agent_told(story.agents.subject, WorkersNudges.ORCHESTRATE, count=1)
+    story.expect_stack(story.agents.subject, Orchestrating)
 
 
-@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_that_stops_with_a_task_in_hand_is_told_to_delegate_it(story):
-    story.agent_runs(f"task start {story.fixture.briefed}")
-    story.agent_stops()
-    story.expect_agent_told(WorkersNudges.TASK_DELEGATION)
-    story.expect_stack(Orchestrating, Delegating)
+    story.agent_runs(story.agents.subject, f"task start {story.fixture.briefed}")
+    story.agent_stops(story.agents.subject)
+    story.expect_agent_told(story.agents.subject, WorkersNudges.TASK_DELEGATION)
+    story.expect_stack(story.agents.subject, Orchestrating, Delegating)
 
 
-@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.ORCHESTRATOR_RELEASES, False)
 def test_an_orchestrator_release_is_refused_while_the_user_has_not_allowed_it(story):
-    story.agent_runs_in_the_shell("git tag v9.9.9")
-    story.expect_refused(WorkersNudges.RELEASE_REFUSED)
-    story.expect_stack(Orchestrating)
+    story.agent_runs_in_the_shell(story.agents.subject, "git tag v9.9.9")
+    story.expect_refused(story.agents.subject, WorkersNudges.RELEASE_REFUSED)
+    story.expect_stack(story.agents.subject, Orchestrating)
 
 
-@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.ORCHESTRATOR_WRITES_PLANS, False)
 def test_an_orchestrator_may_not_write_a_plan_while_the_user_has_not_allowed_it(story):
-    story.agent_runs("plan create 'the parser plan' --brief 'the parser'")
+    story.agent_runs(story.agents.subject, "plan create 'the parser plan' --brief 'the parser'")
     story.expect_command_refused()
-    story.expect_stack(Orchestrating)
+    story.expect_stack(story.agents.subject, Orchestrating)
 
 
-@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_back_in_builder_mode_a_stop_takes_the_open_task_up_instead_of_naming_it_for_dispatch(story):
     story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
-    story.agent_stops()
-    story.expect_agent_not_told(WorkersNudges.ORCHESTRATE)
+    story.agent_stops(story.agents.subject)
+    story.expect_agent_not_told(story.agents.subject, WorkersNudges.ORCHESTRATE)
     story.expect_task(story.fixture.briefed, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)

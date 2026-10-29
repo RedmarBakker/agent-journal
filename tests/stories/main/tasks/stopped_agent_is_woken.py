@@ -16,71 +16,71 @@ from tests.stories.fixtures.main.stopped_task import StoppedTask
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(StoppedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StoppedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_agent_stopped_with_work_in_hand_is_woken_after_the_set_minutes(story):
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StoppedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StoppedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_quiet_shorter_than_the_set_minutes_wakes_nobody(story):
-    story.agent_is_quiet_for(minutes=story.setting(TasksOptions.WAKE_MINUTES) - 1)
-    story.expect_agent_not_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_is_quiet_for(story.agents.subject, minutes=story.setting(TasksOptions.WAKE_MINUTES) - 1)
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.WAKE_MINUTES, 0)
 def test_a_wake_of_no_minutes_never_wakes(story):
-    story.agent_stops()
-    story.agent_is_quiet_past(OPEN_TASK_LIMIT_SECONDS)
-    story.expect_agent_not_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_stops(story.agents.subject)
+    story.agent_is_quiet_past(story.agents.subject, OPEN_TASK_LIMIT_SECONDS)
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.WAKE_MINUTES, 10)
 @setting(TasksOptions.WAKE_COUNT, 1)
 def test_the_wake_stops_after_the_set_count(story):
-    story.agent_stops()
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_told(TasksNudges.STOPPED_WITH_WORK)
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_not_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_stops(story.agents.subject)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.WAKE_MINUTES, 10)
 def test_an_agent_with_nothing_in_hand_and_nothing_open_is_not_woken(story):
-    story.agent_stops()
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_not_told(TasksNudges.STOPPED_WITH_WORK)
-    story.expect_stack(Ready)
+    story.agent_stops(story.agents.subject)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.WAKE_MINUTES, 10)
 def test_an_agent_following_a_plan_is_woken_with_the_plans_task(story):
-    story.agent_stops()
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_stops(story.agents.subject)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
     story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
-    story.expect_stack(Ready, FollowingPlan)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.WAKE_MINUTES, 10)
 def test_an_agent_waiting_on_a_run_is_not_woken(story):
-    story.agent_runs("await 'the build' --until false")
-    story.agent_stops()
-    story.agent_is_quiet_past(story.setting_seconds(TasksOptions.WAKE_MINUTES))
-    story.expect_agent_not_told(TasksNudges.STOPPED_WITH_WORK)
+    story.agent_runs(story.agents.subject, "await 'the build' --until false")
+    story.agent_stops(story.agents.subject)
+    story.agent_is_quiet_past(story.agents.subject, story.setting_seconds(TasksOptions.WAKE_MINUTES))
+    story.expect_agent_not_told(story.agents.subject, TasksNudges.STOPPED_WITH_WORK)
     story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)

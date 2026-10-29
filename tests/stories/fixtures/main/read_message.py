@@ -13,8 +13,8 @@ class ReadMessage(StateFixture):
 
     def steps(self, story) -> None:
         self.message = story.user_sends_message("is the footer done?")
-        story.agent_reads_message(self.message)
+        story.agent_reads_message(story.agents.subject, self.message)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(MessagesNudges.MESSAGE_READ, n=self.message)
-        story.expect_agent_told(MessagesNudges.REPLY_COMMAND)
+        story.expect_agent_told(story.agents.subject, MessagesNudges.MESSAGE_READ, n=self.message)
+        story.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_COMMAND)

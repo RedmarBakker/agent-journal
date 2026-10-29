@@ -13,7 +13,7 @@ class TaskQueue(StateFixture):
     parent = StartedTask
 
     def steps(self, story) -> None:
-        self.next_open = story.agent_creates_task("the header")
+        self.next_open = story.agent_creates_task(story.agents.subject, "the header")
 
     def expected(self, story) -> None:
         story.expect_task(self.next_open, state=TaskState.OPEN)

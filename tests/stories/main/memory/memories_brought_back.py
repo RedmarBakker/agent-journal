@@ -8,26 +8,26 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 STALE_DAYS = 9
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_keyword_brings_a_reminder_back_once_to_the_agent_that_names_it(story):
     story.user_types("reminder create 'the login uses the old session store' --keywords login,session")
     reminder = story.created_number("reminder")
-    story.agent_closes_its_turn("I will look at the login next.")
-    story.expect_agent_told(MemoryNudges.MEMORY_READ_REQUEST, noun="reminder", n=reminder)
-    story.agent_closes_its_turn("Still on the login.")
-    story.expect_agent_not_told(MemoryNudges.MEMORY_READ_REQUEST, noun="reminder", n=reminder)
-    story.expect_stack(Ready)
+    story.agent_closes_its_turn(story.agents.subject, "I will look at the login next.")
+    story.expect_agent_told(story.agents.subject, MemoryNudges.MEMORY_READ_REQUEST, noun="reminder", n=reminder)
+    story.agent_closes_its_turn(story.agents.subject, "Still on the login.")
+    story.expect_agent_not_told(story.agents.subject, MemoryNudges.MEMORY_READ_REQUEST, noun="reminder", n=reminder)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_fresh_start_asks_once_a_day_whether_an_old_reminder_still_holds_and_never_after_a_compaction(story):
     story.user_types("reminder create 'check the api on port 9'")
     story.time_travel(minutes=STALE_DAYS * 24 * 60)
-    story.agent_starts_a_session()
-    story.expect_agent_told(MemoryNudges.CHECK_STALE_MEMORY)
-    story.agent_starts_a_session()
-    story.expect_agent_not_told(MemoryNudges.CHECK_STALE_MEMORY)
+    story.agent_starts_a_session(story.agents.subject)
+    story.expect_agent_told(story.agents.subject, MemoryNudges.CHECK_STALE_MEMORY)
+    story.agent_starts_a_session(story.agents.subject)
+    story.expect_agent_not_told(story.agents.subject, MemoryNudges.CHECK_STALE_MEMORY)
     story.context_is_compacted()
-    story.expect_agent_not_told(MemoryNudges.CHECK_STALE_MEMORY)
-    story.agent_looks_at_the_overview()
-    story.expect_stack(Ready)
+    story.expect_agent_not_told(story.agents.subject, MemoryNudges.CHECK_STALE_MEMORY)
+    story.agent_looks_at_the_overview(story.agents.subject)
+    story.expect_stack(story.agents.subject, Ready)

@@ -11,17 +11,17 @@ MANIFEST = {"name": "held", "version": "1", "program": "run.py", "hears": ["tool
 NEWER_JOURNAL = "99.0.0"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plugin_whose_new_version_needs_a_newer_journal_stays_at_its_version_and_says_which_it_waits_for(story):
     story.project_file_holding("held/run.py", "print()")
     story.project_file_holding("held/journal-plugin.json", json.dumps(MANIFEST))
     story.user_types(f"plugin install {story.project_root()}/held --yes")
     story.project_file_holding("held/journal-plugin.json", json.dumps({**MANIFEST, "version": "2", "journal": NEWER_JOURNAL}))
-    story.agent_runs("plugin upgrade held --yes")
-    story.agent_runs("plugin list")
+    story.agent_runs(story.agents.subject, "plugin upgrade held --yes")
+    story.agent_runs(story.agents.subject, "plugin list")
     story.expect_command_text(f"waits for journal {NEWER_JOURNAL}")
     story.project_file_holding("held/journal-plugin.json", json.dumps({**MANIFEST, "version": "3", "journal": VERSION}))
-    story.agent_runs("plugin upgrade held --yes")
-    story.agent_runs("plugin list")
+    story.agent_runs(story.agents.subject, "plugin upgrade held --yes")
+    story.agent_runs(story.agents.subject, "plugin list")
     story.expect_command_text_without("waits for journal")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

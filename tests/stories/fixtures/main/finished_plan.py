@@ -12,9 +12,9 @@ class FinishedPlan(StateFixture):
     parent = StartedPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(f"task complete {self.first_task} --how done")
-        story.agent_runs(f"task complete {self.second_task} --how done")
+        story.agent_runs(story.agents.subject, f"task complete {self.first_task} --how done")
+        story.agent_runs(story.agents.subject, f"task complete {self.second_task} --how done")
 
     def expected(self, story) -> None:
         story.expect_plan(self.plan, state=PlanState.FINISHED)
-        story.expect_stack(Ready)
+        story.expect_stack(story.agents.subject, Ready)

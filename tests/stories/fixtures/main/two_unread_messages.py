@@ -16,4 +16,4 @@ class TwoUnreadMessages(StateFixture):
         self.second_message = story.user_sends_message("and the header?")
 
     def expected(self, story) -> None:
-        story.expect_agent_told(MessagesNudges.NEW_MESSAGE, n=self.second_message)
+        story.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=self.second_message)

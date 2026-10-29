@@ -12,7 +12,7 @@ class BriefedTask(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.briefed = story.agent_creates_briefed_task("the parser", "- reads the grammar\n- names each rule")
+        self.briefed = story.agent_creates_briefed_task(story.agents.subject, "the parser", "- reads the grammar\n- names each rule")
 
     def expected(self, story) -> None:
         story.expect_task(self.briefed, state=TaskState.OPEN)

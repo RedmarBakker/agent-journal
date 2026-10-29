@@ -13,10 +13,10 @@ class TwoWorkers(StateFixture):
     parent = WorkingWorker
 
     def steps(self, story) -> None:
-        self.peer_task = story.agent_creates_briefed_task("the printer", "- prints each rule")
-        self.peer = story.agent_dispatches_worker("Mr. Babbage", self.peer_task)
-        story.worker_session_starts(self.peer)
-        story.worker_clocks_in(self.peer)
+        self.peer_task = story.agent_creates_briefed_task(story.agents.subject, "the printer", "- prints each rule")
+        self.peer = story.agent_dispatches_worker(story.agents.subject, "Mr. Babbage", self.peer_task)
+        story.agent_starts_a_session(story.agents.workers.get(self.peer))
+        story.agent_clocks_in(story.agents.workers.get(self.peer))
 
     def expected(self, story) -> None:
         story.expect_worker(self.peer, state=WorkerState.READY)

@@ -16,7 +16,7 @@ class StoppedTask(StateFixture):
     settings = ((TasksOptions.WAKE_MINUTES, 10),)
 
     def steps(self, story) -> None:
-        story.agent_stops()
+        story.agent_stops(story.agents.subject)
 
     def expected(self, story) -> None:
-        story.expect_refused(TasksNudges.TASK_CONTINUATION)
+        story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)

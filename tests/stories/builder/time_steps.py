@@ -1,3 +1,4 @@
+from tests.stories.builder.story_agent import StoryAgent
 import json
 from datetime import datetime
 
@@ -12,19 +13,16 @@ STORY_CONTEXT_TOKENS = 200000
 class TimeSteps:
     """Time and the context window in a story: the agent quiet for a while, as the clock's tick finds it, the context reaching a share of its window, as the statusline writes it, and a compaction, as the provider's hooks bring it."""
 
-    def agent_is_quiet_for(self, minutes: float) -> None:
+    def agent_is_quiet_for(self, agent: StoryAgent, minutes: float) -> None:
         silent_tick(self.app, minutes * 60)
         self.observed(f"agent is quiet for {minutes} minutes", None, None)
 
-    def agent_is_quiet_past(self, seconds: float) -> None:
-        self.silence_tick("agent", seconds)
+    def agent_is_quiet_past(self, agent: StoryAgent, seconds: float) -> None:
+        self.silence_tick(str(agent.role), seconds)
 
-    def agent_is_quiet_just_under(self, seconds: float) -> None:
+    def agent_is_quiet_just_under(self, agent: StoryAgent, seconds: float) -> None:
         silent_tick(self.app, seconds - 1)
         self.observed(f"agent is quiet just under {seconds} seconds", None, None)
-
-    def worker_is_quiet_past(self, seconds: float) -> None:
-        self.silence_tick("worker", seconds)
 
     def silence_tick(self, agent_kind: str, seconds: float) -> None:
         silent_tick(self.app, seconds + 1)
@@ -58,18 +56,18 @@ class TimeSteps:
         (self.app.config.status_home / f"{self.main_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
         self.observed(f"the main agent's context reaches {percent}%", None, None)
 
-    def agent_consumes_context(self, percent: int) -> None:
+    def agent_consumes_context(self, agent: StoryAgent, percent: int) -> None:
         self.context_reaches(percent)
-        self.agent_reads()
+        self.agent_reads(agent, )
 
     def subagent_compaction_begins(self, subagent: str) -> None:
-        self.hooked("a subagent's compaction begins", "PreCompact", trigger="auto", agent_id=subagent)
+        self.hooked(self.agents.subject, "a subagent's compaction begins", "PreCompact", trigger="auto", agent_id=subagent)
 
     def compaction_begins(self) -> None:
-        self.hooked("a compaction begins", "PreCompact")
+        self.hooked(self.agents.subject, "a compaction begins", "PreCompact")
 
     def compacted_session_starts(self) -> None:
-        self.hooked("context is compacted", "SessionStart", source="compact")
+        self.hooked(self.agents.subject, "context is compacted", "SessionStart", source="compact")
 
     def context_is_compacted(self) -> None:
         self.compaction_begins()

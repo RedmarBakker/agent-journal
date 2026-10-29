@@ -13,19 +13,19 @@ from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 FIRST_MARK = MemoryThresholds.CONTEXT[0]
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagents_context_reading_never_asks_anyone_to_weigh_memories(story):
-    story.agent_consumes_context(FIRST_MARK)
-    story.expect_agent_not_told(MemoryNudges.CONTEXT_DECISION)
-    story.expect_main_stack(Ready)
-    story.expect_stack(Void, Researching)
+    story.agent_consumes_context(story.agents.subject, FIRST_MARK)
+    story.expect_agent_not_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION)
+    story.expect_stack(story.agents.main, Ready)
+    story.expect_stack(story.agents.subject, Void, Researching)
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagents_tool_use_never_ends_the_main_agents_wait(story):
-    story.main_agent_runs("task create 'the footer' --start")
-    story.main_agent_runs("await 'the build of the footer' --until false")
-    story.agent_reads()
+    story.agent_runs(story.agents.main, "task create 'the footer' --start")
+    story.agent_runs(story.agents.main, "await 'the build of the footer' --until false")
+    story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.expect_main_stack(Ready, Working, ExternalWait)
-    story.expect_stack(Void, Researching)
+    story.expect_stack(story.agents.main, Ready, Working, ExternalWait)
+    story.expect_stack(story.agents.subject, Void, Researching)

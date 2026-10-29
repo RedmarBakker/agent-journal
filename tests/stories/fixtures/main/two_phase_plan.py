@@ -14,17 +14,17 @@ class TwoPhasePlan(StateFixture):
     parent = ManualDraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs(f"plan phase {self.plan} 'Layout' --when 'the layout stands' --checkpoint")
-        story.agent_runs(f"plan phase {self.plan} 'Content' --when 'the pages hold their words'")
-        self.first_phase_task = story.agent_adds_plan_task(self.plan, "the grid")
-        self.second_phase_task = story.agent_adds_plan_task(self.plan, "the about page")
-        story.agent_runs(f"plan todos {self.plan} 1 {self.first_phase_task}")
-        story.agent_runs(f"plan todos {self.plan} 2 {self.second_phase_task}")
-        story.agent_runs(f"plan ready {self.plan}")
+        story.agent_runs(story.agents.subject, f"plan phase {self.plan} 'Layout' --when 'the layout stands' --checkpoint")
+        story.agent_runs(story.agents.subject, f"plan phase {self.plan} 'Content' --when 'the pages hold their words'")
+        self.first_phase_task = story.agent_adds_plan_task(story.agents.subject, self.plan, "the grid")
+        self.second_phase_task = story.agent_adds_plan_task(story.agents.subject, self.plan, "the about page")
+        story.agent_runs(story.agents.subject, f"plan todos {self.plan} 1 {self.first_phase_task}")
+        story.agent_runs(story.agents.subject, f"plan todos {self.plan} 2 {self.second_phase_task}")
+        story.agent_runs(story.agents.subject, f"plan ready {self.plan}")
         story.user_approves_plan(self.plan)
-        story.agent_runs(f"plan start {self.plan}")
+        story.agent_runs(story.agents.subject, f"plan start {self.plan}")
 
     def expected(self, story) -> None:
         story.expect_plan(self.plan, state=PlanState.STARTED)
         story.expect_task(self.first_phase_task, state=TaskState.STARTED)
-        story.expect_stack(Ready, FollowingPlan)
+        story.expect_stack(story.agents.subject, Ready, FollowingPlan)

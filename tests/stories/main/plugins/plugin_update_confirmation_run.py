@@ -10,7 +10,7 @@ INSTALLED = "1.0.0"
 RELEASED = "2.0.0"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_journal_update_offers_a_plugin_update_and_only_its_install_applies_it(story):
     story.plugin_release_published(INSTALLED)
     plugin = story.user_posted("/journal/plugins", {"source": story.plugin_source()})["id"]
@@ -22,4 +22,4 @@ def test_a_journal_update_offers_a_plugin_update_and_only_its_install_applies_it
     story.expect_plugin_version(plugin, INSTALLED)
     story.user_posted(f"/journal/plugins/{plugin}/upgrade", {"ref": preview["commit"]})
     story.expect_plugin_version(plugin, RELEASED)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

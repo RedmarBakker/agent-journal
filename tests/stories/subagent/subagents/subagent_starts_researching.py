@@ -10,22 +10,22 @@ from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 MAIN_AGENT_READS = 60
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagent_works_on_a_stack_of_its_own_and_stays_listed_through_the_main_agents_tool_uses(story):
-    story.agent_reads()
+    story.agent_reads(story.agents.subject)
     story.expect_allowed()
-    story.repeat(MAIN_AGENT_READS, story.main_agent_reads)
-    story.main_agent_runs("worker list")
+    story.repeat(MAIN_AGENT_READS, lambda: story.agent_reads(story.agents.main))
+    story.agent_runs(story.agents.main, "worker list")
     story.expect_command_line("find where the parser is called")
-    story.expect_main_stack(Ready)
-    story.expect_stack(Void, Researching)
+    story.expect_stack(story.agents.main, Ready)
+    story.expect_stack(story.agents.subject, Void, Researching)
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagent_writes_while_the_main_agent_owes_a_reply(story):
     message = story.user_sends_message("how far is the parser?")
-    story.main_agent_runs(f"message read {message}")
-    story.agent_writes("notes.md")
+    story.agent_runs(story.agents.main, f"message read {message}")
+    story.agent_writes(story.agents.subject, "notes.md")
     story.expect_allowed()
-    story.expect_agent_not_told(MessagesNudges.MESSAGE_READ)
-    story.expect_stack(Void, Researching)
+    story.expect_agent_not_told(story.agents.subject, MessagesNudges.MESSAGE_READ)
+    story.expect_stack(story.agents.subject, Void, Researching)

@@ -16,77 +16,77 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 
-@story(TaskQueue, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_with_auto_on_a_completed_task_is_followed_by_the_next_open_one(story):
-    story.agent_runs(f"task complete {story.fixture.started_task} --how done")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.started_task} --how done")
     story.expect_task(story.fixture.next_open, state=TaskState.STARTED)
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
-    story.expect_stack(Ready, Working)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(TaskQueue, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, False)
 def test_with_auto_off_a_completed_task_is_followed_by_nothing(story):
-    story.agent_runs(f"task complete {story.fixture.started_task} --how done")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.started_task} --how done")
     story.expect_task(story.fixture.next_open, state=TaskState.OPEN)
-    story.agent_stops()
+    story.agent_stops(story.agents.subject)
     story.expect_allowed()
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_the_next_task_is_the_one_of_highest_priority(story):
-    low = story.agent_creates_task("the logo")
-    high = story.agent_creates_task("the header")
-    story.agent_runs(f"task edit {high} --priority critical")
-    story.agent_runs(f"task complete {story.fixture.started_task} --how done")
+    low = story.agent_creates_task(story.agents.subject, "the logo")
+    high = story.agent_creates_task(story.agents.subject, "the header")
+    story.agent_runs(story.agents.subject, f"task edit {high} --priority critical")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.started_task} --how done")
     story.expect_task(high, state=TaskState.STARTED)
     story.expect_task(low, state=TaskState.OPEN)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_blocked_task_is_never_started(story):
-    blocked = story.agent_creates_task("the logo")
-    story.agent_runs(f"task block {blocked} 'waits on the designer'")
-    header = story.agent_creates_task("the header")
-    story.agent_runs(f"task complete {story.fixture.started_task} --how done")
+    blocked = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {blocked} 'waits on the designer'")
+    header = story.agent_creates_task(story.agents.subject, "the header")
+    story.agent_runs(story.agents.subject, f"task complete {story.fixture.started_task} --how done")
     story.expect_task(blocked, state=TaskState.BLOCKED)
     story.expect_task(header, state=TaskState.STARTED)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_task_a_worker_holds_is_never_started_by_the_stop(story):
-    story.agent_stops()
-    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED)
+    story.agent_stops(story.agents.subject)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
     story.expect_task(story.fixture.briefed, state=TaskState.STARTED)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
     story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
     story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
-    story.expect_stack(Ready, FollowingPlan)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_stop_with_several_open_tasks_starts_only_one(story):
-    first = story.agent_creates_task("the header")
-    second = story.agent_creates_task("the logo")
-    story.agent_stops()
-    story.expect_refused(TasksNudges.TASK_CONTINUATION)
+    first = story.agent_creates_task(story.agents.subject, "the header")
+    second = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_stops(story.agents.subject)
+    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(first, state=TaskState.STARTED)
     story.expect_task(second, state=TaskState.OPEN)
-    story.expect_stack(Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, Working)

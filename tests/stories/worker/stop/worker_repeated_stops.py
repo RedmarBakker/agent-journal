@@ -9,10 +9,10 @@ from tests.stories.fixtures.worker.dispatched_worker import DispatchedWorker
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(DispatchedWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+@story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_stopping_again_and_again_on_its_floor_never_panics(story):
     for _ in range(PANIC_REFUSAL_COUNT + 1):
-        story.agent_stops()
+        story.agent_stops(story.agents.subject)
     story.expect_allowed()
-    story.expect_worker(story.fixture.worker, state=WorkerState.DISPATCHED)
-    story.expect_stack(Void)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.DISPATCHED)
+    story.expect_stack(story.agents.subject, Void)

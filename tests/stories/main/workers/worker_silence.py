@@ -11,17 +11,17 @@ from tests.stories.fixtures.worker.silent_worker import SilentWorker
 DISPATCHER_SECONDS = SILENCE.amount * DISPATCHER_SPAN_SHARE
 
 
-@story(SilentWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SilentWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_dispatcher_is_told_of_a_worker_quiet_half_as_long_again(story):
-    story.worker_is_quiet_past(DISPATCHER_SECONDS)
-    story.expect_agent_told(WorkersNudges.SILENT_WORKER, n=story.fixture.worker)
-    story.expect_stack(Ready, ExternalWait)
+    story.agent_is_quiet_past(story.agents.workers.first(), DISPATCHER_SECONDS)
+    story.expect_agent_told(story.agents.subject, WorkersNudges.SILENT_WORKER, n=story.agents.workers.first())
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(SilentWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SilentWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_proof_by_the_worker_starts_a_new_quiet_span(story):
-    story.worker_proves(story.fixture.worker, 1, "parser.py:12, test_reads passes")
-    story.worker_is_quiet_past(DISPATCHER_SECONDS)
-    story.expect_agent_not_told(WorkersNudges.SILENT_WORKER)
+    story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
+    story.agent_is_quiet_past(story.agents.workers.first(), DISPATCHER_SECONDS)
+    story.expect_agent_not_told(story.agents.subject, WorkersNudges.SILENT_WORKER)
     story.expect_task(story.fixture.briefed, delegated=True)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)

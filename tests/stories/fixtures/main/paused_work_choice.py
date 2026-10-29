@@ -16,9 +16,9 @@ class PausedWorkChoice(StateFixture):
     settings = ((TasksOptions.AUTO, True),)
 
     def steps(self, story) -> None:
-        story.agent_runs(f"task pause {self.started_task} 'the header first'")
-        story.agent_stops()
+        story.agent_runs(story.agents.subject, f"task pause {self.started_task} 'the header first'")
+        story.agent_stops(story.agents.subject)
 
     def expected(self, story) -> None:
-        story.expect_refused(TasksNudges.PAUSED_CHOICE)
-        story.expect_stack(Ready, ChoosingPausedWork)
+        story.expect_refused(story.agents.subject, TasksNudges.PAUSED_CHOICE)
+        story.expect_stack(story.agents.subject, Ready, ChoosingPausedWork)

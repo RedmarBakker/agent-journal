@@ -197,14 +197,17 @@ assert appears in it; every assert lives inside an expect method of the builder.
 
 - **One case per story**, its name the sentence of what happens: `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
 - **One behaviour per file**, its name saying which: `agent_replies_to_every_message.py`, `task_transfer.py`.
-- **Filed by scope, then subject**: `tests/stories/<scope>/<subject>/<behaviour>.py`. The scope is whose point of
-  view the expectations take, `main`, `worker`, `subagent`, `reviewer` or `verifier`, and is read from the folder: under
-  `worker/` the agent checks read the worker's lines and stack, and the main agent is named (`expect_main_told`). Fixtures
-  live in `tests/stories/fixtures/<scope>/`.
+- **Filed by subject, then topic**: `tests/stories/<subject>/<topic>/<behaviour>.py`. The subject is the agent the
+  story is about, `main`, `worker`, `subagent`, `reviewer` or `verifier`, read from the folder. Fixtures live in
+  `tests/stories/fixtures/<subject>/`.
+- **Every step and agent check names its agent first, written out**: `story.agent_runs(story.agents.subject, "message read 4")`,
+  `story.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
+  `story.agents` holds the subject, the main agent, `workers.first()` and `workers.get(n)`, the same for reviewers and
+  verifiers, and the subagent; there are no main_ or worker_ twins of a step.
 - **It closes on its stack**: every story's last line is `story.expect_stack(...)`, and the run fails one that does not.
-- **It names its work mode and its scope**: `@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)`, never left
+- **It names its work mode and its subject**: `@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)`, never left
   to a default; a mode list, or `ALL_MODES`, runs it once per mode, its stack naming the mode's bottom state as
-  `ModeFloor`; the scope on the mark must be the scope of its folder, and the run fails one where they differ.
+  `ModeFloor`; the subject on the mark must be the subject of its folder, and the run fails one where they differ.
 - **What it needs, it sets**: `@setting(option, value)`, and the story fails if the journal never reads the setting.
   No `@values`: each case is a story of its own, from a fixture.
 - **Numbers come from the code**, never copied.

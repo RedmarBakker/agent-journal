@@ -22,4 +22,4 @@ class CompactionSkills(StateFixture):
         story.compacted_session_starts()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(BriefingNudges.OVERVIEW_FIRST)
+        story.expect_agent_told(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)

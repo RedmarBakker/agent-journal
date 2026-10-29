@@ -13,9 +13,9 @@ class SequenceRun(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.sequence = story.agent_creates_sequence("release", "raise the version | push the tag")
-        story.agent_runs(f"sequence run {self.sequence}")
+        self.sequence = story.agent_creates_sequence(story.agents.subject, "release", "raise the version | push the tag")
+        story.agent_runs(story.agents.subject, f"sequence run {self.sequence}")
 
     def expected(self, story) -> None:
-        story.expect_agent_told(SequencesNudges.PENDING_STEP, n=self.sequence, step=1)
-        story.expect_stack(Ready, FollowingSequence)
+        story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=self.sequence, step=1)
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence)

@@ -8,18 +8,18 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.draft_plan import DraftPlan
 
 
-@story(DraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_cancelled_plan_ends_the_run_that_builds_it_and_says_why(story):
     story.user_cancels_plan(story.fixture.plan)
     story.expect_plan(story.fixture.plan, state=PlanState.CANCELLED)
-    story.expect_agent_told(SequencesNudges.SEQUENCE_CANNOT_FINISH)
-    story.expect_stack(Ready)
+    story.expect_agent_told(story.agents.subject, SequencesNudges.SEQUENCE_CANNOT_FINISH)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_cancelled_plan_leaves_a_run_about_another_plan_as_it_was(story):
     other = story.user_creates_plan("the shop", "the shop sells")
     story.user_cancels_plan(other)
     story.expect_plan(story.fixture.plan, state=PlanState.DRAFT)
-    story.expect_agent_not_told(SequencesNudges.SEQUENCE_CANNOT_FINISH)
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.SEQUENCE_CANNOT_FINISH)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)

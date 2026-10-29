@@ -92,7 +92,7 @@ def story(app, monkeypatch, request, copies):
         close()
     if request.node.rep_call.failed:
         return
-    assert played.is_stack_checked_last(), f"{request.node.originalname} does not close with story.expect_stack(...) after its last step: every story says the stack it ends on"
+    assert played.is_stack_checked_last(), f"{request.node.originalname} does not close with story.expect_stack(story.agents.subject, ...) after its last step: every story says the stack it ends on"
     unused = played.fixture.unused_rows()
     assert not unused, f"starts from {type(played.fixture).__name__} but never used {', '.join(unused)}: start from a fixture whose rows it uses"
     unread = played.unread_settings()
@@ -137,7 +137,7 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
 def story_scope(request) -> AgentRole:
     named, folder = request.node.get_closest_marker(START_MARK).args[2], AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
-    assert named == folder, f"{request.node.originalname} names scope {named.value} on its mark but lives under {folder.value}/: the mark and the folder say the same scope"
+    assert named == folder, f"{request.node.originalname} names subject {named.value} on its mark but lives under {folder.value}/: the mark and the folder name the same subject"
     return named
 
 

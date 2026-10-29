@@ -8,59 +8,59 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_create_a_task(story):
-    story.worker_tries(story.fixture.worker, "task create 'more work'")
+    story.agent_runs(story.agents.workers.first(), "task create 'more work'")
     story.expect_command_refused()
     story.expect_task_count(1)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_create_a_plan(story):
-    story.worker_tries(story.fixture.worker, "plan create p --brief b")
+    story.agent_runs(story.agents.workers.first(), "plan create p --brief b")
     story.expect_command_refused()
     story.expect_plan_count(0)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_send_a_message_to_the_user(story):
-    story.worker_tries(story.fixture.worker, "message send hello")
+    story.agent_runs(story.agents.workers.first(), "message send hello")
     story.expect_command_refused()
     story.expect_agent_messages(0)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_change_a_setting(story):
-    story.worker_tries(story.fixture.worker, "settings set tasks.auto off")
+    story.agent_runs(story.agents.workers.first(), "settings set tasks.auto off")
     story.expect_command_refused()
     story.expect_setting(TasksOptions.AUTO, True)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_ask_the_user_a_question(story):
-    story.worker_tries(story.fixture.worker, "question ask 'go on?' --options yes no")
+    story.agent_runs(story.agents.workers.first(), "question ask 'go on?' --options yes no")
     story.expect_command_refused()
     story.expect_question_count(0)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_run_its_own_verbs(story):
-    story.worker_runs(story.fixture.worker, f"task show {story.fixture.briefed}")
-    story.worker_runs(story.fixture.worker, "todo add 'read the parser'")
-    story.worker_runs(story.fixture.worker, "proof 1 'parser.py:12, test_reads passes'")
-    story.expect_worker(story.fixture.worker, state=WorkerState.READY)
+    story.agent_runs_cleanly(story.agents.workers.first(), f"task show {story.fixture.briefed}")
+    story.agent_runs_cleanly(story.agents.workers.first(), "todo add 'read the parser'")
+    story.agent_runs_cleanly(story.agents.workers.first(), "proof 1 'parser.py:12, test_reads passes'")
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_task(story.fixture.briefed, delegated=True)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_may_not_dispatch_a_worker(story):
-    story.worker_tries(story.fixture.worker, f"worker dispatch 'Mr. Babbage' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs(story.agents.workers.first(), f"worker dispatch 'Mr. Babbage' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_command_refused()
-    story.expect_worker(story.fixture.worker, state=WorkerState.READY)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)

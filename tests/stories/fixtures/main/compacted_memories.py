@@ -14,12 +14,12 @@ class CompactedMemories(StateFixture):
     parent = WorkingAgent
 
     def steps(self, story) -> None:
-        self.heavy_memory = story.agent_adds_memory("the footer links go in a list", HEAVIEST)
-        self.light_memory = story.agent_adds_memory("the header waits on the logo", LOWEST_WEIGHT)
+        self.heavy_memory = story.agent_adds_memory(story.agents.subject, "the footer links go in a list", HEAVIEST)
+        self.light_memory = story.agent_adds_memory(story.agents.subject, "the header waits on the logo", LOWEST_WEIGHT)
         story.context_is_compacted()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(BriefingNudges.ENVIRONMENT_MEMORIES)
-        story.expect_agent_not_told(BriefingNudges.TAKEOVER)
+        story.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
+        story.expect_agent_not_told(story.agents.subject, BriefingNudges.TAKEOVER)
         story.expect_row("memories", self.heavy_memory, {"weight": HEAVIEST - 1})
         story.expect_row_absent("memories", self.light_memory)

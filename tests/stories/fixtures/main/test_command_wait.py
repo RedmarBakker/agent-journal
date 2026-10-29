@@ -16,7 +16,7 @@ class TestCommandWait(StateFixture):
     settings = ((PlansOptions.TEST_COMMANDS, ""),)
 
     def steps(self, story) -> None:
-        story.agent_runs(f"plan start {self.plan}")
+        story.agent_runs(story.agents.subject, f"plan start {self.plan}")
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, FollowingPlan, NamingTestCommands)
+        story.expect_stack(story.agents.subject, Ready, FollowingPlan, NamingTestCommands)

@@ -7,18 +7,18 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_next_open_task_is_named_a_minute_into_a_wait(story):
-    header = story.agent_creates_task("the header")
-    story.agent_runs("await 'the build' --until false")
-    story.agent_is_quiet_past(NEXT_TASK_DELAY.amount)
-    story.expect_agent_told(TasksNudges.WAIT_NEXT_TASK, n=header)
-    story.expect_stack(Ready, ExternalWait)
+    header = story.agent_creates_task(story.agents.subject, "the header")
+    story.agent_runs(story.agents.subject, "await 'the build' --until false")
+    story.agent_is_quiet_past(story.agents.subject, NEXT_TASK_DELAY.amount)
+    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_NEXT_TASK, n=header)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_long_idle_wait_asks_the_agent_to_check_it(story):
-    story.agent_runs("await 'the build' --until false")
-    story.agent_is_quiet_past(CHECK_REMINDER.amount)
-    story.expect_agent_told(TasksNudges.WAIT_CHECK)
-    story.expect_stack(Ready, ExternalWait)
+    story.agent_runs(story.agents.subject, "await 'the build' --until false")
+    story.agent_is_quiet_past(story.agents.subject, CHECK_REMINDER.amount)
+    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_CHECK)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)

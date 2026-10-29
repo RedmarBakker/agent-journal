@@ -10,21 +10,21 @@ from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.started_plan import StartedPlan
 
 
-@story(PlanApproved, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_given_whole_to_a_worker_is_delegated_and_not_started_for_the_agent(story):
-    story.agent_dispatches_worker_on_plan("Lady Lovelace", story.fixture.plan)
+    story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.fixture.plan)
     story.expect_plan(story.fixture.plan, state=PlanState.DELEGATED)
-    story.agent_stops()
+    story.agent_stops(story.agents.subject)
     story.expect_allowed()
     story.expect_plan(story.fixture.plan, state=PlanState.DELEGATED)
     story.expect_task(story.fixture.first_task, state=TaskState.OPEN)
     story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
-    story.expect_stack(Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_with_one_task_given_to_a_worker_while_the_agent_holds_another_stays_started(story):
-    story.agent_dispatches_worker("Lady Lovelace", story.fixture.second_task)
+    story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.fixture.second_task)
     story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
     story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
-    story.expect_stack(Ready, FollowingPlan, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan, ExternalWait)

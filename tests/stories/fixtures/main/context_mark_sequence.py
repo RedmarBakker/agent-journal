@@ -15,8 +15,8 @@ class ContextMarkSequence(StateFixture):
     parent = SequenceRun
 
     def steps(self, story) -> None:
-        story.agent_consumes_context(MemoryThresholds.CONTEXT[0])
+        story.agent_consumes_context(story.agents.subject, MemoryThresholds.CONTEXT[0])
 
     def expected(self, story) -> None:
-        story.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=MemoryThresholds.CONTEXT[0])
-        story.expect_stack(Ready, FollowingSequence, WeighingMemories)
+        story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=MemoryThresholds.CONTEXT[0])
+        story.expect_stack(story.agents.subject, Ready, FollowingSequence, WeighingMemories)

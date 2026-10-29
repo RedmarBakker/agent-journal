@@ -6,21 +6,21 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_given_up_without_why_is_refused_and_stays_open(story):
-    avatar = story.agent_creates_task("the shared avatar")
-    story.agent_runs(f"task cancel {avatar}")
+    avatar = story.agent_creates_task(story.agents.subject, "the shared avatar")
+    story.agent_runs(story.agents.subject, f"task cancel {avatar}")
     story.expect_command_refused()
     story.expect_task(avatar, state=TaskState.OPEN)
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_given_up_with_why_is_cancelled_with_it_and_leaves_the_list(story):
-    avatar = story.agent_creates_task("the shared avatar")
-    story.agent_runs(f"task cancel {avatar} --why 'screens differ in size'")
+    avatar = story.agent_creates_task(story.agents.subject, "the shared avatar")
+    story.agent_runs(story.agents.subject, f"task cancel {avatar} --why 'screens differ in size'")
     story.expect_command_text(f"task {avatar} cancelled")
     story.expect_task(avatar, state=TaskState.CANCELLED, outcome="screens differ in size")
-    story.agent_runs("task list")
+    story.agent_runs(story.agents.subject, "task list")
     story.expect_command_text_without("the shared avatar")
-    story.expect_stack(Ready)
+    story.expect_stack(story.agents.subject, Ready)

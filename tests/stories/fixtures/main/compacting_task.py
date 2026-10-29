@@ -16,4 +16,4 @@ class CompactingTask(StateFixture):
         story.compaction_begins()
 
     def expected(self, story) -> None:
-        story.expect_stack(Ready, Working, Compacting)
+        story.expect_stack(story.agents.subject, Ready, Working, Compacting)

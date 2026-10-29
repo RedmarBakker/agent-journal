@@ -10,36 +10,36 @@ from tests.stories.fixtures.main.sequence_run import SequenceRun
 FIRST_STEP = 1
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_write_before_the_step_is_taken_up_is_refused(story):
-    story.agent_writes("version.py")
-    story.expect_refused(SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence, step=FIRST_STEP)
-    story.expect_stack(Ready, FollowingSequence)
+    story.agent_writes(story.agents.subject, "version.py")
+    story.expect_refused(story.agents.subject, SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence, step=FIRST_STEP)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_shell_run_before_the_step_is_taken_up_is_refused(story):
-    story.agent_runs_in_the_shell("make build")
-    story.expect_refused(SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence, step=FIRST_STEP)
-    story.expect_stack(Ready, FollowingSequence)
+    story.agent_runs_in_the_shell(story.agents.subject, "make build")
+    story.expect_refused(story.agents.subject, SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence, step=FIRST_STEP)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_taking_up_a_step_that_allows_edits_lets_the_writes_through(story):
-    story.agent_runs("sequence follow")
-    story.agent_writes("version.py")
+    story.agent_runs(story.agents.subject, "sequence follow")
+    story.agent_writes(story.agents.subject, "version.py")
     story.expect_allowed()
-    story.expect_agent_not_told(SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence)
-    story.expect_stack(Ready, FollowingSequence)
+    story.expect_agent_not_told(story.agents.subject, SequencesNudges.STEP_EDIT_BLOCK, n=story.fixture.sequence)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(GuardedSequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(GuardedSequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_paused_run_holds_nothing_until_it_is_followed_again(story):
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence pause --why 'the user wants the footer first'")
-    story.agent_writes("footer.py")
+    story.agent_runs(story.agents.subject, "sequence follow")
+    story.agent_runs(story.agents.subject, "sequence pause --why 'the user wants the footer first'")
+    story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
-    story.agent_runs("sequence follow")
-    story.agent_writes("version.py")
-    story.expect_refused(SequencesNudges.STEP_EDITS_WAIT, n=story.fixture.sequence, step=FIRST_STEP)
-    story.expect_stack(Ready, FollowingSequence)
+    story.agent_runs(story.agents.subject, "sequence follow")
+    story.agent_writes(story.agents.subject, "version.py")
+    story.expect_refused(story.agents.subject, SequencesNudges.STEP_EDITS_WAIT, n=story.fixture.sequence, step=FIRST_STEP)
+    story.expect_stack(story.agents.subject, Ready, FollowingSequence)

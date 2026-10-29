@@ -15,8 +15,8 @@ class LoopedStops(StateFixture):
     parent = StartedTask
 
     def steps(self, story) -> None:
-        story.repeat(PANIC_REFUSAL_COUNT, story.agent_stops)
+        story.repeat(PANIC_REFUSAL_COUNT, lambda: story.agent_stops(story.agents.subject))
 
     def expected(self, story) -> None:
-        story.expect_agent_told(EngineNudges.STOP_LOOP)
-        story.expect_stack(Ready, Working, Panicking)
+        story.expect_agent_told(story.agents.subject, EngineNudges.STOP_LOOP)
+        story.expect_stack(story.agents.subject, Ready, Working, Panicking)
