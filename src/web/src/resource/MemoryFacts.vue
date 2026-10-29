@@ -9,7 +9,7 @@ defineProps({resource: {type: Object, required: true}});
 
 <template>
     <div class="memory-facts">
-        <TaskFact label="Weight">{{ resource.weight }} of 10</TaskFact>
+        <TaskFact label="Weight">{{ resource.weight }}</TaskFact>
         <TaskFact label="Added">{{ ago(createdAt(resource)) }}</TaskFact>
         <TaskFact label="Last weighed">{{ ago(updatedAt(resource)) }}</TaskFact>
     </div>
