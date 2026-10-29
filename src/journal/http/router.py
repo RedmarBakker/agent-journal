@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import traceback
 from urllib.parse import unquote
 
 from journal.features.faults.support.slow_requests import SlowRequests
@@ -69,4 +70,5 @@ class Router:
         except Rejection as refused:
             return Response.refused(str(refused))
         except MissingRow as missing:
+            traceback.print_exc()
             return Response.missing(missing)
