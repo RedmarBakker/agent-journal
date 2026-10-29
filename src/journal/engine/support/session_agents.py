@@ -1,5 +1,6 @@
 from journal.engine.base_state import BaseState
 from journal.engine.support.stack import Stack
+from journal.events.rows.worker_agent_created import WorkerAgentCreated
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
@@ -33,9 +34,19 @@ class SessionAgents:
             raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
         return self.agents.session_rows(session)
 
+    def worker_agent(self, session: str, environment_id: int, provider: str | None) -> Agent:
+        rows = self.session_rows(session)
+        if rows:
+            return rows[0]
+        worker_row = self.unsaved(session, environment_id, provider, self.states.helper_layers(self.states.sent_first(AgentRole.WORKER)), AgentRole.WORKER)
+        return self.agents.save(worker_row.with_event(WorkerAgentCreated(agent_session=session)), Actor.system())
+
     def created(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:
+        return self.agents.save(self.unsaved(session, environment_id, provider, layers, role), Actor.system())
+
+    def unsaved(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:
         top = layers.top()
-        return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=top.name, data=top.serialized(), stack=tuple(layers.serialized()), role=role), Actor.system())
+        return Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=top.name, data=top.serialized(), stack=tuple(layers.serialized()), role=role)
 
     def top(self, session: str) -> BaseState:
         agent = self.agents.session_agent(session)

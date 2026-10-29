@@ -17,11 +17,7 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
         self.tasks, self.agents = tasks, agents
 
     def handle(self, event: SessionStarted) -> None:
-        if event.subagent:
-            return
         starting = event.agent
-        if starting.role.is_helper():
-            return
         moment = datetime.fromtimestamp(event.time, timezone.utc)
         ended = self.agents.ended_main_query(event.environment_id).filter_unequal("id", starting.id)
         for task in self.tasks.agents_tasks(TaskState.STARTED, ended):

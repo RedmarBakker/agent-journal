@@ -35,7 +35,7 @@ class MainRole(Role):
 
     @classmethod
     def refused_parts(cls, features: tuple[type[Feature], ...]) -> frozenset[str]:
-        return frozenset()
+        return frozenset(name for feature in features for name in feature.helper_part_names())
 
     @classmethod
     def receives_row_event(cls, feature_name: str) -> bool:

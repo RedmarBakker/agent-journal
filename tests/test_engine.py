@@ -2800,7 +2800,7 @@ def test_a_helper_is_put_to_work_on_each_path_and_the_engine_imports_no_feature_
         early = workers.save(Worker(environment_id=1, name="Mr. Early", brief="e", session="we"), Actor.system())
         tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="b"), Actor.system()), Ref.build(early), Actor.system())
         workers.save(workers.find(early.id).ready(1.0), Actor.worker(early.id))
-        agents.save(Agent(environment_id=1, session="we", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        app.container.get(SessionAgents).worker_agent("we", 1, "claude")
     assert top("we") == "working_task", "a worker that clocked in before its session had a row is put to work when the row is made"
     with scope.environment(1):
         workers.save(workers.find(early.id).delivered(2.0), Actor.worker(early.id))

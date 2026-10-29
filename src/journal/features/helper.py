@@ -53,7 +53,8 @@ class Helper(Role):
 
     @classmethod
     def refused_parts(cls, features: tuple[type[Feature], ...]) -> frozenset[str]:
-        return frozenset(name for feature in features if feature.name not in cls.feature_names() for name in feature.part_names())
+        refused_features = frozenset(name for feature in features if feature.name not in cls.feature_names() for name in (*feature.part_names(), *feature.helper_part_names()))
+        return refused_features | frozenset(name for feature in features for name in feature.helper_part_names() - feature.role_part_names(cls.role))
 
     @classmethod
     def receives_row_event(cls, feature_name: str) -> bool:

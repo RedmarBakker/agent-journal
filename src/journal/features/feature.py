@@ -40,6 +40,7 @@ class Feature[D](DataSource[D]):
     helper_conduct: ClassVar[dict[AgentRole, tuple[type[Conduct], ...]]] = {}
     mode_conduct: ClassVar[tuple[tuple[type[BaseState], type[Conduct]], ...]] = ()
     helper_listeners: ClassVar[dict[AgentRole, tuple[type[Listener], ...]]] = {}
+    helper_data: ClassVar[dict[AgentRole, tuple[type, ...]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()
@@ -64,3 +65,11 @@ class Feature[D](DataSource[D]):
     @classmethod
     def part_names(cls) -> frozenset[str]:
         return frozenset(cls.part_name(reader) for reader in cls.data)
+
+    @classmethod
+    def helper_part_names(cls) -> frozenset[str]:
+        return frozenset(cls.part_name(reader) for readers in cls.helper_data.values() for reader in readers)
+
+    @classmethod
+    def role_part_names(cls, role: AgentRole) -> frozenset[str]:
+        return frozenset(cls.part_name(reader) for reader in cls.helper_data.get(role, ()))

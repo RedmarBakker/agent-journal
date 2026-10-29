@@ -49,6 +49,8 @@ class HookSeats:
         return self.agents.researchers(caller.session)
 
     def helper_seated(self, caller: Caller) -> Caller:
+        if caller.is_worker():
+            return replace(caller, agent_row=self.sessions.worker_agent(caller.session, self.scope.id, caller.provider))
         return replace(caller, agent_row=self.sessions.helper_agent(caller.session, self.scope.id, caller.provider, caller.session_role))
 
     def attributed(self, caller: Caller) -> Caller:

@@ -8,7 +8,7 @@ from journal.support.stage_times import StageTimes
 
 
 class FeatureParts(Mapping[str, object]):
-    """The feature data parts of one agent, each read by its feature's reader in the agent's environment the first time a listener asks for it, the time it took stored as a stage; a part refused to a helper raises, naming the feature its file is missing."""
+    """The feature data parts of one agent, each read by its feature's reader in the agent's environment the first time a listener asks for it, the time it took stored as a stage; a part refused to the agent's role is left out when its parts are walked, and raises when it is read by name, naming the feature its file is missing."""
 
     def __init__(self, readers: dict[str, DataReader], agent: Agent, scope: Scope, stages: StageTimes, refused: frozenset[str]) -> None:
         self.readers, self.agent, self.scope, self.stages, self.refused = readers, agent, scope, stages, refused
@@ -26,7 +26,7 @@ class FeatureParts(Mapping[str, object]):
         return name in self.readers
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self.readers)
+        return iter(name for name in self.readers if name not in self.refused)
 
     def __len__(self) -> int:
-        return len(self.readers)
+        return len([name for name in self.readers if name not in self.refused])

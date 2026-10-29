@@ -1,18 +1,15 @@
 from journal.events.listener import Listener
-from journal.events.models.created import Created
+from journal.events.rows.worker_agent_created import WorkerAgentCreated
 from journal.features.workers.support.worker_assigner import WorkerAssigner
-from journal.models.agent import Agent
-from journal.support.agent_role import AgentRole
 from journal.repositories.workers import Workers
 
 
-class WorkerSessionAssignment(Listener[Created]):
+class WorkerSessionAssignment(Listener[WorkerAgentCreated]):
     """A worker that clocked in before its session had an agent row is put to work as soon as the row is made."""
 
     def __init__(self, workers: Workers, assigner: WorkerAssigner) -> None:
         self.workers, self.assigner = workers, assigner
 
-    def handle(self, event: Created) -> None:
-        if isinstance(event.model, Agent) and event.model.role == AgentRole.WORKER and event.model.session:
-            for row in self.workers.session_worker(event.model.session):
-                self.assigner.assigned(row)
+    def handle(self, event: WorkerAgentCreated) -> None:
+        for row in self.workers.session_worker(event.agent_session):
+            self.assigner.assigned(row)

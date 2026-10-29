@@ -59,7 +59,7 @@ class App:
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))
         self.container.bind(AgentEventAudience, lambda: self.container.get(RoleListeners))
         self.container.bind(VerbRules, lambda: self.container.get(Registry))
-        self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), StopRefusalsPart.name: self.container.get(StopRefusalsReader), **{feature.part_name(reader): self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}}, self.container.get(Scope), self.container.get(StageTimes), self.container.get(FeatureRegistry)))
+        self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), StopRefusalsPart.name: self.container.get(StopRefusalsReader), **{feature.part_name(reader): self.container.get(reader) for feature in Standard.FEATURES for reader in (*feature.data, *(helper_reader for readers in feature.helper_data.values() for helper_reader in readers))}}, self.container.get(Scope), self.container.get(StageTimes), self.container.get(FeatureRegistry)))
         self.container.bind(ProcessCardPoll, lambda: ProcessCardPoll(self.container.get(Messages), {RowProcessCard.name: self.container.get(RowProcessCard), **{card.name: self.container.get(card) for feature in Standard.FEATURES for card in feature.process_cards}}))
 
     def connection(self) -> Connection:

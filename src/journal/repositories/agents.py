@@ -106,6 +106,9 @@ class Agents(ScopedRepository[Agent]):
             raise MissingRow(self.table, session)
         return rows[0]
 
+    def has_main_agent(self, session: str) -> bool:
+        return bool(self.selected_globally(self.session_query(session).filter(role=AgentRole.MAIN).limit(1)))
+
     def session_rows(self, session: str) -> list[Agent]:
         return self.selected_globally(self.session_query(session))
 
