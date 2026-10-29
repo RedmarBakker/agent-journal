@@ -5,9 +5,17 @@ from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support.tool_ids import ToolIds
+import pytest
+
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.providers.support.profile_type import ProfileType
+from tests.test_features import booted
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 def a_role(**changes) -> Role:
@@ -55,9 +63,6 @@ def test_the_loader_reads_the_domains_and_roles_the_folder_holds_and_ignores_wha
     fixture.domain("gamma", roles=["pilot"])
     fixture.role("gamma", "pilot")
     assert organization.contracts().role("pilot") is None and organization.reload().role("pilot").domain == "gamma", "a new domain and Role are seen after a reload with no code change"
-
-
-import pytest
 
 
 @pytest.mark.parametrize("domain, role, changes, rule, path", [
