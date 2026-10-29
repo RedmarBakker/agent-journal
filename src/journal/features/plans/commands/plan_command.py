@@ -110,7 +110,7 @@ class PlanCommand(Command):
         block.add_argument("why", nargs="?", default="")
         Waits.arguments(block, "plan")
         self.verb(verbs, "unblock", "what the plan waited on came: it is started again").add_argument("n", type=int)
-        self.verb(verbs, "cancel", "a plan given up, with the tasks that are its alone; one another live plan holds stays").add_argument("n", type=int)
+        self.verb(verbs, "cancel", "a plan cancelled, with the tasks that are its alone; one another live plan contains stays").add_argument("n", type=int)
         driving = self.verb(verbs, "drive", "follow a hub plan from this environment: it and its tasks read as this environment's, and no other environment or machine drives it until you release it")
         driving.add_argument("n", type=int)
         driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
@@ -120,7 +120,7 @@ class PlanCommand(Command):
         priorities = self.verb(verbs, "priorities", "the order the started plan's open work goes in, and why: what unblocks the most others or you first")
         priorities.add_argument("order")
         priorities.add_argument("--plan", type=int, help="the plan, when it is not the started one")
-        testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
+        testing = self.verb(verbs, "testing", "how the plan's agent is instructed to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
         testing.add_argument("title")
 

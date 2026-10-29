@@ -53,7 +53,7 @@ class Readers:
     def lookup(self, name: str) -> Reader:
         rows = self.files(name)
         if not rows:
-            raise Rejection(f"no reader named {name}: `journal reader list` names them")
+            raise Rejection(f"no reader named {name}: `journal reader list` shows them")
         return Reader.loaded(rows[0])
 
     def found(self, name: str) -> Reader | None:
@@ -121,7 +121,7 @@ class Readers:
     def removed(self, name: str) -> None:
         paths = self.files(name)
         if not paths:
-            raise Rejection(f"no reader named {name}: `journal reader list` names them")
+            raise Rejection(f"no reader named {name}: `journal reader list` shows them")
         self.refuse_locked(name, "removed")
         for path in paths:
             path.unlink()

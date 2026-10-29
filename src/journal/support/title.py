@@ -11,7 +11,7 @@ class Title:
         if len(text) > LONGEST_CHARACTERS:
             raise Rejection(f"a title is at most {LONGEST_CHARACTERS} characters, this one is {len(text)}: put the rest in the brief")
         if ":" in text:
-            raise Rejection("a title holds no colon: say it in one line and put the rest in the brief")
+            raise Rejection("a title contains no colon: say it in one line and put the rest in the brief")
 
     @classmethod
     def check_target(cls, row, prior_row=None) -> None:

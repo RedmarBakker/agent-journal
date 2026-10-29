@@ -29,7 +29,7 @@ class OutputCommand(Command):
         self.outputs, self.readers, self.card, self.tasks, self.test_runs = outputs, readers, card, tasks, test_runs
 
     def arguments(self, verbs) -> None:
-        read = self.verb(verbs, "read", "the part of an output a flag names; one flag is needed, so reading it whole is a choice: --summary for how it ended with its ends, --all for every line")
+        read = self.verb(verbs, "read", "the part of an output a flag selects; one flag is needed, so reading it whole is a choice: --summary for how it ended with its ends, --all for every line")
         read.add_argument("n", type=int)
         read.add_argument("--summary", action="store_true", help="its command, how it ended, its length and its first and last lines")
         read.add_argument("--all", action="store_true", help="every line, for an output you truly need whole")
@@ -37,7 +37,7 @@ class OutputCommand(Command):
         read.add_argument("--tail", type=int, help="the last so many lines")
         read.add_argument("--lines", help="a range of lines, such as 100-160")
         read.add_argument("--grep", help="the lines matching a pattern, with their numbers")
-        read.add_argument("--reader", help="the lines a reader of the project's picks, by its name")
+        read.add_argument("--reader", help="the lines a reader of the project's selects, by its name")
         status = self.verb(verbs, "status", "one line: running, finished, or failed with code C; with no number, the status of each background output of yours")
         status.add_argument("n", type=int, nargs="?")
         listed = self.verb(verbs, "list", "the newest outputs, one a line: number, how it ended, command")
@@ -45,7 +45,7 @@ class OutputCommand(Command):
         watch = self.verb(verbs, "watch", "bind a running output to you: after every tool use you see its reader's lines, or its last lines, and a card in the chat shows them, until its command ends")
         watch.add_argument("n", type=int)
         watch.add_argument("--reader", default="", help="the reader whose lines are shown, by its name")
-        watch.add_argument("--title", default="", help="what the card in the chat says the run is doing, such as Running tests; never a bare name such as Tests")
+        watch.add_argument("--title", default="", help="what the card in the chat shows the run is doing, such as Running tests; never a bare name such as Tests")
         self.verb(verbs, "unwatch", "end the watch on your output")
         tested = self.verb(verbs, "test", "the run that tests the tasks waiting in testing, every one or those named: when it passes they complete, when it fails they are in progress again")
         tested.add_argument("n", type=int)

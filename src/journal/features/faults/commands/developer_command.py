@@ -33,7 +33,7 @@ class DeveloperCommand(Command):
         slowest = self.verb(verbs, "slowest", "the routes of the rolling log grouped, the slowest group first, a page at a time: each with its worst and typical time and how many were logged")
         slowest.add_argument("--page", type=int, default=1, help="which page of groups, from 1")
         inspect = self.verb(verbs, "inspect", "one group of journal developer slowest: its logged requests, the slowest first, with when, how long and what each read")
-        inspect.add_argument("group", help="the group as slowest names it, such as 'GET /journal/messages'")
+        inspect.add_argument("group", help="the group as slowest shows it, such as 'GET /journal/messages'")
         inspect.add_argument("--page", type=int, default=1, help="which page of its requests, from 1")
         self.verb(verbs, "loads", "the newest requests with the records each read, by kind, while load counting is on")
         self.verb(verbs, "models", "the records read per kind since the last reset")

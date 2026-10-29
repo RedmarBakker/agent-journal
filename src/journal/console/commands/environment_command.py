@@ -56,14 +56,14 @@ class EnvironmentCommand(Command):
         self.memory, self.overview_commands, self.taking, self.launches = memory, overview_commands, taking, launches
 
     def arguments(self, verbs) -> None:
-        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules and reminders, opening with the memories by weight, then each command the setting briefing.look_commands lists, under its heading; owed at every session start")
+        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules and reminders, opening with the memories by weight, then each command the setting briefing.look_commands lists, under its heading; required at every session start")
         self.verb(verbs, "list", "every environment and when it was last used")
         self.verb(verbs, "json", "the same, for the boot menu")
         creation = self.verb(verbs, "create", "a new line of work")
         creation.add_argument("name")
-        creation.add_argument("--session", help="a kept conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
-        creation.add_argument("--provider", default="claude", help="the program that kept that session")
-        self.verb(verbs, "sessions", "the project's kept conversations a new environment can carry on from, for the boot menu")
+        creation.add_argument("--session", help="a stored conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
+        creation.add_argument("--provider", default="claude", help="the program that stored that session")
+        self.verb(verbs, "sessions", "the project's stored conversations a new environment can carry on from, for the boot menu")
         self.verb(verbs, "filling", "how far a new environment's chat has been filled from its past session, in percent, for the boot menu").add_argument("name")
         branch = self.verb(verbs, "branch", "record the branch an environment's worktree works on, as the launcher does when it makes one")
         branch.add_argument("name")

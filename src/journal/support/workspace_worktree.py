@@ -57,7 +57,7 @@ class WorkspaceWorktree(Worktree):
                 continue
             removal = self.answered(["git", "-C", str(self.root / repository), "worktree", "remove", str(self.path / repository)])
             if removal.returncode != 0:
-                raise Rejection(f"the worktree {self.name} could not be removed: the repository {repository} said {removal.stderr.strip()}")
+                raise Rejection(f"the worktree {self.name} could not be removed: the repository {repository} answered {removal.stderr.strip()}")
         shutil.rmtree(self.path)
 
     def record_tip(self) -> None:

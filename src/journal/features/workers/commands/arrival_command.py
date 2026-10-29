@@ -32,7 +32,7 @@ class ArrivalCommand(Command):
             raise Rejection(f"worker {worker.id} is {worker.state}: a worker clocks in once each time it is sent")
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         if not holdings:
-            raise Rejection(f"worker {worker.id} holds no task: a worker clocks in on the task it was sent on")
+            raise Rejection(f"worker {worker.id} has no task: a worker clocks in on the task it was sent on")
         moment, task = self.time_source.moment(), self.tasks.find(holdings[0])
         if not task.delegated:
             task = self.tasks.save(task.delegate(moment), caller.actor)

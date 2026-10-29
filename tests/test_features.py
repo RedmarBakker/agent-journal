@@ -2827,8 +2827,8 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
         "speaks protocol 2": {"protocol": 2},
         "hears nothing.created!, which is no event": {"hears": ["nothing.created!"]},
         "the secrets rows are never sent": {"hears": ["secrets.created"]},
-        "holds idle but does not hear it": {"holds": ["idle"]},
-        "holds tool_finished, which no plugin may hold": {"hears": ["tool_finished"], "holds": ["tool_finished"]},
+        "blocks idle but does not hear it": {"holds": ["idle"]},
+        "blocks tool_finished, which no plugin may hold": {"hears": ["tool_finished"], "holds": ["tool_finished"]},
         "program ../run.py leads outside its folder": {"program": "../run.py"},
         "service serve /usr/bin/serve leads outside": {"services": [{"name": "serve", "command": ["/usr/bin/serve"]}]},
         "program missing.py is not in its folder": {"program": "missing.py"},
@@ -11113,7 +11113,7 @@ def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
     assert reader.pattern == "[0-9]+ (passed|failed)" and reader.subject == "a unit run's summary" and reader.label == "Running tests" and reader.commands.programs and reader.step_pattern == "[.F]" and reader.topic_pattern and reader.finished_pattern and reader.failed_pattern, "a rewrite of the pattern alone keeps every other setting"
     assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--topic", ""], USER).code == 0
     assert app.container.get(Readers).lookup("unit-runs").topic_pattern == "", "an empty value takes a setting away"
-    assert "a new reader says what it picks with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
+    assert "a new reader states what it selects with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
 
 
 

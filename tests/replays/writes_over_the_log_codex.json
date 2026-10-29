@@ -530,7 +530,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "in code, names and text state literally what a thing is or does, in plain words, never in the voice"
+          "additionalContext": "in code, identifiers and text state literally what a thing is or does, in plain words, never in the voice"
         }
       },
       "typed": [],

@@ -22,9 +22,9 @@ class ReminderCommand(RecordCommand):
         self.repository, self.agents, self.clock = reminders, agents, clock
 
     def creation_arguments(self, creation) -> None:
-        creation.add_argument("--at", default="", help="a local date and time, such as 2026-10-24 09:30: quiet until then, told once then, and struck")
-        creation.add_argument("--every-minutes", type=int, default=0, help="send it again every so many minutes while it holds")
-        creation.add_argument("--every-tool-uses", type=int, default=0, help="send it again every so many tool uses while it holds")
+        creation.add_argument("--at", default="", help="a local date and time, such as 2026-10-24 09:30: quiet until then, sent once then, and struck")
+        creation.add_argument("--every-minutes", type=int, default=0, help="send it again every so many minutes while it is in force")
+        creation.add_argument("--every-tool-uses", type=int, default=0, help="send it again every so many tool uses while it is in force")
 
     def new(self, args: Namespace) -> Reminder:
         if args.every_minutes and args.every_tool_uses:

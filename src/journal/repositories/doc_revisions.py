@@ -47,5 +47,5 @@ class DocRevisions(ScopedRepository[DocRevision], LinkedRows):
         if latest is None:
             raise Rejection(f"doc {doc.id} has no revision to keep yet: its first edit opens one")
         if not latest.is_open(time):
-            raise Rejection(f"revision {latest.number} of doc {doc.id} is already kept")
+            raise Rejection(f"revision {latest.number} of doc {doc.id} is already saved")
         return self.save(latest.closed(), actor)

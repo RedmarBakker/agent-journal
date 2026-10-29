@@ -195,7 +195,7 @@ class TeamJoin:
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)
         if not CertificateFingerprint.matches(certificate, fingerprint):
-            raise Rejection(f"the server at {address} does not hold the certificate the fingerprint names: check the join line, or the address")
+            raise Rejection(f"the server at {address} does not hold the certificate of the fingerprint: check the join line, or the address")
         self.account.root_path().write_text(certificate)
 
     def uploaded(self, repository: str, team_number: int) -> str:

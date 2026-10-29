@@ -55,7 +55,7 @@ class MessageCommand(Command):
         link = self.verb(verbs, "amend-links", "write the kind before each number of your message that has none, so the chat links them: the kinds in the order the numbers appear, or one kind for all")
         link.set_defaults(verb="amend_links")
         link.add_argument("n", type=int, help="the message")
-        link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that names no row, which stays as written")
+        link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that refers to no row, which stays as written")
         editing = self.verb(verbs, "edit", "write the text of your own message anew, in place, with its links and reply as they were; correct a message this way, never with a second one")
         editing.add_argument("n", type=int)
         editing.add_argument("text")

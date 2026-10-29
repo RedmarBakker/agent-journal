@@ -63,7 +63,7 @@ class Reader:
     def patterned(cls, path: Path) -> "Reader":
         lines = path.read_text().splitlines()
         if len(lines) < 2:
-            raise Rejection(f"reader {path.stem} needs two lines: '# what it picks', then its pattern")
+            raise Rejection(f"reader {path.stem} needs two lines: '# what it selects', then its pattern")
         settings = {prefix: line.removeprefix(prefix) for line in lines[2:] for prefix in PREFIXES if line.startswith(prefix)}
         return cls(path.stem, lines[0].removeprefix("#").strip(), lines[1], settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""), summary_pattern=settings.get(SUMMARY_PREFIX, ""), topic_label=settings.get(TOPIC_LABEL_PREFIX, ""))
 

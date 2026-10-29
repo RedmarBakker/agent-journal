@@ -206,7 +206,7 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
-  --not-done  the point is not met, and the text says why
+  --not-done  the point is not met, and the text explains why
 
 $ agent: journal verdict give --help
 exit 0
@@ -336,7 +336,7 @@ positional arguments:
   {doc,message,plan,question,report,task,worker,none}
                         task, plan, worker, report, doc, question or message,
                         one for each number in order, or one for all; none for
-                        a number that names no row, which stays as written
+                        a number that refers to no row, which stays as written
 
 options:
   -h, --help            show this help message and exit
@@ -1029,7 +1029,7 @@ options:
   --tail TAIL      the last so many lines
   --lines LINES    a range of lines, such as 100-160
   --grep GREP      the lines matching a pattern, with their numbers
-  --reader READER  the lines a reader of the project's picks, by its name
+  --reader READER  the lines a reader of the project's selects, by its name
 
 $ agent: journal output test --help
 exit 0
@@ -1053,7 +1053,7 @@ positional arguments:
 options:
   -h, --help       show this help message and exit
   --reader READER  the reader whose lines are shown, by its name
-  --title TITLE    what the card in the chat says the run is doing, such as
+  --title TITLE    what the card in the chat shows the run is doing, such as
                    Running tests; never a bare name such as Tests
 
 $ agent: journal output unwatch
@@ -1307,7 +1307,7 @@ curl proposed for secret 1: the user allows it on the Secrets page
 
 $ agent: journal secret delete 1
 exit 0
-secret 1 deleted; its values are kept thirty days, journal secret restore 1 brings it back
+secret 1 deleted; its values are stored for thirty days, journal secret restore 1 brings it back
 
 $ agent: journal secret restore 1
 exit 0
@@ -1542,7 +1542,7 @@ health.backup_count = 2
 $ agent: journal settings show tasks.auto
 exit 0
 tasks.auto = True
-Work the list on its own: At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you
+Work the list on its own: At a stop with tasks open, the next one blocks the stop until it is taken up; off, the agent stops and waits for you
 default: True; set by the user, on the Settings page
 
 $ user: journal settings set tasks.auto false
@@ -1613,10 +1613,10 @@ positional arguments:
 
 options:
   -h, --help           show this help message and exit
-  --session SESSION    a kept conversation's session to fill the new
+  --session SESSION    a stored conversation's session to fill the new
                        environment's chat from, as journal environment
                        sessions lists them
-  --provider PROVIDER  the program that kept that session
+  --provider PROVIDER  the program that stored that session
 
 $ agent: journal environment rename --help
 exit 0
@@ -1760,7 +1760,7 @@ etiquette.a_line_is_an_instruction  [etiquette]  a [journal] line is an instruct
 etiquette.blank_lines_between_paragraphs  [etiquette]  put a blank line between paragraphs
 etiquette.no_em_dashes  [etiquette]  no em dashes in the chat; use a full stop
 etiquette.no_shop_talk  [etiquette]  talk about the work, not the journal's commands
-etiquette.plain_words_in_code  [etiquette]  in code, names and text state literally what a thing is or does, in plain words, never in the voice
+etiquette.plain_words_in_code  [etiquette]  in code, identifiers and text state literally what a thing is or does, in plain words, never in the voice
 etiquette.say_you_not_the_user  [etiquette]  in the chat say "you", never "the user"
 faults.slow_job_to_fix  [faults]  background job {{job}} took {{seconds}} seconds for one tick. fix the cause at its source
 faults.slow_requests_to_fix  [faults]  {{count}} requests over budget, worst {{route|cap=16}}: {{points}} points. read `journal developer slowest`
@@ -2048,7 +2048,7 @@ usage: journal worker dispatch [-h] [--provider {claude,codex}]
 
 positional arguments:
   name
-  brief                 what the worker is told beside its task's brief
+  brief                 what the worker is sent beside its task's brief
 
 options:
   -h, --help            show this help message and exit
@@ -2058,7 +2058,7 @@ options:
   --changes CHANGES     the files, folders or document the worker changes; a
                         job that only reads, searches or reviews goes to a
                         subagent, never a worker
-  --tests TESTS         the test template that says how the worker tests when
+  --tests TESTS         the test template that sets how the worker tests when
                         the setting is Run the tests it wrote: Scoped tests by
                         default, Full suite, or one of the project's own; with
                         Hand the tests over the worker runs none, and with
@@ -2085,7 +2085,7 @@ options:
                         environment's head, which is pushed to origin first;
                         with --worktree, a profile the team allows its pool,
                         and no --model
-  --needs-secrets       the job uses secrets kept on this machine, so it
+  --needs-secrets       the job uses secrets stored on this machine, so it
                         cannot go to the pool
   --fresh               a fresh worker even though one back already worked on
                         the same files
@@ -2098,7 +2098,7 @@ options:
                         released
   --plan PLAN           a whole plan it works through: its open tasks go to it
                         one after another in the plan's order, and it tests
-                        the way the plan says
+                        the way the plan sets
   --phase PHASE         with --plan, only this phase of it, numbered from 1
 
 $ agent: journal worker send --help
@@ -2118,7 +2118,7 @@ options:
   --model MODEL      the model it runs the job on from now, in the same
                      session and worktree
   --profile PROFILE  the worker profile it works by from now, and its model
-                     unless --model names one
+                     unless --model sets one
 
 $ agent: journal worker queue --help
 exit 0
@@ -2405,7 +2405,7 @@ exit 0
 usage: journal developer inspect [-h] [--page PAGE] group
 
 positional arguments:
-  group        the group as slowest names it, such as 'GET /journal/messages'
+  group        the group as slowest shows it, such as 'GET /journal/messages'
 
 options:
   -h, --help   show this help message and exit
@@ -2724,7 +2724,7 @@ usage: journal team migrate [-h] [--preview]
 
 options:
   -h, --help  show this help message and exit
-  --preview   name what would be withdrawn, moved and kept, and write nothing
+  --preview   name what would be withdrawn, moved and retained, and write nothing
 
 $ agent: journal team revoke --help
 exit 0

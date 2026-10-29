@@ -939,7 +939,7 @@ def test_the_secrets_page_makes_fills_allows_deletes_and_restores_a_secret(serve
     listed = json.dumps(call(server, "GET", "/journal/secrets")[1])
     assert '"filled": ["key"]' in listed and "ghp_secretvalue123" not in listed, "a filled field is marked, its value never shown"
     status, refused = call(server, "POST", f"/journal/secrets/{n}", {"programs": ["gh", "bash"]})
-    assert status == 409 and "never given to bash" in json.dumps(refused)
+    assert status == 409 and "never passed to bash" in json.dumps(refused)
     assert call(server, "POST", f"/journal/secrets/{n}", {"programs": ["gh", "curl"], "proposed": []})[0] == 200
     assert '"programs": ["gh", "curl"]' in json.dumps(call(server, "GET", "/journal/secrets")[1]), "the user allowed curl"
     assert call(server, "GET", "/journal/secrets/where")[1]["path"].endswith(".env")

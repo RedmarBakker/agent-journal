@@ -8,4 +8,4 @@ class EtiquetteNudges:
     EM_DASH_WARNING = Nudge("etiquette", "no_em_dashes", "no em dashes in the chat; use a full stop", "", repeat=Timeout.seconds(600), is_remark=True)
     PARAGRAPH_SPACING = Nudge("etiquette", "blank_lines_between_paragraphs", "put a blank line between paragraphs", repeat=Timeout.seconds(600), is_remark=True)
     JOURNAL_LINE_RULE = Nudge("etiquette", "a_line_is_an_instruction", "a [journal] line is an instruction, not a message", "act on it; never answer or mention it in the chat", repeat=Timeout.seconds(1800), is_remark=True)
-    PLAIN_CODE = Nudge("etiquette", "plain_words_in_code", "in code, names and text state literally what a thing is or does, in plain words, never in the voice", "", repeat=Timeout.seconds(0))
+    PLAIN_CODE = Nudge("etiquette", "plain_words_in_code", "in code, identifiers and text state literally what a thing is or does, in plain words, never in the voice", "", repeat=Timeout.seconds(0))

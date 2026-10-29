@@ -25,7 +25,7 @@ class SessionLeases:
         if not self.account.is_joined():
             raise Rejection("a session is a team's, held by one machine at a time: join a team first with journal team join")
         if name == TEAM_CHAT:
-            raise Rejection("the Team chat is the team's own session: journal team claim holds it")
+            raise Rejection("the Team chat is the team's own session: journal team claim takes it")
         TeamRequests.reached(lambda: self.link.acquire_lease(self.lease_name(name)))
         session = self.session(name, actor)
         self.account.record_hosted_sessions([*self.account.hosted_sessions(), name])

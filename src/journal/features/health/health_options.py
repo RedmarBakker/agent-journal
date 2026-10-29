@@ -11,4 +11,4 @@ class HealthOptions:
     BOOT_SECONDS = Option("health.boot_seconds", "Leave a fresh boot alone for", "How long after the journal starts the supervisor waits before its first health check; read at the next launch", 60, unit="seconds", scope=OptionScope.MACHINE)
     HOOK_HEALTH_SECONDS = Option("health.hook_health_seconds", "A hook waits for the journal's health answer", "How long a hook and a shell line wait for the journal to answer its health before they go on without it; a slow machine needs longer", 3, unit="seconds", scope=OptionScope.MACHINE)
     BACKUP_MINUTES = Option("health.backup_minutes", "Copy the database every", "How often the journal writes an online copy of its database to .journal/backups-watch; 0 writes none", 15, unit="minutes", scope=OptionScope.MACHINE)
-    BACKUP_COUNT = Option("health.backup_count", "Database copies kept", "How many of the newest database copies stay in .journal/backups-watch", 2, unit="copies", scope=OptionScope.MACHINE)
+    BACKUP_COUNT = Option("health.backup_count", "Database copies to keep", "How many of the newest database copies stay in .journal/backups-watch", 2, unit="copies", scope=OptionScope.MACHINE)

@@ -45,7 +45,7 @@ class SettingsCommand(Command):
     def option(self, key: str) -> Option:
         matches = [option for option in self.registry.options() if option.key == key]
         if not matches:
-            raise Rejection(f"no setting is named {key}: journal settings list names them all")
+            raise Rejection(f"no setting is named {key}: journal settings list shows them all")
         return matches[0]
 
     def shown(self, option: Option) -> str:

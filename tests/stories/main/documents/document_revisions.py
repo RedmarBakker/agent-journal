@@ -21,7 +21,7 @@ def test_edits_within_the_window_fold_into_one_revision_until_it_is_kept(story):
     story.agent_runs(f"doc keep {document}")
     story.expect_command_text(f"revision 1 of doc {document} kept; the next edit opens revision 2")
     story.agent_runs(f"doc keep {document}")
-    story.expect_command_text(f"revision 1 of doc {document} is already kept")
+    story.expect_command_text(f"revision 1 of doc {document} is already saved")
     story.agent_rewrites_the_document(document, TEXT)
     story.agent_runs(f"doc revisions {document}")
     story.expect_command_line_count(2)

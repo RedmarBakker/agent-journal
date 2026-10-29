@@ -58,7 +58,7 @@ class DumpFiler:
             raise Rejection("say what was done with it")
         rows, owned = self.refs(refs), self.refs(added)
         if set(owned) - set(rows):
-            raise Rejection("--added names rows you also list in refs")
+            raise Rejection("--added contains rows you also list in refs")
         dump = self.dumps.find(n)
         missing = [ref for ref in rows if not self.rows.is_row(Ref.parse(ref))]
         if missing:

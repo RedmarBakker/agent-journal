@@ -226,7 +226,7 @@ class PluginInstalling:
     @staticmethod
     def same(plugin: Plugin, manifest: PluginManifest) -> PluginManifest:
         if manifest.name != plugin.name:
-            raise Rejection(f"{plugin.source} now holds the plugin {manifest.name}, not {plugin.name}: install it as a plugin of its own")
+            raise Rejection(f"{plugin.source} now contains the plugin {manifest.name}, not {plugin.name}: install it as a plugin of its own")
         return manifest
 
     @staticmethod

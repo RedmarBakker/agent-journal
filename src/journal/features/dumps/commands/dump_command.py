@@ -40,7 +40,7 @@ class DumpCommand(Command):
         proposal.add_argument("--summary", default="", help="what was filed and where")
         self.numbered(self.verb(verbs, "split", "split the pasted text into named parts, one item each"), "parts")
         self.numbered(self.verb(verbs, "answer", "the user's answer to a question"), "text")
-        choose = self.verb(verbs, "choose", "the user picks an offered step")
+        choose = self.verb(verbs, "choose", "the user chooses an offered step")
         choose.add_argument("n", type=int)
         choose.add_argument("pick", type=int, help="the number of an offered step, or -1 for You decide")
         for verb, help in (("stop", "the user stops a dump"), ("remove", "the user removes a dump and what it made"), ("reopen", "work a closed dump again"), ("dismiss", "put a closed dump away")):

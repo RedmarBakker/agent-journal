@@ -20,7 +20,7 @@ class VoiceCommand(Command):
         profile = self.verb(verbs, "address", "what the agent calls you")
         profile.add_argument("--title", default=None)
         profile.add_argument("--name", default=None)
-        self.verb(verbs, "show", "the instruction the agent is given")
+        self.verb(verbs, "show", "the instruction the agent receives")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         selection = self.chosen.voice().name

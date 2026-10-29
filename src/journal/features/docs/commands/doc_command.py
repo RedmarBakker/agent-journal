@@ -40,7 +40,7 @@ class DocCommand(Command):
         creation_text = creation.add_mutually_exclusive_group(required=True)
         creation_text.add_argument("--file", help="a markdown file holding its text; ## headings are its sections")
         creation_text.add_argument("--body", help="its text, as markdown; ## headings are its sections")
-        creation.add_argument("--abstract", required=True, help=f"one short description of what it says, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
+        creation.add_argument("--abstract", required=True, help=f"one short description of what it is about, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
         creation.add_argument("--part", action="store_true", help="this is a part; the document is being written until a write without --part")
         update = self.verb(verbs, "update", "replace a document's text with a markdown file")
         update.add_argument("n", type=int)

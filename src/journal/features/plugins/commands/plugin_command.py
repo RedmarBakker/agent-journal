@@ -32,7 +32,7 @@ class PluginCommand(Command):
         propose = self.verb(verbs, "propose", "show the user a card proposing a plugin, with all it would run, for them to install")
         propose.add_argument("source")
         propose.add_argument("--why", default="", help="what it is for")
-        upgrade = self.verb(verbs, "upgrade", "show what changes in what a plugin runs, hears and holds; with --yes, upgrade it")
+        upgrade = self.verb(verbs, "upgrade", "show what changes in what a plugin runs, hears and blocks; with --yes, upgrade it")
         upgrade.add_argument("name")
         upgrade.add_argument("--ref", help="the commit or tag to upgrade to; its newest when left out")
         upgrade.add_argument("--yes", action="store_true", help="upgrade it after the preview")

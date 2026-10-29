@@ -44,5 +44,5 @@ class TodoCommand(Command):
     def worker_task(self, caller: Caller) -> Task:
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), caller.worker_number))
         if not holdings:
-            raise Rejection("a to-do list is kept inside the task a worker holds: only a worker on a task keeps one")
+            raise Rejection("a to-do list is stored inside the task a worker has: only a worker on a task keeps one")
         return self.tasks.find(holdings[0])
