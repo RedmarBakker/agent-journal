@@ -35,6 +35,12 @@
         ],
         "reject": [
             {
+                "file": "src/journal/models/agent.py"
+            },
+            {
+                "file": "src/journal/support/caller.py"
+            },
+            {
                 "file": "src/journal/support/agent_role.py"
             },
             {
