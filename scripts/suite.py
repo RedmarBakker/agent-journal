@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,10 @@ SHARD_BYTES = 300 * 2**20
 # the pages macOS can hand a new process without swapping
 RECLAIMABLE_PAGES = ("free", "inactive", "speculative")
 SHARD_TIMEOUT_SECONDS = 600
+JUDGE_TIMEOUT_SECONDS = 120
+JUDGE_POLL_SECONDS = 1.0
+JUDGE_STOP_TIMEOUT_SECONDS = 5.0
+JUDGE_PROGRESS_TAIL_CHARS = 4096
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
 # the progress line the commandments judge writes at each of its stages
 JUDGE_PROGRESS = re.compile(r"^(parsing|reading|detector) (\d+)/(\d+)$")
@@ -148,8 +153,10 @@ def whole_suite() -> int:
         if count < core_shards():
             print(memory_line(count, available), flush=True)
         failed = sharded_run(Path(folder), count, (), "the suite")
-        print("waiting for the test commandments judging tests/", flush=True)
-        sinful = commandments_judged(judging)
+        sinful = False
+        if judging is not None:
+            print("waiting for the test commandments judging tests/", flush=True)
+            sinful = commandments_judged(judging)
         return 1 if sinful or failed else 0
 
 
@@ -206,10 +213,16 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str)
 
 def commandments_started(folder: Path) -> tuple[subprocess.Popen, Path] | None:
     if not JUDGE.is_file():
-        print("the test commandments are not judged: the code-commandments plugin is not installed here", flush=True)
+        print("the test commandments were not run: the code-commandments plugin is not installed here", flush=True)
         return None
     output = folder / "commandments.txt"
-    return subprocess.Popen(TEST_COMMANDMENTS, cwd=ROOT, stdout=output.open("w"), stderr=subprocess.STDOUT), output
+    try:
+        with output.open("w") as stream:
+            process = subprocess.Popen(TEST_COMMANDMENTS, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError as fault:
+        print(f"the test commandments were not run: the code-commandments plugin could not start: {fault}", flush=True)
+        return None
+    return process, output
 
 
 def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
@@ -217,8 +230,9 @@ def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
         return False
     process, output = judging
     if not judge_waited(process, output):
-        process.kill()
-        print(f"the test commandments ran past {SHARD_TIMEOUT_SECONDS} seconds and were stopped")
+        stopped = stop_judge(process)
+        ending = "and was stopped" if stopped else "but did not stop within the cleanup limit"
+        print(f"the test commandments were not judged: the judge did not finish within {JUDGE_TIMEOUT_SECONDS} seconds {ending}", flush=True)
         return True
     if process.returncode == 0:
         print("the tests break none of the test commandments")
@@ -229,15 +243,34 @@ def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
 
 
 def judge_waited(process: subprocess.Popen, output: Path) -> bool:
-    deadline, shown = time.monotonic() + SHARD_TIMEOUT_SECONDS, ""
-    while process.poll() is None:
-        if time.monotonic() > deadline:
-            return False
-        line = judge_progress(output.read_text(errors="replace"))
-        if line and line != shown:
-            print(line, flush=True)
-            shown = line
-        time.sleep(1)
+    deadline, shown, progress_text = time.monotonic() + JUDGE_TIMEOUT_SECONDS, "", ""
+    with output.open(errors="replace") as stream:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return process.poll() is not None
+            try:
+                process.wait(timeout=min(JUDGE_POLL_SECONDS, remaining))
+                return True
+            except subprocess.TimeoutExpired:
+                if process.poll() is not None:
+                    return True
+                progress_text = (progress_text + stream.read())[-JUDGE_PROGRESS_TAIL_CHARS:]
+                line = judge_progress(progress_text)
+                if line and line != shown:
+                    print(line, flush=True)
+                    shown = line
+
+
+def stop_judge(process: subprocess.Popen) -> bool:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=JUDGE_STOP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return False
     return True
 
 
