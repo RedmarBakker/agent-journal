@@ -32,9 +32,9 @@ class AgentLoad:
 
     @classmethod
     def parsed(cls, data: dict) -> "AgentLoad":
-        known = {field.name for field in fields(cls)}
-        named = {OLD_KEY_NAMES.get(key, key): value for key, value in data.items()}
-        return cls(**{**{key: value for key, value in named.items() if key in known}, "waiting_refs": tuple(named.get("waiting_refs", ()))})
+        field_names = {field.name for field in fields(cls)}
+        renamed_data = {OLD_KEY_NAMES.get(key, key): value for key, value in data.items()}
+        return cls(**{**{key: value for key, value in renamed_data.items() if key in field_names}, "waiting_refs": tuple(renamed_data.get("waiting_refs", ()))})
 
     def is_measured(self) -> bool:
         return self.measured_at > 0

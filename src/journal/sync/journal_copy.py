@@ -56,12 +56,12 @@ class JournalCopy:
             self.rebuilt(rows, {}, self.placement.account, [])
 
     def laid_beside(self, rows: tuple[CopiedRow, ...]) -> None:
-        kept = {environment.key: environment.row_id for environment in self.tables.rows(Environment.table()).rows()}
-        same = {row.row: kept[row.fields.get("key")] for row in rows if row.row_table == Environment.table() and row.fields.get("key") in kept}
+        local_ids = {environment.key: environment.row_id for environment in self.tables.rows(Environment.table()).rows()}
+        matched_environments = {row.row: local_ids[row.fields.get("key")] for row in rows if row.row_table == Environment.table() and row.fields.get("key") in local_ids}
         tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}
         for row in rows:
-            if row.row_table in tables and not (row.row_table == Environment.table() and row.row in same):
-                tables[row.row_table].append((row.row, self.placed(row.fields, same)))
+            if row.row_table in tables and not (row.row_table == Environment.table() and row.row in matched_environments):
+                tables[row.row_table].append((row.row, self.placed(row.fields, matched_environments)))
         team_settings = {(fields.get("environment_id"), fields.get("key")) for _, fields in tables[Setting.table()]}
         with self.tables.transaction():
             settings = self.tables.rows(Setting.table())
@@ -72,19 +72,19 @@ class JournalCopy:
                 self.tables.rows(table).restored(table_rows)
 
     @staticmethod
-    def placed(fields: dict, same: dict[int, int]) -> dict:
+    def placed(fields: dict, matched_environments: dict[int, int]) -> dict:
         placed = dict(fields)
-        if fields.get("environment_id") in same:
-            placed["environment_id"] = same[fields["environment_id"]]
+        if fields.get("environment_id") in matched_environments:
+            placed["environment_id"] = matched_environments[fields["environment_id"]]
         for end in ("source", "target"):
             table, _, number = str(fields.get(end, "")).rpartition(":")
-            if table == Environment.table() and number.isdigit() and int(number) in same:
-                placed[end] = f"{table}:{same[int(number)]}"
+            if table == Environment.table() and number.isdigit() and int(number) in matched_environments:
+                placed[end] = f"{table}:{matched_environments[int(number)]}"
         return placed
 
     def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict], account: TeamAccount, waiting: list[OutgoingChange]) -> None:
-        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_recipient(row, account)] for table in self.tables.names()}
-        for table, numbers in sent.items():
+        recipient_numbers = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_recipient(row, account)] for table in self.tables.names()}
+        for table, numbers in recipient_numbers.items():
             self.tables.rows(table).clear_numbers(numbers)
         tables: dict[str, dict[int, dict]] = {table: {} for table in self.tables.names()}
         for row in rows:
@@ -114,7 +114,7 @@ class JournalCopy:
         rows.clear_numbers(sorted(deleted))
 
     @staticmethod
-    def written(held: dict | None, fields: dict, local_fields: tuple[str, ...]) -> dict:
-        if held is None:
+    def written(stored_fields: dict | None, fields: dict, local_fields: tuple[str, ...]) -> dict:
+        if stored_fields is None:
             return dict(fields)
-        return {**held, **{name: value for name, value in fields.items() if name not in local_fields}}
+        return {**stored_fields, **{name: value for name, value in fields.items() if name not in local_fields}}

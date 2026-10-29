@@ -23,9 +23,9 @@ class MigrationWithdrawal:
     def planned(self, writer: str, placement: TeamPlacement) -> list[OutgoingChange]:
         environments = self.tables.rows(Environment.table()).rows()
         owned = [change for environment in environments if environment.is_private() for change in self.environments.content_changes(environment.row_id, writer)]
-        taken = {(change.row_table, change.row) for change in owned}
+        owned_rows = {(change.row_table, change.row) for change in owned}
         placed = [environment.row_id for environment in environments]
-        return [*owned, *(OutgoingChange.withdrawal(row, writer, KEPT_BY_ALL) for row in self.unplaced(placement, placed) if (row.table(), row.row_id) not in taken)]
+        return [*owned, *(OutgoingChange.withdrawal(row, writer, KEPT_BY_ALL) for row in self.unplaced(placement, placed) if (row.table(), row.row_id) not in owned_rows)]
 
     def unplaced(self, placement: TeamPlacement, placed: list[int]) -> list[Model]:
         return [row for table in self.tables.names() for row in self.outside(table, placed) if self.scopes.is_team_row(row) and not placement.is_team_row(row)]

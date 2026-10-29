@@ -267,8 +267,8 @@ class Launch:
         }
 
     def boot_watch(self) -> dict:
-        kept = self.runtime.parent / "last_good"
-        return {"notice": str(self.runtime / BOOT_NOTICE), "keep_source": str(self.package), "keep_copy": str(kept), "fallback_command": [sys.executable, str(kept / "journal.py"), "serve"], "seconds_file": str(self.runtime / BOOT_SECONDS)}
+        backup_path = self.runtime.parent / "last_good"
+        return {"notice": str(self.runtime / BOOT_NOTICE), "keep_source": str(self.package), "keep_copy": str(backup_path), "fallback_command": [sys.executable, str(backup_path / "journal.py"), "serve"], "seconds_file": str(self.runtime / BOOT_SECONDS)}
 
     def socket(self, environment: str) -> Path:
         key = hashlib.sha1(str(self.root.resolve()).encode()).hexdigest()[:12]

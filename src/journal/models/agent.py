@@ -33,7 +33,7 @@ from journal.models.scoped import Scoped
 
 
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
-MODEL_FITS_KEPT = 10
+MODEL_FIT_COUNT = 10
 # the state an agent's row is in once its session has ended
 ENDED_STATE = "ended"
 
@@ -219,13 +219,13 @@ class Agent(Scoped):
         return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
     def model_fit_recorded(self, worker: int, fit: str) -> "Agent":
-        kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
-        return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
+        remaining_fits = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
+        return self.with_(model_fits=(*remaining_fits, f"{worker}:{fit}")[-MODEL_FIT_COUNT:])
 
     def wait_use_measured(self, use: WaitUse, time: float) -> "Agent":
-        found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
+        new_pairs = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
         measured = self.with_(wait_use=use)
-        return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
+        return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=new_pairs)) if new_pairs else measured
 
     def band_moved(self, band: PressureBand, time: float) -> "Agent":
         return self if band == self.band else self.with_(band=band, band_changed_at=time)

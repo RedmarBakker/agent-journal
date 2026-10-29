@@ -77,16 +77,16 @@ class RowRenumbering:
         numbers = self.blocks.taken(pool, count)
         while len(numbers) < count:
             self.supply.refill()
-            more = self.blocks.taken(pool, count - len(numbers))
-            if not more:
+            extra_numbers = self.blocks.taken(pool, count - len(numbers))
+            if not extra_numbers:
                 raise NumberShortage(f"the team server gave no row numbers for {pool}, which this journal's own rows need to keep their place beside the team's")
-            numbers.extend(more)
+            numbers.extend(extra_numbers)
         return numbers
 
     @staticmethod
     def files_moved(folder, numbers: dict[int, int]) -> None:
-        held = [(folder / str(old), folder / str(new)) for old, new in numbers.items() if (folder / str(old)).is_dir()]
-        for old, new in held:
+        folder_moves = [(folder / str(old), folder / str(new)) for old, new in numbers.items() if (folder / str(old)).is_dir()]
+        for old, new in folder_moves:
             old.rename(old.with_name(f"moving-{new.name}"))
-        for old, new in held:
+        for old, new in folder_moves:
             old.with_name(f"moving-{new.name}").rename(new)

@@ -165,7 +165,7 @@ class Part:
         return [position for position, joint in self.joints(level) if joint != "||"]
 
     def joints(self, level: int) -> list[tuple[int, str]]:
-        found, quote, depth, passed = [], "", 0, -1
+        joints, quote, depth, passed = [], "", 0, -1
         for i, c in enumerate(self.text):
             if i <= passed or self.text[i - 1:i] == "\\" and quote != "'":
                 continue
@@ -179,8 +179,8 @@ class Part:
                 depth = max(depth - 1, 0)
             elif c == "|" and depth == level:
                 joint = next(symbol for symbol in JOINTS if self.text.startswith(symbol, i))
-                found, passed = [*found, (i, joint)], i + len(joint) - 1
-        return found
+                joints, passed = [*joints, (i, joint)], i + len(joint) - 1
+        return joints
 
     def cut_command(self) -> str:
         return self.cut().lstrip("| ").strip()

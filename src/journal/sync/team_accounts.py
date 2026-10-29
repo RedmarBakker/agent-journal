@@ -11,8 +11,8 @@ class TeamAccounts:
 
     def accounts(self) -> list[TeamAccount]:
         home = TeamAccount(self.config)
-        others = [TeamAccount.keyed(self.config, path.stem) for path in sorted((self.config.home / TEAMS_FOLDER).glob("*.json")) if path != home.path()]
-        return [home, *others] if home.is_joined() else []
+        keyed_accounts = [TeamAccount.keyed(self.config, path.stem) for path in sorted((self.config.home / TEAMS_FOLDER).glob("*.json")) if path != home.path()]
+        return [home, *keyed_accounts] if home.is_joined() else []
 
     def keyed(self, key: str) -> TeamAccount:
         return next((account for account in self.accounts() if account.team_key() == key), TeamAccount(self.config))

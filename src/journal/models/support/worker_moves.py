@@ -21,8 +21,8 @@ class WorkerMoves:
         return WorkerMoves((*self.steps, (word, time)))
 
     def recent_count(self, word: str, boundary: str) -> int:
-        last = max((i for i, (each, _) in enumerate(self.steps) if each == boundary), default=-1)
-        return sum(1 for each, _ in self.steps[last + 1:] if each == word)
+        boundary_index = max((i for i, (step_word, _) in enumerate(self.steps) if step_word == boundary), default=-1)
+        return sum(1 for step_word, _ in self.steps[boundary_index + 1:] if step_word == word)
 
     def spans(self, openings: tuple[str, ...], closings: tuple[str, ...], end: float) -> list[tuple[float, float]]:
         spans, began = [], None

@@ -8,7 +8,7 @@ from journal.models.support.ref import Ref
 from journal.repositories.repository import Repository
 
 # refs read in one query, each named twice, under SQLite's limit of values in one statement
-REF_CHUNK = 10_000
+REF_BATCH_SIZE = 10_000
 
 
 class Links(Repository[Link]):
@@ -90,8 +90,8 @@ class Links(Repository[Link]):
 
     def row_links(self, models: Sequence[Model]) -> list[Link]:
         refs = [Ref.build(model) for model in models]
-        chunks = [refs[start:start + REF_CHUNK] for start in range(0, len(refs), REF_CHUNK)]
-        return list({link.id: link for chunk in chunks for link in self.selected(self.query().filter_alternatives(self.query().filter_listed("source", chunk), self.query().filter_listed("target", chunk)))}.values())
+        ref_batches = [refs[start:start + REF_BATCH_SIZE] for start in range(0, len(refs), REF_BATCH_SIZE)]
+        return list({link.id: link for ref_batch in ref_batches for link in self.selected(self.query().filter_alternatives(self.query().filter_listed("source", ref_batch), self.query().filter_listed("target", ref_batch)))}.values())
 
     def touching(self, model: Model) -> Query:
         ref = Ref.build(model)

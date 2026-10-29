@@ -106,15 +106,15 @@ class TeamAccount(HubAccount):
             self.write({**self.contents(), **fields})
 
     def write(self, contents: dict) -> None:
-        held = self.path()
-        path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else held
+        old_path = self.path()
+        path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else old_path
         path.parent.mkdir(exist_ok=True)
         draft = path.with_name(f"{path.stem}.{os.getpid()}-{threading.get_ident()}.draft")
         draft.write_text(json.dumps(contents))
         os.chmod(draft, 0o600)
         draft.replace(path)
-        if held != path:
-            held.unlink(missing_ok=True)
+        if old_path != path:
+            old_path.unlink(missing_ok=True)
 
     def contents(self) -> dict:
         return json.loads(self.path().read_text()) if self.is_joined() else {}

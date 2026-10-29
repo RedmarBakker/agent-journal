@@ -42,8 +42,8 @@ class SyncDeskController:
         return door(request)
 
     def team(self, request: Request) -> Response:
-        further = self.team_parameter(request)
-        account, link = (self.desks.desk(further).account, self.desks.desk(further).link) if further else (self.account, self.link)
+        team_name = self.team_parameter(request)
+        account, link = (self.desks.desk(team_name).account, self.desks.desk(team_name).link) if team_name else (self.account, self.link)
         joined, root = account.is_joined(), account.root_path()
         return Response.json({"joined": joined, "address": account.address(), "headers": link.headers() if joined else {}, "authority": str(root) if root.is_file() else "", "protocol": {"header": TEAM_PROTOCOL_HEADER, "least": PROTOCOL}})
 
