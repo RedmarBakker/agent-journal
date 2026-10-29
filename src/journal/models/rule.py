@@ -20,8 +20,11 @@ class Rule(Model, Commentable):
     is_single_use: bool = False
     presence: bool = False
 
-    def created(self, agent_index: bool) -> "Rule":
-        return self.with_event(RuleCreated(agent_origin=agent_index))
+    def agent_created(self) -> "Rule":
+        return self.with_event(RuleCreated(agent_origin=True))
+
+    def person_created(self) -> "Rule":
+        return self.with_event(RuleCreated(agent_origin=False))
 
     def summary_line(self) -> str:
         return self.opening_line(self.text)

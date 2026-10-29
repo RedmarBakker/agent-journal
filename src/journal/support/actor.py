@@ -116,6 +116,9 @@ class Actor:
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:
         return agent_way
 
+    def rule_maker[T](self, agent_way: T, person_way: T) -> T:
+        return person_way
+
     def __eq__(self, compared: object) -> bool:
         return isinstance(compared, Actor) and (self.actor_type, self.id) == (compared.actor_type, compared.id)
 

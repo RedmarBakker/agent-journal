@@ -12,3 +12,6 @@ class SubagentActor(Actor):
     @classmethod
     def fits(cls, actor_type: ActorType, id: str) -> bool:
         return actor_type == cls.kind and SUBAGENT_SEPARATOR in id
+
+    def rule_maker[T](self, agent_way: T, person_way: T) -> T:
+        return agent_way

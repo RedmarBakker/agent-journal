@@ -67,8 +67,11 @@ class Dump(Scoped, Commentable):
     def open_items(self) -> list[str]:
         return [name for name in self.item_names if not self.item(name).resolved]
 
-    def arrived(self, time: float, user_origin: bool) -> "Dump":
-        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=user_origin))
+    def user_arrival(self, time: float) -> "Dump":
+        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=True))
+
+    def agent_arrival(self, time: float) -> "Dump":
+        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=False))
 
     def posed_question(self, text: str, guesses: list[str], time: float) -> "Dump":
         return self.with_(question={"time": time, "text": text, "guesses": guesses}).with_event(DumpQuestion(environment_id=self.environment_id, time=time, dump_id=self.row_id))

@@ -38,11 +38,13 @@ class DumpFiler:
 
     def create(self, brief: str, actor: Actor) -> Dump:
         dump = self.dumps.save(Dump(title="Dump", brief=brief.strip(), queued_at=self.time_source.seconds()), actor)
-        return self.dumps.save(dump.with_(title=f"Dump {dump.id}").arrived(self.time_source.seconds(), actor.is_user()), actor)
+        dump_row = dump.with_(title=f"Dump {dump.id}")
+        return self.dumps.save(actor.chosen_way(dump_row.user_arrival, dump_row.agent_arrival)(self.time_source.seconds()), actor)
 
     def attach(self, n: int, name: str, actor: Actor) -> Dump:
         dump = self.open(n, f"dump {n} is already filed: start a new dump for more")
-        return self.dumps.save(dump.with_(files=tuple(dict.fromkeys((*dump.files, name)))).arrived(self.time_source.seconds(), actor.is_user()), actor)
+        attached = dump.with_(files=tuple(dict.fromkeys((*dump.files, name))))
+        return self.dumps.save(actor.chosen_way(attached.user_arrival, attached.agent_arrival)(self.time_source.seconds()), actor)
 
     def items(self, n: int) -> list[str]:
         dump = self.dumps.find(n)
