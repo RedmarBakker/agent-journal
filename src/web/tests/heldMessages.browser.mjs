@@ -53,8 +53,23 @@ try {
         assert.equal(released.hidden, 0, "held messages appear together without queued fade-in");
         assert.ok(released.gap <= 1, `the released batch leaves the reader at the bottom, gap ${released.gap}`);
     }
+    const pulled = await browser.newPage({viewport: {width: 1100, height: 720}});
+    await pulled.route("**/journal/**", (route) => route.fulfill({json: {rows: [], outputs: [], is_last_page: true}}));
+    await pulled.goto(new URL("tests/fixtures/heldMessages.html", server.resolvedUrls.local[0]).href);
+    await pulled.locator(".thread-scroll [data-ref]").first().waitFor();
+    await pulled.waitForTimeout(700);
+    const unheld = await pulled.evaluate(async () => {
+        const pane = document.querySelector(".thread-scroll");
+        const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+        pane.scrollTop = pane.scrollHeight - pane.clientHeight - 40;
+        await wait(300);
+        window.receiveMessages([{id: 1200, text: "Arrival after the pane was pulled up"}]);
+        await wait(1500);
+        return {text: pane.textContent, gap: pane.scrollHeight - pane.scrollTop - pane.clientHeight};
+    });
+    assert.ok(unheld.text.includes("Arrival after the pane was pulled up") && unheld.gap <= 1, `the pane pulled up at the bottom with no hand on the chat let go of the bottom: gap ${unheld.gap}`);
     await page.screenshot({path: "/tmp/held-messages.png"});
-    console.log("Scrolling up holds every arrival without movement; returning to the bottom shows the whole batch at once.");
+    console.log("Scrolling up holds every arrival without movement; returning to the bottom shows the whole batch at once; the pane pulled up by no hand keeps its hold on the bottom.");
 } finally {
     await browser.close();
     await server.close();

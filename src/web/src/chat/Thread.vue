@@ -222,7 +222,7 @@ function toBottom(smooth = false) {
 // the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after, nor
 // while a bubble the reader pressed opens, so it opens in place and the chat stays exactly where the reader has it
 function followDown(smooth = false) {
-    if (Date.now() - scrolledAt < BY_HAND || opening.isOpening()) return;
+    if (isByHand() || opening.isOpening()) return;
     toBottom(smooth);
 }
 
@@ -270,6 +270,13 @@ function pressed(event) {
     opening.press(event);
 }
 
+// the keys that scroll the page move the chat by the reader's hand from wherever the focus is, outside a field they type in
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "ArrowUp", "ArrowDown", "Home", "End", " "]);
+
+function pagedByKey(event) {
+    if (SCROLL_KEYS.has(event.key) && !event.target.closest?.("input, textarea, [contenteditable]")) scrolledByHand();
+}
+
 function keyed(event) {
     scrolledByHand();
     opening.keyed(event);
@@ -288,6 +295,7 @@ onMounted(() => {
     if (scroller.value) added.observe(scroller.value, {childList: true});
     if (views.value) sizeWatch.observe(views.value);
     if (scroller.value) paneWatch.observe(scroller.value);
+    window.addEventListener("keydown", pagedByKey);
     frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => (rendering.value = true));
     });
@@ -307,12 +315,18 @@ onUnmounted(() => {
     added?.disconnect();
     sizeWatch.disconnect();
     paneWatch.disconnect();
+    window.removeEventListener("keydown", pagedByKey);
     clearTimeout(planTimer);
     cancelAnimationFrame(frame);
 });
 
 let scrolledAt = 0;
 const BY_HAND = 600;
+// a scroll the reader's hand made just now
+const isByHand = () => Date.now() - scrolledAt < BY_HAND;
+// a scroll up the reader made, by hand or by asking for a turn above; the pane pulled up by a row that shrank or a dock that folded
+// is no reader leaving the foot
+const isReaderMove = () => isByHand() || Boolean(store.focus);
 
 // the reader's own hand on the pane always wins: a glide the chat started stops where it is, and the chat moves itself no more for
 // a moment (followDown)
@@ -341,7 +355,7 @@ function followPlan(s) {
     const up = s.scrollTop < lastTop;
     lastTop = s.scrollTop;
     if (gap <= AT_BOTTOM && down) settlePlan(true);
-    else if (up && gap > foldingRoom()) settlePlan(false);
+    else if (up && isReaderMove() && gap > foldingRoom()) settlePlan(false);
     return gap;
 }
 
@@ -358,7 +372,7 @@ function settlePlan(open) {
 function leftTheBottom(s) {
     const up = s.scrollTop < lastScroll;
     lastScroll = s.scrollTop;
-    if (!up || s.scrollHeight - s.scrollTop - s.clientHeight <= AT_BOTTOM) return;
+    if (!up || !isReaderMove() || s.scrollHeight - s.scrollTop - s.clientHeight <= AT_BOTTOM) return;
     glidedAt = 0;
     readingUp();
     if (settledOnce.value) scrolledUp.value = true;
@@ -405,12 +419,12 @@ function watchScroll() {
     leftTheBottom(s);
     if (Date.now() - glidedAt < GLIDE) return;
     const far = gap > AT_BOTTOM;
-    if (far && !away.value && !store.focus && Date.now() - scrolledAt >= BY_HAND) {
+    if (far && !away.value && !store.focus && !isByHand()) {
         followDown();
         return;
     }
-    if (far) readingUp();
-    else if (!away.value || Date.now() - scrolledAt < BY_HAND) atTheFoot();
+    if (far && isReaderMove()) readingUp();
+    else if (!far && (!away.value || isByHand())) atTheFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
 }
