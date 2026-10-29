@@ -108,3 +108,29 @@ def test_journal_organization_lists_the_roles_of_each_domain_with_their_cardinal
     loaded(app, tmp_path)
     shown = app.console().run(["organization", "list"], Caller.agent("main", "s1", "claude")).text
     assert "domain alpha: Alpha" in shown and "  role builder: many, writes, claude sonnet, codex gpt-6-luna on max" in shown and "  role keeper: plan, does not write" in shown and "version " in shown
+
+
+def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guidance_and_its_model(app, tmp_path, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.workers import Workers
+    from journal.supervisor_link import SupervisorLink
+    from journal.support.caller import Caller
+    from tests.test_features import hook
+    from tests.worker_dispatch import dispatched
+    started = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+    loaded(app, tmp_path)
+    agent = Caller.agent("main", "s1", "claude")
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    refused = lambda *argv: dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", *argv], agent)
+    assert "one of them" in refused().error and "one of them" in refused("--role", "builder", "--profile", "journal-medior").error, "a job names a profile or a Role, one of them"
+    assert "no Role" in refused("--role", "nobody").error and "does not write" in refused("--role", "scout").error, "an unknown Role and a Role that does not write are refused"
+    sent = refused("--role", "builder", "--provider", "claude")
+    assert sent.code == 0, sent.error
+    [worker] = started
+    assert worker.model == "sonnet" and worker.profile is None, "the Role's model for the provider, and no profile"
+    instructions = app.container.get(WorkerRunner).instructed(worker)
+    assert "Guidance of alpha." in instructions and "Guidance of builder." in instructions and "Read these skills before you work: ids." in instructions and "the job" in instructions, "the domain's and the Role's guidance, its skills and the job"

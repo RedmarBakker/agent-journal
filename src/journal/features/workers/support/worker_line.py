@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from journal.models.support.report_choice import ReportChoice
 
 LEAD = ["journal", "worker"]
-VALUED = ("--provider", "--profile", "--model", "--task", "--why")
+VALUED = ("--provider", "--profile", "--role", "--model", "--task", "--why")
 REPORT = "--report"
 
 

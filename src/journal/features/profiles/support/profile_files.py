@@ -74,9 +74,14 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        tests = {MERGER_TESTING: TEST_HANDOVER, TEST_BUDGET: TESTS_TURN, JOURNAL_TESTING: JOURNAL_TESTING_INSTRUCTION}.get(self.settings.option(WorkersOptions.TESTING), TESTS_RUN)
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
-        return f"{body}\n\n{tests}"
+        return f"{body}\n\n{self.testing_rule()}"
+
+    def role_instructions(self, body: str) -> str:
+        return f"{TURN}\n\n{body}\n\n{self.testing_rule()}"
+
+    def testing_rule(self) -> str:
+        return {MERGER_TESTING: TEST_HANDOVER, TEST_BUDGET: TESTS_TURN, JOURNAL_TESTING: JOURNAL_TESTING_INSTRUCTION}.get(self.settings.option(WorkersOptions.TESTING), TESTS_RUN)
 
     def profile_type(self, name: str) -> str:
         return self.read(name)["profile_type"] if (self.folder() / f"{name}.md").is_file() else ""

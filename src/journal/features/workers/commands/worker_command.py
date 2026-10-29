@@ -13,6 +13,7 @@ from journal.support.worktree_failure import WorktreeFailure
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.worker_launch import WorkerLaunch
@@ -73,7 +74,7 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot) -> None:
         self.time_source = time_source
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
@@ -82,7 +83,7 @@ class WorkerCommand(Command):
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents, self.work_mode = branch, settings, actions, subagents, work_mode
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
-        self.pool, self.account = pool, account
+        self.pool, self.account, self.roles = pool, account, roles
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -91,7 +92,8 @@ class WorkerCommand(Command):
         dispatch.add_argument("--provider", choices=("claude", "codex"), help="the program the worker runs; the dispatching agent's own when not named")
         dispatch.add_argument("--changes", required=True, help="the files, folders or document the worker changes; a job that only reads, searches or reviews goes to a subagent, never a worker")
         dispatch.add_argument("--tests", default="", help="the test template that says how the worker tests when the setting is Run the tests it wrote: Scoped tests by default, Full suite, or one of the project's own; with Hand the tests over the worker runs none, and with Test budget it tests only through journal tests turn")
-        dispatch.add_argument("--profile", required=True, help="the worker profile it works by: senior, on Opus, for a job that needs judgement; medior, on Sonnet, for one whose shape is settled")
+        dispatch.add_argument("--role", help="a Role of the organization instead of a profile: the job starts with the Role's and its domain's guidance, its skills and its model; see journal organization list")
+        dispatch.add_argument("--profile", help="the worker profile it works by: senior, on Opus, for a job that needs judgement; medior, on Sonnet, for one whose shape is settled")
         dispatch.add_argument("--model", help="a model other than the profile's")
         dispatch.add_argument("--worktree", action="store_true", help="in a worktree of its own, for code; then name its library folders with --libraries or --copies, or say --no-libraries")
         dispatch.add_argument("--libraries", default="", help="library folders the worktree links to the main checkout's, comma separated, such as node_modules,.venv")
@@ -173,7 +175,7 @@ class WorkerCommand(Command):
             raise Rejection(self.starts.hosted_refusal())
         if self.is_test_command_missing():
             raise Rejection(TEST_COMMAND_MISSING)
-        self.worker_profile(args.profile)
+        role = self.dispatched_role(args)
         output = self.workers.local_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
@@ -188,7 +190,9 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        brief = "\n\n".join(part for part in (self.roles.instructions(role) if role else "", task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part)
+        profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
+        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
@@ -259,6 +263,15 @@ class WorkerCommand(Command):
     def is_holder(self, task: Task, caller: Caller) -> bool:
         agents = [] if caller.session is None else self.agents.global_matching(session=caller.session)
         return bool(agents) and self.tasks.holder(task) == Ref.build(agents[0])
+
+    def dispatched_role(self, args: Namespace):
+        if bool(args.role) == bool(args.profile):
+            raise Rejection("name the worker's --profile or its --role, one of them")
+        if args.role and args.pool:
+            raise Rejection("a Role runs on this machine: dispatch it without --pool")
+        if args.profile:
+            self.worker_profile(args.profile)
+        return self.roles.role(args.role) if args.role else None
 
     def worker_profile(self, profile: str) -> None:
         if self.profiles.profile_type(profile) != ProfileType.WORKER:
