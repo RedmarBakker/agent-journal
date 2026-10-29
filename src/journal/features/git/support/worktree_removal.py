@@ -6,7 +6,6 @@ from journal.features.git.support.worktree_hosts import WorktreeHosts
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
 from journal.sync.hosting import Hosting
-from journal.sync.team_chat_branch import TEAM_CHAT
 
 
 class WorktreeRemoval:
@@ -32,8 +31,6 @@ class WorktreeRemoval:
         host_refusal = next((refusal for environment in self.environments.matching(name=tree.name) if (refusal := self.hosts.refusal(environment, "remove"))), "")
         if host_refusal:
             return host_refusal
-        if tree.name == TEAM_CHAT:
-            return "the Team chat's worktree belongs to the team's chat, never to a launch, so it is not removed this way"
         if not tree.path.is_dir():
             return f"there is no worktree named {tree.name} at {tree.path}"
         if [agent for environment in self.environments.matching(name=tree.name) for agent in self.agents.unended_scoped(environment.row_id)]:

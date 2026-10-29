@@ -64,9 +64,6 @@ class Messages(ScopedRepository[Message]):
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
 
-    def side_thread(self) -> list[Message]:
-        return self.newest(self.query().filter(thread=MessageThread.PEOPLE))
-
     def fold_target(self, card: Message, cutoff_at: datetime) -> list[Message]:
         newest = self.selected_globally(self.main_chat().filter(environment_id=card.environment_id).order_descending("id").limit(1))
         return [message for message in newest if message.takes_fold(card, cutoff_at)]

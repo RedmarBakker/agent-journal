@@ -18,7 +18,6 @@ from journal.http.controllers.sync import SyncController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
 from journal.http.controllers.login_controller import LoginController
-from journal.http.controllers.team_chat import TeamChatController
 from journal.http.controllers.notices import NoticeController
 from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
@@ -118,9 +117,6 @@ class Routes:
         router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
         router.get(f"{API}/people", get(PeopleController).show)
-        router.get(f"{API}/team-chat", get(TeamChatController).show)
-        router.post(f"{API}/team-chat/claim", get(TeamChatController).claim)
-        router.post(f"{API}/team-chat/release", get(TeamChatController).release)
         mode = get(ModeController)
         router.get(f"{API}/mode", mode.show)
         router.post(f"{API}/mode", mode.choose)
@@ -204,8 +200,6 @@ class Routes:
         messages, notices = get(MessageController), get(NoticeController)
         router.post(f"{API}/messages/read", messages.read_all)
         router.get(f"{API}/messages/sent/{{key}}", messages.sent)
-        router.get(f"{API}/side-thread", messages.side_thread)
-        router.post(f"{API}/side-thread", messages.side_post)
         self.listed(router, "messages", messages)
         router.post(f"{API}/messages", messages.store)
         router.post(f"{API}/messages/{{id}}", messages.update)

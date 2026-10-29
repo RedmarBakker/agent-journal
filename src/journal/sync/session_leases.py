@@ -6,7 +6,6 @@ from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.team_account import TeamAccount
-from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_requests import TeamRequests
 from journal.sync.team_server_link import TeamServerLink
@@ -25,8 +24,6 @@ class SessionLeases:
     def start(self, name: str, actor: Actor) -> Environment:
         if not self.account.is_joined():
             raise Rejection("a session is a team's, held by one machine at a time: join a team first with journal team join")
-        if name == TEAM_CHAT:
-            raise Rejection("the Team chat is the team's own session: journal team claim takes it")
         TeamRequests.reached(lambda: self.link.acquire_lease(self.lease_name(name)))
         session = self.session(name, actor)
         self.account.record_hosted_sessions([*self.account.hosted_sessions(), name])

@@ -22,7 +22,6 @@ from journal.support.worktree import Worktree
 from journal.support.worktree_names import WorktreeNames
 from journal.support.workspace_worktree import WorkspaceWorktree
 from journal.support.worktree_failure import WorktreeFailure
-from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
@@ -37,7 +36,6 @@ ENVIRONMENT = "--env"
 SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "confirmed", "--no-open": "browser_off", "--no-journal": "journal_off"}
 WORKTREE = ("--worktree", "-w")
 MAIN_WORKTREE_REFUSAL = "main is the project's own checkout, never a worktree: give --worktree another name, or leave the name out for a made-up one"
-TEAM_WORKTREE_REFUSAL = "the worktree team is the Team chat's own, so no launch takes it: give --worktree another name, or open the Team chat from the menu"
 RESUMING = ("--resume", "-r")
 # the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row,
 # unless the Health and backups settings name other numbers
@@ -149,8 +147,6 @@ class Launch:
         return "main"
 
     def start_refusal(self, choice: Choice) -> str:
-        if self.worktree == TEAM_CHAT:
-            return TEAM_WORKTREE_REFUSAL
         if self.worktree == self.default_environment():
             return MAIN_WORKTREE_REFUSAL
         return next((row.refusal for row in Menu(self.root, self.package / "journal.sh").environments() if row.name == choice.environment), "")

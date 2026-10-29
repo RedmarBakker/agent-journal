@@ -19,7 +19,6 @@ import CrewList from "./CrewList.vue";
 import "./drop.css";
 import {go, peek, route} from "../route.js";
 import {useColleague} from "../composables/colleague.js";
-import TeamChatBar from "./TeamChatBar.vue";
 
 const open = ref("");
 const schemesOpen = ref(false);
@@ -59,14 +58,11 @@ function openSkills() {
     open.value = "";
     go("skills");
 }
-const {colleague, teamChat} = useColleague();
+const {colleague} = useColleague();
 </script>
 
 <template>
-    <template v-if="teamChat">
-        <TeamChatBar />
-    </template>
-    <template v-else-if="colleague && data">
+    <template v-if="colleague && data">
         <div class="agent-bar agent-bar-read-only">
             <AgentFacts :data="data" open="" @toggle="() => {}" />
             <span class="agent-bar-owner">{{ colleague }}'s agent, read only</span>

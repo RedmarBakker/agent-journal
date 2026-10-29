@@ -393,28 +393,6 @@ export class ApiClient {
         return this.get(this.here(`/agents/${agent}/terminal${query({after})}`));
     }
 
-    // who holds the Team chat, and the Claim that makes this machine hold it
-    teamChat() {
-        return this.get("/team-chat");
-    }
-
-    claimTeamChat() {
-        return this.post("/team-chat/claim", {});
-    }
-
-    // lets the Team chat go: its agent here stops after its files are committed and pushed
-    releaseTeamChat() {
-        return this.post("/team-chat/release", {}, LONG_WAIT_MS);
-    }
-
-    // the people's side thread beside an environment's chat, which no agent reads
-    sideThread() {
-        return this.get(this.here("/side-thread"));
-    }
-
-    postSideThread(text) {
-        return this.post(this.here("/side-thread"), {text});
-    }
 
     // who the viewer is and who else is on the journal, so it says you only for its own person
     people() {
