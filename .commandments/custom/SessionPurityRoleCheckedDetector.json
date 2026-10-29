@@ -47,6 +47,12 @@
                 "file": "src/journal/helpers/**"
             },
             {
+                "file": "src/journal/repositories/**"
+            },
+            {
+                "file": "src/journal/repositories/origin.py"
+            },
+            {
                 "file": "src/journal/http/controllers/hooks.py"
             },
             {
