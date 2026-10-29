@@ -46,8 +46,9 @@ class SetupCommand(Command):
         print(f"law     {self.law().relative_to(self.config.root)}")
         print(f"imports {self.claude_md().relative_to(self.config.root)}")
         print(f"command {self.shim()}")
-        if dispatcher := Dispatcher(Path.home()).write():
-            print(f"journal {dispatcher}")
+        dispatcher = Dispatcher(Path.home())
+        if dispatcher.is_writable():
+            print(f"journal {dispatcher.write()}")
         print(f"ignored {self.ignored().relative_to(self.config.root)}")
         for line in self.restarted():
             print(line)
