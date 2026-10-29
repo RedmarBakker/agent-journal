@@ -164,3 +164,28 @@ def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_a
     assert asked("deployer", "Bash", {"command": "gh workflow run deploy.yml"}).refusal == OrganizationNudges.ACTION_WAITS_FOR_USER.create(action="production_deployment"), "an approval-required action waits for the user"
     assert asked("builder", "Bash", {"command": "gh workflow run deploy.yml"}).refusal is None, "an action the Role does not list is not held"
     assert asked("", "Write", {"file_path": "a.py", "content": "x"}).refusal is None and asked("ghost", "Write", {"file_path": "a.py", "content": "x"}).refusal is None, "a worker with no Role, or one the folder no longer holds, is let through"
+
+
+def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_another_key_is_refused(app, tmp_path):
+    fixture, organization = loaded(app, tmp_path)
+    assert organization.contracts().domain("alpha").icon == "🧪" and organization.contracts().domain("alpha").board.done == "Done", "a domain with no [board] has the plain phase names"
+    fixture.domain("alpha", roles=["scout", "builder"], board={"in_progress": "Active", "done": "Completed"})
+    board = organization.reload().domain("alpha").board
+    assert (board.planned, board.in_progress, board.in_review, board.done) == ("Planned", "Active", "In review", "Completed"), "the names the domain gives, the plain ones for the rest"
+    fixture.domain("alpha", roles=["scout", "builder"], board={"finished": "Closed", "done": ""})
+    contracts = organization.reload()
+    assert contracts.domain("alpha") is None and len([problem for problem in contracts.problems if problem.path == "domains/alpha/domain.toml"]) == 2, "an unknown phase and an empty name are each a problem and the domain is left out"
+
+
+REAL_FOLDER = "/Users/redmarbakker/Code/transportklok/transportklok-workspace/agentic-organization"
+
+
+@pytest.mark.skipif(not __import__("os").path.isdir(REAL_FOLDER), reason="the workspace's organization folder is not on this machine")
+def test_the_real_organization_folder_loads_with_no_problems(app):
+    from collections import Counter
+    from journal.features.organization.support.organization import Organization
+    from tests.user_settings import user_set
+    user_set(app, "workers.organization_folder", REAL_FOLDER)
+    contracts = app.container.get(Organization).reload()
+    assert [(problem.path, problem.rule, problem.message) for problem in contracts.problems] == []
+    assert len(contracts.domains) == 13 and Counter(role.cardinality for role in contracts.roles) == {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}

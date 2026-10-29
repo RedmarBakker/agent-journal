@@ -26,7 +26,7 @@ class OrganizationFixture:
         folder = self.root / "domains" / domain
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "AGENTS.md").write_text(f"Guidance of {domain}.\n")
-        values = {"id": domain, "title": domain.title(), "description": f"The {domain} domain.", "outcome": f"{domain} is done", "responsible": [f"{domain} work"], "not_responsible": ["other domains"], "roles": [], "skills": [], "model": self.model("sonnet", False), **changes}
+        values = {"id": domain, "title": domain.title(), "icon": "🧪", "description": f"The {domain} domain.", "outcome": f"{domain} is done", "responsible": [f"{domain} work"], "not_responsible": ["other domains"], "roles": [], "skills": [], "model": self.model("sonnet", False), **changes}
         (folder / "domain.toml").write_text(self.toml(values))
         return folder
 

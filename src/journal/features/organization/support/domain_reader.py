@@ -1,6 +1,7 @@
 import tomllib
 from pathlib import Path
 
+from journal.features.organization.support.board_phases import BoardPhases
 from journal.features.organization.support.contract_problem import ContractProblem
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.edge_reader import EdgeReader
@@ -8,8 +9,9 @@ from journal.features.organization.support.model_reader import ModelReader
 from journal.features.organization.support.routing_rule import RoutingRule
 from journal.features.organization.support.toml_fields import TomlFields
 
-KEYS = ("id", "title", "description", "outcome", "responsible", "not_responsible", "roles", "skills", "model", "guidance", "edges", "routing")
+KEYS = ("id", "title", "icon", "description", "outcome", "responsible", "not_responsible", "roles", "skills", "model", "guidance", "edges", "routing", "board")
 GUIDANCE = "AGENTS.md"
+PHASES = ("planned", "in_progress", "in_review", "done")
 
 
 class DomainReader:
@@ -38,8 +40,8 @@ class DomainReader:
             if skill not in known_skills:
                 fields.problem("skills", f'"{skill}" is not the id of a skill; list the name of a skill folder')
         models = self.models.read(fields, False)
-        return Domain(domain_id, fields.text("title"), fields.text("description"), fields.text("outcome"), fields.texts("responsible"), fields.texts("not_responsible"), fields.listed("roles"), skills, models,
-                      self.guidance(fields, folder), self.edges.read(fields), self.routing(fields))
+        return Domain(domain_id, fields.text("title"), fields.text("icon"), fields.text("description"), fields.text("outcome"), fields.texts("responsible"), fields.texts("not_responsible"), fields.listed("roles"), skills, models,
+                      self.guidance(fields, folder), self.edges.read(fields), self.routing(fields), self.board(fields))
 
     @staticmethod
     def guidance(fields: TomlFields, folder: Path) -> str:
@@ -49,6 +51,16 @@ class DomainReader:
             fields.problem("guidance", f"the guidance file {named} does not exist beside domain.toml")
             return ""
         return path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def board(fields: TomlFields) -> BoardPhases:
+        if "board" not in fields.data:
+            return BoardPhases()
+        table = fields.table("board")
+        table.unknown(PHASES)
+        named = {phase: table.text(phase) for phase in PHASES if phase in table.data}
+        fields.absorbed(table)
+        return BoardPhases(**named)
 
     @staticmethod
     def routing(fields: TomlFields) -> tuple[RoutingRule, ...]:
