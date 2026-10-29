@@ -15,7 +15,6 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
-from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
@@ -8708,28 +8707,6 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
     assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
     assert labels.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in labels.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
-
-
-
-
-def joined_team(app: App):
-    """A team server of the test's own, started, and the app's journal joined to it as its admin; the caller shuts the server down."""
-    from sync_server.account import ADMIN
-    from sync_server.login_request import LoginRequest
-    from sync_server.team_server import TeamServer
-    from journal.sync.team_account import TeamAccount
-    folder = app.config.root / "team-server"
-    folder.mkdir()
-    team = TeamServer(folder)
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    server = team.started("127.0.0.1", 0)
-    answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
-    account = app.container.get(TeamAccount)
-    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": answer.token, "device": answer.device_id, "sequence": 0})
-    return server, account
-
-
 
 
 
