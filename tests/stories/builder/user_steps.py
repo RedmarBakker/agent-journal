@@ -1,3 +1,4 @@
+from tests.stories.builder.story_agent import StoryAgent
 import re
 import shlex
 import uuid
@@ -176,7 +177,10 @@ class UserSteps:
         self.user_posted(f"/journal/agents/{self.main_agent_id()}/end-sequence", {}, "user ends the sequence")
 
     def main_agent_id(self) -> int:
-        return next(row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.main_session())
+        return self.agent_id(self.agents.main)
+
+    def agent_id(self, agent: StoryAgent) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.session_of(agent))
 
     def user_approves_plan_with_a_comment(self, plan: int, text: str) -> int:
         key = uuid.uuid4().hex

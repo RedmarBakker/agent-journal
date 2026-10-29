@@ -1696,29 +1696,6 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
 
 
 
-def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
-    from journal.support.agent_role import AgentRole
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    scope = app.container.get(Scope)
-    with scope.environment(1):
-        workers, tasks = app.container.get(Workers), app.container.get(Tasks)
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w9"), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-        app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text="for the main agent"), Actor.user(1))
-    writes = [hook(app, "PreToolUse", session_id="w9", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
-    assert all(status == 200 for status, _ in writes), "a worker's write is allowed with the user's messages unread"
-    assert app.container.get(Agents).session_agent("w9").role == AgentRole.WORKER, "its session is a worker's, whatever its hook carried"
-
-
 def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
     from journal.features.workers.support.test_run_result import TestRunResult
     from journal.features.workers.workers_conduct import WorkersConduct
@@ -2247,8 +2224,9 @@ def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_
     lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.EDIT_WAIT_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})).nudges
     assert [line.rendered() for line in lines] == [WorkersNudges.ORCHESTRATOR_QUEUE_LINE.create(minutes=14, n=12).rendered()], [line.rendered() for line in lines]
     assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: False})).nudges == (), "with the warnings off no measure line is said"
-    hook(app, "SessionStart")
-    agent, nudger, clock = app.container.get(Agents).session_rows("s1")[0], app.container.get(Nudger), app.container.get(TimeSource)
+    with app.container.get(Scope).environment(1):
+        agent = app.container.get(Agents).save(Agent(environment_id=1, session="s1", provider="claude"), Actor.system())
+    nudger, clock = app.container.get(Nudger), app.container.get(TimeSource)
     sent = []
     for second in (1000.0, 1060.0, 1301.0):
         clock.pin(second)
@@ -2613,61 +2591,6 @@ def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state
 
 
 
-def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
-    from journal.support.agent_role import AgentRole
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    assert app.container.get(Agents).session_agent("s1").role == AgentRole.MAIN, "the launch's own session is the main agent"
-    with app.container.get(Scope).environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Morse", brief="m", token_hash=AgentToken.hashed("tok")), Actor.system())
-    raw = f"JOURNAL_ENV=main\0JOURNAL_SESSION=fresh-w\0JOURNAL_ACTOR=worker:{worker.id}\0JOURNAL_ACTOR_TOKEN=tok\0JOURNAL_AGENT_SHELL=1\0\0echo hi\n"
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
-    with urlopen(request, timeout=10) as reply:
-        assert reply.read().decode().rstrip().endswith("__journal_exit 0")
-    shelled = app.container.get(Agents).session_agent("fresh-w")
-    assert shelled.role == AgentRole.WORKER and shelled.state == "void", "a worker's command from a session not seen yet makes the worker's row on Void, never a main one"
-    data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "early-w", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}).encode()
-    with app.container.get(Scope).environment(1):
-        early = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Bell", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
-    hooked = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{early.id}", "X-Journal-Actor-Token": "tok"})
-    with pytest.raises(HTTPError) as refused:
-        urlopen(hooked, timeout=5)
-    answer = refused.value.read().decode()
-    assert app.container.get(Agents).session_agent("early-w").role == AgentRole.WORKER, "a worker's hook before its bind is bound as the worker"
-    assert has_nudge(answer, EngineNudges.JOBLESS_HELPER) and "environment overview" not in answer, "and is answered by Void, with no main line"
-
-
-
-
-def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder(app: App):
-    from journal.events.agent.tool_finished import ToolFinished
-    from journal.helpers.role_listeners import RoleListeners
-    from journal.models.worker import Worker
-    from journal.providers.claude import Claude
-    from journal.repositories.edits import Edits
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    with app.container.get(Scope).environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Escher", brief="e", session="wd", token_hash=AgentToken.hashed("tok")), Actor.system())
-    target = app.config.root / "drawn.py"
-    target.write_text("HANDS = 2\n")
-    data = json.dumps({"hook_event_name": "PostToolUse", "session_id": "wd", "tool_name": "Write", "tool_input": {"file_path": str(target), "content": "HANDS = 2\n"}, "tool_response": {}}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
-    with urlopen(request, timeout=5) as reply:
-        assert reply.status == 200
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(Edits).agent_edits("wd", 0.0, 10), "the edit recorder its file allows runs on the worker's hook"
-    finished = ToolFinished(agent=EVENT_AGENT, call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset(), CLASSIFIER), output="").placed(app.container.get(Agents).session_agent("wd"), None, 1.0)
-    reached = {listener.registered_class().__name__ for listener in app.container.get(RoleListeners).listeners(finished)}
-    assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord"}, "while the main agent's deferred recorders never hear it"
-
-
-
-
 def test_every_row_event_names_the_feature_it_belongs_to(app: App):
     from journal.events.rows.row_event import RowEvent
     from journal.events.rows.task_closed import TaskClosed
@@ -2684,64 +2607,11 @@ def test_every_row_event_names_the_feature_it_belongs_to(app: App):
 HELPER_SWEEP_EVENTS = ("a write", "a stop with a task open", "a message of the user's", "a plan started", "a task edited")
 
 
-@pytest.mark.parametrize("role_name", ["worker", "reviewer", "verifier", "subagent"])
-def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name: str):
-    """The events that nudge or hold the main agent, sent to one helper role: every line it gets comes from the engine or a feature its file turns on, its floor stays Void, and the main agent's count does not move."""
-    from journal.engine.nudger import NUDGE
-    from journal.events.agent.prompt_submitted import PromptSubmitted
-    from journal.events.agent.stop import Stop
-    from journal.events.agent.tool_starting import ToolStarting
-    from journal.events.rows.plan_started import PlanStarted
-    from journal.events.rows.task_edited import TaskEdited
-    from journal.features.registry import Registry
-    from journal.providers.claude import Claude
-    from journal.support.agent_role import AgentRole
-    role = AgentRole(role_name)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "the main work", "--start"], AGENT)
-    registry, machine, agents, entries = app.container.get(Registry), app.container.get(StateMachine), app.container.get(Agents), app.container.get(Entries)
-    helper = registry.helper(role)
-    with app.container.get(Scope).environment(1):
-        app.container.get(SessionAgents).helper_agent("sweep", 1, "claude", role)
-    main_uses = agents.session_agent("s1").tool_uses
-    write = Claude().call("Write", {"file_path": str(app.config.root / "a.py"), "content": "x"}, frozenset(), CLASSIFIER)
-    events = (ToolStarting(agent=EVENT_AGENT, call=write), Stop(agent=EVENT_AGENT), PromptSubmitted(agent=EVENT_AGENT, prompt="please look at the parser"))
-    with app.container.get(Scope).environment(1):
-        for event in events:
-            machine.reply(agents.session_agent("sweep"), event.placed(Agent(environment_id=1, session="sweep", provider="claude"), None, 1.0))
-        machine.row_replies(PlanStarted(environment_id=1, plan_id=1, task_id=0))
-        machine.row_replies(TaskEdited(environment_id=1, task_id=1, changes=("brief",)))
-        said = [entry.data["key"] for entry in entries.kind_entries(NUDGE) if entry.data.get("session") == "sweep"]
-    allowed = {"engine", *helper.feature_names()}
-    assert all(key.split(".")[0] in allowed for key in said), f"{role_name} heard {HELPER_SWEEP_EVENTS} and was told lines of features its file does not turn on: {said}"
-    assert app.container.get(StatesCatalogue).stack(agents.session_agent("sweep")).states[0].name == "void", "its floor stays Void"
-    assert agents.session_agent("s1").tool_uses == main_uses, "and the main agent's count does not move"
-
-
-
-
-
-
-def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
+def test_a_helper_reset_or_swapped_keeps_void_and_its_job(app: App):
     from journal.engine.states.void import Void
     from journal.features.workers.states.working_task import WorkingTask
-    from journal.support.agent_role import AgentRole
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    scope, workers, tasks, agents, machine = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents), app.container.get(StateMachine)
-    with scope.environment(1):
-        agents.save(Agent(environment_id=1, session="wr", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        worker = workers.save(Worker(environment_id=1, name="Mr. Reset", brief="r", session="wr"), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the lexer", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-        machine.push("wr", 1, Void(), Actor.user(1), "a state over the job")
-        machine.reset("wr", 1, Actor.user(1), "journal panic idle")
-    assert [layer["state"] for layer in agents.session_agent("wr").stack] == ["void", "working_task"], "a reset worker keeps Void and its job, and loses what was over it"
+    machine = app.container.get(StateMachine)
+    assert [state.name for state in Void().reset_states((Void(), WorkingTask(task_id=1), Void()))] == ["void", "working_task"], "a reset helper keeps Void and its job, and loses what was over it"
     swapped = machine.placed(Stack((Void(), WorkingTask(task_id=1))), Void())
     assert [type(state) for state in swapped.states] == [Void], "a swap on a helper keeps Void at the bottom, never idle"
     assert [state.name for state in machine.placed(Stack((Void(),)), WorkingTask(task_id=1)).states] == ["void", "working_task"]

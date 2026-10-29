@@ -164,6 +164,10 @@ class AgentSteps:
     def agent_writes(self, agent: StoryAgent, path: str) -> None:
         self.hooked(agent, "agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
 
+    def agent_writes_from_a_hook_without_its_header(self, agent: StoryAgent, path: str) -> None:
+        call = {"tool_name": self.tools.write, "tool_input": {"file_path": path, "content": "x"}}
+        self.hook_observed("agent writes from a hook without its header", *self.session_posted_hook(self.hook_session_of(agent), {}, "PreToolUse", {**self.hook_fields_of(agent), **call}))
+
     def agent_has_edited(self, agent: StoryAgent, path: str) -> None:
         patch = [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]
         self.hooked(agent, "agent has edited", "PostToolUse", tool_name=self.tools.write, tool_input={"file_path": str(self.app.config.root / path), "content": "y"}, tool_response={"structuredPatch": patch})
