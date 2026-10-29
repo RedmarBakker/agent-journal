@@ -57,17 +57,18 @@ held() {
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 1
         port=$(cat "$root/.journal/port" 2>/dev/null)
-        [ -n "$port" ] && curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" && return 0
+        [ -n "$port" ] && curl -s -o /dev/null --connect-timeout "$health_seconds" --max-time "$health_seconds" "http://127.0.0.1:$port/journal/health" && return 0
     done
     printf '{"continue": false, "stopReason": "the journal did not answer for %s seconds, so this worker ends"}\n' "${JOURNAL_LOCKOUT_SECONDS:-30}"
     rm -f "$body" "$sent"
     exit 0
 }
 waited=$(journal_boot_wait "$root/.journal")
+health_seconds=$(journal_health_seconds "$root/.journal")
 [ "$waited" = 0 ] || port=$(cat "$root/.journal/port" 2>/dev/null)
 [ -n "$port" ] || held || { rm -f "$body" "$sent"; exit 0; }
-# a journal that does not answer its health in two seconds is gone around: the tool goes on, and the miss is noted for the journal to say
-if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" && ! held; then
+# a journal that does not answer its health in its setting's seconds is gone around: the tool goes on, and the miss is noted for the journal to say
+if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout "$health_seconds" --max-time "$health_seconds" "http://127.0.0.1:$port/journal/health" && ! held; then
     printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$root/.journal/runtime/bypass.log"
     rm -f "$body" "$sent"
     exit 0

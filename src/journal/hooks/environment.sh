@@ -21,6 +21,12 @@ journal_main_root() {
     pwd -P
 }
 
+# The seconds a hook or a shell line waits for the journal at $1 (its .journal folder) to answer its health, from the file the
+# journal writes from its setting; 3 when the journal has written none yet.
+journal_health_seconds() {
+    cat "$1/runtime/hook-health-seconds" 2>/dev/null || printf 3
+}
+
 journal_local_environment() {
     top=$(git rev-parse --show-toplevel 2>/dev/null) || { printf main; return; }
     own=$(cd "$(git rev-parse --git-dir)" && pwd -P)

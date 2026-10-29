@@ -3,7 +3,7 @@
 # run.sh '<line>'; Codex's shell lines are rewritten by its hook answer to run.sh --command '<line>'. A shell command, which Claude's tool wraps in eval, goes to the journal server with the folder,
 # the shell and the environment it runs in: the server runs it part by part in that shell, records each part and streams
 # back what the agent sees; this prints that and ends with the chain's exit code, the stream's last line. Anything else,
-# or a line with no server up or none answering its health within two seconds, runs as it is; while the journal boots or
+# or a line with no server up or none answering its health within its setting's seconds, runs as it is; while the journal boots or
 # restarts, the line waits for it first.
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -18,8 +18,9 @@ case "$rewritten:$1" in 1:* | *"&& eval "*" < /dev/null && pwd -P"* | *"&& eval 
 . "$here/environment.sh"
 waited=$(journal_boot_wait "$root")
 port=$(cat "$root/port" 2>/dev/null) || exec "${SHELL:-bash}" -c "$1"
-# a journal that does not answer its health in two seconds is gone around: the line runs here, and the miss is noted for the journal to say
-curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" || {
+# a journal that does not answer its health in its setting's seconds is gone around: the line runs here, and the miss is noted for the journal to say
+health_seconds=$(journal_health_seconds "$root")
+curl -s -o /dev/null --connect-timeout "$health_seconds" --max-time "$health_seconds" "http://127.0.0.1:$port/journal/health" || {
     mkdir -p "$root/runtime" && printf '%s shell %s\n' "$(date +%s)" "$(printf '%s' "$1" | tr '\n' ' ')" >> "$root/runtime/bypass.log"
     exec "${SHELL:-bash}" -c "$1"
 }

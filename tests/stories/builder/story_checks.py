@@ -187,6 +187,11 @@ class StoryChecks:
         missing = [part for part in parts if part not in text]
         assert file.is_file() and not missing, f"{path} does not hold {missing}: {text[:400]!r}"
 
+    def expect_runtime_file(self, name: str, text: str) -> None:
+        file = self.app.config.home / "runtime" / name
+        shown = file.read_text() if file.is_file() else ""
+        assert shown == text, f"runtime/{name} holds {shown!r}, not {text!r}"
+
     def expect_project_file_without(self, path: str, part: str) -> None:
         text = (self.app.config.root / path).read_text()
         assert part not in text, f"{path} still holds {part!r}"

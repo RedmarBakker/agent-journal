@@ -208,10 +208,11 @@ class UserSteps:
 
     def user_sets(self, option: Option, value: object) -> None:
         top, _, name = option.key.partition(".")
+        position = self.reads.position()
         self.user_posted("/journal/settings", {top: {name: value}}, f"user sets {option.key} to {value}")
         stored = self.setting(option)
         assert stored == value, f"{option.key} was set to {value!r} in the viewer but the journal holds {stored!r}"
-        self.set_positions[option.key] = self.reads.position()
+        self.set_positions[option.key] = position
 
     def user_sets_sequence_triggers(self, sequence: int, triggers: list[dict]) -> None:
         self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/sequences/{sequence}/triggers", {"triggers": triggers}, MAIN)
