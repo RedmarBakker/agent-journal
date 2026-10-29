@@ -264,7 +264,8 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
     app.runtime().deferred.drain()
     assert supervisors.launches[-1][0] == f"task-{task.id}", "the task gets an agent of its own in an environment of its own"
     environment = app.container.get(Environments).existing(f"task-{task.id}")
-    agent = agents.find(app.container.get(Links).target_id(task, TASK_AGENT_LINK))
+    agent_id = next(target.id for target in app.container.get(Links).targets(task, TASK_AGENT_LINK))
+    agent = agents.find(agent_id)
     assert agent.environment_id == environment.row_id and agent.state == "leading_task" and tasks.holder(tasks.find(task.id)) == Ref.build(agent), "its agent holds it there"
     assert len(plans.global_matching()) == planned, "no plan row is made for it"
     assert agents.session_agent("s1").stack[-1]["state"] == "coordinating_plans", "the main agent takes nothing in hand"
