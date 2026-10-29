@@ -2005,7 +2005,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(time=2.0).with_data(of(None)), settings("orchestrator"))
     assert delegating.refusal is not None and "give it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
-    assert Soloing().respond(ToolStarting(call=shell("journal worker dispatch 'Mr. Smith' 'the job' --role medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
+    assert Soloing().respond(ToolStarting(call=shell("journal worker dispatch 'Mr. Smith' 'the job' --profile journal-medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
     assert Soloing().respond(ToolStarting(call=shell("ls")).with_data(of(None)), settings("solo")).refusal is None
 
 
@@ -2050,7 +2050,7 @@ def orchestrated(app: App) -> None:
     first = stop()
     assert first.get("decision") == "block" and "20 tasks open" in first["reason"] and "dispatch a worker on each you can" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"
     for n, name in ((1, "Ada"), (2, "Florence"), (3, "Babbage")):
-        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--role", "medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
+        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
     waiting = stop()
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)

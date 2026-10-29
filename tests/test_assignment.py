@@ -230,7 +230,7 @@ def user_adds_a_task_mid_work(app: App) -> dict:
 
 def held_by_a_worker_and_open(app: App) -> dict:
     rows = {"worker": opened(app, "the parser")}
-    run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["worker"]), "--changes", "the files of its task", "--role", "medior", "--model", "sonnet"])
+    run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["worker"]), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet"])
     hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(app.config.root / "notes.md"), "content": "x"})
     rows["open"] = opened(app, "the lexer")
     return rows
@@ -382,7 +382,7 @@ def test_the_orchestrators_next_task_is_one_it_hands_a_worker_in_turn_across_its
 def worker_through_its_task(app: App, queued: bool) -> dict:
     from journal.repositories.workers import Workers
     rows = {"first": opened(app, "the parser"), "second": opened(app, "the lexer")}
-    run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["first"]), "--changes", "the files of its task", "--role", "medior", "--model", "sonnet"])
+    run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["first"]), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet"])
     if queued:
         run(app, ["worker", "queue", "1", str(rows["second"])])
     workers = app.container.get(Workers)

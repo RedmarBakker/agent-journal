@@ -102,7 +102,7 @@ class MainAgent:
         if world.idle_workers:
             return self.queue_action(world)
         task = world.open_tasks.pop(0)
-        seen = self.command(["worker", "dispatch", f"Worker {world.next_worker}", "--task", str(task), "--changes", "the files of its task", "--role", "medior", "--model", "fast", "--tests", "Scoped tests"])
+        seen = self.command(["worker", "dispatch", f"Worker {world.next_worker}", "--task", str(task), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"])
         if seen.answer[0] == 0:
             world.next_worker += 1
             self.sent_out(world, int(re.search(r"worker (\d+)", str(seen.answer[1])).group(1)))

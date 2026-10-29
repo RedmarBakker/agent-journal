@@ -27,7 +27,6 @@ from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.models.setting import Setting
 from journal.support.actor import Actor
-from tests.organization_fixture import OrganizationFixture
 from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
 from journal.features.voices.voices_options import VoicesOptions
@@ -86,10 +85,6 @@ def bus() -> Bus:
     return Bus()
 
 
-# the folder of the Roles a test journal dispatches its workers to, in the project folder
-TEST_ORGANIZATION = "test-organization"
-
-
 @pytest.fixture(scope="session")
 def template_journal(tmp_path_factory) -> Path:
     """One journal booted for the whole run, its schema made and its seeds drawn, the user's first name set, so no test's journal asks git for it, workers' tests handed over, so no test needs a test command set to send a worker, and its main environment made, as the user would make it first; a test that boots a journal starts from a copy of it, which boots in a hundredth of the time."""
@@ -99,8 +94,6 @@ def template_journal(tmp_path_factory) -> Path:
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="workers.testing", value="Hand the tests over"), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="plans.test_commands", value="pytest, journal suite"), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="workers.fitness_warnings", value=True), Actor.system())
-    OrganizationFixture(root / TEST_ORGANIZATION).workers()
-    app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="workers.organization_folder", value=TEST_ORGANIZATION), Actor.system())
     app.runtime().start()
     app.container.get(Environments).lookup("main")
     app.runtime().stop()

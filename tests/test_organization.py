@@ -12,8 +12,6 @@ import tomllib
 
 import pytest
 
-import pytest
-
 from journal.config import Config
 from journal.engine.agent_launcher import AgentLauncher
 from journal.engine.support.settings import Settings
@@ -52,6 +50,7 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.support.ref import Ref
 from journal.models.agent import Agent
 from journal.models.plan import Plan
@@ -63,6 +62,7 @@ from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
 from journal.repositories.domain_rows import DomainRows
+from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.approvals import Approvals
 from journal.repositories.questions import Questions
@@ -72,17 +72,17 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.rejection import Rejection
-from journal.features.workers.organization_options import OrganizationOptions
-from journal.features.workers.workers_options import WorkersOptions
-
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.providers.support.profile_type import ProfileType
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.support.agent_token import AgentToken
 from tests.test_features import booted, hook
+from tests.in_process import posted
+from tests.nudge_lines import nudge_reached
 from tests.test_engine import CLASSIFIER
 from tests.user_settings import user_set
+from tests.worker_dispatch import dispatched
 
 
 @pytest.fixture(scope="module")
@@ -390,6 +390,61 @@ def test_journal_organization_lists_the_roles_of_each_domain_with_their_cardinal
     assert "domain alpha: Alpha" in shown and "  role builder: many, writes, claude sonnet, codex gpt-6-luna on max" in shown and "  role keeper: plan, does not write" in shown and "version " in shown
 
 
+def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are_off(app, tmp_path):
+    agent = Caller.agent("main", "s1", "claude")
+    user_set(app, "workers.organization_folder", "")
+    user_set(app, "plans.plan_agents", False)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    workers = app.container.get(Workers)
+    no_role = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
+    assert "Role dispatch needs an organization folder and plans.plan_agents on" in no_role.error, "with no organization, journal asks for its generic writing profile"
+    without_folder = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--profile", "journal-medior"], agent)
+    assert without_folder.code == 0 and workers.scoped()[-1].profile == "journal-medior", "the shipped medior profile still dispatches without an organization folder"
+
+    loaded(app, tmp_path)
+    user_set(app, "plans.plan_agents", False)
+    role_while_off = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
+    assert "Role dispatch needs an organization folder and plans.plan_agents on" in role_while_off.error, "an organization folder by itself does not switch journal to Role dispatch"
+    without_roles = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--profile", "journal-senior"], agent)
+    worker = workers.scoped()[-1]
+    assert without_roles.code == 0 and worker.profile == "journal-senior" and not worker.role and not worker.contract, "the senior profile remains generic when an organization exists but Plan agents are off"
+
+
+def test_a_role_idle_worker_is_matched_by_its_role_contract_name(app, tmp_path):
+    fixture, _ = loaded(app, tmp_path)
+    fixture.role("alpha", "porter", cardinality="many", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "porter"])
+    user_set(app, "plans.plan_agents", True)
+    user_set(app, "workers.idle_kept", 2)
+    hook(app, "SessionStart")
+    workers = app.container.get(Workers)
+    with app.container.get(Scope).environment(1):
+        workers.save(Worker(name="Mr. Brunel", role="porter", state=WorkerState.REPORTED), Actor.system())
+        workers.save(Worker(name="Ms. Hopper", role="porter", state=WorkerState.REPORTED), Actor.system())
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal worker dispatch 'Ada Lovelace' 'the job' --changes 'the files of its task' --tests 'Scoped tests' --role porter"})
+    assert status == 409 and nudge_reached(app, json.dumps(body), WorkersNudges.IDLE_CAP, total=2, profile="porter", count=2), "the role name survives the idle worker projection and reaches the matching cap"
+
+
+def test_a_domain_agent_can_dispatch_each_read_only_helper_profile(app, tmp_path):
+    loaded(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
+    environment = app.container.get(Environments).lookup("domain-alpha")
+    with app.container.get(Scope).environment(environment.row_id):
+        domain_agent = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="domain-session", provider="claude", state="idle"), Actor.system())
+        domains = app.container.get(DomainRows)
+        domains.agent_linked("alpha", domain_agent, Actor.system())
+        assert domains.agent_id("alpha") == domain_agent.id, "the agent session belongs to the alpha Domain"
+    environment_header = {"X-Journal-Env": environment.name}
+    status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "domain-session"}, environment_header)
+    assert status == 200, answer
+    for profile in ("journal-researcher", "journal-planner", "journal-debugger", "journal-plan-reviewer"):
+        tool_input = {"subagent_type": profile, "model": "sonnet", "description": f"read with {profile}", "prompt": "read the requested files"}
+        status, answer = posted(app, "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "domain-session", "tool_name": "Agent", "tool_input": tool_input}, environment_header)
+        assert status == 200, f"the Domain agent may dispatch {profile}: {answer}"
+
+
 def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guidance_and_its_model(app, tmp_path, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.repositories.workers import Workers
@@ -401,6 +456,7 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
     fixture.role("beta", "porter", cardinality="plan", writes=True, tools=["read_files", "edit_files"], skills=["ids"], model=fixture.model("sonnet", True))
     fixture.domain("beta", roles=["keeper", "porter"])
     organization.reload()
@@ -411,6 +467,7 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     refused = lambda *argv: dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", *argv], agent)
     assert "--role" in refused().error, "a job names the Role it works as"
     assert "no Role" in refused("--role", "nobody").error and "does not write" in refused("--role", "scout").error, "an unknown Role and a Role that does not write are refused"
+    assert "writing work uses the organization's Role" in refused("--profile", "journal-medior").error, "with Plan agents and an organization folder on, a writing job cannot fall back to a profile"
     sent = refused("--role", "porter", "--provider", "claude")
     assert sent.code == 0, sent.error
     [worker] = started
@@ -1451,6 +1508,7 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
     fixture.role("alpha", "steward", cardinality="journal", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
     fixture.role("beta", "porter", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
     fixture.domain("alpha", roles=["scout", "builder", "steward"])
@@ -1716,6 +1774,7 @@ def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_an
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
     fixture.role("beta", "porter", cardinality="many", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
     fixture.domain("beta", roles=["keeper", "porter"])
     organization.reload()
@@ -1762,6 +1821,7 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
     first = main_journal(Config(tmp_path, port=0))
     first.runtime().start()
     user_set(first, "workers.organization_folder", str(fixture.root))
+    user_set(first, "plans.plan_agents", True)
     hook(first, "SessionStart")
     first.console().run(["environment", "overview"], agent)
     user_set(first, "workers.testing", "Hand the tests over")

@@ -15,6 +15,8 @@ from journal.providers.support.profile_type import ProfileType
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
+from journal.features.workers.organization_options import OrganizationOptions
+from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.worker_launch import WorkerLaunch
@@ -270,11 +272,20 @@ class WorkerCommand(Command):
     def dispatched_role(self, args: Namespace):
         if bool(args.role) == bool(args.profile):
             raise Rejection("name the worker's --profile or its --role, one of them")
+        role_dispatch = self.role_dispatch_enabled()
+        if args.role and not role_dispatch:
+            raise Rejection("Role dispatch needs an organization folder and plans.plan_agents on: use --profile journal-medior or --profile journal-senior while they are off")
+        if args.profile and role_dispatch:
+            raise Rejection("writing work uses the organization's Role while plans.plan_agents is on: dispatch it with --role")
         if args.role and args.pool:
             raise Rejection("a Role runs on this machine: dispatch it without --pool")
         if args.profile:
             self.worker_profile(args.profile)
         return self.roles.role(args.role) if args.role else None
+
+    def role_dispatch_enabled(self) -> bool:
+        folder = str(self.settings.option(OrganizationOptions.FOLDER)).strip()
+        return bool(folder and self.settings.option(PlansOptions.PLAN_AGENTS))
 
     def worker_profile(self, profile: str) -> None:
         if self.profiles.profile_type(profile) != ProfileType.WORKER:

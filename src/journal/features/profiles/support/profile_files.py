@@ -33,6 +33,10 @@ class ProfileFiles:
     """Writes the journal's own profiles, each named journal-*, and every saved profile, for every provider that has a folder here, Claude always; at every write the journal's are removed first and written again."""
 
     PROFILES = (
+        Profile("journal-senior", "A senior writing worker for a task that needs broad design judgment.", "Read, Grep, Glob, Edit, Write, Bash",
+                f"{TURN}\n\nYou are a senior software engineer. Own the task in the brief, trace changes through the code that already exists, and leave the result ready for review.", ProfileType.WORKER),
+        Profile("journal-medior", "A writing worker for a bounded implementation task.", "Read, Grep, Glob, Edit, Write, Bash",
+                f"{TURN}\n\nYou are a software engineer. Follow the task brief, extend the existing implementation, and leave the result ready for review.", ProfileType.WORKER),
         Profile("journal-researcher", "Researches a question in the code, the journal's record or on the web and reports what it found, with evidence. It reads, and files its findings as a document or report.", "Read, Grep, Glob, WebFetch, WebSearch, Bash",
                 f"You research one question. Find what already answers it before you look further: the code, the files the journal stores in .journal and, when the question is about something outside the project, the web. Separate what you found from what you infer. {DOCUMENT_WRITER_RULES}"),
         Profile("journal-planner", "Designs how to build a change: the files to touch, what already does part of it, the order of the steps and the risks. It reads, and files its design as a document or a plan.", "Read, Grep, Glob, Bash",

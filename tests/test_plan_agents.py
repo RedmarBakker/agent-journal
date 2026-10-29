@@ -387,3 +387,16 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
     assert completed.code == 0, completed.error
     app.runtime().deferred.drain()
     assert environment.row_id in supervisors.stops, "its close stops its agent"
+
+
+def test_a_plan_agent_can_dispatch_each_read_only_helper_profile(app: App, supervisors: Supervisors):
+    user_set(app, SWITCH, True)
+    plan = started_plan(app, "the floors")
+    environment = plan_environment(app, plan)
+    environment_header = {"X-Journal-Env": environment.name}
+    status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "plan-session"}, environment_header)
+    assert status == 200, answer
+    for profile in ("journal-researcher", "journal-planner", "journal-debugger", "journal-plan-reviewer"):
+        tool_input = {"subagent_type": profile, "model": "sonnet", "description": f"read with {profile}", "prompt": "read the requested files"}
+        status, answer = posted(app, "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "plan-session", "tool_name": "Agent", "tool_input": tool_input}, environment_header)
+        assert status == 200, f"the Plan agent may dispatch {profile}: {answer}"
