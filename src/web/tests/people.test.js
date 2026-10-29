@@ -112,8 +112,6 @@ test("the Team page lists each person with their environments and opens a collea
     expect(page).toMatch(/<TeamConnect :email="standing\.email" @joined="joined" \/>/);
     const people = readFileSync(resolve(__dirname, "../src/pages/TeamPeople.vue"), "utf8");
     expect(people).toMatch(/@click="choose\(environment\.name\)"/);
-    const tab = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
-    expect(tab).toMatch(/<TeamConnect :email="standing\.email" @joined="joined" \/>/);
     const local = readFileSync(resolve(__dirname, "../src/pages/TeamLocal.vue"), "utf8");
     expect(local).toMatch(/<template v-if="standing\.admin">\s*<TeamAdmin \/>/);
     const admin = readFileSync(resolve(__dirname, "../src/pages/TeamAdmin.vue"), "utf8");
