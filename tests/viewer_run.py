@@ -86,6 +86,8 @@ SETS = {
     ),
     "settings_organization": (
         "tests/settingsOrganization.test.js",
+        "tests/organizationRoutes.test.js",
+        "tests/route.test.js",
         "tests/settingsCatalog.test.js",
         "tests/settingsSave.test.js",
     ),

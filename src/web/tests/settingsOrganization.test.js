@@ -23,18 +23,18 @@ const spec = {
 };
 const rowsOf = (sections, key) => groupRows(sections.flatMap((s) => s.groups).find((g) => g.key === key)).filter((r) => r.kind !== "switch" || r.target?.path[0] !== "features");
 
-test("the Organization section holds the six organization settings, each with its words, and the other groups do not repeat them", () => {
-    const sections = catalog(spec, {workers: {seat_cap: 4}});
+test("the Organization section holds the five organization settings, each with its words, and the other groups do not repeat them", () => {
+    const sections = catalog(spec, {workers: {seat_cap: 4}, plans: {plan_agents: true}});
     const organization = rowsOf(sections, "organization");
-    expect(organization.map((r) => r.label)).toEqual(["Agentic organization folder", "Default plan mode", "OpenRig version", "Most seats at once", "Most a plan may cost", "Plan agents instead of work modes"]);
+    expect(organization.map((r) => r.label)).toEqual(["Agentic organization folder", "Default plan mode", "OpenRig version", "Most seats at once", "Most a plan may cost"]);
     expect(organization.every((r) => r.hint.length > 1)).toBe(true);
     expect(organization[3].value).toBe(4);
     expect(organization[1].options.map((o) => o.key)).toEqual(["organization", "solo"]);
     expect(rowsOf(sections, "workers").map((r) => r.label)).toEqual(["Time limit of a worker run"]);
-    expect(rowsOf(sections, "plans")).toEqual([]);
+    expect(rowsOf(sections, "plans").map((r) => r.label)).toEqual(["Plan agents instead of work modes"]);
 });
 
 test("a row of the Organization section writes its setting under its own feature", () => {
-    const row = rowsOf(catalog(spec, {}), "organization")[1];
+    const row = rowsOf(catalog(spec, {plans: {plan_agents: true}}), "organization")[1];
     expect(settingChanges(row.target, "solo", {})).toEqual({workers: {default_plan_mode: "solo"}});
 });

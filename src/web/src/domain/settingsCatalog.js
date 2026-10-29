@@ -1,7 +1,9 @@
 
 
+import {planAgentsOn} from "./planAgents.js";
+
 // The options the Organization section holds, by key; the group of their feature leaves them out.
-export const ORGANIZATION_KEYS = ["workers.organization_folder", "workers.default_plan_mode", "workers.openrig_version", "workers.seat_cap", "workers.cost_cap_dollars", "plans.plan_agents"];
+export const ORGANIZATION_KEYS = ["workers.organization_folder", "workers.default_plan_mode", "workers.openrig_version", "workers.seat_cap", "workers.cost_cap_dollars"];
 const inOrganization = (f, s) => ORGANIZATION_KEYS.includes(`${f.name}.${s.name}`);
 
 export const COUNTED = ["percent", "uses", "minutes"];
@@ -303,7 +305,8 @@ function looseRows(settings, features) {
 export function catalog(spec, settings) {
     const features = (spec.features || []).map(normalised);
     const loose = looseRows(settings || {}, features);
-    const groups = (spec.groups || []).map((g) =>
+    const shown = (spec.groups || []).filter((g) => g.key !== "organization" || planAgentsOn(settings));
+    const groups = shown.map((g) =>
         group(
             g,
             features.filter((f) => f.group === g.key),
@@ -311,7 +314,7 @@ export function catalog(spec, settings) {
             loose
         )
     );
-    const titles = [...new Set((spec.groups || []).map((g) => g.section))];
+    const titles = [...new Set(shown.map((g) => g.section))];
     return titles.map((title) => ({title, groups: groups.filter((g) => g.section === title)}));
 }
 

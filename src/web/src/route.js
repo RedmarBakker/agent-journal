@@ -51,6 +51,9 @@ export const route = computed(() => {
         sub: params.get("sub") || "",
         tab: params.get("tab") || "",
         plugin: params.get("plugin") || "",
+        domain: params.get("domain") || "",
+        role: params.get("role") || "",
+        shared: params.get("roles") === "shared",
         install: params.get("install") || "",
         line: Number(params.get("line") || 0),
         at: params.get("at") || "",
@@ -64,6 +67,10 @@ export const href = {
     file: (path, line = 0, sub = "") => `#/file?q=${encodeURIComponent(path)}${line ? `&line=${line}` : ""}${sub ? `&sub=${sub}` : ""}`,
     reportUpdates: () => "#/reports?sub=updates",
     settings: (tab) => `#/settings?sub=${tab}`,
+    organization: () => "#/organization",
+    domain: (domain) => `#/organization?domain=${encodeURIComponent(domain)}`,
+    role: (domain, role) => `#/organization?domain=${encodeURIComponent(domain)}&role=${encodeURIComponent(role)}`,
+    sharedRoles: () => "#/organization?roles=shared",
     opened: (page, ref) => `${href.page(page)}?open=${ref}`,
 };
 
@@ -170,4 +177,4 @@ export function unpeek() {
     opening(route.value.stack.slice(0, -1));
 }
 
-export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker"];
+export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker", "organization"];
