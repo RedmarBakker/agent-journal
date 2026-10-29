@@ -63,7 +63,8 @@ class SyncDesk:
 
     def refresh(self) -> None:
         self.chat.renew()
-        self.drives.renew()
+        with self.locked(self.applying, "renew the hub's drives"):
+            self.drives.renew()
         self.sessions.renew()
         self.refill()
         self.keyed()

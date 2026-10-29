@@ -25,6 +25,7 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.tool_call import ToolCall
 
 from journal.app import App
+from journal.sync.sync_desk import SyncDesk
 from journal.sync.team_account import TeamAccount
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
@@ -17687,6 +17688,7 @@ def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_serve
         assert made.code == 0, made.error
         b = booted(tmp_path / "b", monkeypatch)
         journals.append(b)
+        assert b.container.get(TeamAccount).is_joined() and b.container.get(TeamAccount).team_version(), "a current team join survives server boot so its messages can sync"
         bob = Actor.user(b.container.get(TeamAccount).user_number())
         environments = [b.container.get(Environments).existing(name) for name in ("main", "lab")]
         for environment in environments:
@@ -21598,6 +21600,27 @@ def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_
         missing.shutdown()
 
 
+
+
+def test_a_sync_desk_renews_hub_drives_under_the_lock_that_applies_incoming_changes(app: App, monkeypatch):
+    desk = app.container.get(SyncDesk)
+    renewals = []
+
+    def renewed():
+        acquired = desk.applying.acquire(blocking=False)
+        if acquired:
+            desk.applying.release()
+        assert not acquired, "a hub drive is renewed while incoming changes cannot delete its row"
+        renewals.append(True)
+
+    monkeypatch.setattr(desk.chat, "renew", lambda: None)
+    monkeypatch.setattr(desk.drives, "renew", renewed)
+    monkeypatch.setattr(desk.sessions, "renew", lambda: None)
+    monkeypatch.setattr(desk, "refill", lambda: None)
+    monkeypatch.setattr(desk, "keyed", lambda: None)
+    monkeypatch.setattr(desk, "hub_learnt", lambda: None)
+    desk.refresh()
+    assert renewals == [True], "the refresh renews its drives once"
 
 
 def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_out(app: App):

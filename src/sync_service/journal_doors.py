@@ -102,7 +102,7 @@ class JournalDoors:
             return JournalMismatch(json.loads(refusal.read() or b"{}").get("error", "the journal server speaks another version of the sync doors"))
         if refusal.code == 404:
             error = json.loads(refusal.read() or b"{}").get("error", "")
-            if error.startswith(("GET /journal/sync/", "POST /journal/sync/")):
+            if not error or error.startswith(("GET /journal/sync/", "POST /journal/sync/")):
                 return JournalMismatch(f"the journal server has no sync doors of this version: restart the journal so both run the same code ({error})")
             return OSError(f"the journal sync door answered 404: {error or refusal.reason}")
         return OSError(f"the journal server answered {refusal.code}: {json.loads(refusal.read() or b'{}').get('error', refusal.reason)}")

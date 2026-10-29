@@ -4,11 +4,11 @@ from journal.sync.team_account import TeamAccount
 
 
 class TeamDeparture(Seed):
-    """At boot, a journal joined to a team server leaves every team it joined, here alone: the team servers are no longer used, so its sync stops and every local row stays, without asking the server."""
+    """At boot, a journal leaves each old team account without a team version, here alone; current versioned team accounts stay joined for sync."""
 
     def __init__(self, account: TeamAccount, join: TeamJoin) -> None:
         self.account, self.join = account, join
 
     def run(self) -> None:
-        while self.account.is_joined():
+        while self.account.is_joined() and not self.account.team_version():
             self.join.local_departure()
