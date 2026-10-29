@@ -32,6 +32,7 @@ from journal.sync.remote_agents import RemoteAgents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from journal.support.time_source import TimeSource
+from journal.models.agent import ENDED_STATE
 
 EDITS_SHOWN = 50
 
@@ -56,10 +57,10 @@ class AgentController(Controller[Agent]):
         return RowList(rows=rows, is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0))
 
     def open_rows(self, query: Query) -> Query:
-        return query.filter_unequal("state", "ended")
+        return query.filter_unequal("state", ENDED_STATE)
 
     def closed_rows(self, query: Query) -> Query:
-        return query.filter(state="ended")
+        return query.filter(state=ENDED_STATE)
 
     def shown_page(self, rows: list[Agent]) -> list[dict]:
         return self.activity.page(rows)

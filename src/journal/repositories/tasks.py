@@ -23,6 +23,7 @@ from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
+from journal.models.agent import ENDED_STATE
 
 WAIT_LINK = "waits_on"
 # a task waiting in testing links to the run that tests it
@@ -87,7 +88,7 @@ class Tasks(ScopedRepository[Task]):
         return self.selected(self.free_query(TaskState.BLOCKED, UNAPPROVED_PLAN_STATES).filter_absent(self.wait_links()))
 
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
-        agent_query = Query.build(Agent).filter_unequal("state", "ended").filter_unequal("id", holder.id)
+        agent_query = Query.build(Agent).filter_unequal("state", ENDED_STATE).filter_unequal("id", holder.id)
         claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_named(self.links.query(), "source"))
         return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).filter_absent(claimed_links).filter_absent(self.wait_links()))
 

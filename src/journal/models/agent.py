@@ -34,6 +34,8 @@ from journal.models.scoped import Scoped
 
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
 MODEL_FITS_KEPT = 10
+# the state an agent's row is in once its session has ended
+ENDED_STATE = "ended"
 
 @dataclass(frozen=True)
 
@@ -220,7 +222,7 @@ class Agent(Scoped):
         kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
         return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
 
-    def waits_measured(self, use: WaitUse, time: float) -> "Agent":
+    def wait_use_measured(self, use: WaitUse, time: float) -> "Agent":
         found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
         measured = self.with_(wait_use=use)
         return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
@@ -234,7 +236,7 @@ class Agent(Scoped):
     def measure_line_sent(self, key: str, time: float) -> "Agent":
         return self.with_(measures=self.measures.line_sent(key, time))
 
-    def queues_measured(self, work_queue: AgentLoad, message_queue: AgentLoad) -> "Agent":
+    def queue_loads_measured(self, work_queue: AgentLoad, message_queue: AgentLoad) -> "Agent":
         return self.with_(work_queue=replace(work_queue, scaled_at=self.work_queue.scaled_at), message_queue=message_queue)
 
     def place_opened(self, places: int, time: float) -> "Agent":

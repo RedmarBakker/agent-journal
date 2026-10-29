@@ -6,6 +6,7 @@ from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
 from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.models.agent import ENDED_STATE
 
 # an agent ended sooner than this after it began never worked, so is no peer
 PEER_SECONDS = 60
@@ -43,7 +44,7 @@ class Agents(ScopedRepository[Agent]):
         return self.selected_globally(self.unended_query().filter(role=AgentRole.MAIN).order("id"))
 
     def active_main_agent(self, session: str) -> Agent | None:
-        rows = self.selected_globally(self.query().filter(role=AgentRole.MAIN, session=session).filter_unequal("state", "ended").order("id"))
+        rows = self.selected_globally(self.query().filter(role=AgentRole.MAIN, session=session).filter_unequal("state", ENDED_STATE).order("id"))
         return rows[0] if rows else None
 
     def program_main_agents(self) -> list[Agent]:
@@ -56,7 +57,7 @@ class Agents(ScopedRepository[Agent]):
         return [agent for agent in self.scoped() if agent.has_program() and agent.is_main()][-count:]
 
     def ended_main_query(self, environment_id: int) -> Query:
-        return self.query().filter(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
+        return self.query().filter(environment_id=environment_id, role=AgentRole.MAIN, state=ENDED_STATE)
 
     def main_scoped(self, environment_id: int) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id, role=AgentRole.MAIN).order("id"))
@@ -74,12 +75,12 @@ class Agents(ScopedRepository[Agent]):
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id).order("id"))
 
     def unended_query(self) -> Query:
-        return self.query().filter_unequal("state", "ended")
+        return self.query().filter_unequal("state", ENDED_STATE)
 
     def running_peers(self, agent: Agent) -> list[Agent]:
         if not agent.is_main():
             return []
-        return self.selected_globally(self.query().filter(environment_id=agent.environment_id, role=AgentRole.MAIN, provider=agent.provider).filter_unequal("state", "ended").filter_unequal("session", agent.session).order("id"))
+        return self.selected_globally(self.query().filter(environment_id=agent.environment_id, role=AgentRole.MAIN, provider=agent.provider).filter_unequal("state", ENDED_STATE).filter_unequal("session", agent.session).order("id"))
 
     def all_current(self) -> Agent | None:
         responsive = sorted(self.active_main_agents(), key=lambda item: item.update_time)
@@ -130,7 +131,7 @@ class Agents(ScopedRepository[Agent]):
         return self.query().filter(session=session).order("id").limit(1)
 
     def recent_peer(self, session: str | None, start: datetime) -> Agent | None:
-        lasting = self.query().filter_alternatives(self.query().filter_unequal("state", "ended"), self.query().filter_lasting("created_at", "updated_at", PEER_SECONDS))
+        lasting = self.query().filter_alternatives(self.query().filter_unequal("state", ENDED_STATE), self.query().filter_lasting("created_at", "updated_at", PEER_SECONDS))
         rows = self.selected(lasting.filter_unequal("session", session).filter_greater_equal("updated_at", start).order_descending("id").limit(1))
         return rows[0] if rows else None
 
