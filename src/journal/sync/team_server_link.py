@@ -6,23 +6,17 @@ from journal.sync.team_account import TeamAccount
 from journal.features.library.support.library_link import LibraryLink, REQUEST_SECONDS
 from sync_server.backup_answer import BackupAnswer
 from sync_server.agent_view_list import AgentViewList
-from sync_server.blocks_answer import BlocksAnswer
-from sync_server.copied_row import CopiedRow
 from sync_server.device import Device
 from sync_server.device_list import DeviceList
-from sync_server.file_place import FilePlace
-from sync_server.full_copy import FullCopy
 from sync_server.invitation_answer import InvitationAnswer
 from sync_server.login_answer import LoginAnswer
 from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
-from sync_server.pull_query import PullQuery
 from sync_server.pool_ask_request import PoolAskRequest
 from sync_server.device_ask_request import DeviceAskRequest
 from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
-from sync_server.upload_answer import UploadAnswer
 from sync_server.lease import Lease
 
 COPY_SECONDS = 120
@@ -37,15 +31,6 @@ class TeamServerLink:
 
     def bound(self, account: TeamAccount) -> "TeamServerLink":
         return TeamServerLink(account, self.schema)
-
-    @staticmethod
-    def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
-        pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
-        return {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields}
-
-    @staticmethod
-    def pull_path(query: PullQuery) -> str:
-        return f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
 
     def send_agent_views(self, views: dict[str, list[dict]]) -> None:
         self.posted("/agent-views", {"views": views})
@@ -71,20 +56,6 @@ class TeamServerLink:
 
     def finish_host_request(self, id: int) -> None:
         self.posted("/host-requests/done", {"id": id})
-
-    def fetch_blocks(self, tables: list[str]) -> BlocksAnswer:
-        return BlocksAnswer.parsed(**json.loads(self.posted("/blocks", {"tables": tables})))
-
-    def full_copy(self) -> FullCopy:
-        return FullCopy.parsed(**json.loads(self.sent(self.account.address(), "/copy", None, COPY_SECONDS)))
-
-    def upload(self, rows: list[CopiedRow], highest: dict, repository: str, version: str, team_name: str) -> UploadAnswer:
-        body = json.dumps({"rows": [row.__dict__ for row in rows], "highest": highest, "repository": repository, "version": version, "migration": self.schema.version(), "team_name": team_name}).encode()
-        return UploadAnswer(**json.loads(self.sent(self.account.address(), "/upload", body, COPY_SECONDS)))
-
-    def upgrade(self, rows: list[CopiedRow], highest: dict, base_sequence: int) -> UploadAnswer:
-        body = json.dumps({"rows": [row.__dict__ for row in rows], "highest": highest, "migration": self.schema.version(), "base_sequence": base_sequence}).encode()
-        return UploadAnswer(**json.loads(self.sent(self.account.address(), "/upgrade", body, COPY_SECONDS)))
 
     def backup(self) -> BackupAnswer:
         return BackupAnswer(**json.loads(self.sent(self.account.address(), "/backups", b"{}", COPY_SECONDS)))
@@ -163,12 +134,6 @@ class TeamServerLink:
 
     def lease_state(self, name: str) -> Lease:
         return Lease(**json.loads(self.sent(self.account.address(), f"/leases?name={name}", None, REQUEST_SECONDS)))
-
-    def upload_file(self, place: FilePlace, data: bytes) -> None:
-        self.sent(self.account.address(), f"/files/{place.address()}", data, COPY_SECONDS)
-
-    def fetch_file(self, place: FilePlace) -> bytes:
-        return self.sent(self.account.address(), f"/files/{place.address()}", None, COPY_SECONDS)
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float) -> bytes:
         return self.transport.sent(address, path, body, seconds)
