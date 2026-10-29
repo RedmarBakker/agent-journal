@@ -9,6 +9,7 @@ from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.domain_reader import DomainReader
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_reader import RoleReader
+from journal.features.organization.support.revision_unreadable import RevisionUnreadable
 from journal.features.organization.support.skill_ids import SkillIds
 
 DOMAINS = "domains"
@@ -23,12 +24,15 @@ class ContractReader:
         self.folder, self.domains, self.roles, self.rules, self.skills = folder, domains, roles, rules, skills
 
     def read(self) -> Contracts:
-        root = self.folder.path()
+        try:
+            root = self.folder.path()
+        except RevisionUnreadable as unreadable:
+            return Contracts((), (), (ContractProblem(self.folder.version(), "version", str(unreadable)),), "")
         if root is None:
             return Contracts((), (), (), "")
         if not root.is_dir():
             return Contracts((), (), (ContractProblem(str(root), "folder", f"The organization folder {root} does not exist; set it on the Settings page"),), "")
-        known, problems, domains, roles, present = self.skills.known(), [], [], [], {}
+        known, problems, domains, roles, present = self.skills.known(root), [], [], [], {}
         for folder in self.folders(root / DOMAINS):
             domain = self.domain(root, folder, known, problems)
             present[folder.name] = frozenset(role_folder.name for role_folder in self.role_folders(folder))
@@ -40,6 +44,10 @@ class ContractReader:
         problems += self.rules.check(tuple(domains), tuple(roles), present)
         bad = {problem.path for problem in problems if problem.is_error()}
         return Contracts(tuple(domain for domain in domains if self.path_of(domain) not in bad), tuple(role for role in roles if self.rules.role_path(role) not in bad), tuple(problems), self.digest(root))
+
+    def has_changed(self, read: Contracts) -> bool:
+        root = self.folder.named()
+        return bool(root and root.is_dir() and not self.folder.version() and self.digest(root) != read.version)
 
     def domain(self, root: Path, folder: Path, known: frozenset[str], problems: list[ContractProblem]) -> Domain | None:
         if not (folder / "domain.toml").is_file():

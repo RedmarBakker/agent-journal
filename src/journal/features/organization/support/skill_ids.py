@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from journal.features.organization.support.contract_folder import ContractFolder
 from journal.features.skills.support.skill_files import SkillFiles
 
@@ -11,7 +13,7 @@ class SkillIds:
     def __init__(self, folder: ContractFolder, files: SkillFiles) -> None:
         self.folder, self.files = folder, files
 
-    def known(self) -> frozenset[str]:
-        path = self.folder.path()
-        found = [file.parent.name for root in (path, path.parent / ROOT_SKILLS) if root.is_dir() for file in root.rglob(SKILL_FILE)] if path else []
+    def known(self, path: Path) -> frozenset[str]:
+        named = self.folder.named()
+        found = [file.parent.name for root in (path, named.parent / ROOT_SKILLS) if root.is_dir() for file in root.rglob(SKILL_FILE)]
         return frozenset((*found, *(skill.name for skill in self.files.catalogue())))

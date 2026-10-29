@@ -135,6 +135,7 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     assert sent.code == 0, sent.error
     [worker] = started
     assert worker.model == "sonnet" and worker.profile is None, "the Role's model for the provider, and no profile"
+    assert worker.role == "porter" and worker.contract == organization.contracts().version, "the worker records its Role and the version of the contracts it began on"
     instructions = app.container.get(WorkerRunner).instructed(worker)
     assert "Guidance of beta." in instructions and "Guidance of porter." in instructions and "Read these skills before you work: ids." in instructions and "the job" in instructions, "the domain's and the Role's guidance, its skills and the job"
 
@@ -270,3 +271,43 @@ def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_
         assert routes.refusal(sender, plain) == "" and routes.refusal(plain, peer) == "", "a worker with no Role is not Role traffic"
         with pytest.raises(Rejection, match="Roles do not send"):
             app.container.get(WorkerActions).peer(peer.id, sender.id)
+
+
+def test_a_changed_contract_is_reported_and_taken_up_by_new_jobs_only_while_the_version_a_job_began_on_is_kept(app, tmp_path):
+    from journal.support.caller import Caller
+    fixture, organization = loaded(app, tmp_path)
+    began = organization.contracts().version
+    assert not organization.is_stale(), "nothing changed since it was read"
+    fixture.role("beta", "keeper", cardinality="journal", writes=False, tools=["read_files"], approval_required=["contract_change"], model=fixture.model("opus", False))
+    agent = Caller.agent("main", "s1", "claude")
+    assert organization.is_stale() and "the folder has changed since it was read" in app.console().run(["organization", "list"], agent).text, "a changed folder is reported where it is listed"
+    assert organization.contracts().role("keeper").cardinality is Cardinality.PLAN, "a running journal keeps what it read until it is told to read again"
+    changed = organization.reload().version
+    assert changed != began and not organization.is_stale()
+    assert organization.at(began).role("keeper").cardinality is Cardinality.PLAN and organization.at(changed).role("keeper").cardinality is Cardinality.JOURNAL, "a job that began on the first version still sees it; a new job sees the second"
+
+
+def test_the_contracts_are_read_at_the_git_version_the_setting_names_and_a_version_that_is_not_there_is_reported(app, tmp_path):
+    from journal.features.organization.support.organization import Organization
+    from journal.support.inner_repositories import InnerRepositories
+    from tests.organization_fixture import OrganizationFixture
+    from tests.user_settings import user_set
+    repository = tmp_path / "repository"
+    fixture = OrganizationFixture(repository / "agentic-organization").write()
+    git = lambda *argv: InnerRepositories.git(repository, "-c", "user.name=Test", "-c", "user.email=test@example.com", *argv)
+    assert git("init", "-q").returncode == 0
+    git("add", "-A")
+    assert git("commit", "-q", "-m", "first").returncode == 0
+    first = git("rev-parse", "HEAD").stdout.strip()
+    fixture.role("beta", "keeper", cardinality="journal", writes=False, tools=["read_files"], approval_required=["contract_change"], model=fixture.model("opus", False))
+    git("add", "-A")
+    assert git("commit", "-q", "-m", "second").returncode == 0
+    user_set(app, "workers.organization_folder", str(fixture.root))
+    organization = app.container.get(Organization)
+    assert organization.reload().role("keeper").cardinality is Cardinality.JOURNAL, "with no version the files as they are checked out"
+    user_set(app, "workers.organization_version", first)
+    read = organization.reload()
+    assert read.problems == () and read.role("keeper").cardinality is Cardinality.PLAN and read.role("scout") is not None, "at the first version the Role was still a plan Role"
+    user_set(app, "workers.organization_version", "no-such-version")
+    problems = organization.reload().problems
+    assert [problem.rule for problem in problems] == ["version"] and "not a commit" in problems[0].message

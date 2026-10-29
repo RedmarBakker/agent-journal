@@ -12,7 +12,7 @@ class RoleConduct(Conduct):
     """A worker dispatched to a Role works inside it: a write is refused when the Role has no write tool, and a command that is an action the Role lists as approval-required is refused until the user has been asked; a worker with no Role, or whose Role the folder no longer holds, is let through."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        role = next((found for worker in event.data.part(WorkersPart).session_workers if worker.role and (found := event.data.part(OrganizationPart).contracts.role(worker.role))), None)
+        role = next((found for worker in event.data.part(WorkersPart).session_workers if worker.role and (found := event.data.part(OrganizationPart).contracts_at(worker.contract).role(worker.role))), None)
         if role is None:
             return self.none()
         if event.call.edited_paths and not role.allows_edits():

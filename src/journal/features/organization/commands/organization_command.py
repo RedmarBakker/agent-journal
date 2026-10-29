@@ -27,8 +27,7 @@ class OrganizationCommand(Command):
         self.print_contracts(self.organization.reload())
         return 0
 
-    @staticmethod
-    def print_contracts(contracts: Contracts) -> None:
+    def print_contracts(self, contracts: Contracts) -> None:
         if contracts.is_empty() and not contracts.problems:
             print("no organization: set the agentic organization folder on the Settings page")
         for domain in contracts.domains:
@@ -39,3 +38,5 @@ class OrganizationCommand(Command):
             print(f"{problem.severity} {problem.path}: {problem.message}")
         if contracts.version:
             print(f"version {contracts.version}")
+        if self.organization.is_stale():
+            print("the folder has changed since it was read: journal organization reload reads it again; jobs already running keep the version they began on")

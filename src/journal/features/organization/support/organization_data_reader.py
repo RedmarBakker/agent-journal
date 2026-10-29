@@ -10,4 +10,4 @@ class OrganizationDataReader:
         self.organization = organization
 
     def read(self, agent: Agent) -> OrganizationData:
-        return OrganizationData(self.organization.contracts())
+        return OrganizationData(self.organization.contracts(), dict(self.organization.history))
