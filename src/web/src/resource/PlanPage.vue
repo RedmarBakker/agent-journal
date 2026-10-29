@@ -89,6 +89,9 @@ async function run(act) {
             </template>
         </header>
         <h2 class="title">{{ resource.title }}</h2>
+        <template v-if="resource.owner">
+            <p class="note">Owner: {{ resource.owner }}</p>
+        </template>
         <template v-if="resource.block_reason">
             <p class="note">Blocked: {{ resource.block_reason }}</p>
         </template>

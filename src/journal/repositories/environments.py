@@ -46,8 +46,11 @@ class Environments(Repository[Environment]):
         return self.selected(self.query().filter(name=name).filter_unequal("key", key).order("id"))
 
     def lookup(self, name: str) -> Environment:
+        return self.made(name, Actor.system())
+
+    def made(self, name: str, actor: Actor) -> Environment:
         rows = self.matching(name=name)
-        return rows[0] if rows else self.save(Environment(name=name), Actor.system())
+        return rows[0] if rows else self.save(Environment(name=name), actor)
 
     def entered(self, name: str) -> int:
         with self.connection.unlisted():

@@ -1941,6 +1941,11 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   main environment delegates while each plan environment advances its own plan. The plan's chat is its environment's
   chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. Open: who merges
   `worktree-plan-<n>` at the plan's end (decided: the main agent, through journal's merge; not built yet).
+- A plan's owner (task 44) is the owner of its environment, or for a hub plan the owner of this machine's environment
+  that drives it (`features/plans/support/plan_owners.py`), named by `plan show` and on the plan page. Only its owner
+  approves it: a colleague is refused by ColleagueWriteGuard, which names the owner, and a Plan agent by the approval
+  rule, since its floor delegates nothing. A Plan agent's environment is made by the person who started the plan, is
+  theirs, and is seen as the plan's own environment is: shared with that environment's team, or private, set at each start.
 
 ## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
 

@@ -1,4 +1,6 @@
-"""Plan agents: with the switch on, a started plan runs in its own environment plan-<n> with its own agent and chat, started at the plan's start and stopped at its pause or end."""
+"""Plan agents: with the switch on, a started plan runs in its own environment plan-<n> with its own agent and chat, started at the plan's start and stopped at its pause or end; a plan is its owner's to approve, and its agent's chat is seen as the plan's own environment is."""
+
+from dataclasses import replace
 
 import pytest
 
@@ -8,6 +10,7 @@ from journal.http.plans.plan_outline import PlanOutline
 from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
 from journal.repositories.entries import NUDGE, Entries
+from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.plans import Plans
@@ -141,3 +144,30 @@ def test_with_plan_agents_off_a_started_plan_starts_no_agent(app: App, superviso
     plans = app.container.get(Plans)
     assert supervisors.launches == [] and plans.agent_id(plans.find(plan)) == 0, "no agent is launched or linked"
     assert not app.container.get(Environments).matching(name=f"plan-{plan}"), "and no environment is made for the plan"
+
+
+def test_a_plan_is_its_owners_to_approve_and_its_agents_chat_is_seen_as_the_plans_environment_is(app: App, supervisors: Supervisors):
+    user_set(app, SWITCH, True)
+    owners, plans, environments, console = app.container.get(EnvironmentOwners), app.container.get(Plans), app.container.get(Environments), app.console()
+    owner = owners.owner_number(MAIN)
+    assert owner, "the main environment is its person's"
+    colleague = replace(USER, person=owner + 1)
+    plan = int(console.run(["plan", "create", "the floors", "--brief", "the floors are laid"], USER).text.split()[1].rstrip(":"))
+    console.run(["plan", "add", str(plan), "the first board"], USER)
+    assert f"owner: {owners.person_name(owner)}" in console.run(["plan", "show", str(plan)], AGENT).text, "plan show names the person the plan is of"
+    assert app.container.get(PlanOutline).build(plans.find(plan))["owner"] == owners.person_name(owner), "and so does its page"
+    refused = console.run(["plan", "approve", str(plan)], colleague)
+    assert refused.code != 0 and owners.person_name(owner) in refused.error and plans.find(plan).state == PlanState.DRAFT, "a colleague's approval is refused, naming the plan's owner"
+    assert console.run(["plan", "approve", str(plan)], USER).code == 0, "its owner approves it"
+    assert console.run(["plan", "start", str(plan)], USER).code == 0
+    app.runtime().deferred.drain()
+    private = plan_environment(app, plan)
+    assert owners.owner_number(private.row_id) == owner and private.creator == Actor.user(owner) and private.is_private(), "its agent's environment is made by the person who started it, is theirs, and is as private as the plan's own environment"
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "plan-session"}, {"X-Journal-Env": f"plan-{plan}"})
+    other = int(console.run(["plan", "create", "the roof", "--brief", "the roof is on"], USER).text.split()[1].rstrip(":"))
+    console.run(["plan", "add", str(other), "the first tile"], USER)
+    assert console.run(["plan", "approve", str(other)], Caller.agent(f"plan-{plan}", "plan-session", "claude")).code != 0 and plans.find(other).state == PlanState.DRAFT, "a Plan agent approves no plan"
+    environments.save(environments.find(MAIN).shared_with_team("team-key"), Actor.user(owner))
+    assert console.run(["plan", "approve", str(other)], USER).code == 0 and console.run(["plan", "start", str(other)], USER).code == 0
+    app.runtime().deferred.drain()
+    assert plan_environment(app, other).team_key == "team-key", "the agent of a plan in a shared environment has a chat the team sees"

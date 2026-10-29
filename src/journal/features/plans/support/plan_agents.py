@@ -17,7 +17,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class PlanAgents:
-    """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
+    """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation, the environment made by whoever started the plan and seen as the plan's own environment is, shared with its team or private, set again at each start; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
     def __init__(self, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, launcher: AgentLauncher, supervisor: SupervisorLink, settings: SettingRows, providers: Providers) -> None:
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
@@ -41,13 +41,20 @@ class PlanAgents:
         if not self.is_on():
             return
         plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
-        environment = self.environment(plan) or self.environments.lookup(f"plan-{plan.id}")
+        environment = self.visible(self.environment(plan) or self.environments.made(f"plan-{plan.id}", actor), plan, actor)
         if self.is_running(environment):
             return
         self.bindings.bind(plan, environment.row_id, actor)
         agent = self.agent(plan) or self.prepared(plan, environment, self.provider(event.environment_id), actor)
         resume = self.providers.lookup(agent.provider).resume(agent.session) if agent.session else ()
         self.launcher.start_in_worktree(environment.name, agent.provider, resume)
+
+    def visible(self, environment: Environment, plan: Plan, actor: Actor) -> Environment:
+        source = self.environments.find(plan.environment_id)
+        team_key = "" if source.is_private() else source.team_key
+        if environment.team_key == team_key:
+            return environment
+        return self.environments.save(environment.shared_with_team(team_key) if team_key else environment.unshared(), actor)
 
     def prepared(self, plan: Plan, environment: Environment, provider: str, actor: Actor) -> Agent:
         floor = LeadingPlan(plan_id=plan.row_id)
