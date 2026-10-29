@@ -1,5 +1,4 @@
 import json
-import json
 import os
 import re
 import shlex
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Iterator
 
 from journal.support.hook_type import HookType
+from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.codex_row import CodexRow
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import RUN_SCRIPT, Provider
@@ -79,6 +79,9 @@ class Codex(Provider):
     def __init__(self) -> None:
         super().__init__()
         self._rollouts: dict[str, Path] = {}
+
+    def status(self, session: str, home: Path) -> AgentStatus:
+        return self.status_file(home).session_reading(session)
 
     @property
     def sessions(self) -> Path:

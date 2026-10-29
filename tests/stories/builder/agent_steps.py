@@ -1,3 +1,4 @@
+import json
 import shutil
 import re
 import shlex
@@ -34,6 +35,11 @@ GIT_TIMEOUT_SECONDS = 30
 RUNNER_THREAD = "shell-chain"
 
 SUBAGENT_MODEL = "haiku"
+# the status a session's status line reports in a story: its model, how full its context is and how much of its five hours it used
+REPORTED_MODEL = "Opus"
+REPORTED_CONTEXT_PERCENT = 20
+REPORTED_FIVE_HOUR_PERCENT = 75
+REPORTED_RESET_TIME = 2000000000
 # how much later a new turn starts than the step before it
 TURN_GAP_SECONDS = 1
 
@@ -334,6 +340,25 @@ class AgentSteps:
 
     def replaced_session_stops(self, session: str) -> None:
         self.hook_observed(f"the replaced session {session} stops", *posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "Stop", "session_id": session}, MAIN))
+
+    def status_line_reports(self) -> None:
+        home = self.app.config.status_home
+        home.mkdir(parents=True, exist_ok=True)
+        status = {"model": {"display_name": REPORTED_MODEL}, "context_window": {"used_percentage": REPORTED_CONTEXT_PERCENT},
+                  "rate_limits": {"five_hour": {"used_percentage": REPORTED_FIVE_HOUR_PERCENT, "resets_at": REPORTED_RESET_TIME}}}
+        (home / f"{self.main_session()}.json").write_text(json.dumps(status))
+        self.observed("the session's status line reports its model, context and allowance", None, None)
+
+    def expect_agent_bar_reported(self) -> None:
+        self.expect_agent_bar(REPORTED_MODEL, REPORTED_CONTEXT_PERCENT, [REPORTED_FIVE_HOUR_PERCENT])
+
+    def expect_agent_bar_empty(self) -> None:
+        self.expect_agent_bar("", None, [])
+
+    def expect_agent_bar(self, model: str, context: int | None, usage: list[int]) -> None:
+        row = get_answer(self.app, "/journal/summary", MAIN)[1]["environments"][0]["agent"]
+        shown = (row.get("model"), row.get("context"), [window["used"] for window in row.get("usage") or []])
+        assert shown == (model, context, usage), f"the agent bar shows model, context and allowance {shown}, not {(model, context, usage)}"
 
     def other_provider_session_starts(self, session: str = "s3") -> None:
         self.session_starts_with(next(program.name for program in (Claude, Codex) if program.name != self.provider), session)

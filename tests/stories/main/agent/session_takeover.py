@@ -7,7 +7,8 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import story
+from journal.providers.claude import Claude
+from tests.stories.builder.story_marks import provider, story
 from tests.stories.fixtures.main.build_wait import BuildWait
 from tests.stories.fixtures.main.started_plan import StartedPlan
 from tests.stories.fixtures.main.started_task import StartedTask
@@ -55,5 +56,16 @@ def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_n
     story.replaced_session_stops(first)
     story.expect_allowed()
     story.expect_agent_session(story.main_session())
+    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_stack(Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@provider(Claude)
+def test_a_session_of_the_other_provider_shows_none_of_the_status_the_first_session_reported(story):
+    story.status_line_reports()
+    story.expect_agent_bar_reported()
+    story.other_provider_session_starts()
+    story.expect_agent_bar_empty()
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)

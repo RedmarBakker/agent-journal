@@ -224,7 +224,10 @@ class Provider(ABC):
         return self.transcript(target, session) is not None or self.transcript(source, session) is not None
 
     def status(self, session: str, home: Path) -> AgentStatus:
-        return self._status_files.setdefault(home, ContextFile(home)).reading(session)
+        return self.status_file(home).reading(session)
+
+    def status_file(self, home: Path) -> ContextFile:
+        return self._status_files.setdefault(home, ContextFile(home))
 
     @abstractmethod
     def write_mcp(self, project: Path, servers: list[McpServer]) -> Path: ...
