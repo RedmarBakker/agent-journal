@@ -23708,3 +23708,12 @@ def test_a_chain_of_three_parts_is_classified_only_by_its_command_parts_and_no_o
     assert parts[2].is_git, "and the commit is the version control one"
     classifying = [path.name for path in Path("src/journal").rglob("*.py") if re.search(r"classifier\.classify\(", path.read_text())]
     assert classifying == ["command_part.py"], f"no caller outside CommandPart.read classifies a part's text: {classifying}"
+
+
+def test_the_organization_settings_default_and_only_the_user_sets_them(app: App):
+    from journal.features.workers.organization_options import OrganizationOptions
+    console, settings = app.console(), app.container.get(SettingRows)
+    assert (settings.option(OrganizationOptions.PLAN_MODE), settings.option(OrganizationOptions.AUTONOMY), settings.option(OrganizationOptions.OPENRIG_VERSION), settings.option(OrganizationOptions.COST_CAP), settings.option(OrganizationOptions.SEAT_CAP)) == ("organization", "guided", "", 0, 0)
+    assert console.run(["settings", "set", "workers.default_plan_mode", "solo"], USER).code == 0 and settings.option(OrganizationOptions.PLAN_MODE) == "solo"
+    assert console.run(["settings", "set", "workers.default_autonomy", "reckless"], USER).code != 0, "a level not on the list is refused"
+    assert console.run(["settings", "set", "workers.seat_cap", "4"], AGENT).code != 0, "the agent may not set a cap"
