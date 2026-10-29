@@ -1,4 +1,4 @@
-"""Measures how much of the journal, supervisor and sync service packages the suite runs, the replays and the viewer tests apart, and fails under the floor: python3 scripts/coverage.py."""
+"""Measures how much of the journal, supervisor and sync service packages the suite runs, the viewer tests apart, and fails under the floor: python3 scripts/coverage.py."""
 import os
 import shutil
 import subprocess

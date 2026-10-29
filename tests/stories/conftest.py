@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.replay import typing_capture, pinned_clock
+from tests.agent_hooks import typing_capture, pinned_clock
 from tests.stories.builder.coverage_gaps import CoverageGaps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.path_overlay import PathOverlay

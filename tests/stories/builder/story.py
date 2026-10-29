@@ -10,7 +10,7 @@ from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.in_process import posted
-from tests.replay import TOOLS
+from tests.agent_hooks import TOOLS
 from tests.stories.builder.agent_steps import AgentSteps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.developer_steps import DeveloperSteps

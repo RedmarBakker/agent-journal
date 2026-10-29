@@ -54,7 +54,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.user_settings import user_set
-from tests.replay import typing_capture, pinned_clock, silent_tick, tick_at
+from tests.agent_hooks import typing_capture, pinned_clock, silent_tick, tick_at
 from tests.in_process import answered, get_answer, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -5378,7 +5378,7 @@ def test_a_codex_main_agents_patch_and_commit_land_in_its_own_series(app: App):
     from journal.events.announcer import Announcer
     from journal.events.moments.git_committed import GitCommitted
     from journal.repositories.agents import Agents
-    from tests.replay import hook_as
+    from tests.agent_hooks import hook_as
     hook_as(app, "codex", "SessionStart", "c1", source="startup")
     patch = "*** Begin Patch\n*** Add File: src/footer.py\n+FOOTER = 1\n+SHOP = 2\n*** End Patch"
     hook_as(app, "codex", "PreToolUse", "c1", tool_name="apply_patch", tool_input={"command": patch})

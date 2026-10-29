@@ -4,7 +4,7 @@ from datetime import datetime
 
 from journal.engine.clock import Clock
 from journal.providers.codex import Codex
-from tests.replay import pass_time, silent_tick
+from tests.agent_hooks import pass_time, silent_tick
 
 # the context window a Codex session's rollout reports in a story
 STORY_CONTEXT_TOKENS = 200000

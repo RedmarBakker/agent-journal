@@ -29,7 +29,7 @@ from journal.support.process_usage import ProcessUsage
 from journal.repositories.agents import Agents
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
-from tests.replay import pass_time
+from tests.agent_hooks import pass_time
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
 

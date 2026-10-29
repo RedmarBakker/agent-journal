@@ -1,4 +1,4 @@
-from tests.replay import typing_capture, pinned_clock
+from tests.agent_hooks import typing_capture, pinned_clock
 from tests.stories.builder.story import Story
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.void_provider import VoidProvider

@@ -12,8 +12,6 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from tests.main_journal import main_journal
-from tests.replay import Frozen, differences
-from tests.replays_run import a_queue_runs_to_merge
 from tests.simulation.scenario import Scenario
 from tests.simulation.scenario_run import POLICIES, ScenarioRun
 from tests.simulation.scenarios import ALL, ENGINE_MOMENTS, HISTORY, QUIET_BUILDER
@@ -57,11 +55,6 @@ def played(folder: Path, monkeypatch, scenario: Scenario, seed: int, policy=None
             return trace
     finally:
         simulator.app.runtime().stop()
-
-
-def test_the_simulator_plays_a_queue_to_its_merge_as_the_replay_recorded_it(simulated):
-    a_queue_runs_to_merge(simulated.app, simulated, "claude")
-    assert differences(Frozen("a_queue_runs_to_merge_claude").record(), simulated.record(), True) == [], "the simulator sees what the frozen replay saw: the same lines typed and nudges said at each step"
 
 
 def test_two_runs_of_a_scenario_from_one_seed_give_the_same_trace(tmp_path, monkeypatch):

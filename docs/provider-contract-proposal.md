@@ -485,7 +485,7 @@ The default suite keeps its existing coverage, including
 `test_every_session_start_reads_what_is_in_flight_before_any_other_write` and
 `test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show` in
 `tests/test_features.py`, the routing tests in `tests/test_cli.py` and `tests/test_supervisor.py`,
-and the Claude and Codex replay pairs in `tests/replays/`. They prove the journal's side; they are
+and the stories under `tests/stories/`. They prove the journal's side; they are
 not live tests.
 
 ### 6.2 Default-suite cases
