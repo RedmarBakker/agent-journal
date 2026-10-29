@@ -113,6 +113,10 @@ SETS = {
     "worker_cell": (
         "tests/agentCell.test.js",
     ),
+    "approvals": (
+        "tests/approvals.test.js",
+        "tests/approvalPhone.test.js",
+    ),
     "figure_home_return": (
         "tests/figureHomeReturn.test.js",
     ),

@@ -1,7 +1,7 @@
 <script setup>
 import {meta, tables} from "../domain/tables.js";
 import TextDisplay from "../kit/TextDisplay.vue";
-import {computed, ref} from "vue";
+import {computed, ref, watch} from "vue";
 import Icon from "../kit/Icon.vue";
 import Skeleton from "../kit/Skeleton.vue";
 import {store} from "../state/store.js";
@@ -12,8 +12,11 @@ import {hasLoaded} from "../sync/rows.js";
 import {age} from "../format/time.js";
 import {focusTurn} from "../platform/view.js";
 import {remember, remembered} from "../platform/storage.js";
+import {useScope} from "../composables/scope.js";
+import Approvals from "../organization/Approvals.vue";
 
 const props = defineProps({table: {type: String, default: ""}});
+const scope = useScope();
 const DISMISSED = "journal.notifications.dismissed";
 const dismissed = ref(new Set(remembered(DISMISSED, [])));
 const newest = (a, b) => createdAt(b) - createdAt(a);
@@ -27,6 +30,8 @@ const notifications = computed(() =>
 );
 const cards = computed(() => (props.table ? waiting.value : notifications.value));
 const loaded = computed(() => (props.table ? hasLoaded(props.table) : store.booted));
+const approvalQuestions = computed(() => cards.value.filter((row) => row.table === "approvals").map((row) => row.question_id).filter(Boolean));
+watch(approvalQuestions, (ids) => ids.length && scope.holding("questions", ids).catch(() => {}), {immediate: true});
 
 function dismiss(r) {
     dismissed.value = new Set([...dismissed.value, refOf(r)]);
@@ -36,6 +41,9 @@ function dismiss(r) {
 function open(r) {
     if (r.table === "questions" || !focusTurn(refOf(r), {instant: Boolean(props.table)})) peek(r.table, r.id);
 }
+
+const questionFor = (approval) =>
+    scope.rows("questions").find((question) => question.id === approval.question_id)?.text || "";
 </script>
 
 <template>
@@ -52,22 +60,27 @@ function open(r) {
         <section class="home-section">
             <TransitionGroup name="qrow" tag="div" class="needs-slot">
                 <div v-for="r in cards" :key="refOf(r)" :class="['needs-card', r.table]" @click="open(r)">
-                    <div class="needs-card-top">
-                        <span class="needs-card-kind">{{ happened(r) }}</span>
-                        <template v-if="!table">
-                            <button type="button" class="needs-dismiss" title="Seen — take it off the list" @click.stop="dismiss(r)">
-                                <Icon name="close" />
-                            </button>
-                        </template>
-                    </div>
-                    <p class="needs-card-title">{{ titleOf(r) }}</p>
-                    <template v-if="r.abstract || bodyOf(r)">
-                        <TextDisplay class="needs-card-text" :text="(r.abstract || bodyOf(r)).slice(0, 240)" />
+                    <template v-if="r.table === 'approvals'">
+                        <Approvals :approval="r" :question="questionFor(r)" />
                     </template>
-                    <p class="needs-card-foot">
-                        <span class="needs-card-meta">{{ meta(r.table).title.toLowerCase() }} {{ r.id }}</span>
-                        <span class="needs-card-when">{{ age(createdAt(r)) || "just now" }}</span>
-                    </p>
+                    <template v-else>
+                        <div class="needs-card-top">
+                            <span class="needs-card-kind">{{ happened(r) }}</span>
+                            <template v-if="!table">
+                                <button type="button" class="needs-dismiss" title="Seen — take it off the list" @click.stop="dismiss(r)">
+                                    <Icon name="close" />
+                                </button>
+                            </template>
+                        </div>
+                        <p class="needs-card-title">{{ titleOf(r) }}</p>
+                        <template v-if="r.abstract || bodyOf(r)">
+                            <TextDisplay class="needs-card-text" :text="(r.abstract || bodyOf(r)).slice(0, 240)" />
+                        </template>
+                        <p class="needs-card-foot">
+                            <span class="needs-card-meta">{{ meta(r.table).title.toLowerCase() }} {{ r.id }}</span>
+                            <span class="needs-card-when">{{ age(createdAt(r)) || "just now" }}</span>
+                        </p>
+                    </template>
                 </div>
             </TransitionGroup>
         </section>

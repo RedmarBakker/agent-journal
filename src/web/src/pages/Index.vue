@@ -22,8 +22,11 @@ import TextInput from "../kit/TextInput.vue";
 import Segmented from "../kit/Segmented.vue";
 import DocumentLibrary from "./DocumentLibrary.vue";
 import {useSlashFocus} from "../composables/slashFocus.js";
+import {useScope} from "../composables/scope.js";
+import Approvals from "../organization/Approvals.vue";
 
 const props = defineProps({table: String});
+const scope = useScope();
 const kind = computed(() => meta(props.table));
 const filter = ref("open");
 const adding = ref(false);
@@ -86,6 +89,10 @@ function select(id) {
     adding.value = false;
     go(props.table, id);
 }
+
+const approvalQuestions = computed(() => (props.table === "approvals" ? listed.value.map((row) => row.question_id).filter(Boolean) : []));
+watch(approvalQuestions, (ids) => ids.length && scope.holding("questions", ids).catch(() => {}), {immediate: true});
+const questionFor = (approval) => scope.rows("questions").find((question) => question.id === approval.question_id)?.text || "";
 </script>
 
 <template>
@@ -164,7 +171,10 @@ function select(id) {
                     </div>
                 </template>
                 <template #default>
-                    <RowGroups :groups="groups" :table="table" />
+                    <section v-if="table === 'approvals'" class="approval-list">
+                        <Approvals v-for="approval in listed" :key="approval.id" :approval="approval" :question="questionFor(approval)" />
+                    </section>
+                    <RowGroups v-else :groups="groups" :table="table" />
                 </template>
             </SwitchCase>
         </PagedList>
@@ -175,6 +185,13 @@ function select(id) {
 </template>
 
 <style scoped>
+.approval-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
 .bar {
     position: sticky;
     top: 0;

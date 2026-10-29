@@ -1,15 +1,23 @@
 <script setup>
 import {computed} from "vue";
 import OptionsPicker from "../resource/OptionsPicker.vue";
-import {rows} from "../sync/rows.js";
+import {useScope} from "../composables/scope.js";
+import Approvals from "../organization/Approvals.vue";
 
 const props = defineProps({turn: {type: Object, required: true}});
-const question = computed(() => rows("questions").find((q) => q.id === props.turn.question.id) || {table: "questions", ...props.turn.question, text: props.turn.text});
+const scope = useScope();
+const question = computed(() =>
+    scope.rows("questions").find((q) => q.id === props.turn.question.id) || {table: "questions", ...props.turn.question, text: props.turn.text}
+);
+const approval = computed(() =>
+    scope.rows("approvals").find((row) => row.question_id === question.value.id)
+);
 </script>
 
 <template>
     <div class="turn-question">
-        <OptionsPicker :question="question" />
+        <Approvals v-if="approval" :approval="approval" :question="question.text" />
+        <OptionsPicker v-else :question="question" />
     </div>
 </template>
 

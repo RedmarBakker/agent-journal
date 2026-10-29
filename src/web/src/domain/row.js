@@ -53,6 +53,11 @@ const ENDED = ["done", "cancelled"];
 const CLOSED = {
     tasks: (r) => seconds(r.completed_at) || (r.state === "cancelled" ? seconds(r.updated_at) : 0),
     questions: (r) => (r.answer ? seconds(r.updated_at) : 0),
+    approvals: (r) => {
+        const expiresAt = seconds(r.expires_at);
+        if (r.decision !== "pending") return seconds(r.decided_at) || seconds(r.updated_at);
+        return expiresAt > 0 && expiresAt <= Date.now() / 1000 ? expiresAt : 0;
+    },
     plans: (r) => (ENDED.includes(r.state) ? seconds(r.updated_at) : 0),
     notices: (r) => seconds(r.closed_at),
     secrets: (r) => seconds(r.deleted_at),
