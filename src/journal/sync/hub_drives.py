@@ -56,15 +56,26 @@ class HubDrives:
         self.renewed_at = time.monotonic()
         hubs = self.environments.hub_ids()
         for ref in self.bindings.bound_refs():
-            if self.tables[ref.type].find(ref.id).environment_id in hubs:
-                self.renewed(ref)
+            row = next(iter(self.tables[ref.type].global_matching(id=ref.id)), None)
+            if row is not None and row.environment_id in hubs:
+                bound = self.bindings.environment_id(row)
+                if bound:
+                    self.renewed(ref, row, bound)
 
-    def renewed(self, ref: Ref) -> None:
+    def renewed(self, ref: Ref, row: Task | Plan | None = None, bound: int = 0) -> None:
+        if row is None:
+            row = next(iter(self.tables[ref.type].global_matching(id=ref.id)), None)
+            if row is None:
+                return
+            bound = self.bindings.environment_id(row)
+        if not bound:
+            return
         try:
             self.link.acquire_free_lease(self.lease_name(ref), DRIVE_LAPSE_SECONDS)
         except TeamRefusal:
             holder = self.link.lease_state(self.lease_name(ref))
-            self.bindings.end(self.tables[ref.type].find(ref.id), f"{holder.holder} took it over on {holder.device_name}", Actor.system())
+            if self.bindings.environment_id(row) == bound:
+                self.bindings.end(row, f"{holder.holder} took it over on {holder.device_name}", Actor.system())
 
 
     def doer(self, actor: Actor) -> str:
