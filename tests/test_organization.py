@@ -444,11 +444,12 @@ def test_a_role_that_is_stuck_refused_or_ends_without_clocking_out_is_reported_t
         plans.agent_linked(plan, plan_agent, actor)
         builder = workers.save(Worker(environment_id=1, name="Mr. Brunel", brief="b", profile="journal-senior", role="builder", plan_id=plan.id, session="w-brunel", dispatcher="s1"), actor)
     who = f"worker {builder.id}, Mr. Brunel, working as the Role builder of alpha"
-    app.container.get(RoleStuckReport).handle(ImpasseReport(reason="the schema is missing").placed("w-brunel", 1, "claude", None, 1.0))
+    with scope.environment(1):
+        app.container.get(RoleStuckReport).handle(ImpasseReport(reason="the schema is missing").placed("w-brunel", 1, "claude", None, 1.0))
     assert escalated == [("domain-alpha", f"{who}, is stuck: the schema is missing")], "step one: a stuck Role is reported to its Domain agent"
     with scope.environment(1):
         agents.save(agents.find(domain_agent.id).with_(state="ended"), actor)
-    app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "builder"}).placed("w-brunel", 1, "claude", None, 2.0))
+        app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "builder"}).placed("w-brunel", 1, "claude", None, 2.0))
     assert escalated[-1] == ("plan-1", f"{who}, was refused: your Role builder has no write tool: change no file"), "step two: with no Domain agent running, a refused Role is reported to the Plan agent"
     with scope.environment(1):
         agents.save(agents.find(plan_agent.id).with_(state="ended"), actor)
