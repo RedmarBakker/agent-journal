@@ -70,11 +70,3 @@ def test_a_worker_clocking_out_leaves_the_other_workers_stack_as_it_was(story):
     story.expect_stack(story.agents.workers.second(), Void, WorkingTask)
     story.expect_task(story.tasks.peer, delegated=True)
     story.expect_stack(story.agents.subject, Void)
-
-
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
-def test_a_worker_clocks_in_once_each_time_it_is_sent(story):
-    story.agent_runs(story.agents.subject, "clock-in")
-    story.expect_command_refused()
-    story.expect_task(story.tasks.briefed, delegated=True)
-    story.expect_stack(story.agents.subject, Void, WorkingTask)

@@ -1572,52 +1572,6 @@ def test_every_listener_of_a_state_or_a_conduct_is_named_on_and_its_event():
     assert misnamed == [], "a listener is on_ and its event's name in snake case"
 
 
-def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_tags_left_as_text(app: App, tmp_path, monkeypatch):
-    """What a worker writes, read from its transcript after its hooks are answered and again at its run's end, becomes its messages once each, in a worker's chat, its tags plain text; the job it was given is the first message to it."""
-    from journal.support.agent_role import AgentRole
-    from journal.models.worker import Worker
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.features.workers.support.worker_chat import WorkerChat
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.support.agent_token import AgentToken
-    home = tmp_path / "home"
-    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    transcript = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "w1.jsonl"
-    transcript.parent.mkdir(parents=True)
-    said = lambda text: json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n"
-    transcript.write_text(said("[!reply:1] the parser reads") + said("[!todo=\"a stray task\"] names next"))
-    hook(app, "SessionStart")
-    app.console().run(["message", "send", "how is the parser?"], USER)
-    app.console().run(["message", "read", "1"], AGENT)
-    scope, workers, messages = app.container.get(Scope), app.container.get(Workers), app.container.get(Messages)
-    with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
-        workers.save(workers.find(worker.id).dispatched(1.0), Actor.agent("s1"))
-    data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": "journal clock-in"}}).encode()
-    urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"}), timeout=5).read()
-    app.runtime().deferred.drain()
-    chat = lambda: [(m.author, m.text) for m in messages.all() if m.thread == MessageThread.WORKER and m.session == "w1"]
-    with scope.environment(1):
-        assert chat() == [("user", "b"), ("agent", "[!reply:1] the parser reads"), ("agent", '[!todo="a stray task"] names next')], "the job, then each block the worker wrote, as its own messages"
-        assert [m.id for m in messages.unanswered()] == [1] and not app.container.get(Tasks).all(), "its tags are text: they answer nothing and file nothing"
-        transcript.write_text(transcript.read_text() + said("the parser is done"))
-        app.container.get(WorkerRunner).finish(workers.find(worker.id), 0, Actor.system())
-        app.container.get(WorkerChat).read(workers.find(worker.id))
-        assert chat()[-1] == ("agent", "the parser is done") and len(chat()) == 4, "its last words are read at its run's end, and a second read writes nothing again"
-        assert workers.find(worker.id).transcript_bytes == transcript.stat().st_size, "where the read stopped is kept on the worker's row, so a restart reads on from there"
-        workers.save(workers.find(worker.id).notified("check the header too", 3.0, "agent:s1"), Actor.agent("s1"))
-        transcript.write_text(transcript.read_text() + json.dumps({"type": "queue-operation", "operation": "enqueue", "content": "check the header too"}) + "\n")
-        app.runtime().deferred.drain()
-        app.container.get(WorkerChat).read(workers.find(worker.id))
-        assert chat()[-1] == ("user", "check the header too") and len(chat()) == 5, "a note is written once, where it is sent, never again from the transcript"
-
-
-
-
 def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_last_log_whichever_is_first():
     from dataclasses import replace
 

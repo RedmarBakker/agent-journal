@@ -80,6 +80,20 @@ class AgentSteps:
     def agent_closes_its_turn(self, agent: StoryAgent, text: str) -> None:
         self.hooked(agent, "agent closes its turn", "MessageDisplay", delta=text, message_id=f"turn-{len(self.path)}", index=0, final=True)
 
+    def agent_has_written(self, agent: StoryAgent, text: str) -> None:
+        self.transcript_record(agent, {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}})
+        self.observed(f"the {agent.role} writes a text block in its transcript", None, None)
+
+    def agent_has_taken_a_queued_note(self, agent: StoryAgent, text: str) -> None:
+        self.transcript_record(agent, {"type": "queue-operation", "operation": "enqueue", "content": text})
+        self.observed(f"the {agent.role}'s transcript records a note queued for it", None, None)
+
+    def transcript_record(self, agent: StoryAgent, record: dict) -> None:
+        transcript = Claude.config_folder() / "projects" / Claude.folder_name(self.app.config.root) / f"{self.session_of(agent)}.jsonl"
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        with transcript.open("a") as lines:
+            lines.write(json.dumps(record) + "\n")
+
     def agent_is_prompted(self, agent: StoryAgent, text: str) -> None:
         self.hooked(agent, "the user prompts the agent", "UserPromptSubmit", prompt=text)
 

@@ -282,6 +282,11 @@ class StoryChecks:
         newest = max(agent_rows, key=lambda row: row["id"]) if agent_rows else {}
         assert newest.get("text") == text, f"the agent's newest message is {newest.get('text')!r}, not {text!r}"
 
+    def expect_worker_chat_after_its_job(self, worker: StoryAgent, *turns: tuple[str, str]) -> None:
+        rows = sorted(get_answer(self.app, f"/journal/chats/{self.session_of(worker)}", MAIN)[1]["rows"], key=lambda row: row["id"])
+        chat, expected = [(row["author"], row["text"]) for row in rows], [("user", self.api_row("workers", worker.number)["brief"]), *turns]
+        assert chat == expected, f"the worker's chat holds {chat}, not {expected}"
+
     def expect_agent_messages(self, count: int) -> None:
         agent_messages = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
         assert len(agent_messages) == count, f"the chat holds {len(agent_messages)} messages of the agent, not {count}"

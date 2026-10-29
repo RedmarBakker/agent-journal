@@ -17,6 +17,11 @@ from tests.test_features import booted
 from journal.app import App
 from journal.config import Config
 from journal.providers.support.helper_runner import HelperRunner
+from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.models.worker import Worker
+from journal.providers.claude import Claude
+from journal.support.actor import Actor
+from tests.stories.builder.worker_steps import worker_session
 from journal.support.agent_role import AgentRole
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.features.faults.support.story_transitions import StoryTransitions
@@ -46,12 +51,18 @@ def boot():
 
 
 def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead."""
+    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead; a worker's program is never started either, though a worker on Claude is given its session at launch, as the real launch gives it one."""
     launches: list[dict[str, str]] = []
     patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
     app = booted(root, patch)
+    patch.setattr(WorkerRunner, "start", worker_session_given)
     app.helper_launches = launches
     return app
+
+
+def worker_session_given(runner: WorkerRunner, worker: Worker, actor: Actor) -> None:
+    if worker.provider == Claude.name:
+        runner.workers.save(worker.with_(session=worker.resume or worker_session(worker.id)), actor)
 
 
 def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:
