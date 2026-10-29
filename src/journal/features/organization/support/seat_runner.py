@@ -200,7 +200,7 @@ class SeatRunner:
         session = self.runtime.session(member, worker.resume)
         if session is None:
             if worker.resume:
-                raise Rejection(f"OpenRig seat {member.target} stopped; this OpenRig version cannot resume its native session, so it was not replaced with a blank one")
+                raise Rejection(f"OpenRig seat {member.target} stopped; this version cannot resume the session, so it was left unchanged")
             self.runtime.launch(member, f"journal worker {worker.id} starts task {identity.started_at or self.time_source.seconds()}")
             deadline = time.monotonic() + STARTUP_SECONDS
             while session is None and time.monotonic() < deadline:

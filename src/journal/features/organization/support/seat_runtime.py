@@ -155,7 +155,7 @@ class SeatRuntime:
         if (member.provider != provider or member.model != model or member.actor != actor
                 or member.environment != environment or not member.token or member.root != str(self.config.root)
                 or first_path != str(self.config.home / "bin") or member.active != "1" or member.agent_shell != "1"):
-            raise Rejection(f"OpenRig seat {member.logical_id} does not match the selected {provider} model {model}, worker {actor}, and journal environment")
+            raise Rejection(f"OpenRig seat {member.logical_id} mismatch: {provider}/{model}, worker {actor}, journal environment")
         return AgentToken(member.token)
 
     def version(self) -> str:
