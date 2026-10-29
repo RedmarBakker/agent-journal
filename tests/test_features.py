@@ -14124,3 +14124,29 @@ def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_s
     assert still == [WorkersNudges.UNMOVED_TASKS.create(tasks=2).rendered()], f"after the interval the task waiting on the user is not named as standing still, the other is: {still}"
     stopped = json.dumps(hook(app, "Stop")[1])
     assert "tasks 2 are blocked" in stopped and "tasks 1" not in stopped and "1, 2" not in stopped, f"the stop names the blocked task a command or a decision of the agent's can move, not the one waiting on the user: {stopped}"
+
+
+def test_runs_started_together_prune_each_old_output_once_and_every_start_returns_its_row(app: App):
+    """Task 4406: two runs starting at once both found the same oldest output past the stored number and both removed its folder, so the second start failed on a folder already gone and left its run with nothing behind it."""
+    import threading
+    from journal.features.shell.support.output_log import OutputLog
+    user_set(app, "shell.outputs_kept", 2)
+    log, failures, started = app.container.get(OutputLog), [], []
+    caller = Caller.agent("main", "s1", "claude")
+
+    def run(n: int) -> None:
+        folder = app.config.root / f"run-{n}"
+        folder.mkdir()
+        for part in range(40):
+            (folder / f"{part}.out").write_text("x")
+        with app.container.get(Scope).environment(MAIN):
+            try:
+                started.append(log.start(f"run-{n}", "true", folder, caller))
+            except OSError as error:
+                failures.append(error)
+
+    for batch in range(6):
+        threads = [threading.Thread(target=run, args=(batch * 8 + n,)) for n in range(8)]
+        [thread.start() for thread in threads]
+        [thread.join() for thread in threads]
+    assert not failures and len(started) == 48, f"every start returns its row though another prunes beside it: {failures[:1]}"
