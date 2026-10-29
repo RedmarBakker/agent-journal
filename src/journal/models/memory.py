@@ -23,7 +23,7 @@ class Memory(Scoped, Commentable):
     weight: int = 5
     keywords: tuple[str, ...] = ()
     removed_at: datetime | None = None
-    expiry_row: str = ""
+    expiry_row: str | None = None
     expires_at: datetime | None = None
 
     def weighed(self, weight: int) -> "Memory":
@@ -43,7 +43,7 @@ class Memory(Scoped, Commentable):
         return replace(self, removed_at=removal_time).with_event(MemoryRemoved())
 
     def end_reason(self) -> str:
-        if self.expiry_row:
+        if self.expiry_row is not None:
             table, _, number = self.expiry_row.partition(":")
             return f"{table.removesuffix('s')} {number} ended"
         if self.expires_at is not None and self.removed_at is not None and self.expires_at <= self.removed_at:

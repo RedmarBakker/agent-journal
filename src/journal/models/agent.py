@@ -64,7 +64,7 @@ class Agent(Scoped):
     first_reports: tuple[tuple[float, int], ...] = ()
     open_work_waits: tuple[tuple[float, int], ...] = ()
     counted_shas: tuple[str, ...] = ()
-    mode: str = ""
+    mode: str | None = None
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
@@ -214,7 +214,7 @@ class Agent(Scoped):
         if self.mode == mode:
             return self
         loads = dict(self.mode_loads)
-        if self.mode:
+        if self.mode is not None:
             loads[self.mode] = self.work_queue.published()
         return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
