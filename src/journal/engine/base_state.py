@@ -114,6 +114,11 @@ class BaseState:
     def delegates_work(cls) -> bool:
         return False
 
+    @classmethod
+    def keeps_floor(cls) -> bool:
+        """A floor no work mode replaces."""
+        return False
+
     def blocks_tools(self) -> bool:
         return False
 

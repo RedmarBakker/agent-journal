@@ -3854,3 +3854,32 @@ def test_the_time_source_reads_its_seconds_and_its_moment_as_the_same_time():
     source.unpin()
     now = source.seconds()
     assert now == datetime.fromtimestamp(now, timezone.utc).timestamp(), "the wall clock is read to the microsecond too"
+
+
+def test_a_plan_agents_floor_outlasts_every_work_mode_and_a_reset():
+    from journal.engine.states_catalogue import StatesCatalogue
+    from journal.engine.support.stack import Stack
+    from journal.features.plans.states.following_plan import FollowingPlan
+    from journal.features.plans.states.leading_plan import LeadingPlan
+    from journal.features.plans.states.plans_ready import PlansReady
+    from journal.features.workers.states.orchestrating import Orchestrating
+    from journal.features.workers.states.soloing import Soloing
+    from journal.support.agent_role import AgentRole
+
+    class ModeRegistry:
+        def states(self):
+            return [Ready, PlansReady, Orchestrating, Soloing, LeadingPlan, FollowingPlan]
+
+        def modes(self):
+            return [WorkersFeature.modes]
+
+        def floors(self):
+            return {}
+
+    catalogue = StatesCatalogue(ModeRegistry())
+    stack = Stack((LeadingPlan(plan_id=1), FollowingPlan(plan_id=1)))
+    for mode in ("builder", "orchestrator", "solo"):
+        assert catalogue.apply_mode(stack, SettingsValue({WorkersOptions.MODE.key: mode})) == stack, f"no work mode, {mode} among them, replaces a Plan agent's floor"
+    assert catalogue.reset_stack(stack, AgentRole.MAIN) == Stack((LeadingPlan(plan_id=1),)), "a reset keeps a Plan agent's floor and drops what is above it"
+    assert type(catalogue.reset_stack(Stack((Orchestrating(), FollowingPlan(plan_id=1))), AgentRole.MAIN).states[0]) is type(catalogue.first()), "every other main agent is reset to the first state"
+    assert catalogue.is_bottom(LeadingPlan(plan_id=1)), "it is a floor of the idle family"

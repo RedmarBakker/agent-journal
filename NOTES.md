@@ -1932,6 +1932,15 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   from before solo, since it has no rig. Its Plan agent is a `plan_agent` link from the plan to the agent's row and an
   organization plan's rig a `runs_on_rig` link to a `Rig` row, the rig's name in OpenRig, kept on this machine; both
   are read through `Plans.agent_id` and `Plans.rig_id`, 0 while there is none.
+- Plan agents (task 17, doc 4), behind `plans.plan_agents`: a started plan is bound to its own environment plan-<n>,
+  whose one agent is a row prepared on the floor `LeadingPlan` (no work mode replaces it, `BaseState.keeps_floor`, and
+  a panic reset keeps it) and linked by `plan_agent`, launched by `AgentLauncher.start_in_worktree` in a worktree of the
+  environment's name, skipping prompts as workers do, on the provider of the main agent that started the plan, resuming
+  its last session. A pause, a finish or an abandon stops it; a blocked plan keeps it. `features/plans/support/plan_agents.py`
+  is the one place that knows a plan's agent; `WorkMode` answers for the scope environment's main agent's floor, so the
+  main environment delegates while each plan environment advances its own plan. The plan's chat is its environment's
+  chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. Open: who merges
+  `worktree-plan-<n>` at the plan's end (decided: the main agent, through journal's merge; not built yet).
 
 ## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
 

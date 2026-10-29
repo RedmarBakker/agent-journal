@@ -6,6 +6,7 @@ from journal.console.support.hub_rows import HubRows
 from journal.support.row_labels import RowLabels
 from journal.console.command import Command
 from journal.support.caller import Caller
+from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
@@ -41,9 +42,9 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, plan_agents: PlanAgents, time_source: TimeSource) -> None:
         self.time_source = time_source
-        self.orchestrator = orchestrator
+        self.orchestrator, self.plan_agents = orchestrator, plan_agents
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
         self.settings, self.drives, self.statuses, self.phase_testing, self.destination = settings, drives, statuses, phase_testing, destination
@@ -302,6 +303,8 @@ class PlanCommand(Command):
     def shown(self, plan: Plan) -> int:
         print(f"plan {plan.id} {plan.state}: {plan.title}")
         print(f"mode: {plan.mode}")
+        if environment := self.plan_agents.environment(plan):
+            print(f"Plan agent: environment {environment.name}, {'running' if self.plan_agents.is_running(environment) else 'stopped'}")
         if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")

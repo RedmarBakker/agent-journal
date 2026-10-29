@@ -122,7 +122,8 @@ class Agent(Scoped):
 
     def with_session(self, session: str, provider: str) -> "Agent":
         kept = tuple(entry for entry in self.previous_sessions if entry.partition(":")[2] not in (session, self.session))
-        return self.with_(session=session, provider=provider, previous_sessions=(*kept, f"{self.provider}:{self.session}"))
+        earlier = (f"{self.provider}:{self.session}",) if self.session else ()
+        return self.with_(session=session, provider=provider, previous_sessions=(*kept, *earlier))
 
     def last_sessions(self) -> dict[str, str]:
         sessions = dict(entry.split(":", 1) for entry in self.previous_sessions)

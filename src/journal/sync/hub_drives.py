@@ -27,7 +27,7 @@ RENEW_SECONDS = 60
 
 
 class HubDrives:
-    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope, one of this machine's own or a session it holds, and writes on the hub row the person and the agent driving it, and a release undoes all three. A drive ends here when its lease is found taken over at a renewal, or its row is deleted or closed on another journal: the binding is lost, the environment's agent told why, naming who, and this machine's writes to the row refused until it is driven again. The hosted journal drives nothing."""
+    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute, a binding of a row of no hub, such as a plan's to its Plan agent's environment, never asking for one, and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope, one of this machine's own or a session it holds, and writes on the hub row the person and the agent driving it, and a release undoes all three. A drive ends here when its lease is found taken over at a renewal, or its row is deleted or closed on another journal: the binding is lost, the environment's agent told why, naming who, and this machine's writes to the row refused until it is driven again. The hosted journal drives nothing."""
 
     def __init__(self, link: TeamServerLink, bindings: PlanBindings, tasks: Tasks, plans: Plans, environments: Environments, scope: Scope, hosting: Hosting, labels: RowLabels, owners: EnvironmentOwners, sessions: SessionLeases) -> None:
         self.link, self.bindings, self.environments, self.scope, self.hosting, self.labels = link, bindings, environments, scope, hosting, labels
@@ -54,8 +54,10 @@ class HubDrives:
         if time.monotonic() - self.renewed_at < RENEW_SECONDS:
             return
         self.renewed_at = time.monotonic()
+        hubs = self.environments.hub_ids()
         for ref in self.bindings.bound_refs():
-            self.renewed(ref)
+            if self.tables[ref.type].find(ref.id).environment_id in hubs:
+                self.renewed(ref)
 
     def renewed(self, ref: Ref) -> None:
         try:

@@ -13,10 +13,12 @@ import {approvePlan, dismissPlan, startPlan} from "../actions/plans.js";
 import {flyToBar} from "../composables/planFlight.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
+import {useScope} from "../composables/scope.js";
 import {rows} from "../sync/rows.js";
 
 const PREVIEW_PHASES = 5;
 const props = defineProps({plan: Object, folded: Boolean});
+const scope = useScope();
 const dock = ref(null);
 const lifted = ref(false);
 const error = ref("");
@@ -88,6 +90,9 @@ async function start() {
             </span>
             <span class="plan-card-acts chat-dock-acts" data-fades>
                 <Btn small @click="peek('plans', plan.id)">Open plan</Btn>
+                <template v-if="plan.chat">
+                    <Btn small :href="scope.api.page(plan.chat)" title="Open the chat of the plan's own agent">Open its chat</Btn>
+                </template>
                 <template v-if="plan.state === 'ready'">
                     <Btn small @click="critiquing = true">Ask for a critique</Btn>
                 </template>

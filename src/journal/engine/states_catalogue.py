@@ -87,7 +87,7 @@ class StatesCatalogue:
 
     def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
         state = self.mode_state(settings)
-        if type(stack.states[0]) is state:
+        if type(stack.states[0]) is state or stack.states[0].keeps_floor():
             return stack
         return Stack((state.restored(stack.states[0].serialized()), *stack.states[1:]))
 
@@ -106,4 +106,6 @@ class StatesCatalogue:
         return self.helper_floor(layers) if role.is_helper() else layers
 
     def reset_stack(self, stack: Stack, role: AgentRole) -> Stack:
-        return Stack(self.helper_floor(stack).states[:2]) if role.is_helper() else Stack((self.first(),))
+        if role.is_helper():
+            return Stack(self.helper_floor(stack).states[:2])
+        return Stack((stack.states[0],)) if stack.states[0].keeps_floor() else Stack((self.first(),))
