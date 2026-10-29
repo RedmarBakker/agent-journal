@@ -31,7 +31,7 @@ class RowProcessCard(ProcessCard):
 
     def card_contents(self, environment_id: int, row: Model, actor: Actor) -> ProcessCardContents:
         dispatcher, _, subagent_session = actor.id.partition(SUBAGENT_SEPARATOR)
-        maker = self.subagent_label(environment_id, dispatcher, subagent_session) if actor.is_subagent() else ""
+        maker = self.subagent_label(environment_id, dispatcher, subagent_session) if actor.is_subagent_actor() else ""
         data = {"kind": "made", "made_type": row.table(), "n": row.id, "title": row.title_words(), "maker": maker, **(asdict(RunPlace.subagent(actor.id, maker)) if maker else {}), **RowCard.build(row).as_data()}
         return ProcessCardContents(self.name, environment_id, self.key(row), self.created_line(row, maker), data, actor, CardType.CREATED, False, session=dispatcher)
 

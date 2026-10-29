@@ -8,3 +8,6 @@ class ReviewerActor(Actor):
     """A reviewer the journal sent, by its number."""
 
     kind: ClassVar[ActorType] = ActorType.REVIEWER
+
+    def is_reviewer_actor(self) -> bool:
+        return True

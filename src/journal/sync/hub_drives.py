@@ -65,7 +65,7 @@ class HubDrives:
 
 
     def doer(self, actor: Actor) -> str:
-        return self.owners.person_name(int(actor.id)) if actor.is_desk_user() else "someone"
+        return actor.person_name(self.owners.person_name)
 
     def driven(self, row: Task | Plan, lease_request: Callable[[str], Lease], actor: Actor) -> Task | Plan:
         environment = self.drivable(row)

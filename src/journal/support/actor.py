@@ -1,3 +1,4 @@
+from typing import Callable
 from dataclasses import dataclass
 
 from journal.support.actor_type import ActorType
@@ -116,13 +117,31 @@ class Actor:
     def is_system_actor(self) -> bool:
         return False
 
-    def is_agent_or_subagent(self) -> bool:
+    def is_agent_actor(self) -> bool:
         return False
+
+    def is_same_kind(self, compared: "Actor") -> bool:
+        return self.actor_type == compared.actor_type
+
+    def is_person(self) -> bool:
+        return False
+
+    def is_reviewer_actor(self) -> bool:
+        return False
+
+    def is_subagent_actor(self) -> bool:
+        return False
+
+    def desk_person_number(self, default: int) -> int:
+        return default
+
+    def person_name(self, name_lookup: Callable[[int], str]) -> str:
+        return "someone"
 
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:
         return agent_way
 
-    def rule_maker[T](self, agent_way: T, person_way: T) -> T:
+    def agent_choice[T](self, agent_way: T, person_way: T) -> T:
         return person_way
 
     def __eq__(self, compared: object) -> bool:

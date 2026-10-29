@@ -26,3 +26,6 @@ class PhoneActor(Actor):
 
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:
         return user_way
+
+    def is_person(self) -> bool:
+        return True

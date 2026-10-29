@@ -45,7 +45,7 @@ class HubDocGuard(Listener[Saving]):
             raise Rejection(refusal)
 
     def person(self, actor: Actor) -> int:
-        return int(actor.id) if self.hosting.is_hosted() and actor.is_desk_user() and actor.id.isdigit() else self.account.user_number()
+        return actor.desk_person_number(self.account.user_number()) if self.hosting.is_hosted() else self.account.user_number()
 
     def is_admin(self, person: int) -> bool:
         if person == self.account.user_number():

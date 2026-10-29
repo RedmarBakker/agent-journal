@@ -214,7 +214,7 @@ class DumpFiler:
 
     @staticmethod
     def require_user(actor: Actor, subject: str) -> None:
-        if actor.is_agent_or_subagent():
+        if actor.is_agent_actor():
             raise Rejection(f"only the user {subject}")
 
     def entry(self, text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:

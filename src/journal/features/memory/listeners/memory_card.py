@@ -22,7 +22,7 @@ class MemoryCard:
             return
         noun, shows = MEMORY_KINDS[type(row)]
         environment = getattr(row, "environment_id", 0) or self.scope.id
-        session = actor.id if actor.is_agent() else ""
+        session = actor.agent_choice(actor.id, "")
         self.cards.show(environment, session, f"{noun} {row.id} {verb}{self.moment(row)}", "", Ref.build(row), actor=actor, shows=shows)
 
     @staticmethod

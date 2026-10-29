@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import Callable, ClassVar
 
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
@@ -35,3 +35,12 @@ class UserActor(Actor):
 
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:
         return user_way
+
+    def desk_person_number(self, default: int) -> int:
+        return int(self.id) if self.id.isdigit() else default
+
+    def person_name(self, name_lookup: Callable[[int], str]) -> str:
+        return name_lookup(int(self.id))
+
+    def is_person(self) -> bool:
+        return True

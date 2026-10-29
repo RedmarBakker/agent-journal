@@ -112,7 +112,7 @@ class MessageCommand(Command):
         if not deletions:
             raise MissingRow(Message.table(), number)
         deleter = deletions[0].actor
-        print(f"message {number} was deleted by {'the user' if deleter.is_user() else deleter.lookup}; nothing to do")
+        print(f"message {number} was deleted by {deleter.chosen_way('the user', deleter.lookup)}; nothing to do")
         return 0
 
     def unread(self, args: Namespace, caller: Caller) -> int:

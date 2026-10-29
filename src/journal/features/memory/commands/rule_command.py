@@ -18,7 +18,7 @@ class RuleCommand(RecordCommand):
         self.repository = rules
 
     def for_caller(self, row: Rule, caller: Caller) -> Rule:
-        return caller.actor.rule_maker(row.agent_created, row.person_created)()
+        return caller.actor.agent_choice(row.agent_created, row.person_created)()
 
     def new(self, args: Namespace) -> Rule:
         return Rule(text=args.text, reason=args.reason, keywords=self.keywords(args))

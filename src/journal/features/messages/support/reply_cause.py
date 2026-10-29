@@ -36,7 +36,7 @@ class ReplyCause:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
     def requested(self, row: Model, actor: Actor) -> list[Message]:
-        if not actor.is_agent_or_subagent() or row.table() not in CAUSE_TABLES:
+        if not actor.is_agent_actor() or row.table() not in CAUSE_TABLES:
             return []
         reply = self.messages.latest_voice()
         if reply is None or not reply.reply_target or self.time_source.moment() - reply.created_at > timedelta(seconds=REPLY_WINDOW_SECONDS):
