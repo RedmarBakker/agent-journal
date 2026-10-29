@@ -13,6 +13,11 @@ What each release of agent-journal version 4 brought, newest first.
 - Codex sessions drive the context marks from their own status, show their own status after a takeover, and run their shell lines through the journal's runner.
 - A plugin update installs only when Install is pressed in its dialog.
 - The suite prints its twenty slowest tests at its end.
+- The chat keeps following the newest bubble while you sit at the bottom: only your own scroll up, by wheel, touch, scrollbar or a scroll key, or a jump you ask for, lets go of the bottom; a row or a dock shrinking under you no longer does.
+- Two commands started at the same moment no longer leave one of them shown as running with nothing behind it, which could hold a restart.
+- The Developer tab lists the records each request read only while load counting is on.
+- Faster lookups for the docked cards, the hook path's entries and every scoped read, from three new indexes.
+- A team refusal reaches the join, sign-in and member checks as itself, and the next task is started and the plan moved on before a closing command answers.
 
 ## 4.67.6
 
