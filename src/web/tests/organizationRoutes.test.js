@@ -1,8 +1,9 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {href, knowPages, PAGES, route} from "../src/route.js";
 import {choose} from "../src/state/environment.js";
 import {catalog} from "../src/domain/settingsCatalog.js";
-import {planAgentsOn} from "../src/domain/planAgents.js";
+import {planAgents, planAgentsOn} from "../src/domain/planAgents.js";
+import {store} from "../src/state/store.js";
 
 knowPages((name) => PAGES.includes(name));
 choose("main");
@@ -13,6 +14,8 @@ const at = async (hash) => {
 };
 
 describe("the organization pages' addresses", () => {
+    beforeEach(() => (store.settings = {plans: {plan_agents: true}}));
+
     test.each([
         [href.organization(), {page: "organization", domain: "", role: "", shared: false}],
         [href.domain("Sales & Ops"), {page: "organization", domain: "Sales & Ops", role: ""}],
@@ -30,6 +33,23 @@ describe("the organization pages' addresses", () => {
         history.back();
         await new Promise((done) => setTimeout(done, 20));
         expect(route.value.domain).toBe("");
+    });
+});
+
+describe("the organization addresses with the plan agents setting off", () => {
+    test.each([href.organization(), href.domain("Sales"), href.role("Sales", "Account manager"), href.sharedRoles()])("%s leads to the old Home, and to the page once the setting is on", async (hash) => {
+        store.settings = {plans: {plan_agents: false}};
+        await at(hash);
+        expect(planAgents.value).toBe(false);
+        expect(route.value.page).toBe("");
+        store.settings = {plans: {plan_agents: true}};
+        expect(route.value.page).toBe("organization");
+    });
+
+    test("another page is the same with the setting off", async () => {
+        store.settings = {};
+        await at("#/settings?sub=agent");
+        expect(route.value.page).toBe("settings");
     });
 });
 

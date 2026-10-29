@@ -1,5 +1,6 @@
 import {computed, ref, shallowRef} from "vue";
 import {choose, environment} from "./state/environment.js";
+import {planAgents} from "./domain/planAgents.js";
 
 const hash = ref(location.hash);
 const isPage = shallowRef(null);
@@ -45,7 +46,7 @@ export const route = computed(() => {
         });
     return {
         env: environment.value,
-        page,
+        page: page === "organization" && !planAgents.value ? "" : page,
         n: n ? (/^\d+$/.test(n) ? Number(n) : n) : 0,
         q: params.get("q") || "",
         sub: params.get("sub") || "",
