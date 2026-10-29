@@ -443,7 +443,7 @@ def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_regi
     assert "TEAM_PROJECT: ${{ inputs.project }}" in workflow and "TEAM_ADDRESS: ${{ inputs.address }}" in workflow
     assert 'curl -fsSL "https://github.com/jessegall/agent-journal/releases/download/v${TEAM_VERSION}/install.sh" | sh' in workflow
     told = capsys.readouterr().out
-    assert "--labels agent-journal" in told and "journal team join <url>" in told
+    assert "--labels agent-journal" in told and "journal library connect <url>" in told
     assert RemoteGithub.parsed(["init"], root).run() == 1, "a workflow already there is not written over"
     assert RemoteGithub.parsed(["init", "--replace"], root).run() == 0
 
