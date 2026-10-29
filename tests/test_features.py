@@ -21607,9 +21607,9 @@ def test_a_sync_desk_renews_hub_drives_under_the_lock_that_applies_incoming_chan
     renewals = []
 
     def renewed():
-        acquired = desk.applying.acquire(blocking=False)
+        acquired = desk.incoming.applying.acquire(blocking=False)
         if acquired:
-            desk.applying.release()
+            desk.incoming.applying.release()
         assert not acquired, "a hub drive is renewed while incoming changes cannot delete its row"
         renewals.append(True)
 

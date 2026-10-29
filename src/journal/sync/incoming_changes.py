@@ -1,3 +1,4 @@
+import threading
 import time
 
 from journal.config import Config
@@ -17,14 +18,16 @@ class IncomingChanges:
 
     def __init__(self, tables: SharedTables, outgoing: OutgoingChanges, links: Links, account: TeamAccount, backups: JournalBackup, config: Config) -> None:
         self.tables, self.outgoing, self.links, self.account, self.backups, self.config = tables, outgoing, links, account, backups, config
+        self.applying = threading.Lock()
 
     def apply(self, changes: list[TeamChange]) -> None:
-        applied = [change for change in changes if self.tables.has(change.row_table) and not self.is_kept(change)]
-        backup = self.config.home / time.strftime(BACKUP_NAME)
-        if any(change.is_withdrawal() for change in applied) and not backup.exists():
-            self.backups.write(backup)
-        for change in applied:
-            self.applied(change)
+        with self.applying:
+            applied = [change for change in changes if self.tables.has(change.row_table) and not self.is_kept(change)]
+            backup = self.config.home / time.strftime(BACKUP_NAME)
+            if any(change.is_withdrawal() for change in applied) and not backup.exists():
+                self.backups.write(backup)
+            for change in applied:
+                self.applied(change)
 
     def is_kept(self, change: TeamChange) -> bool:
         return change.is_withdrawal() and change.is_kept_by(Actor.user(self.account.user_number()))
