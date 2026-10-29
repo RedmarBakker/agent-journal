@@ -1,0 +1,32 @@
+[
+  {
+    "key": "admission_url",
+    "title": "Private journal supervisor URL",
+    "kind": "text",
+    "default": "",
+    "help": "One HTTPS origin with the private supervisor routes; loopback HTTP is accepted for local staging."
+  },
+  {
+    "key": "hook_url",
+    "title": "Private OpenClaw hook URL",
+    "kind": "text",
+    "default": "",
+    "help": "One HTTPS origin for the fixed /hooks/agent route."
+  },
+  {
+    "key": "state_dir",
+    "title": "Transport state directory",
+    "kind": "text",
+    "default": "/var/lib/journal-supervisor/transport"
+  },
+  {
+    "key": "admission_token",
+    "title": "Private journal supervisor credential",
+    "kind": "secret"
+  },
+  {
+    "key": "hook_token",
+    "title": "Private OpenClaw hook credential",
+    "kind": "secret"
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "name": "journal-supervisor-hints",
+  "version": "1.0.0",
+  "protocol": 1,
+  "program": "run.py",
+  "hears": [
+    "plans.created",
+    "plans.updated",
+    "plans.deleted",
+    "phases.created",
+    "phases.updated",
+    "phases.deleted",
+    "tasks.created",
+    "tasks.updated",
+    "tasks.deleted",
+    "checks.created",
+    "checks.updated",
+    "checks.deleted"
+  ],
+  "holds": [],
+  "settings": "settings.json",
+  "services": [
+    {
+      "name": "bridge",
+      "command": ["./serve.py"],
+      "restart": "always",
+      "answers": true
+    }
+  ],
+  "health": {
+    "socket_env": "JOURNAL_PLUGIN_HEALTH_SOCKET",
+    "request": "{\"health\":true}",
+    "answer": "{\"health\":\"ok\"}"
+  }
+}
