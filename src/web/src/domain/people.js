@@ -1,7 +1,7 @@
 // People named relative to the viewer: the viewer's own person is you, anyone else by name. `people` is what
-// /journal/people answers: me, device and people.
+// /journal/people answers: me and people.
 
-export const NOBODY = {me: 1, device: "", people: []};
+export const NOBODY = {me: 1, people: []};
 
 export const personName = (number, people) => (people.people.find((person) => person.id === number) || {}).name || `user ${number}`;
 

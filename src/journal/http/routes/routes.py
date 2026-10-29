@@ -17,7 +17,6 @@ from journal.http.controllers.mode import ModeController
 from journal.http.controllers.sync import SyncController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
-from journal.http.controllers.login_controller import LoginController
 from journal.http.controllers.notices import NoticeController
 from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
@@ -81,10 +80,6 @@ class Routes:
         router.post("/shell/run", get(ShellController).run)
         router.post("/cli", get(CliController).run)
         router.post("/cli/run", get(CliController).run_posted)
-        router.get_unscoped("/sign-in", get(LoginController).show)
-        router.get_unscoped("/open", get(LoginController).opened)
-        router.post_unscoped("/sign-in", get(LoginController).submit)
-        router.post_unscoped("/sign-out", get(LoginController).logout)
         self.journal(router)
         self.work(router)
         self.chat(router)

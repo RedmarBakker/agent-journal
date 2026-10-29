@@ -126,12 +126,3 @@ class TeamAccount(HubAccount):
 
     def is_admin(self) -> bool:
         return self.contents().get("role") == ADMIN
-
-    def is_chat_holder(self) -> bool:
-        return bool(self.contents().get("holds_chat", False))
-
-    def hosted_sessions(self) -> list[str]:
-        return list(self.contents().get("sessions", []))
-
-    def record_hosted_sessions(self, names: list[str]) -> None:
-        self.merged({"sessions": sorted(set(names))})

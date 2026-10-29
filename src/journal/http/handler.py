@@ -4,7 +4,6 @@ from journal.http.support.json_out import JsonOut
 from journal.http.support.file_response import FileResponse
 from journal.engine.lifecycle import Lifecycle
 from journal.http.support.identity import Identity
-from journal.http.support.login_gate import LoginGate
 from journal.http.support.pooled_handler import PooledHandler
 from journal.http.support.request import Request
 from journal.support.actor import Actor
@@ -29,7 +28,6 @@ class Handler(PooledHandler):
     router: Router
     identity: Identity
     static: StaticFiles
-    gate: LoginGate
     lifecycle: Lifecycle
     faults: RequestFaults
     fault_log: FaultLog
@@ -38,15 +36,13 @@ class Handler(PooledHandler):
         if urlsplit(self.path).path in UNHELD_PATHS:
             return self._answer(self._dispatched(self._unidentified_request()))
         request = self._counted_request()
-        if self.gate.is_refused(request):
-            return self._reply(self.gate.refusal(request))
         if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and self.router.matched(request) is None and (rows := self.static.serve(request.path)):
             return self._file(rows)
         self._answer(self._dispatched(request))
 
     def do_POST(self) -> None:
         request = self._counted_request()
-        self._answer(self.gate.refusal(request) if self.gate.is_refused(request) else self._dispatched(request))
+        self._answer(self._dispatched(request))
 
     def _unidentified_request(self) -> Request:
         head = RequestReading.head(self.command, self.path, dict(self.headers.items()))

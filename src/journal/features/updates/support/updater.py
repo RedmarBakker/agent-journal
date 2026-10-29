@@ -1,9 +1,7 @@
 import contextvars
 import os
-import signal
 import subprocess
 import threading
-import time as timing
 from typing import Callable
 
 from journal.config import Config
@@ -11,7 +9,6 @@ from journal.support.release import Release
 from journal.features.updates.support.commit_ancestry import CommitAncestry
 from journal.features.updates.support.release_installer import ReleaseInstaller
 from journal.features.updates.support.official_install import OfficialInstall
-from journal.sync.sync_status import SyncStatus
 from journal.features.updates.support.release_refusal import ReleaseRefusal
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
@@ -22,44 +19,33 @@ from journal.features.updates.support.update_data import UpdateData
 from journal.features.updates.support.update_target import UpdateTarget
 from journal.features.shell.support.restart_queue import RestartQueue
 from journal.supervisor_link import SupervisorLink
-from journal.sync.hosting import Hosting
 from journal.support.actor import Actor
+from journal.support.caller import LOCAL_USER
 from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
 from journal.version import VERSION
-from journal.services.service_event import UPGRADE_ABANDONED, UPGRADE_PREPARING, ServiceEvent
-from journal.services.service_hooks import ServiceHooks
-from journal.sync.team_account import TeamAccount
-from journal.sync.team_refusal import TeamRefusal
-from journal.sync.team_server_link import TeamServerLink
 from journal.features.updates.updates_options import UpdatesOptions
 from journal.support.time_source import TimeSource
 
 PLUGIN = "code-commandments"
-# the longest the sync service may take to send this journal's changes and pull the team's before an install
-DRAIN_SECONDS = 60
 # what the install command from the README installs when it is asked for no release of its own, and how the card names it
 README_REF = "main"
 README_TARGET = "the latest release"
-# the sync state of a team that does not take this journal's changes now, so an update keeps them here instead of waiting to send them
-UNREACHABLE = "not_connected"
 
 
 class Updater:
-    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release and pins the team to it once it runs it, after the last step of a path, never at a step; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again. The sync service has drained when it has sent the whole queue and pulled the team to its head, under the team's upgrade lease; a journal is pinned when it has joined a team and is not the hosted journal that leads the team onto a release."""
+    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, and its install: on its own when the user has switched that on, or when they say so."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus, time_source: TimeSource, paths: UpdatePathFile) -> None:
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, ancestry: CommitAncestry, official: OfficialInstall, time_source: TimeSource, paths: UpdatePathFile) -> None:
         self.time_source, self.paths = time_source, paths
-        self.official, self.sync = official, sync
+        self.official = official
         self.ancestry = ancestry
-        self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
         self.settings, self.source, self.installer = settings, source, installer
         self.card, self.supervisor, self.config, self.queue = card, supervisor, config, queue
         self.releases: list[Release] = []
         self.head = ""
         self.is_head_ahead = False
         self.problem = ""
-        self.team_version_seen = ""
         self._next_check_at = self.source.next_check_time(self.check_interval_seconds())
         self.releases = Release.lookup(self.source.stored_tags(Release.major_prefix(self.running().major)))
         self._working = threading.Lock()
@@ -87,7 +73,7 @@ class Updater:
         return f"{self.branch()} at {self.installed_commit()[:7] or 'an unrecorded commit'}" if self.branch() else VERSION
 
     def newer(self) -> list[Release]:
-        return [release for release in self.releases if release.upgrades(self.running()) and (self.leads_team() or self.account.allows(release))]
+        return [release for release in self.releases if release.upgrades(self.running())]
 
     def is_published(self) -> bool:
         if self.branch():
@@ -95,8 +81,6 @@ class Updater:
         return bool(self.newer())
 
     def target(self) -> UpdateTarget:
-        if not self.is_published() and self.is_pinned():
-            raise Rejection(f"the team sets this journal's version: it pins {self.account.team_version() or 'none yet'}; the admin runs journal team upgrade")
         if not self.is_published():
             raise Rejection(f"there is nothing newer than {self.label()} to install")
         if self.branch():
@@ -105,16 +89,7 @@ class Updater:
         return UpdateTarget(newest.tag, newest.version)
 
     def automatic(self) -> bool:
-        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published() and not self.paths.record().has_failed(VERSION)
-
-    def is_pinned(self) -> bool:
-        return self.account.is_joined() and not self.leads_team()
-
-    def is_hosted(self) -> bool:
-        return self.hosting.is_hosted()
-
-    def leads_team(self) -> bool:
-        return self.is_hosted() and bool(self.settings.option(UpdatesOptions.AUTO)) and not self.branch()
+        return bool(self.settings.option(UpdatesOptions.AUTO)) and self.is_published() and not self.paths.record().has_failed(VERSION)
 
     def check_interval_seconds(self) -> int:
         return self.settings.integer(UpdatesOptions.CHECK_INTERVAL) * 60
@@ -134,10 +109,7 @@ class Updater:
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
-        if (self.is_hosted() or self.is_pinned()) and self.account.team_version() not in (VERSION, self.team_version_seen, ""):
-            self.team_version_seen = self.account.team_version()
-            self.separate(self.checked)
-        elif time >= self._next_check_at:
+        if time >= self._next_check_at:
             self._next_check_at = time + self.check_interval_seconds()
             self.separate(self.checked)
 
@@ -168,7 +140,6 @@ class Updater:
             self.problem = f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
             return
         self.problem = ""
-        self.separate(lambda: self.lead(VERSION))
 
     def walked(self, blocked: UpdatePause, time: float) -> None:
         line = self.paths.record().step_line(VERSION)
@@ -231,7 +202,6 @@ class Updater:
     def checked(self) -> None:
         if self.paths.is_unfinished(VERSION, self.time_source.seconds()):
             return
-        self.lead(VERSION)
         self.read()
         if not self.automatic():
             return
@@ -240,7 +210,7 @@ class Updater:
         except Rejection as refused:
             self.problem = str(refused)
             return
-        self.install_newest(Actor.user(self.account.user_number()))
+        self.install_newest(Actor.user(LOCAL_USER))
 
     def read(self) -> None:
         try:
@@ -255,40 +225,21 @@ class Updater:
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             self.problem = f"The releases could not be read from {self.repository()}: {error}"
 
-    def leads_upgrade(self) -> bool:
-        return self.account.is_joined() and not self.is_hosted() and self.sync.state() != UNREACHABLE and not self.has_newer_pin()
-
-    def has_newer_pin(self) -> bool:
-        return any(pinned.is_newer(self.running()) for pinned in self.team_pin())
-
-    def team_pin(self) -> list[Release]:
-        return Release.lookup([self.link.summary(self.account.address()).version])
-
     def install_newest(self, actor: Actor) -> None:
         target = self.target()
-        drained = self.leads_upgrade()
-        if drained:
-            self.card.step("Sending this journal's changes to the team")
-            if not self.is_drained():
-                self.problem = "The sync service did not send this journal's changes to the team, so the new version was not installed"
-                self.card.clear()
-                self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
-                return
         self.card.step("Installing the new version")
         try:
             self.installer.run(target.ref, self.repository(), target.reason or f"updating to {target.label}")
         except Exception as broken:
-            self.installed_officially(target, drained, broken)
+            self.installed_officially(target, broken)
             return
         self.recorded(target)
         self.card.step("Updating the journal to the latest version")
-        if self.is_hosted():
-            self.restart()
 
-    def installed_officially(self, target: UpdateTarget, drained: bool, broken: Exception) -> None:
+    def installed_officially(self, target: UpdateTarget, broken: Exception) -> None:
         fallback = self.official.installation(target.ref)
         if fallback.returncode != 0:
-            self.refused_install(target, drained, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
+            self.refused_install(target, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
             return
         self.recorded(target)
         self.card.step("Restarting the journal")
@@ -298,12 +249,10 @@ class Updater:
         self.log_reason(target)
         self.problem = ""
 
-    def refused_install(self, target: UpdateTarget, drained: bool, reason: str) -> None:
+    def refused_install(self, target: UpdateTarget, reason: str) -> None:
         self.log_reason(target)
         self.problem = reason
         self.card.clear()
-        if drained:
-            self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
 
     def log_reason(self, target: UpdateTarget) -> None:
         if target.reason:
@@ -312,23 +261,7 @@ class Updater:
             with log.open("a") as log_file:
                 log_file.write(f"installing {target.label}: {target.reason}\n")
 
-    def is_drained(self) -> bool:
-        return self.hooks.succeeded(ServiceEvent(UPGRADE_PREPARING), DRAIN_SECONDS)
-
-    def lead(self, version: str) -> None:
-        if not self.leads_team() or not self.account.is_joined():
-            return
-        try:
-            if any(not Release(version).is_newer(pinned) for pinned in self.team_pin()):
-                return
-            self.link.pin_version(version)
-        except (OSError, TeamRefusal) as refused:
-            self.problem = f"The team could not be pinned to {version}: {refused}"
-
     def restart(self) -> None:
-        if self.is_hosted():
-            os.kill(os.getpid(), signal.SIGTERM)
-            return
         host = self.supervisor.hosting()
         outputs = self.queue.restart(host, "") if host is not None else []
         if outputs:

@@ -2611,7 +2611,7 @@ def test_a_plugin_runs_as_itself_never_as_the_user(app: App):
     assert "only the user approves" in cli(["plan", "approve", "1"])[1]["error"], "a plugin never approves a plan"
     assert cli(["task", "list"], value="wrong")[0] == 403 and cli(["task", "list"], plugin="lint")[0] == 403, "a wrong token, or a plugin's name without its own, is refused"
     identity = app.container.get(Identity)
-    assert identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": token}, "") == Actor.plugin("echo") and identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": "x"}, "") == Actor.user(1), "the API names the plugin only with its token"
+    assert identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": token}) == Actor.plugin("echo") and identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": "x"}) == Actor.user(1), "the API names the plugin only with its token"
 
 
 def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
@@ -3637,26 +3637,6 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     assert updating.card.paused() is None and "nor could the official install command" in updating.problem, "an install that fails, the official command too, leaves no marker a launch would wait on, and says why"
 
 
-def test_a_journal_with_a_stale_team_version_never_pins_the_team_back_and_an_admins_own_pin_moves_it_either_way(app: App, monkeypatch):
-    from journal.features.updates.support.updater import Updater
-    from journal.sync.team_server_link import TeamServerLink
-    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=False)
-    server, account = joined_team(app)
-    try:
-        link = app.container.get(TeamServerLink)
-        link.pin_version("4.99.0")
-        account.record_pull(account.sequence(), "4.0.0")
-        monkeypatch.setattr(Updater, "leads_team", lambda self: True)
-        updating.lead("4.50.0")
-        assert link.summary(account.address()).version == "4.99.0" and updating.problem == "", "a journal whose copy of the team version is stale reads the pin live and leaves a newer one where it is"
-        updating.lead("4.100.0")
-        assert link.summary(account.address()).version == "4.100.0", "and it still leads the team onto a newer release"
-        link.pin_version("4.10.0")
-        assert link.summary(account.address()).version == "4.10.0", "an admin's own pin moves the team back as well as forward"
-    finally:
-        server.shutdown()
-
-
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]
@@ -3885,11 +3865,10 @@ def test_a_failed_worktree_add_leaves_another_launch_worktree_registered_and_mov
     assert Worktree(root, "calm-river").created() == calm and calm.is_dir(), "a launch whose own folder is gone drops only its own record and makes it again"
 
 
-def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_removes_none(app: App, monkeypatch):
+def test_a_worktree_whose_environment_is_gone_is_listed_and_removed_through_the_same_checks(app: App, monkeypatch):
     import subprocess
     from journal.repositories.environments import Environments
     from journal.support.worktree import Worktree
-    from journal.sync.hosting import Hosting
     root = app.config.root
     git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
@@ -3906,10 +3885,6 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     assert status == 200 and answer["worktrees"] == [{"name": "calm-river", "branch": "worktree-calm-river"}], "the viewer lists the worktree whose environment is gone, and no other"
     status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
     assert status == 200 and "removed the worktree" in removed["line"] and not (root / ".claude" / "worktrees" / "calm-river").exists(), "and removes it through the same checks"
-    monkeypatch.setattr(Hosting, "is_hosted", lambda self: True)
-    from journal.http.controllers.worktrees import WorktreeController
-    assert app.container.get(WorktreeController).index(None).body["worktrees"] == [], "the hosted journal lists none"
-    assert "hosted journal has no checkout" in console.run(["worktree", "remove", "quiet-heron"], USER).error, "and refuses to remove one with a plain line"
 
 
 def test_a_worktree_made_through_a_symlinked_project_path_is_the_same_one_by_either_spelling(app: App, tmp_path):

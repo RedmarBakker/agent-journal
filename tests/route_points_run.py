@@ -41,8 +41,6 @@ LEFT_OUT = {
     "POST /hooks/{agent}": "timed once per hook kind instead",
     "GET /journal/entries/stream": "a stream that answers until the viewer leaves",
     "POST /shell/run": "runs a shell command",
-    "POST /sign-in": "asks the team server",
-    "GET /open": "asks the team server",
     "POST /journal/updates": "fetches and installs an update",
     "POST /journal/phones/connect": "asks the team server",
     "POST /journal/environments/{id}/launch": "starts an agent through the supervisor",

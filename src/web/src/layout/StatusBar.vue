@@ -39,13 +39,6 @@ import {rows} from "../sync/rows.js";
 import {runPlan} from "../actions/work.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
-const hosted = computed(() => Boolean(store.people && store.people.hosted));
-
-// a hosted journal's browser signs out and goes back to the sign-in
-async function signOut() {
-    await api.signOut();
-    window.location.assign("/sign-in");
-}
 const reported = computed(() => stateOf(agent.value));
 const toast = ref(null);
 
@@ -278,9 +271,6 @@ async function runBar(p) {
                     <Icon :name="paused ? 'resume' : 'pause'" />
                 </template>
             </Btn>
-        </template>
-        <template v-if="hosted">
-            <Btn kind="ghost" class="statusbar-sign-out" v-tip="{title: 'Sign out', line: 'Ends this browser\'s session on the team\'s journal.'}" @click="signOut">Sign out</Btn>
         </template>
         <span class="statusbar-tools">
             <span class="statusbar-agentset">

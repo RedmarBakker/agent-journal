@@ -18,7 +18,7 @@ class RequestReading:
     def read(head: RequestHead, raw: bytes, identity: Identity) -> Request:
         url = urlsplit(head.target)
         query = {k: v[-1] for k, v in parse_qs(url.query).items()}
-        person = identity.build(head.headers, head.cookie)
+        person = identity.build(head.headers)
         request_at = Request.request_time(head.headers)
         waited = Request.boot_wait(head.headers)
         if head.content_type == "application/octet-stream":

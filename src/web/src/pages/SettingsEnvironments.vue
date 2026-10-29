@@ -14,7 +14,6 @@ import {store} from "../state/store.js";
 import {matches} from "../domain/settingsCatalog.js";
 
 const props = defineProps({query: {type: String, default: ""}});
-const hosted = computed(() => Boolean(store.people && store.people.hosted));
 const leftTrees = ref([]);
 const loadLeftTrees = async () => (leftTrees.value = (await api.leftWorktrees()).worktrees);
 onMounted(loadLeftTrees);
@@ -31,7 +30,7 @@ const envRows = computed(() =>
             state: envState(standing),
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
-            worktree: hosted.value ? "" : (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
+            worktree: (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
         }))
         .filter((row) => matches(`${row.name} environment`, props.query))
         .sort((a, b) => here(b.name) - here(a.name) || a.name.localeCompare(b.name))

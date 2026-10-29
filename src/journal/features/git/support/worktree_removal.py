@@ -4,14 +4,13 @@ from journal.repositories.environments import Environments
 from journal.support.rejection import Rejection
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
-from journal.sync.hosting import Hosting
 
 
 class WorktreeRemoval:
-    """The one way a launch's worktree is removed, by the command and the viewer alike: refused on the hosted journal, while a session works in it or while it holds uncommitted work; its branch and last commit kept so a launch of its name makes it again."""
+    """The one way a launch's worktree is removed, by the command and the viewer alike: refused while a session works in it or while it holds uncommitted work; its branch and last commit kept so a launch of its name makes it again."""
 
-    def __init__(self, config: Config, environments: Environments, agents: Agents, hosting: Hosting) -> None:
-        self.config, self.environments, self.agents, self.hosting = config, environments, agents, hosting
+    def __init__(self, config: Config, environments: Environments, agents: Agents) -> None:
+        self.config, self.environments, self.agents = config, environments, agents
 
     def worktree(self, name: str) -> Worktree:
         return WorkspaceWorktree.chosen(self.config.root, name)
@@ -25,8 +24,6 @@ class WorktreeRemoval:
         return f"removed the worktree {tree.path}; its branch {tree.branch} and its last commit stay, and journal claude --worktree {tree.name} makes it again from there"
 
     def refusal(self, tree: Worktree) -> str:
-        if self.hosting.is_hosted():
-            return "the hosted journal has no checkout, so it holds no worktree to remove"
         if not tree.path.is_dir():
             return f"there is no worktree named {tree.name} at {tree.path}"
         if [agent for environment in self.environments.matching(name=tree.name) for agent in self.agents.unended_scoped(environment.row_id)]:
