@@ -1899,6 +1899,15 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   has a Plan agent and a mode, organization or solo, set while the plan is not running; a running plan never switches.
 - A started plan gets its own environment, a worktree on the plan's branch, and its Plan agent is that environment's
   one agent, so one agent per environment still holds.
+- The sidebar's Environments list shows only top-level environments. Plan environments and any environments below
+  them stay off that list; the plan and Role pages provide access to their agents and environment details
+  (message 1777, plan 2 task 71).
+- Claude subscription sessions report an estimated API cost, not a subscription charge. OpenRig's cost records
+  carry the native session, reset window, coverage and stale or unavailable status. The ledger records cumulative
+  estimate deltas without double-counting sessions or resets; an estimated usage cap controls work, not billing.
+  Five-hour and weekly subscription percentages and reset times are account-wide and shown separately from agent
+  estimates (message 1810, task 54). Sources: https://code.claude.com/docs/en/costs and
+  https://openrig.dev/whats-new/v0-6-12-rig-usage-cost-seat-session-json.
 - Organization mode: the Plan agent and the Domain agents never write code; Domain agents reason with a model on every
   hop; Roles do the work as OpenRig seats. After the sweep, seats replace the worker process; journal keeps the worker
   records, proofs and merge as the bookkeeping, so one runtime remains.
