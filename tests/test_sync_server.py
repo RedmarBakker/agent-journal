@@ -331,3 +331,15 @@ def test_a_person_changes_their_own_password_and_an_admin_resets_a_members(tmp_p
     team.store.close()
 
 
+
+
+def test_the_row_syncs_old_files_move_into_the_backups_once_and_the_librarys_files_stay(tmp_path):
+    from sync_server.old_row_files import OldRowFiles
+    files, backups = tmp_path / "files", tmp_path / "backups"
+    for folder in ("messages/4", "dumps/2", "items/skill/release/1"):
+        (files / folder).mkdir(parents=True)
+        (files / folder / "a.txt").write_text(folder)
+    moved = OldRowFiles(files, backups).moved()
+    assert sorted(path.name for path in moved) == ["dumps", "messages"] and all(path.parent.parent == backups for path in moved), "the old folders move into one folder of the backups"
+    assert (moved[0] / ("4" if moved[0].name == "messages" else "2") / "a.txt").is_file() and (files / "items/skill/release/1/a.txt").is_file(), "with their files, and the library's stay where they are"
+    assert OldRowFiles(files, backups).moved() == [], "a second start moves nothing"

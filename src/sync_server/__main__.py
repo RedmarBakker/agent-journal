@@ -6,11 +6,14 @@ from pathlib import Path
 from sync_server.db.store import Store
 from sync_server.team_server import BACKUPS, DATABASE, FILES, TeamServer
 from sync_server.item_file_place import ITEMS_FOLDER
+from sync_server.old_row_files import OldRowFiles
 from sync_server.server_backups import ServerBackups
 
 
 
 def serve(arguments: argparse.Namespace) -> None:
+    for folder in OldRowFiles(arguments.data / FILES, arguments.data / BACKUPS).moved():
+        print(f"moved the row sync's old files to {folder}", flush=True)
     team = TeamServer(arguments.data)
     if team.accounts.is_empty():
         print("this team server has no admin yet: the first journal to connect to it with journal library connect becomes its admin", flush=True)
