@@ -261,6 +261,7 @@ def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent
 
 def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget(full_project: App):
     orchestrating(full_project)
+    full_project.runtime().deferred.drain()
     with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
         polled_to = full_project.container.get(Entries).last_id()
     for n in range(TURN_SHELL_CALLS):
