@@ -13,7 +13,7 @@ from journal.repositories.tasks import Tasks
 
 # another task a brief or a log line names: task 12, after 12, once 12 is done
 TASK_NAMED = re.compile(r"\b(?:task|after|once)\s+#?(\d+)\b(?!\s*(?:min|minutes?|hours?|seconds?|days?|%))", re.IGNORECASE)
-HELD = (TaskState.BLOCKED, TaskState.PAUSED)
+STOPPED_STATES = (TaskState.BLOCKED, TaskState.PAUSED)
 
 
 class WaitReading:
@@ -25,13 +25,13 @@ class WaitReading:
     def measured(self) -> WaitUse:
         plans = self.plans.running_plans()
         unclosed = [task for plan in plans for task in self.plans.plan_tasks(plan) if not task.is_closed()]
-        held = [task for task in unclosed if task.state in HELD]
-        waiting = [task for task in held if self.tasks.open_waits(task)]
-        worded = [task for task in held if task not in waiting]
-        outside = sum(1 for task in worded if self.people.has_outside_name(task.waiting_reason()))
+        stopped_tasks = [task for task in unclosed if task.state in STOPPED_STATES]
+        waiting = [task for task in stopped_tasks if self.tasks.open_waits(task)]
+        unblocked_waits = [task for task in stopped_tasks if task not in waiting]
+        external_waits = sum(1 for task in unblocked_waits if self.people.has_outside_name(task.waiting_reason()))
         least = self.settings.integer(WorkersOptions.UNORDERED_PLAN_TASKS)
         unordered = sum(1 for plan in plans if least and self.plans.remaining_count(plan) >= least and not self.plans.blocked_count(plan))
-        return WaitUse(len(waiting), len(worded) - outside, outside, self.missing(unclosed), unordered)
+        return WaitUse(len(waiting), len(unblocked_waits) - external_waits, external_waits, self.missing(unclosed), unordered)
 
     def missing(self, unclosed: list[Task]) -> tuple[str, ...]:
         ids = {task.row_id for task in unclosed}

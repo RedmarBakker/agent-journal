@@ -220,17 +220,17 @@ class TeamJoin:
         copy = self.link.full_copy()
         backup = self.config.home / time.strftime(BACKUP_NAME)
         self.backups.write(backup)
-        kept = [environment.key for environment in self.environments.working()]
+        working_keys = [environment.key for environment in self.environments.working()]
         team_keys = {row.fields.get("key") for row in copy.rows if row.row_table == Environment.table()}
         self.renumbering.renumbered(account_id)
         self.copy.laid_beside(copy.rows)
         self.account.record_sequence(copy.head)
         self.claim_environments(prefix, account_id)
-        for key in kept:
+        for key in working_keys:
             self.namesakes_renamed(self.environments.keyed(key)[0])
         self.stamp_workers()
         self.outgoing.clear()
-        for key in kept:
+        for key in working_keys:
             if key not in team_keys:
                 self.entered(self.environments.keyed(key)[0])
         self.add_user(account_id, name)

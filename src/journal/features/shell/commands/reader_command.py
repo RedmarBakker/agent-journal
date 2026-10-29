@@ -98,9 +98,9 @@ class ReaderCommand(Command):
             self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
-        kept = self.retained_options(prior, args) if prior is not None else []
-        if kept:
-            print(f"kept from the reader before, as you did not give them: {', '.join(kept)}; give one as '' to drop it, such as --progress ''")
+        retained = self.retained_options(prior, args) if prior is not None else []
+        if retained:
+            print(f"kept from the reader before, as you did not give them: {', '.join(retained)}; give one as '' to drop it, such as --progress ''")
         return 0
 
     def tried(self, reader: Reader, prior: Reader | None) -> None:

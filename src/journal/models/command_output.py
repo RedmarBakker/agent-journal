@@ -60,8 +60,8 @@ class CommandOutput(Scoped):
     def total_requested(self, time: float) -> "CommandOutput":
         return self.with_(is_total_asked=True).with_event(OutputTotalMissing(environment_id=self.environment_id, time=time, run_session=self.session))
 
-    def silence_marked(self, time: float, quiet_seconds: int) -> "CommandOutput":
-        return self.with_(is_quiet_named=True).with_event(SilentOutputFound(environment_id=self.environment_id, time=time, run_session=self.session, quiet_seconds=quiet_seconds))
+    def silence_recorded(self, time: float, silence_seconds: int) -> "CommandOutput":
+        return self.with_(is_quiet_named=True).with_event(SilentOutputFound(environment_id=self.environment_id, time=time, run_session=self.session, silence_seconds=silence_seconds))
 
     def ended_with(self, status: int, time: float, summary: str | None = None) -> "CommandOutput":
         ended = self.with_(ended=True, status=status, summary=summary)

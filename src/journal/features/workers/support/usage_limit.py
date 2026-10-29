@@ -10,10 +10,10 @@ class UsageLimit:
 
     @staticmethod
     def reset_at(text: str, now: float) -> float:
-        found = LIMIT_LINE.search(text)
-        if found is None:
+        limit_match = LIMIT_LINE.search(text)
+        if limit_match is None:
             return 0.0
-        hour, minute, half = int(found.group(1)), int(found.group(2) or 0), (found.group(3) or "").lower()
+        hour, minute, half = int(limit_match.group(1)), int(limit_match.group(2) or 0), (limit_match.group(3) or "").lower()
         hour = UsageLimit.clock_hour(hour, half)
         if hour > 23 or minute > 59:
             return 0.0

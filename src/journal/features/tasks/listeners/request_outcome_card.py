@@ -14,9 +14,9 @@ class RequestOutcomeCard(Listener[SyncedUpdate]):
         self.cards, self.labels, self.account = cards, labels, account
 
     def handle(self, event: SyncedUpdate) -> None:
-        task, before = event.model, event.previous
+        task, prior_task = event.model, event.previous
         person = self.account.user_number()
-        if not (isinstance(task, Task) and isinstance(before, Task) and task.creator == Actor.user(person) and task.state != before.state):
+        if not (isinstance(task, Task) and isinstance(prior_task, Task) and task.creator == Actor.user(person) and task.state != prior_task.state):
             return
         name = self.labels.name("task", task)
         if task.is_declined():

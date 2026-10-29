@@ -10,4 +10,4 @@ class SilentOutputFound(RowEvent):
     feature_name = "shell"
 
     run_session: str | None
-    quiet_seconds: int
+    silence_seconds: int

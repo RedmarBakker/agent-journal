@@ -99,9 +99,9 @@ class Reader:
         if not self.summary_pattern:
             return ""
         for line in reversed(lines):
-            found = re.search(self.summary_pattern, line)
-            if found:
-                return ", ".join(group.strip() for group in found.groups() if group) if found.groups() else found.group(0).strip()
+            summary_match = re.search(self.summary_pattern, line)
+            if summary_match:
+                return ", ".join(group.strip() for group in summary_match.groups() if group) if summary_match.groups() else summary_match.group(0).strip()
         return ""
 
     def has_summary_reader(self) -> bool:

@@ -72,8 +72,8 @@ class Console:
     def run(self, argv: list[str], caller: Caller) -> Outcome:
         return self.scoped_run(argv, caller, io.StringIO())
 
-    def run_streamed(self, argv: list[str], caller: Caller, pieces: queue.Queue) -> Outcome:
-        return self.scoped_run(argv, caller, StreamedOutput(pieces))
+    def run_streamed(self, argv: list[str], caller: Caller, output_queue: queue.Queue) -> Outcome:
+        return self.scoped_run(argv, caller, StreamedOutput(output_queue))
 
     def scoped_run(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
         environment = self.names.resolved(caller.environment).row_id

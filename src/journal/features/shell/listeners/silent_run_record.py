@@ -15,4 +15,4 @@ class SilentRunRecord(AgentListener[Ticked]):
         for run in self.silent.running(event.session):
             output = self.outputs.find(run.output)
             if not output.is_quiet_named:
-                self.outputs.save(output.silence_marked(event.time, run.quiet_seconds), Actor.system())
+                self.outputs.save(output.silence_recorded(event.time, run.silence_seconds), Actor.system())

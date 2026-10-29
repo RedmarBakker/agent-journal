@@ -37,8 +37,8 @@ class RowProcessCard(ProcessCard):
 
     def subagent_label(self, environment_id: int, dispatcher: str, subagent_session: str) -> str:
         with self.scope.environment(environment_id):
-            found = self.subagents.session_subagent(dispatcher, subagent_session)
-        return f"subagent {found[0].agent_type}" if found else "a subagent"
+            subagents = self.subagents.session_subagent(dispatcher, subagent_session)
+        return f"subagent {subagents[0].agent_type}" if subagents else "a subagent"
 
     @staticmethod
     def created_line(row: Model, maker: str) -> str:

@@ -132,9 +132,9 @@ class DocCommand(Command):
         if doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
-        on_hub = self.hub_move.put(doc, hub.row_id, mode, owner, caller.actor)
-        copy = self.copy_row(on_hub, caller) if args.keep_copy else None
-        print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
+        hub_doc = self.hub_move.put(doc, hub.row_id, mode, owner, caller.actor)
+        copy = self.copy_row(hub_doc, caller) if args.keep_copy else None
+        print(f"doc {hub_doc.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0
 
     def copy(self, args: Namespace, caller: Caller) -> int:
@@ -167,8 +167,8 @@ class DocCommand(Command):
 
     def unshare(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
-        back = self.hub_move.reclaim(doc, self.scope.id, caller.actor)
-        print(f"doc {back.id} is off the hub and a document of this environment again")
+        local_doc = self.hub_move.reclaim(doc, self.scope.id, caller.actor)
+        print(f"doc {local_doc.id} is off the hub and a document of this environment again")
         return 0
 
     def mode(self, args: Namespace, caller: Caller) -> int:

@@ -25,5 +25,5 @@ class TaskTestRuns:
             task = self.tasks.find(ref.id)
             if not task.is_testing():
                 continue
-            result = task.test_passed(moment, output.outcome()) if output.is_success() else task.test_failed(moment, output.row_id, output.outcome())
-            self.tasks.save(result, actor)
+            updated_task = task.test_passed(moment, output.outcome()) if output.is_success() else task.test_failed(moment, output.row_id, output.outcome())
+            self.tasks.save(updated_task, actor)
