@@ -9,7 +9,7 @@ from journal.support.actor import Actor
 from journal.support.missing_row import MissingRow
 from journal.support.time_source import TimeSource
 
-CAUSED_TABLES = ("tasks", "plans", "docs", "reports")
+CAUSE_TABLES = ("tasks", "plans", "docs", "reports")
 WRITTEN_FIELDS = ("title", "brief", "body", "abstract")
 REPLY_WINDOW_SECONDS = 120
 
@@ -36,7 +36,7 @@ class ReplyCause:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
     def requested(self, row: Model, actor: Actor) -> list[Message]:
-        if not actor.is_agent() or row.table() not in CAUSED_TABLES:
+        if not actor.is_agent_or_subagent() or row.table() not in CAUSE_TABLES:
             return []
         reply = self.messages.latest_voice()
         if reply is None or not reply.reply_target or self.time_source.moment() - reply.created_at > timedelta(seconds=REPLY_WINDOW_SECONDS):

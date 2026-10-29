@@ -4,23 +4,32 @@ from journal.models.doc import Doc
 from journal.models.doc_edit_mode import DocEditMode
 from journal.repositories.docs import Docs
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.rejection import Rejection
 from journal.sync.hosting import Hosting
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
-
+from journal.support.agent_actor import AgentActor
+from journal.support.subagent_actor import SubagentActor
+from journal.support.user_actor import UserActor
+from journal.support.plugin_actor import PluginActor
+from journal.support.phone_actor import PhoneActor
+from journal.support.external_actor import ExternalActor
+from journal.support.worker_actor import WorkerActor
+from journal.support.verifier_actor import VerifierActor
+from journal.support.reviewer_actor import ReviewerActor
 
 class HubDocGuard(Listener[Saving]):
     """A change to a document on the hub is refused before it is made unless the person making it may: anyone changes the text of one free to edit, only whoever put it on the hub or an admin changes the text of a read-only one or who may edit it. The person is this journal's own, or on the hosted journal the one a browser signed in as; an admin of another journal is found among the team's people. The journal's own writes, a sync's among them, pass."""
+
+    actors = (AgentActor, SubagentActor, UserActor, PluginActor, PhoneActor, ExternalActor, WorkerActor, VerifierActor, ReviewerActor)
 
     def __init__(self, docs: Docs, account: TeamAccount, link: TeamServerLink, hosting: Hosting) -> None:
         self.docs, self.account, self.link, self.hosting = docs, account, link, hosting
 
     def handle(self, event: Saving) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or doc.is_new or event.actor.actor_type == ActorType.SYSTEM:
+        if not isinstance(doc, Doc) or doc.is_new:
             return
         prior = self.docs.find(doc.row_id)
         if not prior.is_on_hub() or not doc.is_edited_from(prior):

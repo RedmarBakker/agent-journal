@@ -113,6 +113,12 @@ class Actor:
     def can_share_environments(self) -> bool:
         return False
 
+    def is_system_actor(self) -> bool:
+        return False
+
+    def is_agent_or_subagent(self) -> bool:
+        return False
+
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:
         return agent_way
 

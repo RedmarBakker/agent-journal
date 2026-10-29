@@ -9,11 +9,13 @@ from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
+from journal.support.agent_actor import AgentActor
+from journal.support.phone_actor import PhoneActor
+from journal.support.user_actor import UserActor
 
 RELEASING = ("completed", "cancelled")
 PAUSED, BLOCKED = "paused", "blocked"
-DROPPING_ACTORS = (ActorType.USER, ActorType.PHONE, ActorType.AGENT)
+DROPPING_ACTORS = (UserActor, PhoneActor, AgentActor)
 DROPPED_LINE = "task {task} was paused while you worked on it and is no longer yours: leave it, keep what you committed on your branch, and go on with your queue"
 
 
@@ -26,7 +28,7 @@ class WorkerTaskChanges(Listener[RowEvent]):
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskClosed) and event.outcome in RELEASING:
             self.closed(event, self.tasks.find(event.task_id))
-        if isinstance(event, TaskClosed) and event.outcome == PAUSED and Actor.parse(event.actor).actor_type in DROPPING_ACTORS:
+        if isinstance(event, TaskClosed) and event.outcome == PAUSED and isinstance(Actor.parse(event.actor), DROPPING_ACTORS):
             self.dropped(event)
         if isinstance(event, TaskClosed) and event.outcome == BLOCKED:
             self.tasks.unqueued_task(self.tasks.find(event.task_id), Actor.system())

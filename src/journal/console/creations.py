@@ -2,7 +2,6 @@ from contextvars import ContextVar
 
 from journal.events.models.created import Created
 from journal.events.listener import Listener
-from journal.support.actor_type import ActorType
 from journal.models.command_output import CommandOutput
 from journal.models.entry import Entry
 from journal.models.link import Link
@@ -20,7 +19,7 @@ class Creations(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         produced = RUN.get()
-        if produced is not None and event.actor.actor_type != ActorType.SYSTEM and not isinstance(event.model, RECORD_ROWS):
+        if produced is not None and not event.actor.is_system_actor() and not isinstance(event.model, RECORD_ROWS):
             produced.append(event.model)
 
     @staticmethod

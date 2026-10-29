@@ -16,7 +16,9 @@ class Listener(Generic[E]):
 
     def accepts(self, event: E) -> bool:
         actor = getattr(event, "actor", None)
-        return actor is None or isinstance(actor, self.actors)
+        if not actor:
+            return True
+        return isinstance(Actor.parse(actor) if isinstance(actor, str) else actor, self.actors)
 
     def registered_class(self) -> type:
         return type(self)

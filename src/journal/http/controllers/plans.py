@@ -64,7 +64,7 @@ class PlanController(Controller[Plan]):
         return self.answered(self.rounds.begin(self.repository.find(request.number("id")), request.actor))
 
     def approve(self, request: Request) -> Response:
-        return self.answered(self.repository.approve(self.repository.find(request.number("id")), request.actor, self.comment_id(request)))
+        return self.answered(self.repository.user_approved(self.repository.find(request.number("id")), request.actor, self.comment_id(request)))
 
     def comment_id(self, request: Request) -> int | None:
         key = request.body.get("comment_key")
@@ -78,7 +78,7 @@ class PlanController(Controller[Plan]):
         return self.answered(self.repository.save(self.repository.find(request.number("id")).card_dismissed(), request.actor))
 
     def pause(self, request: Request) -> Response:
-        return self.answered(self.repository.postpone(self.repository.find(request.number("id")), request.actor))
+        return self.answered(self.repository.user_postponed(self.repository.find(request.number("id")), request.actor))
 
     def finish(self, request: Request) -> Response:
         return self.moved(request, lambda plan: plan.finished(self.time_source.moment().timestamp()))
@@ -93,7 +93,7 @@ class PlanController(Controller[Plan]):
 
     def abandon(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
-        self.repository.cancel(plan, request.actor)
+        self.repository.user_cancelled(plan, request.actor)
         return self.answered(self.repository.find(plan.row_id))
 
     def moved(self, request: Request, move) -> Response:
