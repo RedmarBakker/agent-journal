@@ -154,6 +154,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
 
     const domainToggles = [...host.querySelectorAll(".organization-domain-toggle")];
     domainToggles.filter((button) => button.getAttribute("aria-expanded") === "false").forEach((button) => button.click());
+    await nextTick();
     expect(host.querySelectorAll(".organization-role")).toHaveLength(50);
     const organizationHeader = [...host.querySelectorAll(".fold-head")].find((button) => button.textContent.trim() === "Organization");
     expect(organizationHeader.tagName).toBe("BUTTON");
