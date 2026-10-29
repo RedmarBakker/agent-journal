@@ -20,3 +20,6 @@ class PhoneActor(Actor):
 
     def can_read_comments(self) -> bool:
         return True
+
+    def can_disconnect_phone(self) -> bool:
+        return True

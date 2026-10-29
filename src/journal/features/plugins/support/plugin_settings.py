@@ -36,7 +36,7 @@ class PluginSettings:
         return settings
 
     def configure(self, name: str, key: str, value: str, actor: Actor) -> Plugin:
-        if not actor.is_desk_user():
+        if not actor.can_manage_plugins():
             raise Rejection("only the user configures a plugin")
         plugin = self.plugins.lookup(name)
         setting = next((s for s in self.schema(plugin) if s.key == key), None)

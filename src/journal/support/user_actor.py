@@ -20,3 +20,15 @@ class UserActor(Actor):
 
     def can_read_comments(self) -> bool:
         return True
+
+    def can_pair_phone(self) -> bool:
+        return True
+
+    def can_disconnect_phone(self) -> bool:
+        return True
+
+    def can_manage_plugins(self) -> bool:
+        return True
+
+    def can_share_environments(self) -> bool:
+        return True

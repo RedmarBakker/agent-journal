@@ -231,7 +231,7 @@ class PluginInstalling:
 
     @staticmethod
     def require_user(actor: Actor, does: str) -> None:
-        if not actor.is_desk_user():
+        if not actor.can_manage_plugins():
             raise Rejection(f"only the user {does} a plugin: `journal plugin propose <folder or git address>` shows them a card")
 
     def free(self, name: str) -> None:

@@ -101,6 +101,18 @@ class Actor:
     def can_read_comments(self) -> bool:
         return False
 
+    def can_pair_phone(self) -> bool:
+        return False
+
+    def can_disconnect_phone(self) -> bool:
+        return False
+
+    def can_manage_plugins(self) -> bool:
+        return False
+
+    def can_share_environments(self) -> bool:
+        return False
+
     def __eq__(self, compared: object) -> bool:
         return isinstance(compared, Actor) and (self.actor_type, self.id) == (compared.actor_type, compared.id)
 
