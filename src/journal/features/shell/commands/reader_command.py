@@ -76,7 +76,7 @@ class ReaderCommand(Command):
         prior = self.readers.stored_reader(args.name)
         if prior is None and not (args.pattern or args.script):
             raise Rejection("a new reader says what it picks with --pattern or --script")
-        if prior is not None and prior.script and not args.script and args.pattern is None:
+        if self.is_script_left_unreplaced(prior, args):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
@@ -158,3 +158,7 @@ class ReaderCommand(Command):
         for reader in readers:
             print(f"{reader.name}: {reader.subject}" + (" (locked)" if self.readers.is_locked(reader.name) else "") + (" (the default for its commands)" if reader.name in defaults else ""))
         return 0
+
+    @staticmethod
+    def is_script_left_unreplaced(prior: Reader | None, args: Namespace) -> bool:
+        return prior is not None and bool(prior.script) and not args.script and args.pattern is None

@@ -115,6 +115,9 @@ class Agent(Scoped):
     def thinking_ended(self, time: float) -> "Agent":
         return self.with_(thinking_at=0.0).with_event(AgentThinkingEnded(environment_id=self.environment_id, time=time, agent_session=self.session))
 
+    def is_top_state(self, state_name: str) -> bool:
+        return bool(self.stack) and self.stack[-1].get("state") == state_name
+
     def is_thinking(self) -> bool:
         return self.thinking_at > 0
 

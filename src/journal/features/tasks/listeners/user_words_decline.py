@@ -13,5 +13,5 @@ class UserWordsDecline(AgentListener[PromptSubmitted]):
 
     def handle(self, event: PromptSubmitted) -> None:
         agent = self.agents.newest_row(event.agent)
-        if event.is_users and agent.stack and agent.stack[-1].get("state") == CHOOSING_PAUSED_WORK:
+        if event.is_users and agent.is_top_state(CHOOSING_PAUSED_WORK):
             self.agents.rewritten(agent, Actor.system(), lambda current: current.paused_work_declined(event.time))
