@@ -395,6 +395,7 @@ exit 0
 $ agent: journal plan review 1
 exit 0
 plan 1 in review: put what the reviewers find straight into it, then journal plan ready 1
+created: plan review 1
 
 $ agent: journal plan ready 1 --changed 'nothing changed in review'
 exit 0
@@ -1229,6 +1230,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
+created: message 56
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1497,7 +1499,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 8
+created: setting 7
 
 $ agent: journal environment list
 exit 0
@@ -1635,12 +1637,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 9
+created: setting 8
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 10
+created: setting 9
 
 $ agent: journal skill list
 exit 0

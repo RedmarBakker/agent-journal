@@ -1835,9 +1835,9 @@ def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_
 
 
 def compaction_that_never_started(app: App, monkeypatch, between) -> list:
-    from journal.supervisor_link import SupervisorLink
+    from tests.agent_hooks import woken_capture
     transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
+    woken_capture(app, monkeypatch, transmitted)
     agents = app.container.get(Agents)
     hook(app, "SessionStart")
     app.console().run(["task", "create", "the footer", "--start"], AGENT)

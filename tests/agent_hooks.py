@@ -2,7 +2,7 @@ import time as timing
 from dataclasses import dataclass
 
 from journal.engine.clock import Clock
-from journal.support.typed_lines import JOURNAL_PREFIX, WAKE_LINE, TypedLines
+from journal.support.typed_lines import JOURNAL_PREFIX, TypedLines
 from journal.repositories.environments import Environments
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import posted
@@ -40,14 +40,14 @@ def typing_capture(app, monkeypatch, keystrokes: list) -> None:
 
 
 def woken_capture(app, monkeypatch, keystrokes: list) -> None:
-    """Catches what reaches a stopped agent as an agent that wakes and stops again at once sees it: the wake line typed into its terminal is taken back by its prompt, whose answer carries every line waiting, caught into keystrokes as the journal's lines; then the agent stops, so the next line wakes it again."""
+    """Catches what reaches a stopped agent as an agent that wakes and stops again at once sees it: the line typed into its terminal, taken back by its prompt, and every line waiting that the prompt's answer carries, each caught into keystrokes; then the agent stops, so the next line is typed again."""
     lines = app.container.get(TypedLines)
 
     def woken(link, environment_id: int, verb: str, fields: dict) -> None:
-        if fields.get("line") != WAKE_LINE:
-            keystrokes.append(fields.get("line", ""))
+        if "line" not in fields:
             return
-        lines.confirm(environment_id, WAKE_LINE)
+        keystrokes.append(fields["line"])
+        lines.confirm(environment_id, fields["line"])
         keystrokes.extend(f"{JOURNAL_PREFIX} {line}" for line in lines.pending_lines(environment_id))
         lines.rest(environment_id)
 

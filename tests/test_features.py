@@ -1262,9 +1262,7 @@ def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struc
     assert not any("reminder 2 is about this" in line for line in keystrokes), "a struck reminder matches no keyword"
 
 
-def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_is_typed_again(app: App, monkeypatch):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
+def test_a_message_left_while_the_typed_whisper_waits_unseen_rides_its_prompt(app: App, monkeypatch):
     from journal.support.typed_lines import TypedLines
     typed = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: typed.append(fields.get("line", "")))
@@ -1273,19 +1271,16 @@ def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_i
     hook(app, "SessionStart")
     for line in list(typed):
         lines.confirm(1, line)
-    app.container.get(SupervisorLink).release(1)
+    app.container.get(SupervisorLink).resting(1)
     console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
     hook(app, "MessageDisplay", message="I will look at the login next.")
     app.runtime().deferred.drain()
-    assert any("reminder 1 is about this" in line for line in typed), "the whisper is typed, and no prompt shows it arrived"
+    assert "reminder 1 is about this" in typed[-1], "the whisper is typed and wakes the agent, and no prompt shows it arrived"
     console.run(["message", "send", "are you there?"], USER)
     app.runtime().deferred.drain()
-    assert not any("new message" in line for line in typed), "the message's line is held behind the whisper still waiting"
-    stopped = hook(app, "Stop")[1]
-    app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + 30, silence_seconds=30.0))
-    app.runtime().deferred.drain()
-    held = stopped.get("decision") == "block" and "new message" in stopped.get("reason", "")
-    assert held or any("reminder 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
+    assert not any("new message" in line for line in typed), "the message's line waits behind the whisper still unseen, and nothing more is typed"
+    carried = str(hook(app, "UserPromptSubmit", prompt=typed[-1])[1])
+    assert "new message" in carried, "the whisper's prompt carries the message"
 
 
 
@@ -3119,12 +3114,13 @@ def test_the_agent_is_told_when_the_user_allows_a_program(app: App, monkeypatch)
     from journal.models.secret import Secret
     from journal.repositories.secrets import Secrets
     transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
+    woken_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     secret = app.container.get(Secrets).save(Secret(title="Github", proposed=("gh",)), Actor.agent("s1"))
     viewer(app, f"secrets/{secret.id}", {"programs": ["gh"], "proposed": []})
     app.runtime().deferred.drain()
-    assert any(nudge_reached(app, r.get("line", ""), SecretsNudges.SECRET_PROGRAM_GRANT, n=1, programs="gh") for r in transmitted)
+    carried = str(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert any(nudge_reached(app, line, SecretsNudges.SECRET_PROGRAM_GRANT, n=1, programs="gh") for line in [*transmitted, carried]), "the agent is told, woken when it stopped or on its next hook"
 
 
 def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_taken_back(app: App, tmp_path, monkeypatch):

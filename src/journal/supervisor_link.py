@@ -8,7 +8,7 @@ from pathlib import Path
 from journal.config import Config
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.queued_line import QueuedLine
-from journal.support.typed_lines import WAKE_LINE, TypedLines
+from journal.support.typed_lines import TypedLines
 from journal.repositories.setting_rows import SettingRows
 from journal.support.old_supervisor import OldSupervisor
 from journal.support.supervisor_announcement import SupervisorAnnouncement
@@ -47,10 +47,10 @@ class SupervisorLink:
         if not self.typed.is_disabled(environment_id):
             self.typed.queue(QueuedLine(environment_id, f"{JOURNAL_PREFIX} {' '.join(line.split())}", is_remark=True))
 
-    def wake(self, environment_id: int, following: float) -> None:
-        self.typed.typed(environment_id, WAKE_LINE)
+    def wake(self, environment_id: int, first: QueuedLine) -> None:
+        self.typed.typed(environment_id, first.line)
         self.typed.work(environment_id)
-        self._send(environment_id, "type", {"name": AGENT, "line": WAKE_LINE, "after": following})
+        self._send(environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds})
 
     def is_busy(self, environment_id: int) -> bool:
         return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.typed.is_working(environment_id)
@@ -97,8 +97,9 @@ class SupervisorLink:
         self.release(environment_id)
 
     def release(self, environment_id: int) -> None:
-        if not self.is_busy(environment_id) and self.typed.has_instructions(environment_id):
-            self.wake(environment_id, self.typed.wake_delay(environment_id))
+        first = None if self.is_busy(environment_id) else self.typed.first_instruction(environment_id)
+        if first is not None:
+            self.wake(environment_id, first)
 
     def erase(self, environment_id: int) -> None:
         self.keys(environment_id, LINE_ERASE * (self.typed.waiting_count(environment_id) + ERASE_MARGIN_LINES))

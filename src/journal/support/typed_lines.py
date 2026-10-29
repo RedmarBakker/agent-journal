@@ -5,11 +5,9 @@ from journal.support.time_source import TimeSource
 
 RECENT_SECONDS = 60.0
 JOURNAL_PREFIX = "[journal]"
-WAKE_LINE = f"{JOURNAL_PREFIX} new lines for you come with this prompt"
-
 
 class TypedLines:
-    """The lines for the agents, held until a hook's answer carries them, and the one wake line typed into a stopped agent's terminal so its prompt carries them: the wake line is confirmed by the prompt that contains its words, and until then it may have been lost; a woken agent counts as working until it stops again, so no second line is ever typed meanwhile. An environment paused holds every line until it is resumed; one disabled drops every line until it is enabled; clear empties what it holds: what the agent missed, the read at its next start tells it."""
+    """The lines for the agents, held until a hook's answer carries them, and the first of them typed into a stopped agent's terminal, waking it so its prompt carries the rest: the typed line is confirmed by the prompt that contains its words, and until then it may have been lost; a woken agent counts as working until it stops again, so no second line is ever typed meanwhile. An environment paused holds every line until it is resumed; one disabled drops every line until it is enabled; clear empties what it holds: what the agent missed, the read at its next start tells it."""
 
     def __init__(self, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -82,11 +80,11 @@ class TypedLines:
             return
         self._held.append(line)
 
-    def has_instructions(self, environment_id: int) -> bool:
-        return any(h.environment_id == environment_id and not h.is_remark for h in self._held)
-
-    def wake_delay(self, environment_id: int) -> float:
-        return max((h.delay_seconds for h in self._held if h.environment_id == environment_id and not h.is_remark), default=0.0)
+    def first_instruction(self, environment_id: int) -> QueuedLine | None:
+        first = next((h for h in self._held if h.environment_id == environment_id and not h.is_remark), None)
+        if first is not None:
+            self._held.remove(first)
+        return first
 
     def typed(self, environment_id: int, line: str) -> None:
         moment = self.time_source.seconds()

@@ -3,7 +3,7 @@ import re
 from enum import Enum
 
 from journal.engine.nudge import Nudge
-from journal.support.typed_lines import WAKE_LINE
+from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
@@ -198,9 +198,10 @@ class StoryChecks:
     def expect_project_file_is(self, path: str, text: str) -> None:
         assert (self.app.config.root / path).read_text() == text, f"{path} changed"
 
-    def expect_woken(self, times: int) -> None:
+    def expect_typed(self, *nudges: Nudge) -> None:
         typed = self.typed[self.typed_from:]
-        assert typed == [WAKE_LINE] * times, f"the terminal was to be typed the wake line {times} times since the story or its fixture began, and only that; typed {typed}"
+        lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
+        assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
     def expect_typed_last(self, line: str) -> None:
         last = self.typed[-1] if self.typed else ""
