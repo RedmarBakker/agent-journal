@@ -496,3 +496,46 @@ def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_an
         command = Codex().worker_command(runner.instructed(codex), codex.model, codex.resume, codex.session, roles.effort(codex))
         assert command[-3:-1] == ["-c", "model_reasoning_effort=max"] and command[-1] == runner.instructed(codex), "the effort is set with -c before the brief"
         assert "model_reasoning_effort" not in " ".join(Codex().worker_command("brief", "gpt-6-luna", "", "")), "no effort named, none set"
+
+
+def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_no_job_to_a_second_instance(tmp_path, monkeypatch):
+    from journal.config import Config
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.support.ref import Ref
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.supervisor_link import SupervisorLink
+    from journal.support.caller import Caller
+    from tests.main_journal import main_journal
+    from tests.organization_fixture import OrganizationFixture
+    from tests.test_features import hook
+    from tests.user_settings import user_set
+    from tests.worker_dispatch import dispatched
+    started = []
+    monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+    fixture = OrganizationFixture(tmp_path / "organization").write()
+    fixture.role("alpha", "steward", cardinality="journal", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "steward"])
+    agent = Caller.agent("main", "s1", "claude")
+    send = lambda console, name: dispatched(console, [name, f"the job of {name}", "--changes", "the files of its task", "--role", "steward"], agent)
+    first = main_journal(Config(tmp_path, port=0))
+    first.runtime().start()
+    user_set(first, "workers.organization_folder", str(fixture.root))
+    hook(first, "SessionStart")
+    first.console().run(["environment", "overview"], agent)
+    assert all(send(first.console(), name).code == 0 for name in ("Ada Lovelace", "Grace Hopper", "Ida Rhodes")) and len(started) == 1, "one instance, the other two jobs queued on it"
+    first.runtime().stop()
+    second = main_journal(Config(tmp_path, port=0))
+    second.runtime().start()
+    try:
+        with second.container.get(Scope).environment(1):
+            [instance] = second.container.get(Workers).role_instances("steward")
+            queued = lambda: [task.id for task in second.container.get(Tasks).queue(Ref.build(instance))]
+            assert queued() == [2, 3], "after the restart the queue keeps its order"
+            assert send(second.console(), "Edith Clarke").code == 0 and len(started) == 1 and len(second.container.get(Workers).role_instances("steward")) == 1, "a job sent after the restart joins the one instance"
+            assert queued() == [2, 3, 4] and len(set(queued())) == len(queued()), "at the end of the queue, and no job twice"
+    finally:
+        second.runtime().stop()
