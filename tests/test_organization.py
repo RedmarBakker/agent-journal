@@ -642,6 +642,8 @@ def test_old_seat_completion_cannot_finish_or_unmonitor_a_followup_generation(mo
     runner.time_source = SimpleNamespace(seconds=lambda: 30)
     entered, resume, failures = Event(), Event(), []
     worker_runner = object.__new__(WorkerRunner)
+    worker_runner._locks = {}
+    worker_runner._locks_lock = Lock()
     worker_runner.workers = runner.workers
     worker_runner.seats = SimpleNamespace(preserve=lambda *_args: failures.append("stale preserve"))
 

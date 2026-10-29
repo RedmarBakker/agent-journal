@@ -7408,6 +7408,7 @@ def test_worker_watch_reconnects_to_an_active_seat_process_after_restart():
 
 
 def test_worker_clockout_keeps_the_persistent_seat_process_and_token():
+    import threading
     from types import SimpleNamespace
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.worker import Worker
@@ -7420,6 +7421,8 @@ def test_worker_clockout_keeps_the_persistent_seat_process_and_token():
     current = worker.reported(20, 1)
     preserved = []
     runner = object.__new__(WorkerRunner)
+    runner._locks = {}
+    runner._locks_lock = threading.Lock()
     runner.workers = SimpleNamespace(find=lambda _row: current)
     runner.seats = SimpleNamespace(preserve=lambda seat, _actor, _identity: preserved.append(seat))
 
@@ -7429,6 +7432,7 @@ def test_worker_clockout_keeps_the_persistent_seat_process_and_token():
 
 
 def test_pending_seat_monitor_callback_does_not_restore_ownership_after_worker_stop():
+    import threading
     from types import SimpleNamespace
     from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -7443,6 +7447,8 @@ def test_pending_seat_monitor_callback_does_not_restore_ownership_after_worker_s
     seats = object.__new__(SeatRunner)
     seats.workers = SimpleNamespace(find=lambda _row: stopped, save=lambda current, _actor: saved.append(current) or current)
     runner = object.__new__(WorkerRunner)
+    runner._locks = {}
+    runner._locks_lock = threading.Lock()
     runner.workers = seats.workers
     runner.seats = seats
 
@@ -7450,6 +7456,111 @@ def test_pending_seat_monitor_callback_does_not_restore_ownership_after_worker_s
 
     assert stopped.state == WorkerState.STOPPED and stopped.token_hash == ""
     assert (stopped.pid, stopped.session, stopped.resume) == (0, "", "") and not saved
+
+
+def test_worker_seat_finish_serializes_generation_check_and_mutation_with_dispatch():
+    from threading import Event, Lock, Thread, current_thread
+    from types import SimpleNamespace
+    from journal.events.rows.worker_reused import WorkerReused
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.support.actor import Actor
+
+    old = Worker(id=18, name="Ada Lovelace", role="builder", plan_id=8, pid=91, token_hash="seat-token").moved("dispatched", 10)
+    current = [old]
+    finish_entered, allow_finish, send_waiting, send_blocked, send_acquired, send_done = Event(), Event(), Event(), Event(), Event(), Event()
+    failures, started, dispatch_results = [], [], []
+
+    class ObservedLock:
+        def __init__(self):
+            self.lock = Lock()
+
+        def __enter__(self):
+            if current_thread().name == "dispatch-after-validation":
+                send_waiting.set()
+                if self.lock.locked():
+                    send_blocked.set()
+            self.lock.acquire()
+            if current_thread().name == "dispatch-after-validation":
+                send_acquired.set()
+            return self
+
+        def __exit__(self, *_args):
+            self.lock.release()
+
+    workers = SimpleNamespace(
+        find=lambda _row: current[0],
+        save=lambda worker, _actor: current.__setitem__(0, worker) or worker,
+    )
+    runner = object.__new__(WorkerRunner)
+    runner._locks = {old.id: ObservedLock()}
+    runner._locks_lock = Lock()
+    runner.workers = workers
+    runner.seats = SimpleNamespace(
+        applies=lambda _worker: True,
+        start=lambda worker, _actor, _prompt, _ended: started.append(SeatJobIdentity.from_worker(worker)),
+        preserve=lambda *_args: failures.append("stale seat preservation"),
+    )
+    runner.instructed = lambda worker: worker.brief
+
+    def paused_finish(worker, _code, _actor, *, persistent_seat, seat_identity):
+        if not persistent_seat or seat_identity != SeatJobIdentity.from_worker(old):
+            failures.append("completion lost its original identity")
+        finish_entered.set()
+        if not allow_finish.wait(2):
+            failures.append("completion was not released")
+            return
+        workers.save(worker.reported(30, 1), Actor.system())
+
+    runner.finish = paused_finish
+    identity = SeatJobIdentity.from_worker(old)
+
+    def finish_old():
+        try:
+            runner.finish_seat(old, identity, 0, Actor.system())
+        except BaseException as failure:
+            failures.append(str(failure))
+
+    finisher = Thread(name="seat-finish", target=finish_old)
+    finisher.start()
+    assert finish_entered.wait(2), "the old callback validated its generation before the finish mutation"
+
+    actions = object.__new__(WorkerActions)
+    actions.runner = runner
+    actions.local = lambda _worker_id: current[0]
+
+    def relaunch(worker, brief, _dispatcher, actor, move):
+        followup = worker.resumed(brief, 40, WorkerReused, move)
+        saved = workers.save(followup, actor)
+        runner.start(saved, actor)
+        return saved
+
+    actions.relaunch = relaunch
+
+    def dispatch_followup():
+        try:
+            dispatch_results.append(actions.send(old.id, "follow-up", None, Actor.system()))
+        except BaseException as failure:
+            failures.append(str(failure))
+        finally:
+            send_done.set()
+
+    dispatcher = Thread(name="dispatch-after-validation", target=dispatch_followup)
+    dispatcher.start()
+    try:
+        assert send_waiting.wait(2), "WorkerActions.send attempted the same worker lock after generation validation"
+        assert send_blocked.is_set() and not send_acquired.is_set() and not send_done.is_set() and current[0] == old, "dispatch cannot replace the row before completion mutates it"
+    finally:
+        allow_finish.set()
+    finisher.join(2)
+    dispatcher.join(2)
+
+    assert not finisher.is_alive() and not dispatcher.is_alive() and not failures
+    assert current[0].state == WorkerState.DISPATCHED and current[0].brief == "follow-up"
+    assert started[-1] == SeatJobIdentity.from_worker(current[0]) and dispatch_results[-1] == current[0], "the follow-up starts under its own active seat generation"
 
 
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):

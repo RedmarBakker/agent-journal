@@ -66,12 +66,12 @@ class WorkerRunner:
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup
-        self._locks: dict[int, threading.Lock] = {}
+        self._locks: dict[int, threading.RLock] = {}
         self._locks_lock = threading.Lock()
 
-    def lock(self, worker_id: int) -> threading.Lock:
+    def lock(self, worker_id: int) -> threading.RLock:
         with self._locks_lock:
-            return self._locks.setdefault(worker_id, threading.Lock())
+            return self._locks.setdefault(worker_id, threading.RLock())
 
     def start(self, worker: Worker, actor: Actor) -> None:
         if self.seats.applies(worker):
@@ -209,17 +209,18 @@ class WorkerRunner:
             self.seats.preserve(worker, actor, seat_identity)
 
     def finish_seat(self, worker: Worker, identity: SeatJobIdentity, code: int, actor: Actor) -> None:
-        current = self.workers.find(worker.row_id)
-        if SeatJobIdentity.from_worker(current) != identity:
-            return
-        if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
-            self.seats.preserve(worker, actor, identity)
-            return
-        if code == END_UNWATCHED:
-            self.workers.save(current.unfinished(self.time_source.seconds(), "ended without clocking out"), actor)
-            self.seats.preserve(worker, actor, identity)
-            return
-        self.finish(current, code, actor, persistent_seat=True, seat_identity=identity)
+        with self.lock(worker.id):
+            current = self.workers.find(worker.row_id)
+            if SeatJobIdentity.from_worker(current) != identity:
+                return
+            if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+                self.seats.preserve(worker, actor, identity)
+                return
+            if code == END_UNWATCHED:
+                self.workers.save(current.unfinished(self.time_source.seconds(), "ended without clocking out"), actor)
+                self.seats.preserve(worker, actor, identity)
+                return
+            self.finish(current, code, actor, persistent_seat=True, seat_identity=identity)
 
     def recover_seat(self, worker: Worker, actor: Actor) -> None:
         self.seats.recover(worker, actor, self.instructed(worker), self.finish_seat)
