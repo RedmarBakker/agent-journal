@@ -2803,3 +2803,7 @@ only the Plan agent of a solo plan takes on a Role, in its plan's environment
 $ agent: journal role done
 exit 0
 the step as a Role has ended
+
+$ agent: journal organization plans
+exit 0
+no organization: set the agentic organization folder on the Settings page

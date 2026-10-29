@@ -311,3 +311,44 @@ def test_the_contracts_are_read_at_the_git_version_the_setting_names_and_a_versi
     user_set(app, "workers.organization_version", "no-such-version")
     problems = organization.reload().problems
     assert [problem.rule for problem in problems] == ["version"] and "not a commit" in problems[0].message
+
+
+def test_a_task_handed_or_queued_to_a_role_is_tied_to_its_domain_and_each_domain_lists_its_plans_with_only_its_tasks(app, tmp_path):
+    from datetime import datetime, timezone
+    from journal.features.organization.support.domain_plans import DomainPlans
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    from journal.support.caller import Caller
+    loaded(app, tmp_path)[1].reload()
+    tasks, workers, plans, links, domains, domain_plans = (app.container.get(kind) for kind in (Tasks, Workers, Plans, Links, DomainRows, DomainPlans))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="the floors"), actor)
+        built, kept, looked, loose = (tasks.save(Task(environment_id=1, title=title, brief=f"{title} reads"), actor) for title in ("the build", "the contract", "the lookup", "the loose end"))
+        for task in (built, kept, looked, loose):
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        builder, keeper, senior = (workers.save(Worker(environment_id=1, name=name, brief="b", profile="journal-senior", role=role), actor) for name, role in (("Mr. Brunel", "builder"), ("Ms. Hopper", "keeper"), ("Mr. Babbage", "")))
+        tasks.handover(built, Ref.build(builder), actor)
+        tasks.queued(looked, Ref.build(builder), actor)
+        tasks.queued(kept, Ref.build(keeper), actor)
+        tasks.handover(loose, Ref.build(senior), actor)
+        alpha, beta = domain_plans.of("alpha"), domain_plans.of("beta")
+        assert [(line.plan.id, [task.id for task in line.tasks]) for line in alpha] == [(plan.id, [built.id, looked.id])], "the plan lists under alpha with alpha's tasks alone, the one handed to no Role left out"
+        assert [(line.plan.id, [task.id for task in line.tasks]) for line in beta] == [(plan.id, [kept.id])], "the same plan lists under beta with beta's task alone"
+        assert alpha[0].is_active() and beta[0].is_active(), "a Role of each domain holds one of its tasks"
+        tasks.save(tasks.find(kept.id).completed(datetime.now(timezone.utc), "kept"), actor)
+        assert not domain_plans.of("beta")[0].is_active() and domain_plans.of("alpha")[0].is_active(), "beta's task done, no Role of beta holds the plan; alpha still does"
+        domains.task_tied(tasks.find(looked.id), "beta", actor)
+        assert [task.id for task in domain_plans.of("alpha")[0].tasks] == [built.id] and [task.id for task in domain_plans.of("beta")[0].tasks] == [kept.id, looked.id], "a task handed on to another domain's Role belongs to that domain alone"
+    shown = app.console().run(["organization", "plans"], Caller.agent("main", "s1", "claude")).text
+    assert f"domain alpha: Alpha\n  plan {plan.id} the floors, active: task {built.id} open\ndomain beta: Beta\n  plan {plan.id} the floors, active: task {kept.id} completed, task {looked.id} open" in shown

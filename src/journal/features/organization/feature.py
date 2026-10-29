@@ -1,6 +1,7 @@
 from journal.features.feature import Feature
 from journal.features.organization.commands.organization_command import OrganizationCommand
 from journal.features.organization.commands.role_command import RoleCommand
+from journal.features.organization.listeners.role_task_domain import RoleTaskDomain
 from journal.features.organization.organization_conduct import OrganizationConduct
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.organization_part import OrganizationPart
@@ -14,10 +15,11 @@ from journal.support.agent_role import AgentRole
 class OrganizationFeature(Feature[OrganizationData]):
     name = OrganizationPart.name
     title = "Agentic organization"
-    help = "The domains and Roles of an agentic organization are read from the folder the Settings page names; journal holds no list of them. Each Role is one value that solo and seats both use: a worker dispatched to a Role works inside its tools and approvals, and a solo Plan agent takes on one Role at a time as a pushed state."
+    help = "The domains and Roles of an agentic organization are read from the folder the Settings page names; journal holds no list of them. Each Role is one value that solo and seats both use: a worker dispatched to a Role works inside its tools and approvals, and a solo Plan agent takes on one Role at a time as a pushed state. A task handed or queued to a Role is linked to its domain, so each domain lists its plans."
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
     conduct = (OrganizationConduct,)
+    listeners = (RoleTaskDomain,)
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
     nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME)

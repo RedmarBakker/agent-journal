@@ -1990,3 +1990,8 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   (`Role.profile` renders the existing `Profile` for seats). Skill ids resolve against skill folders under the organization
   folder, the workspace `skills/` beside it and journal's own; tool ids are a small table, any other well-formed id being an
   external system. Not yet built: the `RoleWork` solo state, the data part, the version option (task 47).
+- A task's domain (task 65): when a task is handed or queued to a worker whose profile is a Role (an `in_hand` or
+  `queued_for` link from the worker), `RoleTaskDomain` links it, kind `belongs_to_domain`, to a `DomainRow`, the domain
+  as a row by its id, made when its first task is, shared and the same for every environment; one domain per task, the
+  last Role's. `journal organization plans` lists per domain the plans of every environment with tasks there, each with
+  only that domain's tasks, active while one of them is delegated and open (a Role of the domain works or holds it).
