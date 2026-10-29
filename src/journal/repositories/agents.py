@@ -109,6 +109,12 @@ class Agents(ScopedRepository[Agent]):
     def has_main_agent(self, session: str) -> bool:
         return bool(self.selected_globally(self.session_query(session).filter(role=AgentRole.MAIN).limit(1)))
 
+    def has_session_row(self, session: str) -> bool:
+        return self.stored_matching_count(self.query().filter(session=session)) > 0
+
+    def has_environment_main_agent(self, environment_id: int) -> bool:
+        return self.stored_matching_count(self.query().filter(environment_id=environment_id, role=AgentRole.MAIN)) > 0
+
     def session_rows(self, session: str) -> list[Agent]:
         return self.selected_globally(self.session_query(session))
 

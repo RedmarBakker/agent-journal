@@ -32,7 +32,7 @@ class HookSeats:
         return hook.is_session_end() and not self.agents.matching(session=hook.session)
 
     def is_replaced_session(self, hook: Hook, environment: Environment) -> bool:
-        return hook.is_main_agent_hook() and not hook.is_session_start() and not self.agents.matching(session=hook.session) and self.agents.environment_main_agent(environment.row_id) is not None
+        return hook.is_main_agent_hook() and not hook.is_session_start() and not self.agents.has_session_row(hook.session) and self.agents.has_environment_main_agent(environment.row_id)
 
     def caller_seated(self, caller: Caller) -> Caller:
         attributed = self.attributed(caller)
