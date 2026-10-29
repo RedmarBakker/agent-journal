@@ -191,7 +191,12 @@ def test_event_bridge_spools_only_allowed_row_references(tmp_path: Path):
     assert saved == {"at": row_event["at"], "environment": "pilot", "event": "checks.updated", "id": "check-1", "table": "checks", "v": "1"}
     assert "private text" not in path.read_text()
     assert bridge_service.hint_from(json.dumps({**row_event, "event": "messages.created"})) is None
-    assert bridge_service.hint_from(json.dumps({**row_event, "data": {"table": "checks", "id": "check-2", "body": "not a checks row"}})) is None
+    hint_with_extra_field = bridge_service.hint_from(
+        json.dumps({**row_event, "data": {"table": "checks", "id": "check-2", "body": "private text"}})
+    )
+    assert hint_with_extra_field is not None
+    assert set(hint_with_extra_field) == {"v", "event", "at", "environment", "table", "id"}
+    assert "body" not in hint_with_extra_field
 
 
 def test_event_spool_drops_hints_at_its_bound(tmp_path: Path, monkeypatch):
