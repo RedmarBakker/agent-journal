@@ -49,5 +49,5 @@ class SubagentCards(AgentListener[AgentEvent]):
         if self.cards.is_shown(key, actor):
             return
         report = self.subagents.report(event.session, row)
-        data = {**SubagentCard.built(event.session, agent, row, row.state, row.reason).as_data(), "returned": report}
+        data = {**SubagentCard.built(event.session, agent, row).as_data(), "returned": report}
         self.cards.show_fields(event.environment_id, event.session, f"Subagent {row.agent_type} ended: {row.task}", data, actor, CardType.SUBAGENTS, report or row.task, key)

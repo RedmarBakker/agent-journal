@@ -171,6 +171,11 @@ class StoryChecks:
         shown = sorted(row["title"] for row in get_answer(self.app, "/journal/plans", {"X-Journal-Env": environment})[1]["rows"])
         assert shown == sorted(titles), f"the plans of {environment} are {shown}, not {sorted(titles)}"
 
+    def expect_dispatch_card(self, **data) -> None:
+        cards = [row.get("data") or {} for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("dispatch")]
+        fields = {name: cards[-1].get(name) for name in data} if cards else {}
+        assert fields == data, f"the subagent's dispatch card holds {fields}, not {data}"
+
     def expect_card(self, n: int, **data) -> None:
         shown = self.api_row("messages", n).get("data") or {}
         fields = {name: shown.get(name) for name in data}

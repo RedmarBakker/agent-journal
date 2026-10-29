@@ -292,7 +292,7 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
             if any(c["state"] == "done" for c in thresholds()):
                 break
             time.sleep(0.1)
-        assert [(c["detail"], c["agent_type"], c["state"]) for c in thresholds()] == [("review the login", "journal-plan-reviewer", "running"), ("review the login", "journal-plan-reviewer", "done")], "a subagent's dispatch is a mark in the chat, and its end a mark of its own after it"
+        assert [(c["detail"], c["agent_type"], c["state"]) for c in thresholds()] == [("review the login", "journal-plan-reviewer", "done"), ("review the login", "journal-plan-reviewer", "done")], "a subagent's dispatch is a mark in the chat that reads done once it ends, and its end a mark of its own after it"
     finally:
         app.runtime().stop()
 
