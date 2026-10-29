@@ -50,7 +50,6 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.support.ref import Ref
 from journal.models.agent import Agent
 from journal.models.plan import Plan
@@ -79,7 +78,6 @@ from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.support.agent_token import AgentToken
 from tests.test_features import booted, hook
 from tests.in_process import posted
-from tests.nudge_lines import nudge_reached
 from tests.test_engine import CLASSIFIER
 from tests.user_settings import user_set
 from tests.worker_dispatch import dispatched
@@ -401,30 +399,18 @@ def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are
     no_role = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
     assert "Role dispatch needs an organization folder and plans.plan_agents on" in no_role.error, "with no organization, journal asks for its generic writing profile"
     without_folder = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--profile", "journal-medior"], agent)
-    assert without_folder.code == 0 and workers.scoped()[-1].profile == "journal-medior", "the shipped medior profile still dispatches without an organization folder"
+    with app.container.get(Scope).environment(1):
+        medior = workers.scoped()[-1]
+    assert without_folder.code == 0 and medior.profile == "journal-medior", "the shipped medior profile still dispatches without an organization folder"
 
     loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", False)
     role_while_off = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
     assert "Role dispatch needs an organization folder and plans.plan_agents on" in role_while_off.error, "an organization folder by itself does not switch journal to Role dispatch"
     without_roles = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--profile", "journal-senior"], agent)
-    worker = workers.scoped()[-1]
-    assert without_roles.code == 0 and worker.profile == "journal-senior" and not worker.role and not worker.contract, "the senior profile remains generic when an organization exists but Plan agents are off"
-
-
-def test_a_role_idle_worker_is_matched_by_its_role_contract_name(app, tmp_path):
-    fixture, _ = loaded(app, tmp_path)
-    fixture.role("alpha", "porter", cardinality="many", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
-    fixture.domain("alpha", roles=["scout", "builder", "porter"])
-    user_set(app, "plans.plan_agents", True)
-    user_set(app, "workers.idle_kept", 2)
-    hook(app, "SessionStart")
-    workers = app.container.get(Workers)
     with app.container.get(Scope).environment(1):
-        workers.save(Worker(name="Mr. Brunel", role="porter", state=WorkerState.REPORTED), Actor.system())
-        workers.save(Worker(name="Ms. Hopper", role="porter", state=WorkerState.REPORTED), Actor.system())
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal worker dispatch 'Ada Lovelace' 'the job' --changes 'the files of its task' --tests 'Scoped tests' --role porter"})
-    assert status == 409 and nudge_reached(app, json.dumps(body), WorkersNudges.IDLE_CAP, total=2, profile="porter", count=2), "the role name survives the idle worker projection and reaches the matching cap"
+        worker = workers.scoped()[-1]
+    assert without_roles.code == 0 and worker.profile == "journal-senior" and not worker.role and not worker.contract, "the senior profile remains generic when an organization exists but Plan agents are off"
 
 
 def test_a_domain_agent_can_dispatch_each_read_only_helper_profile(app, tmp_path):

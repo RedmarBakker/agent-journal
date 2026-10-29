@@ -9,6 +9,9 @@ from journal.engine.agent_launcher import AgentLauncher
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.plans.plan_outline import PlanOutline
 from journal.features.plans.plans_nudges import PlansNudges
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
 from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
 from journal.repositories.entries import NUDGE, Entries
@@ -17,11 +20,13 @@ from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import got, posted
 from tests.nudge_lines import nudge_reached
+from tests.organization_fixture import OrganizationFixture
 from tests.test_features import booted, hook
 from tests.user_settings import user_set
 
@@ -400,3 +405,24 @@ def test_a_plan_agent_can_dispatch_each_read_only_helper_profile(app: App, super
         tool_input = {"subagent_type": profile, "model": "sonnet", "description": f"read with {profile}", "prompt": "read the requested files"}
         status, answer = posted(app, "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "plan-session", "tool_name": "Agent", "tool_input": tool_input}, environment_header)
         assert status == 200, f"the Plan agent may dispatch {profile}: {answer}"
+
+
+def test_a_plan_agent_matches_idle_role_workers_by_the_role_contract_name(app: App, supervisors: Supervisors, tmp_path):
+    user_set(app, SWITCH, True)
+    fixture = OrganizationFixture(tmp_path / "organization").write()
+    fixture.role("alpha", "porter", cardinality="many", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "porter"])
+    user_set(app, "workers.organization_folder", str(fixture.root))
+    user_set(app, "workers.idle_kept", 2)
+    plan = started_plan(app, "the floors")
+    environment = plan_environment(app, plan)
+    environment_header = {"X-Journal-Env": environment.name}
+    status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "plan-session"}, environment_header)
+    assert status == 200, answer
+    with app.container.get(Scope).environment(environment.row_id):
+        workers = app.container.get(Workers)
+        workers.save(Worker(environment_id=environment.row_id, name="Mr. Brunel", role="porter", state=WorkerState.REPORTED), Actor.system())
+        workers.save(Worker(environment_id=environment.row_id, name="Ms. Hopper", role="porter", state=WorkerState.REPORTED), Actor.system())
+    command = "journal worker dispatch 'Ada Lovelace' 'the job' --changes 'the files of its task' --tests 'Scoped tests' --role porter"
+    status, body = posted(app, "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "plan-session", "tool_name": "Bash", "tool_input": {"command": command}}, environment_header)
+    assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.IDLE_CAP, total=2, profile="porter", count=2), "the Plan agent's idle Role rows match by the Role name through the dispatch check"
