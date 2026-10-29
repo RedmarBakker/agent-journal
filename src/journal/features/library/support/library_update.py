@@ -29,6 +29,8 @@ class LibraryUpdate:
         self.items, self.sequences, self.templates, self.profiles = items, sequences, templates, profiles
 
     def updated(self, item_type: str, name: str, actor: Actor, replacing: bool) -> LibraryItem:
+        if item_type == "plan":
+            raise Rejection(f"plan {name} is an outline, imported once as a draft plan and never updated: import a newer version as a new draft")
         item = self.items.imported(self.account.connection().key, item_type, name)
         if item is not None and not self.items.has_copy(item, self.profiles.config.root):
             self.items.delete(item, actor)
@@ -50,6 +52,8 @@ class LibraryUpdate:
         return sorted(name for name in set(imported_fields) | set(current) if imported_fields.get(name) != current.get(name))
 
     def local_body(self, item: LibraryItem) -> str:
+        if item.item_type == "plan":
+            return item.body
         if item.item_type == "reader":
             return ReaderBody.text(self.profiles.config.root / str(item.file_path))
         if item.item_type == "skill":
