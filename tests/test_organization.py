@@ -781,6 +781,165 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     assert ["rig", "send", member.target, "write the patch", "--json"] in calls
 
 
+def _seat_failure_world(app, tmp_path):
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.role_escalated import RoleEscalated
+    from journal.models.agent import Agent
+    from journal.models.plan import Plan
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.agents import Agents
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+
+    loaded(app, tmp_path)[1].reload()
+    escalated = []
+
+    class Escalated(Listener[RoleEscalated]):
+        def handle(self, event: RoleEscalated) -> None:
+            escalated.append((event.recipient, event.report))
+
+    app.container.get(Bus).listen(RoleEscalated, Escalated())
+    agents, domains, plans, workers, scope = (app.container.get(kind) for kind in (Agents, DomainRows, Plans, Workers, Scope))
+    actor = Actor.system()
+    with scope.environment(1):
+        plan = plans.save(Plan(environment_id=1, title="alpha build"), actor)
+        domain = agents.save(Agent(environment_id=1, session="domain-alpha", provider="codex", state="idle"), actor)
+        domains.agent_linked("alpha", domain, actor)
+        worker = workers.save(Worker(
+            environment_id=1, name="Ada Lovelace", brief="patch", role="builder", plan_id=plan.id,
+            profile="journal-senior", dispatcher="s1", provider="codex", model="gpt-6-luna",
+            state=WorkerState.DISPATCHED, pid=91, session="thread-9", token_hash="seat-token",
+        ).moved("dispatched", 100), actor)
+    return worker, workers, escalated, actor
+
+
+def _seat_failure_finisher(workers, tmp_path):
+    from threading import Lock
+    from types import SimpleNamespace
+    from journal.features.workers.support.worker_runner import WorkerRunner
+
+    runner = object.__new__(WorkerRunner)
+    runner._locks = {}
+    runner._locks_lock = Lock()
+    runner.workers = workers
+    runner.seats = SimpleNamespace(preserve=lambda *_args: None)
+    runner.config = SimpleNamespace(home=tmp_path)
+    runner.settings = SimpleNamespace(decimal=lambda _option: 1)
+    runner.time_source = SimpleNamespace(seconds=lambda: 200)
+    return runner
+
+
+def _seat_monitor(worker, workers, runtime, now, timeout_minutes):
+    from threading import Lock
+    from types import SimpleNamespace
+    from journal.features.organization.support.seat_runner import SeatRunner
+
+    runner = object.__new__(SeatRunner)
+    runner._guard = Lock()
+    runner._finishing = set()
+    runner.workers = workers
+    runner.tasks = SimpleNamespace(holder_task_ids=lambda _ref: (), finished_task_ids=lambda _ref: ())
+    runner.time_source = SimpleNamespace(seconds=lambda: now)
+    runner.settings = SimpleNamespace(decimal=lambda _option: timeout_minutes)
+    runner.runtime = runtime
+    return runner
+
+
+def test_a_dead_seat_requeues_its_job_and_escalates_to_its_domain_agent(app, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+    from journal.models.worker_state import WorkerState
+
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: False)
+    worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
+    finisher = _seat_failure_finisher(workers, tmp_path)
+    seat = _seat_monitor(worker, workers, SimpleNamespace(session=lambda *_args: None), 101, 0)
+    identity = SeatJobIdentity.from_worker(worker)
+
+    seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
+                 actor, finisher.finish_seat, worker.job_start_time())
+
+    current = workers.find(worker.row_id)
+    assert current.state == WorkerState.UNFINISHED and "ended without clocking out" in current.run_end
+    assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "ended without clocking out" in escalated[0][1]
+
+
+def test_a_stuck_seat_times_out_its_job_and_escalates_to_its_domain_agent(app, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+    from journal.models.worker_state import WorkerState
+
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
+    worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
+    finisher = _seat_failure_finisher(workers, tmp_path)
+    stopped = []
+    runtime = SimpleNamespace(
+        session=lambda *_args: SimpleNamespace(pid=91, session="thread-9", activity_status="busy", status_updated_at=100),
+        stop=lambda target, reason: stopped.append((target, reason)),
+    )
+    seat = _seat_monitor(worker, workers, runtime, 0, 1)
+    samples = iter((100.5, 161))
+    seat.time_source = SimpleNamespace(seconds=lambda: next(samples))
+    seat.record_usage = lambda *_args: None
+    identity = SeatJobIdentity.from_worker(worker)
+
+    seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
+                 actor, finisher.finish_seat, worker.job_start_time())
+
+    current = workers.find(worker.row_id)
+    assert stopped and current.state == WorkerState.UNFINISHED and "without ending" in current.run_end
+    assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "without ending" in escalated[0][1]
+
+
+def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitored_job(app, tmp_path, monkeypatch):
+    import subprocess
+    from threading import Lock
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from journal.features.organization.support import seat_runtime as seat_runtime_module
+    from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
+    from journal.features.organization.support.seat_runtime import SeatRuntime
+    from journal.models.worker_state import WorkerState
+
+    worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
+    finisher = _seat_failure_finisher(workers, tmp_path)
+    calls = []
+
+    def unreachable(arguments, **kwargs):
+        calls.append((arguments, kwargs))
+        raise subprocess.TimeoutExpired(arguments, kwargs["timeout"])
+
+    monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda _program: "/usr/bin/rig")
+    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace(option=lambda _option: ""), unreachable)
+    identity = SeatJobIdentity.from_worker(worker)
+    seat = object.__new__(SeatRunner)
+    seat._guard = Lock()
+    seat._finishing = set()
+    seat._active = {worker.id}
+    seat._active_jobs = {worker.id: identity}
+    seat.workers = workers
+    seat.runtime = runtime
+    seat.config = SimpleNamespace(home=tmp_path)
+    seat.scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    seat.member = lambda _worker: SimpleNamespace(openrig_version="0.7.5")
+
+    seat.monitor_existing(worker, identity, actor, finisher.finish_seat)
+
+    current = workers.find(worker.row_id)
+    assert current.state == WorkerState.UNFINISHED and "seat failed:" in current.run_end
+    assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "OpenRig --version failed" in escalated[0][1]
+    assert calls[0][0] == ["rig", "--version"] and calls[0][1]["timeout"] == 30 and not seat._active
+
+
 def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_for_journal_and_plan_and_a_worktree_of_its_own_for_many(app, tmp_path, monkeypatch):
     from journal.features.organization.support.role_instances import RoleInstances
     from journal.features.workers.support.worker_runner import WorkerRunner

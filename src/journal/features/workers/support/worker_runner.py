@@ -216,8 +216,15 @@ class WorkerRunner:
             if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
                 self.seats.preserve(worker, actor, identity)
                 return
-            if code == END_UNWATCHED:
-                self.workers.save(current.unfinished(self.time_source.seconds(), "ended without clocking out"), actor)
+            if code in (END_UNWATCHED, TIMEOUT_STATUS, ERROR_STATUS):
+                if code == END_UNWATCHED:
+                    reason = "ended without clocking out"
+                elif code == TIMEOUT_STATUS:
+                    reason = f"stopped after {self.minutes():g} minutes without ending"
+                else:
+                    detail = self.read(self.outputs(current)[1]).strip()
+                    reason = f"seat failed: {detail}" if detail else "seat failed"
+                self.workers.save(current.unfinished(self.time_source.seconds(), reason), actor)
                 self.seats.preserve(worker, actor, identity)
                 return
             self.finish(current, code, actor, persistent_seat=True, seat_identity=identity)
