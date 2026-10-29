@@ -56,9 +56,9 @@ import {useColleague} from "../composables/colleague.js";
 const scroller = ref(null);
 const views = ref(null);
 const docks = ref(null);
-const props = defineProps({view: {type: String, default: ""}, hidden: {type: Array, default: () => defaultHidden()}});
+const props = defineProps({view: {type: String, default: ""}, hidden: {type: Array, default: () => defaultHidden()}, scope: {type: Object, default: null}});
 const pane = computed(() => props.view || store.pane);
-const scope = useScope();
+const scope = props.scope || useScope();
 const here = !scope.env && !scope.chat;
 const rows = (table) => scope.rows(table);
 const owner = computed(() =>

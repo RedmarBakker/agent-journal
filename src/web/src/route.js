@@ -46,7 +46,7 @@ export const route = computed(() => {
         });
     return {
         env: environment.value,
-        page: page === "organization" && !planAgents.value ? "" : page,
+        page: ["organization", "role"].includes(page) && !planAgents.value ? "" : page,
         n: n ? (/^\d+$/.test(n) ? Number(n) : n) : 0,
         q: params.get("q") || "",
         sub: params.get("sub") || "",
@@ -54,6 +54,7 @@ export const route = computed(() => {
         plugin: params.get("plugin") || "",
         domain: params.get("domain") || "",
         role: params.get("role") || "",
+        instance: params.get("instance") || "",
         shared: params.get("roles") === "shared",
         install: params.get("install") || "",
         line: Number(params.get("line") || 0),
@@ -71,6 +72,7 @@ export const href = {
     organization: () => "#/organization",
     domain: (domain) => `#/organization?domain=${encodeURIComponent(domain)}`,
     role: (domain, role) => `#/organization?domain=${encodeURIComponent(domain)}&role=${encodeURIComponent(role)}`,
+    rolePage: (domain, role, instance = "") => `#/role?${new URLSearchParams({domain, role, ...(instance ? {instance} : {})})}`,
     sharedRoles: () => "#/organization?roles=shared",
     opened: (page, ref) => `${href.page(page)}?open=${ref}`,
 };
@@ -178,4 +180,4 @@ export function unpeek() {
     opening(route.value.stack.slice(0, -1));
 }
 
-export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker", "organization"];
+export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker", "organization", "role"];

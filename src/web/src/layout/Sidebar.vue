@@ -140,8 +140,8 @@ function point(e) {
                             <a
                                 v-for="role in domain.roles"
                                 :key="role.id"
-                                :class="['item', 'organization-role', {on: route.page === 'organization' && route.domain === domain.id && route.role === role.id}]"
-                                :href="href.role(domain.id, role.id)"
+                                :class="['item', 'organization-role', {on: ['organization', 'role'].includes(route.page) && route.domain === domain.id && route.role === role.id}]"
+                                :href="href.rolePage(domain.id, role.id)"
                                 :aria-label="`${role.title}: ${roleCountTitle(domain, role)}`"
                             >
                                 <span class="label">{{ role.title }}</span>

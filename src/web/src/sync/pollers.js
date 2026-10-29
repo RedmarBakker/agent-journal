@@ -11,6 +11,7 @@ import {checkTunnel} from "../composables/shares.js";
 import {RECENT, pageOf} from "./paging.js";
 import {reviewSteps} from "../domain/reviewer.js";
 import {updatedAt} from "../domain/row.js";
+import {isRoleWorker, roleWorkOf} from "../domain/roleInstances.js";
 
 const LIVE = 5;
 const BUSY_EVERY = 500;
@@ -19,6 +20,58 @@ const ASK_EVERY = 1500;
 const newest = () => (store.entries.length ? store.entries[store.entries.length - 1].id : 0);
 const polledTo = {env: "", id: 0};
 const busy = () => Boolean(store.bar && store.bar.length) || isActive(agent.value && agent.value.status);
+// follow the existing row-list cursor through each environment's Role history
+const ROLE_PAGE = 200;
+
+async function everyPage(client, table, closed = false) {
+    const rows = [];
+    let got = await client.list(table, {limit: ROLE_PAGE, closed});
+    rows.push(...(got.rows || []));
+    while (!got.is_last_page && got.rows?.length) {
+        const before = Math.min(...got.rows.map((row) => row.id));
+        got = await client.list(table, {limit: ROLE_PAGE, before, closed});
+        rows.push(...(got.rows || []));
+    }
+    return rows;
+}
+
+async function selectedRows(client, table, ids, closed = false) {
+    const groups = [];
+    for (let i = 0; i < ids.length; i += ROLE_PAGE) groups.push(ids.slice(i, i + ROLE_PAGE));
+    const pages = await Promise.all(groups.map((part) => client.list(table, {ids: part, closed})));
+    return pages.flatMap((page) => page.rows || []);
+}
+
+async function roleRows({domain, role}) {
+    const environments = await everyPage(api, "environments");
+    const places = await Promise.all(environments.map(async (environment) => {
+        const client = api.in(environment.name);
+        const [workers, closedWorkers, agents, closedAgents, plans, closedPlans] = await Promise.all([
+            everyPage(client, "workers"), everyPage(client, "workers", true),
+            everyPage(client, "agents"), everyPage(client, "agents", true),
+            everyPage(client, "plans"), everyPage(client, "plans", true),
+        ]);
+        const roleWorkers = [...new Map([...workers, ...closedWorkers].filter((row) => isRoleWorker(row, role)).map((row) => [row.id, row])).values()];
+        const roleAgents = [...new Map([...agents, ...closedAgents].filter((row) => roleWorkOf(row, role)).map((row) => [row.id, row])).values()];
+        const closedWorkerIds = new Set(closedWorkers.map((row) => row.id));
+        const detailedWorkers = (await Promise.all([
+            selectedRows(client, "workers", roleWorkers.filter((row) => !closedWorkerIds.has(row.id)).map((row) => row.id)),
+            selectedRows(client, "workers", roleWorkers.filter((row) => closedWorkerIds.has(row.id)).map((row) => row.id), true),
+        ])).flat();
+        const agentIds = [...new Set([...roleAgents.map((row) => row.id), ...detailedWorkers.map((row) => row.agent).filter(Boolean)])];
+        const closedAgentIds = new Set(closedAgents.map((row) => row.id));
+        const detailedAgents = (await Promise.all([
+            selectedRows(client, "agents", agentIds.filter((id) => !closedAgentIds.has(id))),
+            selectedRows(client, "agents", agentIds.filter((id) => closedAgentIds.has(id)), true),
+        ])).flat();
+        return {
+            workers: detailedWorkers.map((row) => ({...row, environment: environment.name})),
+            agents: detailedAgents.map((row) => ({...row, environment: environment.name})),
+            plans: [...new Map([...plans, ...closedPlans].map((row) => [row.id, row])).values()].map((row) => ({...row, environment: environment.name})),
+        };
+    }));
+    return {key: `${domain}/${role}`, workers: places.flatMap((place) => place.workers), agents: places.flatMap((place) => place.agents), plans: places.flatMap((place) => place.plans)};
+}
 
 // the steps of every reviewer the journal sent here, read from each one's own chat, its newest steps
 function readReviewSteps() {
@@ -121,6 +174,7 @@ export const POLLERS = Object.freeze({
     "workers.index": {read: () => workerChanges("workers.index", pageOf("workers")), every: 5000},
     "workers.activity": {read: () => api.workerActivity().then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => workerChanges("workers.every", 200), every: 5000},
+    "organization.role.instances": {read: roleRows, every: 15000, by: ({domain, role}) => `${domain}/${role}`},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewers.every": {read: () => api.list("reviewers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},

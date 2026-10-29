@@ -32,6 +32,7 @@ const props = defineProps({
     agent: {type: Object, default: null},
     subagents: {type: Array, default: () => []},
     skills: {type: Array, default: () => []},
+    chatScope: {type: Object, default: null},
     run: {type: Function, default: async () => {}},
 });
 const emit = defineEmits(["back", "close", "open-subagent"]);
@@ -167,7 +168,7 @@ const openSkills = () => go("skills");
             <template #view="{view, pane, tune}">
                 <SwitchCase :value="view">
                     <template #chat>
-                        <Thread view="chat" />
+                        <Thread view="chat" :scope="chatScope" />
                     </template>
                     <template #transcript>
                         <TranscriptLog ref="log" class="fill" :transcript="transcript" :entries="turns" :env="env" />

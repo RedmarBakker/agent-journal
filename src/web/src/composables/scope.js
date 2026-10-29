@@ -14,28 +14,29 @@ export const useScope = () => inject("scope", HERE);
 
 // The own chat of a worker or a subagent: its messages read from its own rows and paged apart from the main chat's, every other
 // table as this environment holds it; written to by send, or by no one, as a subagent's is.
-export function scopeOfChat(session, send = null) {
+export function scopeOfChat(session, send = null, client = api) {
     const key = `chat:${session}`;
+    const base = client.env() === api.env() ? HERE : scopeIn(client.env());
     const chatRows = () => store.elsewhere[key] || [];
     const keep = (got) => (store.elsewhere[key] = merged(chatRows(), (got && got.rows) || []));
     let more = true;
     async function earlierOf(...tables) {
         if (!tables.includes("messages") || !more) return;
         const before = chatRows().reduce((low, r) => Math.min(low, r.id), Infinity);
-        const got = await api.chat(session, {limit: pageOf("messages"), before: Number.isFinite(before) ? before : 0});
+        const got = await client.chat(session, {limit: pageOf("messages"), before: Number.isFinite(before) ? before : 0});
         keep(got);
         more = !got.is_last_page;
     }
     return {
-        env: "",
-        api,
-        rows: (table) => (table === "messages" ? chatRows() : rows(table)),
-        loaded: (table) => (table === "messages" ? key in store.elsewhere : hasLoaded(table)),
-        holding: (table, ids) => (table === "messages" ? Promise.resolve() : holding(table, ids)),
-        readComments,
+        ...base,
+        env: client.env(),
+        api: client,
+        rows: (table) => (table === "messages" ? chatRows() : base.rows(table)),
+        loaded: (table) => (table === "messages" ? key in store.elsewhere : base.loaded(table)),
+        holding: (table, ids) => (table === "messages" ? Promise.resolve() : base.holding(table, ids)),
         earlier: earlierOf,
         ...ADDED_ONLY,
-        chat: {session, send, refresh: async () => keep(await api.chat(session, {limit: pageOf("messages")}))},
+        chat: {session, send, refresh: async () => keep(await client.chat(session, {limit: pageOf("messages")}))},
     };
 }
 

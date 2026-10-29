@@ -129,8 +129,8 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     const roles = [...host.querySelectorAll(".organization-role")];
     const many = roles.find((link) => link.textContent.includes("Many jobs"));
     const queue = roles.find((link) => link.textContent.includes("Queue"));
-    expect(many.getAttribute("href")).toBe("#/organization?domain=sales&role=many");
-    expect(queue.getAttribute("href")).toBe("#/organization?domain=sales&role=queue");
+    expect(many.getAttribute("href")).toBe("#/role?domain=sales&role=many");
+    expect(queue.getAttribute("href")).toBe("#/role?domain=sales&role=queue");
     expect(many.querySelector(".count").textContent).toBe("2");
     expect(many.querySelector(".count").title).toBe("2 running instances");
     expect(queue.querySelector(".count").textContent).toBe("4");

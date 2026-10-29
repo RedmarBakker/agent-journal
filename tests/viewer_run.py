@@ -125,6 +125,16 @@ SETS = {
         "tests/approvals.test.js",
         "tests/approvalPhone.test.js",
     ),
+    "role_page": (
+        "tests/rolePage.test.js",
+        "tests/organizationRoutes.test.js",
+        "tests/organizationSidebar.test.js",
+        "tests/agentTalk.test.js",
+        "tests/thread.test.js",
+        "tests/workerHome.test.js",
+        "tests/workerInspector.test.js",
+        "tests/transcript.test.js",
+    ),
     "phone_navigation": (
         "tests/phone.test.js",
     ),

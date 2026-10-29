@@ -25,6 +25,7 @@ const {choose} = await import("../src/state/environment.js");
 const {store} = await import("../src/state/store.js");
 const {default: WorkerHome} = await import("../src/pages/WorkerHome.vue");
 const {default: WorkerPage} = await import("../src/resource/WorkerPage.vue");
+const {scopeOfChat} = await import("../src/composables/scope.js");
 choose("main");
 
 const worker = {id: 3, name: "Lady Lovelace", state: "clocked in", session: "w-3", agent: 9, brief: "Write the parser.", created_at: "2026-10-23T08:00:00Z", updated_at: "2026-10-23T08:30:00Z", task: {task_id: null, points: [], todos: [], proofs: []}};
@@ -100,4 +101,18 @@ test("the worker's inspector offers its home view", async () => {
     expect(open).toBeTruthy();
     open.click();
     expect(location.hash).toBe("#/worker/3");
+});
+
+test("a Role worker chat reads from the selected environment client", async () => {
+    const client = api.in("plan-12");
+    const chat = vi.spyOn(client, "chat").mockResolvedValue({rows: [], is_last_page: true});
+    const send = vi.fn();
+    const scope = scopeOfChat("role-worker-12", send, client);
+
+    expect(scope.env).toBe("plan-12");
+    expect(scope.api).toBe(client);
+    await scope.chat.refresh();
+    await scope.chat.send("continue the plan");
+    expect(chat).toHaveBeenCalledWith("role-worker-12", expect.objectContaining({limit: expect.any(Number)}));
+    expect(send).toHaveBeenCalledWith("continue the plan");
 });

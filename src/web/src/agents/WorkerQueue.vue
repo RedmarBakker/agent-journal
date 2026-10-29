@@ -1,14 +1,15 @@
 <script setup>
-import {peek} from "../route.js";
+import {peek, peekThere} from "../route.js";
 
-defineProps({queue: {type: Array, required: true}});
+const props = defineProps({queue: {type: Array, required: true}, env: {type: String, default: ""}});
+const open = (id) => (props.env ? peekThere(props.env, "tasks", id) : peek("tasks", id));
 </script>
 
 <template>
     <div class="queued" data-worker-queue>
         <span class="queued-label">Queued next</span>
         <template v-for="queued in queue" :key="queued.id">
-            <a href="#" class="queued-task" @click.prevent="peek('tasks', queued.id)">Task {{ queued.id }}: {{ queued.title }}</a>
+            <a href="#" class="queued-task" @click.prevent="open(queued.id)">Task {{ queued.id }}: {{ queued.title }}</a>
         </template>
     </div>
 </template>

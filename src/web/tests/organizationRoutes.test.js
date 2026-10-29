@@ -20,6 +20,7 @@ describe("the organization pages' addresses", () => {
         [href.organization(), {page: "organization", domain: "", role: "", shared: false}],
         [href.domain("Sales & Ops"), {page: "organization", domain: "Sales & Ops", role: ""}],
         [href.role("Sales", "Account manager"), {page: "organization", domain: "Sales", role: "Account manager"}],
+        [href.rolePage("Sales", "Account manager", "worker:plan-2:9"), {page: "role", domain: "Sales", role: "Account manager", instance: "worker:plan-2:9"}],
         [href.sharedRoles(), {page: "organization", shared: true, domain: ""}],
     ])("%s opens from a link and is read back, and stays after a reload", async (hash, wanted) => {
         await at(hash);
@@ -37,7 +38,7 @@ describe("the organization pages' addresses", () => {
 });
 
 describe("the organization addresses with the plan agents setting off", () => {
-    test.each([href.organization(), href.domain("Sales"), href.role("Sales", "Account manager"), href.sharedRoles()])("%s leads to the old Home, and to the page once the setting is on", async (hash) => {
+    test.each([href.organization(), href.domain("Sales"), href.role("Sales", "Account manager"), href.rolePage("Sales", "Account manager"), href.sharedRoles()])("%s leads to the old Home, and to the page once the setting is on", async (hash) => {
         store.settings = {plans: {plan_agents: false}};
         await at(hash);
         expect(planAgents.value).toBe(false);
