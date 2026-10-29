@@ -468,11 +468,6 @@ export class ApiClient {
         return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace});
     }
 
-    // how a shared journal's sync with its team stands, one line for the status bar
-    syncLine() {
-        return this.get("/sync");
-    }
-
     // the work mode the plan bar's buttons set, and the pause of an agent
     saveMode(mode) {
         return this.post(this.here("/mode"), {mode});

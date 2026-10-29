@@ -19,16 +19,12 @@ import {narrow} from "../platform/view.js";
 import {project, tint} from "../state/identity.js";
 import {pageTitle as title} from "../composables/pageTitle.js";
 import {useFloatingChat} from "../composables/floatingChat.js";
-import {useSyncStatus} from "../composables/syncStatus.js";
 
 const drop = ref(false);
 const wrap = ref(null);
 useOutside(wrap, () => (drop.value = false));
 const {floatingChat, toggleChat} = useFloatingChat();
 const phoneOpen = ref(false);
-const sync = useSyncStatus();
-// the team button's dot: green in step with the team, blue while changes go out or it connects, red when it cannot sync
-const SYNC_TONES = {in_step: "good", waiting: "busy", connecting: "busy", not_connected: "bad", version: "bad"};
 // a paired phone keeps the tunnel open even with sharing off, so its button stays while one is connected
 usePoll("phones.index", {active: () => !onPhone});
 </script>
@@ -80,12 +76,6 @@ usePoll("phones.index", {active: () => !onPhone});
                 <template v-if="phoneOpen">
                     <PhoneDialog @close="phoneOpen = false" />
                 </template>
-            </template>
-            <template v-if="sync.state">
-                <a class="icon-btn team-btn" :href="href.settings('team')" v-tip="{title: 'Team', line: sync.line}">
-                    <Icon name="people" />
-                    <span :class="['team-dot', SYNC_TONES[sync.state]]" />
-                </a>
             </template>
             <a class="icon-btn" :href="href.page('search')" v-tip="'Search'"><Icon name="search" /></a>
             <div ref="wrap" class="drop-wrap">
@@ -250,26 +240,4 @@ usePoll("phones.index", {active: () => !onPhone});
     background: var(--tone-good);
 }
 
-.team-btn {
-    position: relative;
-}
-
-.team-dot {
-    position: absolute;
-    right: 4px;
-    bottom: 5px;
-    width: 6px;
-    height: 6px;
-    border: 1.5px solid var(--bg);
-    border-radius: 50%;
-    background: var(--tone-good);
-}
-
-.team-dot.busy {
-    background: var(--accent);
-}
-
-.team-dot.bad {
-    background: var(--danger);
-}
 </style>

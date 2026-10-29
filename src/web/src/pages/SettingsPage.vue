@@ -110,8 +110,8 @@ const sized = new ResizeObserver(([entry]) => page.value && page.value.style.set
 onMounted(() => bars.value && sized.observe(bars.value));
 onUnmounted(() => sized.disconnect());
 const saveTiming = (row, next) => change(row.timing.target, row.label, next);
-// the Team tab is a form for the whole journal, saved by its own buttons: neither note above the settings is true of it
-const formTab = computed(() => !across.value && tab.value === "team");
+// the Library tab is a form for the whole journal, saved by its own buttons: neither note above the settings is true of it
+const formTab = computed(() => !across.value && tab.value === "library");
 </script>
 
 <template>

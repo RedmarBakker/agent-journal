@@ -1677,10 +1677,6 @@ def test_a_critique_asked_from_the_plan_page_puts_a_ready_plan_in_review(tmp_pat
         app.runtime().stop()
 
 
-def test_the_status_bar_reads_no_sync_line_in_a_journal_in_no_team(server):
-    assert call(server, "GET", "/journal/sync") == (200, {"line": "", "state": ""}), "a journal in no team has no sync to show, so the top bar shows no Team button"
-
-
 def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_hook_command_and_page(journal_root: Path):
     import sys
     app = App(Config(journal_root, port=0))

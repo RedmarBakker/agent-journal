@@ -14,7 +14,6 @@ from journal.http.controllers.mcp import McpController
 from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
 from journal.http.controllers.mode import ModeController
-from journal.http.controllers.sync import SyncController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
 from journal.http.controllers.notices import NoticeController
@@ -108,7 +107,6 @@ class Routes:
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
         router.post(f"{API}/updates/force", get(UpdateController).force_update)
-        router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
         router.get(f"{API}/people", get(PeopleController).show)
         mode = get(ModeController)
