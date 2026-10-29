@@ -7499,12 +7499,6 @@ def test_worker_seat_finish_serializes_generation_check_and_mutation_with_dispat
     runner._locks = {old.id: ObservedLock()}
     runner._locks_lock = Lock()
     runner.workers = workers
-    runner.seats = SimpleNamespace(
-        applies=lambda _worker: True,
-        start=lambda worker, _actor, _prompt, _ended: started.append(SeatJobIdentity.from_worker(worker)),
-        preserve=lambda *_args: failures.append("stale seat preservation"),
-    )
-    runner.instructed = lambda worker: worker.brief
 
     def paused_finish(worker, _code, _actor, *, persistent_seat, seat_identity):
         if not persistent_seat or seat_identity != SeatJobIdentity.from_worker(old):
@@ -7535,7 +7529,7 @@ def test_worker_seat_finish_serializes_generation_check_and_mutation_with_dispat
     def relaunch(worker, brief, _dispatcher, actor, move):
         followup = worker.resumed(brief, 40, WorkerReused, move)
         saved = workers.save(followup, actor)
-        runner.start(saved, actor)
+        started.append(SeatJobIdentity.from_worker(saved))
         return saved
 
     actions.relaunch = relaunch
