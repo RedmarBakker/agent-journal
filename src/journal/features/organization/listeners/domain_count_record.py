@@ -30,10 +30,10 @@ class DomainCountRecord(Listener[ModelEvent]):
     def touched(self, model, removed: bool) -> list[str]:
         if isinstance(model, Link) and model.link_type in COUNTED_LINKS:
             return [name for ref in (model.source, model.target) for name in self.named(ref)]
-        if removed:
-            return []
         if isinstance(model, Worker):
             return [self.domain_of(model)]
+        if removed:
+            return []
         if isinstance(model, Task):
             return self.domains.domain_names(model)
         if isinstance(model, Plan):

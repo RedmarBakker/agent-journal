@@ -599,3 +599,6 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         queued = {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"]
         tasks.unqueued(Ref.build(builder), actor)
         assert queued == 1 and {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"] == 0, "a queue emptied is counted again"
+        assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 1, "the active builder instance is still counted before deletion"
+        workers.delete(workers.find(builder.id), actor)
+        assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 0, "deleting an active instance immediately changes its domain's figure"
