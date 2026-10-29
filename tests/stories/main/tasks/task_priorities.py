@@ -28,6 +28,7 @@ def test_tasks_given_a_priority_are_not_asked_about(story):
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_task_list_puts_the_most_urgent_first_by_name_or_number(story):
     story.agent_runs(story.agents.subject, "task create 'the docs'")
+    story.expect_task_made_by(story.agents.subject, story.task_number())
     story.agent_runs(story.agents.subject, "task create 'the outage' --priority critical")
     story.agent_runs(story.agents.subject, "task create 'the odd one' --priority 120")
     story.agent_runs(story.agents.subject, "task list")

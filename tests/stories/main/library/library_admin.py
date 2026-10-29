@@ -29,3 +29,11 @@ def test_a_library_admin_invites_with_a_code_and_lists_its_people_and_devices(st
     story.user_types("library devices")
     story.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_library_member_is_refused_an_invite_since_only_an_admin_invites(story):
+    story.user_is_a_library_member()
+    story.user_types("library invite dan@example.com")
+    story.expect_command_refused()
+    story.expect_stack(story.agents.subject, Ready)

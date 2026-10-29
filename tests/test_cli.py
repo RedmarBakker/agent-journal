@@ -30,17 +30,6 @@ def app(journal_root: Path) -> App:
 
 
 
-def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
-    app.console().run(["task", "create", "t", "--start"], Caller.agent("main", "s-1", "claude"))
-    assert app.container.get(Tasks).find(1).creator == Actor.agent("s-1")
-
-
-
-
-
-
-
-
 def test_the_server_runs_the_same_console_for_the_shim(app: App):
     import json
     from urllib.request import Request as HttpRequest, urlopen
@@ -495,27 +484,6 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
 
 
 
-
-
-def test_a_library_member_cannot_invite(app: App, tmp_path: Path):
-    from dataclasses import replace
-    from journal.features.library.support.library_account import LibraryAccount
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
-        _, member_token = team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
-        account = LibraryAccount(app.config)
-        account.write(replace(account.connection(), token=member_token, role="member"))
-        assert console.run(["library", "invite", "dan@example.com"], user).code != 0, "a member's invite is refused, admins only"
-    finally:
-        team.close(server)
 
 
 def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_update_offers_the_import(app: App, tmp_path: Path):

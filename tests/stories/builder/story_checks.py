@@ -310,6 +310,9 @@ class StoryChecks:
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
+    def expect_task_made_by(self, agent: StoryAgent, n: int) -> None:
+        self.expect_row("tasks", n, {"creator": f"agent:{self.session_of(agent)}"})
+
     def expect_task_logged(self, n: int, part: str) -> None:
         shown = self.app.console().run(["task", "show", str(n)], self.agent).text
         assert part in shown, f"task {n} has no log line holding {part!r}: {shown}"

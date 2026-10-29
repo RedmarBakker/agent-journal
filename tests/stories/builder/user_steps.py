@@ -1,7 +1,9 @@
 import re
 import shlex
 import uuid
+from dataclasses import replace
 
+from journal.features.library.support.library_account import LibraryAccount
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.caller import Caller
 from journal.support.option import Option
@@ -42,6 +44,7 @@ class UserSteps:
         folder.mkdir(exist_ok=True)
         library = TeamServer(folder)
         server = library.started("127.0.0.1", 0)
+        self.library_team = library
         self.closers.append(lambda: library.close(server))
         self.observed("a library server runs", None, None)
         return f"http://127.0.0.1:{server.server_address[1]}"
@@ -50,6 +53,14 @@ class UserSteps:
         library = self.a_library_server_runs()
         self.user_types(f"library connect {library} --email ada@example.com --name Ada --password 'correct horse battery'")
         return library
+
+    def user_is_a_library_member(self) -> None:
+        self.user_connects_to_a_library()
+        self.library_team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
+        _, token = self.library_team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
+        account = LibraryAccount(self.app.config)
+        account.write(replace(account.connection(), token=token, role="member"))
+        self.observed("the user is a member of the library", None, None)
 
     def a_library_holds_a_sequence_imported_here(self, title: str, steps: str) -> int:
         library = self.a_library_server_runs()
