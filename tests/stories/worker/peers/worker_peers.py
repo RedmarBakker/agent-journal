@@ -38,3 +38,21 @@ def test_a_worker_may_not_send_itself_a_word(story):
     story.expect_task(story.start.peer_task, delegated=True)
     story.expect_stack(Void, WorkingTask)
 
+
+
+@story(TwoWorkers, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+def test_a_worker_may_not_change_a_peers_model(story):
+    story.agent_runs(f"worker send {story.start.peer} 'print the errors too' --model opus")
+    story.expect_command_refused()
+    story.expect_command_text("only the agent that dispatched a worker changes its model")
+    story.expect_task(story.start.peer_task, delegated=True)
+    story.expect_stack(Void, WorkingTask)
+
+
+@story(TwoWorkers, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+def test_a_worker_may_not_report_for_a_peer(story):
+    story.agent_runs(f"worker report {story.start.peer} 'the lexer is done'")
+    story.expect_command_refused()
+    story.expect_command_text("a worker reports for itself")
+    story.expect_task(story.start.peer_task, delegated=True)
+    story.expect_stack(Void, WorkingTask)

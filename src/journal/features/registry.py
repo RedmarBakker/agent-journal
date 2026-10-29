@@ -52,7 +52,7 @@ class Registry:
     def registered_classes(feature: type[Feature]) -> set[type]:
         helper_conducts = {conduct for conducts in feature.helper_conduct.values() for conduct in conducts}
         mode_conducts = {conduct for mode_state, conduct in feature.mode_conduct}
-        return {*(listener for listener, _ in feature.answer_listeners), *feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers, *(reader for readers in feature.helper_data.values() for reader in readers)}
+        return {*(listener for listener, _ in feature.answer_listeners), *feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers, *(reader for readers in feature.helper_data.values() for reader in readers), *(command for commands in feature.helper_commands.values() for command in commands)}
 
     def helper_files(self, helpers: tuple[type[Helper], ...]) -> dict[AgentRole, type[Helper]]:
         for role in AgentRole.helpers():

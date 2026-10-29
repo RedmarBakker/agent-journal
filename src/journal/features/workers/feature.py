@@ -38,6 +38,7 @@ from journal.features.workers.builder_conduct import BuilderConduct
 from journal.features.workers.solo_conduct import SoloConduct
 from journal.features.workers.support.workers_data_reader import WorkersDataReader
 from journal.features.workers.support.session_workers_reader import SessionWorkersReader
+from journal.features.workers.commands.worker_peer_command import WorkerPeerCommand
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.seeds.subagents_seed import SubagentsSeed
 from journal.features.workers.seeds.workers_seed import WorkersSeed
@@ -113,6 +114,7 @@ class Workers(Feature[WorkersData]):
     listeners = (WorkerProgressRecord, MergedTestRunStop, WorkerAssignment, WorkerSessionAssignment, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
     data = (WorkersDataReader,)
     helper_data = {AgentRole.WORKER: (SessionWorkersReader,)}
+    helper_commands = {AgentRole.WORKER: (WorkerPeerCommand,)}
     conduct = (WorkersConduct,)
     mode_conduct = ((Orchestrating, OrchestratorConduct), (PlansReady, BuilderConduct), (Soloing, SoloConduct))
 

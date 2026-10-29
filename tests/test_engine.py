@@ -2365,7 +2365,7 @@ def test_each_helpers_file_alone_says_what_reaches_it_and_a_wrong_file_stops_the
     reached = {role.value: sorted({listener.__name__ for listener in listeners if registry.reaches_helper(listener, role)}) for role in roles}
     assert reached == HELPER_LISTENERS, reached
     console = app.container.get(Console)
-    verbs = {role.value: sorted(f"{noun} {verb}" for noun, command in console.commands.items() for verb in console.verbs(command) if registry.runs_verb(type(command), verb, role)) for role in roles}
+    verbs = {role.value: sorted(f"{noun} {verb}" for noun, command in console.table(role).items() for verb in console.verbs(command) if registry.runs_verb(type(command), verb, role)) for role in roles}
     assert verbs == HELPER_VERBS, verbs
     assert not registry.reaches_helper(FitnessRecord, AgentRole.WORKER), "a listener no helper's file names, such as the main agent's fitness record, reaches no helper"
     settings = app.container.get(SettingRows)
@@ -3120,3 +3120,14 @@ def test_a_stack_is_floored_and_reset_by_its_bottom_state():
     assert type(Ready().floored(Orchestrating)) is Orchestrating, "a main floor takes the work mode's state"
     assert void.reset_states((void, working, Ready())) == (void, working), "a helper keeps its floor and its work on a reset"
     assert type(Ready().reset_states((Ready(), working))[0]) is Ready and len(Ready().reset_states((Ready(), working))) == 1, "a main agent keeps one fresh floor"
+
+
+def test_a_helper_command_class_serves_its_noun_for_that_role_alone(app: App):
+    from journal.console.command import Command
+    from journal.features.tasks.commands.task_command import TaskCommand
+    from journal.support.agent_role import AgentRole
+    worker_task = type("WorkerTaskCommand", (Command,), {"noun": TaskCommand.noun, "arguments": lambda self, verbs: None})
+    console = app.console()
+    console.add_helper(AgentRole.WORKER, worker_task)
+    assert type(console.table(AgentRole.WORKER)[TaskCommand.noun]) is worker_task, "the worker's own class serves the noun for the worker"
+    assert type(console.table(AgentRole.MAIN)[TaskCommand.noun]) is TaskCommand, "and the main agent keeps the first"

@@ -42,6 +42,7 @@ class Feature[D](DataSource[D]):
     helper_listeners: ClassVar[dict[AgentRole, tuple[type[Listener], ...]]] = {}
     helper_data: ClassVar[dict[AgentRole, tuple[type, ...]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
+    helper_commands: ClassVar[dict[AgentRole, tuple[type[Command], ...]]] = {}
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()
     process_cards: ClassVar[tuple[type[ProcessCard], ...]] = ()

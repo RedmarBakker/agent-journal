@@ -35,11 +35,19 @@ class Console:
         self.names, self.verb_rules, self.seats = names, verb_rules, seats
         self.container, self.environments, self.scope, self.row_verbs, self.shell = container, environments, scope, row_verbs, shell
         self.commands: dict[str, Command] = {}
+        self.helper_commands: dict[AgentRole, dict[str, Command]] = {}
         self._parsers: dict[AgentRole, argparse.ArgumentParser] = {}
 
     def add(self, command: type[Command]) -> None:
         self.commands[command.noun] = self.container.get(command)
         self._parsers.clear()
+
+    def add_helper(self, role: AgentRole, command: type[Command]) -> None:
+        self.helper_commands.setdefault(role, {})[command.noun] = self.container.get(command)
+        self._parsers.clear()
+
+    def table(self, role: AgentRole) -> dict[str, Command]:
+        return {**self.commands, **self.helper_commands.get(role, {})}
 
     def build_parsers(self) -> None:
         for role in self.verb_rules.roles():
@@ -54,7 +62,7 @@ class Console:
         parser = argparse.ArgumentParser(prog="journal", exit_on_error=False)
         nouns = parser.add_subparsers(dest="noun", required=True)
         groups = {}
-        for noun, command in self.commands.items():
+        for noun, command in self.table(role).items():
             groups[noun] = RoleVerbs(nouns.add_parser(noun).add_subparsers(dest="verb", required=True), partial(self.verb_rules.runs_verb, type(command), role=role))
             command.arguments(groups[noun])
             self.row_verbs.add(noun, groups[noun])
@@ -74,16 +82,16 @@ class Console:
         with self.scope.entered(seated.origin(environment)):
             return self.captured(argv, seated, output, io.StringIO())
 
-    def with_verb(self, argv: list[str]) -> list[str]:
-        command = self.commands.get(argv[0]) if argv else None
+    def with_verb(self, argv: list[str], role: AgentRole) -> list[str]:
+        command = self.table(role).get(argv[0]) if argv else None
         verb = getattr(command, "default_verb", "")
         return [argv[0], verb, *argv[1:]] if verb and not (argv[1:] and argv[1] in {*self.verbs(command), *HELP_FLAGS}) else argv
 
-    def switched(self, argv: list[str]) -> list[str]:
-        return [argv[0], argv[2], argv[1], *argv[3:]] if self.is_number_first(argv) else argv
+    def switched(self, argv: list[str], role: AgentRole) -> list[str]:
+        return [argv[0], argv[2], argv[1], *argv[3:]] if self.is_number_first(argv, role) else argv
 
-    def is_number_first(self, argv: list[str]) -> bool:
-        command = self.commands.get(argv[0]) if argv else None
+    def is_number_first(self, argv: list[str], role: AgentRole) -> bool:
+        command = self.table(role).get(argv[0]) if argv else None
         return command is not None and len(argv) > 2 and argv[1].isdigit() and argv[2] in self.verbs(command)
 
     def verbs(self, command) -> set[str]:
@@ -92,11 +100,11 @@ class Console:
         return set(verbs.choices) | self.row_verbs.build(command.noun)
 
     def perform(self, args: argparse.Namespace, caller: Caller) -> int:
-        if not self.verb_rules.runs_verb(type(self.commands[args.noun]), args.verb, caller.role):
+        command = self.table(caller.role)[args.noun]
+        if not self.verb_rules.runs_verb(type(command), args.verb, caller.role):
             raise Rejection(self.refusal(args, caller.role))
         if self.row_verbs.has(args.noun, args.verb):
             return self.row_verbs.perform(args, caller)
-        command = self.commands[args.noun]
         code = command.perform(args, caller)
         for line in command.chained(args, caller):
             print(f"\n{line.heading()}\n{self.chained_text(line, caller)}")
@@ -120,7 +128,7 @@ class Console:
         return 0 if ended.code is None else 1
 
     def captured(self, argv: list[str], caller: Caller, output: io.StringIO, err: io.StringIO) -> Outcome:
-        argv = self.with_verb(self.switched(argv))
+        argv = self.with_verb(self.switched(argv, caller.role), caller.role)
         produced = Creations.begin()
         with CapturedStream.capture(output, err):
             try:

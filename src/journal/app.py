@@ -90,6 +90,9 @@ class App:
         for feature in self.container.get(Registry).features:
             for command in feature.commands:
                 console.add(command)
+            for role, commands in feature.helper_commands.items():
+                for command in commands:
+                    console.add_helper(role, command)
         return console
 
     def runtime(self) -> Runtime:

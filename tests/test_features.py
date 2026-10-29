@@ -12213,9 +12213,10 @@ def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_
 
 
 def test_a_bare_journal_update_applies_and_with_no_journal_running_installs_the_release_at_once(app: App):
+    from journal.support.agent_role import AgentRole
     from journal.console.console import Console
     console = app.container.get(Console)
-    assert console.with_verb(["update"]) == ["update", "apply"], "a bare journal update applies"
+    assert console.with_verb(["update"], AgentRole.MAIN) == ["update", "apply"], "a bare journal update applies"
     shim = (Path(__file__).parents[1] / "src" / "journal.sh").read_text()
     assert 'case "$#:$1:$2" in 1:update:|2:update:apply) set -- update install ;; esac' in shim, "with no server answering, the shim runs the update here"
     installer = Installer()
@@ -14372,7 +14373,7 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
                     continue
                 words = shlex.split(NUDGE_PLACEHOLDER.sub("1", re.sub(r"\[[^\]]*\]", "", command)).replace("...", ""))[1:]
                 try:
-                    args = console.parser(AgentRole.MAIN).parse_args(console.with_verb(console.switched(words)))
+                    args = console.parser(AgentRole.MAIN).parse_args(console.with_verb(console.switched(words, AgentRole.MAIN), AgentRole.MAIN))
                 except (SystemExit, argparse.ArgumentError) as error:
                     refused.append(f"{nudge.key}: {command} ({error})")
                     continue

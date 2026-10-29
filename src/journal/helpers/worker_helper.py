@@ -17,7 +17,7 @@ from journal.features.workers.commands.departure_command import DepartureCommand
 from journal.features.workers.commands.proof_command import ProofCommand
 from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.todo_command import TodoCommand
-from journal.features.workers.commands.worker_command import WorkerCommand
+from journal.features.workers.commands.worker_peer_command import WorkerPeerCommand
 from journal.features.helper import Helper
 from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.support.agent_role import AgentRole
@@ -59,10 +59,10 @@ class WorkerHelper(Helper):
         (TodoCommand, "add"),
         (TodoCommand, "check"),
         (TodoCommand, "list"),
-        (WorkerCommand, "notify"),
-        (WorkerCommand, "peers"),
-        (WorkerCommand, "report"),
-        (WorkerCommand, "send"),
+        (WorkerPeerCommand, "notify"),
+        (WorkerPeerCommand, "peers"),
+        (WorkerPeerCommand, "report"),
+        (WorkerPeerCommand, "send"),
     )
 
     @classmethod
