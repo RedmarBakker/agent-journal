@@ -256,6 +256,29 @@ class SeatRuntime:
     def edge(self, rig: str, source: str, target: str) -> None:
         self.run("edge", "add", rig, source, target, "--kind", "delegates_to", "--json")
 
+    def queue_items(self) -> tuple[dict, ...]:
+        result = self.run("queue", "list", "--all", "--all-rigs", "--full", "--json")
+        return tuple(value for value in self.objects(self.object(result.stdout))
+                     if (value.get("qitemId") or value.get("id"))
+                     and isinstance(value.get("source"), str) and isinstance(value.get("destination"), str))
+
+    def queue_transitions(self) -> tuple[dict, ...]:
+        rows = []
+        cursor = ""
+        seen = set()
+        while True:
+            arguments = ("telemetry", "transitions", "--start", "retained", "--json") if not cursor else ("telemetry", "transitions", "--cursor", cursor, "--json")
+            payload = self.object(self.run(*arguments).stdout)
+            rows.extend(value for value in self.objects(payload) if value.get("qitemId"))
+            page = payload.get("page")
+            if not isinstance(page, dict) or page.get("hasMore") is not True:
+                return tuple(rows)
+            next_cursor = page.get("nextCursor")
+            if not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen:
+                raise Rejection("OpenRig queue transitions have another page but no usable next cursor")
+            seen.add(next_cursor)
+            cursor = next_cursor
+
     def launch(self, seat: SeatMember, reason: str) -> None:
         self.run("seat", "launch", "--fresh", seat.target, "--reason", reason, "--operator", "journal", "--json")
 

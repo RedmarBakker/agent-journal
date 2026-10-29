@@ -214,7 +214,7 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" not in planner["claude_permissions"]["deny"]
     assert "Bash(journal *)" in planner["claude_permissions"]["allow"]
     assert {"Edit", "Write", "Bash"}.issubset(planner["claude_permissions"]["allow"])
-    assert "Bash(rig queue *)" in planner["claude_permissions"]["deny"]
+    assert all({"Bash(rig send *)", "Bash(rig queue *)"}.issubset(member["claude_permissions"]["deny"]) for member in members.values()), "every seat denies direct sends and all queue mutation verbs, including create, handoff and inbox-drop"
     domain = members["domain-agent"]
     assert {"Edit", "Write"}.issubset(domain["claude_permissions"]["deny"])
     assert path.stat().st_mode & 0o777 == 0o600, "the rig file holds worker tokens"
@@ -229,6 +229,36 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert (agent / "skills" / "ids" / "SKILL.md").read_text() == "---\nname: ids\n---\nA skill.\n"
     hooks = json.loads((agent / "runtime" / "journal-hooks.json").read_text())["hooks"]
     assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
+
+
+def test_journal_organization_audit_finds_a_planted_cross_pod_queue_transition(app, tmp_path, monkeypatch):
+    from journal.support.caller import Caller
+
+    use_provider(app, monkeypatch, "claude")
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "builder", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    contracts = organization.reload()
+    rig = f"plan-audit-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    app.container.get(RigSpecs).write(rig, contracts, ("alpha", "beta"), app.config.root, worker_for)
+
+    item = {"id": "88", "source": f"alpha-builder@{rig}", "destination": f"beta-keeper@{rig}", "state": "pending"}
+    transition = {"qitemId": "88", "state": "created", "actorSession": f"alpha-builder@{rig}", "identityProvenance": {"kind": "seat"}}
+
+    def run(_runtime, *arguments, check=True):
+        if arguments == ("queue", "list", "--all", "--all-rigs", "--full", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [item]}), "")
+        if arguments == ("telemetry", "transitions", "--start", "retained", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [], "page": {"hasMore": True, "nextCursor": "next"}}), "")
+        if arguments == ("telemetry", "transitions", "--cursor", "next", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [transition], "page": {"hasMore": False}}), "")
+        raise AssertionError(f"unexpected OpenRig command: {arguments}")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    shown = app.console().run(["organization", "audit"], Caller.agent("main", "s1", "claude")).text
+
+    assert "hub-skipping queue item 88" in shown and "role:alpha/builder" in shown and "role:beta/keeper" in shown
+    assert "alpha-builder@" in shown and "identity provenance" in shown and "seat" in shown
 
 
 def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(app, tmp_path, monkeypatch):
