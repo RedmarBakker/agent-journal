@@ -9,10 +9,12 @@ JOB = {"description": "map the hooks", "prompt": "read the hooks"}
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_subagent_dispatch_without_a_model_is_held_before_it_starts(story):
+def test_a_subagent_dispatch_without_a_model_is_held_before_it_starts_and_never_listed(story):
     story.agent_sends_subagent_with(story.agents.subject, subagent_type=RESEARCHER, **JOB)
     story.expect_refused_by_anything()
     story.expect_refusal_text("name a model in the dispatch")
+    story.user_opens("/journal/subagents")
+    story.expect_viewer_rows("rows", "task", [])
     story.expect_stack(story.agents.subject, Ready)
 
 

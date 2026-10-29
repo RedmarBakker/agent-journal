@@ -233,6 +233,9 @@ class UserSteps:
         assert stored == value, f"{option.key} was set to {value!r} in the viewer but the journal holds {stored!r}"
         self.set_positions[option.key] = position
 
+    def user_creates_trigger(self, phrases: list[str], text: str, action: str) -> int:
+        return self.user_posted("/journal/triggers", {"phrases": phrases, "text": text, "action": action}, "user creates a trigger")["id"]
+
     def user_sets_sequence_triggers(self, sequence: int, triggers: list[dict]) -> None:
         self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/sequences/{sequence}/triggers", {"triggers": triggers}, MAIN)
         self.observed("user sets the sequence's triggers", None, None)

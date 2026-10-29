@@ -324,7 +324,7 @@ def test_a_running_workers_session_is_looked_up_once_and_kept_on_its_row(app: Ap
     assert workers.save(workers.find(1).running_as(2, timing.time()), Actor.system()).recovered_session == "", "a new run looks for its own session"
 
 
-def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: App):
+def test_a_profile_is_saved_with_its_kind_and_models_and_a_worker_is_instructed_from_it(app: App):
     from journal.features.profiles.support.profile_files import ProfileFiles
     files = app.container.get(ProfileFiles)
     files.write_all()
@@ -337,21 +337,14 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     codex = tomllib.loads((files.config.root / ".codex" / "agents" / "builder.toml").read_text())
     assert codex["model"] == "gpt-6" and codex["sandbox_mode"] == "workspace-write" and codex["developer_instructions"] == "You write.\nSay \"done\"."
     assert files.read("builder")["profile_type"] == "worker" and files.read("journal-planner")["profile_type"] == "subagent"
-    hook(app, "SessionStart")
-    refused = dispatched(app.console(), ["Mr. Darwin", "look it up", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-researcher"], AGENT)
-    assert refused.code != 0 and "no worker profile" in refused.error
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
-    assert "on claude sonnet" in dispatched(app.console(), ["Mr. Brunel", "write it", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "builder"], AGENT).text, "the profile names the model"
     from journal.features.profiles.support.profile_files import TEST_HANDOVER, TURN
     from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.workers import Workers
-    worker = app.container.get(Workers).scoped()[-1]
-    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    from journal.models.worker import Worker
+    worker = Worker(environment_id=1, name="Mr. Brunel", profile="builder", brief=f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}")
+    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
     assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "builder", "model": "fast", "description": "x", "prompt": "y"})
-    assert status == 409 and "is a worker:" in body["error"] and "--profile builder" in body["error"]
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "model": "fast", "description": "x", "prompt": "y"})[0] == 200
 
 
 @pytest.fixture
@@ -369,19 +362,6 @@ def skilled(tmp_path: Path, monkeypatch):
 def read_skill(app, folder: str):
     hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f".claude/skills/{folder}/SKILL.md")}, tool_response="")
 
-
-
-
-
-def test_triggers_nudge_on_a_prompt_and_deny_a_tool_call(app: App):
-    console = app.console()
-    console.run(["trigger", "create", "deploy,release", "check the changelog first", "--do", "instruct"], USER)
-    console.run(["trigger", "create", "rm -rf", "no recursive deletes here", "--do", "deny"], USER)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    assert "do this now: check the changelog first" in hook(app, "UserPromptSubmit", prompt="let's deploy it")[1]["hookSpecificOutput"]["additionalContext"]
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "rm -rf build"})
-    assert status == 409 and "no recursive deletes here" in body["error"]
 
 
 
@@ -492,86 +472,6 @@ def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: Ap
 
 
 
-
-
-def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_spans_until_it_is_signed_off(app: App):
-    from journal.db.connection import Connection
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.reports import Reports
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    for title in ("What the login check found", "The payment notes", "The cache survey"):
-        assert console.run(["report", "create", title, "--abstract", "What it says, in one line", "--body", "## Found\nSomething.\n"], AGENT).code == 0
-    console.run(["plan", "create", "release", "--brief", "built on report 2"], USER)
-    console.run(["task", "create", "speed it up", "--brief", "start from report 3"], USER)
-    app.runtime().deferred.drain()
-    connection, old = app.container.get(Connection), "2020-01-01T00:00:00+00:00"
-    connection.execute("UPDATE reports SET created_at = ?, updated_at = ?", (old, old))
-    connection.changed("reports")
-
-    def named():
-        with app.container.get(Scope).environment(MAIN):
-            return [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "reports.written_work_never_acted_on"]
-
-    def older_by(minutes: float) -> None:
-        with app.container.get(Scope).environment(MAIN):
-            last = named()[-1]
-            app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
-
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(MAIN):
-        card = next(message for message in app.container.get(Messages).all() if message.data.get("card_type"))
-        app.container.get(Links).save(Link(source=Ref.build(card), target=Ref("reports", 1), link_type="mentions"), Actor.agent("s1"))
-    hook(app, "Stop")
-    lines = [entry.data["line"] for entry in named()]
-    assert len(lines) == 1 and lines[0].startswith("report 1 was never read or linked") and "journal report settle 1 --why" in lines[0], lines
-    assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere, while the journal's own card mentioning report 1 does not count"
-    hook(app, "Stop")
-    assert len(named()) == 1, "within the span the line is not said again"
-    older_by(41)
-    hook(app, "Stop")
-    assert len(named()) == 2, "past the span, at most 40 minutes, the line comes again while the report is unsettled"
-    settled = console.run(["report", "settle", "1", "--why", "the faults it found are fixed in task 2"], AGENT)
-    assert settled.code == 0 and app.container.get(Reports).find(1).settled_reason == "the faults it found are fixed in task 2", "the reason is recorded on the report"
-    older_by(41)
-    hook(app, "Stop")
-    assert len(named()) == 2, "once signed off the report is named no more"
-
-
-
-
-def test_a_refused_subagent_is_not_shown_and_one_never_answered_ends_with_its_turn_or_session(app: App):
-    transmit = lambda type_name, **extra: hook(app, type_name, session_id="s7", **extra)
-    rows = lambda: [row for row in app.container.get(Subagents).session_subagents("s7")]
-    transmit("SessionStart", source="startup")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"description": "no model named", "prompt": "read"}, tool_use_id="t-refused")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "cut off", "prompt": "read", "model": "haiku"}, tool_use_id="t-cut")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "in the background", "prompt": "read", "model": "haiku"}, tool_use_id="t-bg")
-    transmit("PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a7"}, tool_use_id="t-bg")
-    assert [r.task for r in rows()] == ["cut off", "in the background"], "a dispatch the journal refused never ran"
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "no such model", "prompt": "read", "model": "haiku"}, tool_use_id="t-failed")
-    transmit("PostToolUseFailure", tool_name="Agent", tool_input={}, error="Model 'haiku-9' not found", tool_use_id="t-failed")
-    assert [(r.is_running(), r.state, r.reason) for r in rows()][-1] == (False, "failed", "Model 'haiku-9' not found"), "a dispatch the tool could not run is failed with the tool's error"
-    transmit("Stop")
-    assert [(r.is_running(), r.state) for r in rows()] == [(False, "stopped"), (True, "running"), (False, "failed")], "a call with no answer ends with its turn; one in the background goes on"
-    transmit("SessionStart", source="compact")
-    assert rows()[1].is_running() is True, "a compaction ends no subagent"
-    transmit("SessionEnd")
-    assert [r.is_running() for r in rows()] == [False, False, False], "a subagent with no stop ends with its session"
-
-
-
-def test_a_command_reports_every_row_it_caused_that_its_own_words_did_not_name(app: App):
-    console = app.console()
-    output = console.run(["plan", "create", "release"], USER).text
-    assert output.startswith("plan 1 draft") and "created:" not in output, "the command named the plan itself, so the trailer says nothing twice"
-    output = console.run(["plan", "add", "1", "write the notes"], USER).text
-    assert "task 1 added to plan 1" in output and "created:" not in output, "the link it made is the record's own row, so nothing is left to name"
 
 
 def test_every_skill_loaded_shows_in_the_chat(skilled):

@@ -198,6 +198,11 @@ class AgentSteps:
         self.hooked(agent, "agent sends a subagent in the background", "PreToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={"subagent_type": role, "description": job, "prompt": job, "model": SUBAGENT_MODEL})
         self.hooked(agent, "the subagent goes to the background", "PostToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={}, tool_response={"isAsync": True, "agentId": subagent})
 
+    def agent_sends_subagent_that_fails(self, agent: StoryAgent, role: str, job: str, error: str) -> None:
+        call = f"failing-{len(self.path)}"
+        self.hooked(agent, "agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={"subagent_type": role, "description": job, "prompt": job, "model": SUBAGENT_MODEL})
+        self.hooked(agent, "the subagent tool fails", "PostToolUseFailure", tool_name=self.tools.subagent, tool_use_id=call, tool_input={}, error=error)
+
     def agent_messages_subagent(self, agent: StoryAgent, subagent: str, text: str) -> None:
         call, words = f"message-{subagent}", {"to": subagent, "message": text}
         self.hooked(agent, "agent messages a subagent", "PreToolUse", tool_name="SendMessage", tool_use_id=call, tool_input=words)
