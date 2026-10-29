@@ -12,6 +12,7 @@ from journal.support.lockout_option import LOCKOUT_OPTION
 from journal.config import Config
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_boot import RoleBoot
+from journal.features.organization.support.seat_runner import SeatRunner
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.support.agent_token import AgentToken
@@ -58,9 +59,10 @@ LOCKOUT_VARIABLE = "JOURNAL_LOCKOUT_SECONDS"
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization, roles: RoleBoot) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization, roles: RoleBoot, seats: SeatRunner) -> None:
         self.time_source, self.supervisor = time_source, supervisor
         self.organization, self.roles = organization, roles
+        self.seats = seats
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup
@@ -72,6 +74,9 @@ class WorkerRunner:
             return self._locks.setdefault(worker_id, threading.Lock())
 
     def start(self, worker: Worker, actor: Actor) -> None:
+        if self.seats.applies(worker):
+            self.seats.start(worker, actor, self.instructed(worker), self.finish_seat)
+            return
         provider = self.providers.lookup(worker.provider)
         worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume), device=self.account.device()), actor)
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session, self.roles.effort(worker)), *provider.worker_settings_flags(self.hook_settings(worker))]
@@ -140,6 +145,8 @@ class WorkerRunner:
         return self.workers.touch(worker, actor, resume=session) if session else worker
 
     def is_finished(self, worker: Worker, actor: Actor) -> bool:
+        if self.seats.applies(worker):
+            return self.seats.is_finished(worker, actor, self.finish_seat)
         if not self.is_running(worker.pid):
             self.recorded_end(worker, actor)
             return True
@@ -150,14 +157,18 @@ class WorkerRunner:
         return False
 
     def is_ended(self, worker: Worker) -> bool:
-        return worker.is_running() and worker.pid > 0 and not self.is_running(worker.pid)
+        return worker.is_running() and worker.pid > 0 and not ProcessCheck.is_running(worker.pid)
 
     def recorded_end(self, worker: Worker, actor: Actor) -> Worker:
-        self.finish(worker, END_UNWATCHED, actor)
+        if self.seats.applies(worker):
+            self.finish_seat(worker, END_UNWATCHED, actor)
+        else:
+            self.finish(worker, END_UNWATCHED, actor)
         return self.workers.find(worker.row_id)
 
-    def finish(self, worker: Worker, code: int, actor: Actor) -> None:
-        self.session_ended(worker)
+    def finish(self, worker: Worker, code: int, actor: Actor, persistent_seat: bool = False) -> None:
+        if not persistent_seat:
+            self.session_ended(worker)
         self.chat.read(self.workers.find(worker.row_id))
         output, err = self.outputs(worker)
         provider = self.providers.lookup(worker.provider)
@@ -171,20 +182,47 @@ class WorkerRunner:
         if self.moves.is_remote(current):
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             self.moves.ended(current)
+            if persistent_seat:
+                self.seats.preserve(worker, actor)
             return
         resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", self.time_source.seconds())
         if resumes_at and current.is_running():
             self.workers.save(current.limited(self.time_source.seconds(), resumes_at, outcome), actor)
+            if persistent_seat:
+                self.seats.preserve(worker, actor)
             return
         moved_task = self.reports.moved_task(current)
         if current.is_mid_turn() and moved_task:
             self.workers.save(current.queue_turn_ended(self.time_source.seconds(), moved_task), actor)
+            if persistent_seat:
+                self.seats.preserve(worker, actor)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)
+            if persistent_seat:
+                self.seats.preserve(worker, actor)
             return
         current = current.with_(touched_paths=self.branch.touched(current))
         self.reported(current, outcome, ". ".join(part for part in (self.branch.summary(current), self.reports.queue_line(current)) if part), actor)
+        if persistent_seat:
+            self.seats.preserve(worker, actor)
+
+    def finish_seat(self, worker: Worker, code: int, actor: Actor) -> None:
+        current = self.workers.find(worker.row_id)
+        if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+            self.seats.preserve(worker, actor)
+            return
+        if code == END_UNWATCHED:
+            self.workers.save(current.unfinished(self.time_source.seconds(), "ended without clocking out"), actor)
+            self.seats.preserve(worker, actor)
+            return
+        self.finish(current, code, actor, persistent_seat=True)
+
+    def recover_seat(self, worker: Worker, actor: Actor) -> None:
+        self.seats.recover(worker, actor, self.instructed(worker), self.finish_seat)
+
+    def seat_workers(self) -> list[Worker]:
+        return [worker for worker in self.workers.all_dispatched() if self.seats.applies(worker)]
 
     def cost_recorded(self, worker: Worker, cost: float, actor: Actor) -> Worker:
         if not cost:
@@ -241,11 +279,13 @@ class WorkerRunner:
     def read(path: Path) -> str:
         return path.read_text(errors="replace") if path.is_file() else ""
 
-    @staticmethod
-    def is_running(pid: int) -> bool:
-        return ProcessCheck.is_running(pid)
+    def is_running(self, pid: int) -> bool:
+        return not self.seats.is_seat_pid(pid) and ProcessCheck.is_running(pid)
 
     def stop(self, worker: Worker) -> None:
+        if self.seats.applies(worker):
+            self.seats.stop(worker, "journal worker stopped")
+            return
         if self.is_running(worker.pid) and os.getpgid(worker.pid) == worker.pid:
             os.killpg(worker.pid, signal.SIGTERM)
 

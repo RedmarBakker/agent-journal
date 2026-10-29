@@ -18,7 +18,12 @@ class WorkerWatch(Job):
         self.watched.append(worker)
 
     def tick(self, time: float) -> None:
+        known = {worker.id for worker in self.watched}
+        self.watched.extend(worker for worker in self.runner.seat_workers() if worker.id not in known)
         for worker in list(self.watched):
             with self.scope.environment(worker.environment_id):
-                if self.runner.is_finished(worker, Actor.system()):
+                current = self.runner.workers.find(worker.row_id)
+                if self.runner.seats.applies(current) and current.is_running():
+                    self.runner.recover_seat(current, Actor.system())
+                if self.runner.is_finished(current, Actor.system()):
                     self.watched.remove(worker)

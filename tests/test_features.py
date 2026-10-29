@@ -7335,6 +7335,92 @@ def test_a_worker_that_ends_without_clocking_out_has_its_commits_named_unchecked
     assert not (root / "parser.txt").exists(), "nothing unchecked is taken in by the end of its run (law L10)"
     assert "it left 1 files uncommitted in its worktree" in report and "notes.txt" in report, "what it never committed is named, not lost"
 
+
+def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter(app: App):
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+
+    runner = app.container.get(WorkerRunner)
+    started = []
+
+    class Seats:
+        @staticmethod
+        def applies(worker):
+            return worker.role == "builder" and worker.plan_id == 8
+
+        @staticmethod
+        def start(worker, actor, prompt, ended):
+            started.append((worker, actor, prompt, ended))
+
+    runner.seats = Seats()
+    worker = Worker(name="Ada Lovelace", brief="write the patch", role="builder", plan_id=8)
+    runner.start(worker, Actor.system())
+    assert len(started) == 1 and started[0][0] == worker and started[0][1] == Actor.system()
+    assert "write the patch" in started[0][2] and started[0][3] == runner.finish_seat
+
+
+def test_a_codex_seat_process_is_reused_through_the_seat_runner_instead_of_the_claude_inbox(app: App):
+    import os
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.models.worker import Worker
+
+    runner = app.container.get(WorkerRunner)
+    actions = app.container.get(WorkerActions)
+
+    class Seats:
+        @staticmethod
+        def is_seat_pid(pid):
+            return pid == os.getpid()
+
+    runner.seats = Seats()
+    actions.runner = runner
+    worker = Worker(name="Ada Lovelace", provider="codex", pid=os.getpid(), session="thread-9", resume="thread-9", role="builder", plan_id=8)
+    assert not actions.is_session_busy(worker) and not runner.is_running(worker.pid)
+
+
+def test_worker_watch_reconnects_to_an_active_seat_process_after_restart():
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from journal.features.workers.jobs.worker_watch import WorkerWatch
+    from journal.models.worker import Worker
+
+    worker = Worker(id=13, name="Ada Lovelace", role="builder", plan_id=8, pid=91)
+    recovered, checked = [], []
+    seats = SimpleNamespace(applies=lambda current: current.role == "builder")
+    runner = SimpleNamespace(
+        seats=seats,
+        seat_workers=lambda: [],
+        workers=SimpleNamespace(find=lambda _row: worker),
+        recover_seat=lambda current, _actor: recovered.append(current),
+        is_finished=lambda current, _actor: checked.append(current) or False,
+    )
+    scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    watch = WorkerWatch(runner, scope)
+    watch.add(worker)
+    watch.tick(0)
+
+    assert recovered == [worker] and checked == [worker], "the persistent monitor is reattached before liveness is polled"
+
+
+def test_worker_clockout_keeps_the_persistent_seat_process_and_token():
+    from types import SimpleNamespace
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.support.actor import Actor
+
+    worker = Worker(id=14, name="Ada Lovelace", role="builder", plan_id=8, pid=91, token_hash="seat-token-hash", session="thread-9", resume="thread-9")
+    current = Worker(id=14, name="Ada Lovelace", role="builder", plan_id=8, state=WorkerState.REPORTED)
+    preserved = []
+    runner = object.__new__(WorkerRunner)
+    runner.workers = SimpleNamespace(find=lambda _row: current)
+    runner.seats = SimpleNamespace(preserve=lambda seat, _actor: preserved.append(seat))
+
+    runner.finish_seat(worker, 0, Actor.system())
+
+    assert preserved == [worker] and preserved[0].pid == 91 and preserved[0].token_hash == "seat-token-hash"
+
+
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):
     import stat
     from datetime import datetime, timedelta, timezone

@@ -414,6 +414,251 @@ def test_the_real_organization_folder_loads_with_no_problems(app):
     assert len(contracts.domains) == 13 and Counter(role.cardinality for role in contracts.roles) == {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}
 
 
+def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_windows_stay_separate(tmp_path):
+    from journal.config import Config
+    from journal.features.organization.support.usage_ledger import UsageLedger
+
+    ledger = UsageLedger(Config.rooted(tmp_path), stale_after_seconds=60)
+    assert ledger.estimate(3, 100).status == "missing" and ledger.estimate(3, 100).amount_usd is None
+    assert ledger.estimate(4, 100, 2).coverage == "0 of 2 seats observed"
+    first = ledger.observe(3, "builder@release", "native-a", 2.5, 100, 2)
+    next_turn = ledger.observe(3, "builder@release", "native-a", 3.0, 110, 2)
+    reset = ledger.observe(3, "builder@release", "native-a", 0.2, 120, 2)
+    new_session = ledger.observe(3, "builder@release", "native-b", 0.4, 130, 2)
+    assert first.amount_usd == 2.5 and next_turn.amount_usd == 3.0 and reset.amount_usd == 3.2 and new_session.amount_usd == 3.6
+    assert new_session.source == "OpenRig native-session estimate" and new_session.coverage == "1 of 2 seats observed" and new_session.freshness == "fresh" and new_session.status == "partial"
+    ledger.observe(4, "older-seat", "native-c", 1.0, 100, 2)
+    ledger.observe(4, "newer-seat", "native-d", 1.0, 190, 2)
+    assert ledger.estimate(4, 200, 2).freshness == "stale", "one stale seat makes the plan estimate stale even if another seat is recent"
+    ledger.record_subscription_limits({"five_hour": {"used_percentage": 40, "resets_at": 200}}, "Claude Code status line", "5h", 130)
+    limits = ledger.subscription_limits(140)
+    assert limits.status == "available" and limits.coverage == "account-wide subscription windows" and limits.limits["five_hour"]["used_percentage"] == 40
+    ledger.record_subscription_limits(None, "Codex journal status files", "account-wide subscription windows", 150)
+    missing_limits = ledger.subscription_limits(151)
+    assert missing_limits.status == "missing" and missing_limits.freshness == "fresh" and missing_limits.source == "Codex journal status files"
+    assert ledger.estimate(3, 1000).status == "stale" and ledger.subscription_limits(1000).status == "stale"
+
+
+def test_worker_caps_keep_account_seat_capacity_and_plan_estimates_distinct():
+    from journal.features.organization.support.caps import Caps
+    from journal.features.organization.support.usage_ledger import UsageEstimate
+
+    class Settings:
+        @staticmethod
+        def integer(option):
+            return 2
+
+        @staticmethod
+        def decimal(option):
+            return 5.0
+
+    caps = Caps(Settings())
+    assert caps.seats(1).allowed and caps.seats(2).status == "full"
+    missing = UsageEstimate(3, None, "OpenRig native-session estimate", None, None, "0 of unknown seats observed", "missing", "missing")
+    over = UsageEstimate(3, 5.0, "OpenRig native-session estimate", 10, 20, "1 of 1 seats observed", "fresh", "estimated")
+    partial = UsageEstimate(3, 6.0, "OpenRig native-session estimate", 10, 20, "1 of 2 seats observed", "fresh", "estimated", 1, 2)
+    assert caps.plan_cost(missing).status == "unknown" and not caps.plan_cost(missing).allowed
+    assert caps.plan_cost(over).status == "exceeded" and "estimated OpenRig usage" in caps.plan_cost(over).reason
+    assert caps.plan_cost(partial).status == "unknown" and "1 of 2 seats" in caps.plan_cost(partial).reason
+
+
+def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monitor_is_winding_down(monkeypatch):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    import threading
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatRunner
+    from journal.features.organization.support.seat_runtime import SeatSession
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+    from journal.support.agent_token import AgentToken
+
+    class CapturedThread:
+        def __init__(self, *, target, args, name, daemon):
+            self.target, self.args, self.name, self.daemon = target, args, name, daemon
+            threads.append(self)
+
+        def start(self):
+            pass
+
+    threads = []
+    monkeypatch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
+    worker = Worker(id=8, name="Ada Lovelace", role="builder", plan_id=8, contract="contract", provider="codex", model="gpt-6-luna", resume="thread-9", pid=0).moved("dispatched", 10).moved("sent a job", 20)
+    runner = object.__new__(SeatRunner)
+    runner._guard = threading.Lock()
+    runner._active = {worker.id}
+    runner._active_jobs = {worker.id: 10}
+    runner.start(worker, Actor.system(), "next job", lambda *args: None)
+
+    assert len(threads) == 1 and threads[0].target == runner.send_existing and threads[0].args[2] == "next job"
+
+    member = SimpleNamespace(provider="codex", model="gpt-6-luna", openrig_version="0.7.5", target="alpha-builder@release")
+    sent, saved = [], []
+    runner.scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    runner.member = lambda _worker: member
+    runner.runtime = SimpleNamespace(
+        check_version=lambda _version: "0.7.5",
+        worker_token=lambda *_args: AgentToken("seat-token"),
+        session=lambda _member, native: SeatSession(91, native, "running", 25),
+        send=lambda _member, prompt: sent.append(prompt),
+    )
+    runner.environments = SimpleNamespace(find=lambda _environment: SimpleNamespace(name="development"))
+    role = SimpleNamespace(models=SimpleNamespace(for_provider=lambda _provider: "gpt-6-luna"))
+    runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
+    runner.workers = SimpleNamespace(find=lambda _row: worker, save=lambda current, _actor: saved.append(current) or current)
+    runner.time_source = SimpleNamespace(seconds=lambda: 30)
+    monkeypatch.setattr("journal.features.organization.support.seat_runner.ProcessCheck.is_running", lambda _pid: True)
+    runner.send_existing(worker, Actor.system(), "next job", lambda *args: None)
+
+    assert sent == ["next job"] and saved[-1].pid == 91 and saved[-1].resume == "thread-9" and saved[-1].token_hash == AgentToken("seat-token").digest()
+
+
+def test_a_codex_job_runs_on_its_selected_role_seat_and_saves_the_native_session(monkeypatch):
+    from types import SimpleNamespace
+    from journal.features.organization.support.seat_runner import SeatRunner
+    from journal.features.organization.support.seat_runtime import SeatSession
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+    from journal.support.agent_token import AgentToken
+
+    worker = Worker(id=9, name="Ada Lovelace", role="builder", plan_id=8, contract="contract", provider="codex", model="gpt-6-luna", resume="thread-9").moved("dispatched", 10)
+    member = SimpleNamespace(provider="codex", model="gpt-6-luna", openrig_version="0.7.5", target="alpha-builder@release")
+    sent, saved, monitored = [], [], []
+    runner = object.__new__(SeatRunner)
+    runner.member = lambda _worker: member
+    runner.runtime = SimpleNamespace(
+        check_version=lambda _version: "0.7.5",
+        worker_token=lambda *_args: AgentToken("seat-token"),
+        session=lambda _member, native: SeatSession(91, native, "running", 25),
+        send=lambda _member, prompt: sent.append(prompt),
+    )
+    runner.environments = SimpleNamespace(find=lambda _environment: SimpleNamespace(name="development"))
+    role = SimpleNamespace(models=SimpleNamespace(for_provider=lambda provider: "gpt-6-luna" if provider == "codex" else ""))
+    runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
+    runner.capacity_available = lambda _worker: True
+    runner.workers = SimpleNamespace(find=lambda _row: worker, save=lambda current, _actor: saved.append(current) or current)
+    runner.time_source = SimpleNamespace(seconds=lambda: 30)
+    runner.monitor = lambda *args: monitored.append(args)
+    monkeypatch.setattr("journal.features.organization.support.seat_runner.ProcessCheck.is_running", lambda _pid: True)
+
+    runner.run(worker, Actor.system(), "write the patch", lambda *args: None)
+
+    assert sent == ["write the patch"] and saved[-1].pid == 91 and saved[-1].session == "thread-9" and saved[-1].resume == "thread-9"
+    assert saved[-1].token_hash == AgentToken("seat-token").digest() and monitored[0][2] == "thread-9"
+
+
+def test_seat_recovery_attaches_to_an_existing_process_without_launching_a_new_agent(monkeypatch):
+    import threading
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatRunner
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+
+    class CapturedThread:
+        def __init__(self, *, target, args, name, daemon):
+            self.target, self.args, self.name, self.daemon = target, args, name, daemon
+            threads.append(self)
+
+        def start(self):
+            pass
+
+    threads = []
+    monkeypatch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
+    worker = Worker(id=10, name="Ada Lovelace", role="builder", plan_id=8, provider="codex", model="gpt-6-luna", pid=91, resume="thread-9").moved("dispatched", 10)
+    runner = object.__new__(SeatRunner)
+    runner._guard = threading.Lock()
+    runner._active = set()
+    runner._active_jobs = {}
+    runner.recover(worker, Actor.system(), "do not resend this job", lambda *args: None)
+
+    assert len(threads) == 1 and threads[0].target == runner.monitor_existing and threads[0].args[0] == worker
+
+
+def test_seat_monitor_finishes_on_clockout_or_when_its_queue_item_is_done(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatRunner
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.support.actor import Actor
+
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+
+    def monitored(current, holders, finished):
+        runner = object.__new__(SeatRunner)
+        runner._guard = threading.Lock()
+        runner._finishing = set()
+        runner.workers = SimpleNamespace(find=lambda _row: current)
+        runner.tasks = SimpleNamespace(holder_task_ids=lambda _ref: holders, finished_task_ids=lambda _ref: finished)
+        runner.time_source = SimpleNamespace(seconds=lambda: 20)
+        usage = []
+        runner.record_usage = lambda *args: usage.append(args)
+        ended = []
+        worker = Worker(id=11, name="Ada Lovelace", role="builder", plan_id=8, state=WorkerState.DISPATCHED, pid=91).moved("dispatched", 10)
+        runner.monitor(worker, None, "thread-9", Actor.system(), lambda *args: ended.append(args), 10)
+        return ended, usage
+
+    clocked_out, clockout_usage = monitored(Worker(id=11, name="Ada Lovelace", state=WorkerState.REPORTED), (), ())
+    queue_done, queue_usage = monitored(Worker(id=11, name="Ada Lovelace", state=WorkerState.DISPATCHED), (), (42,))
+
+    assert len(clocked_out) == 1 and clockout_usage, "clockout ends the active job after recording usage"
+    assert len(queue_done) == 1 and not queue_usage, "a finished queue item ends its seat job"
+
+
+def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_path, monkeypatch):
+    import json
+    import os
+    import shutil
+    import subprocess
+    from journal.config import Config
+    from journal.features.organization.support.seat_runtime import SeatRuntime
+    from journal.features.workers.organization_options import OrganizationOptions
+
+    config = Config.rooted(tmp_path)
+    spec = config.home / "runtime" / "rigs" / "release" / "rig.yaml"
+    spec.parent.mkdir(parents=True)
+    spec.write_text(json.dumps({"pods": [{"id": "alpha", "members": [{
+        "id": "builder", "agent_ref": "local:agents/alpha-builder", "runtime": "codex",
+        "model": "gpt-6-luna", "env": {"JOURNAL_ACTOR": "worker:7", "JOURNAL_ACTOR_TOKEN": "seat-token",
+        "JOURNAL_ENV": "development", "JOURNAL_ROOT": str(config.root), "PATH": str(config.home / "bin") + os.pathsep + "/usr/bin",
+        "AGENT_JOURNAL_ACTIVE": "1", "AGENT_SHELL": "1"},
+        "codex_permissions": {"sandbox": "workspace-write", "approval": "never"},
+    }]}]}))
+    agent = spec.parent / "agents" / "alpha-builder"
+    agent.mkdir(parents=True)
+    (agent / "agent.yaml").write_text(json.dumps({"resources": {"runtime_resources": [{"id": "journal-hooks", "path": "runtime/journal-hooks.json", "runtime": "codex"}]},
+        "skills": [{"id": "journal", "path": "skills/journal"}],
+        "profiles": {"default": {"uses": {"skills": ["journal"]}}}}))
+    (agent / "runtime").mkdir()
+    (agent / "runtime" / "journal-hooks.json").write_text("{}")
+
+    class Settings:
+        @staticmethod
+        def option(option):
+            return "0.7.5" if option == OrganizationOptions.OPENRIG_VERSION else ""
+
+    calls = []
+
+    def execute(arguments, **kwargs):
+        calls.append(arguments)
+        if arguments[1:3] == ["seat", "status"]:
+            return subprocess.CompletedProcess(arguments, 0, json.dumps({"sessionStatus": "running", "threadId": "thread-9", "process": {"pid": 91}, "statusUpdatedAt": 15}), "")
+        return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.5\n", "")
+
+    monkeypatch.setattr(shutil, "which", lambda program: "/usr/bin/rig")
+    runtime = SeatRuntime(config, Settings(), execute)
+    member = runtime.member("release", "alpha", "builder", "codex")
+    token = runtime.worker_token(member, "codex", "gpt-6-luna", "worker:7", "development")
+    assert (member.logical_id, member.target, member.provider, member.model, member.runtime) == ("alpha.builder", "alpha-builder@release", "codex", "gpt-6-luna", "codex")
+    assert token.text == "seat-token"
+    assert runtime.check_version() == "0.7.5"
+    session = runtime.session(member)
+    runtime.send(member, "write the patch")
+    assert (session.pid, session.session, session.status) == (91, "thread-9", "running")
+    assert ["rig", "send", member.target, "write the patch", "--rig", "release", "--json"] in calls
+
+
 def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_for_journal_and_plan_and_a_worktree_of_its_own_for_many(app, tmp_path, monkeypatch):
     from journal.features.organization.support.role_instances import RoleInstances
     from journal.features.workers.support.worker_runner import WorkerRunner
