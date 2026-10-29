@@ -1742,6 +1742,7 @@ pausing.paused  [pausing]  the user paused you. stop and wait; only journal comm
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you mentioned a pinned link but made none. pin it: `journal notice create "<what>" --link "<url>" --label "<Open ...>"`
 pins.pin_the_link  [pins]  pin this link if the user will return to it: `journal notice create "<what>" --link "{{url|cap=300}}"`
+plans.coordinator_writes_no_code  [plans]  you coordinate the plans and write no code. put the change in a task of a plan instead
 plans.drive_ended  [plans]  {{name|cap=17}}: no longer driven ({{why|cap=19}}); writes refused. retake: `journal {{noun}} drive {{n}}`
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
@@ -1941,7 +1942,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-287 nudges
+288 nudges
 
 $ agent: journal worker list
 exit 0

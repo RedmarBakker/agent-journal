@@ -2272,9 +2272,36 @@ def test_a_conduct_given_to_the_plan_agents_floor_is_folded_only_there_and_the_o
     registry = app.container.get(Registry)
     trial = Registry((*registry.features, Trial), registry.settings, registry.standard_commands, tuple(registry.helper(role) for role in AgentRole.helpers()))
     old_floors, old_conducts = (PlansReady, Orchestrating, Soloing), {BuilderConduct, OrchestratorConduct, SoloConduct, OrchestratorReportsConduct}
-    assert trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans) == (TrialConduct,), "a new-model conduct is folded on the Plan agents floor, and no old mode's conduct is"
+    assert TrialConduct in trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans) and not old_conducts & set(trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans)), "a new-model conduct is folded on the Plan agents floor, and no old mode's conduct is"
     assert {conduct for floor in old_floors for conduct in trial.mode_conducts(AgentRole.MAIN, floor)} == old_conducts, "each old mode's conduct is folded on its own floor, never a new-model one"
     assert CoordinatingPlans in trial.mode_states(), "the listener index is built for the Plan agents floor"
+
+
+def test_with_plan_agents_on_the_main_agent_writes_no_code_and_hears_every_started_plan_at_a_stop(app: App):
+    from journal.models.plan_state import PlanState
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.plans import Plans
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    write = lambda path: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": path}, tool_use_id=f"t-{timing.time()}")
+    assert write("a.py")[0] == 200, "off, nothing changes: the agent writes code"
+    user_set(app, "plans.plan_agents", True)
+    status, body = write("b.py")
+    assert status == 409 and nudge_reached(app, body["error"], PlansNudges.COORDINATOR_WRITES_NO_CODE), "on, the main agent's write to code is refused"
+    assert not has_nudge(json.dumps(write("NOTES.md")[1]), PlansNudges.COORDINATOR_WRITES_NO_CODE), "a write to a document is no write to code"
+    plans = app.container.get(Plans)
+    for title in ("release", "billing"):
+        console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
+        console.run(["plan", "add", str(plans.rows()[-1].id), f"the {title} task"], USER)
+    for plan in plans.rows()[-2:]:
+        plans.save(plan.with_(state=PlanState.STARTED), Actor.user(1))
+    hook(app, "Stop")
+    [status_line] = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == WorkersNudges.STARTED_PLANS.key]
+    assert "release" in status_line and "billing" in status_line, "a stop carries the status of every started plan"
+    user_set(app, "plans.plan_agents", False)
+    assert not has_nudge(json.dumps(write("c.py")[1]), PlansNudges.COORDINATOR_WRITES_NO_CODE), "off again, the refusal is gone"
 
 
 def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one_that_stalls(app: App):

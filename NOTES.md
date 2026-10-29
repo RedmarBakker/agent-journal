@@ -1922,6 +1922,10 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   orchestrator's and solo agent's conduct, on their own floors, only while it is off. CoordinatingPlans extends
   Orchestrating for its state behaviour (the main agent orchestrates and never writes code) without its conduct.
   WorkMode reads the floor in force the same way, so commands and listeners follow the switch too.
+- The first new-model conduct is CoordinatorConduct (task 18), on CoordinatingPlans: the main agent's write to code is
+  refused, and a stop carries every started plan's status (the orchestrator's plan lines, reused). Talking only to
+  Plan agents, and running plans through them, waits for the Plan agents themselves: a started plan has no
+  environment or agent of its own yet.
 - The refactor is one sweep in plan 1's order; the reviewers' advice to run Roles on today's workers first was not
   taken (reports 1 and 2).
 - Stored (task 43): a plan's mode is its `mode` column, a `PlanMode`, solo by default; migration 76 makes every plan
