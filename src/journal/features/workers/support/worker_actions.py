@@ -27,6 +27,7 @@ from journal.models.support.report_choice import ReportChoice
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
+from journal.features.organization.support.hub_routes import HubRoutes
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -57,9 +58,10 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire. A check names the task the worker is on, or one of its queue it finished, which waits for the same merge; every point found short is saved at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out; one unchecked point of any task the merge would close refuses the whole merge, naming the task."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses, routes: HubRoutes) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
         self.account, self.moves, self.failures, self.settings, self.merger, self.time_source, self.statuses = account, moves, failures, settings, merger, time_source, statuses
+        self.routes = routes
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -103,6 +105,8 @@ class WorkerActions:
             raise Rejection(f"worker {worker.id}, {worker.name}, is retired: only the agent that dispatched you brings it back")
         if worker.dispatcher != writer.dispatcher:
             raise Rejection(f"worker {worker.id}, {worker.name}, is another agent's: `journal worker peers` lists yours")
+        if sideways := self.routes.refusal(writer, worker):
+            raise Rejection(sideways)
         if not self.tasks.holder_task_ids(Ref.build(worker)):
             raise Rejection(f"worker {worker.id}, {worker.name}, has no task: you message only a peer that works on one")
         return worker

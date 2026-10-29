@@ -8,6 +8,7 @@ from journal.features.organization.support.graph_edge import GraphEdge
 from journal.features.organization.support.role import Role
 
 PLAN = "plan"
+MAIN = "main"
 CONTAINMENT = "contains"
 
 
@@ -40,7 +41,7 @@ class Contracts:
         return (*self.containment(), *self.declared())
 
     def containment(self) -> tuple[GraphEdge, ...]:
-        edges = []
+        edges = [GraphEdge(MAIN, EdgeKind.DELEGATES_TO, PLAN, CONTAINMENT, False), GraphEdge(PLAN, EdgeKind.ESCALATES_TO, MAIN, CONTAINMENT, False)]
         for domain in self.domains:
             edges += [GraphEdge(PLAN, EdgeKind.DELEGATES_TO, self.domain_id(domain.id), CONTAINMENT, False), GraphEdge(self.domain_id(domain.id), EdgeKind.ESCALATES_TO, PLAN, CONTAINMENT, False)]
             for role in self.roles_of(domain.id):

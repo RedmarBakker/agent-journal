@@ -244,3 +244,29 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
         assert instances.existing(porter, task).name == "Mary Kenneth", "a plan Role has one instance for each plan"
         monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 9)
         assert instances.existing(porter, task) is None, "and another plan gets its own"
+
+
+def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_refused_with_the_hub_to_use(app, tmp_path):
+    from journal.features.organization.support.hub_routes import HubRoutes
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.models.worker import Worker
+    from journal.repositories.scope import Scope
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    from journal.support.rejection import Rejection
+    loaded(app, tmp_path)
+    routes = app.container.get(HubRoutes)
+    along = [("role:alpha/builder", "domain:alpha"), ("domain:alpha", "role:alpha/scout"), ("domain:alpha", "plan"), ("plan", "domain:beta"), ("plan", "main"), ("main", "plan")]
+    across = [("role:alpha/builder", "role:alpha/scout"), ("role:alpha/builder", "domain:beta"), ("domain:alpha", "role:beta/keeper"), ("domain:alpha", "domain:beta"), ("role:alpha/scout", "plan"), ("main", "domain:alpha")]
+    assert all(routes.allowed(*pair) for pair in along), "the hubs: Role and Domain agent, Domain agent and Plan agent, Plan agent and main agent"
+    assert not any(routes.allowed(*pair) for pair in across), "anything else is sideways"
+    with app.container.get(Scope).environment(1):
+        workers = app.container.get(Workers)
+        sender = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="b", role="builder", dispatcher="s1"), Actor.system())
+        peer = workers.save(Worker(environment_id=1, name="Grace Hopper", brief="b", role="scout", dispatcher="s1"), Actor.system())
+        plain = workers.save(Worker(environment_id=1, name="Ida Rhodes", brief="b", dispatcher="s1"), Actor.system())
+        refusal = routes.refusal(sender, peer)
+        assert "Roles do not send to each other" in refusal and "domain:alpha" in refusal, refusal
+        assert routes.refusal(sender, plain) == "" and routes.refusal(plain, peer) == "", "a worker with no Role is not Role traffic"
+        with pytest.raises(Rejection, match="Roles do not send"):
+            app.container.get(WorkerActions).peer(peer.id, sender.id)
