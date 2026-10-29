@@ -91,7 +91,7 @@ class Registry:
         return self.helper(role).__name__
 
     def helper_verbs(self, role: AgentRole) -> tuple[str, ...]:
-        return tuple(f"journal {command.noun} {verb}" for command, verb in self.helper(role).commands)
+        return tuple(f"journal {command.noun} {verb}" for command, verbs in self.helper(role).commands for verb in verbs)
 
     def roles(self) -> tuple[AgentRole, ...]:
         return (AgentRole.MAIN, *self._helpers)
