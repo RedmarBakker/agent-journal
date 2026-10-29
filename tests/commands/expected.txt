@@ -1962,7 +1962,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-294 nudges
+295 nudges
 
 $ agent: journal worker list
 exit 0

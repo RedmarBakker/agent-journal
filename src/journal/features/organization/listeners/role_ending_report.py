@@ -13,4 +13,4 @@ class RoleEndingReport(Listener[WorkerUnfinished]):
 
     def handle(self, event: WorkerUnfinished) -> None:
         worker = self.workers.find(event.worker.id)
-        self.escalation.report(worker, f"ended without clocking out: {worker.run_end}", Actor.system())
+        self.escalation.report(worker, "ended without clocking out", worker.run_end, Actor.system())

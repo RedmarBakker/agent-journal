@@ -19,4 +19,4 @@ class RoleRefusalReport(AgentListener[LineDelivered]):
             return
         refusal = REFUSALS[event.nudge].create(**event.values).rendered()
         for worker in self.workers.session_worker(event.session):
-            self.escalation.report(worker, f"was refused: {refusal}", Actor.system())
+            self.escalation.report(worker, "was refused", refusal, Actor.system())

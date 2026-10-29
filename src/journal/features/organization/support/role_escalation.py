@@ -22,16 +22,16 @@ class RoleEscalation:
     def __init__(self, organization: Organization, domains: DomainRows, plans: Plans, agents: Agents, links: Links, cards: MomentCards) -> None:
         self.organization, self.domains, self.plans, self.agents, self.links, self.cards = organization, domains, plans, agents, links, cards
 
-    def report(self, worker: Worker, what: str, actor: Actor) -> None:
+    def report(self, worker: Worker, what: str, why: str, actor: Actor) -> None:
         role = self.organization.at(worker.contract).role(worker.role)
         if role is None:
             return
-        text = f"worker {worker.id}, {worker.name}, working as the Role {role.id} of {role.domain}, {what}"
+        head, tail = f"the Role {role.id} of {role.domain} {what}", f"worker {worker.id}, {worker.name}"
         recipient = self.recipient(role.domain, worker.plan_id)
         if recipient is None:
-            self.cards.show(worker.environment_id, worker.dispatcher, "Role reported to you", text, row=Ref.build(worker), shows=CardType.WORKERS, outcome=CardOutcome.WARNED)
+            self.cards.show(worker.environment_id, worker.dispatcher, "Role reported to you", f"{head}\n{why}\n{tail}", row=Ref.build(worker), shows=CardType.WORKERS, outcome=CardOutcome.WARNED)
             return
-        self.links.save(Link(source=Ref.build(worker), target=Ref.build(recipient), link_type=ESCALATED_LINK).with_event(RoleEscalated(environment_id=recipient.environment_id, recipient=recipient.session, report=text)), actor)
+        self.links.save(Link(source=Ref.build(worker), target=Ref.build(recipient), link_type=ESCALATED_LINK).with_event(RoleEscalated(environment_id=recipient.environment_id, recipient=recipient.session, report=f"{head}: {why} ({tail})")), actor)
 
     def recipient(self, domain: str, plan_id: int) -> Agent | None:
         hub = (self.domains.agent_id(domain), self.plans.agent_id(self.plans.find(plan_id)) if plan_id else 0)

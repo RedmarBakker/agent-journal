@@ -13,4 +13,4 @@ class RoleStuckReport(AgentListener[ImpasseReport]):
 
     def handle(self, event: ImpasseReport) -> None:
         for worker in self.workers.session_worker(event.session):
-            self.escalation.report(worker, f"is stuck: {event.reason}", Actor.system())
+            self.escalation.report(worker, "is stuck", event.reason, Actor.system())
