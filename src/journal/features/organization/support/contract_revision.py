@@ -1,4 +1,5 @@
 import io
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -28,9 +29,18 @@ class ContractRevision:
 
     def extract(self, folder: Path, sha: str, target: Path) -> None:
         prefix = InnerRepositories.git(folder, "rev-parse", "--show-prefix").stdout.strip().rstrip("/")
-        archive = subprocess.run(["git", "-C", str(folder), "archive", "--format=tar", f"{sha}:{prefix}" if prefix else sha], capture_output=True, timeout=ARCHIVE_SECONDS)
+        archive = subprocess.run(["git", "-C", str(folder), "archive", "--format=tar", sha, *([f"{prefix}/"] if prefix else [])], capture_output=True, timeout=ARCHIVE_SECONDS)
         if archive.returncode != 0:
             raise RevisionUnreadable(f"The version {sha[:12]} holds no {folder.name} folder: {archive.stderr.decode(errors='replace').strip()}")
         target.mkdir(parents=True)
         with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
-            tar.extractall(target, filter="data")
+            members = [self.inside(member, prefix) for member in tar.getmembers() if member.name.startswith(f"{prefix}/" if prefix else "")]
+            tar.extractall(target, members=members, filter="data")
+        if not (target / "domains").is_dir():
+            shutil.rmtree(target)
+            raise RevisionUnreadable(f"The version {sha[:12]} of {folder.name} holds no domains folder")
+
+    @staticmethod
+    def inside(member: tarfile.TarInfo, prefix: str) -> tarfile.TarInfo:
+        member.name = member.name.removeprefix(f"{prefix}/") if prefix else member.name
+        return member
