@@ -9,7 +9,6 @@ from worker_dispatch import dispatched
 from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.repositories.scope import Scope
-from journal.hooks.support.hook_seats import HookSeats
 from journal.config import Config
 from journal.support.caller import Caller
 from journal.providers.providers import Providers
@@ -47,14 +46,7 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
 
 
 
-def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_from(app: App):
-    from journal.support.actor import Actor
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    app.container.get(Agents).save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
-    with app.container.get(Scope).environment(1):
-        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
-    assert attributed.session == "s1" and attributed.actor.actor_type == "agent", "an unnamed agent's shell is the live agent's"
+def test_a_shell_marked_by_an_agent_program_names_the_agent_and_its_session_when_the_program_gives_one():
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
@@ -81,12 +73,6 @@ def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_
     assert dispatched(app.console(), ["Ada Lovelace", "write storage.py", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "gpt-5"], codex).code == 0
     assert app.container.get(Workers).find(1).provider == "codex", "the provider comes with the caller, not from the agent's row"
     assert app.console().run(["stuck", "the build is red"], MAIN).code == 1, "only an agent says it is stuck"
-
-
-def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app: App):
-    with app.container.get(Scope).environment(1):
-        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
-    assert attributed.actor.actor_type == "user", "a shell outside the journal is the user's"
 
 
 def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):

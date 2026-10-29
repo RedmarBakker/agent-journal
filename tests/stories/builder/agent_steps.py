@@ -34,6 +34,7 @@ from journal.http.controllers.hooks import FIRING_HEADER, SILENCE_HEADER
 from journal.features.usage.support.process_usage_store import ProcessUsageStore
 from journal.support.process_usage import ProcessUsage
 from journal.repositories.agents import Agents
+from journal.console.support.outcome import Outcome
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
 from tests.agent_hooks import pass_time
@@ -97,6 +98,11 @@ class AgentSteps:
         flags = [word for word in arguments if word.startswith("--")]
         outcome = self.app.console().run(arguments, self.caller_of(agent))
         self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
+
+    def command_from_a_shell_naming_no_session(self, line: str) -> None:
+        arguments = shlex.split(line)
+        answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "agent": True, "provider": self.provider}, MAIN)[1]
+        self.record_command(f"a shell naming no session runs {' '.join(arguments[:2])}", Outcome(answer["code"], answer["text"], answer.get("error", "")))
 
     def agent_reads(self, agent: StoryAgent, path: str = "a.py", count: int = 1) -> None:
         for _ in range(count):
