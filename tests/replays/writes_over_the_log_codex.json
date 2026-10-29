@@ -534,7 +534,9 @@
         }
       },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "etiquette.plain_words_in_code"
+      ],
       "stack": [
         "idle",
         "working"
@@ -824,7 +826,9 @@
         "error": "50 edits since you logged task 1. writes wait for journal task log 1 \"<what was done>\""
       },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "tasks.write_held_until_logged"
+      ],
       "stack": [
         "idle",
         "working"

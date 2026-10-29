@@ -264,6 +264,9 @@ class Entries(ScopedRepository[Entry]):
     def recent(self, id: int) -> list[Entry]:
         return self.selected(self.query().filter_greater("id", id).order("id"))
 
+    def newer_kind_rows(self, type_name: str, id: int) -> list[Entry]:
+        return self.selected(self.query().filter_greater("id", id).filter(entry_type=type_name).order("id"))
+
     def newer_tool_starts(self, id: int) -> list[Entry]:
         return self.selected(self.query().filter_greater("id", id).filter(entry_type=events.TOOL_STARTING).order("id"))
 

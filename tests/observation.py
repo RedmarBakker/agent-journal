@@ -31,16 +31,16 @@ class Observer:
     """Reads an observation of the main environment after each step, once the worker thread has settled, counting what was said since the step before."""
 
     def __init__(self, app, typed: list[str]) -> None:
-        self.app, self.typed, self.seen = app, typed, 0
+        self.app, self.typed, self.last_id = app, typed, 0
 
     def observe(self, answer=None) -> Observation:
         keystrokes = tuple(self.typed)
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
-            entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.entry_type == "nudge"]
+            said = self.app.container.get(Entries).newer_kind_rows("nudge", self.last_id)
             self.app.runtime().deferred.drain()
             agent = self.app.container.get(Agents).current()
             workers = tuple(f"{worker.id}:{worker.state}" + (":locked" if worker.edit_lock else "") for worker in self.app.container.get(Workers).open_workers())
-        said, self.seen = entries[self.seen:], len(entries)
+        self.last_id = said[-1].row_id if said else self.last_id
         del self.typed[:len(keystrokes)]
         stack = tuple(layer["state"] for layer in agent.stack) if agent else ()
         load = agent.work_queue.rho if agent else 0.0

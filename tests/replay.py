@@ -1,9 +1,10 @@
 import json
 import os
+import time as timing
+from datetime import datetime
 
 import journal
 import re
-import time as timing
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError
@@ -24,6 +25,8 @@ RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
 # where the journal's package lies on this machine, written in a record as a placeholder so no record names a machine's folders
 PACKAGE_FOLDER, PACKAGE_PLACEHOLDER = Path(journal.__file__).resolve().parents[1], "<package>"
+# the clock time a replay started at, which a takeover line names, written as a placeholder so a record reads the same on every run
+START_PLACEHOLDER = "<start>"
 
 
 
@@ -108,9 +111,9 @@ class Replay:
         seen = self.observer.observe(answer)
         self.steps.append({"name": name, "answer": self.placed(answer), "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
 
-    @staticmethod
-    def placed(answer):
-        return json.loads(json.dumps(answer).replace(str(PACKAGE_FOLDER), PACKAGE_PLACEHOLDER))
+    def placed(self, answer):
+        start = datetime.fromtimestamp(self.app.container.get(Clock).held_at).astimezone().strftime("%H:%M")
+        return json.loads(json.dumps(answer).replace(str(PACKAGE_FOLDER), PACKAGE_PLACEHOLDER).replace(f"last seen {start}", f"last seen {START_PLACEHOLDER}"))
 
     def record(self) -> list[dict]:
         return list(self.steps)

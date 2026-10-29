@@ -660,7 +660,7 @@ def plan_rules(app, replay: Replay, provider: str) -> None:
     console.run(["plan", "cancel", "2"], USER)
     app.runtime().deferred.drain()
     replay.step("a second plan started and cancelled")
-    replay.step("a stop after", hook_as(app, provider, "Stop")[1])
+    replay.step("a stop after", hook_as(app, provider, "Stop", session="s2")[1])
 
 
 def awaiting_rules(app, replay: Replay, provider: str) -> None:
