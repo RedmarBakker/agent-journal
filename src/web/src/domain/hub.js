@@ -5,13 +5,16 @@ import {updatedAt} from "./row.js";
 export const isHub = (row) => row.environment_type === "hub";
 
 const isTeamListed = (row, people) => !isHub(row) && (isSession(row) || (isShared(row) && colleagueOwner(row.id, people) > 0));
-// Plan and standalone-task agents use generated environment names; descendants keep that prefix and open through their plan or Role page.
-const isTopLevelEnvironment = (row) => row.environment_type !== "local" || !/^(?:plan|task)-\d+(?:$|[-/:._])/.test(row.name);
+const isGeneratedAgentEnvironment = (row) => row.generated_for === "plan" || row.generated_for === "task";
+
+// Generated plan/task environments and every child open through their plan or Role page.
+const topLevelEnvironments = (rows) => rows.filter((row) => !isGeneratedAgentEnvironment(row) && !row.parent_key);
 
 // Each team's hub with its sessions, a session joining the hub of its own team key and, with none, the first hub.
 export function teamGroups(rows, people) {
-    const hubs = rows.filter(isHub);
-    const sessions = sidebarEnvironments(rows, people).filter((row) => isTopLevelEnvironment(row) && isTeamListed(row, people));
+    const topLevel = topLevelEnvironments(rows);
+    const hubs = topLevel.filter(isHub);
+    const sessions = sidebarEnvironments(topLevel, people).filter((row) => isTeamListed(row, people));
     return hubs.map((hub, n) => ({
         key: hub.team_key || String(hub.id),
         team: hub.team_name || hub.name,
@@ -23,7 +26,7 @@ export function teamGroups(rows, people) {
 // The environments the sidebar lists apart from every team: the person's own.
 // On a hosted journal only what is shared is listed: an environment that is not shared, not the hub and not a session never is.
 export const ownEnvironments = (rows, people) =>
-    sidebarEnvironments(rows, people).filter((row) => isTopLevelEnvironment(row) && !isHub(row) && !isTeamListed(row, people) && (!people.hosted || isShared(row)));
+    sidebarEnvironments(topLevelEnvironments(rows), people).filter((row) => !isHub(row) && !isTeamListed(row, people) && (!people.hosted || isShared(row)));
 
 export const inHub = (rows, hub) => rows.filter((row) => row.environment_id === hub.id);
 

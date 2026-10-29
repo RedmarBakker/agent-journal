@@ -42,7 +42,7 @@ class PlanAgents:
             return
         plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
         environment = self.environment(plan)
-        environment = self.places.visible(environment, plan.environment_id, actor) if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor)
+        environment = self.places.visible(environment, plan.environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor, "plan")
         if self.is_running(environment):
             return
         self.bindings.bind(plan, environment.row_id, actor)

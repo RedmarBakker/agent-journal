@@ -42,7 +42,7 @@ class TaskAgents:
             return
         task, actor = self.tasks.find(event.task_id), Actor.parse(event.actor)
         environment = self.environment(task)
-        environment = self.places.visible(environment, task.environment_id, actor) if environment else self.places.made(f"task-{task.id}", task.environment_id, actor)
+        environment = self.places.visible(environment, task.environment_id, actor, "task") if environment else self.places.made(f"task-{task.id}", task.environment_id, actor, "task")
         if self.places.is_running(environment):
             return
         self.bindings.bind(task, environment.row_id, actor)

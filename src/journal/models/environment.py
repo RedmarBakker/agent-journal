@@ -12,7 +12,7 @@ UNKNOWN_TEAM_KEY = "unknown"
 
 @dataclass(frozen=True)
 class Environment(Model):
-    """A place an agent works. Its key, made at random when it is made, never changes and is how this machine and the team server match it; its name is this machine's own and never changes when the journal joins a team; its team name, the owner's name before it, is the one the team server and every other machine know it by, and is absent until a team knows it; one its owner shares with the team carries the team's key, and is in every member's sidebar and its chat open to all; one that works in a worktree names the machine that holds its folder; a team's hub and sessions name the team by its key, which a journal that has not learnt it yet holds as unknown."""
+    """A place an agent works. Its key, made at random when it is made, never changes and is how this machine and the team server match it; its name is this machine's own and never changes when the journal joins a team; its team name, the owner's name before it, is the one the team server and every other machine know it by, and is absent until a team knows it; one its owner shares with the team carries the team's key, and is in every member's sidebar and its chat open to all; one that works in a worktree names the machine that holds its folder; a plan or task agent environment names the work it was generated for and the stable key of its source environment, so its descendants can be recognized without reading their names; a team's hub and sessions name the team by its key, which a journal that has not learnt it yet holds as unknown."""
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "environment_type"}
 
@@ -25,6 +25,8 @@ class Environment(Model):
     key: str = field(default_factory=EnvironmentKey.random)
     environment_type: EnvironmentType = EnvironmentType.LOCAL
     team_key: str = ""
+    generated_for: str = ""
+    parent_key: str = ""
 
     @classmethod
     def hub(cls, team_key: str, team_name: str) -> "Environment":

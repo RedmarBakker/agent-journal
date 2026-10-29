@@ -48,9 +48,9 @@ class Environments(Repository[Environment]):
     def lookup(self, name: str) -> Environment:
         return self.made(name, Actor.system())
 
-    def made(self, name: str, actor: Actor) -> Environment:
+    def made(self, name: str, actor: Actor, parent_key: str = "", generated_for: str = "") -> Environment:
         rows = self.matching(name=name)
-        return rows[0] if rows else self.save(Environment(name=name), actor)
+        return rows[0] if rows else self.save(Environment(name=name, parent_key=parent_key, generated_for=generated_for), actor)
 
     def entered(self, name: str) -> int:
         with self.connection.unlisted():

@@ -11,17 +11,24 @@ from journal.supervisor_link import SupervisorLink
 
 
 class AgentEnvironments:
-    """An agent of its own in an environment of its own, for a plan or a task outside every plan: the environment made by whoever starts the work and seen as the work's own environment is, shared with its team or private; its one agent row prepared on the floor the work gives it, on the provider of the main agent that started it, launched in a worktree of the environment's name carrying on its last conversation, and stopped."""
+    """An agent of its own in an environment of its own, for a plan or a task outside every plan: the environment made by whoever starts the work and seen as the work's own environment is, shared with its team or private, and records the kind of work and stable key of its source; its one agent row is prepared on the floor the work gives it, on the provider of the main agent that started it, launched in a worktree of the environment's name carrying on its last conversation, and stopped."""
 
     def __init__(self, agents: Agents, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, providers: Providers) -> None:
         self.agents, self.environments, self.launcher, self.supervisor, self.providers = agents, environments, launcher, supervisor, providers
 
-    def made(self, name: str, source_environment_id: int, actor: Actor) -> Environment:
-        return self.visible(self.environments.made(name, actor), source_environment_id, actor)
+    def made(self, name: str, source_environment_id: int, actor: Actor, generated_for: str | None = None) -> Environment:
+        source = self.environments.find(source_environment_id)
+        environment = self.environments.made(name, actor, source.key, generated_for or "")
+        return self.visible(environment, source_environment_id, actor, generated_for)
 
-    def visible(self, environment: Environment, source_environment_id: int, actor: Actor) -> Environment:
+    def visible(self, environment: Environment, source_environment_id: int, actor: Actor, generated_for: str | None = None) -> Environment:
         source = self.environments.find(source_environment_id)
         team_key = "" if source.is_private() else source.team_key
+        changes = {"parent_key": source.key}
+        if generated_for is not None:
+            changes["generated_for"] = generated_for
+        if any(getattr(environment, name) != value for name, value in changes.items()):
+            environment = self.environments.save(environment.with_(**changes), actor)
         if environment.team_key == team_key:
             return environment
         return self.environments.save(environment.shared_with_team(team_key) if team_key else environment.unshared(), actor)

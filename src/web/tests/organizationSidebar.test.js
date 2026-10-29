@@ -19,16 +19,17 @@ const {store} = await import("../src/state/store.js");
 const {takeEntries, hasLoaded} = await import("../src/sync/rows.js");
 
 const environments = [
-    {id: 1, name: "main", environment_type: "local", team_key: ""},
-    {id: 2, name: "release", environment_type: "local", team_key: ""},
-    {id: 3, name: "plan-7", environment_type: "local", team_key: ""},
-    {id: 4, name: "plan-7/domain-sales", environment_type: "local", team_key: ""},
-    {id: 5, name: "plan-7/role-builder", environment_type: "local", team_key: ""},
-    {id: 6, name: "task-11", environment_type: "local", team_key: ""},
-    {id: 10, name: "acme", team_name: "Acme", environment_type: "hub", team_key: "team-a"},
-    {id: 11, name: "plan-12", environment_type: "local", team_key: "team-a"},
-    {id: 12, name: "plan-12/domain-sales", environment_type: "local", team_key: "team-a"},
-    {id: 13, name: "plan-12/role-builder", environment_type: "local", team_key: "team-a"},
+    {id: 1, key: "main-key", name: "main", environment_type: "local", team_key: ""},
+    {id: 2, key: "release-key", name: "release", environment_type: "local", team_key: ""},
+    {id: 3, key: "ordinary-plan-7", name: "plan-7", environment_type: "local", team_key: ""},
+    {id: 4, key: "plan-agent-key", name: "plan-1", environment_type: "local", team_key: "", generated_for: "plan", parent_key: "main-key"},
+    {id: 5, key: "domain-agent-key", name: "sales-agent", environment_type: "local", team_key: "", generated_for: "", parent_key: "plan-agent-key"},
+    {id: 6, key: "role-seat-key", name: "builder-seat", environment_type: "local", team_key: "", generated_for: "", parent_key: "plan-agent-key"},
+    {id: 7, key: "task-agent-key", name: "task-11", environment_type: "local", team_key: "", generated_for: "task", parent_key: "main-key"},
+    {id: 10, key: "team-a-key", name: "acme", team_name: "Acme", environment_type: "hub", team_key: "team-a"},
+    {id: 11, key: "team-plan-key", name: "plan-12", environment_type: "local", team_key: "team-a", generated_for: "plan", parent_key: "team-a-key"},
+    {id: 12, key: "team-domain-key", name: "sales-agent", environment_type: "local", team_key: "team-a", generated_for: "", parent_key: "team-plan-key"},
+    {id: 13, key: "team-role-key", name: "builder-seat", environment_type: "local", team_key: "team-a", generated_for: "", parent_key: "team-plan-key"},
 ];
 const organization = {
     domains: [{
@@ -129,8 +130,16 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
 
     const environmentGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
     const visibleEnvironments = [...environmentGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
-    expect(visibleEnvironments).toEqual(["main", "release"]);
-    expect(host.textContent).not.toContain("plan-7");
+    expect(visibleEnvironments).toEqual(["main", "release", "plan-7"]);
+    expect(host.textContent).toContain("plan-7");
     expect(host.textContent).not.toContain("plan-12");
+    expect(host.textContent).not.toContain("sales-agent");
+    expect(host.textContent).not.toContain("builder-seat");
     expect(host.textContent).not.toContain("task-11");
+
+    store.settings = {...store.settings, plans: {plan_agents: false}};
+    await nextTick();
+    const oldModeGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
+    const oldModeEnvironments = [...oldModeGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
+    expect(oldModeEnvironments).toContain("plan-7");
 });

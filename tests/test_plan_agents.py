@@ -20,7 +20,7 @@ from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.supervisor_link import SupervisorLink
-from tests.in_process import posted
+from tests.in_process import got, posted
 from tests.nudge_lines import nudge_reached
 from tests.test_features import booted, hook
 from tests.user_settings import user_set
@@ -95,9 +95,12 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
     first, second = started_plan(app, "the floors"), started_plan(app, "the roof")
     assert [launch[0] for launch in supervisors.launches] == [f"plan-{first}", f"plan-{second}"], "each started plan launches its own agent in an environment of its own"
     plans, agents = app.container.get(Plans), app.container.get(Agents)
+    main_key = app.container.get(Environments).find(MAIN).key
     for plan in (first, second):
         [agent] = agents.global_matching(id=plans.agent_id(plans.find(plan)))
-        assert agent.environment_id == plan_environment(app, plan).row_id and agent.state == "leading_plan", "the plan's plan_agent link names the agent of its own environment, on a Plan agent's floor"
+        environment = plan_environment(app, plan)
+        assert agent.environment_id == environment.row_id and agent.state == "leading_plan", "the plan's plan_agent link names the agent of its own environment, on a Plan agent's floor"
+        assert environment.generated_for == "plan" and environment.parent_key == main_key, "the generated Plan environment records its kind and source environment"
     assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "the main agent delegates, so starting the second plan pauses neither"
     with app.container.get(Scope).environment(plan_environment(app, first).row_id):
         assert [plan.id for plan in plans.scoped()] == [first] and len(plans.plan_tasks(plans.find(first))) == 1, "the first plan's environment reads its plan and its tasks, not the other plan"
@@ -107,6 +110,9 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
     assert "how are the floors?" in chat(plan_environment(app, first).row_id) and "how are the floors?" not in chat(MAIN), "the user's words in the plan's chat are that environment's alone"
     assert app.container.get(PlanOutline).build(plans.find(first))["chat"] == f"plan-{first}", "the plan's outline names the chat its card opens"
     assert f"Plan agent: environment plan-{first}, running" in app.console().run(["plan", "show", str(first)], AGENT).text, "plan show names the plan's environment and that its agent runs"
+    status, answer = got(app, "/journal/environments", {"X-Journal-Env": "main"})
+    rows = {row["name"]: row for row in answer["rows"]}
+    assert status == 200 and rows[f"plan-{first}"]["generated_for"] == "plan" and rows[f"plan-{first}"]["parent_key"] == main_key, "the environment list exposes authoritative generated and parent metadata"
 
 
 def test_a_plan_agents_first_session_takes_the_prepared_row_and_follows_its_plan(app: App, supervisors: Supervisors):
@@ -151,6 +157,24 @@ def test_with_plan_agents_off_a_started_plan_starts_no_agent(app: App, superviso
     plans = app.container.get(Plans)
     assert supervisors.launches == [] and plans.agent_id(plans.find(plan)) == 0, "no agent is launched or linked"
     assert not app.container.get(Environments).matching(name=f"plan-{plan}"), "and no environment is made for the plan"
+    status, ordinary = posted(app, "/journal/environments", {"name": "plan-7"}, {"X-Journal-Env": "main"})
+    assert status == 201 and ordinary["generated_for"] == "" and ordinary["parent_key"] == "", "a generic environment named like a generated one stays top-level"
+
+
+def test_a_nested_plan_agent_environment_records_its_source(app: App, supervisors: Supervisors):
+    user_set(app, SWITCH, True)
+    parent = started_plan(app, "the outer plan")
+    parent_environment = plan_environment(app, parent)
+    caller = Caller.user(parent_environment.name)
+    console = app.console()
+    with app.container.get(Scope).environment(parent_environment.row_id):
+        child = int(console.run(["plan", "create", "the inner plan", "--brief", "the inner plan is done"], caller).text.split()[1].rstrip(":"))
+        console.run(["plan", "add", str(child), "the inner step"], caller)
+        assert console.run(["plan", "approve", str(child)], caller).code == 0
+        assert console.run(["plan", "start", str(child)], caller).code == 0
+    app.runtime().deferred.drain()
+    child_environment = plan_environment(app, child)
+    assert child_environment.generated_for == "plan" and child_environment.parent_key == parent_environment.key, "a real nested Plan agent keeps its source relationship"
 
 
 def test_a_plan_is_its_owners_to_approve_and_its_agents_chat_is_seen_as_the_plans_environment_is(app: App, supervisors: Supervisors):
@@ -309,6 +333,7 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
     agent_id = next(target.id for target in app.container.get(Links).targets(task, TASK_AGENT_LINK))
     agent = agents.find(agent_id)
     assert agent.environment_id == environment.row_id and agent.state == "leading_task" and tasks.holder(tasks.find(task.id)) == Ref.build(agent), "its agent holds it there"
+    assert environment.generated_for == "task" and environment.parent_key == app.container.get(Environments).find(MAIN).key, "the generated task environment records its kind and source environment"
     assert len(plans.global_matching()) == planned, "no plan row is made for it"
     assert agents.session_agent("s1").stack[-1]["state"] == "coordinating_plans", "the main agent takes nothing in hand"
 
