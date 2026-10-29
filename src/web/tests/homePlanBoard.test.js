@@ -4,6 +4,8 @@ import {pageOf} from "../src/sync/paging.js";
 
 vi.mock("../src/pages/Home.vue", () => ({default: {template: "<section data-existing-home />"}}));
 
+window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+
 const {default: AppPages} = await import("../src/AppPages.vue");
 const {api} = await import("../src/api/client.js");
 const {store} = await import("../src/state/store.js");
