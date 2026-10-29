@@ -54,7 +54,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.user_settings import user_set
-from tests.agent_hooks import typing_capture, pinned_clock, silent_tick, tick_at
+from tests.agent_hooks import woken_capture, pinned_clock, silent_tick, tick_at
 from tests.in_process import answered, get_answer, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -241,7 +241,7 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     folder = app.config.root / "run"
@@ -923,7 +923,7 @@ def test_the_journals_boot_starts_no_sync_service_and_leaves_every_team_it_joine
 
 def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["voice", "address", "--title", "Sir", "--name", "Example"], USER)
     text = hook(app, "SessionStart")[1]["hookSpecificOutput"]["additionalContext"]
@@ -1244,7 +1244,7 @@ def test_the_edits_kept_are_the_newest_five_hundred(app: App):
 
 def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struck_fact_is_never_whispered(app: App, monkeypatch):
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     app.container.get(SettingRows).save(Setting(environment_id=0, key="record.kept", value=30), Actor.system())
@@ -1845,7 +1845,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     from journal.repositories.workers import Workers
     monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
     user_set(app, WorkersOptions.MODE.key, "orchestrator")
     user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, 1)
@@ -2334,7 +2334,7 @@ def test_the_rules_doc_names_every_line_a_listener_says():
 def test_a_row_event_walks_about_every_agent_of_the_environment_and_speaks_once(app: App, monkeypatch):
     keystrokes = []
     from journal.support.caller import Caller
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -2521,7 +2521,7 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
     from journal.events.bus import Bus
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    typing_capture(app, monkeypatch, transmitted)
+    woken_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -2678,7 +2678,7 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     from journal.models.plugin import Plugin
     from journal.repositories.plugins import Plugins
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     folder = tmp_path / "lint"
@@ -3229,7 +3229,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
 def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: App, monkeypatch):
     import subprocess
     from journal.repositories.tasks import Tasks
-    typing_capture(app, monkeypatch, [])
+    woken_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     old = {"GIT_COMMITTER_DATE": "2020-01-01T00:00:00", "GIT_AUTHOR_DATE": "2020-01-01T00:00:00"}
@@ -3944,7 +3944,7 @@ def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: A
     from journal.features.dumps.support.dump_filer import DumpFiler
     from journal.repositories.dumps import Dumps
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     console, sorting = app.console(), app.container.get(DumpFiler)
@@ -3980,7 +3980,7 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
     from journal.support.heartbeat import Heartbeat
     from journal.support.time_source import TimeSource
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
@@ -5009,7 +5009,7 @@ def test_a_short_output_with_no_pipe_keeps_no_output_row(app: App):
 def test_a_paused_agent_reads_and_messages_through_the_pause_its_words_reach_the_chat_and_it_is_told_its_messages_on_resume(app: App, monkeypatch):
     from journal.repositories.agents import Agents
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     agent_id = app.container.get(Agents).session_agent("s1").id
@@ -6103,7 +6103,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     import subprocess
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
-    typing_capture(app, monkeypatch, [])
+    woken_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     commit = lambda message, moment: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", message], cwd=root, check=True, env={**os.environ, "GIT_COMMITTER_DATE": moment, "GIT_AUTHOR_DATE": moment})
@@ -6127,7 +6127,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
 def test_a_fact_rule_or_reminder_is_handed_over_once_per_context_window_by_the_start_block_the_look_or_a_read(app: App, monkeypatch):
     from journal.repositories.reminders import Reminders
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console, reminders = app.console(), app.container.get(Reminders)
     console.run(["reminder", "create", "run the suite before a push", "--keywords", "push"], USER)
     hook(app, "SessionStart")
@@ -7069,7 +7069,7 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
@@ -8045,7 +8045,7 @@ def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_
     from journal.events.agent.ticked import Ticked
     from journal.repositories.agents import Agents
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -10783,7 +10783,7 @@ def test_a_commit_offers_an_update_at_most_once_an_hour_and_recap_docks_one_over
 def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewers_are_out_hold_them_while_findings_go_in_and_end_when_it_is_readied(app: App, monkeypatch):
     from journal.repositories.agents import Agents
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -10828,7 +10828,7 @@ def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewe
 def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_ends(app: App, monkeypatch):
     from journal.repositories.plans import Plans
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -10863,7 +10863,7 @@ def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_sent
     from journal.events.rows.plan_reviewed import PlanReviewed
     from journal.models.plan_state import PlanState
     from journal.repositories.plans import Plans
-    typing_capture(app, monkeypatch, [])
+    woken_capture(app, monkeypatch, [])
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -11313,7 +11313,7 @@ def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app
 def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_to_delete_it(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    typing_capture(app, monkeypatch, transmitted)
+    woken_capture(app, monkeypatch, transmitted)
 
     def api(method: str, path: str):
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=b"{}" if method == "POST" else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
