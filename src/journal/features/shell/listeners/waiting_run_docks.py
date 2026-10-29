@@ -21,7 +21,7 @@ class WaitingRunDocks(Listener[StackMoved]):
     def handle(self, event: StackMoved) -> None:
         for number in self.output_ids(event.added_states):
             self.locked(number)
-        for number in self.output_ids(event.removed_states) - self.waiting_output_ids(event.agent.environment_id):
+        for number in self.released_ids(event):
             for message in self.messages.keyed(OutputView.key(number), Actor.system()):
                 self.docking.wait_release(message, Actor.system())
 
@@ -29,6 +29,10 @@ class WaitingRunDocks(Listener[StackMoved]):
         output = self.outputs.find(number)
         if not output.ended:
             self.docking.wait_lock(self.cards.show(self.card.card_contents(output)), Actor.system())
+
+    def released_ids(self, event: StackMoved) -> set[int]:
+        ended = self.output_ids(event.removed_states)
+        return ended - self.waiting_output_ids(event.agent.environment_id) if ended else set()
 
     def waiting_output_ids(self, environment_id: int) -> set[int]:
         return {number for agent in self.agents.unended_scoped(environment_id) for number in WaitTargets.wait_output_ids(agent.stack)}
