@@ -15,7 +15,6 @@ from journal.repositories.task_logs import TaskLogs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.repositories.scope import Scope
-from journal.support.row_labels import RowLabels
 from journal.support.stage_times import StageTimes
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.chat.turn import Turn
@@ -34,9 +33,9 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: DefaultTaskAssigner, checks: Checks, wait_checks: WaitChecks, turn: Turn) -> None:
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: DefaultTaskAssigner, checks: Checks, wait_checks: WaitChecks, turn: Turn) -> None:
         self.progress, self.settings, self.assigner, self.checks, self.wait_checks, self.turn = progress, settings, assigner, checks, wait_checks, turn
-        self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
+        self.tasks, self.plans, self.entries, self.logs, self.workers = tasks, plans, entries, logs, workers
         self.scope, self.stages, self.people = scope, stages, people
 
     def read(self, agent: Agent) -> LazyFacts:
@@ -63,7 +62,6 @@ class TasksDataReader:
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_OWNED_TASKS),
-            "task_nouns": lambda: self.labels.hub_nouns("task"),
             "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_person_wait(t)),
             "unprioritised": lambda: tuple(t.row_id for t in self.tasks.unprioritised()),
             "blocking_priorities": lambda: facts.unprioritised if len(facts.unprioritised) >= self.settings.integer(TasksOptions.PRIORITY_BLOCK_TASKS) else (),

@@ -37,7 +37,6 @@ import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
 import {runPlan} from "../actions/work.js";
-import {useColleague} from "../composables/colleague.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
 const hosted = computed(() => Boolean(store.people && store.people.hosted));
@@ -167,7 +166,6 @@ async function saveToggle(toggle, value) {
     }
 }
 
-const {colleague} = useColleague();
 async function pauseOrResume() {
     const next = !paused.value;
     wanted.value = next;
@@ -262,7 +260,7 @@ async function runBar(p) {
                 </template>
             </component>
         </span>
-        <template v-if="running && !colleague">
+        <template v-if="running">
             <Btn
                 kind="icon"
                 :class="['statusbar-pause', {paused}]"

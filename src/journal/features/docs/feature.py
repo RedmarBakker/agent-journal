@@ -1,4 +1,3 @@
-from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT
@@ -7,7 +6,6 @@ from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.docs.listeners.doc_revision_record import DocRevisionRecord
 from journal.features.docs.listeners.document_card import DocumentCard
 from journal.features.docs.listeners.document_card_status import DocumentCardStatus
-from journal.features.docs.listeners.hub_doc_guard import HubDocGuard
 from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.docs.docs_options import DocsOptions
@@ -20,7 +18,6 @@ class DocsFeature(Feature):
     title = "Documents"
     help = "What the project keeps knowing: documents shared by every environment, listed on the Documents page."
     commands = (DocCommand,)
-    answer_listeners = ((HubDocGuard, Blocking.ANSWER),)
     listeners = (DocumentCard, DocumentCardStatus, DocRevisionRecord)
     options = (DocsOptions.REVISION_WINDOW,)
 

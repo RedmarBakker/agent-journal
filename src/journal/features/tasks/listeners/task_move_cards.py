@@ -14,7 +14,6 @@ from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.card_type import CardType
-from journal.support.row_labels import RowLabels
 
 # what each move of a task is called on its card, the card kind it is shown as and the field of the task that says why
 MOVES = {
@@ -32,8 +31,8 @@ MOVES = {
 class TaskMoveCards(Listener[RowEvent]):
     """A task created, edited, started, resumed, completed, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task, with its team when it is a hub task, and why it moved, in the chat of every environment the task is bound to as well as its own; a task given back by its worker, or closed by the merge of its work, is named by the worker's own mark instead."""
 
-    def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope, labels: RowLabels) -> None:
-        self.cards, self.tasks, self.scope, self.labels = cards, tasks, scope, labels
+    def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope) -> None:
+        self.cards, self.tasks, self.scope = cards, tasks, scope
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskOpened):
@@ -51,7 +50,6 @@ class TaskMoveCards(Listener[RowEvent]):
         heading, shows, reason_field = MOVES[move]
         with self.scope.environment(event.environment_id):
             task = self.tasks.find(event.row_id)
-        label = CardDetail.shortened(f"{heading} {self.labels.name('task', task)}: {task.title}")
+        label = CardDetail.shortened(f"{heading} task {task.row_id}: {task.title}")
         detail = reason or (getattr(task, reason_field) if reason_field else "")
-        for environment_id in event.environment_ids():
-            self.cards.show(environment_id, None, label, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=shows)
+        self.cards.show(event.environment_id, None, label, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=shows)

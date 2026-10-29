@@ -10,7 +10,6 @@ from journal.models.verifier_state import VerifierState
 class Verifier(Helper):
     """An agent the journal sends itself to judge one dismissal on the evidence in its brief, never a worker and never known to the main agent: its program and model, its session, the hash of the token its run proves itself with, its process, and whether it is still judging, gave its verdict and waits idle for the next judgement, or ended without one."""
 
-    shared: ClassVar[bool] = False
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
 
     helper_type: str = "verifier"

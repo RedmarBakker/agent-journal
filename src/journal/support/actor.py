@@ -99,9 +99,6 @@ class Actor:
     def can_move_worker_tasks(self) -> bool:
         return False
 
-    def can_read_comments(self) -> bool:
-        return False
-
     def can_pair_phone(self) -> bool:
         return False
 
@@ -109,9 +106,6 @@ class Actor:
         return False
 
     def can_manage_plugins(self) -> bool:
-        return False
-
-    def can_share_environments(self) -> bool:
         return False
 
     def is_system_actor(self) -> bool:

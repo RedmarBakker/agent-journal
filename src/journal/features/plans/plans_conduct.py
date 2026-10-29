@@ -6,7 +6,6 @@ from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
-from journal.events.rows.drive_ended import DriveEnded
 from journal.events.rows.plan_approved import PlanApproved
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_reopened import PlanReopened
@@ -38,9 +37,6 @@ class PlansConduct(Conduct):
 
     def on_plan_blocked(self, event: PlanBlocked, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_BLOCKED.create(n=event.plan_id, why=event.reason))
-
-    def on_drive_ended(self, event: DriveEnded, settings: Settings) -> Transition:
-        return self.none(PlansNudges.DRIVE_ENDED.create(name=event.name, why=event.reason, noun=event.noun, n=event.row_id))
 
     def on_plan_reopened(self, event: PlanReopened, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_REOPENED.create(n=event.plan_id, why=event.reason))

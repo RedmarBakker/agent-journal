@@ -7,7 +7,6 @@ import threading
 from pathlib import Path
 
 from journal.config import Config
-from journal.models.environment import UNKNOWN_TEAM_KEY
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.release import Release
@@ -47,21 +46,6 @@ class TeamAccount(HubAccount):
         files = sorted((self.config.home / TEAMS_FOLDER).glob("*.json"))
         homes = [path for path in files if json.loads(path.read_text()).get("home", True)] if len(files) > 1 else files
         return next(iter(homes or files), self.config.home / TEAM_FILE)
-
-    def team_key(self) -> str:
-        return str(self.contents().get("team_key", UNKNOWN_TEAM_KEY)) if self.is_joined() else ""
-
-    def is_on_hub(self) -> bool:
-        return bool(self.contents().get("on_hub", False))
-
-    def record_on_hub(self) -> None:
-        self.merged({"on_hub": True})
-
-    def team_number(self) -> int:
-        return int(self.contents().get("team_number", 0))
-
-    def record_team(self, key: str, number: int) -> None:
-        self.merged({"team_key": key, "team_number": number})
 
     def device(self) -> str:
         return str(self.contents().get("device", ""))

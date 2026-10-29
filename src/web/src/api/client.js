@@ -440,7 +440,7 @@ export class ApiClient {
     // the library's items, each with its newest version and the version this journal imported, by kind and words
     libraryItems(type, search) {
         const query = new URLSearchParams(Object.entries({type, search}).filter(([, value]) => value));
-        return this.get(`/library/items${query.size ? `?${query}` : ""}`);
+        return this.get(`/library/items?${query}`);
     }
 
     // one library item with every version and its note, and the version this journal imported
@@ -466,81 +466,6 @@ export class ApiClient {
     // updates the imported copy to the newest version; replace writes over a copy edited here
     updateLibraryItem(type, name, replace) {
         return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace});
-    }
-
-    // how this journal stands with its team, or that it has joined none
-    team() {
-        return this.get("/team");
-    }
-
-    // joins a team by its URL: a new server's makes this person its admin, an invitation URL a member; as journal team join does
-    joinTeam(fields) {
-        return this.post("/team/join", fields, LONG_WAIT_MS);
-    }
-
-    // leaves the team: the sync stops, every local row stays, and the team's settings are kept in a backup file
-    leaveTeam() {
-        return this.post("/team/leave", {});
-    }
-
-    // whether a team server's address can be claimed: its address made plain, and why not when it cannot
-    checkTeam(fields) {
-        return this.post("/team/check", fields, LONG_WAIT_MS);
-    }
-
-    // the team's people, each with their role, when they were last seen and their environments
-    teamPeople() {
-        return this.get("/team/people");
-    }
-
-    // the worker pool: the slots this machine gives, the pool workers it runs for teammates, this journal's on other machines, and the team's
-    teamPool() {
-        return this.get("/team/pool");
-    }
-
-    // stops a pool worker this machine runs for a teammate, answered with the pool as it then stands
-    stopPoolWorker(request) {
-        return this.post(`/team/pool/${encoded(request)}/stop`, {});
-    }
-
-    // the team's devices, for an admin
-    teamDevices() {
-        return this.get("/team/devices");
-    }
-
-    // the requests this person filed, with the state each has reached
-    filedRequests() {
-        return this.get("/requests/filed");
-    }
-
-    // the requests filed for this person, in every environment
-    requests() {
-        return this.get("/requests");
-    }
-
-    // revokes one device, so it reaches the team no more
-    revokeDevice(id) {
-        return this.post(`/team/devices/${encoded(id)}/revoke`, {});
-    }
-
-    // an admin's invitation for one email, answered with the line the person joins with
-    // changes this person's team password, the old one checked
-    changeTeamPassword(old, password) {
-        return this.post("/team/password", {old, new: password});
-    }
-
-    // an admin resets a person's team password, answered with the new one to pass on
-    resetTeamPassword(id) {
-        return this.post(`/team/people/${id}/password`, {});
-    }
-
-    // a one-time link that opens the team's hosted journal signed in as this person
-    openSharedJournal() {
-        return this.post("/team/open", {});
-    }
-
-    inviteToTeam(email) {
-        return this.post("/team/invite", {email});
     }
 
     // ends the browser's session on a hosted journal
@@ -586,14 +511,6 @@ export class ApiClient {
 
     removeEnvironment(environment) {
         return this.act("environments", environment, "remove");
-    }
-
-    shareEnvironment(environment) {
-        return this.act("environments", environment, "share");
-    }
-
-    unshareEnvironment(environment) {
-        return this.act("environments", environment, "unshare");
     }
 
     leftWorktrees() {

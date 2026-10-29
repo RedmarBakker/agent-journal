@@ -5,7 +5,6 @@ from journal.providers.codex import Codex
 from journal.providers.provider import Provider
 from journal.support.caller import Caller
 from journal.support.caller_variables import CallerVariables
-from journal.support.caller import LOCAL_USER
 
 
 class Providers:
@@ -37,4 +36,4 @@ class Providers:
         return CallerVariables.read(environ, provider.name, tuple(name for name in (provider.session_variable,) if name), self.inherited_markers())
 
     def caller(self, environ: Mapping[str, str]) -> Caller:
-        return self.caller_variables(environ).caller(LOCAL_USER)
+        return self.caller_variables(environ).caller()

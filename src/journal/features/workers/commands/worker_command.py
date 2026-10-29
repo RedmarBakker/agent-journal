@@ -176,8 +176,6 @@ class WorkerCommand(Command):
         return f"You work {self.delegation.scope_name(args.plan, args.phase)}: tasks {', '.join(str(task.row_id) for task in planned)}, in this order; each next one comes to you when you clock out of the one before."
 
     def dispatch(self, args: Namespace, caller: Caller) -> int:
-        if self.starts.hosted_refusal():
-            raise Rejection(self.starts.hosted_refusal())
         if self.is_test_command_missing():
             raise Rejection(TEST_COMMAND_MISSING)
         self.worker_profile(args.profile)

@@ -8,7 +8,7 @@ RENAMED_TAG = ".moved-aside-"
 
 
 class LaunchWorktrees:
-    """The worktrees launches made at .claude/worktrees, the Team chat's left out, and those of them whose environment is gone, which no environment lists any more."""
+    """The worktrees launches made at .claude/worktrees, and those of them whose environment is gone, which no environment lists any more."""
 
     def __init__(self, config: Config, environments: Environments) -> None:
         self.config, self.environments = config, environments

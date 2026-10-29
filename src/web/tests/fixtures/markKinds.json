@@ -93,13 +93,6 @@
    "colouring": "none"
   },
   {
-   "key": "requests",
-   "title": "Requests",
-   "icon": "inbox",
-   "group": "journal",
-   "colouring": "none"
-  },
-  {
    "key": "filed",
    "title": "Tasks created from your messages",
    "icon": "inbox",
@@ -230,13 +223,6 @@
    "title": "Suggestions",
    "icon": "bulb",
    "group": "journal",
-   "colouring": "none"
-  },
-  {
-   "key": "team",
-   "title": "Team",
-   "icon": "warn",
-   "group": "work",
    "colouring": "none"
   }
  ],
@@ -401,19 +387,6 @@
    "covers": [],
    "icon": "warn",
    "group": "agent",
-   "colouring": "none"
-  },
-  {
-   "key": "requests",
-   "label": "Requests filed for you",
-   "family": "requests",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": [],
-   "icon": "inbox",
-   "group": "journal",
    "colouring": "none"
   },
   {
@@ -759,19 +732,6 @@
    "covers": [],
    "icon": "bulb",
    "group": "journal",
-   "colouring": "none"
-  },
-  {
-   "key": "conflicts",
-   "label": "Your edits a colleague's newer edit replaced",
-   "family": "team",
-   "main": false,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": [],
-   "icon": "warn",
-   "group": "work",
    "colouring": "none"
   }
  ]

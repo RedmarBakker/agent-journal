@@ -1,6 +1,6 @@
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import fields
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Callable, Generic, Iterable, TypeVar
 
 from journal.repositories.read_caller import ReadCaller
@@ -15,9 +15,6 @@ from journal.events.models.deleted import Deleted
 from journal.events.models.deleting import Deleting
 from journal.events.models.number_request import NumberRequest
 from journal.events.models.purged import Purged
-from journal.events.models.synced_creation import SyncedCreation
-from journal.events.models.synced_deletion import SyncedDeletion
-from journal.events.models.synced_update import SyncedUpdate
 from journal.events.models.saved import Saved
 from journal.events.models.saving import Saving
 from journal.events.models.updated import Updated
@@ -248,46 +245,6 @@ class Repository(Generic[M]):
             self.stored()
             self.bus.dispatch(Deleted(model=row, actor=actor))
             self.dispatched(row, actor)
-
-    def pulled_creation(self, id: int, fields: dict, actor: Actor) -> M:
-        row = self._team_row(id, fields)
-        with self.connection.transaction():
-            self.connection.execute(*self.query().upsert(id=id, **self._column_values(row)))
-            self.stored()
-            self.bus.dispatch(SyncedCreation(model=row, actor=actor))
-            return self.dispatched(row.with_events(row.creation_events()), actor)
-
-    def restored(self, rows: list[tuple[int, dict]]) -> None:
-        statements = [self.query().upsert(id=id, **self._column_values(self._team_row(id, fields))) for id, fields in rows]
-        if statements:
-            self.connection.execute_many(statements[0][0], [params for _, params in statements])
-        self.stored()
-
-    def _team_row(self, id: int, fields: dict) -> M:
-        parsed = self._parsed(fields)
-        row = self.model(**{**parsed, "id": id, "updated_at": self._time()}).pulled_row()
-        return row.local_ready() if any(name not in parsed for name in row.local_fields) else row
-
-    def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
-        with self.connection.transaction():
-            previous_rows = self._loaded(self.query().filter(id=id))
-            parsed = self.model.pulled_fields({name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields})
-            if parsed:
-                self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
-            self.stored()
-            rows = self._loaded(self.query().filter(id=id))
-            for row, previous in zip(rows, previous_rows):
-                self.bus.dispatch(SyncedUpdate(model=row, actor=actor, previous=previous))
-            return rows
-
-    def pulled_deletion(self, id: int, actor: Actor) -> list[M]:
-        with self.connection.transaction():
-            rows = self._loaded(self.query().filter(id=id))
-            self._purged(self.query().filter(id=id))
-            self.stored()
-            for row in rows:
-                self.bus.dispatch(SyncedDeletion(model=row, actor=actor))
-            return rows
 
     def _parsed(self, fields: dict) -> dict:
         return {name: self.column_map[name].parsed(value) for name, value in self._current_names(fields).items() if name in self.column_map and name != "id"}

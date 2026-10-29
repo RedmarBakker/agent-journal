@@ -41,7 +41,7 @@ export function useNavigation() {
         {
             key: "project",
             label: "Project",
-            links: [...daily("project"), ...deskLinks(["requests", "files", "git", "plugins", "mcp", "profiles", "secrets", "library", "resources", "team", "settings"])],
+            links: [...daily("project"), ...deskLinks(["files", "git", "plugins", "mcp", "profiles", "secrets", "library", "resources", "settings"])],
         },
     ]);
     const everywhere = computed(() => [...sections.value.flatMap((s) => s.links), ...groups.value.flatMap((g) => g.links)]);

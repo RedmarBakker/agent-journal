@@ -4,7 +4,7 @@ from journal.db.connection import Connection
 
 
 class Migration:
-    """One numbered change to the database after the schema was first created: its statements, run in order, or an up of its own, with a column renamed in place of the empty one the schema already added, and renamed too in every write of that table still waiting for the team server, so it is sent under the new name. has_table is asked of the workers table only for a migration before 50, when workers and verifiers moved to the table of sent agents."""
+    """One numbered change to the database after the schema was first created: its statements, run in order, or an up of its own, with a column renamed in place of the empty one the schema already added. has_table is asked of the workers table only for a migration before 50, when workers and verifiers moved to the table of sent agents."""
 
     number: ClassVar[int]
     statements: ClassVar[tuple[str, ...]] = ()
@@ -18,19 +18,14 @@ class Migration:
         return bool(connection.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)))
 
     @staticmethod
+    def column_names(connection: Connection, table: str) -> set[str]:
+        return {row["name"] for row in connection.all(f"PRAGMA table_info({table})")}
+
+    @staticmethod
     def column_rename(connection: Connection, table: str, old: str, new: str) -> None:
-        present = {row["name"] for row in connection.all(f"PRAGMA table_info({table})")}
+        present = Migration.column_names(connection, table)
         if old not in present:
             return
         if new in present:
             connection.execute(f"ALTER TABLE {table} DROP COLUMN {new}")
         connection.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
-        Migration.queue_rename(connection, table, old, new)
-
-    @staticmethod
-    def queue_rename(connection: Connection, table: str, old: str, new: str) -> None:
-        queue = "outgoing_changes"
-        if not connection.all(f"PRAGMA table_info({queue})"):
-            return
-        for column in ("fields", "changed_at"):
-            connection.execute(f"UPDATE {queue} SET {column} = json_remove(json_set({column}, '$.' || ?, json({column} -> ('$.' || ?))), '$.' || ?) WHERE row_table = ? AND json_type({column}, '$.' || ?) IS NOT NULL", (new, old, old, table, old))

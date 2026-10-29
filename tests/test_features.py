@@ -34,7 +34,6 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
 from journal.models.plugin import Plugin as PluginRow
@@ -1625,105 +1624,6 @@ def test_a_row_named_in_a_message_is_a_chip_in_the_viewer():
     assert Mentions.found("the plan is ready; 3 agents; version 4") == []
 
 
-def hub_mentions_of(app: App, team: str) -> list[str]:
-    from journal.models.environment import Environment
-    from journal.repositories.environments import Environments
-    app.container.get(Environments).save(Environment.hub(f"{team}-key", team), Actor.system())
-    hook(app, "SessionStart")
-    app.console().run(["message", "send", "look at acme plan 12"], USER)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        return json.loads(reply.read())["rows"][-1]["mentions"]
-
-
-def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_plan(app: App):
-    assert hub_mentions_of(app, "acme") == ["acme/plans:12"]
-
-
-def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_hub_plan(app: App):
-    assert hub_mentions_of(app, "beta") == ["plans:12"]
-
-
-def test_a_plan_and_a_task_are_made_in_a_teams_hub_with_team_and_an_unjoined_team_is_refused(app: App):
-    from journal.models.environment import Environment
-    from journal.repositories.environments import Environments
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
-    console = app.console()
-    plan = console.run(["plan", "create", "launch", "--team", "acme"], USER)
-    task = console.run(["task", "create", "ship it", "--team", "acme"], USER)
-    assert plan.text.startswith("acme plan ") and task.text.startswith("acme task "), "the answers name the rows with their team"
-    with app.container.get(Scope).environment(hub.row_id):
-        assert [p.title for p in app.container.get(Plans).scoped()] == ["launch"] and [t.title for t in app.container.get(Tasks).scoped()] == ["ship it"], "both are in the hub environment"
-    assert "no joined team is named zed" in console.run(["task", "create", "lost", "--team", "zed"], USER).error
-    assert "no joined team is named zed" in console.run(["plan", "create", "lost", "--team", "zed"], USER).error
-
-
-def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to_its_person(app: App):
-    from journal.models.environment import Environment
-    from journal.models.user import User
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
-    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
-    console = app.console()
-    made = [console.run(["task", "create", title, *flags], USER) for title, flags in (("review it", ["--to", "Bob"]), ("plan the move", ["--to-team"]), ("the board is slow", ["--issue"]))]
-    assert all(m.text.startswith("acme task ") for m in made), "each answer names the row with its team"
-    with app.container.get(Scope).environment(hub.row_id):
-        assert [t.title for t in app.container.get(Tasks).scoped()] == ["review it", "plan the move", "the board is slow"], "all three are in the hub environment"
-    kinds = sorted((link.link_type, str(link.target)) for link in app.container.get(Links).rows() if link.link_type in ("requested_of", "requested_of_team", "issue"))
-    assert kinds == [("issue", f"environments:{hub.row_id}"), ("requested_of", f"users:{bob.row_id}"), ("requested_of_team", f"environments:{hub.row_id}")]
-    assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).error
-    assert console.run(["task", "create", "plain"], USER).text.startswith("task "), "a task made with none of the flags never asks for a hub"
-
-
-def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list_and_done_on_the_requesters_when_finished(app: App):
-    from types import SimpleNamespace
-    from journal.chat.moment_cards import MomentCards
-    from journal.events.models.created import Created
-    from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
-    from journal.features.tasks.listeners.request_cards import RequestCards
-    from journal.http.controllers.requests import RequestController
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.models.user import User
-    from journal.repositories.environment_owners import EnvironmentOwners, OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    from journal.support.row_labels import RowLabels
-    environments, links = app.container.get(Environments), app.container.get(Links)
-    hub = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
-    home = environments.save(Environment(name="bob-main"), Actor.system())
-    app.container.get(Users).save(User(name="Ada", email="ada@example.com"), Actor.system())
-    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
-    links.save(Link(source=Ref.build(bob), target=Ref.build(home), link_type=OWNER), Actor.system())
-    with app.container.get(Scope).environment(hub.row_id):
-        task = app.container.get(Tasks).save(Task(title="review the plan"), Actor.user(1))
-    link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), link_type="requested_of"), Actor.user(1))
-    listener = RequestArrivalCard(app.container.get(RequestCards), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
-    listener.handle(Created(model=link, actor=Actor.user(1)))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(home.row_id):
-        cards = [m.text for m in app.container.get(Messages).scoped()]
-    assert set(cards) == {f"acme task {task.row_id} is a request for you: review the plan"}, "the card is in the person's main chat, naming the task with its team"
-    controller = app.container.get(RequestController)
-    assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
-    with app.container.get(Scope).environment(hub.row_id):
-        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state=TaskState.COMPLETED), Actor.user(bob.row_id))
-    assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "completed")], "and the requester's page reads it done once the recipient finished it"
-
-
 def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_run_printed_cut_at_forty_lines(app: App, tmp_path):
     import time
     from types import SimpleNamespace
@@ -2253,28 +2153,6 @@ def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app:
         running = checks.save(stale.started(time.time()), Actor.user(1))
         returned = runner.start(stale, Actor.system())
         assert returned.progress.time == running.progress.time == checks.find(stale.row_id).progress.time, "the due tick had read the check before the run began: it starts no second run over the first"
-
-
-def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
-    from journal.models.environment import Environment
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.support.row_labels import RowLabels
-    environments = app.container.get(Environments)
-    acme = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
-    beta = environments.save(Environment.hub("k-beta", "beta"), Actor.system())
-    labels = app.container.get(RowLabels)
-    assert labels.name("task", Task(id=57, environment_id=acme.row_id)) == "acme task 57"
-    assert labels.name("task", Task(id=58, environment_id=beta.row_id)) == "beta task 58"
-    assert labels.name("task", Task(id=59, environment_id=acme.row_id + beta.row_id + 1000)) == "task 59"
-    from journal.models.plan import Plan
-    assert labels.name("plan", Plan(id=12, environment_id=beta.row_id)) == "beta plan 12" and labels.name("plan", Plan(id=12, environment_id=acme.row_id)) == "acme plan 12", "the same number in two teams' hubs is told apart by team"
-
-
-
-
-
-
 
 
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
@@ -2978,17 +2856,6 @@ def test_the_plugins_page_previews_installs_lists_configures_and_removes(app: Ap
     assert api("POST", f"plugins/{produced['id']}/remove", {})[0] == 200 and app.container.get(Plugins).all() == []
 
 
-
-
-
-def test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show(app: App):
-    """The skill, the look and the mark hold a Codex write through its pre-tool hook, as the records frozen on today's conduct show; nothing here is Claude only."""
-    import json
-    records = Path(__file__).with_name("replays")
-    blocked = lambda name: {s["name"]: s["answer"]["error"] for s in json.loads((records / f"{name}_codex.json").read_text())["steps"] if isinstance(s["answer"], dict) and "error" in s["answer"]}
-    assert "the journal skill" in blocked("loading_skill_rules")["a write before the skill is read"]
-    assert "`journal environment overview`" in blocked("orienting_rules")["a write before the look"]
-    assert "writes wait until you weigh your memories" in blocked("at_mark_rules")["a write at the mark"]
 
 
 
@@ -3839,19 +3706,6 @@ def test_nothing_is_installed_on_its_own_when_no_release_is_newer(app: App):
 
 
 
-def test_the_chat_orders_messages_by_when_they_were_written_never_by_their_number(app: App):
-    from datetime import datetime, timedelta, timezone
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    messages = app.container.get(Messages)
-    written = datetime.now(timezone.utc) + timedelta(hours=1)
-    with app.container.get(Scope).environment(1):
-        for number, text, moment in ((500000, "written here", written), (400000, "written on the hosted page", written + timedelta(seconds=5))):
-            messages.pulled_creation(number, {"environment_id": 1, "author": "user", "text": text, "created_at": moment.isoformat(), "updated_at": moment.isoformat()}, Actor.user(1))
-        assert [m.text for m in messages.window(messages.main_chat(), 2)] == ["written here", "written on the hosted page"], "a message written later shows last, though its journal gave it a lower number"
-        assert messages.window(messages.main_chat(), 5, previous=400000)[-1].text == "written here", "and the page before it holds what was written before it"
-
-
 def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its_own(app: App, tmp_path):
     from journal.repositories.collections import Collections
     console = app.console()
@@ -4044,11 +3898,10 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     for name in ("calm-river", "quiet-heron"):
         Worktree(root, name).created()
         console.run(["environment", "create", name], USER)
-    Worktree(root, "team").created()
     environment = app.container.get(Environments).existing("calm-river")
     assert posted(app, f"/journal/environments/{environment.row_id}/remove", {}, {"X-Journal-Env": "main"})[0] == 200
     listed = console.run(["worktree", "list"], USER).text
-    assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed and "team" not in listed, listed
+    assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed, listed
     status, answer = get_answer(app, "/journal/worktrees", {"X-Journal-Env": "main"})
     assert status == 200 and answer["worktrees"] == [{"name": "calm-river", "branch": "worktree-calm-river"}], "the viewer lists the worktree whose environment is gone, and no other"
     status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
@@ -4324,11 +4177,8 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     assert "there is no worktree named calm-river" in console.run(["worktree", "remove", "calm-river"], USER).error
     assert "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout
     assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == git("rev-parse", "worktree-calm-river").stdout.strip(), "its branch and its last commit stay, so a launch of its name makes it again"
-    assert "Team chat" in console.run(["worktree", "remove", "team"], USER).error, "the Team chat's worktree is never removed this way"
     from journal.launcher.launch import Launch
     from journal.support.choice import Choice
-    refusal = Launch.parse(["claude", "--worktree", "team"], root).start_refusal(Choice("team"))
-    assert "the Team chat's own" in refusal, "and no launch takes it with --worktree team"
     assert Launch.parse(["claude", "--worktree", "calm-river"], root).start_refusal(Choice("calm-river")) == "", "while any other worktree name launches"
 
 
@@ -7882,20 +7732,6 @@ RECONNECT_WAIT_SECONDS = 90
 
 
 
-def ada_tasks(a: App) -> tuple:
-    """A task in Ada's own environment, then one in the team's hub."""
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-
-    environments = a.container.get(Environments)
-    tasks = []
-    for environment, title in ((environments.existing("main"), "Ada's own"), (environments.hubs()[0], "the team's work")):
-        with a.container.get(Scope).environment(environment.row_id):
-            tasks.append(a.container.get(Tasks).save(Task(environment_id=environment.row_id, title=title), Actor.user(1)))
-    return tuple(tasks)
-
-
 def synced(check) -> bool:
     deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
     while timing.monotonic() < deadline:
@@ -7903,52 +7739,6 @@ def synced(check) -> bool:
             return True
         timing.sleep(0.05)
     return False
-
-
-
-
-def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_and_reaches_the_agent_of_the_machine_that_claims_it_after_a_minute_and_a_half(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.environments import Environments
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages
-    bob = replace(USER, person=2)
-
-    def session(journal):
-        sessions = journal.container.get(Environments).session_rows(["review"])
-        return sessions[0] if sessions else None
-
-    def lines() -> list[str]:
-        return [entry.data.get("line") for entry in b.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
-
-    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _, carriers):
-        assert a.console().run(["session", "start", "review"], USER).code == 0
-        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
-        carriers[0].carrier.stop()
-        team.log.wake()
-        assert synced(lambda: all(loop.is_dead() for loop in carriers[0].carrier.loops)), "Ada's machine is offline: its sync's loops have ended, no pull of hers left waiting on the server"
-        away_since = team.leases.state("session:review", clock.time()).renewed_at
-        monkeypatch.setattr(team.clock, "time", lambda: away_since + 89)
-        early = b.console().run(["session", "start", "review"], bob)
-        assert early.code == 1 and "session:review is held by Ada" in early.error, "no claim before the holder has been away a minute and a half, counted from the last renewal of her lease"
-        monkeypatch.setattr(team.clock, "time", lambda: away_since + 91)
-        status, answer = posted(b, "/journal/messages", {"text": "the release notes are ready", "idempotency": "bob-1"}, {"X-Journal-Env": "review"})
-        assert status == 202 and "session review is held by Ada, offline since" in answer["notice"], answer
-        assert not b.container.get(Messages).global_matching(idempotency="bob-1"), "the message waits on the team server, made nowhere yet"
-        assert posted(b, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200
-        claimed = b.console().run(["session", "start", "review"], bob)
-        assert claimed.code == 0, claimed.error
-        deadline = clock.monotonic() + RECONNECT_WAIT_SECONDS
-        while clock.monotonic() < deadline and not any(line.startswith("new message") and line.endswith("from Bob") for line in lines()):
-            clock.sleep(0.2)
-        made = b.container.get(Messages).global_matching(idempotency="bob-1")
-        assert made and made[0].data.get(Message.TEAMMATE) == "Bob", "the claiming machine makes the waiting message as Bob's"
-        assert f"new message {made[0].id} from Bob" in lines(), lines()
-
-
-
-
 
 
 
@@ -7975,18 +7765,6 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
         line = nudges[key].create(**values).rendered()
         assert len(line) <= limit and "Lady" not in line and "{{" not in line, f"{key} is said short: {line!r}"
     assert "workers.worker_clocked_in" not in nudges, "an arrival the orchestrator dispatched is not told back to it"
-
-
-def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
-    from journal.features.etiquette.feature import Etiquette
-    from journal.features.messages.feature import Messages as MessagesFeature
-    messages, etiquette = MessagesFeature.skill.body, Etiquette.skill.body
-    assert "a colleague of your user, commented in your chat" in messages and "a request in it waits until your user\n  agrees" in messages
-    assert "A colleague's comment is not your user's" in etiquette
-
-
-
-
 
 
 def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environments_worktree_and_main_is_untouched(app: App):
@@ -8065,58 +7843,6 @@ def came_back(updater: Updater, monkeypatch, version: str) -> None:
 
 
 
-
-
-def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_line(app: App, tmp_path):
-    import json
-    from urllib.error import HTTPError
-    from urllib.request import Request as HttpRequest, urlopen
-
-    from journal.sync.team_account import TEAM_FILE
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-
-    def posted(path, body):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=20) as answer:
-                return answer.status, json.loads(answer.read())
-        except HTTPError as refused:
-            return refused.code, json.loads(refused.read())
-
-    def fetched(path):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", headers={"X-Journal-Env": "main"})
-        with urlopen(request, timeout=10) as answer:
-            return json.loads(answer.read())
-
-    def standing():
-        return fetched("/team")
-
-    try:
-        assert standing()["joined"] is False and "email" in standing(), "a journal in no team says so, with the email git knows, and the page shows the form"
-        refused = posted("/team/join", {"url": address, "email": "ada@example.com", "name": "Ada", "password": "weak"})
-        assert refused[0] == 409 and "at least 12 characters" in refused[1]["error"], "a refusal comes back as the line the page shows"
-        joined = posted("/team/join", {"url": address + "/", "email": "ada@example.com", "name": "Ada", "password": "correct horse battery"})
-        assert joined[0] == 201 and joined[1]["outcome"].startswith("this journal is now the team's"), "the page's join makes the first journal the team's"
-        joined_standing = standing()
-        assert joined_standing["joined"] and joined_standing["address"] == address and joined_standing["version"], "and the page shows the team's server, its sync and its version"
-        assert joined_standing["admin"] and joined_standing["state"] in ("in_step", "waiting", "connecting") and joined_standing["running"], "it says whether this person is an admin and which sync state to draw"
-        [ada] = fetched("/team/people")["people"]
-        assert ada["name"] == "Ada" and ada["role"] == "admin" and ada["me"] and ada["environments"], "the people list names each person with their role and environments, the viewer's own marked"
-        [device] = fetched("/team/devices")["devices"]
-        assert device["this"], "an admin sees the team's devices, this one marked"
-        chat = fetched("/team-chat")
-        assert chat["line"] == "No one holds the Team chat" and chat["claimable"] and not chat["mine"], "the Team chat answer says who holds it and whether anyone may claim it"
-        invited = posted("/team/invite", {"email": "bob@example.com"})
-        assert invited[0] in (200, 201) and invited[1]["url"].startswith(f"{address}/join?code="), "an admin makes a colleague's invitation URL from the Team tab"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
 
 
 def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app: App):
@@ -8441,24 +8167,6 @@ def test_a_session_start_after_a_restart_names_the_background_runs_it_cut_off(ap
     status, body = hook(app, "SessionStart")
     told = body["hookSpecificOutput"]["additionalContext"]
     assert nudge_reached(app, told, BriefingNudges.INTERRUPTED_RUNS, rows=f"output {run.id}, python3 -m pytest -q"), "the new session hears at its start which runs the restart ended, so none is taken for still running"
-
-
-
-
-def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):
-    from journal.chat.moment_cards import MomentCards
-    from journal.repositories.messages import Messages
-    from journal.support.card_type import CardType
-    cards, messages = app.container.get(MomentCards), app.container.get(Messages)
-    with app.container.get(Scope).environment(MAIN):
-        before = len(messages.scoped())
-        for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
-            cards.show(MAIN, None, label, detail="kept: 4", shows=CardType.CONFLICTS)
-        cards.show(MAIN, None, "Task 4 started", "task", shows=CardType.MEMORIES)
-        chat = messages.scoped()[before:]
-    assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
-    assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
-    assert chat[0].data["detail"] == "3 in all" and chat[0].data["lines"] == chat[0].data["covers"], "which its card lists under its count"
 
 
 
@@ -9208,42 +8916,6 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     assert app.container.get(Readers).reading("make check --suite fast").name == "counts", "it reads the commands it names"
     Path(reader.script).write_text("printf 'cut \\342\\200 here\\n'\n")
     assert reader.variant("finished").card_lines(["x"]) == ["cut \ufffd here"], "a script that cuts a character in half is read with the half replaced, never a fault"
-
-
-def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no_other(app: App, monkeypatch):
-    import time as clock
-    from journal.features.updates.support.updater import Updater
-    from journal.support.rejection import Rejection
-    from journal.sync.team_account import TeamAccount
-    from journal.version import VERSION
-    major = VERSION.split(".")[0]
-    pin, beside = f"{major}.98.0", f"{major}.99.0"
-    monkeypatch.setattr(Updater, "restart", lambda self: None)
-    monkeypatch.setattr(Updater, "leads_upgrade", lambda self: False)
-    installer = Installer()
-    updating = updating_with(app, Source(f"v{VERSION}", f"v{pin}", f"v{beside}"), installer, auto=False)
-    account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0, "team_version": pin})
-    try:
-        updating.tick(0.0)
-        for _ in range(50):
-            if installer.ran:
-                break
-            clock.sleep(0.05)
-        assert installer.ran == [f"v{pin}"], "with automatic updates off, the pinned version is installed by itself, never the newer one beside it"
-        account.write({**account.contents(), "team_version": VERSION})
-        updating.read()
-        try:
-            updating.target()
-            raise AssertionError("a manual update past the pin was not refused")
-        except Rejection as refused:
-            assert "sets this journal's version" in str(refused) and VERSION in str(refused), str(refused)
-    finally:
-        account.leave(0)
-
-
-
-
 
 
 def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_out(app: App):
@@ -10302,8 +9974,6 @@ def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_qu
     assert updater.problem == "" and updater._next_check_at == 4102444800.0, "a refusal says nothing to the user and waits until the reset"
     memory.store(ReleaseCheck(1000.0, 0.0, ("v4.70.0",)))
     assert source.next_check_time(3600) == 4600.0 and source.stored_tags("v4.") == ["v4.70.0"], "a journal that starts again counts its next look from the machine's last one and keeps its tags"
-
-
 
 
 def test_a_sequence_is_never_started_over_a_compaction_or_a_wait_whose_own_event_it_would_hide(app: App):

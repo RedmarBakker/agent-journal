@@ -140,7 +140,7 @@ def copied(template: Path, root: Path) -> Path:
 
 @pytest.fixture
 def scope(connection: Connection, bus: Bus) -> Scope:
-    return Scope(Environments(connection, bus, TimeSource()), Links(connection, bus, TimeSource()))
+    return Scope(Environments(connection, bus, TimeSource()))
 
 
 # the shard of a parallel suite this run is, as index/count, set by scripts/suite.py

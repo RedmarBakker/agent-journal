@@ -97,7 +97,7 @@ class LibraryImport:
         if path.exists():
             raise Rejection(f"a reader file named {path.name} exists here already: the library's copy is not written over it")
         if not accepted:
-            raise Rejection(f"reader {item.name} runs on your commands' output as written below. Read it, then import again with --accept to write it\n{ReaderBody.file_text(item.body)}")
+            raise Rejection(f"reader {item.name} runs on your commands' output: read it below, then import with --accept\n{ReaderBody.file_text(item.body)}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(ReaderBody.file_text(item.body))
         return self.items.save(item.with_(file_path=str(path.relative_to(self.config.root))), actor)

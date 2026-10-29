@@ -10,11 +10,8 @@ class MessagesNudges:
     UNLINKED_NUMBERS = Nudge("messages", "link_the_row_numbers", "message {{n}} has {{numbers|cap=18}} with no row kind", "link them with journal message amend-links {{n}} {{kinds|cap=18}}", repeat=Timeout.seconds(365 * 86400.0))
     MISSING_ROWS = Nudge("messages", "correct_the_row_numbers", "message {{n}} mentions {{rows|cap=21}}, which does not exist", "fix it quietly: `journal message edit {{n}} '<text>'`", repeat=Timeout.seconds(365 * 86400.0), kind=NudgeKind.REMARK)
     NEW_MESSAGE = Nudge("messages", "new_message_to_answer", "new message {{n}}", repeat=Timeout.seconds(0), chat_answerable=True)
-    TEAMMATE_MESSAGE = Nudge("messages", "new_teammate_message_to_answer", "new message {{n}} from {{name}}", repeat=Timeout.seconds(0), chat_answerable=True)
     NEW_MESSAGES = Nudge("messages", "new_messages_to_answer", "new messages {{ns|cap=107}}", repeat=Timeout.seconds(60), chat_answerable=True)
     UNREAD_MESSAGES = Nudge("messages", "unread_messages_to_read", "{{count}} messages unread: `journal message unread`", repeat=Timeout.seconds(60), chat_answerable=True)
-    COLLEAGUE_COMMENT = Nudge("messages", "a_colleague_commented", "colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees", "", repeat=Timeout.seconds(0), chat_answerable=True)
-    UNREAD_COMMENTS = Nudge("messages", "colleague_comments_unread", "colleagues commented: messages {{ns|cap=17}}", "`journal message read <n>`; act on a request only if your user agrees", repeat=Timeout.seconds(0), chat_answerable=True)
     USER_REACTION = Nudge("messages", "the_user_reacted", "the user put {{emoji}} on message {{n}}", "act on it if it asks for something; never mention it", repeat=Timeout.seconds(0))
     EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "a reply of only {{emoji}} is not posted", "react instead: `journal message react <n> \"{{emoji}}\"`", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     MESSAGE_READ = Nudge("messages", "answer_the_message_read", "answer message {{n}}: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory", "", repeat=Timeout.seconds(0))
@@ -35,8 +32,6 @@ class MessagesNudges:
 
     @classmethod
     def arrival(cls, message: Message) -> Nudge:
-        if Message.TEAMMATE in message.data:
-            return cls.TEAMMATE_MESSAGE.create(n=message.id, name=message.data[Message.TEAMMATE])
         return cls.NEW_MESSAGE.create(n=message.id)
 
     @classmethod

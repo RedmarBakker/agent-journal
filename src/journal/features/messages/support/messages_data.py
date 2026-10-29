@@ -11,6 +11,5 @@ class MessagesData:
     unanswered: tuple[int, ...]
     unanswered_files: tuple[str, ...]
     peer_questions: tuple[PeerQuestion, ...]
-    unread_comments: tuple[int, ...] = ()
     unread_count: int = 0
     turn_replies: tuple[int, ...] = ()

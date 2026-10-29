@@ -1,4 +1,3 @@
-from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.models.model import Model
@@ -8,7 +7,6 @@ from journal.models.model import Model
 class ReleaseMessage(Model):
     """What a release tells the project's agent once after the journal was updated to it: the version, the words, and whether an agent has read it. Project-wide."""
 
-    shared: ClassVar[bool] = False
 
     version: str = ""
     text: str = ""

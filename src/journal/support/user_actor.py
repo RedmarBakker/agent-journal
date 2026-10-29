@@ -18,9 +18,6 @@ class UserActor(Actor):
     def can_move_worker_tasks(self) -> bool:
         return True
 
-    def can_read_comments(self) -> bool:
-        return True
-
     def can_pair_phone(self) -> bool:
         return True
 
@@ -28,9 +25,6 @@ class UserActor(Actor):
         return True
 
     def can_manage_plugins(self) -> bool:
-        return True
-
-    def can_share_environments(self) -> bool:
         return True
 
     def chosen_way[T](self, user_way: T, agent_way: T) -> T:

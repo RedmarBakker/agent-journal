@@ -30,7 +30,7 @@ class LibraryUpdate:
 
     def updated(self, item_type: str, name: str, actor: Actor, replacing: bool) -> LibraryItem:
         if item_type == "plan":
-            raise Rejection(f"plan {name} is an outline, imported once as a draft plan and never updated: import a newer version as a new draft")
+            raise Rejection(f"plan {name} is an outline, never updated: import a newer version as a new draft")
         item = self.items.imported(self.account.connection().key, item_type, name)
         if item is not None and not self.items.has_copy(item, self.profiles.config.root):
             self.items.delete(item, actor)

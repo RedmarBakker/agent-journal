@@ -8,7 +8,7 @@ import OutputLines from "../kit/OutputLines.vue";
 // while its run goes on, an opened output reads its new lines this often
 const POLL_MS = 2000;
 
-const props = defineProps({n: {type: Number, required: true}, owner: {type: String, default: ""}});
+const props = defineProps({n: {type: Number, required: true}});
 const emit = defineEmits(["close"]);
 const pages = useOutputPages((...page) => api.readOutput(props.n, ...page));
 const output = pages.facts;
@@ -17,7 +17,6 @@ const failed = ref("");
 let timer = 0;
 const read = () => pages.poll().catch((e) => (failed.value = e.message));
 onMounted(() => {
-    if (props.owner) return;
     read();
     timer = setInterval(() => output.value && !output.value.ended && read(), POLL_MS);
 });
@@ -26,10 +25,7 @@ onUnmounted(() => clearInterval(timer));
 
 <template>
     <Dialog :title="`Output ${n}`" tall @close="emit('close')">
-        <template v-if="owner">
-            <p class="output-note">This output stays on {{ owner }}'s machine; its card in the chat shows how it goes.</p>
-        </template>
-        <template v-else-if="failed">
+        <template v-if="failed">
             <p class="output-note" role="alert">{{ failed }}</p>
         </template>
         <template v-else-if="output">

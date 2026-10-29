@@ -58,7 +58,7 @@ export function useDocRevisions(resource, client = api) {
         [
             status.value,
             page.value?.change,
-            page.value ? actorName(page.value.creator, store.people, page.value.environment_id) : "",
+            page.value ? actorName(page.value.creator, store.people) : "",
             page.value ? ago(seconds(page.value.updated_at)) || "just now" : "",
         ]
             .filter(Boolean)

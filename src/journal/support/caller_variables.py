@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
@@ -41,10 +41,7 @@ class CallerVariables:
         return {"env": self.environment, "provider": self.provider, "agent": self.agent_shell, "session": self.session, "plugin": self.plugin, "token": self.token, "worker": self.worker, "launch": self.launch,
                 "verifier": self.verifier, "actor_token": self.actor_token, "reviewer": self.reviewer}
 
-    def caller(self, person: int) -> Caller:
-        return replace(self.kind_caller(), person=person)
-
-    def kind_caller(self) -> Caller:
+    def caller(self) -> Caller:
         if self.plugin is not None:
             return Caller.plugin(self.environment, self.plugin)
         if self.worker is not None:

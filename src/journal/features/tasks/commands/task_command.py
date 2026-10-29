@@ -2,10 +2,7 @@ from argparse import Namespace
 from datetime import datetime
 
 from journal.console.command import Command
-from journal.console.support.hub_choice import HubChoice
-from journal.features.tasks.support.hub_filer import HubFiler
 from journal.support.caller import Caller
-from journal.support.row_labels import RowLabels
 from journal.engine.clock import Clock
 from journal.support.rejection import Rejection
 from journal.features.tasks.active_task import ActiveTask
@@ -34,8 +31,6 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
-from journal.support.row_destination import RowDestination
-from journal.sync.team_account import TeamAccount
 from journal.support.time_source import TimeSource
 from journal.engine.support.assigner_resolution import AssignerResolution
 from journal.engine.support.session_agents import SessionAgents
@@ -50,13 +45,12 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels, self.hub, self.filer, self.account = check, labels, hub, filer, account
-        self.destination = destination
+        self.check = check
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -78,10 +72,6 @@ class TaskCommand(Command):
         brief.add_argument("n", type=int)
         brief.add_argument("brief")
         creation.add_argument("--brief", default="")
-        creation.add_argument("--team", default="", help="make it in the hub of the joined team of this name, which a journal of one team need not name")
-        creation.add_argument("--to", default="", help="file it in the hub as a request for this person")
-        creation.add_argument("--to-team", action="store_true", help="file it in the hub as a request for the whole team")
-        creation.add_argument("--issue", action="store_true", help="file it in the hub as an issue on the board")
         creation.add_argument("--priority", default="", help="low, normal, high, critical or a number; unnamed, the task is normal and is asked about with the others of the default priority")
         creation.add_argument("--start", action="store_true", help="start it at once")
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
@@ -95,9 +85,6 @@ class TaskCommand(Command):
         dropped = self.verb(verbs, "cancel", "give a task up, undone, with why")
         dropped.add_argument("n", type=int)
         dropped.add_argument("--why", required=True)
-        declined = self.verb(verbs, "decline", "turn down a request filed for you, with why: the task is cancelled, its requester sees the reason, and your agent is not informed")
-        declined.add_argument("n", type=int)
-        declined.add_argument("--why", required=True)
         block = self.verb(verbs, "block", "a task waits on something outside your hands: blocked, with why, it is neither offered nor nudged")
         block.add_argument("n", type=int)
         block.add_argument("why", nargs="?", default="")
@@ -120,16 +107,13 @@ class TaskCommand(Command):
         self.verb(verbs, "next", "the next tasks to hand out, as the task assigner in force chooses them: for the orchestrator the next tasks to give workers, plan by plan in turn; it starts none").add_argument("--quantity", type=int, default=1, help="how many tasks to name, the assigner choosing each in turn")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        person, team = self.filer.person(args), self.filer.team(args)
-        with self.hub.hub_scope(team):
-            task = self.tasks.save(self.created(args), caller.actor)
-            self.filer.link(task, args, person, team, caller.actor)
-            self.link_creation(args.message, task, caller)
-            if args.start:
-                task = self.taking.start(task, caller)
-            unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
-            line = f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else "")
-        print("\n".join(filter(None, [line + self.destination.phrase(task), unfiled])))
+        task = self.tasks.save(self.created(args), caller.actor)
+        self.link_creation(args.message, task, caller)
+        if args.start:
+            task = self.taking.start(task, caller)
+        unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
+        line = f"task {task.row_id} {task.state}" + (f" (from message {args.message})" if args.message else "")
+        print("\n".join(filter(None, [line, unfiled])))
         return 0
 
     @staticmethod
@@ -182,13 +166,13 @@ class TaskCommand(Command):
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
         task = self.tasks.save(old_task.edited(args.title, old_task.brief, self.clock.time()), caller.actor)
-        print("\n".join(filter(None, [f"{self.labels.name('task', task)} is now: {task.title}", self.reminder.line(old_task)])))
+        print("\n".join(filter(None, [f"task {task.row_id} is now: {task.title}", self.reminder.line(old_task)])))
         return 0
 
     def brief(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
         task = self.tasks.save(old_task.edited(old_task.title, args.brief, self.clock.time()), caller.actor)
-        print("\n".join(filter(None, [f"{self.labels.name('task', task)} brief written anew", self.reminder.line(old_task)])))
+        print("\n".join(filter(None, [f"task {task.row_id} brief written anew", self.reminder.line(old_task)])))
         return 0
 
     def priorities(self, args: Namespace, caller: Caller) -> int:
@@ -205,7 +189,7 @@ class TaskCommand(Command):
         priority_task = task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
         new_task = self.tasks.save(priority_task.edited(args.title or task.title, args.brief or task.brief, self.clock.time()), caller.actor)
         self.link_edit(args.message, new_task, caller)
-        summary = f"{self.labels.name('task', task)} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
+        summary = f"task {task.row_id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
         print("\n".join(filter(None, [summary + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
         return 0
 
@@ -217,10 +201,10 @@ class TaskCommand(Command):
 
     def log(self, args: Namespace, caller: Caller) -> int:
         task = self.readable(args.n, caller)
-        if caller.is_main_agent() and not task.is_started() and not self.tasks.is_driven(task):
-            raise Rejection(f"{self.labels.name('task', task)} is not in hand, so no log line: use `journal task edit {task.id} --brief`")
+        if caller.is_main_agent() and not task.is_started():
+            raise Rejection(f"task {task.row_id} is not in hand, so no log line: use `journal task edit {task.id} --brief`")
         self.logs.save(TaskLog.build(task, args.line, self.clock.time()), caller.actor)
-        print(f"{self.labels.name('task', task)} logged")
+        print(f"task {task.row_id} logged")
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
@@ -231,17 +215,17 @@ class TaskCommand(Command):
         task = self.tasks.save(task.paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
-        print(f"{self.labels.name('task', task)} paused{waits}")
+        print(f"task {task.row_id} paused{waits}")
         return 0
 
     def test(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)
         if not args.output:
-            print(f"{self.labels.name('task', task)} waits in testing: complete it with `journal task complete {task.id}` once it is tested")
+            print(f"task {task.row_id} waits in testing: complete it with `journal task complete {task.id}` once it is tested")
             return 0
         output = self.outputs.find(args.output)
         self.test_runs.attach([task], output, caller.actor)
-        print(f"{self.labels.name('task', task)} waits in testing on output {output.id}: it completes when the run passes, and is in progress again if it fails")
+        print(f"task {task.row_id} waits in testing on output {output.id}: it completes when the run passes, and is in progress again if it fails")
         return 0
 
     def resume(self, args: Namespace, caller: Caller) -> int:
@@ -250,8 +234,8 @@ class TaskCommand(Command):
     def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
         previous = self.taking.paused_current(self.tasks.find(n), caller)
         task = self.taking.start(self.tasks.find(n), caller)
-        paused = [f"{self.labels.name('task', previous)} paused"] if previous is not None else []
-        print("\n".join([*paused, f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
+        paused = [f"task {previous.row_id} paused"] if previous is not None else []
+        print("\n".join([*paused, f"task {task.row_id} {manner}", *self.briefing.lines(task)]))
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:
@@ -259,12 +243,12 @@ class TaskCommand(Command):
         self.check.refuse()
         task = self.tasks.save(self.tasks.find(args.n).blocked(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
-        print(f"{self.labels.name('task', task)} blocked, waiting on: {self.tasks.reason(task)}")
+        print(f"task {task.row_id} blocked, waiting on: {self.tasks.reason(task)}")
         return 0
 
     def unblock(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).unblocked("it was unblocked by hand", self._time().timestamp()), caller.actor)
-        print(f"{self.labels.name('task', task)} open again")
+        print(f"task {task.row_id} open again")
         return 0
 
     def complete(self, args: Namespace, caller: Caller) -> int:
@@ -272,23 +256,14 @@ class TaskCommand(Command):
         if args.n in holdings and not caller.actor.can_move_worker_tasks():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
         task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
-        print(f"{self.labels.name('task', task)} done")
+        print(f"task {task.row_id} done")
         self._name_next(task)
         return 0
 
     def cancel(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).cancelled(self._time(), args.why), caller.actor)
-        print(f"{self.labels.name('task', task)} cancelled")
+        print(f"task {task.row_id} cancelled")
         self._name_next(task)
-        return 0
-
-    def decline(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.find(args.n)
-        if not self.filer.is_addressed(task, self.account.user_number()):
-            raise Rejection(f"{self.labels.name('task', task)} is no request filed for you")
-        declined = self.tasks.save(task.declined(self._time(), args.why), caller.actor)
-        self.logs.save(TaskLog.build(declined, args.why, self.clock.time()), caller.actor)
-        print(f"{self.labels.name('task', declined)} declined")
         return 0
 
     def readable(self, n: int, caller: Caller) -> Task:
@@ -303,7 +278,7 @@ class TaskCommand(Command):
                 return 0
             args.n = current_task.id
         task = self.readable(int(args.n), caller)
-        print(f"""{self.labels.name('task', task)}: {task.title}
+        print(f"""task {task.row_id}: {task.title}
 state: {task.state}
 {self.place(task)}
 {self.briefing.whole(task)}""")

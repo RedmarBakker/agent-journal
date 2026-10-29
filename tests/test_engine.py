@@ -1108,7 +1108,6 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.ticked import Ticked
     from journal.events.agent.tool_finished import ToolFinished
     from journal.events.rows.reaction_added import ReactionAdded
-    from journal.events.rows.colleague_commented import ColleagueCommented
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
@@ -1148,10 +1147,6 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert Ready().respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"}))).with_data(held_unread), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal is None
     face = Ready().respond(ReactionAdded(environment_id=1, time=1.0, emoji="👍", message_id=7, user_origin=True).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     assert [n.rendered() for n in face.nudges][0].startswith("the user put 👍 on message 7")
-    comment = Ready().respond(ColleagueCommented(environment_id=1, time=1.0, row_id=9, text="nice", colleague="Anna de Vries").with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
-    started = Ready().respond(SessionStarted(agent=EVENT_AGENT, environment_id=1, session="s1", source="resume").with_data(FeatureData({**parts, "messages": MessagesData(unread=(), unanswered=(), unanswered_files=(), peer_questions=(), unread_comments=(9, 11))})), settings, (MessagesConduct,))
-    assert any(has_nudge(n.rendered(), MessagesNudges.UNREAD_COMMENTS, ns="9, 11") for n in started.nudges), "comments that came while no agent ran are named at the next start"
-    assert [n.rendered() for n in comment.nudges] == [MessagesNudges.COLLEAGUE_COMMENT.create(colleague="Anna de Vries", n=9).rendered()]
     assert Ready().respond(ReactionAdded(environment_id=1, time=1.0, emoji="👍", message_id=7, user_origin=False).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges == ()
     dispatch = lambda **value: Ready().respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Agent", input=value, operation=Claude().operation("Agent", value))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     assert dispatch(subagent_type="journal-researcher", description="d", prompt="p").refusal.key == "laws.name_the_model"
@@ -1231,7 +1226,7 @@ def test_the_conduct_of_skills_briefing_and_memory_say_the_debts_hold_on_them_an
     parts = {
         "plans": PlansData((), None), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
         "skills": SkillsData(skills_due=("journal",), loaded={"plans": "h2"}, skills=cards),
-        "briefing": BriefingData(is_overview_read=False, environment="main", peer_session_active_at="09:12", rules="1. Always test", rules_count=1, memories="", reminders="1. Log often", waiting="2 tasks", team_history=""),
+        "briefing": BriefingData(is_overview_read=False, environment="main", peer_session_active_at="09:12", rules="1. Always test", rules_count=1, memories="", reminders="1. Log often", waiting="2 tasks"),
         "memory": MemoryData(threshold_due=50, context_threshold=50, rows=(MemoryRow("reminder", 3, "the port is 8420", ("port",), CardType.REMINDERS),), stale=()),
     }
     data = FeatureData(parts)
@@ -1923,7 +1918,7 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     from journal.features.briefing.support.briefing_data import BriefingData
     from journal.features.tasks.support.tasks_data import TasksData
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
-    briefing = lambda **fields: FeatureData({"tasks": tasks, "briefing": BriefingData(is_overview_read=True, environment="development", peer_session_active_at="", rules="", rules_count=0, memories="", reminders="", waiting="", team_history="", launch_folder="/projects/app", **fields)})
+    briefing = lambda **fields: FeatureData({"tasks": tasks, "briefing": BriefingData(is_overview_read=True, environment="development", peer_session_active_at="", rules="", rules_count=0, memories="", reminders="", waiting="", launch_folder="/projects/app", **fields)})
     lines = lambda answer: " ".join(nudge.rendered() for nudge in answer.nudges)
     elsewhere = Ready().respond(SessionStarted(agent=EVENT_AGENT, source="startup", folder="/projects/app/.claude/worktrees/development").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
     assert has_nudge(lines(elsewhere), BriefingNudges.FOLDER_MISMATCH, folder="/projects/app/.claude/worktrees/development", env="development", launch_folder="/projects/app"), "a session in another folder is told, with the commands"

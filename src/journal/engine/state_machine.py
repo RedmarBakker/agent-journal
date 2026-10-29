@@ -84,7 +84,7 @@ class StateMachine:
         return replies
 
     def audience(self, event: RowEvent) -> list[Agent]:
-        unended = [agent for environment_id in event.environment_ids() for agent in self.agents.unended_scoped(environment_id)] if event.environment_id else self.agents.unended()
+        unended = self.agents.unended_scoped(event.environment_id) if event.environment_id else self.agents.unended()
         return [agent for agent in unended if self.features.receives_row_event(type(event).feature_name, agent.role)]
 
     def mode_change(self, stored_stack: Stack, stack: Stack) -> tuple[Nudge, ...]:

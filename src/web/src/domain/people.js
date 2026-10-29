@@ -1,52 +1,17 @@
-// People named relative to the viewer: the viewer's own person is you, a colleague is called by name, and an agent by the
-// person who owns its environment. `people` is what /journal/people answers: me, device, people and owners.
+// People named relative to the viewer: the viewer's own person is you, anyone else by name. `people` is what
+// /journal/people answers: me, device and people.
 
-export const NOBODY = {me: 1, device: "", people: [], owners: {}};
+export const NOBODY = {me: 1, device: "", people: []};
 
 export const personName = (number, people) => (people.people.find((person) => person.id === number) || {}).name || `user ${number}`;
 
 export const isMe = (stamp, people = NOBODY) => stamp === `user:${people.me}`;
 
-// The colours a colleague's messages are drawn in, one per person by their account number, so the same on every machine; never the
-// blue of the viewer's own messages nor the agent's plain bubble
-export const COLLEAGUE_COLOURS = ["#3fb37f", "#e0803a", "#a77bf3", "#e2669a", "#2bb5b0", "#d4b13f"];
-
-export function colleagueColour(stamp, people = NOBODY) {
-    const [kind, id] = (stamp || "").split(":");
-    return kind === "user" && Number(id) !== people.me ? COLLEAGUE_COLOURS[Number(id) % COLLEAGUE_COLOURS.length] : "";
-}
-
-export function agentName(environmentId, people = NOBODY) {
-    const owner = people.owners[String(environmentId)] || 0;
-    return !owner || owner === people.me ? "the agent" : `${personName(owner, people)}'s agent`;
-}
-
-export function actorName(stamp, people = NOBODY, environmentId = 0) {
+export function actorName(stamp, people = NOBODY) {
     const [kind, id] = (stamp || "system").split(":");
     if (kind === "user") return Number(id) === people.me ? "you" : personName(Number(id), people);
-    if (kind === "agent") return agentName(environmentId, people);
+    if (kind === "agent") return "the agent";
     if (kind === "worker") return `worker ${id}`;
     if (kind === "phone") return "you, from your phone";
     return kind === "system" ? "the journal" : id || kind;
-}
-
-// The owner of an environment when that is not the viewer, else 0.
-export function colleagueOwner(environmentId, people = NOBODY) {
-    const owner = people.owners[String(environmentId)] || 0;
-    return owner && owner !== people.me ? owner : 0;
-}
-
-// A session, the Team chat the first, is an environment of kind session; a person's own environment shared with the team carries the team's key.
-export const isSession = (row) => row.environment_type === "session";
-export const isShared = (row) => row.environment_type === "local" && Boolean(row.team_key);
-
-// The environments the sidebar lists: the viewer's own, the Team chat and those a colleague shares with the team; a colleague's
-// other environments open from the Team page.
-export const sidebarEnvironments = (rows, people = NOBODY) => rows.filter((row) => isShared(row) || !colleagueOwner(row.id, people));
-
-// The name the sidebar gives an environment: Team chat, one a colleague shares with their name after it, else its own name.
-export function environmentLabel(row, people = NOBODY) {
-    if (isSession(row)) return "Team chat";
-    const owner = colleagueOwner(row.id, people);
-    return owner ? `${row.name} · ${personName(owner, people)}` : row.name;
 }

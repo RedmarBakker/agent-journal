@@ -1,9 +1,8 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, ClassVar
+from typing import ClassVar
 
-from journal.events.event import Event
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
@@ -28,7 +27,6 @@ BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
 INLINE_POINTS = re.compile(r"\bpoints:\s*(.+)$", re.IGNORECASE | re.DOTALL)
 POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
 # how the outcome of a request its recipient turned down begins: the task is cancelled, since a task has no declined state
-DECLINED = "declined: "
 
 @dataclass(frozen=True)
 class Task(Scoped, Commentable):
@@ -52,10 +50,6 @@ class Task(Scoped, Commentable):
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.is_open() else ()
-
-    def pulled_events(self, previous: "Task") -> tuple[Event, ...]:
-        move = PULLED_MOVES.get(self.state) if self.state != previous.state else None
-        return move(previous, self, self.update_time).events if move else ()
 
     def is_closed(self) -> bool:
         return self.state.is_closed()
@@ -134,12 +128,6 @@ class Task(Scoped, Commentable):
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, completed_at=self.completed_at or time, outcome=outcome), time, "cancelled")
 
-    def declined(self, time: datetime, reason: str) -> "Task":
-        return self.cancelled(time, f"{DECLINED}{reason}")
-
-    def is_declined(self) -> bool:
-        return self.state == TaskState.CANCELLED and self.outcome.startswith(DECLINED)
-
     def closed(self, task: "Task", time: datetime, manner: str, worker_id: int = 0) -> "Task":
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
 
@@ -195,12 +183,3 @@ class Task(Scoped, Commentable):
     def is_completed(self) -> bool:
         return self.state == TaskState.COMPLETED
 
-
-# a change pulled from the team, by the state it reached, replayed on the row as it stood here, so it carries the events the same change made here would
-PULLED_MOVES: dict[TaskState, Callable[[Task, Task, datetime], Task]] = {
-    TaskState.STARTED: lambda previous, task, time: previous.started(time),
-    TaskState.COMPLETED: lambda previous, task, time: previous.completed(time, task.outcome),
-    TaskState.CANCELLED: lambda previous, task, time: previous.cancelled(time, task.outcome),
-    TaskState.PAUSED: lambda previous, task, time: previous.closed(task, time, "paused"),
-    TaskState.BLOCKED: lambda previous, task, time: previous.closed(task, time, "blocked"),
-}

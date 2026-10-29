@@ -15,11 +15,8 @@ import {store} from "../state/store.js";
 import {useNavigation} from "../composables/navigation.js";
 import {rows} from "../sync/rows.js";
 import {pluginPages} from "../domain/pluginPages.js";
-import {colleagueOwner, environmentLabel} from "../domain/people.js";
-import {ownEnvironments, teamGroups} from "../domain/hub.js";
 
-const envs = computed(() => ownEnvironments(rows("environments"), store.people));
-const teams = computed(() => teamGroups(rows("environments"), store.people));
+const envs = computed(() => rows("environments"));
 const pages = computed(() => pluginPages(rows("plugins")));
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
@@ -77,35 +74,17 @@ function point(e) {
                     </template>
                 </FoldGroup>
             </template>
-            <template v-for="t in teams" :key="t.key">
-                <FoldGroup class="group team-group" :label="t.team" :open="!folded[t.key]" @toggle="fold(t.key)">
-                    <div class="env-row">
-                        <a :class="['item', 'hub-item', {on: route.env === t.hub.name}]" :href="href.page()" @click="choose(t.hub.name)">
-                            <Icon name="home" />
-                            <span class="label">Hub</span>
-                        </a>
-                    </div>
-                    <template v-for="e in t.sessions" :key="e.id">
-                        <div class="env-row">
-                            <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
-                                <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
-                                <span class="label">{{ environmentLabel(e, store.people) }}</span>
-                            </a>
-                        </div>
-                    </template>
-                </FoldGroup>
-            </template>
             <FoldGroup class="group" label="Environments" :open="!folded.environments" @toggle="fold('environments')">
                 <template v-for="e in envs" :key="e.id">
                     <div class="env-row">
                         <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
                             <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
-                            <span class="label">{{ environmentLabel(e, store.people) }}</span>
+                            <span class="label">{{ e.name }}</span>
                             <template v-if="e.worktree">
                                 <span class="worktree" :title="e.worktree">{{ e.worktree }}</span>
                             </template>
                         </a>
-                        <template v-if="!onPhone && !colleagueOwner(e.id, store.people)">
+                        <template v-if="!onPhone">
                             <EnvStart :env="e" :live="agentRunningIn(e.name)" />
                         </template>
                     </div>

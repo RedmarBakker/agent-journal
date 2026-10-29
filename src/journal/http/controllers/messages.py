@@ -1,6 +1,6 @@
 
 from journal.db.query import Query
-from journal.features.messages.support.hub_mentions import HubMentions
+from journal.features.messages.support.mentions import Mentions
 from journal.features.messages.support.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
@@ -16,7 +16,6 @@ from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
-from journal.support.message_thread import MessageThread
 from journal.http.support.comment_target import REPLIED, CommentTarget
 from journal.http.support.message_reference import MessageReference
 from journal.models.link import Link
@@ -28,8 +27,8 @@ class MessageController(Controller[Message]):
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, mentions: HubMentions, links: Links, targets: CommentTarget, references: MessageReference) -> None:
-        self.agents, self.mentions, self.links, self.targets, self.references = agents, mentions, links, targets, references
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, links: Links, targets: CommentTarget, references: MessageReference) -> None:
+        self.agents, self.links, self.targets, self.references = agents, links, targets, references
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
@@ -76,7 +75,7 @@ class MessageController(Controller[Message]):
     def shown_page(self, rows: list[Message]) -> list[dict]:
         filed, commented, unanswered = self.repository.linked(Messages.SUBJECT_LINK, [m.row_id for m in rows]), self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows]), {m.id for m in self.repository.unanswered()}
         return [{**ModelFields.build(m), "answered": m.id not in unanswered, "filed": [ref.id for ref in filed.get(m.row_id, [])],
-                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in self.mentions.found(m.text)]} for m in rows]
+                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in Mentions.found(m.text)]} for m in rows]
 
     def store(self, request: Request) -> Response:
         if request.body.get("on"):

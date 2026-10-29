@@ -1,4 +1,3 @@
-from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.models.model import Model
@@ -8,7 +7,6 @@ from journal.models.model import Model
 class MigratedRow(Model):
     """A version 3 row migrated, by where it was in the backup and the row it turned into, so a second run never migrates it twice."""
 
-    shared: ClassVar[bool] = False
 
     source: str = ""
     target: str = ""

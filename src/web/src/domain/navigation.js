@@ -12,8 +12,6 @@ export const PAGES = {
     library: {title: "Library", icon: "book", text: "What your team shares: sequences, templates, profiles, readers, skills, documents, files and plans"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},
     plugins: {title: "Plugins", icon: "plug", text: "Installed plugins, with their dashboards and settings"},
-    requests: {title: "Requests", icon: "inbox", text: "The tasks teammates have asked of you"},
-    team: {title: "Team", icon: "people", text: "The team this journal syncs with: its people, machines and worker pool"},
     settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves"},
 };
 

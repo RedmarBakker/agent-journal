@@ -1681,11 +1681,6 @@ def test_the_status_bar_reads_no_sync_line_in_a_journal_in_no_team(server):
     assert call(server, "GET", "/journal/sync") == (200, {"line": "", "state": ""}), "a journal in no team has no sync to show, so the top bar shows no Team button"
 
 
-def test_the_viewer_learns_who_it_is_and_who_owns_each_environment(server):
-    status, people = call(server, "GET", "/journal/people")
-    assert status == 200 and people["me"] == 1 and people["device"] == "" and isinstance(people["people"], list) and isinstance(people["owners"], dict)
-
-
 def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_hook_command_and_page(journal_root: Path):
     import sys
     app = App(Config(journal_root, port=0))
@@ -1763,8 +1758,7 @@ def test_the_health_url_answers_unwell_once_five_requests_in_a_row_fail_and_well
     Environments.matching = broken
     try:
         for _ in range(FAILING_REQUEST_COUNT):
-            with pytest.raises(OSError):
-                call(server, "GET", "/journal/tasks")
+            assert call(server, "GET", "/journal/tasks")[0] == 500
         status, health = call(server, "GET", "/journal/health")
         assert status == 503 and health["failing_requests"] >= FAILING_REQUEST_COUNT and "IndexError" in health["last_fault"], "a server whose every request fails, as one running old code on a migrated database, says it is unwell, so its supervisor starts it again"
     finally:

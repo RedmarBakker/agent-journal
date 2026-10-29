@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import ClassVar
 
-from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
 from journal.events.rows.message_read import MessageRead
 from journal.events.rows.reply_posted import ReplyPosted
@@ -23,10 +22,6 @@ class Message(Scoped, Commentable):
     SCHEDULED_PROMPT = "scheduled prompt"
     REPORT = "report"
     PEER = "peer"
-    COLLEAGUE_NAME = "colleague"
-    COLLEAGUE_USER = "colleague_user"
-    VIEWED = "viewed"
-    TEAMMATE = "teammate"
     RECIPIENT_KEY = "sent_to"
     ASKS_KEY = "asks"
     HYDRATION = "hydration"
@@ -57,15 +52,6 @@ class Message(Scoped, Commentable):
     @classmethod
     def send_failed(cls, receiver: str, text: str, session: str, address: str, reason: str) -> "Message":
         return cls(author=Author.SYSTEM, text=text, session=session, data={"kind": cls.PEER, cls.RECIPIENT_KEY: receiver, "address": address or receiver, "failure": reason})
-
-    def takes_fold(self, card: "Message", cutoff_at: datetime) -> bool:
-        kinds = ("card_type", "shows", "kind")
-        is_kind_match = all(self.data.get(name) == card.data.get(name) for name in kinds) and self.session == card.session
-        return is_kind_match and self.created_at >= cutoff_at and not card.data.get("key") and not self.data.get("key")
-
-    def folded(self, label: str, detail: str) -> "Message":
-        labels = [*self.data.get("covers", [self.text]), f"{label}: {detail}" if detail else label]
-        return self.with_(text=f"{labels[0]}, and {len(labels) - 1} more like it").with_merged("data", {"covers": labels, "detail": f"{len(labels)} in all", "lines": labels})
 
     @classmethod
     def flowchart(cls, title: str, edges: list[list[str]]) -> "Message":
@@ -101,25 +87,8 @@ class Message(Scoped, Commentable):
     def arrived(self) -> "Message":
         return self.with_event(MessageArrived(text=self.text))
 
-    def is_comment(self) -> bool:
-        return self.author == Author.COLLEAGUE
-
-    def viewed(self) -> "Message":
-        return self.with_merged("data", {self.VIEWED: 1})
-
-    def is_unsaved_user_message(self) -> bool:
-        return self.is_new and self.is_user_message() and self.is_main_thread()
-
-    def commented(self, name: str, user: int) -> "Message":
-        comment = self.without_events().with_(author=Author.COLLEAGUE).with_merged("data", {self.COLLEAGUE_NAME: name, self.COLLEAGUE_USER: user, self.VIEWED: 0})
-        return comment.with_event(ColleagueCommented(text=self.text, colleague=name))
-
     @property
     def sender(self) -> str:
-        if self.author == Author.COLLEAGUE:
-            return f"{self.data[self.COLLEAGUE_NAME]}, a colleague of your user (not your user's words)"
-        if self.TEAMMATE in self.data:
-            return f"{self.data[self.TEAMMATE]}, one of the people you work for in the Team chat"
         return self.data[self.PEER] if self.PEER in self.data else f"the {self.author}"
 
     @property

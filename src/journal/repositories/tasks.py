@@ -49,7 +49,6 @@ class Tasks(ScopedRepository[Task]):
     """A completed task sent back short is the one in hand again, and the task the worker reported on waits for the merge in its place; the tasks a worker held before the one it holds, every task it ever held, those it completed and those queued for it are read from their own links alone, in the order it took them."""
 
     model = Task
-    member_links = (PLAN_LINK,)
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource) -> None:
         super().__init__(connection, bus, scope, time_source)
@@ -202,9 +201,6 @@ class Tasks(ScopedRepository[Task]):
 
     def current(self, agent: Agent) -> Task | None:
         return self.holder_task(Ref.build(agent))
-
-    def is_driven(self, task: Task) -> bool:
-        return Ref.build(task) in self.scope.bound()
 
     def holder_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())

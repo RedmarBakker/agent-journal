@@ -8,7 +8,6 @@ from journal.models.model import Model
 class BrowserSession(Model):
     """A person signed in to a hosted journal from a browser: their account number and name, and the key their session cookie carries, stored only as a hash. Stored on this machine."""
 
-    shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False
 
     key_hash: str = ""

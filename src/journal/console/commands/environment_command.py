@@ -31,8 +31,6 @@ from journal.repositories.rules import Rules
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
-from journal.repositories.environment_owners import EnvironmentOwners
-from journal.sync.team_account import TeamAccount
 from journal.features.git.support.start_rule import StartRule
 from journal.features.hydration.support.session_hydration import SessionHydration
 from journal.engine.support.launch_files import LaunchFiles
@@ -47,9 +45,9 @@ class EnvironmentCommand(Command):
     noun = "environment"
     uncut_verbs = frozenset({"overview"})
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, memories: Memories, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource, start: StartLines) -> None:
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, memories: Memories, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, starts: StartRule, hydration: SessionHydration, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource, start: StartLines) -> None:
         self.time_source, self.states, self.start = time_source, states, start
-        self.owners, self.account, self.starts, self.hydration = owners, account, starts, hydration
+        self.starts, self.hydration = starts, hydration
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.memories, self.reminders, self.providers, self.config, self.scope = rules, memories, reminders, providers, config, scope
         self.memory, self.overview_commands, self.taking, self.launches = memory, overview_commands, taking, launches
@@ -79,7 +77,7 @@ class EnvironmentCommand(Command):
             last = agents[-1] if agents else None
             resumable = {provider: session for item in agents for provider, session in item.last_sessions().items() if session and self.providers.lookup(provider).transcript(self.config.root, session)}
             working = last is not None and not self.states.restored(last.state, last.data).final and not self.launches.is_abandoned(environment.name)
-            row = EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", resumable, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch, f"{last.provider} session {last.session[:8]}" if last else "", last.session if last else "")
+            row = EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", resumable, self.starts.refusal(environment), environment.branch == Worktree(self.config.root, environment.name).branch, f"{last.provider} session {last.session[:8]}" if last else "", last.session if last else "")
             used.append((last.update_time.timestamp() if last else 0.0, row))
         return [row for _, row in sorted(used, key=lambda pair: pair[0], reverse=True)]
 
@@ -145,8 +143,7 @@ class EnvironmentCommand(Command):
         return 0
 
     def branch(self, args: Namespace, caller: Caller) -> int:
-        host = self.account.device_name() if args.branch == Worktree(self.config.root, args.name).branch else ""
-        environment = self.environments.save(self.environments.existing(args.name).with_(branch=args.branch, worktree_host=host), caller.actor)
+        environment = self.environments.save(self.environments.existing(args.name).with_(branch=args.branch), caller.actor)
         print(f"environment {environment.name} works on branch {environment.branch}")
         return 0
 

@@ -75,7 +75,7 @@ const ACTIONS = {
     release: (id) => api.act("workers", id, "release"),
     message: (id, text) => api.act("workers", id, "message", {text}),
 };
-const actions = computed(() => workerActions(props.resource, store.people.device));
+const actions = computed(() => workerActions(props.resource));
 // the user changes when the worker reports
 const reportChoices = computed(() => (workerState(props.resource) === "finished" ? [] : REPORT_CHOICES));
 const chooseReport = (choice) => api.act("workers", props.resource.id, "report_choice", {choice});
