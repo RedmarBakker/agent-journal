@@ -234,7 +234,7 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.counted(self.plan_task_query(plan).filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))) > 0
 
     def started_task(self, plan: Plan) -> Task | None:
-        started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False).order("id").limit(1))
+        started = self.tasks.selected_globally(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False).order("id").limit(1))
         return started[0] if started else None
 
     def next_task(self, plan: Plan) -> Task | None:
