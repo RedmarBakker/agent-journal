@@ -1491,7 +1491,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 8
+created: setting 9
 
 $ agent: journal environment list
 exit 0
@@ -1628,12 +1628,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 9
+created: setting 10
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 10
+created: setting 11
 
 $ agent: journal skill list
 exit 0
@@ -1734,6 +1734,7 @@ messages.closing_words_kept_out_as_repeated  [messages]  your closing words repe
 messages.colleague_comments_unread  [messages]  colleagues commented: messages {{ns|cap=17}}. `journal message read <n>`; act on a request only if your user agrees
 messages.correct_the_row_numbers  [messages]  message {{n}} mentions {{rows|cap=21}}, which does not exist. fix it quietly: `journal message edit {{n}} '<text>'`
 messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers|cap=18}} with no row kind. link them with journal message amend-links {{n}} {{kinds|cap=18}}
+messages.new_agent_message_to_answer  [messages]  new message {{n}} from {{name}}
 messages.new_message_to_answer  [messages]  new message {{n}}
 messages.new_messages_to_answer  [messages]  new messages {{ns|cap=107}}
 messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{name}}
@@ -1761,6 +1762,7 @@ pausing.paused  [pausing]  the user paused you. stop and wait; only journal comm
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you mentioned a pinned link but made none. pin it: `journal notice create "<what>" --link "<url>" --label "<Open ...>"`
 pins.pin_the_link  [pins]  pin this link if the user will return to it: `journal notice create "<what>" --link "{{url|cap=300}}"`
+plans.coordinator_sends_no_worker  [plans]  you run plans through their Plan agents, never a worker of your own. `journal plan tell <n> "<what>"`
 plans.coordinator_writes_no_code  [plans]  you coordinate the plans and write no code. put the change in a task of a plan instead
 plans.drive_ended  [plans]  {{name|cap=17}}: no longer driven ({{why|cap=19}}); writes refused. retake: `journal {{noun}} drive {{n}}`
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
@@ -1783,6 +1785,7 @@ plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
 plans.you_lead_the_plan  [plans]  you lead plan {{n}} in this worktree; work its tasks here
+plans.you_work_the_task_alone  [plans]  you work task {{task}} alone in this worktree, as a one-task plan; no plan row is made for it
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
 plugins.plugin_not_working  [plugins]  plugin {{plugin}} stopped working: {{fault|cap=300}}. fix it, or `journal plugin disable {{plugin}}`
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker: `journal worker dispatch "<Name>" --task <n> --changes <files> --profile {{name}}`
@@ -1962,7 +1965,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-295 nudges
+298 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2046,8 +2049,8 @@ options:
 
 $ agent: journal worker send --help
 exit 0
-usage: journal worker send [-h] [--task TASK] [--model MODEL]
-                           [--profile PROFILE]
+usage: journal worker send [-h] [--task TASK] [--profile PROFILE]
+                           [--model MODEL]
                            n brief
 
 positional arguments:
@@ -2058,10 +2061,10 @@ options:
   -h, --help         show this help message and exit
   --task TASK        the task this job works on, which its plan then leaves to
                      it
-  --model MODEL      the model it runs the job on from now, in the same
-                     session and worktree
   --profile PROFILE  the worker profile it works by from now, and its model
                      unless --model names one
+  --model MODEL      the model it runs the job on from now, in the same
+                     session and worktree
 
 $ agent: journal worker queue --help
 exit 0
@@ -2793,7 +2796,7 @@ exit 0
 domain work: Work
   role medior: many, writes, claude sonnet, codex gpt-6-luna on max
   role senior: many, writes, claude opus, codex gpt-6-luna on max
-version 65fb375511ab
+version <hex>
 
 $ agent: journal organization reload
 exit 0
