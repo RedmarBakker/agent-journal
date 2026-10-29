@@ -41,7 +41,19 @@ const organization = {
             {id: "many", title: "Many jobs", cardinality: "many", instances: 2, queued: 8},
             {id: "queue", title: "Queue", cardinality: "plan", instances: 1, queued: 3},
         ],
-    }],
+    }, ...Array.from({length: 12}, (_, index) => ({
+        id: `domain-${index + 1}`,
+        title: `Domain ${index + 1}`,
+        icon: "🧭",
+        plans_active: 0,
+        roles: Array.from({length: index < 10 ? 4 : 3}, (__, roleIndex) => ({
+            id: `role-${index + 1}-${roleIndex + 1}`,
+            title: `Role ${index + 1}-${roleIndex + 1}`,
+            cardinality: "plan",
+            instances: 0,
+            queued: 0,
+        })),
+    }))],
 };
 const countRow = (plans, manyInstances, manyQueued, queueInstances, queueQueued) => ({
     id: 9,
@@ -98,6 +110,9 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
 
     await until(() => host.querySelector('a[href="#/organization?domain=sales"]') && hasLoaded("domain_counts"));
     expect(api.organization).toHaveBeenCalledOnce();
+    expect(organization.domains).toHaveLength(13);
+    expect(organization.domains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(50);
+    expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(13);
 
     const headers = [...host.querySelectorAll(".fold-head")].map((button) => button.textContent.trim());
     expect(headers.indexOf("Project")).toBeLessThan(headers.indexOf("Organization"));
@@ -142,4 +157,16 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     const oldModeGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
     const oldModeEnvironments = [...oldModeGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
     expect(oldModeEnvironments).toContain("plan-7");
+
+    const domainToggles = [...host.querySelectorAll(".organization-domain-toggle")];
+    domainToggles.filter((button) => button.getAttribute("aria-expanded") === "false").forEach((button) => button.click());
+    expect(host.querySelectorAll(".organization-role")).toHaveLength(50);
+    const organizationHeader = [...host.querySelectorAll(".fold-head")].find((button) => button.textContent.trim() === "Organization");
+    expect(organizationHeader.tagName).toBe("BUTTON");
+    expect(organizationHeader.tabIndex).toBe(0);
+    organizationHeader.focus();
+    organizationHeader.click();
+    expect(organizationHeader.getAttribute("aria-expanded")).toBe("false");
+    expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(0);
+    expect(host.querySelectorAll(".organization-role")).toHaveLength(0);
 });

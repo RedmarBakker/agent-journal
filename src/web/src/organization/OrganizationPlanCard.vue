@@ -38,6 +38,11 @@ const open = () => peek("plans", props.plan.id);
     border-color: var(--accent);
 }
 
+.organization-plan-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
 .organization-plan-title {
     font-weight: 600;
 }

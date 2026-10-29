@@ -4,8 +4,11 @@ import {organizationLanes} from "../domain/organizationBoard.js";
 import {organizationBoard} from "../state/organizationBoard.js";
 import OrganizationPlanCard from "./OrganizationPlanCard.vue";
 import Skeleton from "../kit/Skeleton.vue";
+import PagedCards from "../kit/PagedCards.vue";
+import {pageOf} from "../sync/paging.js";
 
 const PHASES = ["planned", "in_progress", "in_review", "done"];
+const PLAN_PAGE = pageOf("plans");
 const props = defineProps({domains: {type: Array, default: () => []}, loading: Boolean});
 const boards = computed(() => props.domains.map((domain) => ({domain, lanes: organizationLanes(domain, organizationBoard)})));
 </script>
@@ -31,13 +34,17 @@ const boards = computed(() => props.domains.map((domain) => ({domain, lanes: org
                     <span v-if="board.domain.icon" aria-hidden="true">{{ board.domain.icon }}</span>
                     <h2>{{ board.domain.title }}</h2>
                 </header>
-                <div class="organization-board-columns">
+                <div class="organization-board-columns" role="region" tabindex="0" :aria-label="`${board.domain.title} plan phases`">
                     <section v-for="lane in board.lanes" :key="lane.key" class="organization-board-lane" :data-phase="lane.key">
                         <h3>{{ lane.title }} <span class="organization-board-count">{{ lane.plans.length }}</span></h3>
-                        <OrganizationPlanCard v-for="plan in lane.plans" :key="plan.id" :plan="plan" />
-                        <p v-if="!lane.plans.length" class="organization-board-empty">
-                            {{ lane.key === "done" && organizationBoard.hideDone ? "Completed plans are hidden." : "No plans in this phase." }}
-                        </p>
+                        <PagedCards :items="lane.plans" :page-size="PLAN_PAGE" :label="`${board.domain.title} ${lane.title} plans`" noun="plans">
+                            <template #default="{items}">
+                                <OrganizationPlanCard v-for="plan in items" :key="plan.id" :plan="plan" />
+                                <p v-if="!lane.plans.length" class="organization-board-empty">
+                                    {{ lane.key === "done" && organizationBoard.hideDone ? "Completed plans are hidden." : "No plans in this phase." }}
+                                </p>
+                            </template>
+                        </PagedCards>
                     </section>
                 </div>
             </section>
@@ -117,6 +124,11 @@ const boards = computed(() => props.domains.map((domain) => ({domain, lanes: org
     min-width: 0;
     overflow-x: auto;
     padding-bottom: 5px;
+}
+
+.organization-board-columns:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .organization-board-lane {

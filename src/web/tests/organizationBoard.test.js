@@ -2,6 +2,7 @@ import {createApp, h, nextTick} from "vue";
 import {afterEach, beforeEach, expect, test} from "vitest";
 import OrganizationPlanBoard from "../src/organization/OrganizationPlanBoard.vue";
 import {organizationBoard} from "../src/state/organizationBoard.js";
+import {pageOf} from "../src/sync/paging.js";
 
 const sharedPlan = (phase, phase_name, tasks, done, waits_on) => ({
     id: 77,
@@ -96,4 +97,43 @@ test("the shared board shows four loading lanes while it reads", async () => {
     await nextTick();
     expect(host.querySelector(".organization-board-loading").getAttribute("aria-busy")).toBe("true");
     expect(host.querySelectorAll(".organization-board-loading .organization-board-lane")).toHaveLength(4);
+});
+
+test("a 13-domain organization with 50 Roles and many plans renders one page of cards per phase", async () => {
+    let role = 0;
+    const largeDomains = Array.from({length: 13}, (_, domainIndex) => ({
+        id: `domain-${domainIndex + 1}`,
+        title: `Domain ${domainIndex + 1}`,
+        icon: "🧭",
+        board: {planned: "Ready", in_progress: "Working", in_review: "Review", done: "Complete"},
+        roles: Array.from({length: domainIndex < 11 ? 4 : 3}, () => ({id: `role-${++role}`})),
+        plans: Array.from({length: 101}, (_, planIndex) => ({
+            id: domainIndex * 1000 + planIndex + 1,
+            title: `Plan ${domainIndex + 1}-${planIndex + 1}`,
+            phase: "in_progress",
+            mode: "organization",
+            tasks: [planIndex + 1],
+            done: 0,
+            waits_on: "Role work",
+        })),
+    }));
+
+    expect(largeDomains).toHaveLength(13);
+    expect(largeDomains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(50);
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(OrganizationPlanBoard, {domains: largeDomains})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.querySelectorAll(".organization-domain-board")).toHaveLength(13);
+    expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(13 * pageOf("plans"));
+    const board = host.querySelector('[data-domain="domain-13"]');
+    expect(board.querySelector('.organization-board-columns[role="region"]').tabIndex).toBe(0);
+    expect(board.querySelectorAll(".organization-plan-card")).toHaveLength(pageOf("plans"));
+    expect(board.querySelector(".paged-cards-controls span").textContent).toContain("1–50 of 101 plans");
+
+    board.querySelector('button[aria-label="Next Domain 13 Working plans page"]').click();
+    await nextTick();
+    expect(board.querySelectorAll(".organization-plan-card")).toHaveLength(51);
+    expect(board.querySelector(".paged-cards-controls span").textContent).toContain("51–101 of 101 plans");
 });

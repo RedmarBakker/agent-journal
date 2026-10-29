@@ -428,17 +428,44 @@ def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_a
 
 
 REAL_FOLDER = __import__("os").environ.get("JOURNAL_ORGANIZATION_FOLDER", "")
+if not REAL_FOLDER:
+    candidate = Path(__file__).resolve().parents[2] / "agentic-organization-journal"
+    REAL_FOLDER = str(candidate) if candidate.is_dir() else ""
 
 
-@pytest.mark.skipif(not REAL_FOLDER, reason="JOURNAL_ORGANIZATION_FOLDER names no agentic-organization folder to read")
+@pytest.mark.skipif(not REAL_FOLDER, reason="No real agentic-organization folder is set or found beside the workspace")
 def test_the_real_organization_folder_loads_with_no_problems(app):
     from collections import Counter
     from journal.features.organization.support.organization import Organization
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.support.actor import Actor
+    from tests.in_process import got
     from tests.user_settings import user_set
     user_set(app, "workers.organization_folder", REAL_FOLDER)
     contracts = app.container.get(Organization).reload()
     assert [(problem.path, problem.rule, problem.message) for problem in contracts.problems] == []
     assert len(contracts.domains) == 13 and Counter(role.cardinality for role in contracts.roles) == {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}
+    domain_id = contracts.domains[0].id
+    plans, tasks, links, domains = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        for number in range(101):
+            plan = plans.save(Plan(environment_id=1, title=f"Load plan {number + 1}"), actor)
+            task = tasks.save(Task(environment_id=1, title=f"Load task {number + 1}"), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+            domains.task_tied(task, domain_id, actor)
+    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    assert status == 200 and Path(shown["folder"]).resolve() == Path(REAL_FOLDER).resolve() and len(shown["domains"]) == 13 and sum(len(domain["roles"]) for domain in shown["domains"]) == 50, "the viewer answer carries the real folder's 13 domains and 50 Roles"
+    loaded_domain = next(domain for domain in shown["domains"] if domain["id"] == domain_id)
+    assert len(loaded_domain["plans"]) == 101 and all(len(plan["tasks"]) == 1 for plan in loaded_domain["plans"]), "the real organization board reads a large set of plans and their task progress"
 
 
 def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_windows_stay_separate(tmp_path):

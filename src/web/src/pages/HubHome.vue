@@ -2,9 +2,12 @@
 import {computed} from "vue";
 import {driverLine, recentActivity} from "../domain/hub.js";
 import {titleOf} from "../domain/row.js";
+import PagedCards from "../kit/PagedCards.vue";
+import {pageOf} from "../sync/paging.js";
 
 const props = defineProps({hub: Object, docs: {type: Array, default: () => []}, plans: {type: Array, default: () => []}, activity: {type: Array, default: () => []}});
 const emit = defineEmits(["open"]);
+const PLAN_PAGE = pageOf("plans");
 const recent = computed(() => recentActivity(props.activity));
 </script>
 
@@ -19,12 +22,14 @@ const recent = computed(() => recentActivity(props.activity));
         </section>
         <section data-hub-plans>
             <h3 class="head">Plans</h3>
-            <template v-for="plan in plans" :key="plan.id">
-                <button type="button" class="line" @click="emit('open', plan)">
-                    Plan {{ plan.id }}: {{ titleOf(plan) }}
-                    <span v-if="plan.driver" class="driver" data-driver>{{ driverLine(plan) }}</span>
-                </button>
-            </template>
+            <PagedCards :items="plans" :page-size="PLAN_PAGE" label="Home plans" noun="plans">
+                <template #default="{items}">
+                    <button v-for="plan in items" :key="plan.id" type="button" class="line" @click="emit('open', plan)">
+                        Plan {{ plan.id }}: {{ titleOf(plan) }}
+                        <span v-if="plan.driver" class="driver" data-driver>{{ driverLine(plan) }}</span>
+                    </button>
+                </template>
+            </PagedCards>
         </section>
         <section data-hub-activity>
             <h3 class="head">Recent activity</h3>

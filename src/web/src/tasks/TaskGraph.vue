@@ -60,7 +60,7 @@ const others = computed(() => graph.value.others);
 </script>
 
 <template>
-    <div class="task-graph">
+    <div class="task-graph" role="region" aria-label="Task graph" tabindex="0">
         <template v-if="!graph.placed.length">
             <div class="empty">
                 <TaskStatusIcon status="open" :size="24" />
@@ -126,6 +126,11 @@ const others = computed(() => graph.value.others);
     min-width: 0;
     overflow: auto;
     scrollbar-width: thin;
+}
+
+.task-graph:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .note {

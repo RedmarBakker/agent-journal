@@ -82,6 +82,11 @@ defineProps({
     background: var(--sel);
 }
 
+.box:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
 .box.outside {
     border-style: dashed;
     background: var(--bg);

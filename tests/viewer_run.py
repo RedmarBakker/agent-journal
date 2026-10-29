@@ -112,6 +112,12 @@ SETS = {
     "organization_page": ("tests/organizationPage.test.js",),
     "organization_sidebar": ("tests/organizationSidebar.test.js",),
     "organization_board": ("tests/organizationBoard.test.js",),
+    "organization_scale": (
+        "tests/organizationBoard.test.js",
+        "tests/organizationSidebar.test.js",
+        "tests/homeBoard.test.js",
+        "tests/taskGraphAccess.test.js",
+    ),
     "worker_cell": (
         "tests/agentCell.test.js",
     ),
