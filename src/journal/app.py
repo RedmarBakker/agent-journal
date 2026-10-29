@@ -2,6 +2,9 @@ from journal.config import Config
 from journal.container import Container
 from journal.repositories.scope import Scope
 from journal.console.console import Console
+from journal.console.support.outcome import Outcome
+from journal.support.caller import Caller
+from journal.support.listener_queue import ListenerQueue
 from journal.console.standard_commands import StandardCommands
 from journal.db.connection import Connection
 from journal.support.masks import Masks
@@ -20,6 +23,7 @@ from journal.engine.support.agent_event_audience import AgentEventAudience
 from journal.console.support.verb_rules import VerbRules
 from journal.helpers.role_listeners import RoleListeners
 from journal.events.bus import Bus
+from journal.events.queued_bus import QueuedBus
 from journal.runtime import Runtime
 from journal.sync.team_writes import TeamWrites
 from journal.features.registry import Registry
@@ -49,7 +53,7 @@ class App:
         self.container = Container()
         self.container.instance(Container, self.container)
         self.container.instance(Config, config)
-        self.container.instance(Bus, Bus())
+        self.container.bind(Bus, lambda: self.container.get(QueuedBus))
         self.container.bind(Connection, self.connection)
         self.container.bind(Schema, lambda: Schema(self.container.get(Connection), AllModels.MODELS))
         self.container.bind(Router, lambda: Routes(self.container).mount(self.container.call(Router)))
@@ -79,9 +83,11 @@ class App:
     def console(self) -> Console:
         return self.container.get(Console)
 
-    def console_without_server(self) -> Console:
+    def run_without_server(self, argv: list[str], caller: Caller) -> Outcome:
         self.container.get(TeamWrites).listen()
-        return self.console()
+        outcome = self.console().run(argv, caller)
+        self.container.get(ListenerQueue).drain()
+        return outcome
 
     def _console(self) -> Console:
         console = self.container.call(Console)

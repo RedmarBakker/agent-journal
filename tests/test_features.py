@@ -19,6 +19,7 @@ from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
+from journal.support.listener_queue import ListenerQueue
 from journal.events.listener import Listener
 from journal.support.command_shape import CommandShape, SETUP_COMMANDS
 from journal.events.announcer import Announcer
@@ -1175,8 +1176,8 @@ def test_words_the_hooks_missed_are_swept_from_the_transcript_into_the_chat_once
     with transcript.open("a") as file:
         file.write(line_text("Missed by every hook.", 20) + line_text("Still the hooks' to bring.", 5))
     bus, messages = app.container.get(Bus), app.container.get(Messages)
-    bus.dispatch(ClockTicked(time=time))
-    bus.dispatch(ClockTicked(time=time + 1))
+    bus.dispatch_guarded(ClockTicked(time=time))
+    bus.dispatch_guarded(ClockTicked(time=time + 1))
     agents = lambda: [m.text for m in messages.global_matching() if m.author == "agent"]
     assert agents().count("Missed by every hook.") == 1 and "Still the hooks' to bring." not in agents(), "older words the hooks did not read are swept in once; the newest are left to the hooks"
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
@@ -3043,6 +3044,7 @@ def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
         cancelled = tasks.save(tasks.save(Task(environment_id=1, title="a task of its own"), USER.actor).cancelled(datetime.now(timezone.utc), "the plan was cancelled"), USER.actor)
         tasks.save(Task(environment_id=1, title="a task of nobody's"), USER.actor)
         assert cancelled.completed_at is not None, "a cancel stamps when it finished"
+        app.container.get(ListenerQueue).drain()
         connection = app.container.get(Connection)
         connection.execute("UPDATE tasks SET completed_at = NULL WHERE id = ?", (cancelled.row_id,))
         FinishCancelledTasks().apply(connection)
@@ -4501,6 +4503,7 @@ def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App)
         pairing.pair(first.link.split("#")[1], "iPhone", time)
     paired = pairing.pair(newer.short.lower(), "  iPhone   of Jesse ", time)
     assert paired.phone.name == "iPhone of Jesse" and paired.phone.key != paired.key and paired.phone.expires_at - time == timedelta(days=7), "the short code typed in any case pairs; the key is kept only as its hash"
+    app.container.get(ListenerQueue).drain()
     assert any(m.text == "A phone paired: iPhone of Jesse" for m in app.container.get(Messages).scoped()), "the desk is told"
     with pytest.raises(Rejection, match="one phone at a time"):
         pairing.proposal(7, Actor.user(1), time)
@@ -5719,10 +5722,10 @@ def test_a_worker_stopped_at_the_usage_limit_waits_for_it_and_goes_on_by_itself_
         told = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_waits_for_the_usage_limit"]
         assert told == [WorkersNudges.WORKER_LIMITED.create(n=1, at="08:10").rendered()], told
         assert not [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.run_unfinished"], "nor is it told as a run that ended unfinished"
-    app.container.get(Bus).dispatch(ClockTicked(time=waiting.resumes_at - 60))
+    app.container.get(Bus).dispatch_guarded(ClockTicked(time=waiting.resumes_at - 60))
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Workers).find(1).state == WorkerState.LIMITED, "before the reset it waits"
-    app.container.get(Bus).dispatch(ClockTicked(time=waiting.resumes_at))
+    app.container.get(Bus).dispatch_guarded(ClockTicked(time=waiting.resumes_at))
     with app.container.get(Scope).environment(MAIN):
         sent = app.container.get(Workers).find(1)
         assert sent.state == WorkerState.DISPATCHED and RESUME_JOB in sent.brief and sent.resume == "lovelace-session", "at the reset time it is sent on in its own session"
@@ -6078,6 +6081,7 @@ def test_the_user_checks_sends_back_and_merges_a_workers_work_from_the_viewer(ap
     with app.container.get(Scope).environment(MAIN):
         controller.check(posted({"point": 2}))
         controller.merge(posted({}))
+        app.runtime().deferred.drain()
         assert tasks.find(1).state == TaskState.COMPLETED and workers.find(1).state == WorkerState.MERGED, "and the viewer's merge closes the task"
 
 
@@ -8845,6 +8849,7 @@ def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_
         with scope.environment(main.row_id):
             assert hub_task.id in {task.id for task in tasks.open_tasks()}, "bound, the hub task reads as the environment's work"
             tasks.save(tasks.find(hub_task.id).started(datetime.now(timezone.utc)), Actor.user(1))
+        a.container.get(ListenerQueue).drain()
         assert [event.bound_environment_ids for event in heard] == [(main.row_id,)] and "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "its start reaches the environment's agent"
         assert synced(lambda: b.container.get(Tasks).find(hub_task.id).state == TaskState.STARTED), "and arrives on Bob's journal with its next pull"
         assert tasks.find(hub_task.id).environment_id != main.row_id and len(tasks.global_matching(environment_id=main.row_id)) == own_rows, "the task stays the hub's and no local task is made"
@@ -9036,6 +9041,7 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
         monkeypatch.setattr(team.clock, "time", lambda: lapsed)
         assert b.console().run(["task", "drive", str(taken.id), "--take-over"], replace(USER, person=2)).code == 0
         a.container.get(HubDrives).renewed(Ref.build(taken))
+        a.container.get(ListenerQueue).drain()
         assert not a.container.get(Links).all_matching(link_type=BOUND_LINK), "each binding is released"
         assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
         why = {event.row_id: event.reason for event in ended}
@@ -12112,6 +12118,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
     with app.container.get(Scope).environment(1):
         assert app.container.get(Tasks).find(7001).title == "made on another machine", "the answer's row is written in the server"
+    app.container.get(ListenerQueue).drain()
     assert [task.id for task in heard] == [7001] and account.sequence() == 5, "its event is dispatched in the server and the sequence moves"
     outgoing = app.container.get(OutgoingChanges)
     outgoing.clear()
@@ -13766,6 +13773,7 @@ def test_a_check_row_is_updated_twice_by_a_run_once_when_it_starts_and_once_when
     check = app.container.get(Checks).save(Check(title="quick", command="true", interval=60), Actor.system())
     app.container.get(Bus).listen(Updated, Saves())
     app.container.get(CheckRunner).run(check, Actor.system())
+    app.container.get(ListenerQueue).drain()
     assert saved == [True, False], "one save marks the run started with its process, one records its result; none in between for a quick run"
 
 

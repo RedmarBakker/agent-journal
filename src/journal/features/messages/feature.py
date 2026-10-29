@@ -42,8 +42,8 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    answer_listeners = ((RecordTurn, Blocking.NEXT_DECISION), (StartInboxDelivery, Blocking.ANSWER))
-    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage)
+    answer_listeners = ((RecordTurn, Blocking.NEXT_DECISION), (StartInboxDelivery, Blocking.ANSWER), (CreatedRowCause, Blocking.NEXT_DECISION))
+    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, TaskMentionLinks, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 

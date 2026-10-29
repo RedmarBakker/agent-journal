@@ -11,6 +11,8 @@ import pytest
 
 from shell_verbs import ShellVerbs
 
+from tests.suite_server import SuiteServer
+from journal.support.listener_queue import ListenerQueue
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
@@ -40,7 +42,11 @@ def boot():
 
 @pytest.fixture
 def server(app: App):
-    return app.server()
+    return suite_server(app)
+
+
+def suite_server(app: App) -> SuiteServer:
+    return SuiteServer(app.server(), app.container.get(ListenerQueue))
 
 
 def unowed(app: App) -> None:
@@ -65,9 +71,11 @@ def call(server, method: str, path: str, body: dict | None = None, environment: 
     request = HttpRequest(f"http://127.0.0.1:{server.port}{path}", data=data, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
     try:
         with urlopen(request, timeout=REQUEST_SECONDS) as reply:
-            return reply.status, json.loads(reply.read())
+            answer = reply.status, json.loads(reply.read())
     except HTTPError as error:
-        return error.code, json.loads(error.read())
+        answer = error.code, json.loads(error.read())
+    server.drain_queue()
+    return answer
 
 
 def whole_rows(server, table: str) -> list[dict]:
@@ -144,7 +152,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
     app.runtime().start()
     unowed(app)
     user_set(app, "faults.developer", True)
-    server = app.server()
+    server = suite_server(app)
     try:
         developer = lambda: call(server, "GET", "/journal/developer")[1]
         def logged(label):
@@ -275,7 +283,7 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, message = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "k1"})
         assert status == 201
@@ -304,7 +312,7 @@ def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_se
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
         agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}
@@ -364,7 +372,7 @@ def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entrie
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -393,7 +401,7 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -421,7 +429,7 @@ def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         request = HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
@@ -449,7 +457,7 @@ def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_han
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -474,7 +482,7 @@ def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -550,7 +558,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, tree = call(server, "POST", "/journal/settings", {"features": {"thinking": False}})
         assert status == 200 and tree["features"]["thinking"] is False and len(tree["features"]) > 10
@@ -592,7 +600,7 @@ def test_the_plans_list_reads_no_link(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         console, user = app.console(), Caller.user("main")
         for n in range(50):
@@ -618,7 +626,7 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         tasks = app.container.get(Tasks)
         with app.container.get(Scope).environment(1):
@@ -644,7 +652,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         return urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -683,7 +691,7 @@ def test_the_remaining_pages_act_through_the_viewer(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         app.console().run(["plan", "create", "p"], Caller.user("main"))
         assert call(server, "POST", "/journal/plans/1/finish", {})[1]["state"] == "done"
@@ -728,7 +736,7 @@ def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         call(server, "POST", "/journal/messages", {"text": "after the reset", "idempotency": "r1"})
         entries = call(server, "GET", "/journal/entries?since=999999")[1]
@@ -744,7 +752,7 @@ def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_
 def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_is_taken_too(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         first = call(server, "POST", "/journal/messages", {"text": "the header looks off"})[1]["id"]
         status, reply = call(server, "POST", "/journal/messages", {"on": f"messages:{first}", "text": "and the footer too"})
@@ -767,7 +775,7 @@ def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp
     from journal.support.actor import Actor
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             for time in (10.0, 20.0, 30.0):
@@ -783,7 +791,7 @@ def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp
 def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_listed_on_their_own(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         report = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Findings", "body": "## One\n\nText"})[1]["id"]
         other = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Other", "body": "## Two\n\nText"})[1]["id"]
@@ -821,7 +829,7 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         manifest = call(server, "GET", "/journal/manifest")[1]
         matched = [f["name"] for f in manifest["features"]]
@@ -847,7 +855,7 @@ def test_a_read_of_an_unknown_environment_is_not_found_and_makes_none(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         assert call(server, "GET", "/journal/tasks", environment="settings")[0] == 404
         assert not app.container.get(Environments).matching(name="settings"), "a stray address in the browser never makes an environment"
@@ -979,7 +987,7 @@ def test_a_kept_version_3_journal_is_offered_put_off_and_brought_across_with_a_r
     from journal.repositories.reports import Reports
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     try:
         assert call(server, "GET", "/journal/migration")[1] == {"kept": False, "state": "offered"}, "no backup, nothing to offer"
@@ -1003,7 +1011,7 @@ def sharing(journal_root: Path):
     app = main_journal(Config(journal_root, port=0))
     runtime = app.runtime()
     runtime.boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     runtime.share_server.start()
     yield server, runtime.share_server
@@ -1229,7 +1237,7 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         folder = tmp_path / "run"
         folder.mkdir()
@@ -1449,7 +1457,7 @@ def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_str
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     (tmp_path / "a.py").write_text("print(1)\n")
     environment = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(tmp_path), "JOURNAL_SESSION": "s1", "CLAUDECODE": "1"}
     def run(line: str, cwd: Path = tmp_path) -> str:
@@ -1501,7 +1509,7 @@ def test_the_viewer_undocks_a_docked_row_by_an_act_on_its_message(journal_root: 
     from journal.chat.docking import Docking
     app = main_journal(Config(journal_root, port=0))
     app.runtime().boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     try:
         call(server, "POST", "/journal/tasks", {"title": "ship it", "brief": "b"})
@@ -1620,7 +1628,7 @@ def test_the_change_stream_starts_after_the_entry_the_page_names(tmp_path: Path)
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             entries = app.container.get(Entries)
@@ -1658,7 +1666,7 @@ def test_a_critique_asked_from_the_plan_page_puts_a_ready_plan_in_review(tmp_pat
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             plan = app.container.get(Plans).save(Plan(environment_id=1, title="the redesign", state=PlanState.READY), Actor.system())
@@ -1682,7 +1690,7 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
     app = App(Config(journal_root, port=0))
     app.runtime().start()
     try:
-        server = app.server()
+        server = suite_server(app)
         from journal.console.console import Console
         from journal.support.agent_role import AgentRole
         assert {AgentRole.MAIN, AgentRole.WORKER, AgentRole.SUBAGENT} <= set(app.container.get(Console)._parsers), "each role's parser is built at boot"
@@ -1722,7 +1730,7 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
     threading.Thread(target=service.serve_forever, daemon=True).start()
     app = boot(copied(template_journal, tmp_path / "journal"), monkeypatch)
     try:
-        server = app.server()
+        server = suite_server(app)
         address = f"http://127.0.0.1:{service.server_address[1]}/events"
         registration = {"name": "stand-in", "address": address, "events": ["change_queued"]}
         assert call(server, "POST", "/journal/services", registration)[0] == 403, "a registration without the service secret is refused"
@@ -1746,7 +1754,7 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
 def test_a_message_of_attachments_alone_is_accepted_without_words(tmp_path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, message = call(server, "POST", "/journal/messages", {"text": "", "idempotency": "k-files"})
         assert status == 201 and message["text"] == "", "the server accepts a message with no words, which is how attachments alone arrive"

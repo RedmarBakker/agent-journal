@@ -112,8 +112,8 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorkerMemoryWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER),)
-    listeners = (WorkerProgressRecord, MergedTestRunStop, WorkerAssignment, WorkerSessionAssignment, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, OpenWorkWaitRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
+    answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER), (WorkerAssignment, Blocking.NEXT_DECISION), (WorkerSessionAssignment, Blocking.NEXT_DECISION), (WorkerTaskChanges, Blocking.NEXT_DECISION))
+    listeners = (WorkerProgressRecord, MergedTestRunStop, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, OpenWorkWaitRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
     data = (WorkersDataReader,)
     helper_data = {AgentRole.WORKER: (SessionWorkersReader,)}
     helper_commands = {AgentRole.WORKER: (WorkerPeerCommand, ArrivalCommand, DepartureCommand, ProofCommand, TodoCommand, WorkerTestsCommand)}

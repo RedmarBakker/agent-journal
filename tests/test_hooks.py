@@ -8,6 +8,7 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
+from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.config import Config
 from journal.events.agent.stop import Stop
@@ -58,7 +59,7 @@ class Noted(AgentListener[ToolStarting]):
 @pytest.fixture(scope="module")
 def boot():
     def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-        app = App(Config(root, port=0))
+        app = SuiteApp(Config(root, port=0))
         app.container.get(ListenerQueue).start()
         app.server().start()
         return app

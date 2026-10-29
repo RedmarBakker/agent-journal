@@ -6,6 +6,7 @@ import pytest
 
 from worker_dispatch import dispatched
 
+from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.repositories.scope import Scope
 from journal.hooks.support.hook_seats import HookSeats
@@ -24,7 +25,7 @@ MAIN = Caller.user("main")
 
 @pytest.fixture
 def app(journal_root: Path) -> App:
-    return App(Config(journal_root, port=0))
+    return SuiteApp(Config(journal_root, port=0))
 
 
 

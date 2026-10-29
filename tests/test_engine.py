@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
+from tests.suite_app import SuiteApp
 from journal.support.timeout import Timeout
 from journal.repositories.reports import Reports
 from journal.events.rows.worker_mention import WorkerMention
@@ -144,7 +145,7 @@ EVENT_AGENT = Agent(environment_id=1, session="s1", provider="claude")
 @pytest.fixture(scope="module")
 def boot():
     def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-        app = App(Config(root, port=0))
+        app = SuiteApp(Config(root, port=0))
         app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
         app.runtime().start()
         return app
@@ -742,8 +743,10 @@ def test_a_saved_started_plan_sends_plan_started_once_and_a_plain_edit_sends_non
         task = tasks.save(Task(environment_id=1, title="first"), Actor.system())
         plan = plans.save(Plan(environment_id=1, title="p", state=PlanState.APPROVED), Actor.system())
         started = plans.save(plan.started(task, 5.0), Actor.system())
+        app.container.get(ListenerQueue).drain()
         assert started.events == () and hearing.heard == [PlanStarted(environment_id=1, time=5.0, row_id=plan.id, actor="system", plan_id=plan.id, task_id=task.id)]
         plans.save(started.with_(title="renamed"), Actor.system())
+        app.container.get(ListenerQueue).drain()
         assert len(hearing.heard) == 1
 
 
@@ -768,6 +771,7 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
             links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
         for task, phase in ((rows[1], first), (rows[0], first), (rows[2], second)):
             links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), actor)
+        app.container.get(ListenerQueue).drain()
         assert [phase.id for phase in plans.plan_phases(plan)] == [first.id, second.id], "in the order they were added"
         LoadTally.begin()
         states = plans.phase_states(plan)
@@ -3128,7 +3132,7 @@ def test_a_helper_command_class_serves_its_noun_for_that_role_alone(app: App):
     from journal.features.tasks.commands.task_command import TaskCommand
     from journal.support.agent_role import AgentRole
     worker_task = type("WorkerTaskCommand", (Command,), {"noun": TaskCommand.noun, "arguments": lambda self, verbs: None})
-    console = app.console()
+    console = app.container.get(Console)
     console.add_helper(AgentRole.WORKER, worker_task)
     assert type(console.table(AgentRole.WORKER)[TaskCommand.noun]) is worker_task, "the worker's own class serves the noun for the worker"
     assert type(console.table(AgentRole.MAIN)[TaskCommand.noun]) is TaskCommand, "and the main agent keeps the first"
