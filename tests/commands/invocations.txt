@@ -347,3 +347,5 @@ agent organization reload
 agent role take keeper
 agent role done
 agent organization plans
+agent plan tell 1 "begin with the cart"
+agent plan report "the cart is done"

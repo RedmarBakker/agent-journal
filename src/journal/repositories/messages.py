@@ -92,7 +92,7 @@ class Messages(ScopedRepository[Message]):
         return self.counted(self.unread_query())
 
     def unread_query(self) -> Query:
-        return self.main_chat().filter(author=Author.USER).filter_null("read_at")
+        return self.main_chat().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present(f"data->{Message.PEER}")).filter_null("read_at")
 
     def last_user_message(self) -> Message | None:
         return next((m for m in self.selected(self.main_chat().filter(author=Author.USER).order_descending("id").limit(20)) if not m.is_terminal_line), None)

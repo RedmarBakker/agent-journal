@@ -14,6 +14,7 @@ from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.waits import Waits
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.models.link import Link
+from journal.models.message import Message
 from journal.models.phase import Phase
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_statuses import PlanStatuses
@@ -23,10 +24,12 @@ from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
+from journal.repositories.messages import Messages
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
@@ -43,9 +46,9 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope) -> None:
         self.time_source = time_source
-        self.orchestrator, self.plan_agents, self.plan_owners = orchestrator, plan_agents, plan_owners
+        self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
         self.settings, self.drives, self.statuses, self.phase_testing, self.destination = settings, drives, statuses, phase_testing, destination
@@ -106,6 +109,10 @@ class PlanCommand(Command):
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
         testing.add_argument("title")
+        tell = self.verb(verbs, "tell", "say something to a started plan's Plan agent, in its plan's chat: what to do next, a decision, an answer")
+        tell.add_argument("n", type=int)
+        tell.add_argument("text")
+        self.verb(verbs, "report", "as a Plan agent, tell the main agent how your plan stands, in its chat").add_argument("text")
         mode = self.verb(verbs, "mode", "how the plan is worked, set while it is a draft or paused: organization, its Plan agent coordinating Domain agents and Roles, or solo, its Plan agent doing the work itself")
         mode.add_argument("n", type=int)
         mode.add_argument("mode", choices=[choice.value for choice in PlanMode])
@@ -267,6 +274,23 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         followed = self.plan_testing.follow(plan, args.title, caller.actor)
         print(f"plan {plan.id} tests this way: {followed[0].brief}" if followed else f"plan {plan.id} follows no testing template")
+        return 0
+
+    def tell(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.find(args.n)
+        environment = self.plan_agents.environment(plan)
+        if environment is None:
+            raise Rejection(f"plan {plan.id} has no Plan agent: a plan gets one when it starts with Plan agents on")
+        message = self.messages.save(Message.agent_word("the main agent", args.text).with_(environment_id=environment.row_id), caller.actor)
+        print(f"plan {plan.id}'s Plan agent told in message {message.id}, in {environment.name}")
+        return 0
+
+    def report(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plan_agents.led_plan(self.scope.id)
+        if plan is None:
+            raise Rejection("only a Plan agent reports, from its plan's environment")
+        message = self.messages.save(Message.agent_word(f"the Plan agent of plan {plan.id}", args.text).with_(environment_id=plan.environment_id), caller.actor)
+        print(f"the main agent told in message {message.id}")
         return 0
 
     def mode(self, args: Namespace, caller: Caller) -> int:

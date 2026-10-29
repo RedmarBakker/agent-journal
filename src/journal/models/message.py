@@ -49,6 +49,10 @@ class Message(Scoped):
         return cls(author=Author.SYSTEM, text=text, read_at=time, session=session, data={"kind": cls.PEER, cls.PEER: sender, cls.ASKS_KEY: asks})
 
     @classmethod
+    def agent_word(cls, sender: str, text: str) -> "Message":
+        return cls(author=Author.SYSTEM, text=text, data={"kind": cls.PEER, cls.PEER: sender, cls.ASKS_KEY: False})
+
+    @classmethod
     def outgoing(cls, receiver: str, text: str, session: str, address: str = "") -> "Message":
         return cls(author=Author.SYSTEM, text=text, session=session, data={"kind": cls.PEER, cls.RECIPIENT_KEY: receiver, "address": address or receiver})
 
@@ -157,7 +161,11 @@ class Message(Scoped):
 
     @property
     def is_main_unread(self) -> bool:
-        return self.author == Author.USER and self.read_at is None and self.thread == MessageThread.MAIN
+        return (self.author == Author.USER or self.is_agent_word) and self.read_at is None and self.thread == MessageThread.MAIN
+
+    @property
+    def is_agent_word(self) -> bool:
+        return self.PEER in self.data
 
     @property
     def is_user_facing(self) -> bool:

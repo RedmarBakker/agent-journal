@@ -2813,3 +2813,11 @@ the step as a Role has ended
 $ agent: journal organization plans
 exit 0
 no organization: set the agentic organization folder on the Settings page
+
+$ agent: journal plan tell 1 'begin with the cart'
+exit 1
+plan 1 has no Plan agent: a plan gets one when it starts with Plan agents on
+
+$ agent: journal plan report 'the cart is done'
+exit 1
+only a Plan agent reports, from its plan's environment

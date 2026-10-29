@@ -8,6 +8,7 @@ from journal.app import App
 from journal.engine.agent_launcher import AgentLauncher
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.plans.plan_outline import PlanOutline
+from journal.features.plans.plans_nudges import PlansNudges
 from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
 from journal.repositories.entries import NUDGE, Entries
@@ -20,6 +21,7 @@ from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import posted
+from tests.nudge_lines import nudge_reached
 from tests.test_features import booted, hook
 from tests.user_settings import user_set
 
@@ -242,6 +244,46 @@ def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, sup
     assert queued.code == 0 and f"task {step} waits in the queue" in queued.text, queued.error
     assert [task.id for task in tasks.queue(Ref.build(instance))] == [step], "the step waits in the queue of the shared Role's one instance, made in the main environment"
     assert app.container.get(Agents).find(plans.agent_id(plans.find(plan))).stack[-1]["state"] != "role_work", "a shared Role is never taken on as a state"
+
+
+def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing_code(app: App, supervisors: Supervisors, monkeypatch):
+    user_set(app, SWITCH, True)
+    typed = []
+    monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: typed.append((environment_id, line)))
+    first, second = started_plan(app, "the floors"), started_plan(app, "the roof")
+    console, messages, plans = app.console(), app.container.get(Messages), app.container.get(Plans)
+    for plan in (first, second):
+        posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": f"lead-{plan}"}, {"X-Journal-Env": f"plan-{plan}"})
+    for plan, job in ((first, "lay the floors"), (second, "put the roof on")):
+        told = console.run(["plan", "tell", str(plan), job], AGENT)
+        assert told.code == 0, told.error
+        app.runtime().deferred.drain()
+        [word] = [message for message in messages.global_matching(environment_id=plan_environment(app, plan).row_id) if message.text == job]
+        assert word.is_main_unread and word.sender == "the main agent", "the main agent's word is in the plan's chat, unread, from the main agent"
+        line = f"new message {word.id} from the main agent"
+        assert [environment_id for environment_id, delivered in typed if delivered == line] == [plan_environment(app, plan).row_id], "and is delivered to that plan's agent alone"
+
+    reported = console.run(["plan", "report", "the floors are laid"], Caller.agent(f"plan-{first}", f"lead-{first}", "claude"))
+    assert reported.code == 0, reported.error
+    app.runtime().deferred.drain()
+    [answer] = [message for message in messages.global_matching(environment_id=MAIN) if message.text == "the floors are laid"]
+    line = f"new message {answer.id} from the Plan agent of plan {first}"
+    assert [environment_id for environment_id, delivered in typed if delivered == line] == [MAIN], "a Plan agent's report reaches the main agent in its chat"
+    with app.container.get(Scope).environment(MAIN):
+        assert answer.id in [message.id for message in messages.unread()], "the Plan agent's report is a message for the main agent to read"
+    assert console.run(["plan", "report", "all is well"], AGENT).code != 0, "only a Plan agent reports"
+    draft = int(console.run(["plan", "create", "the garden", "--brief", "a garden"], USER).text.split()[1].rstrip(":"))
+    assert console.run(["plan", "tell", str(draft), "dig"], AGENT).code != 0, "a plan with no Plan agent is told nothing"
+
+    for command in (
+        "journal worker dispatch 'Ada Lovelace' 'the floors' --changes src",
+        "journal worker send 1 'finish the floor'",
+    ):
+        status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
+        assert status == 409 and nudge_reached(app, body["error"], PlansNudges.COORDINATOR_SENDS_NO_WORKER), f"the main agent refuses {command.split()[2]}"
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "src/floors.py", "content": "x"})
+    assert status == 409 and nudge_reached(app, body["error"], PlansNudges.COORDINATOR_WRITES_NO_CODE), "the main agent writes no code"
+    assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "both plans run side by side"
 
 
 def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors):

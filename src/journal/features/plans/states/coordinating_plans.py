@@ -10,7 +10,7 @@ from journal.features.workers.states.orchestrating import Orchestrating
 
 @dataclass(frozen=True)
 class CoordinatingPlans(Orchestrating):
-    """The main agent's floor while Plan agents replace the work modes: it orchestrates every plan and never writes code; the conduct of the new model is given to this state alone, so none of the old modes' conduct reaches it."""
+    """The main agent's floor while Plan agents replace the work modes: it coordinates each plan through its agent, writes no code and sends no worker of its own; the conduct of the new model is given to this state alone, so none of the old modes' conduct reaches it."""
 
     name = "coordinating_plans"
     title = "Coordinating plans"
