@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+from journal.support.timeout import Timeout
 from journal.events.rows.job_stop_requested import JobStopRequested
 from journal.models.scoped import Scoped
 
@@ -28,4 +29,4 @@ class ScheduledJob(Scoped):
         return self.with_event(JobStopRequested(environment_id=self.environment_id, time=time, agent_session=self.session, job_id=self.job_id))
 
     def is_running(self, moment: float) -> bool:
-        return not self.ended and (not self.recurring or moment - self.creation_time.timestamp() < RECURRING_LIFETIME_SECONDS)
+        return not self.ended and (not self.recurring or not Timeout.seconds(RECURRING_LIFETIME_SECONDS).started(self.creation_time.timestamp()).is_elapsed(moment))

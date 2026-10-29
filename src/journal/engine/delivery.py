@@ -33,7 +33,7 @@ class Delivery:
     def hook_decision(self, event: AgentEvent, answered: Decision) -> Decision:
         if answered.context and not event.has_hook_lines():
             self.lines(event.environment_id, answered.context, event.typing_delay)
-        decision = answered.without(event.journal_text()) if event.journal_text() else answered
+        decision = self.with_remarks(event, answered.without(event.journal_text()) if event.journal_text() else answered)
         stop_refusal = event.is_turn_end and not decision.allowed
         if event.is_turn_end and not stop_refusal:
             self.supervisor.resting(event.environment_id)
@@ -43,7 +43,20 @@ class Delivery:
             self.supervisor.stop_refused(event.environment_id)
         else:
             self.supervisor.working(event.environment_id)
-        pending = self.supervisor.pending_lines(event.environment_id)
-        if not pending:
+        return self.with_lines(decision, self.line_backlog(event))
+
+    def with_remarks(self, event: AgentEvent, decision: Decision) -> Decision:
+        if event.is_work or not event.is_remark_carrier() or event.defers_remarks():
             return decision
-        return Decision.allowed_with(pending).merged(decision) if decision.allowed else Decision.refuse("\n".join((decision.reason, pending)))
+        return self.with_lines(decision, self.supervisor.pending_remarks(event.environment_id))
+
+    def line_backlog(self, event: AgentEvent) -> str:
+        if event.is_remark_carrier():
+            return self.supervisor.pending_lines(event.environment_id)
+        return self.supervisor.pending_instructions(event.environment_id)
+
+    @staticmethod
+    def with_lines(decision: Decision, lines: str) -> Decision:
+        if not lines:
+            return decision
+        return decision.merged(Decision.allowed_with(lines)) if decision.allowed else Decision.refuse("\n".join((decision.reason, lines)))

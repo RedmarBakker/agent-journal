@@ -42,9 +42,9 @@ class Nudger:
             return None
         rendered = nudge.rendered()
         line = nudge.cut(rendered)
-        cut = {CUT_KEY: len(rendered)} if nudge.is_too_long(rendered) else {}
+        cut = {CUT_KEY: len(rendered)} if nudge.is_overlong(rendered) else {}
         self.entries.save(Entry(environment_id=agent.environment_id, entry_type=NUDGE, actor=Actor.system(), data={"key": nudge.key, "values": {name: str(value) for name, value in nudge.values.items()}, "session": agent.session, "line": line, "time": self.clock.time(), "tool_use": agent.tool_uses, **cut}), Actor.system())
-        event = LineDelivered(nudge=nudge.key, values=dict(nudge.values)).placed(agent.session, agent.environment_id, agent.provider, None, self.clock.time())
+        event = LineDelivered(nudge=nudge.key, values=dict(nudge.values), agent=agent).placed(agent, None, self.clock.time())
         self.deferred.add(lambda: self.bus.dispatch(event))
         return line
 

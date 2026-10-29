@@ -43,7 +43,7 @@ class SessionHydration:
         program = self.providers.lookup(provider)
         path = program.transcript(self.config.root, session)
         if path is None:
-            raise Rejection(f"no {provider} session {session} is kept for this project on this machine")
+            raise Rejection(f"no {provider} session {session} is stored for this project on this machine")
         self.filling[environment.name] = 0
         rows = TranscriptChat(session).read(program.turns(path))
         last = rows[-1].time if rows else path.stat().st_mtime

@@ -2,18 +2,16 @@ import time
 from dataclasses import asdict
 
 from journal.engine.support.stack_history import StackHistory
-from journal.events.agent.agent_event_type import AgentEventType
+from journal.references import events
 from journal.events.agent.session_started import COMPACTION_SOURCE
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.support.run_cards import RUN
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.config import Config
-from journal.features.faults.feature import Faults
 from journal.features.faults.faults_options import FaultsOptions
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.repositories.setting_rows import SettingRows
-from journal.features.registry import Registry
 from journal.providers.providers import Providers
 from journal.http.agents.current_work import CurrentWork
 from journal.http.agents.current_sequence import CurrentSequence
@@ -42,10 +40,11 @@ from journal.features.workers.support.measure_spec import MeasureSpec
 from journal.features.workers.support.mode_measures import ModeMeasures
 from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
+from journal.features.usage.support.process_usage_store import ProcessUsageStore
 
-STATUS = {AgentEventType.STOP: "idle", AgentEventType.SESSION_STARTED: "idle", AgentEventType.SESSION_ENDED: "stopped", AgentEventType.COMPACTING: "compacting", AgentEventType.PROMPT_SUBMITTED: "busy", AgentEventType.TOOL_STARTING: "busy", AgentEventType.TOOL_FINISHED: "busy", AgentEventType.TOOL_FAILED: "busy", AgentEventType.SUBAGENT_STARTED: "busy", AgentEventType.SUBAGENT_ENDED: "busy"}
+STATUS = {events.STOP: "idle", events.SESSION_STARTED: "idle", events.SESSION_ENDED: "stopped", events.COMPACTING: "compacting", events.PROMPT_SUBMITTED: "busy", events.TOOL_STARTING: "busy", events.TOOL_FINISHED: "busy", events.TOOL_FAILED: "busy", events.SUBAGENT_STARTED: "busy", events.SUBAGENT_ENDED: "busy"}
 HISTORY_ENTRIES = 5
-TOOL_KINDS = (AgentEventType.TOOL_STARTING, AgentEventType.TOOL_FINISHED)
+TOOL_KINDS = (events.TOOL_STARTING, events.TOOL_FINISHED)
 OPERATION_VERBS = {FileRead.operation_type: "reading a file", FileEdit.operation_type: "editing files", FileWrite.operation_type: "writing a file", SubagentDispatch.operation_type: "waiting for a subagent", SkillLoad.operation_type: "reading a skill", AgentMessage.operation_type: "messaging an agent", UserQuestion.operation_type: "asking you"}
 # how far back the fitness timeline reaches, and the most points it reads
 TIMELINE_HOURS = 6
@@ -55,20 +54,17 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText) -> None:
-        self.time_source, self.labels, self.text = time_source, labels, text
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText, process_usage: ProcessUsageStore) -> None:
+        self.time_source, self.labels, self.text, self.process_usage = time_source, labels, text, process_usage
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
+        self.jobs, self.numbers, self.settings, self.scoring, self.measures = jobs, numbers, settings, scoring, measures
 
     def page(self, agents: list[Agent]) -> list[dict]:
-        return [self.row(item, [] if self.has_ended(item) else self.session_entries(item.session)) for item in agents]
-
-    def has_ended(self, agent: Agent) -> bool:
-        return self.states.restored(agent.state, agent.data).final
+        return [self.row(item, [] if self.states.has_ended(item) else self.session_entries(item.session)) for item in agents]
 
     def session_entries(self, session: str) -> list:
         newest = [*self.entries.agent_kinds_newest(session, list(STATUS), 1), *self.entries.agent_kinds_newest(session, [*TOOL_KINDS, PART_START, PART_END], 1),
-                  *self.entries.agent_kinds_newest(session, [PART_START, PART_END], 1), *self.entries.agent_kinds_newest(session, [AgentEventType.TURN_DISPLAYED], 1),
+                  *self.entries.agent_kinds_newest(session, [PART_START, PART_END], 1), *self.entries.agent_kinds_newest(session, [events.TURN_DISPLAYED], 1),
                   *self.entries.session_kind_newest(session, StackHistory.KIND, HISTORY_ENTRIES), *self.entries.session_kind_newest(session, RUN, HISTORY_ENTRIES)]
         return sorted({entry.id: entry for entry in newest}.values(), key=lambda entry: entry.id)
 
@@ -79,11 +75,11 @@ class AgentActivity:
         return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:
-        hooks = [e for e in entries if e.entry_type not in ("nudge", "created", "updated", "deleted")]
-        moves = [e for e in hooks if e.entry_type in STATUS]
+        hooks = [e for e in entries if not Entries.is_kind(e, ("nudge", "created", "updated", "deleted"))]
+        moves = [e for e in hooks if Entries.is_kind(e, tuple(STATUS))]
         last = moves[-1] if moves else None
         type_name = last.entry_type if last else ""
-        state = self.states.restored(agent.state, agent.data)
+        state = self.states.top(agent)
         waiting_state, enabled = self.current.wait_text(agent)
         provider = self.providers.lookup(agent.provider)
         status = provider.status(agent.session, self.config.status_home)
@@ -93,32 +89,32 @@ class AgentActivity:
             "heard_at": last.created_at if last else agent.updated_at,
             "tool": last.data.get("tool_name", "") if last and type_name in TOOL_KINDS else "",
             "tool_work": self.work(last, entries) if last and type_name in TOOL_KINDS else "",
-            "tool_running": type_name == AgentEventType.TOOL_STARTING or self.unended_part(entries) is not None,
+            "tool_running": type_name == events.TOOL_STARTING or self.unended_part(entries) is not None,
             "part_started_at": self.part_start(entries),
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
             "branch": self.files.branch(), "context": round(status.context * 100) if status.context is not None else None,
             "question_id": state.question_number(),
-            "doing": self.activity(state, [e for e in entries if e.entry_type in (*TOOL_KINDS, PART_START, PART_END)]),
+            "doing": self.activity(state, [e for e in entries if Entries.is_kind(e, (*TOOL_KINDS, PART_START, PART_END))]),
             "thinking": "" if state.final else self.thinking(agent.session, hooks),
             "thinking_at": 0.0 if state.final else agent.thinking_at,
-            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.entry_type == AgentEventType.TURN_DISPLAYED), ""),
+            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if Entries.is_kind(e, (events.TURN_DISPLAYED,))), ""),
             "stuck": state.impasse_reason(),
             "state_title": self.states.title(agent.state),
             "sequence": self.sequence(agent),
             "stack": self.stack(agent),
-            "trail": [self.trail_entry(e) for e in [e for e in entries if e.entry_type == StackHistory.KIND][-HISTORY_ENTRIES:]],
-            "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.entry_type == RUN])][:HISTORY_ENTRIES],
+            "trail": [self.trail_entry(e) for e in [e for e in entries if Entries.is_kind(e, (StackHistory.KIND,))][-HISTORY_ENTRIES:]],
+            "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if Entries.is_kind(e, (RUN,))])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": StatusLoad.measured(agent),
+            "processes": self.process_usage.agent_fields(agent),
             **self.rolling(),
         }
 
     def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
-        specs = {spec.key: spec for spec in self.measures.specs(agent.measures.mode)}
-        measures = [self.measure(state, specs[state.key]) for state in agent.measures.states if state.key in specs]
+        measures = [self.measure(state, spec) for state, spec in self.measures.paired(agent.measures)]
         return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "measures": measures, "band": agent.band.value, "band_changed_at": agent.band_changed_at, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     @staticmethod
@@ -132,7 +128,7 @@ class AgentActivity:
         return [point.shown() for point in points if point.scored_at >= start_at]
 
     def rolling(self) -> dict:
-        if not self.registry.is_enabled(Faults):
+        if not self.settings.option(FaultsOptions.DEVELOPER):
             return {}
         averages = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
                  "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
@@ -142,11 +138,11 @@ class AgentActivity:
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = self.time_source.seconds()
-        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.has_ended(agent) else []
+        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.states.has_ended(agent) else []
 
     @staticmethod
     def reported(last) -> str:
-        if last and last.entry_type == AgentEventType.SESSION_STARTED and last.data.get("source") == COMPACTION_SOURCE:
+        if last and Entries.is_kind(last, (events.SESSION_STARTED,)) and last.data.get("source") == COMPACTION_SOURCE:
             return "busy"
         return STATUS.get(last.entry_type, "idle") if last else "idle"
 
@@ -158,7 +154,7 @@ class AgentActivity:
         thoughts = self.messages.thoughts(session, 1)
         if not thoughts:
             return ""
-        saved = [e.created_at for e in hooks if e.entry_type == AgentEventType.TURN_DISPLAYED]
+        saved = [e.created_at for e in hooks if Entries.is_kind(e, (events.TURN_DISPLAYED,))]
         later = [time for time in (saved[-1] if saved else None, self.entries.last_prompt(session)) if time is not None]
         return "" if any(time > thoughts[-1].creation_time for time in later) else thoughts[-1].text
 
@@ -172,9 +168,9 @@ class AgentActivity:
 
     def activity(self, state, hooks) -> str:
         last = hooks[-1] if hooks else None
-        if last and last.entry_type in (PART_START, PART_END):
+        if last and Entries.is_kind(last, (PART_START, PART_END)):
             return self.text.shown(last.data["part"])
-        if last and last.entry_type == AgentEventType.TOOL_STARTING:
+        if last and Entries.is_kind(last, (events.TOOL_STARTING,)):
             return self.tool_activity(last.recorded_call())
         part = self.unended_part(hooks)
         if part is not None:
@@ -187,8 +183,8 @@ class AgentActivity:
 
     @staticmethod
     def unended_part(entries):
-        parts = [e for e in entries if e.entry_type in (PART_START, PART_END)]
-        return parts[-1] if parts and parts[-1].entry_type == PART_START else None
+        parts = [e for e in entries if Entries.is_kind(e, (PART_START, PART_END))]
+        return parts[-1] if parts and Entries.is_kind(parts[-1], (PART_START,)) else None
 
     @staticmethod
     def tool_activity(call: RecordedCall) -> str:

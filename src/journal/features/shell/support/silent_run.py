@@ -7,4 +7,4 @@ class SilentRun:
 
     output: int
     command: str
-    quiet_seconds: int
+    silence_seconds: int

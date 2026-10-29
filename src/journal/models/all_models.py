@@ -24,6 +24,7 @@ from journal.models.scheduled_job import ScheduledJob
 from journal.models.pending_upload import PendingUpload
 from journal.models.alias import Alias
 from journal.models.dashboard_row import DashboardRow
+from journal.models.state_transition import StateTransition
 from journal.models.plan import Plan
 from journal.models.plan_review import PlanReview
 from journal.models.approval import Approval
@@ -61,10 +62,11 @@ from journal.models.rig import Rig
 from journal.models.domain_count import DomainCount
 from journal.models.domain_row import DomainRow
 from journal.models.subagent import Subagent
+from journal.models.library_item import LibraryItem
 
 
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, StateTransition)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))

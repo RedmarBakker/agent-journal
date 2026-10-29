@@ -38,6 +38,7 @@ from journal.http.controllers.plans import PlanController
 from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
 from journal.http.controllers.profiles import ProfileController
+from journal.http.controllers.library import LibraryController
 from journal.http.controllers.project_files import ProjectFileController
 from journal.http.controllers.questions import QuestionController
 from journal.http.controllers.reactions import ReactionController
@@ -164,6 +165,7 @@ class Routes:
         router.get(f"{API}/entries", entries.index)
         router.get(f"{API}/entries/stream", entries.stream)
         router.get(f"{API}/cards/active", get(ProcessCardController).fields)
+        router.get(f"{API}/outputs/running", get(OutputController).running)
         router.get(f"{API}/outputs/{{id}}", get(OutputController).show)
         router.get(f"{API}/supervised", get(SupervisedProcessController).index)
         router.post(f"{API}/outputs/{{id}}/stop", get(OutputController).stop)
@@ -246,7 +248,7 @@ class Routes:
         self.listed(router, "messages", messages)
         router.post(f"{API}/messages", messages.store)
         router.post(f"{API}/messages/{{id}}", messages.update)
-        self.acts(router, "messages", messages, "read", "reply", "delete", "react", "press", "dock", "undock")
+        self.acts(router, "messages", messages, "read", "reply", "delete", "react", "press", "dock", "unpin", "undock")
         router.post(f"{API}/messages/{{id}}/files", messages.attach)
         router.get(f"{API}/chats/{{session}}", messages.agent_chat)
         router.get(f"{API}/reactions", get(ReactionController).index)
@@ -303,6 +305,20 @@ class Routes:
         router.get(f"{API}/skills/{{name}}", skills.show)
         router.post(f"{API}/skills/{{name}}/load", skills.load)
         router.post(f"{API}/skills/{{name}}/moment", skills.moment)
+        library = get(LibraryController)
+        router.get(f"{API}/library", library.status)
+        router.post(f"{API}/library/connect", library.connect)
+        router.post(f"{API}/library/disconnect", library.disconnect)
+        router.post(f"{API}/library/invite", library.invite)
+        router.get(f"{API}/library/devices", library.devices)
+        router.post(f"{API}/library/revoke", library.revoke)
+        router.get(f"{API}/library/people", library.people)
+        router.post(f"{API}/library/password", library.password)
+        router.get(f"{API}/library/items", library.items_listed)
+        router.get(f"{API}/library/items/{{item_type}}/{{name}}", library.item)
+        router.post(f"{API}/library/items/{{item_type}}/{{name}}/import", library.import_item)
+        router.post(f"{API}/library/items/{{item_type}}/{{name}}/update", library.update_item)
+        router.post(f"{API}/library/items/{{item_type}}/publish", library.publish_item)
         profiles = get(ProfileController)
         router.get(f"{API}/profiles", profiles.index)
         router.get(f"{API}/profiles/{{name}}", profiles.one)

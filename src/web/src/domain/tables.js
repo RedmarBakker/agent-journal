@@ -33,7 +33,7 @@ const kind = (title, icon, abstract, more = {}) => ({
 
 export const TABLES = {
     messages: kind("Message", "mail", "What the user left for the agent, or the agent for the user", {in_sidebar: true, listed_under: "environment", takes_comments: true}),
-    questions: kind("Question", "help", "Something the agent asks the user, with choices to pick", {needs_attention: true, labels: {answer: "Answer"}}),
+    questions: kind("Question", "help", "Something the agent asks the user, with choices to pick", {needs_attention: true, takes_comments: true, labels: {answer: "Answer"}}),
     approvals: kind("Approval", "help", "An action waiting for your approval", {
         in_sidebar: true,
         listed_under: "sidebar",
@@ -71,9 +71,8 @@ export const TABLES = {
     }),
     collections: kind("Collection", "folder", "Rows that belong together, gathered under a name", {
         in_sidebar: true,
-        listed_under: "environment",
+        listed_under: "sidebar",
         listed_as_cards: true,
-        takes_comments: true,
         created_in_viewer: true,
         typed_as_title: true,
         labels: {abstract: "What belongs in it"},

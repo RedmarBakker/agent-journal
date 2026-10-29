@@ -23,6 +23,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.plugins import Plugins
 from journal.repositories.scope import Scope
+from journal.features.registry import Registry
 from journal.support.listener_queue import ListenerQueue
 
 LATER_SECONDS = 10
@@ -36,17 +37,15 @@ MERGE_CARDS = "plugin_merge_cards"
 class PluginRelay:
     """Which plugins receive an event, and one plugin asked about it: the line built where the event happened, and a fault recorded, never raised."""
 
-    def __init__(self, plugins: Plugins, runner: PluginRunner, protocol: Protocol, faults: PluginFaults, environments: Environments, agents: Agents, entries: Entries, answers: PluginAnswers, steps: PluginSteps, deferred: ListenerQueue, linked: LinkedManifests, text: PluginText, scope: Scope) -> None:
+    def __init__(self, plugins: Plugins, runner: PluginRunner, protocol: Protocol, faults: PluginFaults, environments: Environments, agents: Agents, entries: Entries, answers: PluginAnswers, steps: PluginSteps, deferred: ListenerQueue, linked: LinkedManifests, text: PluginText, scope: Scope, registry: Registry) -> None:
         self.plugins, self.runner, self.protocol, self.faults, self.answers, self.steps = plugins, runner, protocol, faults, answers, steps
         self.environments, self.agents, self.entries, self.deferred, self.linked = environments, agents, entries, deferred, linked
-        self.text, self.scope = text, scope
+        self.text, self.scope, self.registry = text, scope, registry
 
     def listeners(self, event: Event, environment_id: int) -> list[Plugin]:
         name, actor = Protocol.published_name(event), getattr(event, "actor", None)
-        hearers = self.plugins.hearers(name, actor)
-        role = self.helper_role(event)
-        if hearers and role.is_helper():
-            hearers = self.plugins.helper_hearers(name, actor, role)
+        role_file = self.registry.role_file(self.helper_role(event))
+        hearers = self.plugins.hearers(name, actor, lambda manifest: role_file.reaches_plugin(manifest, name))
         if hearers and self.steps.is_nested_deep():
             self.logged(environment_id, CUT, Actor.system(), {"event": Protocol.published_name(event), "by": getattr(event, "actor", Actor.system()).stamp, "plugins": [p.name for p in hearers]})
             return []
@@ -120,11 +119,9 @@ class PluginRelay:
     def helper_role(self, event: Event) -> AgentRole:
         if not isinstance(event, AgentEvent):
             return AgentRole.MAIN
-        agents = self.agents.matching(session=event.session)
-        return agents[0].role if agents else AgentRole.MAIN
+        return event.agent.role
 
     def agent_state(self, event: Event) -> str:
         if not isinstance(event, AgentEvent):
             return ""
-        agents = self.agents.matching(session=event.session)
-        return agents[0].state if agents else ""
+        return event.agent.state

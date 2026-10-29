@@ -82,7 +82,7 @@ watch(
 );
 
 function markClick(data) {
-    const act = data.go ? () => go(data.go) : () => openRef(target.value);
+    const act = data.go ? () => go(data.go, 0, data.query || "") : () => openRef(target.value);
     return {...(opens.value ? {click: toggle} : {}), ...(action.value ? {act} : {})};
 }
 </script>

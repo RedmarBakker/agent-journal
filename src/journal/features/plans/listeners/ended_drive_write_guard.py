@@ -15,8 +15,6 @@ REFUSAL = "{name} is driven from here no longer, so it is not written here: jour
 class EndedDriveWriteGuard(Listener[ModelEvent]):
     """A save or deletion of a hub plan or task whose drive ended on this machine is refused before it is made, until the row is driven from here again."""
 
-    blocking = True
-
     def __init__(self, bindings: PlanBindings, labels: RowLabels) -> None:
         self.bindings, self.labels = bindings, labels
 

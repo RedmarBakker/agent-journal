@@ -45,7 +45,7 @@ class TeamPlacement:
     def is_sent(self, row: Model) -> bool:
         return self.is_team_row(row) if self.account.is_on_hub() else self.scopes.is_team_row(row)
 
-    def is_sent_to(self, row: Model, account: TeamAccount) -> bool:
+    def is_recipient(self, row: Model, account: TeamAccount) -> bool:
         if account.key:
             return self.team_key(row) == account.key
         return self.is_sent(row) and self.team_key(row) in (NO_TEAM, self.account.team_key(), UNKNOWN_TEAM_KEY)

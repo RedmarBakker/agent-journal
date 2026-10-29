@@ -6,8 +6,6 @@ from journal.features.sequences.support.phrase_starts import PhraseStarts
 class PromptPhraseStart(AgentListener[PromptSubmitted]):
     """The user's own prompt that is a sequence's phrase starts that sequence, before the agent goes on."""
 
-    blocking = True
-
     def __init__(self, starts: PhraseStarts) -> None:
         self.starts = starts
 

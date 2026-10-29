@@ -1,9 +1,6 @@
-import subprocess
-from pathlib import Path
-
 from journal.events.announcer import Announcer
 from journal.events.moments.plugin_upgrade_failed import PluginUpgradeFailed
-from journal.events.moments.plugin_upgraded import PluginUpgraded
+from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.features.plugins.support.plugin_installing import PluginInstalling
 from journal.features.plugins.support.plugin_tags import PluginTags
 from journal.support.release import Release
@@ -13,34 +10,29 @@ from journal.repositories.plugins import Plugins
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 
-GIT_SECONDS = 120
-
 
 class PluginReleases:
-    """The installed plugins updated to the journal's version: each one installed from a release moves to its newest release whose manifest's journal field, the lowest journal version it runs on, the running journal satisfies; one installed from a folder or a branch moves to the newest release tag of its source, among the fifty nearest above its version, that runs on it, a folder with uncommitted changes being left as it is and named; and the chat is given what moved."""
+    """The plugin updates offered once the journal is updated, never installed by themselves: for each plugin installed from a release, its newest release whose manifest's journal field, the lowest journal version it runs on, the running journal satisfies; for one installed from a folder or a branch, the newest release tag of its source, among the fifty nearest above its version, that runs on it; each offered in the chat, to install only when the user presses Install in its dialog."""
 
     def __init__(self, plugins: Plugins, installing: PluginInstalling, tags: PluginTags, announcer: Announcer, environments: Environments) -> None:
         self.plugins, self.installing, self.tags, self.announcer, self.environments = plugins, installing, tags, announcer, environments
 
-    def upgraded_all(self, version: str, actor: Actor) -> None:
+    def offered_all(self, version: str) -> None:
         for plugin in self.plugins.release_plugins():
-            self.upgraded(plugin, version, actor)
+            self.release_offered(plugin, version)
         for plugin in self.plugins.sourced_plugins():
-            self.source_upgraded(plugin, version, actor)
+            self.source_offered(plugin, version)
 
-    def upgraded(self, plugin: Plugin, version: str, actor: Actor) -> None:
-        self.moved(plugin, version, actor, self.newer(plugin.source, Release(plugin.release)), Release(plugin.release).tag)
+    def release_offered(self, plugin: Plugin, version: str) -> None:
+        self.offered(plugin, version, self.newer(plugin.source, Release(plugin.release)), Release(plugin.release).tag)
 
-    def source_upgraded(self, plugin: Plugin, version: str, actor: Actor) -> None:
+    def source_offered(self, plugin: Plugin, version: str) -> None:
         try:
             current = Release(plugin.manifest.version)
             current.numbers
         except ValueError:
             return
-        if plugin.linked and self.has_changes(Path(plugin.source)):
-            self.announcer.announce(PluginUpgradeFailed(environment_id=self.environments.all()[0].row_id, plugin=plugin.name, version=version, reason=f"its folder {plugin.source} has changes not committed, so it was left as it is"))
-            return
-        self.moved(plugin, version, actor, self.newer(plugin.source, current), plugin.manifest.version)
+        self.offered(plugin, version, self.newer(plugin.source, current), plugin.manifest.version)
 
     def newer(self, source: str, current: Release) -> list[Release]:
         try:
@@ -48,24 +40,17 @@ class PluginReleases:
         except OSError:
             return []
 
-    @staticmethod
-    def has_changes(folder: Path) -> bool:
-        return bool(subprocess.run(["git", "-C", str(folder), "status", "--porcelain"], capture_output=True, text=True, timeout=GIT_SECONDS).stdout.strip())
-
-    def moved(self, plugin: Plugin, version: str, actor: Actor, newer: list[Release], previous: str) -> None:
+    def offered(self, plugin: Plugin, version: str, newer: list[Release], previous: str) -> None:
         environment = self.environments.all()[0]
         try:
             tag = self.fitting_tag(plugin, newer, Release(version))
             if tag is None:
                 self.record_wait(plugin, newer)
                 return
-            if plugin.linked:
-                subprocess.run(["git", "-C", plugin.source, "checkout", "--quiet", tag], capture_output=True, text=True, timeout=GIT_SECONDS)
-            self.installing.upgrade(plugin.name, tag, environment.name, actor)
         except (OSError, Rejection) as failed:
             self.announcer.announce(PluginUpgradeFailed(environment_id=environment.row_id, plugin=plugin.name, version=version, reason=str(failed)))
             return
-        self.announcer.announce(PluginUpgraded(environment_id=environment.row_id, plugin=plugin.name, previous=previous, tag=tag, version=version))
+        self.announcer.announce(PluginUpdateAvailable(environment_id=environment.row_id, plugin=plugin.name, previous=previous, tag=tag))
 
     def record_wait(self, plugin: Plugin, newer: list[Release]) -> None:
         if not newer:

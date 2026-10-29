@@ -5,7 +5,7 @@
       "name": "the stop starts task 1",
       "answer": null,
       "typed": [
-        "[journal] task 1 is open. `journal task start 1` takes it up"
+        "[journal] task 1 is open. take it up with `journal task start 1`"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -35,10 +35,14 @@
       "name": "quiet for half an hour",
       "answer": null,
       "typed": [
-        "[journal] task 1 is still open: log where it stands or finish it"
+        "[journal] task 1 is still open: log where it stands or finish it",
+        "[journal] your turn ended and nothing has arrived since; the stop check, run again, answers:",
+        "[journal] task 1, last logged 30 min ago. log it first: journal task log 1 \"<status>\""
       ],
       "nudges": [
-        "tasks.task_still_open"
+        "tasks.task_still_open",
+        "tasks.woken_with_work_in_hand",
+        "tasks.log_first_at_stop"
       ],
       "stack": [
         "idle",
@@ -48,8 +52,12 @@
     {
       "name": "quiet for half an hour again",
       "answer": null,
-      "typed": [],
-      "nudges": [],
+      "typed": [
+        "[journal] task 1, last logged 30 min ago. log it first: journal task log 1 \"<status>\""
+      ],
+      "nudges": [
+        "tasks.log_first_at_stop"
+      ],
       "stack": [
         "idle",
         "working"
@@ -67,9 +75,7 @@
     {
       "name": "a minute with a task paused",
       "answer": null,
-      "typed": [
-        "[journal] task 1 is paused: the footer first. `journal task resume 1` if it can go on now"
-      ],
+      "typed": [],
       "nudges": [
         "tasks.paused_task_asked_about"
       ],
@@ -100,9 +106,7 @@
     {
       "name": "five quiet minutes awaiting",
       "answer": null,
-      "typed": [
-        "[journal] You have waited 5 minutes on the deploy. Check how it is going, read its latest lines, and see whether it is doing what you expect."
-      ],
+      "typed": [],
       "nudges": [
         "tasks.check_the_wait"
       ],
@@ -128,7 +132,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "your wait on the deploy was lifted; check 1 is still running and you are informed when it passes; journal check remove 1 if you no longer want to hear about it"
+          "additionalContext": "task 1 is paused: the footer first. `journal task resume 1` if it can go on now\nyou have waited 5 minutes on the deploy. read its latest lines and check it does what you expect\nyour wait on the deploy was lifted; check 1 still runs. remove it if not needed: `journal check remove 1`"
         }
       },
       "typed": [],

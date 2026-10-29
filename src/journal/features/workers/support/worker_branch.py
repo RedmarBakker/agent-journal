@@ -256,7 +256,7 @@ class WorkerBranch:
         return ""
 
     def rebased(self, repository: WorkerRepository, worker: Worker) -> str:
-        unresolved = self.continue_rebase(repository) if repository.is_present and self.is_rebasing(repository.worktree) else ""
+        unresolved = self.continue_rebase(repository) if self.has_stopped_rebase(repository) else ""
         if unresolved:
             return unresolved
         autostash_clash = self.autostash_conflicts(repository) if repository.is_present and self.conflicts(repository.worktree) else ""
@@ -304,8 +304,11 @@ class WorkerBranch:
         return outcome.returncode != 0 and self.is_rebasing(folder) and (self.is_built_clash(folder) or self.is_empty_step(folder))
 
     def stopped_rebase(self, worker: Worker) -> str:
-        stopped = [repository for repository in self.repositories(worker) if repository.is_present and self.is_rebasing(repository.worktree)]
+        stopped = [repository for repository in self.repositories(worker) if self.has_stopped_rebase(repository)]
         return ", ".join(repository.path(path) for repository in stopped for path in self.conflicts(repository.worktree).split(", ") if path) or ", ".join(repository.label() for repository in stopped)
+
+    def has_stopped_rebase(self, repository: WorkerRepository) -> bool:
+        return repository.is_present and self.is_rebasing(repository.worktree)
 
     def is_rebasing(self, folder: Path) -> bool:
         return any((folder / self.git("rev-parse", "--git-path", name, cwd=folder).stdout.strip()).exists() for name in ("rebase-merge", "rebase-apply"))

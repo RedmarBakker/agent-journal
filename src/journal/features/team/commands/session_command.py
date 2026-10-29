@@ -20,7 +20,7 @@ class SessionCommand(Command):
         self.sessions, self.drives, self.bindings, self.plans, self.environments, self.scope = sessions, drives, bindings, plans, environments, scope
 
     def arguments(self, verbs) -> None:
-        starting = self.verb(verbs, "start", "make a session on the team's hub, or take one up that no other machine holds; this machine is then its host")
+        starting = self.verb(verbs, "start", "make a session on the team's hub, or take one up that no other machine hosts; this machine is then its host")
         starting.add_argument("name")
         starting.add_argument("--plan", type=int, default=0, help="a hub plan the session drives, refused while a local environment or another machine drives it")
 

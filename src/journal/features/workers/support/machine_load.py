@@ -27,14 +27,14 @@ class MachineLoad:
     def vm_free() -> int:
         shown = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=VM_STAT_SECONDS).stdout
         page = re.search(r"page size of (\d+) bytes", shown)
-        pages = sum(int(found[1]) for name in FREE_PAGES if (found := re.search(rf"{name}:\s+(\d+)", shown)))
+        pages = sum(int(page_match[1]) for name in FREE_PAGES if (page_match := re.search(rf"{name}:\s+(\d+)", shown)))
         return pages * int(page[1]) // MEGABYTE if page else 0
 
     @staticmethod
     def meminfo_free() -> int:
-        info = Path("/proc/meminfo")
-        found = re.search(r"MemAvailable:\s+(\d+) kB", info.read_text()) if info.is_file() else None
-        return int(found[1]) // 1024 if found else 0
+        meminfo_path = Path("/proc/meminfo")
+        memory_match = re.search(r"MemAvailable:\s+(\d+) kB", meminfo_path.read_text()) if meminfo_path.is_file() else None
+        return int(memory_match[1]) // 1024 if memory_match else 0
 
     def beyond(self, runs: int) -> float:
         return round(max(self.averages[0] - runs, 0.0), 1)

@@ -18,7 +18,7 @@ class McpCommand(Command):
         self.verb(verbs, "list", "the project's MCP servers and how each stands")
         self.verb(verbs, "suggested", "the servers worth adding")
         self.verb(verbs, "install", "add a suggested server by name, write the agents' configuration and restart them").add_argument("name")
-        key = self.verb(verbs, "key", "the key a server signs in with; kept outside the project")
+        key = self.verb(verbs, "key", "the key a server signs in with; stored outside the project")
         key.add_argument("name")
         key.add_argument("value")
         self.verb(verbs, "remove", "take a server out and restart the agents").add_argument("name")

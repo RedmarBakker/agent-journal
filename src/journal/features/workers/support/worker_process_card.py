@@ -37,7 +37,7 @@ class WorkerProcessCard(ProcessCard):
         if older and older[0].data.get("outcome") == str(standing.outcome) and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
         data = {"kind": "card", "outcome": str(standing.outcome), "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker)), **self.stop_reason(worker)}
-        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardType.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardType.WORKERS, worker.is_dispatched(), standing.detail, worker.dispatcher)
 
     @staticmethod
     def label(worker: Worker, text: str) -> str:
@@ -46,18 +46,18 @@ class WorkerProcessCard(ProcessCard):
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)
         standing = self.standing(worker)
-        return {"outcome": str(standing.outcome), **CardDetail.parts(standing.detail), **self.stop_reason(worker), "active": worker.state == WorkerState.DISPATCHED}
+        return {"outcome": str(standing.outcome), **CardDetail.parts(standing.detail), **self.stop_reason(worker), "active": worker.is_dispatched()}
 
     @staticmethod
     def stop_reason(worker: Worker) -> dict:
-        return {"reason": worker.run_end} if worker.state == WorkerState.UNFINISHED and worker.run_end else {}
+        return {"reason": worker.run_end} if worker.is_unfinished() and worker.run_end else {}
 
     def standing(self, worker: Worker) -> CardStanding:
         if worker.state in STATE_OUTCOMES:
             return CardStanding(STATE_NAMES[worker.state], STATE_OUTCOMES[worker.state])
-        if worker.state == WorkerState.UNFINISHED:
+        if worker.is_unfinished():
             return CardStanding(STATE_NAMES[worker.state], CardOutcome.FAILED, worker.run_end)
-        if worker.state == WorkerState.DELIVERED:
+        if worker.is_delivered():
             return CardStanding(STATE_NAMES[worker.state], CardOutcome.PASSED, self.first_line(worker))
         if worker.state == WorkerState.REPORTED and self.reports.last(worker).startswith(FAILURES):
             return CardStanding(FAILED, CardOutcome.FAILED, self.reports.last(worker))

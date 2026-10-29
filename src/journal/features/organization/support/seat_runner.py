@@ -288,7 +288,7 @@ class SeatRunner:
                 self.escalation.cap_reached(worker, decision.reason, Actor.system())
                 plan = self.plans.find(plan_id)
                 if plan.state in (PlanState.STARTED, PlanState.DELEGATED):
-                    self.plans.postpone(plan, Actor.system())
+                    self.plans.agent_postponed(plan, Actor.system())
                 self.runtime.stop(member.target, decision.reason)
                 raise Rejection(decision.reason)
 

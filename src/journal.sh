@@ -17,9 +17,9 @@ esac
 JOURNAL_ENV=$(journal_environment)
 export JOURNAL_ENV
 port=$(cat "$root/.journal/port" 2>/dev/null)
-# Joining a team or logging in again asks the person's password here, unseen, and hands it to the server with the words,
+# Joining a team, connecting to a library or logging in again asks the person's password here, unseen, and hands it to the server with the words,
 # so it never stands on a command line; an agent's shell has no terminal, and the command then says to run it yourself.
-if [ "$1" = "team" ] && { [ "$2" = "join" ] || [ "$2" = "login" ]; } && [ -t 0 ]; then
+if { [ "$1" = "team" ] || [ "$1" = "library" ]; } && { [ "$2" = "join" ] || [ "$2" = "connect" ] || [ "$2" = "login" ]; } && [ -t 0 ]; then
     case "$*" in *code=*) printf 'Choose your password: ' >&2 ;; *) printf 'Your team password: ' >&2 ;; esac
     stty -echo
     IFS= read -r password

@@ -20,7 +20,6 @@ from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
-from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
@@ -37,17 +36,21 @@ from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.support.time_source import TimeSource
+from journal.models.task_log import TaskLog
+from journal.repositories.task_logs import TaskLogs
 CURRENT = "current"
 
 
 APPROVAL_REFUSAL = "only the user approves this plan: ask, then wait for their word"
+RETURN_ANSWERS = ("yes", "no")
+
 
 class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope) -> None:
-        self.time_source = time_source
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs) -> None:
+        self.time_source, self.logs = time_source, logs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
@@ -76,6 +79,16 @@ class PlanCommand(Command):
         phase.add_argument("title")
         phase.add_argument("--when", default="", help="what is true when the phase is complete")
         phase.add_argument("--checkpoint", action="store_true", help="the user looks before the plan goes on")
+        complete_phase = self.verb(verbs, "complete-phase", "complete every open task of a plan's phase at once, by the phase's number from 1")
+        complete_phase.set_defaults(verb="complete_phase")
+        complete_phase.add_argument("n", type=int)
+        complete_phase.add_argument("phase", type=int)
+        complete_phase.add_argument("--how", required=True, help="the outcome each task is completed with")
+        cancel_phase = self.verb(verbs, "cancel-phase", "cancel every open task of a plan's phase at once, by the phase's number from 1")
+        cancel_phase.set_defaults(verb="cancel_phase")
+        cancel_phase.add_argument("n", type=int)
+        cancel_phase.add_argument("phase", type=int)
+        cancel_phase.add_argument("--why", required=True, help="the reason each task is cancelled with")
         todos = self.verb(verbs, "todos", "put tasks under a phase of a plan, by the phase's number from 1")
         todos.add_argument("n", type=int)
         todos.add_argument("phase", type=int)
@@ -90,13 +103,20 @@ class PlanCommand(Command):
         self.verb(verbs, "approve", "the user's word: the plan may start").add_argument("n", type=int)
         self.verb(verbs, "start", "follow an approved plan, or go on past a checkpoint: its next open task is started").add_argument("n", type=int)
         self.verb(verbs, "pause", "put a plan aside").add_argument("n", type=int)
+        returning = self.verb(verbs, "return", "say whether you return to the plan you paused once the task you took up outside it is done")
+        returning.add_argument("n", type=int)
+        returning.add_argument("answer", choices=RETURN_ANSWERS)
+        allowance = self.verb(verbs, "allow-tests", "let the next test run through while the plan runs its tests at phase ends, for a single test or a guard that is wrong; the reason goes on the task log")
+        allowance.set_defaults(verb="allow_tests")
+        allowance.add_argument("n", type=int)
+        allowance.add_argument("--why", required=True, help="why this test run cannot wait for the phase end")
         self.verb(verbs, "card", "show a plan the user dismissed on the plan card above the chat again").add_argument("n", type=int)
         block = self.verb(verbs, "block", "a started plan waits on one thing before any of its work can go on; a plan whose every task left is blocked blocks itself")
         block.add_argument("n", type=int)
         block.add_argument("why", nargs="?", default="")
         Waits.arguments(block, "plan")
         self.verb(verbs, "unblock", "what the plan waited on came: it is started again").add_argument("n", type=int)
-        self.verb(verbs, "cancel", "a plan given up, with the tasks that are its alone; one another live plan holds stays").add_argument("n", type=int)
+        self.verb(verbs, "cancel", "a plan cancelled, with the tasks that are its alone; one another live plan contains stays").add_argument("n", type=int)
         driving = self.verb(verbs, "drive", "follow a hub plan from this environment: it and its tasks read as this environment's, and no other environment or machine drives it until you release it")
         driving.add_argument("n", type=int)
         driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
@@ -106,7 +126,7 @@ class PlanCommand(Command):
         priorities = self.verb(verbs, "priorities", "the order the started plan's open work goes in, and why: what unblocks the most others or you first")
         priorities.add_argument("order")
         priorities.add_argument("--plan", type=int, help="the plan, when it is not the started one")
-        testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
+        testing = self.verb(verbs, "testing", "how the plan's agent is instructed to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
         testing.add_argument("title")
         tell = self.verb(verbs, "tell", "say something to a started plan's Plan agent, in its plan's chat: what to do next, a decision, an answer")
@@ -120,7 +140,7 @@ class PlanCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
             raise Rejection("the user writes the plans here: Orchestrator may write plans is off, so ask them for one")
-        with self.hub.writing_in(args.team):
+        with self.hub.hub_scope(args.team):
             plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
         print(f"{self.labels.name('plan', plan)} {plan.state}")
         return 0
@@ -155,17 +175,33 @@ class PlanCommand(Command):
         print(f"phase {len(self.plans.plan_phases(plan))} of plan {plan.id}")
         return 0
 
+    def numbered_phase(self, plan: Plan, number: int) -> Phase:
+        phases = self.plans.plan_phases(plan)
+        if not 1 <= number <= len(phases):
+            raise Rejection(f"plan {plan.id} has {len(phases)} phases: name one by its number from 1")
+        return phases[number - 1]
+
+    def open_phase_tasks(self, args: Namespace) -> list[Task]:
+        return self.plans.unclosed_phase_tasks(self.numbered_phase(self.plans.find(args.n), args.phase))
+
+    def complete_phase(self, args: Namespace, caller: Caller) -> int:
+        completed_tasks = [self.tasks.save(task.completed(self.time_source.moment(), args.how), caller.actor) for task in self.open_phase_tasks(args)]
+        print(f"phase {args.phase} of plan {args.n}: tasks {', '.join(str(task.id) for task in completed_tasks) or 'none'} completed")
+        return 0
+
+    def cancel_phase(self, args: Namespace, caller: Caller) -> int:
+        cancelled = [self.tasks.save(task.cancelled(self.time_source.moment(), args.why), caller.actor) for task in self.open_phase_tasks(args)]
+        print(f"phase {args.phase} of plan {args.n}: tasks {', '.join(str(task.id) for task in cancelled) or 'none'} cancelled")
+        return 0
+
     def todos(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        phases = self.plans.plan_phases(plan)
-        if not 1 <= args.phase <= len(phases):
-            raise Rejection(f"plan {plan.id} has {len(phases)} phases: name one by its number from 1")
-        phase = phases[args.phase - 1]
+        phase = self.numbered_phase(plan, args.phase)
         for n in args.tasks:
             task = self.tasks.find(n)
             if not self.links.connecting(task, plan):
                 self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
-            for link in [link for counterpart in phases for link in self.links.connecting(task, counterpart)]:
+            for link in [link for counterpart in self.plans.plan_phases(plan) for link in self.links.connecting(task, counterpart)]:
                 self.links.delete(link, caller.actor)
             self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} under phase {args.phase} of plan {plan.id}")
@@ -173,11 +209,8 @@ class PlanCommand(Command):
 
     def remove(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        counterparts = [plan, *self.plans.plan_phases(plan)]
         for n in args.tasks:
-            task = self.tasks.find(n)
-            for link in [link for counterpart in counterparts for link in self.links.connecting(task, counterpart)]:
-                self.links.delete(link, caller.actor)
+            self.plans.remove_task(plan, self.tasks.find(n), caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} taken out of plan {plan.id}")
         return 0
 
@@ -189,10 +222,10 @@ class PlanCommand(Command):
         empty = [i for i, phase in enumerate(phases, 1) if not self.plans.phase_tasks(phase)]
         if empty:
             raise Rejection(f"phase {', '.join(str(i) for i in empty)} of plan {plan.id} has no task yet: journal plan todos {plan.id} <phase> <tasks>")
-        output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.state == PlanState.REVIEWING and caller.session is not None else 0
+        output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.is_reviewing() and caller.session is not None else 0
         if output:
             raise Rejection(f"plan {plan.id} is in review, {output} reviewers still out: wait, add what they found, then ready it")
-        if plan.state == PlanState.REVIEWING:
+        if plan.is_reviewing():
             self.close_round(plan, args.changed, caller)
         plan = self.plans.save(plan.ready(self.time_source.seconds()), caller.actor)
         print(f"plan {plan.id} ready: the user approves it on the plan page")
@@ -209,12 +242,12 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.is_user() and not self.is_approving_orchestrator(caller):
+        if not caller.actor.can_approve_plans_alone() and not self.is_approving_orchestrator(caller):
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.is_user() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
+        if not caller.actor.can_approve_plans_alone() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
             raise Rejection(APPROVAL_REFUSAL)
-        plan = self.plans.approve(plan, caller.actor)
+        plan = caller.actor.chosen_way(self.plans.user_approved, self.plans.agent_approved)(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
@@ -226,8 +259,8 @@ class PlanCommand(Command):
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        if refusal := self.phase_testing.refusal(plan):
-            raise Rejection(refusal)
+        if self.phase_testing.is_refused(plan):
+            raise Rejection(self.phase_testing.refusal(plan))
         plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
@@ -254,9 +287,36 @@ class PlanCommand(Command):
         print(self.drives.release_line(self.drives.release(self.plans.find(args.n), caller.actor)))
         return 0
 
+    def allow_tests(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.save(self.plans.find(args.n).with_test_run_allowed(), caller.actor)
+        current = self.tasks.holder_task(self.taking.holder(caller))
+        if current is not None:
+            self.logs.save(TaskLog.build(current, f"test run allowed mid-phase: {args.why}", self.time_source.moment().timestamp()), caller.actor)
+        print(f"plan {plan.id}: the next test run goes through")
+        return 0
+
     def pause(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.postpone(self.plans.find(args.n), caller.actor)
+        plan = caller.actor.chosen_way(self.plans.user_postponed, self.plans.agent_postponed)(self.plans.find(args.n), caller.actor)
         print(f"plan {plan.id} paused")
+        return 0
+
+    def return_(self, args: Namespace, caller: Caller) -> int:
+        plan, moment = self.plans.find(args.n), self.time_source.moment()
+        if args.answer == RETURN_ANSWERS[1]:
+            self.plans.save(plan.without_return(moment.timestamp()), caller.actor)
+            print(f"plan {plan.id} stays paused; the task in hand goes on by itself")
+            return 0
+        return self.plan_return(plan, caller)
+
+    def plan_return(self, plan: Plan, caller: Caller) -> int:
+        moment = self.time_source.moment()
+        current_task = self.tasks.holder_task(self.taking.holder(caller))
+        self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
+        self.tasks.save(current_task.paused(f"plan {plan.id} goes first", moment), caller.actor)
+        self.plans.start(plan, self.taking.holder(caller), caller.actor)
+        self.taking.paused_current(current_task, caller)
+        self.taking.start(self.tasks.find(current_task.id), caller)
+        print(f"plan {plan.id} started again under task {current_task.id}, which stays in hand; the plan goes on once it is done")
         return 0
 
     def card(self, args: Namespace, caller: Caller) -> int:
@@ -266,7 +326,7 @@ class PlanCommand(Command):
 
     def cancel(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        cancelled = self.plans.cancel(plan, caller.actor)
+        cancelled = caller.actor.chosen_way(self.plans.user_cancelled, self.plans.agent_cancelled)(plan, caller.actor)
         print(f"plan {plan.id} cancelled" + (f", with tasks {', '.join(str(t.id) for t in cancelled)}" if cancelled else ""))
         return 0
 
@@ -332,7 +392,7 @@ class PlanCommand(Command):
             print(f"owner: {owner}")
         if environment := self.plan_agents.environment(plan):
             print(f"Plan agent: environment {environment.name}, {'running' if self.plan_agents.is_running(environment) else 'stopped'}")
-        if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
+        if plan.is_started() and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")
         if plan.priorities:

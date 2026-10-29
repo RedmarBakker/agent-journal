@@ -8,6 +8,7 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
+from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.config import Config
 from journal.events.agent.stop import Stop
@@ -22,21 +23,26 @@ from tests.in_process import posted
 from tests.user_settings import user_set
 from journal.engine.engine_nudges import EngineNudges
 from tests.nudge_lines import nudge_reached
+from journal.events.blocking import Blocking
 
 MAIN = 1
 """The id of main, made by the first hook: what a test reads directly, it reads there."""
 
 
 class RefuseWrites(AgentListener[ToolStarting]):
-    blocking = True
-
     def handle(self, event):
         return Decision.refuse("no work declared") if event.call.tool == "Write" else Decision.allowed_with("carry on")
 
 
-class RefuseEveryStop(AgentListener[Stop]):
-    blocking = True
+class AgentReading(AgentListener[ToolStarting]):
+    def __init__(self, scope: Scope, read: list) -> None:
+        self.scope, self.read = scope, read
 
+    def handle(self, event):
+        self.read.append(self.scope.agent.row_id)
+
+
+class RefuseEveryStop(AgentListener[Stop]):
     def handle(self, event):
         return Decision.refuse("finish the task in hand first")
 
@@ -53,7 +59,7 @@ class Noted(AgentListener[ToolStarting]):
 @pytest.fixture(scope="module")
 def boot():
     def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-        app = App(Config(root, port=0))
+        app = SuiteApp(Config(root, port=0))
         app.container.get(ListenerQueue).start()
         app.server().start()
         return app
@@ -80,7 +86,7 @@ def test_a_hook_lands_as_an_entry_and_answers_200(app: App):
 
 
 def test_a_blocking_listener_refuses_with_409_and_tells_with_context(app: App):
-    app.container.get(Bus).listen(ToolStarting, RefuseWrites())
+    app.container.get(Bus).add_answer_listener(ToolStarting, RefuseWrites(), Blocking.ANSWER)
     hook = {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}}
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 409 and body["error"] == "no work declared"
@@ -104,10 +110,12 @@ def test_every_hook_kind_translates(app: App):
 
 
 
-def test_the_deferred_worker_survives_a_failing_piece_of_work(capsys):
+def test_the_deferred_worker_survives_a_failing_piece_of_work(capsys, tmp_path):
+    from journal.config import Config
+    from journal.support.fault_log import FaultLog
     from journal.support.listener_queue import ListenerQueue
     completed = []
-    deferred = ListenerQueue()
+    deferred = ListenerQueue(FaultLog(Config(tmp_path)))
     deferred.start()
     deferred.add(lambda: 1 / 0)
     deferred.add(lambda: completed.append("after"))
@@ -137,8 +145,6 @@ def test_a_session_whose_status_has_no_plan_limits_yet_shows_the_newest_the_acco
 
 
 class Raising(AgentListener[ToolStarting]):
-    blocking = True
-
     def handle(self, event):
         raise RuntimeError("the guard broke")
 
@@ -148,10 +154,11 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     from journal.repositories.messages import Messages
     from journal.events.moments.fault_moment import FaultMoment
     from journal.features.record.listeners.fault_cards import FaultCards
-    app.container.get(Bus).listen(ToolStarting, Raising())
+    app.container.get(Bus).add_answer_listener(ToolStarting, Raising(), Blocking.ANSWER)
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
+    app.container.get(ListenerQueue).drain()
     failed = [e for e in app.container.get(Entries).scoped() if e.entry_type == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
     assert any("A safety check failed, so the agent was not stopped" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
@@ -286,6 +293,7 @@ def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_
 def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App):
     import time
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 120)
+    app.container.get(ListenerQueue).drain()
     entry = app.container.get(Entries).scoped()[-1]
     assert entry.data["hook_ms"] >= 120, "the server measures from the script's stamp to its answer, so the shell side counts too"
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})
@@ -302,6 +310,7 @@ def test_the_developer_numbers_are_kept_in_memory_and_written_to_no_row(app: App
     connection.execute = lambda sql, params=(): statements.append(sql) or execute(sql, params)
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 100)
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 300)
+    app.container.get(ListenerQueue).drain()
     connection.execute = execute
     assert not [sql for sql in statements if "timings" in sql or "developer." in sql], "no statement writes a developer number"
     assert connection.one("SELECT name FROM sqlite_master WHERE name = 'timings'") is None, "and no table holds the log"
@@ -390,8 +399,8 @@ def test_each_providers_tool_calls_decode_into_the_operations_the_features_read(
 
 @pytest.mark.parametrize("provider", ["claude", "codex"])
 def test_a_hold_answers_409_and_a_refused_stop_the_block_json_for_both_providers(app: App, provider: str):
-    app.container.get(Bus).listen(ToolStarting, RefuseWrites())
-    app.container.get(Bus).listen(Stop, RefuseEveryStop())
+    app.container.get(Bus).add_answer_listener(ToolStarting, RefuseWrites(), Blocking.ANSWER)
+    app.container.get(Bus).add_answer_listener(Stop, RefuseEveryStop(), Blocking.ANSWER)
     status, body = post_as(app, provider, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 409 and body["error"] == "no work declared"
     quiet = {"claude": {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no work declared"}}}
@@ -438,10 +447,10 @@ def test_a_main_agents_journal_command_is_never_taken_for_a_subagents_whose_shel
     from journal.support.announced_commands import AnnouncedCommands
     announced = AnnouncedCommands()
     announced.note("main", "s1", ("grep -n 'def resume' src/journal/features/workers/support/worker_actions.py", "journal task show 1397"))
-    assert announced.claim("main", "s1", ["task", "resume", "1397"]) is False, "a subagent's read that mentions resume and 1397 is no run of journal task resume 1397"
-    assert announced.claim("main", "s1", ["task", "show", "1397"]) is True, "while its own journal command is claimed as the subagent's"
+    assert announced.claim("main", "s1", ["task", "resume", "1397"]) is None, "a subagent's read that mentions resume and 1397 is no run of journal task resume 1397"
+    assert announced.claim("main", "s1", ["task", "show", "1397"]) == "", "while its own journal command is claimed as the subagent's"
     announced.note("main", "s1", ('journal message send "a reply, with words" --reply-to 4',))
-    assert announced.claim("main", "s1", ["message", "send", "a reply, with words", "--reply-to", "4"]) is True, "quoted words count as one, as the shim's argv has them"
+    assert announced.claim("main", "s1", ["message", "send", "a reply, with words", "--reply-to", "4"]) == "", "quoted words count as one, as the shim's argv has them"
 
 
 def test_a_foreground_command_kept_under_its_number_is_recorded_ended_so_no_restart_takes_it_for_cut_off(app: App):
@@ -455,3 +464,14 @@ def test_a_foreground_command_kept_under_its_number_is_recorded_ended_so_no_rest
     kept = [output for output in outputs.selected_globally(outputs.query().order("id")) if "seq 1 3000" in output.command]
     assert kept and kept[-1].ended and not kept[-1].is_interrupted and kept[-1].status == 0, "the end of a foreground run is recorded as the run ends"
     assert all(output.id != kept[-1].id for output in outputs.unended()), "so the boot's cut-off seed finds nothing of it"
+
+
+def test_a_listener_reads_the_hooks_agent_from_the_scope_before_the_answer_and_after_it(app: App):
+    from journal.repositories.agents import Agents
+    scope, read, bus = app.container.get(Scope), [], app.container.get(Bus)
+    bus.add_answer_listener(ToolStarting, AgentReading(scope, read), Blocking.ANSWER)
+    bus.listen(ToolStarting, AgentReading(scope, read))
+    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})
+    app.container.get(ListenerQueue).drain()
+    agent = app.container.get(Agents).session_rows("s1")[0]
+    assert read == [agent.row_id, agent.row_id], "the hook's agent is in the scope in the hook's thread and on the deferred worker"

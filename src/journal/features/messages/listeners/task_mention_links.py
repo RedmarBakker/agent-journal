@@ -1,7 +1,6 @@
 import re
 from journal.events.models.created import Created
 from journal.events.listener import Listener
-from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -20,7 +19,7 @@ class TaskMentionLinks(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         reply = event.model
-        if not isinstance(reply, Message) or reply.author != Author.AGENT or not reply.reply_target:
+        if not isinstance(reply, Message) or not reply.is_agent_message() or not reply.reply_target:
             return
         try:
             requested = self.messages.find(reply.reply_target)

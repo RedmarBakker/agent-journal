@@ -1,10 +1,13 @@
 """Every journal command, noun and verb, run in order on one seeded journal from tests/commands/invocations.txt, its output compared with the frozen tests/commands/expected.txt; re-frozen on purpose with COMMANDS_FREEZE=1, as the replays are."""
+from journal.support.agent_role import AgentRole
 import os
 import re
 import shlex
 from pathlib import Path
 
 import pytest
+
+from journal.console.console import Console
 from journal.support.caller import Caller
 from test_features import AGENT, USER, booted
 
@@ -50,8 +53,8 @@ def section(caller: str, argv: list[str], outcome, root: Path) -> str:
 
 
 def test_every_command_of_the_console_has_an_invocation(app):
-    console = app.console()
-    named = {tuple(console.with_verb(argv)[:2]) for _, argv in invocations()}
+    console = app.container.get(Console)
+    named = {tuple(console.with_verb(argv, AgentRole.MAIN)[:2]) for _, argv in invocations()}
     verbs = {(noun, verb) for noun, command in console.commands.items() for verb in console.verbs(command)}
     missing = sorted(verbs - named)
     assert not missing, f"commands with no line in {INVOCATIONS.name}: {', '.join(' '.join(pair) for pair in missing)}"

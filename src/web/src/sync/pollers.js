@@ -99,6 +99,11 @@ async function sharedRoleRows({roles}) {
     return roleRowsFor(roles, {withAgents: false, withJobs: true});
 }
 
+// the cards docked above a chat, read apart from its pages so a card older than the newest page is still drawn
+function readDockedCards({session}) {
+    return (session ? api.chat(session, {docked: true}) : api.list("messages", {docked: true})).then((got) => got.rows || []);
+}
+
 // the steps of every reviewer the journal sent here, read from each one's own chat, its newest steps
 function readReviewSteps() {
     return api
@@ -192,6 +197,8 @@ export const POLLERS = Object.freeze({
     "sync.line": {read: () => api.syncLine(), every: 5000},
     "team.chat": {read: () => api.teamChat(), every: 10000},
     "side.thread": {read: () => api.sideThread(), every: 3000},
+    "outputs.running": {read: () => api.runningOutputs(), every: 3000},
+    "messages.docked": {read: readDockedCards, every: 1000, by: ({session}) => session || "main"},
     "mcp.servers": {read: () => api.mcp(), every: 30000},
     "developer.readers": {read: () => api.developerReaders(), every: 5000},
     "share.page": {read: () => sharedData(), every: 20000},
@@ -206,6 +213,7 @@ export const POLLERS = Object.freeze({
     "reviewers.every": {read: () => api.list("reviewers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},
     "tests.turns": {read: () => api.list("test_turns", {limit: pageOf("test_turns")}).then((got) => got.rows || []), every: 3000},
+    "rows.shown": {read: ({table, ids}) => api.list(table, {ids}).then((got) => got.rows || []), every: 10000, by: ({table, ids}) => `${table}:${ids.join(",")}`},
     "workers.shown": {read: ({ids}) => (ids.length ? api.list("workers", {ids}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({ids}) => ids.join(",")},
     "workers.holding": {read: ({tasks}) => (tasks.length ? api.list("workers", {tasks}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({tasks}) => tasks.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},

@@ -18,11 +18,13 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
-from journal.features.tasks.support.tasks_data import TasksData
+from journal.features.tasks.support.task_state_names import EXTERNAL_WAIT
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.events.feature_data import FeatureData
 from journal.models.check import Check
+from journal.models.command_output import CommandOutput
+from journal.models.open_task import OpenTask
 
 NEXT_TASK_DELAY = Timeout.minutes(1)
 CHECK_REMINDER = Timeout.minutes(5)
@@ -31,9 +33,9 @@ PRINTING_REMINDER = Timeout.minutes(15)
 
 @dataclass(frozen=True)
 class ExternalWait(Wait):
-    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five."""
+    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. With no task in hand, a stop while other work is open, in auto mode or not, is refused once per wait, unless the wait is estimated short or is a run with no estimate yet; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, the next work is named once after a minute while no task is in hand, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five. A wait opened beside other work counts against the agent, once it ends, the seconds it lasted past the uncounted ones."""
 
-    name = "awaiting"
+    name = EXTERNAL_WAIT
     assigner = None
     title = "Waiting"
     allows = frozenset({Permission.FILE_EDITS, Permission.RUN_COMMANDS, Permission.DISPATCH_SUBAGENTS})
@@ -47,13 +49,30 @@ class ExternalWait(Wait):
     started_task: int = 0
     started_title: str = ""
     outcomes: str = ""
+    open_work_task: int = 0
+    stop_refused: bool = False
 
     @classmethod
-    def opened(cls, focus: str, end_refs: str, started_at: float) -> "ExternalWait":
-        return cls(focus=focus, end_refs=end_refs, started_at=started_at, next_task_delay=NEXT_TASK_DELAY.started(started_at), check_reminder=CHECK_REMINDER.started(started_at))
+    def opened(cls, focus: str, end_refs: str, started_at: float, open_work_task: int = 0) -> "ExternalWait":
+        return cls(focus=focus, end_refs=end_refs, started_at=started_at, next_task_delay=NEXT_TASK_DELAY.started(started_at), check_reminder=CHECK_REMINDER.started(started_at), open_work_task=open_work_task)
+
+    @classmethod
+    def opened_beside(cls, data: FeatureData, focus: str, end_refs: str, started_at: float) -> "ExternalWait":
+        work = data.next_work()
+        return cls.opened(focus, end_refs, started_at, work.id if work else 0)
+
+    def counted_wait_seconds(self, ended_at: float, uncounted_seconds: int) -> int:
+        return max(0, round(ended_at - self.started_at) - uncounted_seconds) if self.open_work_task else 0
 
     def wait_description(self) -> tuple[str, str]:
         return self.focus, self.end_refs
+
+    def is_output_wait(self) -> bool:
+        return any(target.startswith(f"{CommandOutput.table()}:") for target in self.targets())
+
+    def wait_output_ids(self) -> set[int]:
+        prefix = f"{CommandOutput.table()}:"
+        return {int(target.removeprefix(prefix)) for target in self.targets() if target.startswith(prefix)}
 
     def targets(self) -> list[str]:
         return [ref for ref in self.end_refs.split(",") if ref]
@@ -84,38 +103,44 @@ class ExternalWait(Wait):
             return Transition.merged(self, [self.swap(replace(self, started_task=0, started_title="")), self.refuse(TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=self.started_task, title=self.started_title))])
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
-        if tasks.next_open is None or estimate.is_short(settings):
+        work = self.other_work(event.data)
+        if self.stop_refused or work is None or estimate.is_short(settings) or (self.is_output_wait() and not estimate.is_known()):
             return self.none()
-        return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return Transition.merged(self, [self.swap(replace(self, stop_refused=True)), self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=work.id))])
 
     def estimated(self, remaining: float, data: FeatureData, settings: Settings) -> Transition:
-        next_open = data.part(TasksPart).next_open
+        work = self.other_work(data)
         seconds = round(remaining)
-        if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or next_open is None:
-            return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
-        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=next_open.id), *self.lifted_lines(data))
+        if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or work is None:
+            return self.swap(replace(self, decided=True))
+        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=work.id), *self.lifted_lines(data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
-        next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
+        remaining = self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
-        meanwhile = self.meanwhile_lines(tasks)
-        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and meanwhile:
-            return self.swap(replace(self, next_task_reported=True), *meanwhile)
+        work_lines = self.next_work_lines(event.data)
+        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and work_lines:
+            return self.swap(replace(self, next_task_reported=True), *work_lines)
         if self.reminder(tasks.wait_progress, event.time).is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
         return self.none()
 
-    def meanwhile_lines(self, tasks: TasksData) -> tuple[Nudge, ...]:
-        if tasks.next_open is not None:
-            return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=tasks.next_open.id, title=tasks.next_open.title),)
+    def next_work_lines(self, data: FeatureData) -> tuple[Nudge, ...]:
+        tasks, work = data.part(TasksPart), self.other_work(data)
+        if work is not None:
+            return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=work.id, title=work.title),)
         if tasks.paused:
             return (TasksNudges.WAIT_PAUSED_TASK.create(what=self.focus, n=tasks.paused[0], why=tasks.first_pause_reason),)
         return ()
 
+    @staticmethod
+    def other_work(data: FeatureData) -> OpenTask | None:
+        return None if data.part(TasksPart).current_task else data.next_work()
+
     def reminder(self, progress: Mapping[str, WaitProgress], moment: float) -> Timeout:
-        printing = any(progress[ref].output_time >= moment - CHECK_REMINDER.amount for ref in self.targets() if ref in progress)
+        printing = any(not CHECK_REMINDER.started(progress[ref].output_time).is_exceeded(moment) for ref in self.targets() if ref in progress)
         return (PRINTING_REMINDER if printing else CHECK_REMINDER).started(self.check_reminder.start)
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:

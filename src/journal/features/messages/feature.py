@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
@@ -18,10 +19,10 @@ from journal.features.messages.listeners.task_mention_links import TaskMentionLi
 from journal.features.messages.listeners.created_row_cause import CreatedRowCause
 from journal.features.messages.listeners.edited_row_cause import EditedRowCause
 from journal.features.messages.listeners.dump_item_card import DumpItemCard
+from journal.features.messages.listeners.receipt_link_removal import ReceiptLinkRemoval
 from journal.features.messages.support.receipt_process_card import ReceiptProcessCard
 from journal.features.messages.listeners.inbox_arrival_card import InboxArrivalCard
 from journal.features.messages.listeners.record_turn import RecordTurn
-from journal.features.messages.listeners.run_tags import RunTags
 from journal.support.skill import Skill
 from journal.chat.moment_cards import FOLD_SECONDS
 from journal.features.messages.messages_part import MessagesPart
@@ -41,11 +42,12 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, DeliverMessage, StartInboxDelivery)
+    answer_listeners = ((RecordTurn, Blocking.NEXT_DECISION), (StartInboxDelivery, Blocking.ANSWER), (CreatedRowCause, Blocking.NEXT_DECISION))
+    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, TaskMentionLinks, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 
-    nudges = (MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.TAG_FAILURE, MessagesNudges.REPLY_TAG_PLACE, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.AGENT_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.DUPLICATE_REPLY, MessagesNudges.REPEATED_CLOSING_TEXT, MessagesNudges.MESSAGE_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
+    nudges = (MessagesNudges.RETIRED_TAGS, MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.AGENT_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.REPLY_REPEAT_WARNING, MessagesNudges.REPLY_CLOSING_WORDS, MessagesNudges.MESSAGE_READ, MessagesNudges.REPLY_COMMAND, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
     skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
 # Messages
@@ -58,9 +60,12 @@ The user sends messages; you answer them before anything else.
   shows every unread one and marks them read.
 - Answer each politely, because you were asked: at once, before the work it led to, always with
   `journal message send '<text>' --reply-to N`, single-quoted, then go on with the work in the same turn. A reply written
-  as your turn's closing text ends the turn, so the work you meant to do next never happens.
+  as your turn's closing text ends the turn, so the work you meant to do next never happens. Words written after a reply
+  in the same turn are not sent to the chat, and you are told so at the stop: end such a turn with the reply.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
-  as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
+  as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message. A comment on
+  a document or report is neither: answer it, and write what it asks into that document or report, as a change, a section
+  or an open question; it becomes work only when the user asks for it.
 - A number that names a row is written with its kind, task 3399 or plan 1032, so the chat links it. A message of
   yours that has one without it is pointed out to you once: fix it with `journal message amend-links <n> <kind>
   [<kind>...]`, the kinds in the order the numbers appear, or one kind for all.

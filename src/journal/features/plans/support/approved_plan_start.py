@@ -3,7 +3,6 @@ from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
-from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks
@@ -39,6 +38,6 @@ class ApprovedPlanStart:
     def started(self, agent: Agent) -> Plan | None:
         plan = self.startable()
         current = self.tasks.holder_task(Ref.build(agent))
-        if plan is None or (current is not None and current.state == TaskState.STARTED):
+        if plan is None or (current is not None and current.is_started()):
             return None
         return self.plans.start(plan, Ref.build(agent), Actor.system())

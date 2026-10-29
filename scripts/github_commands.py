@@ -25,6 +25,9 @@ RAW = "https://raw.githubusercontent.com"
 OUT_FILE = "github_commands.jsonl"
 STATE_FILE = "github_state.json"
 MEASURE_FILE = "github_measure.json"
+# words that only continue a block or a list, never begin a command, and the word that closes each block a line may open
+CONTINUING_WORDS = {"then", "elif", "else", "fi", "do", "done", "esac", "}", "{", "|", "-", "*", "#", "//", "&&", "||", ";;", ")"}
+BLOCK_CLOSERS = {"if": "fi", "for": "done", "while": "done", "until": "done", "case": "esac"}
 # the corpus files whose lines are JSON strings, one command each, deduplicated against
 CORPUS_FILES = ("commands.txt", "new_commands.jsonl")
 # each language with its share of the repositories searched: the ones the corpus lacks first
@@ -294,7 +297,7 @@ def measure(folder: Path) -> None:
     table = ClassificationTable(Config.rooted(root), TableSchema())
     classifier = CommandClassifier(table, CommandShape(table))
     rows = [json.loads(line) for line in (folder / OUT_FILE).read_text().splitlines() if line.strip()]
-    parts = [(part, row) for row in rows for part in row["parts"]]
+    parts = [(part, row) for row in rows for part in row["parts"] if not is_fragment(part)]
     unknown = [(part, row) for part, row in parts if classifier.classify(part).command_type == UNKNOWN]
     programs = Counter(program(part) for part, _ in unknown)
     shares = {key: share([row[key] for _, row in parts], [row[key] for _, row in unknown]) for key in ("language", "os", "shell", "source")}
@@ -303,6 +306,15 @@ def measure(folder: Path) -> None:
     print(f"{len(rows)} commands, {len(parts)} parts: {report['known_share']:.1%} classified; the programs most often unknown: {', '.join(f'{name} {count}' for name, count in programs.most_common(25))}")
     for key, values in shares.items():
         print(f"classified by {key}: " + ", ".join(f"{value or '?'} {known:.0%} of {count}" for value, (known, count) in sorted(values.items(), key=lambda item: -item[1][1])[:12]))
+
+
+def is_fragment(part: str) -> bool:
+    """A piece of a multi-line block cut out by line, or prose from a README, which no shell runs on its own: a line opening on a word that only continues a block, or opening a block it never closes."""
+    words = part.split()
+    if not words or words[0] in CONTINUING_WORDS:
+        return True
+    closing = BLOCK_CLOSERS.get(words[0])
+    return closing is not None and closing not in words
 
 
 def program(part: str) -> str:

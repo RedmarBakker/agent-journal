@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 
 class StageTimes:
-    """The time each stage of the journal's work took, stored in memory until the Developer numbers take them: reading a feature's facts, each listener of a hook, recording its entry."""
+    """The time each stage of the journal's work took, stored in memory until the Developer numbers take them: reading a feature's facts, each listener of a hook, recording its entry, and a hook's time before the server read it and before it was handled."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -16,8 +16,11 @@ class StageTimes:
         try:
             yield
         finally:
-            with self.lock:
-                self.samples.append((stage, round((time.perf_counter() - began) * 1000)))
+            self.add(stage, time.perf_counter() - began)
+
+    def add(self, stage: str, seconds: float) -> None:
+        with self.lock:
+            self.samples.append((stage, round(seconds * 1000)))
 
     def drained(self) -> list[tuple[str, int]]:
         with self.lock:

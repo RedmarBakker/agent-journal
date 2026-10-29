@@ -4,7 +4,6 @@ from journal.models.support.ref import Ref
 from journal.models.verifier import Verifier
 from journal.models.worker import Worker
 from journal.repositories.workers import Workers
-from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
@@ -25,7 +24,7 @@ class MemoryOwners:
         return next((Ref(model.table(), number) for model, number in numbers if number is not None), None)
 
     def agent_owner(self, agent: Agent) -> Ref | None:
-        if agent.role == AgentRole.MAIN:
+        if agent.is_main():
             return None
         rows = self.workers.session_worker(agent.session)
         if not rows:

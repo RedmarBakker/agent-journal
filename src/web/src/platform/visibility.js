@@ -59,7 +59,7 @@ function tabChanged() {
 }
 
 async function back() {
-    if (document.visibilityState === "visible") ui.away.hidden = false;
+    if (document.visibilityState === "visible") Object.assign(ui.away, {hidden: false, returnedAt: Date.now()});
     if (document.visibilityState !== "visible" || !ui.away.left) return;
     const since = ui.away.left;
     ui.away.left = 0;

@@ -25,9 +25,10 @@ class Dispatcher:
     def __init__(self, home: Path) -> None:
         self.path = home / ".local" / "bin" / "journal"
 
-    def write(self) -> Path | None:
-        if not self.path.parent.is_dir():
-            return None
+    def is_writable(self) -> bool:
+        return self.path.parent.is_dir()
+
+    def write(self) -> Path:
         if not self.path.is_file() or self.path.read_text() != TEXT:
             self.path.write_text(TEXT)
             self.path.chmod(0o755)

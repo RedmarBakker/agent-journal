@@ -1,6 +1,7 @@
 from typing import ClassVar
 from dataclasses import dataclass, field, replace
 
+from journal.support.timeout import Timeout
 from journal.events.rows.user_paused import UserPaused
 from journal.events.rows.sequence_run_started import SequenceRunStarted
 from journal.events.rows.sequence_run_transferred import SequenceRunTransferred
@@ -33,7 +34,9 @@ from journal.models.scoped import Scoped
 
 
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
-MODEL_FITS_KEPT = 10
+MODEL_FIT_COUNT = 10
+# the state an agent's row is in once its session has ended
+ENDED_STATE = "ended"
 
 @dataclass(frozen=True)
 
@@ -60,8 +63,9 @@ class Agent(Scoped):
     merged_lines: tuple[tuple[float, int], ...] = ()
     committed_lines: tuple[tuple[float, int], ...] = ()
     first_reports: tuple[tuple[float, int], ...] = ()
+    open_work_waits: tuple[tuple[float, int], ...] = ()
     counted_shas: tuple[str, ...] = ()
-    mode: str = ""
+    mode: str | None = None
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
@@ -74,6 +78,7 @@ class Agent(Scoped):
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     previous_sessions: tuple[str, ...] = ()
+    previous_session_updated_at: float = 0.0
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -114,6 +119,9 @@ class Agent(Scoped):
     def thinking_ended(self, time: float) -> "Agent":
         return self.with_(thinking_at=0.0).with_event(AgentThinkingEnded(environment_id=self.environment_id, time=time, agent_session=self.session))
 
+    def is_top_state(self, state_name: str) -> bool:
+        return bool(self.stack) and self.stack[-1].get("state") == state_name
+
     def is_thinking(self) -> bool:
         return self.thinking_at > 0
 
@@ -123,7 +131,8 @@ class Agent(Scoped):
     def with_session(self, session: str, provider: str) -> "Agent":
         kept = tuple(entry for entry in self.previous_sessions if entry.partition(":")[2] not in (session, self.session))
         earlier = (f"{self.provider}:{self.session}",) if self.session else ()
-        return self.with_(session=session, provider=provider, previous_sessions=(*kept, *earlier))
+        updated_at = self.updated_at.timestamp() if self.updated_at else 0.0
+        return self.with_(session=session, provider=provider, previous_sessions=(*kept, *earlier), previous_session_updated_at=updated_at)
 
     def last_sessions(self) -> dict[str, str]:
         sessions = dict(entry.split(":", 1) for entry in self.previous_sessions)
@@ -171,12 +180,15 @@ class Agent(Scoped):
     def first_reported(self, task: int, time: float, cutoff: float) -> "Agent":
         return self.with_(first_reports=TimeSeries.add(self.first_reports, (time, task), cutoff))
 
+    def open_work_waited(self, seconds: int, time: float, cutoff: float) -> "Agent":
+        return self.with_(open_work_waits=TimeSeries.add(self.open_work_waits, (time, seconds), cutoff)) if seconds else self
+
     def shas_counted(self, shas: tuple[str, ...]) -> "Agent":
         return self.with_(counted_shas=(*self.counted_shas, *shas)[-SHA_COUNT:]) if shas else self
 
     def authored_total(self, moment: float, seconds: float) -> int:
         last_commit = self.committed_lines[-1][0] if self.committed_lines else 0.0
-        provisional = sum(lines for time, lines in self.edited_lines if last_commit < time and moment - seconds < time <= moment)
+        provisional = sum(lines for time, lines in self.edited_lines if last_commit < time and Timeout.seconds(seconds).started(time).is_active(moment))
         return self.committed_total(moment, seconds) + provisional
 
     def is_sha_counted(self, sha: str) -> bool:
@@ -197,22 +209,25 @@ class Agent(Scoped):
     def first_report_count(self, moment: float, seconds: float) -> int:
         return TimeSeries.count(self.first_reports, moment, seconds)
 
-    def in_mode(self, mode: str) -> "Agent":
+    def open_work_wait_total(self, moment: float, seconds: float) -> int:
+        return TimeSeries.total(self.open_work_waits, moment, seconds)
+
+    def mode_changed(self, mode: str) -> "Agent":
         if self.mode == mode:
             return self
         loads = dict(self.mode_loads)
-        if self.mode:
+        if self.mode is not None:
             loads[self.mode] = self.work_queue.published()
         return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
-    def model_fit_kept(self, worker: int, fit: str) -> "Agent":
-        kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
-        return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
+    def model_fit_recorded(self, worker: int, fit: str) -> "Agent":
+        remaining_fits = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
+        return self.with_(model_fits=(*remaining_fits, f"{worker}:{fit}")[-MODEL_FIT_COUNT:])
 
-    def waits_measured(self, use: WaitUse, time: float) -> "Agent":
-        found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
+    def wait_use_measured(self, use: WaitUse, time: float) -> "Agent":
+        new_pairs = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
         measured = self.with_(wait_use=use)
-        return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
+        return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=new_pairs)) if new_pairs else measured
 
     def band_moved(self, band: PressureBand, time: float) -> "Agent":
         return self if band == self.band else self.with_(band=band, band_changed_at=time)
@@ -223,7 +238,7 @@ class Agent(Scoped):
     def measure_line_sent(self, key: str, time: float) -> "Agent":
         return self.with_(measures=self.measures.line_sent(key, time))
 
-    def queues_measured(self, work_queue: AgentLoad, message_queue: AgentLoad) -> "Agent":
+    def queue_loads_measured(self, work_queue: AgentLoad, message_queue: AgentLoad) -> "Agent":
         return self.with_(work_queue=replace(work_queue, scaled_at=self.work_queue.scaled_at), message_queue=message_queue)
 
     def place_opened(self, places: int, time: float) -> "Agent":
@@ -244,3 +259,6 @@ class Agent(Scoped):
 
     def has_program(self) -> bool:
         return bool(self.provider)
+
+    def is_main(self) -> bool:
+        return self.role == AgentRole.MAIN

@@ -13,5 +13,5 @@ class WatchUpdate(AgentListener[ToolFinished]):
 
     def handle(self, event: ToolFinished) -> None:
         for output in self.outputs.watched(event.session):
-            if contents := self.card.card_contents(output):
-                self.cards.show(contents)
+            if self.card.is_carded(output):
+                self.cards.show(self.card.card_contents(output))

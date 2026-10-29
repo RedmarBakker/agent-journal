@@ -31,7 +31,7 @@ class CollectionCommand(Command):
         removal.add_argument("n", type=int)
         removal.add_argument("ref")
         self.verb(verbs, "members", "the rows in a collection").add_argument("n", type=int)
-        self.verb(verbs, "list", "every collection here, with how many rows each holds")
+        self.verb(verbs, "list", "every collection here, with how many rows each contains")
         title_change = self.verb(verbs, "rename", "name a collection again")
         title_change.add_argument("n", type=int)
         title_change.add_argument("title")

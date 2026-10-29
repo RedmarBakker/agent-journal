@@ -57,7 +57,7 @@ def due_lines(event: AgentEvent) -> list:
 def repeated_lines(event: AgentEvent) -> list:
     if isinstance(event, LineDelivered) or event.subagent:
         return []
-    return [MemoryNudges.REMINDER_REPEATED.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).repeating if reminder.is_due(event.time, event.tool_use)]
+    return [MemoryNudges.REMINDER_REPEATED.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).repeating if reminder.is_due_now(event.time, event.tool_use)]
 
 
 def threshold_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

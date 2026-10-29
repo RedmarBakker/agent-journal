@@ -9,6 +9,7 @@ from journal.models.worker import JOB_STARTS, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
 from journal.support.actor import Actor
+from journal.references import events
 
 # a path or a file name a brief or a change names
 FILE_PATTERN = re.compile(r"[\w-]+/[\w./-]+|\b[\w-]+\.(?:py|js|ts|vue|md|json|sh|php|go|css|html)\b|--changes")
@@ -27,7 +28,7 @@ class MergedWork:
         session = worker.conversation()
         edits = self.job_edits(worker)
         paths = {edit.path for edit in edits}
-        tool_uses = self.entries.counted(self.entries.query().filter(actor=Actor.agent(session), entry_type="ToolStarting").filter_greater_equal("created_at", self.moment(span.start)).filter_less_equal("created_at", self.moment(span.end))) if session else 0
+        tool_uses = self.entries.counted(self.entries.query().filter(actor=Actor.agent(session), entry_type=events.TOOL_STARTING).filter_greater_equal("created_at", self.moment(span.start)).filter_less_equal("created_at", self.moment(span.end))) if session else 0
         return WorkComplexity(lines=sum(edit.added + edit.removed for edit in edits), files=len(paths), send_backs=span.rejection_count, tool_uses=tool_uses,
                               minutes=round((span.end - span.start) / 60, 1), tests_added=sum(1 for path in paths if self.is_test(path)), brief_named_files=bool(FILE_PATTERN.search(worker.brief)))
 

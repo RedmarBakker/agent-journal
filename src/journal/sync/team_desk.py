@@ -41,7 +41,7 @@ class TeamDesk:
         return self.answered(answer.delivery)
 
     def answered(self, answer: PullAnswer) -> DeskAnswer:
-        if answer.copy_needed and self.account.sequence() < answer.head:
+        if answer.needs_copy(self.account.sequence()):
             return DeskAnswer(0, True)
         with self.applying:
             sequence = self.account.sequence()

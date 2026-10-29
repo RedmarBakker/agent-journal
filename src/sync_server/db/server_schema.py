@@ -56,6 +56,10 @@ MIGRATIONS = (
     """
     ALTER TABLE leases ADD COLUMN lapse_seconds REAL NOT NULL DEFAULT 0;
     """,
+    """
+    CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, item_type TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, publisher_id INTEGER NOT NULL, created_at REAL NOT NULL, withdrawn_at REAL NOT NULL DEFAULT 0, UNIQUE (item_type, name));
+    CREATE TABLE item_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, number INTEGER NOT NULL, body TEXT NOT NULL, body_hash TEXT NOT NULL, lowest_version TEXT NOT NULL, note TEXT NOT NULL, publisher_id INTEGER NOT NULL, published_at REAL NOT NULL, completed_at REAL NOT NULL DEFAULT 0, UNIQUE (item_id, number));
+    """,
 )
 
 

@@ -20,7 +20,7 @@ class RemoteInstall:
     def parsed(cls, argv: list[str]) -> "RemoteInstall":
         parser = argparse.ArgumentParser(prog="journal remote install", description="install the team server and its hosted journal on a machine over SSH")
         parser.add_argument("verb", choices=["install"])
-        parser.add_argument("target", help="the machine, as ssh names it: user@host")
+        parser.add_argument("target", help="the machine, as ssh writes it: user@host")
         parser.add_argument("--version", default=VERSION, help="the release to install; this journal's own by default")
         parser.add_argument("--address", default="", help="the address the team reaches the server at, a domain or an IP; the target's host by default")
         parser.add_argument("--https-port", default="", help="the port for HTTPS, 8443 by default; 443 with a domain gets a public certificate, any other port the server's own")

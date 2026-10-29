@@ -26,5 +26,5 @@ class SharedTables:
     def names(self) -> list[str]:
         return list(self.tables)
 
-    def highest_number(self, table: str, below: int) -> int:
-        return self.connection.result(f"SELECT COALESCE(MAX(id), 0) AS number FROM {self.tables[table].model.storage()} WHERE id < ?", (below,))["number"]
+    def highest_number(self, table: str, limit_id: int) -> int:
+        return self.tables[table].highest_number(limit_id)

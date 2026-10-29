@@ -2,7 +2,7 @@ from journal.support.masks import Masks
 from journal.support.output_mask import OutputMask
 from journal.models.plugin import Plugin
 
-NEUTRAL = {"[journal]": "(journal)", "[!reply:": "(!reply:"}
+NEUTRAL = {"[journal]": "(journal)"}
 
 
 class PluginText:

@@ -1,6 +1,7 @@
 import time
 from datetime import datetime, timedelta, timezone
 
+from journal.support.timeout import Timeout
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.features.secrets.support.browser_logins import BrowserLogins
@@ -23,7 +24,7 @@ class SecretPurge(AgentListener[Ticked]):
         self._looked_at = 0.0
 
     def handle(self, event: Ticked) -> None:
-        if self.time_source.seconds() - self._looked_at < INTERVAL_SECONDS:
+        if not Timeout.seconds(INTERVAL_SECONDS).started(self._looked_at).is_elapsed(self.time_source.seconds()):
             return
         self._looked_at = self.time_source.seconds()
         cutoff = self.time_source.moment() - RETENTION

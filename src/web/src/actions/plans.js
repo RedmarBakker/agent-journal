@@ -7,6 +7,12 @@ const becomes = (state) => (plan) => (plan.state = state);
 
 export const approvePlan = (plan) => patched(plan, becomes("approved"), () => act(plan, "approve"));
 
+// approves a plan once the comment sent with it is in, naming that comment by the key it was sent with
+export function approveWithMessage(id, key) {
+    const plan = rows("plans").find((p) => p.id === id);
+    return plan ? patched(plan, becomes("approved"), () => api.act("plans", id, "approve", {comment_key: key})) : null;
+}
+
 export const pausePlan = (plan) => patched(plan, becomes("paused"), () => act(plan, "pause"));
 
 export const dismissPlan = (plan) => patched(plan, (row) => (row.is_dismissed = true), () => act(plan, "dismiss"));

@@ -76,5 +76,5 @@ class SecretController(Controller[Secret]):
     def allowed(programs) -> tuple[str, ...]:
         refused = [p for p in programs if Programs.is_withheld(p)]
         if refused:
-            raise Rejection(f"a secret is never given to {', '.join(refused)}: allow the program that uses it directly, such as curl or gh")
+            raise Rejection(f"a secret is never passed to {', '.join(refused)}: allow the program that uses it directly, such as curl or gh")
         return tuple(dict.fromkeys(programs))

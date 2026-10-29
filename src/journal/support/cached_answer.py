@@ -2,6 +2,8 @@ import threading
 import time
 from typing import Callable, Generic, TypeVar
 
+from journal.support.timeout import Timeout
+
 T = TypeVar("T")
 
 
@@ -14,7 +16,7 @@ class CachedAnswer(Generic[T]):
         self._asking = threading.Lock()
 
     def time(self) -> T:
-        if time.monotonic() - self.asked_at >= self.kept_for and self._asking.acquire(blocking=False):
+        if Timeout.seconds(self.kept_for).started(self.asked_at).is_elapsed(time.monotonic()) and self._asking.acquire(blocking=False):
             threading.Thread(target=self.repeat, name="kept-answer", daemon=True).start()
         return self.value
 

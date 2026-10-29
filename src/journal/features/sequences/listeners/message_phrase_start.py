@@ -1,7 +1,6 @@
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.sequences.support.phrase_starts import PhraseStarts
-from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.agents import Agents
 
@@ -14,7 +13,7 @@ class MessagePhraseStart(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         message = event.model
-        if not isinstance(message, Message) or message.author != Author.USER or message.is_terminal_line:
+        if not isinstance(message, Message) or not message.is_user_message() or message.is_terminal_line:
             return
         agent = self.agents.current()
         if agent is not None:

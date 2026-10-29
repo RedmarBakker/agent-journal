@@ -43,11 +43,11 @@ class FitnessPoint:
             return FitnessPoint.first(score, scored_at)
         return FitnessPoint.of(score, scored_at, self.change(dict(score.parts)))
 
-    def change(self, after: dict[str, int]) -> str:
-        before = dict(self.parts)
-        moves = [*((abs(after[label] - before[label]), f"{label}: {before[label]}% to {after[label]}% of the ideal") for label in after if label in before),
-                 *((100 - after[label], f"{label}: scored from now, {after[label]}% of the ideal") for label in after if label not in before),
-                 *((100 - before[label], f"{label}: left out, too few events") for label in before if label not in after)]
+    def change(self, new_parts: dict[str, int]) -> str:
+        old_parts = dict(self.parts)
+        moves = [*((abs(new_parts[label] - old_parts[label]), f"{label}: {old_parts[label]}% to {new_parts[label]}% of the ideal") for label in new_parts if label in old_parts),
+                 *((100 - new_parts[label], f"{label}: scored from now, {new_parts[label]}% of the ideal") for label in new_parts if label not in old_parts),
+                 *((100 - old_parts[label], f"{label}: left out, too few events") for label in old_parts if label not in new_parts)]
         return max(moves, key=lambda move: move[0])[1] if moves else "the measures off the ideal changed"
 
     def entry(self, agent: Agent) -> Entry:

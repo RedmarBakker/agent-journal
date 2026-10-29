@@ -202,7 +202,7 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
     Schema(old, AllModels.MODELS).create()
     bus = Bus()
     scope = Scope(Environments(old, bus, TimeSource()), Links(old, bus, TimeSource()))
-    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus, TimeSource()), TimeSource()), Links(old, bus, TimeSource()), EnvironmentOwners(Links(old, bus, TimeSource()), Users(old, bus, TimeSource()), Environments(old, bus, TimeSource())), Agents(old, bus, scope, TimeSource()), TimeSource()).find(1)
+    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus, TimeSource()), TimeSource()), Links(old, bus, TimeSource()), EnvironmentOwners(Links(old, bus, TimeSource()), Users(old, bus, TimeSource()), Environments(old, bus, TimeSource())), TimeSource()).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
 
@@ -574,7 +574,7 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
 def test_each_model_says_whether_it_is_shared_with_the_team_or_kept_on_one_machine():
     from journal.models.all_models import AllModels
     local = sorted(model.__name__ for model in AllModels.MODELS if not model.shared)
-    assert local == sorted(["Entry", "Agent", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer", "Rig", "DomainCount"]), "the models kept on one machine are the ones NOTES.md names"
+    assert local == sorted(["Entry", "Agent", "StateTransition", "Rig", "DomainCount", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer", "LibraryItem"]), "the models kept on one machine are the ones NOTES.md names"
     assert all(model.shared for model in AllModels.MODELS if model.__name__ in ("Task", "Message", "Alias", "Worker", "Setting")), "everything else is shared"
 
 
@@ -674,12 +674,13 @@ def outgoing_recorder(connection, bus, scope, config, changes):
     from journal.services.service_hooks import ServiceHooks
     from journal.sync.block_supply import BlockSupply
     from journal.sync.record_outgoing_change import RecordOutgoingChange
+    from journal.db.table_renumbering import TableRenumbering
     from journal.sync.row_renumbering import RowRenumbering
     from journal.sync.team_account import TeamAccount
     from journal.sync.team_server_link import TeamServerLink
 
     account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus, TimeSource()), SharedTables(connection, bus, TimeSource())
-    renumbering = RowRenumbering(connection, blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
+    renumbering = RowRenumbering(TableRenumbering(connection), blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
     from journal.repositories.environments import Environments
     from journal.sync.team_accounts import TeamAccounts
     return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus, TimeSource()), tables, renumbering, TeamAccounts(config, Environments(connection, bus, TimeSource())), ServiceHooks())
@@ -1449,6 +1450,24 @@ def test_the_developer_numbers_drop_removes_the_timings_table_and_the_numbers_bu
     assert [row["key"] for row in connection.all("SELECT key FROM statistics")] == ["profiles.x.uses"]
 
 
+def test_a_session_change_keeps_unrelated_sessions_and_marks_when_the_old_session_ended():
+    from datetime import datetime, timezone
+    from journal.models.agent import Agent
+    updated_at = datetime.fromtimestamp(1234.5, timezone.utc)
+    agent = Agent(session="old", provider="claude", previous_sessions=("gemini:other", "codex:new", "gemini:old"), updated_at=updated_at)
+    changed = agent.with_session("new", "codex")
+    assert changed.previous_sessions == ("gemini:other", "claude:old")
+    assert changed.previous_session_updated_at == updated_at.timestamp()
+    assert changed.last_sessions() == {"gemini": "other", "claude": "old", "codex": "new"}
+
+
+def test_registered_migrations_keep_unique_numbers_across_the_merged_migration_ids():
+    from journal.db.migrations import MIGRATIONS
+    numbers = {migration.number: type(migration).__name__ for migration in MIGRATIONS}
+    assert len(numbers) == len(MIGRATIONS)
+    assert (numbers[76], numbers[77]) == ("BlankAbsenceNulls", "PlanModes")
+
+
 def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
     """A write keeps the reads it changed: the next find and session read of the row load nothing and return what a load returns; a rolled-back write, a write superseded in its transaction and a write a secret was masked out of keep nothing, and a session two rows share keeps answering the first."""
     from journal.models.agent import Agent
@@ -1816,7 +1835,7 @@ def plans_of(connection, bus, scope) -> Plans:
 
 
 def test_the_plan_modes_migration_makes_every_plan_from_before_a_solo_one(connection, bus, scope):
-    """Migration 76 on a plans table from before plans had a mode: the schema adds the column empty, every plan there reads as solo, and a plan given a mode since keeps it."""
+    """Migration 77 on a plans table from before plans had a mode: the schema adds the column empty, every plan there reads as solo, and a plan given a mode since keeps it."""
     from journal.db.migrations.plan_modes import PlanModes
     from journal.db.schema import Schema
     from journal.models.all_models import AllModels
@@ -1855,3 +1874,35 @@ def test_a_plans_agent_and_rig_are_links_from_the_plan_never_columns_on_it(conne
     assert kinds == [PLAN_AGENT_LINK, RIG_LINK], "linking the same agent twice leaves one link"
     columns = {row["name"] for row in connection.all("PRAGMA table_info(plans)")}
     assert "mode" in columns and not columns & {"agent_id", "plan_agent", "rig", "rig_id"}, "the relations are rows, not foreign keys"
+
+def test_a_sequence_template_and_profile_travel_as_portable_bodies_and_come_back_whole():
+    from journal.features.library.support.portable_body import PortableBody
+    from journal.features.library.support.profile_body import ProfileBody
+    from journal.features.library.support.sequence_body import SequenceBody
+    from journal.features.library.support.template_body import TemplateBody
+    from journal.models.sequence import Sequence
+    from journal.models.support.sequence_step import SequenceStep
+    from journal.models.support.sequence_trigger import SequenceTrigger
+    from journal.models.template import Template
+    from journal.providers.support.profile import Profile
+    from journal.providers.support.profile_type import ProfileType
+    sequence = Sequence(id=4, title="Release", steps=(SequenceStep("Tag", "tag it", False, ("^git tag",), ""), SequenceStep("Push", "push it")), triggers=(SequenceTrigger.row("plan.finished"), SequenceTrigger.phrase("ship it")), locked=True)
+    back = SequenceBody.sequence(SequenceBody.text(sequence))
+    assert (back.title, back.steps, back.triggers, back.locked, back.id) == ("Release", sequence.steps, sequence.triggers, False, None), "only the number, the stamps and the lock are left behind"
+    assert SequenceBody.text(back) == SequenceBody.text(sequence) and PortableBody.hash(SequenceBody.text(back)) == PortableBody.hash(SequenceBody.text(sequence)), "an unedited copy hashes the same"
+    template = Template(title="Find what is missing", targets=("plan",), purpose="critique", brief="read it", parts=("Gaps: what is missing",))
+    assert TemplateBody.template(TemplateBody.text(template)) == template
+    profile = Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT, model="opus")
+    assert ProfileBody.profile(ProfileBody.text(profile)) == Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT), "the model a machine sets stays behind"
+
+
+def test_every_actor_stamp_reads_back_as_its_kinds_class_with_the_same_stamp():
+    from journal.support.actor import Actor
+    from journal.support.actor_type import ActorType
+    from journal.support.agent_actor import AgentActor
+    from journal.support.subagent_actor import SubagentActor
+    stamps = [kind.value if kind == ActorType.SYSTEM else f"{kind.value}:7" for kind in ActorType] + ["agent:s1:a2"]
+    for stamp in stamps:
+        actor = Actor.parse(stamp)
+        assert actor.stamp == stamp and type(actor) is not Actor and Actor.parse(actor.stamp) == actor, stamp
+    assert type(Actor.parse("agent:s1")) is AgentActor and type(Actor.parse("agent:s1:a2")) is SubagentActor, "a subagent's stamp is its own kind"

@@ -41,16 +41,16 @@ class MemoryCommand(Command):
         return 0
 
     @staticmethod
-    def ending(memory: Memory, valid_until: str) -> Memory:
-        if not valid_until:
+    def ending(memory: Memory, expiry_text: str) -> Memory:
+        if not expiry_text:
             return memory
-        kind, colon, number = valid_until.partition(":")
+        kind, colon, number = expiry_text.partition(":")
         if colon and kind in ROW_TABLES and number.isdigit():
             return replace(memory, expiry_row=f"{ROW_TABLES[kind]}:{number}")
         try:
-            return replace(memory, expires_at=datetime.fromisoformat(valid_until).astimezone(timezone.utc))
+            return replace(memory, expires_at=datetime.fromisoformat(expiry_text).astimezone(timezone.utc))
         except ValueError:
-            raise Rejection(f"--valid-until is a row, such as task:3852 or plan:1047, or a moment, such as '2026-10-28 09:00', not {valid_until}") from None
+            raise Rejection(f"--valid-until is a row, such as task:3852 or plan:1047, or a moment, such as '2026-10-28 09:00', not {expiry_text}") from None
 
     def weigh(self, args: Namespace, caller: Caller) -> int:
         memories = self.found(args.numbers, caller)

@@ -5,10 +5,11 @@ from journal.models.agent import Agent
 from journal.models.support.agent_load import AgentLoad
 from journal.models.support.pressure_band import PressureBand
 from journal.repositories.setting_rows import SettingRows
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE
 
 MODE_LEVELS = {
-    "orchestrator": (FitnessOptions.ORCHESTRATOR_HIGH_ENTRY, FitnessOptions.ORCHESTRATOR_HIGH_EXIT, FitnessOptions.ORCHESTRATOR_LOW_ENTRY, FitnessOptions.ORCHESTRATOR_LOW_EXIT),
-    "builder": (FitnessOptions.BUILDER_HIGH_ENTRY, FitnessOptions.BUILDER_HIGH_EXIT, FitnessOptions.BUILDER_LOW_ENTRY, FitnessOptions.BUILDER_LOW_EXIT),
+    ORCHESTRATOR_MODE: (FitnessOptions.ORCHESTRATOR_HIGH_ENTRY, FitnessOptions.ORCHESTRATOR_HIGH_EXIT, FitnessOptions.ORCHESTRATOR_LOW_ENTRY, FitnessOptions.ORCHESTRATOR_LOW_EXIT),
+    BUILDER_MODE: (FitnessOptions.BUILDER_HIGH_ENTRY, FitnessOptions.BUILDER_HIGH_EXIT, FitnessOptions.BUILDER_LOW_ENTRY, FitnessOptions.BUILDER_LOW_EXIT),
 }
 
 

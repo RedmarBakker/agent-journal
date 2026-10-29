@@ -3,6 +3,7 @@ import {onMounted} from "vue";
 import {store} from "../state/store.js";
 import {useUpdates} from "../composables/updates.js";
 import Btn from "../kit/Btn.vue";
+import Skeleton from "../kit/Skeleton.vue";
 import StateDot from "../kit/StateDot.vue";
 import TextDisplay from "../kit/TextDisplay.vue";
 import {locked} from "../state/updating.js";
@@ -16,6 +17,9 @@ onMounted(start);
     <section class="about">
         <template v-if="error">
             <p class="error">{{ error }}</p>
+        </template>
+        <template v-if="!about && !error">
+            <Skeleton shape="page" :count="3" label="Loading the version and the changelog" />
         </template>
         <template v-if="about">
             <p class="version">Agent journal {{ about.installed }}</p>
@@ -34,7 +38,7 @@ onMounted(start);
                 </div>
             </template>
             <div class="force-line">
-                <span class="hint">GitHub may refuse to list the releases for a while. The install command from the README installs the latest release all the same.</span>
+                <span class="hint">Or try this route instead: it installs the latest release straight from GitHub.</span>
                 <Btn class="force-update" :busy="locked()" @click="forceUpdate()">Install the latest release with the README command</Btn>
             </div>
             <TextDisplay class="changelog" :text="about.changelog" />

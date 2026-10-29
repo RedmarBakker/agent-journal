@@ -11,8 +11,6 @@ GUARDED = (Saving, Deleting)
 class ColleagueWriteGuard(Listener[ModelEvent]):
     """A person's save or deletion in an environment a colleague owns is refused before it is made, but for a message."""
 
-    blocking = True
-
     def __init__(self, owners: EnvironmentOwners) -> None:
         self.owners = owners
 

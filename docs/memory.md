@@ -49,4 +49,4 @@ in the setting briefing.look_commands, so it cannot be switched off. The agent w
 ## Rules and reminders
 
 A rule is a ruling of the user's that binds the whole project; a reminder is what to keep doing here. A reminder may
-be set for a moment with `--at`, or repeat with `--every-minutes` or `--every-tool-uses` while it holds.
+be set for a moment with `--at`, or repeat with `--every-minutes` or `--every-tool-uses` while it is in force.

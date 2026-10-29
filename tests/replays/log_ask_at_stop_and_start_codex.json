@@ -5,7 +5,7 @@
       "name": "a stop just after the start",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [],
       "nudges": [
@@ -25,7 +25,7 @@
       "name": "a stop eleven minutes on",
       "answer": {
         "decision": "block",
-        "reason": "task 1, last logged 11 min ago: log where it stands first. journal task log 1 \"<where it stands>\""
+        "reason": "task 1, last logged 11 min ago. log it first: journal task log 1 \"<status>\""
       },
       "typed": [],
       "nudges": [
@@ -41,7 +41,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "task 1 is in hand, last logged 11 min ago: carry on"
+          "additionalContext": "task 1 is in hand: carry on"
         }
       },
       "typed": [
@@ -60,7 +60,7 @@
       "name": "a stop just after the log",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [],
       "nudges": [

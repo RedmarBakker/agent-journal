@@ -26,7 +26,7 @@ class AliasCommand(Command):
         addition.add_argument("line")
         addition.add_argument("--reader", default="", help="the reader that reads its output; a run moved to the background is watched through it")
         addition.add_argument("--about", dest="description", default="", help="what it does, in a few words")
-        addition.add_argument("--env", dest="variables", action="append", default=[], metavar="KEY=VALUE", help="a variable put before the line; more than one may be given")
+        addition.add_argument("--env", dest="variables", action="append", default=[], metavar="KEY=VALUE", help="a variable put before the line; more than one is allowed")
         addition.add_argument("--background", action="store_true", help="a run moves to the background the moment it starts, watched through its reader")
         self.verb(verbs, "list", "the project's aliases, each with its line and its reader")
         edit = self.verb(verbs, "edit", "change an alias's line, reader or what it does")

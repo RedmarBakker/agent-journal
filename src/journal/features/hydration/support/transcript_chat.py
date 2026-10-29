@@ -13,7 +13,7 @@ REPLY_TAG = re.compile(r"^\[!reply:[^\]]*\]\s*")
 
 
 class TranscriptChat:
-    """The chat a transcript reads as: each prompt the person typed and each reply the agent wrote, with their times, the tool calls between two of them folded into one line that counts them by tool, and the agent's thinking, the journal's and the program's injected lines, the notices, the agent's marker lines and the summaries left out; a reply tag is taken off its reply."""
+    """The chat a transcript reads as: each prompt the person typed and each reply the agent wrote, with their times, the tool calls between two of them folded into one line that counts them by tool, and the agent's thinking, the journal's and the program's injected lines, the notices, the agent's marker lines and the summaries left out; an old command tag opening a reply is taken off it."""
 
     def __init__(self, session: str) -> None:
         self.session = session

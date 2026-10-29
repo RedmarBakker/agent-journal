@@ -18,4 +18,4 @@ class BuilderPlanFocus(Listener[SettingChanged]):
             return
         for environment in self.environments.all():
             with self.scope.environment(environment.row_id):
-                self.focus.keep_furthest(Actor.system())
+                self.focus.furthest_plan(Actor.system())

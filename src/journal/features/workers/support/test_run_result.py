@@ -21,9 +21,9 @@ class TestRunResult:
     @classmethod
     def read(cls, status: int, lines: list[str], reader: Reader | None) -> "TestRunResult":
         summary = next((line for line in reversed(lines) if SUMMARY_LINE.search(line)), "")
-        named = sum(int(count) for count in FAILED_COUNT.findall(summary))
+        summary_failures = sum(int(count) for count in FAILED_COUNT.findall(summary))
         tally = reader.tally(lines) if reader is not None else None
-        counted = named or (tally.failed if tally is not None and tally.is_known() else 0)
+        counted = summary_failures or (tally.failed if tally is not None and tally.is_known() else 0)
         return cls(status, max(counted, 1) if status else counted)
 
     @classmethod

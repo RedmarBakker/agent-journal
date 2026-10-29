@@ -5,6 +5,7 @@ import {createdAt, isClosed, madeBy, refOf} from "./row.js";
 
 export const GROUPS = {
     started: "In progress",
+    testing: "Testing",
     paused: "Paused",
     blocked: "Blocked",
     planned: "Planned",
@@ -61,11 +62,12 @@ export function groupOf(task) {
     if (paused(task)) return "paused";
     if (planned(task)) return "planned";
     if (task.state === "started") return "started";
+    if (task.state === "testing") return "testing";
     return questionAbout(task) ? "asked" : "open";
 }
 
 export const state = (task) =>
-    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : "open";
+    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "testing" ? "testing" : "open";
 
 export function happened(r) {
     const kind = meta(r.table);

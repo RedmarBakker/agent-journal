@@ -21,3 +21,6 @@ class TableRows(Repository):
     def clear_numbers(self, ids: list[int]) -> None:
         for start in range(0, len(ids), NUMBER_CHUNK):
             self._purged(self.query().filter_listed("id", ids[start:start + NUMBER_CHUNK]))
+
+    def highest_number(self, limit_id: int) -> int:
+        return self.connection.result(*self.query().filter_less("id", limit_id).maximum("id", 0))["value"]

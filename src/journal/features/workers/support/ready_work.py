@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
+
 
 @dataclass(frozen=True)
 class ReadyWork:
@@ -11,4 +13,4 @@ class ReadyWork:
     delivered_at: float = 0.0
 
     def is_waiting(self, time: float, seconds: float) -> bool:
-        return time - self.delivered_at >= seconds
+        return Timeout.seconds(seconds).started(self.delivered_at).is_elapsed(time)

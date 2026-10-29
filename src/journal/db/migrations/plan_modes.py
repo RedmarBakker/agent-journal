@@ -6,5 +6,5 @@ from journal.db.migration import Migration
 class PlanModes(Migration):
     """Every plan made before plans had a mode is a solo one, since it has no rig."""
 
-    number: ClassVar[int] = 76
+    number: ClassVar[int] = 77
     statements: ClassVar[tuple[str, ...]] = ("UPDATE plans SET mode = 'solo' WHERE mode IS NULL",)

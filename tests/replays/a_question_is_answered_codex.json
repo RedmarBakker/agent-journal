@@ -22,7 +22,7 @@
       "name": "answered",
       "answer": null,
       "typed": [
-        "[journal] question 1 is answered. `journal question show 1`, then act on it"
+        "[journal] question 1 is answered. read it with `journal question show 1` and act on it"
       ],
       "nudges": [
         "questions.question_answered"

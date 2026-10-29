@@ -22,7 +22,7 @@
       "name": "five quiet minutes",
       "answer": null,
       "typed": [
-        "[journal] You have waited 5 minutes on the deploy. Check how it is going, read its latest lines, and see whether it is doing what you expect."
+        "[journal] you have waited 5 minutes on the deploy. read its latest lines and check it does what you expect"
       ],
       "nudges": [
         "tasks.check_the_wait"
@@ -49,7 +49,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "your wait on the deploy was lifted; check 1 is still running and you are informed when it passes; journal check remove 1 if you no longer want to hear about it"
+          "additionalContext": "your wait on the deploy was lifted; check 1 still runs. remove it if not needed: `journal check remove 1`"
         }
       },
       "typed": [],

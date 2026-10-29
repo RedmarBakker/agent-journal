@@ -12,7 +12,11 @@ class Event:
 
     @property
     def key(self) -> str:
-        return re.sub(r"(?<!^)(?=[A-Z])", "_", type(self).__name__).lower()
+        return type(self).type_key()
+
+    @classmethod
+    def type_key(cls) -> str:
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", cls.__name__).lower()
 
     def has_hook_lines(self) -> bool:
         return False

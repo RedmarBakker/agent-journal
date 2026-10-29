@@ -39,7 +39,7 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
         port = app.server().port
         (tmp_path / ".journal" / "port").write_text(str(port))
         urlopen(Request(f"http://127.0.0.1:{port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        place = {**os.environ, "JOURNAL_ROOT": str(tmp_path), "JOURNAL_ENV": "main", "CLAUDECODE": "1", "SHELL": "/bin/zsh"}
+        place = {**os.environ, "JOURNAL_ROOT": str(tmp_path), "JOURNAL_ENV": "main", "JOURNAL_SESSION": "s1", "CLAUDECODE": "1", "SHELL": "/bin/zsh"}
         runner, cwd = str(tmp_path / ".journal" / "src" / "journal" / "hooks" / "run.sh"), tmp_path / "cwd"
         run = subprocess.run([runner, wrapped(f"cd {tmp_path} && echo one && false && echo three", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
         assert run.stdout.strip() == "one" and run.returncode == 1 and not cwd.exists(), run.stderr
@@ -60,10 +60,10 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
         settings.save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
         link = app.container.get(SupervisorLink)
         link.working(1)
-        told = lambda run: "\n".join(line for line in (run.stdout + "\n" + link.pending_lines(1)).splitlines() if line.strip())
+        next_hook = lambda: json.loads(urlopen(Request(f"http://127.0.0.1:{port}/hooks/claude", data=json.dumps({"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "true"}, "tool_response": {}}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read() or b"{}")
+        told = lambda run: "\n".join(line for line in (run.stdout + "\n" + link.pending_lines(1) + "\n" + (next_hook().get("hookSpecificOutput") or {}).get("additionalContext", "")).splitlines() if line.strip())
         run = subprocess.run([runner, wrapped("seq 1 1000", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
-        shown = told(run).splitlines()
-        assert len(shown) == 1 and re.fullmatch(r"(?:\[journal\] )?output \d+: 1000 lines, part \d+", shown[0]), "past the cap a command's output is not shown, only named"
+        assert not run.stdout.strip() and re.search(r"output \d+: 1000 lines, part \d+", told(run)), "past the cap a command's output is not shown, only named, at the agent's next hook"
         numbers = tmp_path.parent / f"{tmp_path.name}-numbers"
         numbers.write_text("\n".join(str(i) for i in range(1, 3001)) + "\n")
         run = subprocess.run([runner, wrapped(f"cat {numbers}", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)

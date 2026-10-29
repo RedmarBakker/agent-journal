@@ -22,8 +22,8 @@ class DocSources:
         environment = Ref("environments", self.scope.id)
         return [self.phrase("attached here:", link.source) for link in self.links.all_matching(target=environment, link_type=ATTACHED)]
 
-    def phrase(self, what: str, source: Ref) -> str:
-        found = self.docs.numbered([source.id])
-        state = "on the hub" if found and found[0].is_on_hub() else "removed"
-        title = f" {found[0].title}" if found and found[0].is_on_hub() else ""
-        return f"{what} doc {source.id}{title} ({state})"
+    def phrase(self, action: str, source: Ref) -> str:
+        hub_docs = [doc for doc in self.docs.numbered([source.id]) if doc.is_on_hub()]
+        state = "on the hub" if hub_docs else "removed"
+        title = f" {hub_docs[0].title}" if hub_docs else ""
+        return f"{action} doc {source.id}{title} ({state})"

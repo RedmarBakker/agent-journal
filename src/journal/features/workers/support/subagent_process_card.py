@@ -5,7 +5,6 @@ from journal.features.workers.support.subagent_card_state import SubagentCardSta
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.models.message import Message
 from journal.models.subagent import Subagent
-from journal.models.subagent_state import SubagentState
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
 from journal.support.card_type import CardType
@@ -24,7 +23,7 @@ class SubagentProcessCard(ProcessCard):
         return f"subagent:{row.dispatch}"
 
     def card_contents(self, environment_id: int, session: str, agent: int, row: Subagent, actor: Actor) -> ProcessCardContents | None:
-        data = {**SubagentCard.built(session, agent, row, SubagentState.ACTIVE, "").as_data(), "dispatch": row.dispatch, "active": row.is_running()}
+        data = {**SubagentCard.built(session, agent, row).as_data(), "dispatch": row.dispatch, "active": row.is_running()}
         older = self.messages.keyed(self.key(row), actor)
         if older and all(older[0].data.get(k) == v for k, v in data.items()):
             return None
@@ -32,4 +31,5 @@ class SubagentProcessCard(ProcessCard):
 
     def refresh(self, message: Message) -> SubagentCardState:
         row = self.subagents.dispatched(message.data["session"], message.data["dispatch"])
-        return SubagentCardState(model=row.model, subagent=row.session, active=row.is_running())
+        card = SubagentCard.built(message.data["session"], message.data["agent"], row)
+        return SubagentCardState(model=card.model, subagent=card.subagent, active=row.is_running(), state=card.state, reason=card.reason, outcome=str(card.outcome), final=not row.is_running())

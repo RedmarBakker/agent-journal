@@ -23,12 +23,14 @@ export const MOST_DOCKED_RUNS = 6;
 export function keptRuns(runs, most = MOST_DOCKED_RUNS) {
     const over = runs.length - most;
     if (over <= 0) return runs;
-    const cleared = new Set(runs.filter((m) => m.data.ending).slice(0, over).map((m) => m.id));
+    const now = Date.now() / 1000;
+    const leaving = (m) => m.data.ending && !m.data.pinned && !(m.data.undock_at > now);
+    const cleared = new Set(runs.filter(leaving).slice(0, over).map((m) => m.id));
     return runs.filter((m) => !cleared.has(m.id));
 }
 
 // Whether a docked card closes by itself: one the journal docked, once its run ended, until the user keeps it
-export const isLeaving = (m) => Boolean(m.data.auto_docked && m.data.undock_at);
+export const isLeaving = (m) => Boolean(!m.data.pinned && m.data.undock_at);
 
 // Every row docked above the chat, in the order each docked: a system message whose data carries docked and the row's card. The
 // newest sits at the bottom, nearest the composer, pushing the earlier ones up, and none changes place as it updates.

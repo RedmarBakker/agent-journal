@@ -10,9 +10,8 @@ E = TypeVar("E", bound=AgentEvent)
 
 
 class TriggerWatch(AgentListener[E]):
-    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards."""
+    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards, after the hook has answered."""
 
-    blocking = True
 
     def __init__(self, triggers: Triggers, firing: TriggerFire) -> None:
         self.triggers, self.firing = triggers, firing

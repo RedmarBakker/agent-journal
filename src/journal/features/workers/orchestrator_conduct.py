@@ -10,7 +10,7 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.features.workers.support.queue_check import queue_check
-from journal.features.workers.support.written_wait import WrittenWait
+from journal.features.workers.support.wait_text import WaitText
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.events.rows.worker_spent import WorkerSpent
@@ -109,17 +109,17 @@ def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     if started is None:
         return ()
     interval = settings.integer(WorkersOptions.PRIORITIES_MINUTES) * 60
-    if started.priorities_phase == started.current_phase and not (interval and event.time - started.priorities_at >= interval):
+    if started.priorities_phase == started.current_phase and not (interval and Timeout.seconds(interval).started(started.priorities_at).is_elapsed(event.time)):
         return ()
     return (WorkersNudges.PRIORITIES.create(plan=started.plan_id, phase=started.current_phase),)
 
 
 def text_wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    return state.none(*text_wait_lines(WrittenWait.worded(event.call), settings))
+    return state.none(*text_wait_lines(WaitText.wait_command_text(event.call), settings))
 
 
 def text_wait_lines(text: str, settings: Settings) -> tuple[Nudge, ...]:
-    if not WrittenWait.is_written(text):
+    if not WaitText.is_word_wait(text):
         return ()
     return (WorkersNudges.WAIT_TEXT.create(),)
 

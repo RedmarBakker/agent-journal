@@ -29,7 +29,7 @@ class Verifier(Helper):
         return self.with_(pid=0).with_event(VerifierExited(environment_id=self.environment_id))
 
     def ended(self) -> "Verifier":
-        return self.with_(state=VerifierState.ENDED, token_hash="").exited() if self.state == VerifierState.VERIFYING else self.exited()
+        return self.with_(state=VerifierState.ENDED, token_hash="").exited() if self.is_verifying() else self.exited()
 
     def has_ended(self) -> bool:
         return self.state == VerifierState.ENDED

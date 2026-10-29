@@ -7,13 +7,14 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
+from journal.models.agent import ENDED_STATE
 
 
 @dataclass(frozen=True)
 class Ended(BaseState):
     """The session is over: nothing is allowed and nothing is sent until it shows it is running again, by starting, taking a prompt or using a tool; then it is popped."""
 
-    name = "ended"
+    name = ENDED_STATE
     assigner = NoTaskAssigner
     title = "Ended"
     final = True

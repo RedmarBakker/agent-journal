@@ -32,7 +32,7 @@ class PluginCommand(Command):
         propose = self.verb(verbs, "propose", "show the user a card proposing a plugin, with all it would run, for them to install")
         propose.add_argument("source")
         propose.add_argument("--why", default="", help="what it is for")
-        upgrade = self.verb(verbs, "upgrade", "show what changes in what a plugin runs, hears and holds; with --yes, upgrade it")
+        upgrade = self.verb(verbs, "upgrade", "show what changes in what a plugin runs, hears and blocks; with --yes, upgrade it")
         upgrade.add_argument("name")
         upgrade.add_argument("--ref", help="the commit or tag to upgrade to; its newest when left out")
         upgrade.add_argument("--yes", action="store_true", help="upgrade it after the preview")
@@ -48,10 +48,10 @@ class PluginCommand(Command):
         removal.add_argument("--purge", action="store_true", help="delete its data folder too")
 
     def health(self, args: Namespace, caller: Caller) -> int:
-        chosen = [plugin for plugin in self.plugins.all() if plugin.enabled and (not args.name or plugin.name == args.name)]
-        if args.name and not chosen:
+        health_plugins = self.plugins.enabled_plugins(args.name) if args.name else self.plugins.enabled()
+        if args.name and not health_plugins:
             raise Rejection(f"no plugin named {args.name} is on")
-        for plugin in chosen:
+        for plugin in health_plugins:
             print(f"{plugin.name}: {self.health_line(plugin, caller.environment)}")
         return 0
 

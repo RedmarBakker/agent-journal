@@ -25,6 +25,9 @@ class Environments(Repository[Environment]):
     def hubs(self) -> list[Environment]:
         return self.matching(environment_type=EnvironmentType.HUB)
 
+    def team_hubs(self, team: str) -> list[Environment]:
+        return self.matching(environment_type=EnvironmentType.HUB, team_name=team)
+
     def hub_ids(self) -> tuple[int, ...]:
         with self.connection.unlisted():
             return tuple(hub.row_id for hub in self.hubs())

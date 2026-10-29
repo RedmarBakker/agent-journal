@@ -23,7 +23,7 @@ class SyncDeskController:
         self.account, self.link, self.status, self.desks = account, link, status, desks
 
     @staticmethod
-    def further(request: Request) -> str:
+    def team_parameter(request: Request) -> str:
         return str(request.query.get("team", ""))
 
     def teams(self, request: Request) -> Response:
@@ -42,14 +42,14 @@ class SyncDeskController:
         return door(request)
 
     def team(self, request: Request) -> Response:
-        further = self.further(request)
-        account, link = (self.desks.desk(further).account, self.desks.desk(further).link) if further else (self.account, self.link)
+        team_name = self.team_parameter(request)
+        account, link = (self.desks.desk(team_name).account, self.desks.desk(team_name).link) if team_name else (self.account, self.link)
         joined, root = account.is_joined(), account.root_path()
         return Response.json({"joined": joined, "address": account.address(), "headers": link.headers() if joined else {}, "authority": str(root) if root.is_file() else "", "protocol": {"header": TEAM_PROTOCOL_HEADER, "least": PROTOCOL}})
 
     def query(self, request: Request) -> Response:
         wait_seconds = request.queried("wait_seconds")
-        query = self.desks.desk(self.further(request)).query(wait_seconds) if self.further(request) else self.doors.query(wait_seconds)
+        query = self.desks.desk(self.team_parameter(request)).query(wait_seconds) if self.team_parameter(request) else self.doors.query(wait_seconds)
         return Response.json({**asdict(query), "path": TeamServerLink.pull_path(query)})
 
     def state(self, request: Request) -> Response:
@@ -57,7 +57,7 @@ class SyncDeskController:
         return Response.json({})
 
     def batch(self, request: Request) -> Response:
-        return Response.json(asdict(self.desks.desk(self.further(request)).batch() if self.further(request) else self.doors.batch()))
+        return Response.json(asdict(self.desks.desk(self.team_parameter(request)).batch() if self.team_parameter(request) else self.doors.batch()))
 
     def files_sent(self, request: Request) -> Response:
         self.doors.files_sent(tuple(request.body.get("ids", ())))
@@ -65,19 +65,19 @@ class SyncDeskController:
 
     def pushed(self, request: Request) -> Response:
         ids, answer = tuple(int(id) for id in str(request.query.get("ids", "")).split(",") if id), SyncAnswer.parsed(**request.body)
-        return Response.json(asdict(self.desks.desk(self.further(request)).batch_answered(ids, answer) if self.further(request) else self.doors.batch_answered(ids, answer)))
+        return Response.json(asdict(self.desks.desk(self.team_parameter(request)).batch_answered(ids, answer) if self.team_parameter(request) else self.doors.batch_answered(ids, answer)))
 
     def delivery(self, request: Request) -> Response:
         answer = SyncAnswer.parsed(**request.body)
-        return Response.json(asdict(self.desks.desk(self.further(request)).answered(answer.delivery) if self.further(request) else self.doors.delivered(answer)))
+        return Response.json(asdict(self.desks.desk(self.team_parameter(request)).answered(answer.delivery) if self.team_parameter(request) else self.doors.delivered(answer)))
 
     def answer(self, request: Request) -> Response:
         answer = PullAnswer.parsed(**request.body)
-        return Response.json(asdict(self.desks.desk(self.further(request)).answered(answer) if self.further(request) else self.doors.answered(answer)))
+        return Response.json(asdict(self.desks.desk(self.team_parameter(request)).answered(answer) if self.team_parameter(request) else self.doors.answered(answer)))
 
     def copy(self, request: Request) -> Response:
         copy = FullCopy.parsed(**request.body)
-        return Response.json({"laid_in": self.desks.desk(self.further(request)).copied(copy) if self.further(request) else self.doors.copied(copy)})
+        return Response.json({"laid_in": self.desks.desk(self.team_parameter(request)).copied(copy) if self.team_parameter(request) else self.doors.copied(copy)})
 
     def upgrade_claimed(self, request: Request) -> Response:
         self.doors.upgrade_claimed()

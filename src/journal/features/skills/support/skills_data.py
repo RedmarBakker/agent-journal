@@ -1,7 +1,7 @@
-import re
 from dataclasses import dataclass
 
 from journal.features.skills.support.skill_card import SkillCard
+from journal.support.keyword_match import KeywordMatch
 
 
 @dataclass(frozen=True)
@@ -16,8 +16,7 @@ class SkillsData:
         return self.unread([card for card in self.skills if card.name in names or state in card.required_states])
 
     def mentioned(self, prompt: str) -> list[SkillCard]:
-        text = {w.lower() for w in re.findall(r"[a-z]+", prompt, re.I)}
-        return self.unread([card for card in self.skills if text & {k.lower() for k in card.keywords}])
+        return self.unread([card for card in self.skills if KeywordMatch.matches(prompt, card.keywords)])
 
     def unread(self, cards: list[SkillCard]) -> list[SkillCard]:
         return [card for card in cards if self.loaded.get(card.name) != card.digest]

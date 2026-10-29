@@ -8,7 +8,6 @@ from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
-from journal.models.worker_state import WorkerState
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.workers import Workers
@@ -52,11 +51,11 @@ class WorkerReports:
     def lasts(self, workers: list[Worker]) -> dict[int, str]:
         latest = {link.source.id: link.target.id for link in self.links.model_links("source", workers, REPORTED)}
         texts = {message.row_id: message.text for message in self.messages.numbered(latest.values())}
-        return {worker.row_id: texts.get(latest.get(worker.row_id, 0), "").removeprefix(self.lead(worker)) if worker.state != WorkerState.DISPATCHED else "" for worker in workers}
+        return {worker.row_id: texts.get(latest.get(worker.row_id, 0), "").removeprefix(self.lead(worker)) if not worker.is_dispatched() else "" for worker in workers}
 
     def last(self, worker: Worker) -> str:
         reports = self.links.targets(worker, REPORTED)
-        if worker.state == WorkerState.DISPATCHED or not reports:
+        if worker.is_dispatched() or not reports:
             return ""
         return self.messages.find(reports[-1].id).text.removeprefix(self.lead(worker))
 

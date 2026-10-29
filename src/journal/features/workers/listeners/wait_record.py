@@ -20,4 +20,4 @@ class WaitRecord(AgentListener[ToolFinished]):
             return
         main = self.agents.main_row(event.session)
         if main is not None:
-            self.agents.save(main.waits_measured(self.wait_measure.measured(), event.time), Actor.system())
+            self.agents.save(main.wait_use_measured(self.wait_measure.measured(), event.time), Actor.system())

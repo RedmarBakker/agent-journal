@@ -2,6 +2,7 @@ import json
 import threading
 import time
 
+from journal.support.timeout import Timeout
 from journal.features.voices.support.voice_choice import VoiceChoice
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.terminal_lines import TerminalLines
@@ -55,7 +56,7 @@ class AgentViewSender:
 
     def send(self, request_at: float) -> None:
         views = self.views()
-        if views == self.last_views and request_at - self.last_send_at < RESEND_SECONDS:
+        if views == self.last_views and not Timeout.seconds(RESEND_SECONDS).started(self.last_send_at).is_elapsed(request_at):
             return
         self.link.send_agent_views(views)
         self.last_views, self.last_send_at = views, request_at

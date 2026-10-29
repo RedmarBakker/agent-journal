@@ -51,6 +51,18 @@ const emit = defineEmits(["toggle"]);
     cursor: pointer;
 }
 
+/* what scrolls under an open group's head fades out below it instead of showing through */
+.fold-head[aria-expanded="true"]::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    height: 10px;
+    background: linear-gradient(var(--fold-bg, var(--bg)), transparent);
+    pointer-events: none;
+}
+
 .fold-head.flush {
     padding-inline: 0;
 }

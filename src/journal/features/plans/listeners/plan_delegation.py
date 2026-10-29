@@ -3,13 +3,12 @@ from journal.events.models.updated import Updated
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.repositories.plans import Plans
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 from journal.features.workers.support.work_mode import WorkMode
 
-MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, PlanState.PAUSED: lambda plan, time: plan.postponed(time, False)}
+MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, PlanState.PAUSED: Plan.agent_postponed}
 
 
 class PlanDelegation(Listener[Updated]):
@@ -31,7 +30,7 @@ class PlanDelegation(Listener[Updated]):
             self.plans.save(MOVES[wanted](plan, self.time_source.seconds()), Actor.system())
 
     def wanted_state(self, plan: Plan, task: Task, previous: Task) -> PlanState | None:
-        if task.state == TaskState.STARTED and not task.delegated:
+        if task.is_started() and not task.delegated:
             return PlanState.STARTED
         if task.delegated and not previous.delegated and not self.plans.has_agent_task(plan):
             return PlanState.DELEGATED

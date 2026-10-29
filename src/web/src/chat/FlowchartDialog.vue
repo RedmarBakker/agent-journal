@@ -97,13 +97,15 @@ onMounted(fit);
 <style scoped>
 .flowchart-tools {
     display: flex;
+    flex-shrink: 0;
     gap: 6px;
     margin-bottom: 8px;
 }
 
 .flowchart-frame {
     position: relative;
-    height: min(70vh, 720px);
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 8px;

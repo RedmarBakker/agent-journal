@@ -9,8 +9,9 @@ from journal.http.support.stream_response import StreamResponse
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
+from journal.references import events
 
-AGENT_EVENT_KINDS = frozenset({"SessionStarted", "PromptSubmitted", "ToolStarting", "ToolFinished", "ToolFailed", "Compacting", "Stop", "SessionEnded", "SubagentStarted", "SubagentEnded", "TurnDisplayed",
+AGENT_EVENT_KINDS = frozenset({events.SESSION_STARTED, events.PROMPT_SUBMITTED, events.TOOL_STARTING, events.TOOL_FINISHED, events.TOOL_FAILED, events.COMPACTING, events.STOP, events.SESSION_ENDED, events.SUBAGENT_STARTED, events.SUBAGENT_ENDED, events.TURN_DISPLAYED,
                   "nudge", "created", "updated", "deleted"})
 RECENT_ENTRIES = 100
 HEARTBEAT_SECONDS = 15.0

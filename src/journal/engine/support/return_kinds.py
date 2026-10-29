@@ -1,0 +1,2 @@
+TERMINAL = "terminal"
+QUEUED = "queued"

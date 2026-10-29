@@ -6,7 +6,7 @@ class SlowRequestData(TypedDict):
 
     routes: dict[str, list[int]]
     gathered: int
-    slowest_route: str
-    slowest_ms: int
+    costliest_route: str
+    worst_points: int
     flagged_at: float
     reported_at: float

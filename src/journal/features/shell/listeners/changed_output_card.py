@@ -14,5 +14,6 @@ class ChangedOutputCard(Listener[OutputViewChanged]):
 
     def handle(self, event: OutputViewChanged) -> None:
         with self.scope.environment(event.environment_id):
-            if contents := self.card.card_contents(self.outputs.find(event.output)):
-                self.cards.show(contents)
+            output = self.outputs.find(event.output)
+            if self.card.is_carded(output):
+                self.cards.show(self.card.card_contents(output))

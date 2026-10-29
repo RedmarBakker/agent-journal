@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
@@ -25,7 +26,8 @@ class TeamFeature(Feature[TeamData]):
     title = "Team"
     help = "A journal shared with a team through its server: joining it, inviting people, the team's devices and how the sync stands."
     commands = (TeamCommand, SessionCommand)
-    listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard, SyncMomentCards)
+    answer_listeners = ((EnvironmentOwnerRecord, Blocking.NEXT_DECISION), (ColleagueWriteGuard, Blocking.ANSWER))
+    listeners = (SyncMomentCards,)
     jobs = (TeamChatFiles,)
     seeds = (TeamDeparture, SingleTeamChat)
     data = (TeamDataReader,)

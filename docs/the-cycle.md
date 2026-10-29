@@ -50,7 +50,7 @@ table of every state and every line and who says it.
                      │      closes task N                                          │
                      │                                                             │
                      │  MessageDisplay ─► the turn's parts gathered, put in order; │
-                     │      [!reply:N] answers N; a face alone is bounced back;    │
+                     │      a reply goes by message send; a face alone bounced;     │
                      │      a turn that only says "noted" stays out of the chat    │
                      │                                                             │
                      │  UserPromptSubmit ─► a new prompt: unread messages named    │

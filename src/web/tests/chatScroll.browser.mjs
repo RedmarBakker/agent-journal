@@ -2,7 +2,7 @@
 // The chat's scroll, driven in a real browser on the live viewer: scrolled up past a quarter of its height, rows above grow, arrive and
 // fold away, and the row being read keeps its place on screen to the pixel, nothing takes the reader to the foot, and the line of what
 // the agent is doing fades; at the foot, what arrives carries the reader down and folds no docked mark; scrolled up within a quarter and
-// left alone, it settles at the foot after five seconds and not before.
+// left alone, it stays until the reader returns to the bottom.
 import {chromium} from "playwright-core";
 
 const address = process.argv[2] || "http://127.0.0.1:8420/";
@@ -104,13 +104,14 @@ try {
     });
     expect(Math.abs(wheeled.now - wheeled.left) <= 1, `the chat moved itself from where the reader's wheel left it (${wheeled.left} to ${wheeled.now})`);
 
-    // scrolled up within a quarter and left alone: it settles at the foot after five seconds, not before
+    // A reader resting near the bottom stays in place.
     await page.reload();
     await page.waitForSelector(".thread-scroll [data-ref]", {timeout: 20000});
     await page.waitForTimeout(2000);
     const settling = await page.evaluate(async () => {
         const box = document.querySelector(".thread-scroll");
         const gap = () => box.scrollHeight - box.scrollTop - box.clientHeight;
+        box.dispatchEvent(new WheelEvent("wheel", {deltaY: -60, bubbles: true}));
         box.scrollTop = box.scrollHeight - box.clientHeight - box.clientHeight * 0.15;
         box.dispatchEvent(new Event("scroll"));
         await new Promise((done) => setTimeout(done, 4000));
@@ -119,7 +120,7 @@ try {
         return {early, late: gap()};
     });
     expect(settling.early > 40, `the chat settled at the foot before five seconds (gap ${settling.early})`);
-    expect(settling.late <= 24, `the chat did not settle at the foot after five seconds (gap ${settling.late})`);
+    expect(settling.late > 40, `the chat moved itself to the bottom while the reader was resting (gap ${settling.late})`);
 } finally {
     await browser.close();
 }
@@ -128,4 +129,4 @@ if (failures.length) {
     console.error(failures.map((failure) => `failed: ${failure}`).join("\n"));
     process.exit(1);
 }
-console.log("the chat's scroll holds the reader's place and settles only near the foot");
+console.log("the chat's scroll holds the reader's place until they return to the bottom");

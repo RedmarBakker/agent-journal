@@ -1,5 +1,6 @@
 import time
 
+from journal.support.timeout import Timeout
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.support.release import Release
 from journal.sync.team_account import TeamAccount
@@ -31,7 +32,7 @@ class SyncStatus:
         self.reported_at = time.monotonic()
 
     def current_fault(self) -> str:
-        if self.reported_at is not None and time.monotonic() - self.reported_at > STALE_SECONDS:
+        if self.reported_at is not None and Timeout.seconds(STALE_SECONDS).started(self.reported_at).is_exceeded(time.monotonic()):
             return "the sync service is not running"
         return self.fault
 

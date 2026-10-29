@@ -7,7 +7,7 @@ from journal.events.rows.row_event import RowEvent
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.tasks_options import TasksOptions
-from journal.features.tasks.states.choosing_paused_work import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
+from journal.features.tasks.support.task_state_names import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
 from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.support.ref import Ref
@@ -16,7 +16,6 @@ from journal.models.task_state import TaskState
 from journal.repositories.environments import Environments
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
-from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 
 FINISHED = ("completed", "cancelled")
@@ -42,7 +41,7 @@ class DefaultTaskAssigner:
         return self.tasks.next_open_tasks(count + 1) if self.is_auto() else []
 
     def is_free_moment(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
-        return agent.role == AgentRole.MAIN and self.is_moment(agent, event) and not self.is_working(agent)
+        return agent.is_main() and self.is_moment(agent, event) and not self.is_working(agent)
 
     def is_moment(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
         if isinstance(event, Stop):
@@ -51,7 +50,7 @@ class DefaultTaskAssigner:
 
     def is_working(self, agent: Agent) -> bool:
         current = self.tasks.holder_task(Ref.build(agent))
-        return current is not None and current.state == TaskState.STARTED
+        return current is not None and current.is_started()
 
     def paused_task(self, agent: Agent) -> Task | None:
         return self.tasks.holder_paused_task(Ref.build(agent)) if self.is_auto() else None
@@ -77,14 +76,17 @@ class DefaultTaskAssigner:
         return self.tasks.next_open_task() if self.is_auto() else None
 
     def offered(self, agent: Agent) -> OpenTask | None:
-        task = self.paused_task(agent) or self.free_task() or next(iter(self.choosable_work(agent)), None)
+        return self.open_task(self.paused_task(agent) or self.free_task() or next(iter(self.choosable_work(agent)), None))
+
+    def open_work(self, agent: Agent) -> OpenTask | None:
+        return self.open_task(self.tasks.holder_paused_task(Ref.build(agent)) or self.tasks.next_open_task())
+
+    @staticmethod
+    def open_task(task: Task | None) -> OpenTask | None:
         return OpenTask(task.row_id, task.title, task.brief, 0, task.state.value) if task is not None else None
 
     def is_auto(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))
-
-    def paused_work(self) -> list[Task]:
-        return self.tasks.paused_tasks() if self.is_auto() else []
 
     def blocked_work(self) -> list[Task]:
         return self.tasks.blocked_tasks() if self.is_auto() else []

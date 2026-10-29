@@ -1,6 +1,6 @@
 import signal
 
-from supervisor.group_memory import GroupMemory
+from supervisor.group_usage import GroupUsage
 from supervisor.service import Service
 
 
@@ -15,7 +15,7 @@ class Services:
         self._groups.add(pid)
 
     def memory(self) -> dict[int, int]:
-        return GroupMemory.resident(self._groups)
+        return {group: usage.resident_bytes for group, usage in GroupUsage.sampled(self._groups).items()}
 
     def service(self, name: str) -> Service:
         if name not in self._table:

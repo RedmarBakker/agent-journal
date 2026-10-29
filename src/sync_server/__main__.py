@@ -7,7 +7,9 @@ from pathlib import Path
 
 from sync_server.db.store import Store
 from sync_server.hosted_invitation import HostedInvitation
-from sync_server.team_server import BACKUPS, DATABASE, TeamServer
+from sync_server.team_server import BACKUPS, DATABASE, FILES, TeamServer
+from sync_server.item_file_place import ITEMS_FOLDER
+from sync_server.server_backups import ServerBackups
 
 
 
@@ -20,19 +22,20 @@ def serve(arguments: argparse.Namespace) -> None:
     team.http(arguments.host, arguments.port).serve_forever()
 
 
+def backups(data: Path) -> ServerBackups:
+    return ServerBackups(Store(data / DATABASE), data / BACKUPS, data / FILES / ITEMS_FOLDER)
+
+
 def backup(arguments: argparse.Namespace) -> None:
-    target = arguments.to or arguments.data / BACKUPS / time.strftime("team-%Y%m%d-%H%M%S.db")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    Store(arguments.data / DATABASE).backup(target)
-    print(target)
+    print(backups(arguments.data).copied(arguments.to or arguments.data / BACKUPS / time.strftime("team-%Y%m%d-%H%M%S.db")))
 
 
 def restore(arguments: argparse.Namespace) -> None:
     if not arguments.source.is_file():
         print(f"no backup at {arguments.source}", file=sys.stderr)
         sys.exit(1)
-    Store(arguments.data / DATABASE).restore(arguments.source)
-    print(f"restored {arguments.source} into {arguments.data / DATABASE}")
+    backups(arguments.data).restored(arguments.source)
+    print(f"restored {arguments.source} into {arguments.data / DATABASE}, with the library's files kept beside it")
 
 
 def hosted(arguments: argparse.Namespace) -> None:

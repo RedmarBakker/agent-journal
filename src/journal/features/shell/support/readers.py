@@ -5,13 +5,12 @@ from journal.models.alias import Alias
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
-from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader import Reader, PLUGIN_OWNER_PREFIX
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, JOURNAL, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
-from journal.features.plugins.support.plugin_skills import STAMP
 
 # the readers chosen as their commands' defaults, one name a line, beside the readers
 DEFAULTS_FILE = "defaults"
@@ -21,7 +20,6 @@ RULES_VERSION = 2
 
 KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
-JOURNAL_COMMAND_READERS = ("worker-merge",)
 # the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
 SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge")
 
@@ -55,7 +53,7 @@ class Readers:
     def lookup(self, name: str) -> Reader:
         rows = self.files(name)
         if not rows:
-            raise Rejection(f"no reader named {name}: `journal reader list` names them")
+            raise Rejection(f"no reader named {name}: `journal reader list` shows them")
         return Reader.loaded(rows[0])
 
     def found(self, name: str) -> Reader | None:
@@ -123,7 +121,7 @@ class Readers:
     def removed(self, name: str) -> None:
         paths = self.files(name)
         if not paths:
-            raise Rejection(f"no reader named {name}: `journal reader list` names them")
+            raise Rejection(f"no reader named {name}: `journal reader list` shows them")
         self.refuse_locked(name, "removed")
         for path in paths:
             path.unlink()
@@ -151,10 +149,10 @@ class Readers:
         return cleared
 
     def owner(self, name: str) -> str:
-        return next((line.removeprefix(STAMP) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
+        return next((line.removeprefix(PLUGIN_OWNER_PREFIX) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(PLUGIN_OWNER_PREFIX)), "")
 
     def journal_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
+        return [reader for reader in self.all() if reader.reads_journal_output(self.aliases.names()) and not self.owner(reader.name)]
 
     def plugin_aliases_read(self, reader: Reader) -> list[Alias]:
         plugin_aliases = self.aliases.plugin_aliases()
@@ -167,10 +165,6 @@ class Readers:
         aliases = self.plugin_aliases_read(reader)
         if aliases:
             raise Rejection(f"reader {reader.name} would read a plugin's alias, journal {', journal '.join(alias.name for alias in aliases)}, which has its own")
-
-    def reads_journal_output(self, reader: Reader) -> bool:
-        aliases = self.aliases.index()
-        return reader.name not in JOURNAL_COMMAND_READERS and any(name not in aliases for name in reader.commands.journal_commands())
 
     def default_names(self) -> set[str]:
         path = self.config.readers / DEFAULTS_FILE
@@ -203,7 +197,7 @@ class Readers:
         self.stored_file(reader, ".pattern", reader.text())
 
     def stored_file(self, reader: Reader, suffix: str, text: str) -> None:
-        if self.reads_journal_output(reader):
+        if reader.reads_journal_output(self.aliases.names()):
             raise Rejection(f"reader {reader.name} would read a journal command, which the journal shows whole: read a program's output instead")
         name = reader.name
         self.config.readers.mkdir(parents=True, exist_ok=True)

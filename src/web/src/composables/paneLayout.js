@@ -1,6 +1,6 @@
 import {saveViewerSetting, settingsLoaded, viewerSetting} from "./settings.js";
 import {computed, effectScope, ref, watch} from "vue";
-import {INSPECTOR_VIEWS, VIEWS, WORKER_HOME_VIEWS, WORKER_VIEWS, fresh, freshInspector, freshWorker, freshWorkerHome, leaves, measure, opened, resized, valid} from "../domain/panes.js";
+import {INSPECTOR_VIEWS, VIEWS, adapted, WORKER_HOME_VIEWS, WORKER_VIEWS, fresh, freshInspector, freshWorker, freshWorkerHome, leaves, measure, opened, resized, valid} from "../domain/panes.js";
 import {route} from "../route.js";
 
 const SAVE_AFTER = 500;
@@ -34,8 +34,8 @@ function keepInTab(kind, layout) {
 function shared(kind) {
     const placed = (layout) => leaves(layout.tree).flatMap((id) => layout.panes[id].tabs);
     const fits = (layout) => valid(layout, kind.views) && (!kind.whole || kind.views.every((view) => placed(layout).includes(view)));
-    const stored = () => viewerSetting(kind.key, null);
-    const own = tabLayout(kind);
+    const stored = () => adapted(viewerSetting(kind.key, null), kind.views, kind.whole);
+    const own = adapted(tabLayout(kind), kind.views, kind.whole);
     const layout = ref(fits(own) ? own : fits(stored()) ? stored() : kind.fresh());
     const born = ref({});
     const dying = ref({});

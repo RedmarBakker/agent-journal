@@ -23,7 +23,7 @@ class ModelFitEvidence:
             "journal verdict model too-strong|right|too-weak \"<one line of reason>\". Every other tool is refused, and your verdict ends your session.",
             f"## The model\n\n{worker.model or 'not named'}, on {worker.provider}",
             f"## How complex the journal measured it\n\n{complexity.lines} lines in {complexity.files} files, {complexity.tests_added} test files, sent back {complexity.send_backs} times, "
-            f"{complexity.tool_uses} tool uses over {complexity.minutes:g} minutes; {complexity.points()} points, which call for the {complexity.called_for().value} model",
+            f"{complexity.tool_uses} tool uses over {complexity.minutes:g} minutes; {complexity.points()} points, which call for the {complexity.fitting_tier().value} model",
             f"## The task's brief\n\n{self.task_brief(worker)}",
             f"## The diff\n\n{self.diff(worker)}",
             f"## The worker's report\n\n{self.reports.last(worker) or '(no report)'}",
@@ -36,4 +36,6 @@ class ModelFitEvidence:
         edits = self.work.job_edits(worker)
         parts = [f"### {edit.path} (+{edit.added} -{edit.removed})\n" + "\n".join(f"- {line}" for line in edit.old_text[:EDIT_CHARS].splitlines()) + "\n" + "\n".join(f"+ {line}" for line in edit.new_text[:EDIT_CHARS].splitlines()) for edit in edits]
         text = "\n\n".join(parts)
-        return text[:DIFF_CHARS] + ("\n\n(the diff goes on)" if len(text) > DIFF_CHARS else "") if text else "(no edits are kept for this work)"
+        if not text:
+            return "(no edits are kept for this work)"
+        return text[:DIFF_CHARS] + ("\n\n(the diff goes on)" if len(text) > DIFF_CHARS else "")

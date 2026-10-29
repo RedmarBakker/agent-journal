@@ -35,8 +35,6 @@ class VerdictCommand(Command):
         fitting.add_argument("reason")
 
     def give(self, args: Namespace, caller: Caller) -> int:
-        if caller.verifier_number is None:
-            raise Rejection("only a verifier the journal sent gives a verdict")
         judged = self.dispatch.judged(caller.verifier_number)
         if judged.type != ReaderReport.table():
             raise Rejection("you judge a worker's model: journal verdict model too-strong|right|too-weak \"<reason>\"")
@@ -48,8 +46,6 @@ class VerdictCommand(Command):
         return 0
 
     def model(self, args: Namespace, caller: Caller) -> int:
-        if caller.verifier_number is None:
-            raise Rejection("only a verifier the journal sent gives a verdict")
         judged = self.dispatch.judged(caller.verifier_number)
         if judged.type != Worker.table():
             raise Rejection("you judge a dismissal: journal verdict yes|no \"<reason>\"")
@@ -57,6 +53,6 @@ class VerdictCommand(Command):
         worker = self.workers.save(self.workers.find(judged.id).model_judged(verdict, args.reason, caller.agent_session, self.time_source.moment().timestamp()), caller.actor)
         dispatcher = self.agents.active_main_agent(worker.dispatcher) if worker.dispatcher else None
         if dispatcher is not None:
-            self.agents.save(dispatcher.model_fit_kept(worker.row_id, verdict), caller.actor)
+            self.agents.save(dispatcher.model_fit_recorded(worker.row_id, verdict), caller.actor)
         print(f"verdict {verdict} on worker {worker.id}'s model: {args.reason}; your session ends now")
         return 0

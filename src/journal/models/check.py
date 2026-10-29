@@ -2,6 +2,7 @@ from typing import ClassVar
 from dataclasses import dataclass
 from datetime import datetime
 
+from journal.support.timeout import Timeout
 from journal.support.check_progress import CheckProgress
 from journal.support.check_report import CheckReport
 from journal.events.rows.check_completed import CheckCompleted
@@ -46,7 +47,7 @@ class Check(Model):
         return CheckRunChanged(environment_id=0, time=time, check_id=self.row_id, run_start=run_start, wait_target=self.wait_target)
 
     def is_running(self, moment: float) -> bool:
-        return self.progress is not None and moment - self.progress.time < RUN_LIMIT_SECONDS
+        return self.progress is not None and not Timeout.seconds(RUN_LIMIT_SECONDS).started(self.progress.time).is_elapsed(moment)
 
     def has_run_start(self, started: float) -> bool:
         return self.progress is not None and self.progress.time == started
@@ -81,7 +82,7 @@ class Check(Model):
     def needs_run(self, time: datetime) -> bool:
         if self.is_retired or self.interval <= 0 or (self.wait_target and self.is_resolved()):
             return False
-        return self.last_run_at is None or (time - self.last_run_at).total_seconds() >= self.interval * 60
+        return self.last_run_at is None or Timeout.minutes(self.interval).started(self.last_run_at.timestamp()).is_elapsed(time.timestamp())
 
     def is_resolved(self) -> bool:
         return self.last_passed is True or self.is_retired

@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.events.bus import Bus
 from journal.events.models.model_event import ModelEvent
 from journal.events.models.number_request import NumberRequest
@@ -12,5 +13,5 @@ class TeamWrites:
         self.bus, self.numbers, self.outgoing = bus, numbers, outgoing
 
     def listen(self) -> None:
-        self.bus.listen(ModelEvent, self.outgoing)
-        self.bus.listen(NumberRequest, self.numbers)
+        self.bus.add_answer_listener(ModelEvent, self.outgoing, Blocking.NEXT_DECISION)
+        self.bus.add_answer_listener(NumberRequest, self.numbers, Blocking.ANSWER)

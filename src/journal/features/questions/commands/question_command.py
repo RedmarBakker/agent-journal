@@ -40,7 +40,7 @@ class QuestionCommand(Command):
             raise Rejection("give each choice as its own quoted argument, --options \"first\" \"second\", so a comma stays in it")
         requested = Question(text=args.text, options=options)
         if requested.unclear_options():
-            raise Rejection(f"an option says who acts by name, the agent or the user, never I, we or you: {'; '.join(requested.unclear_options())}")
+            raise Rejection(f"an option states who acts by name, the agent or the user, never I, we or you: {'; '.join(requested.unclear_options())}")
         question = self.questions.save(self.questions.save(requested, caller.actor).posed(self.time_source.moment().timestamp()), caller.actor)
         print(f"question {question.id} asked; waiting for the answer")
         for i, option in enumerate(question.options, 1):

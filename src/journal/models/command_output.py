@@ -1,9 +1,10 @@
 from typing import ClassVar
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
 from journal.events.rows.output_full_bar import OutputFullBar
-from journal.events.rows.output_quiet import OutputQuiet
-from journal.events.rows.output_without_total import OutputWithoutTotal
+from journal.events.rows.silent_output_found import SilentOutputFound
+from journal.events.rows.output_total_missing import OutputTotalMissing
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.scoped import Scoped
 
@@ -48,7 +49,7 @@ class CommandOutput(Scoped):
         return (self.update_time - self.creation_time).total_seconds()
 
     def has_run_long(self, time: float) -> bool:
-        return self.moved or time - self.creation_time.timestamp() >= CARD_DELAY_SECONDS
+        return self.moved or Timeout.seconds(CARD_DELAY_SECONDS).started(self.creation_time.timestamp()).is_elapsed(time)
 
     def headline(self) -> str:
         first, *remainder = self.command.splitlines() or [""]
@@ -57,11 +58,11 @@ class CommandOutput(Scoped):
     def backgrounded(self) -> "CommandOutput":
         return self.with_(moved=True)
 
-    def total_asked(self, time: float) -> "CommandOutput":
-        return self.with_(is_total_asked=True).with_event(OutputWithoutTotal(environment_id=self.environment_id, time=time, run_session=self.session))
+    def total_requested(self, time: float) -> "CommandOutput":
+        return self.with_(is_total_asked=True).with_event(OutputTotalMissing(environment_id=self.environment_id, time=time, run_session=self.session))
 
-    def quiet_named(self, time: float, quiet_seconds: int) -> "CommandOutput":
-        return self.with_(is_quiet_named=True).with_event(OutputQuiet(environment_id=self.environment_id, time=time, run_session=self.session, quiet_seconds=quiet_seconds))
+    def silence_recorded(self, time: float, silence_seconds: int) -> "CommandOutput":
+        return self.with_(is_quiet_named=True).with_event(SilentOutputFound(environment_id=self.environment_id, time=time, run_session=self.session, silence_seconds=silence_seconds))
 
     def ended_with(self, status: int, time: float, summary: str | None = None) -> "CommandOutput":
         ended = self.with_(ended=True, status=status, summary=summary)
@@ -101,7 +102,7 @@ class CommandOutput(Scoped):
         return FINISHED if self.is_success() else FAILED
 
     def ending(self) -> str:
-        if self.invalid_reason is not None:
+        if not self.is_valid():
             return f"stopped because the code changed under it, by {self.invalid_reason}; its result counts as neither passed nor failed"
         if self.is_interrupted:
             return "cut off when the journal restarted"
@@ -109,3 +110,6 @@ class CommandOutput(Scoped):
 
     def outcome(self) -> str:
         return f"output {self.id} {self.ending()}" if self.summary is None else f"output {self.id} {self.ending()}: {self.summary}"
+
+    def is_valid(self) -> bool:
+        return self.invalid_reason is None

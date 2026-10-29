@@ -11,7 +11,7 @@ import pytest
 from journal.app import App
 from journal.features.workers.workers_options import WorkersOptions
 from journal.db.connection import Connection
-from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
+from journal.features.faults.support.request_time_recorder import UNMEASURED_PATHS, RequestTimeRecorder
 from journal.models.support.request_loads import RequestLoads
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
@@ -30,7 +30,7 @@ from journal.support.hook_type import HookType
 from journal.support.response import Response
 from tests.full_project import unpacked
 from tests.user_settings import user_set
-from tests.in_process import got
+from tests.in_process import get_answer
 
 MAIN = {"X-Journal-Env": "main"}
 JSON, RAW = "application/json", "application/octet-stream"
@@ -130,7 +130,7 @@ def key(route: Route) -> str:
 
 
 def is_left_out(route: Route) -> bool:
-    return route.outward or key(route) in LEFT_OUT or route.pattern.startswith(UNMEASURED_PATHS) or SlowRequests.is_outward(route.pattern.replace("{id}", "{n}"))
+    return route.outward or key(route) in LEFT_OUT or route.pattern.startswith(UNMEASURED_PATHS) or RequestTimeRecorder.is_outward(route.pattern.replace("{id}", "{n}"))
 
 
 def is_list(route: Route) -> bool:
@@ -261,6 +261,7 @@ def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent
 
 def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget(full_project: App):
     orchestrating(full_project)
+    full_project.runtime().deferred.drain()
     with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
         polled_to = full_project.container.get(Entries).last_id()
     for n in range(TURN_SHELL_CALLS):
@@ -307,7 +308,7 @@ def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_bu
 
 
 def test_a_settings_save_of_a_whole_group_with_the_mode_changed_answers_within_its_budget(full_project: App):
-    group = {**got(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
+    group = {**get_answer(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
     saved = over(recorded({"POST /journal/settings a group": answer_loads(full_project, "POST", "/journal/settings", (JSON, json.dumps({"workers": group}).encode()))}))
     assert not saved, "\n".join(saved)
 

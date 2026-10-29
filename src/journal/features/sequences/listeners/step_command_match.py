@@ -7,8 +7,6 @@ from journal.features.sequences.support.step_calls import StepCalls
 class StepCommandMatch(Listener[ToolStarting]):
     """A command the step in hand names, run by the agent, takes the step up before the command runs."""
 
-    blocking = True
-
     def __init__(self, runs: RunTracker) -> None:
         self.runs = runs
 

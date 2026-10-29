@@ -13,8 +13,8 @@ from journal.features.workers.workers_nudges import WorkersNudges
 class Delegation(PlanWork):
     """Current work as the orchestrator, a task or a plan's: instructed to give it to a worker and review the report, and at a stop with tasks open instructed to orchestrate them."""
 
-    def continue_nudge(self, time: float) -> Nudge:
-        return WorkersNudges.TASK_DELEGATION.create(name=self.label(), logged=self.logged_words(time))
+    def continue_nudge(self) -> Nudge:
+        return WorkersNudges.TASK_DELEGATION.create(name=self.label())
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         answer = super().on_stop(event, settings)

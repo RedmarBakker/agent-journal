@@ -2,6 +2,9 @@ from journal.config import Config
 from journal.container import Container
 from journal.repositories.scope import Scope
 from journal.console.console import Console
+from journal.console.support.outcome import Outcome
+from journal.support.caller import Caller
+from journal.support.listener_queue import ListenerQueue
 from journal.console.standard_commands import StandardCommands
 from journal.db.connection import Connection
 from journal.support.masks import Masks
@@ -18,8 +21,9 @@ from journal.db.schema import Schema
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.engine.support.agent_event_audience import AgentEventAudience
 from journal.console.support.verb_rules import VerbRules
-from journal.helpers.helper_listeners import HelperListeners
+from journal.helpers.role_listeners import RoleListeners
 from journal.events.bus import Bus
+from journal.events.queued_bus import QueuedBus
 from journal.runtime import Runtime
 from journal.features.registry import Registry
 from journal.features.standard import Standard
@@ -48,7 +52,7 @@ class App:
         self.container = Container()
         self.container.instance(Container, self.container)
         self.container.instance(Config, config)
-        self.container.instance(Bus, Bus())
+        self.container.bind(Bus, lambda: self.container.get(QueuedBus))
         self.container.bind(Connection, self.connection)
         self.container.bind(Schema, lambda: Schema(self.container.get(Connection), AllModels.MODELS))
         self.container.bind(Router, lambda: Routes(self.container).mount(self.container.call(Router)))
@@ -56,9 +60,9 @@ class App:
         self.container.bind(StaticFiles, lambda: StaticFiles(Path(__file__).resolve().parents[1] / "web" / "dist"))
         self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows), StandardCommands.COMMANDS, Helpers.ALL))
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))
-        self.container.bind(AgentEventAudience, lambda: self.container.get(HelperListeners))
+        self.container.bind(AgentEventAudience, lambda: self.container.get(RoleListeners))
         self.container.bind(VerbRules, lambda: self.container.get(Registry))
-        self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), StopRefusalsPart.name: self.container.get(StopRefusalsReader), **{feature.part_name(reader): self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}}, self.container.get(Scope), self.container.get(StageTimes), self.container.get(FeatureRegistry)))
+        self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), StopRefusalsPart.name: self.container.get(StopRefusalsReader), **{feature.part_name(reader): self.container.get(reader) for feature in Standard.FEATURES for reader in (*feature.data, *(helper_reader for readers in feature.helper_data.values() for helper_reader in readers))}}, self.container.get(Scope), self.container.get(StageTimes), self.container.get(FeatureRegistry)))
         self.container.bind(ProcessCardPoll, lambda: ProcessCardPoll(self.container.get(Messages), {RowProcessCard.name: self.container.get(RowProcessCard), **{card.name: self.container.get(card) for feature in Standard.FEATURES for card in feature.process_cards}}))
 
     def connection(self) -> Connection:
@@ -82,6 +86,12 @@ class App:
         self.container.get(Runtime).boot()
         return self.console()
 
+    def run_without_server(self, argv: list[str], caller: Caller) -> Outcome:
+        self.container.get(TeamWrites).listen()
+        outcome = self.console().run(argv, caller)
+        self.container.get(ListenerQueue).drain()
+        return outcome
+
     def _console(self) -> Console:
         console = self.container.call(Console)
         for command in StandardCommands.COMMANDS:
@@ -89,6 +99,9 @@ class App:
         for feature in self.container.get(Registry).features:
             for command in feature.commands:
                 console.add(command)
+            for role, commands in feature.helper_commands.items():
+                for command in commands:
+                    console.add_helper(role, command)
         return console
 
     def runtime(self) -> Runtime:

@@ -13,6 +13,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.feature_data import FeatureData
 from journal.engine.nudge import Nudge
+from journal.references import events
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class Compacting(BaseState):
 
     name = "compacting"
     assigner = NoTaskAssigner
-    title = "Compacting"
+    title = events.COMPACTING
 
     def on_enter(self, typist: Typist) -> None:
         typist.clear()

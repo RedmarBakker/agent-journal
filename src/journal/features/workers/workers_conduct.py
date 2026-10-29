@@ -68,14 +68,12 @@ class WorkersConduct(Conduct):
         return self.none(*report_mentions(event.data))
 
     def on_worker_silent(self, event: WorkerSilent, settings: Settings) -> Transition:
-        if event.worker.dispatcher != event.session:
+        if event.worker.dispatcher != event.session or not event.is_split_due:
             return self.none()
-        if event.is_split_due:
-            return self.none(WorkersNudges.SPLIT_ADVICE.create(n=event.worker.id, minutes=event.minutes))
         return self.none(WorkersNudges.SILENT_WORKER.create(n=event.worker.id, minutes=event.minutes, last=event.data.part(WorkersPart).last_calls.get(event.worker.id, "")))
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
-        return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
+        return self.push(ExternalWait.opened_beside(event.data, *event.wait_terms())) if event.awaiter == event.session else self.none()
 
     def on_worker_limited(self, event: WorkerLimited, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

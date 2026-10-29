@@ -13,9 +13,10 @@ class LoginGate:
     def __init__(self, hosting: Hosting, sessions: MemberSessions, secret: SyncSecret) -> None:
         self.hosting, self.sessions, self.secret = hosting, sessions, secret
 
-    def refusal(self, request: Request) -> Response | None:
-        if not self.hosting.is_hosted() or request.path.startswith(OPEN_PATHS) or self.secret.allows(request.headers) or self.sessions.session(request.cookie):
-            return None
+    def is_refused(self, request: Request) -> bool:
+        return self.hosting.is_hosted() and not request.path.startswith(OPEN_PATHS) and not self.secret.allows(request.headers) and not self.sessions.session(request.cookie)
+
+    def refusal(self, request: Request) -> Response:
         if request.path.startswith("/journal/"):
             return Response(401, {"error": "sign in with your team account at /sign-in"})
         return Response(303, None, {"Location": "/sign-in"})

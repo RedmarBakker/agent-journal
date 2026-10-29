@@ -8,6 +8,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.job import Job
 from journal.engine.support.modes import Modes
 from journal.support.agent_role import AgentRole
+from journal.events.blocking import Blocking
 from journal.events.data_source import DataSource
 from journal.events.listener import Listener
 from journal.engine.nudge import Nudge
@@ -32,13 +33,16 @@ class Feature[D](DataSource[D]):
     nudges: ClassVar[tuple[Nudge, ...]] = ()
     demands: ClassVar[tuple[Demand, ...]] = ()
     options: ClassVar[tuple[Option, ...]] = ()
+    answer_listeners: ClassVar[tuple[tuple[type[Listener], Blocking], ...]] = ()
     listeners: ClassVar[tuple[type[Listener], ...]] = ()
     data: ClassVar[tuple[type, ...]] = ()
     conduct: ClassVar[tuple[type[Conduct], ...]] = ()
     helper_conduct: ClassVar[dict[AgentRole, tuple[type[Conduct], ...]]] = {}
     mode_conduct: ClassVar[tuple[tuple[type[BaseState], type[Conduct]], ...]] = ()
     helper_listeners: ClassVar[dict[AgentRole, tuple[type[Listener], ...]]] = {}
+    helper_data: ClassVar[dict[AgentRole, tuple[type, ...]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
+    helper_commands: ClassVar[dict[AgentRole, tuple[type[Command], ...]]] = {}
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()
     process_cards: ClassVar[tuple[type[ProcessCard], ...]] = ()
@@ -62,3 +66,11 @@ class Feature[D](DataSource[D]):
     @classmethod
     def part_names(cls) -> frozenset[str]:
         return frozenset(cls.part_name(reader) for reader in cls.data)
+
+    @classmethod
+    def helper_part_names(cls) -> frozenset[str]:
+        return frozenset(cls.part_name(reader) for readers in cls.helper_data.values() for reader in readers)
+
+    @classmethod
+    def role_part_names(cls, role: AgentRole) -> frozenset[str]:
+        return frozenset(cls.part_name(reader) for reader in cls.helper_data.get(role, ()))

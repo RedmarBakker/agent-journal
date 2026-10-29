@@ -1,19 +1,21 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import ClassVar, Self
+from typing import ClassVar
 
 from journal.models.scoped import Scoped
-from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS, AbstractText
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
 from journal.support.rejection import Rejection
+from journal.models.support.abstracted import Abstracted
+from journal.models.support.commentable import Commentable
 
 UPDATE = "update"
 SECTION_NAMES = {"need": ("waits on you", "wait on you"), "done": ("done", "done"), "doing": ("under way", "under way"), "plans": ("plan under way", "plans under way"), "commits": ("commit", "commits"), "also": ("also written", "also written")}
 
 
 @dataclass(frozen=True)
-class Report(Scoped):
+class Report(Abstracted, Scoped, Commentable):
     """What was checked or researched now; an update report is of kind update, its abstract the agent's summary and its items the rows the journal gathered for the time it covers, each with its section, ref, title and note, the moment the user read it, and why it needs no action once it is signed off as such."""
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "report_type"}
@@ -30,19 +32,6 @@ class Report(Scoped):
     read_at: datetime | None = None
     settled_reason: str = ""
     unfinished: bool = False
-
-    def title_words(self) -> str:
-        return self.title
-
-    def refusal(self) -> str:
-        return AbstractText.refusal(self.abstract)
-
-    def pulled_row(self) -> Self:
-        return self.with_(abstract=AbstractText.fitted(self.abstract, self.body, self.title))
-
-    @classmethod
-    def pulled_fields(cls, fields: dict) -> dict:
-        return {name: value for name, value in fields.items() if name != "abstract" or not AbstractText.refusal(value)}
 
     def summary_line(self) -> str:
         if self.is_update():

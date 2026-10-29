@@ -190,7 +190,7 @@ One line of JSON on its output, the last line counting; an empty output is `allo
   time a skill is needed: an id already owed or already read changes nothing. An id the plugin does not publish changes
   nothing and is written once as a `plugin_warning` in the plugin's record. An owed skill the plugin no longer publishes,
   after it is switched off, removed or upgraded, is owed no longer.
-- What it says, its `reason`, `tell` and cards, reaches the agent and the chat with `[journal]` and `[!reply:` made plain
+- What it says, its `reason`, `tell` and cards, reaches the agent and the chat with `[journal]` made plain
   text and every secret value masked.
 - An answer that does not parse is a fault: the event goes through and the fault is recorded. A fault is never a
   refusal.

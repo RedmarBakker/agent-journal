@@ -3,10 +3,14 @@ import subprocess
 import time as timing
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.http.files.project_entry import ProjectEntry
 from journal.http.files.project_file import ProjectFile
 from journal.support.time_source import TimeSource
+
+# how long the branch name read from git is kept before it is read again
+BRANCH_READ_SECONDS = 5
 
 PAGE_FILES = 50
 HIDDEN = ("node_modules", "__pycache__")
@@ -22,7 +26,7 @@ class ProjectFiles:
 
     def branch(self) -> str:
         name, time = self._branch
-        if self.time_source.seconds() - time > 5:
+        if Timeout.seconds(BRANCH_READ_SECONDS).started(time).is_exceeded(self.time_source.seconds()):
             finished = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=self.root, capture_output=True, text=True, timeout=5)
             self._branch = (finished.stdout.strip() if finished.returncode == 0 else "", self.time_source.seconds())
         return self._branch[0]

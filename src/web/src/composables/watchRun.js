@@ -8,6 +8,8 @@ const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad:
 const STATE_ICONS = {running: "terminal", good: "tick", bad: "cross", stopped: "stopped"};
 // how the run ended, as its card reports it, or as its colour said on a card from before cards reported their outcome
 const ENDED = {passed: "good", failed: "bad"};
+// the states of a run that came to its end on its own
+const ENDED_STATES = {good: true, bad: true};
 
 // A docked run as its card reports it: its state, the colour and icon of that state, the share of it done and how long it has run
 export function useWatchRun(card, stopped = () => false) {
@@ -20,7 +22,8 @@ export function useWatchRun(card, stopped = () => false) {
     const icon = computed(() => STATE_ICONS[state.value]);
     // a stopped run's progress line turns the faintest grey
     const bar = computed(() => (state.value === "stopped" ? "var(--text-4)" : tone.value));
-    const width = computed(() => `${Math.round((card().fraction || 0) * 100)}%`);
+    // a run that ended, passed or failed, is whole whatever its last reading said; a stopped one keeps where it stood
+    const width = computed(() => (state.value in ENDED_STATES ? "100%" : `${Math.round((card().fraction || 0) * 100)}%`));
     const now = useSharedNow();
     const ranFor = computed(() => (card().began_at ? elapsed((card().ended_at || now.value) - card().began_at) : ""));
     return {endedTone, state, tone, icon, bar, width, ranFor};

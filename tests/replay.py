@@ -1,7 +1,10 @@
 import json
 import os
-import re
 import time as timing
+from datetime import datetime
+
+import journal
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError
@@ -20,18 +23,24 @@ from tests.observation import Observer
 
 RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
+# where the journal's package lies on this machine, written in a record as a placeholder so no record names a machine's folders
+PACKAGE_FOLDER, PACKAGE_PLACEHOLDER = Path(journal.__file__).resolve().parents[1], "<package>"
+# the clock time a replay started at, which a takeover line names, written as a placeholder so a record reads the same on every run
+START_PLACEHOLDER = "<start>"
+
 
 
 @dataclass(frozen=True)
 class Tools:
-    """The names a provider's agent uses for reading, writing and the shell."""
+    """The names a provider's agent uses for reading, writing, the shell and sending a subagent."""
 
     read: str
     write: str
     shell: str
+    subagent: str
 
 
-TOOLS = {"claude": Tools("Read", "Write", "Bash"), "codex": Tools("read_file", "write_file", "Bash")}
+TOOLS = {"claude": Tools("Read", "Write", "Bash", "Agent"), "codex": Tools("read_file", "write_file", "Bash", "collaborationspawn_agent")}
 PROVIDERS = tuple(TOOLS)
 
 
@@ -40,7 +49,7 @@ def hook_as(app, provider: str, type_name: str, session: str = "s1", **body):
     return posted(app, f"/hooks/{provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main"})
 
 
-def catch_typed(app, monkeypatch, keystrokes: list) -> None:
+def typing_capture(app, monkeypatch, keystrokes: list) -> None:
     """Catches each line typed to the agent into typed and confirms it at once, as the agent's prompt hook would, so the next is not held behind it."""
     lines = app.container.get(TypedLines)
 
@@ -51,7 +60,7 @@ def catch_typed(app, monkeypatch, keystrokes: list) -> None:
     monkeypatch.setattr(SupervisorLink, "_send", seen_back)
 
 
-def drive_the_clock(app, monkeypatch) -> None:
+def pinned_clock(app, monkeypatch) -> None:
     """The journal's time source pinned at the whole second the replay starts, so every hook and every row notes its time there, a tick says how long after it was, and each later moment is exact."""
     clock = app.container.get(Clock)
     clock.held_at = float(int(timing.time()))
@@ -65,13 +74,14 @@ def pass_time(app, seconds: float) -> None:
     app.container.get(TimeSource).pin(clock.held_at)
 
 
-def tick_after(app, silent: float) -> list:
+def silent_tick(app, silent: float) -> list:
     """A tick so many seconds after the held moment, the agent silent all that time."""
     return tick_at(app, silent, silent)
 
 
 def tick_at(app, later: float, silence_seconds: float) -> list:
     """A tick so many seconds after the held moment, once what came before it has settled on the worker thread, as the clock gives it, its answers handed back; the moment is set and the clock held again inside the tick lock, so the runtime's own tick never takes the moment for its own."""
+    from journal.engine.support.session_agents import SessionAgents
     from journal.events.agent.ticked import Ticked
     app.runtime().deferred.drain()
     clock = app.container.get(Clock)
@@ -80,7 +90,8 @@ def tick_at(app, later: float, silence_seconds: float) -> list:
     with clock.tick_lock:
         source.pin(clock.held_at + later)
         try:
-            return clock.ticked(Ticked(session="s1", environment_id=environment, time=source.seconds(), silence_seconds=silence_seconds))
+            agent = app.container.get(SessionAgents).agent("s1", environment)
+            return clock.ticked(Ticked(silence_seconds=silence_seconds, agent=agent).placed(agent, None, source.seconds()))
         finally:
             source.pin(clock.held_at)
 
@@ -92,13 +103,17 @@ class Replay:
         """On a started journal, the lines typed to its agent caught."""
         self.app, self.typed, self.steps = app, [], []
         self.observer = Observer(app, self.typed)
-        catch_typed(app, monkeypatch, self.typed)
-        drive_the_clock(app, monkeypatch)
+        typing_capture(app, monkeypatch, self.typed)
+        pinned_clock(app, monkeypatch)
 
     def step(self, name: str, answer=None) -> None:
         """Closes a step: the hook's answer when the step was a hook, the lines typed since the last step, the nudges said since and the stack, read by the observer the simulator shares."""
         seen = self.observer.observe(answer)
-        self.steps.append({"name": name, "answer": answer, "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
+        self.steps.append({"name": name, "answer": self.placed(answer), "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
+
+    def placed(self, answer):
+        start = datetime.fromtimestamp(self.app.container.get(Clock).held_at).astimezone().strftime("%H:%M")
+        return json.loads(json.dumps(answer).replace(str(PACKAGE_FOLDER), PACKAGE_PLACEHOLDER).replace(f"last seen {start}", f"last seen {START_PLACEHOLDER}"))
 
     def record(self) -> list[dict]:
         return list(self.steps)

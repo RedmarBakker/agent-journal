@@ -36,7 +36,7 @@ class SettingsCommand(Command):
 
     def set(self, args: Namespace, caller: Caller) -> int:
         option = self.option(args.key)
-        if option.setter == USER and not caller.actor.is_user():
+        if option.setter == USER and not caller.actor.can_set_user_options():
             raise Rejection(f"{option.key} is the user's to set, on the Settings page")
         self.settings.set(option.key, option.parsed(args.value), caller.actor)
         print(f"{option.key} = {self.shown(option)}")
@@ -45,7 +45,7 @@ class SettingsCommand(Command):
     def option(self, key: str) -> Option:
         matches = [option for option in self.registry.options() if option.key == key]
         if not matches:
-            raise Rejection(f"no setting is named {key}: journal settings list names them all")
+            raise Rejection(f"no setting is named {key}: journal settings list shows them all")
         return matches[0]
 
     def shown(self, option: Option) -> str:

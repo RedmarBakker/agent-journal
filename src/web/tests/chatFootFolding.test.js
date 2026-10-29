@@ -12,25 +12,13 @@ test("scrolled up, the faded status line gives up its row so the folded docks si
     expect(rule(".thread-turn.busy")).toMatch(/max-height 0\.25s/);
 });
 
-test("scrolled up, the chat follows again only on the reader's own scroll to the very foot, or after resting near it for five seconds once the pointer has left the chat a minute ago", () => {
-    const watch = thread.split("function watchScroll() {")[1].split("\n}\n")[0];
-    // reaching the foot without a hand on the pane, as when the docks fold and the pane gets shorter, only starts the rest
-    expect(watch).toContain("else if (!away.value || (Date.now() - scrolledAt < BY_HAND && (gap <= AT_BOTTOM || presence.isGone()))) atTheFoot();");
-    expect(watch).toContain("else restAtFoot();");
-    expect(thread).toContain("const RESTED_MS = 5000;");
-    expect(thread.split("function restAtFoot() {")[1].split("\n}\n")[0]).toContain("Date.now() - scrolledAt >= RESTED_MS");
-});
 
-test("scrolled up, messages that arrive are held off the screen and counted, and appear once the chat is back at its foot", () => {
-    expect(thread).toContain("watch(away, (isAway) => (heldAfter.value = isAway ?");
-    expect(thread).toContain("threadTurns(streamRows(shownChat.value");
-    expect(thread).toContain("m.id > heldAfter.value");
-    expect(thread).toContain("`${held || missed} new`");
-});
+
+
 
 test("a turn that arrives while the reader follows grows into its height with the pane held at its foot, so the chat slides up instead of jumping; the user's own message shows at once", () => {
     expect(thread).toContain(`@enter="growIn"`);
-    expect(thread).toContain("const following = () => settledOnce.value && !away.value && !ui.away.tabHidden && !ui.away.readingLatest;");
+    expect(thread).toContain("const following = () => settledOnce.value && !away.value && !releasingHeld.value && !ui.away.tabHidden && !ui.away.readingLatest;");
     expect(thread).toContain("const arrivalPane = () => ({pane: scroller.value, follows: following});");
     expect(thread).toContain("const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));");
 });
@@ -54,10 +42,7 @@ test("the docks and the status line take their own room under the pane, so a bub
     expect(thread).toContain("paneWatch.observe(scroller.value);");
 });
 
-test("while the plan bar is open the chat never snaps itself to its foot after resting, so the bar never folds and flashes open again", () => {
-    const rest = thread.split("function restAtFoot() {")[1].split("\n}\n")[0];
-    expect(rest).toContain("!planOpen.value");
-});
+
 
 test("the docked cards run the composer's whole width: their side margins cancel the foot's side padding exactly", () => {
     const padding = rule(".chat-foot").match(/padding: 0 (\d+)px;/)[1];

@@ -12,6 +12,8 @@ from journal.support.permission import Permission
 from journal.support.timeout import Timeout
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.agent_event import AgentEvent
+from journal.engine.support.return_kinds import TERMINAL
 
 LISTENER = "on_"
 
@@ -19,6 +21,8 @@ LISTENER = "on_"
 @dataclass(frozen=True)
 class BaseState:
     """The parent of every state. Its listeners are its on_ methods, bound to the event each hears by its annotation; its answers are unchanged, changed, push, pop, pop_through, which pops and hands the event to the state beneath, and hold, and a listener that stops the event's propagation is the last to hear it. A state coming to the top of the stack or leaving it is handed the typist and may switch it off or on. What every state hears, the compaction and the session's end, is the engine's SafetyConduct, folded in before every feature's. A state that pops on an event of its own takes no pushes from a feature, since it would never hear that event."""
+
+    decision_return: ClassVar[str] = TERMINAL
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -71,6 +75,9 @@ class BaseState:
     def forward(self, *nudges: Nudge) -> Transition:
         return Transition(self, popped=True, nudges=nudges, handed_down=True)
 
+    def follow(self, event: "AgentEvent", *nudges: Nudge) -> Transition:
+        return Transition(self, nudges=nudges, next_event=event)
+
     def refuse(self, reason: Nudge) -> Transition:
         return Transition(self, refusal=reason)
 
@@ -88,6 +95,12 @@ class BaseState:
 
     def is_waiting(self) -> bool:
         return False
+
+    def counted_wait_seconds(self, ended_at: float, uncounted_seconds: int) -> int:
+        return 0
+
+    def wait_output_ids(self) -> set[int]:
+        return set()
 
     def is_mode_bound(self) -> bool:
         return False
@@ -147,6 +160,12 @@ class BaseState:
     def state_text(self) -> str:
         set_fields = [f"{field.name}={getattr(self, field.name)}" for field in fields(self) if getattr(self, field.name) != field.default and not isinstance(getattr(self, field.name), (float, Timeout))]
         return f"{self.name}({', '.join(set_fields)})" if set_fields else self.name
+
+    def floored(self, mode: type["BaseState"]) -> "BaseState":
+        return self if type(self) is mode else mode.restored(self.serialized())
+
+    def reset_states(self, states: tuple["BaseState", ...]) -> tuple["BaseState", ...]:
+        return (self.restored({}),)
 
     @classmethod
     def restored(cls, data: dict) -> "BaseState":

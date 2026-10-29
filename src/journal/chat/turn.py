@@ -1,10 +1,11 @@
 from journal.models.agent import Agent
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
+from journal.references import events
 
-MOVES = ("Stop", "TurnFailed", "SessionStarted", "PromptSubmitted", "ToolStarting", "ToolFinished")
-TURN_ENDS = ("Stop", "TurnFailed", "SessionStarted")
-TOOL_MOVES = ("ToolStarting", "ToolFinished")
+MOVES = (events.STOP, events.TURN_FAILED, events.SESSION_STARTED, events.PROMPT_SUBMITTED, events.TOOL_STARTING, events.TOOL_FINISHED)
+TURN_ENDS = (events.STOP, events.TURN_FAILED, events.SESSION_STARTED)
+TOOL_MOVES = (events.TOOL_STARTING, events.TOOL_FINISHED)
 
 
 class Turn:
@@ -15,10 +16,8 @@ class Turn:
 
     def is_finished(self, agent: Agent) -> bool:
         with self.scope.environment(agent.environment_id):
-            moves = self.entries.session_moves(MOVES, agent.session)
-        return not moves or moves[0].entry_type in TURN_ENDS
+            return self.entries.has_no_moves(MOVES, agent.session) or self.entries.is_latest_move_kind(MOVES, tuple(TURN_ENDS), agent.session)
 
     def is_using_tools(self, agent: Agent) -> bool:
         with self.scope.environment(agent.environment_id):
-            moves = self.entries.session_moves(MOVES, agent.session)
-        return bool(moves) and moves[0].entry_type in TOOL_MOVES
+            return self.entries.is_latest_move_kind(MOVES, tuple(TOOL_MOVES), agent.session)

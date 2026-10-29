@@ -40,10 +40,16 @@ class Workers(ScopedRepository[Worker]):
         with self.connection.transaction():
             current = self.find(worker.row_id)
             if current.is_silent(time):
-                self.save(current.silence_named(time), actor)
+                self.save(current.silence_noted(time), actor)
+
+    def numbered(self, n: int) -> list[Worker]:
+        return self.selected(self.query().filter(id=n))
 
     def running_workers(self) -> list[Worker]:
         return self.selected(self.dispatched_query().order("id"))
+
+    def dispatcher_workers(self, session: str) -> list[Worker]:
+        return self.selected(self.dispatched_query().filter(dispatcher=session).order("id"))
 
     def all_dispatched(self) -> list[Worker]:
         return self.selected_globally(self.dispatched_query().order("id"))

@@ -17,9 +17,10 @@ from tests.simulation.trace_entry import TraceEntry
 from tests.simulation.user_actor import UserActor
 from tests.simulation.worker_actor import WorkerActor
 from tests.simulation.world import World
+from tests.simulation.handing_builder_policy import HandingBuilderPolicy
 
 STEP_SECONDS = 30
-POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo": SoloPolicy, "careless": CarelessPolicy, "heredoc": HeredocPolicy}
+POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo": SoloPolicy, "careless": CarelessPolicy, "heredoc": HeredocPolicy, "handing builder": HandingBuilderPolicy}
 
 
 class ScenarioRun:
@@ -76,9 +77,9 @@ class ScenarioRun:
         self.samples.append(Sample(second, agent.work_queue.rho, agent.measures, agent.band))
 
     @staticmethod
-    def entry(second: int, actor: str, action: str, seen) -> TraceEntry:
-        status = seen.answer[0] if isinstance(seen.answer, tuple) and seen.answer else 0
-        return TraceEntry(second, actor, action, status not in (0, 200), seen.nudges, seen.stack, status, seen.skipped, seen.workers)
+    def entry(second: int, actor: str, action: str, observation) -> TraceEntry:
+        status = observation.answer[0] if isinstance(observation.answer, tuple) and observation.answer else 0
+        return TraceEntry(second, actor, action, status not in (0, 200) or observation.is_refused(), observation.nudges, observation.stack, status, observation.skipped, observation.workers)
 
     def prepared(self, world: World) -> None:
         self.simulator.run(["settings", "set", "workers.mode", self.scenario.mode], Caller.user("main"))

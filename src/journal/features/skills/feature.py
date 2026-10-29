@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT
@@ -5,13 +6,15 @@ from journal.support.card_type import CardType
 from journal.features.skills.listeners.skill_triggers import SkillTriggers
 from journal.features.feature import Feature
 from journal.features.skills.listeners.skill_obligation import SkillObligation
+from journal.features.skills.listeners.message_skill_obligation import MessageSkillObligation
 from journal.features.skills.skills_conduct import SkillsConduct
 from journal.features.skills.support.skills_data_reader import SkillsDataReader
 from journal.features.skills.support.skills_data import SkillsData
 from journal.support.skill import Skill
 from journal.features.skills.commands.skill_command import SkillCommand
 from journal.features.skills.listeners.compaction_reset import CompactionReset
-from journal.features.skills.listeners.skill_card import SkillCard
+from journal.features.skills.listeners.skill_loaded_card import SkillLoadedCard
+from journal.features.skills.listeners.skill_read_record import SkillReadRecord
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.skills.skills_options import SkillsOptions
 from journal.features.skills.skills_part import SkillsPart
@@ -27,7 +30,8 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    listeners = (SkillObligation, SkillCard, CompactionReset, SkillTriggers)
+    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (MessageSkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.NEXT_DECISION), (CompactionReset, Blocking.NEXT_DECISION))
+    listeners = (SkillLoadedCard, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
 

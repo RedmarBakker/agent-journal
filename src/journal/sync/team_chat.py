@@ -1,5 +1,6 @@
 import time
 
+from journal.support.timeout import Timeout
 from journal.engine.agent_launcher import AgentLauncher
 from journal.models.environment import Environment
 from journal.repositories.environments import Environments
@@ -52,7 +53,7 @@ class TeamChat:
         return self.link.lease_state(CHAT_LEASE)
 
     def renew(self) -> None:
-        if not self.account.is_chat_holder() or time.monotonic() - self.renewed_at < RENEW_SECONDS:
+        if not self.account.is_chat_holder() or not Timeout.seconds(RENEW_SECONDS).started(self.renewed_at).is_elapsed(time.monotonic()):
             return
         lease = self.holder()
         if lease.holder and lease.device_id != self.account.contents().get("chat_device"):

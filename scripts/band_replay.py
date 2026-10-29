@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 from journal.app import App
 from journal.config import Config
+from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.band_rule import BandRule
 from journal.features.workers.support.load_items import LoadItems
 from journal.features.workers.support.load_meter import WORKER_REF
@@ -22,7 +23,7 @@ from journal.repositories.setting_rows import SettingRows
 
 ROOT = Path(__file__).resolve().parents[1]
 DAYS = 7
-EMPTY_QUEUE_SECONDS = 300.0
+EMPTY_QUEUE_SECONDS = FitnessOptions.EMPTY_QUEUE_MINUTES.default * 60.0
 MODE_ENTRIES = {"orchestrator": (0.8, 0.5), "builder": (0.5, 0.3)}
 MARGINS = (0.0, 0.05, 0.1, 0.15, 0.2)
 STAY_MINUTES = (0, 2, 5, 10, 15, 20, 30)

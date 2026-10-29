@@ -50,5 +50,5 @@ class PlanTimeline:
         if task.started_at:
             rows.append(TimelineMoment(task.started_at.timestamp(), "started", task.row_id, task.title))
         if task.completed_at:
-            rows.append(TimelineMoment(task.completed_at.timestamp(), "done" if task.state == TaskState.COMPLETED else "ended", task.row_id, task.title, task.outcome))
+            rows.append(TimelineMoment(task.completed_at.timestamp(), "done" if task.is_completed() else "ended", task.row_id, task.title, task.outcome))
         return rows

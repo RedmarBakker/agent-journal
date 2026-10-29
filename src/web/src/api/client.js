@@ -14,8 +14,8 @@ function query(fields) {
 
 // which part of a list a read asks for, which keys it apart from the other parts of the same list: its newest page, a page
 // before or after a row, its changes since a moment, rows by id, and each of those among its closed rows
-const readKind = ({before, after, since, ids = [], tasks = [], closed = false}) =>
-    [closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
+const readKind = ({before, after, since, ids = [], tasks = [], closed = false, docked = false}) =>
+    [docked ? "docked" : "", closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
 
 const NO_ENV = "the page does not know its environment yet";
 
@@ -202,14 +202,15 @@ export class ApiClient {
     }
 
     // a resource's rows: a page with its counts, one row, a new one, a change, and an act on one
-    list(table, {limit, before, after, since, ids = [], tasks = [], closed = false} = {}) {
-        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), tasks: tasks.join(","), closed: closed ? "1" : ""})}`);
-        return this.get(path, `${table}.${readKind({before, after, since, ids, tasks, closed})}`);
+    list(table, {limit, before, after, since, ids = [], tasks = [], closed = false, docked = false} = {}) {
+        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), tasks: tasks.join(","), closed: closed ? "1" : "", docked: docked ? "1" : ""})}`);
+        return this.get(path, `${table}.${readKind({before, after, since, ids, tasks, closed, docked})}`);
     }
 
     // the own chat of a worker or a subagent, by its session
-    chat(session, {limit, before, since} = {}) {
-        return this.get(this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since})}`), `chats/${session}.${readKind({before, since})}`);
+    chat(session, {limit, before, since, docked = false} = {}) {
+        const path = this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since, docked: docked ? "1" : ""})}`);
+        return this.get(path, `chats/${session}.${readKind({before, since, docked})}`);
     }
 
     show(table, id) {
@@ -437,6 +438,44 @@ export class ApiClient {
         return this.get("/people");
     }
 
+    // whether this journal is connected to the team's library, and as whom
+    library() {
+        return this.get("/library");
+    }
+
+    // connects to a library by its URL: a new server's makes this person its admin, an invitation URL a member, a bare URL logs in
+    connectLibrary(fields) {
+        return this.post("/library/connect", fields, LONG_WAIT_MS);
+    }
+
+    // disconnects from the library; what was imported stays
+    disconnectLibrary() {
+        return this.post("/library/disconnect", {});
+    }
+
+    // an invitation URL for a person's email; admins only
+    inviteToLibrary(email) {
+        return this.post("/library/invite", {email});
+    }
+
+    // the library's devices and people, and a device revoked; admins only
+    libraryDevices() {
+        return this.get("/library/devices");
+    }
+
+    revokeLibraryDevice(device) {
+        return this.post("/library/revoke", {device});
+    }
+
+    libraryPeople() {
+        return this.get("/library/people");
+    }
+
+    // changes this person's own password on the library
+    changeLibraryPassword(old, fresh) {
+        return this.post("/library/password", {old, new: fresh});
+    }
+
     // how this journal stands with its team, or that it has joined none
     team() {
         return this.get("/team");
@@ -582,6 +621,11 @@ export class ApiClient {
     workerActivity() {
         const path = this.here("/workers/activity");
         return this.get(path, path);
+    }
+
+    // the outputs still running in this environment, each with its card and whether it is docked
+    runningOutputs() {
+        return this.get(this.here("/outputs/running"));
     }
 
     readOutput(id, {after, before} = {}) {
@@ -750,8 +794,8 @@ export class ApiClient {
         return this.act("plugins", id, "upgrade-preview", {}, LONG_WAIT_MS);
     }
 
-    upgradePlugin(id) {
-        return this.act("plugins", id, "upgrade", {}, LONG_WAIT_MS);
+    upgradePlugin(id, ref) {
+        return this.act("plugins", id, "upgrade", {ref}, LONG_WAIT_MS);
     }
 
     pluginLog(id, lines = 200) {

@@ -25,6 +25,15 @@ const spoken = once((m) => {
 
 const placeholderTurn = once((p) => turnOf(p, "message", "user"));
 
+// the run a card's mark gathers in: a sequence's step, or one subagent's action
+const runOfCard = (card) => ({
+    run: card.run || "",
+    step: card.step || 0,
+    run_title: card.run_title || "",
+    run_noun: card.run_noun || "steps",
+    run_mark: card.run_mark || "sequence",
+});
+
 const SYSTEM_TURNS = {
     whisper: (card, label) => ({kind: "whisper", title: label, data: {row: card.row, words: ""}}),
     skill: (card) => ({kind: "skill", title: card.detail, data: {}}),
@@ -49,7 +58,7 @@ const SYSTEM_TURNS = {
             status: card.status || "",
             summary: card.summary || "",
         },
-        data: {},
+        data: runOfCard(card),
     }),
     docked: (card) => ({
         kind: "card",
@@ -101,12 +110,11 @@ const SYSTEM_TURNS = {
             row: card.row,
             visitor: card.visitor,
             proof_task: card.proof_task || 0,
-            run: card.run || "",
-            step: card.step || 0,
-            run_title: card.run_title || "",
+            ...runOfCard(card),
             round: card.round || null,
         },
     }),
+    search: (card, label, m) => ((card.results || []).length ? searchGroup(card, label, m) : SYSTEM_TURNS.card(card, label)),
     peer: (card) => ({kind: "message", data: {peer: card.peer, sent_to: card.sent_to, failure: card.failure || ""}}),
     suggestion: (card, label) => ({
         kind: "suggestion",
@@ -133,6 +141,25 @@ const SYSTEM_TURNS = {
         },
     }),
 };
+
+// the most results a search's mark lists as its children; past it the last child opens the search page with them all
+const SHOWN_RESULTS = 10;
+
+// a search's mark, headed with its words and how many it found, opening to one child mark per result that opens its row
+function searchGroup(card, label, m) {
+    const look = cardLook(card, label);
+    const child = (i, data) => ({key: `${refOf(m)}:result:${i}`, kind: "card", who: "agent", time: seconds(m.created_at), data: {...look, lines: [], ...data}});
+    const result = (r, i) => child(i, {label: `${r.label}: ${r.passage}`, title: r.passage, row: r.row});
+    const more = card.results.length - SHOWN_RESULTS;
+    const rest = more > 0 ? [child(SHOWN_RESULTS, {label: `+ ${more} more`, go: "search", query: card.terms || ""})] : [];
+    return {
+        kind: "group",
+        title: label,
+        icon: look.icon,
+        turns: [...card.results.slice(0, SHOWN_RESULTS).map(result), ...rest],
+        data: {tone: look.tone || "", color: look.color || "", group: look.group || "", markIcon: look.markIcon || "", news: 0, continues: ""},
+    };
+}
 
 const pluginOf = (m) => ((m.creator || "").startsWith("plugin:") ? m.creator.slice("plugin:".length) : "");
 
@@ -240,8 +267,8 @@ function groupTurn(first, run, look, title, more = {}) {
 
 const folded = (run) => groupTurn(run[0], run, groupOf(run[0]), groupOf(run[0]).label(run.length, run));
 
-// A sequence run's marks, gathered wherever they arrive: in step order, one group mark from three of them or once it continues an earlier part
-const runOf = (t) => (t.kind === "card" && t.data.run) || "";
+// A run's marks, a sequence's steps or one subagent's actions, gathered wherever they arrive: in step order, one group mark from three of them or once it continues an earlier part
+const runOf = (t) => t.data?.run || "";
 const unitShown = (unit) => Boolean(unit.continues) || unit.turns.length >= GROUP_FROM;
 const unitKey = (unit) => (unitShown(unit) ? `group:${unit.turns[0].key}` : unit.turns[0].key);
 
@@ -249,8 +276,8 @@ function unitTurns(unit) {
     const inOrder = [...unit.turns].sort((a, b) => a.data.step - b.data.step || a.time - b.time);
     if (!unitShown(unit)) return inOrder;
     const first = unit.turns[0];
-    const title = unit.continues ? `${first.data.run_title}, continued` : `${first.data.run_title}: ${inOrder.length} steps`;
-    const look = {icon: first.data.icon, group: first.data.group, markIcon: "sequence"};
+    const title = unit.continues ? `${first.data.run_title}, continued` : `${first.data.run_title}: ${inOrder.length} ${first.data.run_noun}`;
+    const look = {icon: first.data.icon, group: first.data.group, markIcon: first.data.run_mark};
     return [groupTurn(first, inOrder, look, title, {news: unit.news, continues: unit.continues})];
 }
 
@@ -270,6 +297,10 @@ function gather(out, units, run, turn) {
     out.push(place);
 }
 
+function isCommandCard(turn) {
+    return turn.kind === "card" && turn.data.shows === "commands";
+}
+
 function grouped(turns) {
     const out = [];
     const units = new Map();
@@ -279,6 +310,11 @@ function grouped(turns) {
         run = [];
     };
     for (const turn of turns) {
+        if (isCommandCard(turn)) {
+            close();
+            out.push(turn);
+            continue;
+        }
         if (runOf(turn)) {
             close();
             gather(out, units, runOf(turn), turn);

@@ -20,7 +20,7 @@
       "name": "four minutes",
       "answer": null,
       "typed": [
-        "[journal] output 1 has printed nothing for 240 seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it"
+        "[journal] output 1 buffers: silent for 240 seconds. run it with `stdbuf -oL`, `python -u` or its streaming flag"
       ],
       "nudges": [
         "shell.silent_run_streams"
@@ -33,7 +33,7 @@
       "name": "five minutes and some",
       "answer": null,
       "typed": [
-        "[journal] output 1 still running. look at it; hung or stuck: stop it and say why"
+        "[journal] output 1 still running. check it; if it hangs, stop it and say why"
       ],
       "nudges": [
         "shell.check_the_background"
@@ -46,7 +46,7 @@
       "name": "ten minutes and some",
       "answer": null,
       "typed": [
-        "[journal] output 1 still running. look at it; hung or stuck: stop it and say why"
+        "[journal] output 1 still running. check it; if it hangs, stop it and say why"
       ],
       "nudges": [
         "shell.check_the_background"
@@ -58,9 +58,7 @@
     {
       "name": "it ended",
       "answer": null,
-      "typed": [
-        "[journal] output 1 finished. `journal output read 1 --summary` says how"
-      ],
+      "typed": [],
       "nudges": [
         "shell.outputs_ended"
       ],
@@ -72,7 +70,8 @@
       "name": "fifteen minutes, nothing running",
       "answer": null,
       "typed": [
-        "[journal] output 1 finished, and you have not read it yet"
+        "[journal] output 1: completed",
+        "[journal] output 1 finished, unread. read it with `journal output read <n>`"
       ],
       "nudges": [
         "shell.unread_output"

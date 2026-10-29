@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
@@ -21,7 +22,7 @@ from journal.features.plugins.seeds.plugin_services_seed import PluginServicesSe
 from journal.features.plugins.plugins_conduct import PluginsConduct
 from journal.features.plugins.support.plugins_data_reader import PluginsDataReader
 from journal.features.plugins.support.plugins_data import PluginsData
-from journal.features.plugins.listeners.release_upgrade import ReleaseUpgrade
+from journal.features.plugins.listeners.plugin_update_notice import PluginUpdateNotice
 from journal.features.plugins.support.plugin_process_card import PluginProcessCard
 from journal.features.plugins.plugins_nudges import PluginsNudges
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -37,11 +38,13 @@ class PluginsFeature(Feature[PluginsData]):
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.CLOCK_OUT_WINDOW_SECONDS, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)
     process_cards = (PluginProcessCard,)
-    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
+    answer_listeners = ((PluginAgentRelay, Blocking.ANSWER), (PluginMergeRelay, Blocking.ANSWER))
+    listeners = (PluginRowRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, PluginUpdateNotice, PluginBrokenNotice)
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
     nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP, PluginsNudges.PLUGIN_BROKEN)
-    commands = (PluginCommand, DashboardCommand)
+    commands = (PluginCommand,)
+    helper_commands = {AgentRole.PLUGIN: (DashboardCommand,)}
     seeds = (PluginServicesSeed,)
     jobs = (PluginHealthCheck,)
     skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """

@@ -12,18 +12,16 @@ from journal.features.messages.support.flowchart_edges import FlowchartEdges
 from journal.features.messages.support.message_files import MessageFiles
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
+from journal.repositories.entries import Entries
+from journal.features.messages.support.passage_place import PassagePlace
 from journal.repositories.agents import Agents
-from journal.repositories.docs import Docs
-from journal.repositories.reports import Reports
 from journal.repositories.messages import Messages
 from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
-from journal.features.messages.support.tags import Tags
 from journal.features.messages.support.unlinked_row_numbers import PLAIN, ROW_TABLES, UnlinkedRowNumbers
 from journal.repositories.rows import Rows
 from journal.support.rejection import Rejection
 
-REPLY_TAG_REFUSED = "a [!reply:N] tag answers in your turn's text; a message sent by command answers with --reply-to N, the tag left out"
 
 RECENT_MESSAGES = 20
 DUPLICATE_REPLY_LINE = "message {n} already has your reply {reply}: not sent. Send it again only if it says something new, with --confirm"
@@ -33,10 +31,9 @@ class MessageCommand(Command):
     noun = "message"
     uncut_verbs = frozenset({"read", "unread"})
 
-    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows, files: MessageFiles) -> None:
-        self.agents, self.rows, self.files = agents, rows, files
+    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, rows: Rows, files: MessageFiles, entries: Entries, passages: PassagePlace) -> None:
+        self.agents, self.rows, self.files, self.entries, self.passages = agents, rows, files, entries, passages
         self.messages, self.reactions, self.links, self.config = messages, reactions, links, config
-        self.docs, self.reports = docs, reports
 
     def arguments(self, verbs) -> None:
         transmit = self.verb(verbs, "send", "leave a message")
@@ -58,7 +55,7 @@ class MessageCommand(Command):
         link = self.verb(verbs, "amend-links", "write the kind before each number of your message that has none, so the chat links them: the kinds in the order the numbers appear, or one kind for all")
         link.set_defaults(verb="amend_links")
         link.add_argument("n", type=int, help="the message")
-        link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that names no row, which stays as written")
+        link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that refers to no row, which stays as written")
         editing = self.verb(verbs, "edit", "write the text of your own message anew, in place, with its links and reply as they were; correct a message this way, never with a second one")
         editing.add_argument("n", type=int)
         editing.add_argument("text")
@@ -68,8 +65,6 @@ class MessageCommand(Command):
 
     def send(self, args: Namespace, caller: Caller) -> int:
         author = Author.build(caller.actor)
-        if Tags.replies(args.text):
-            raise Rejection(REPLY_TAG_REFUSED)
         files = self.files.read(args.file)
         if args.reply_to and author == Author.AGENT:
             return self.reply(self.messages.find(args.reply_to), args, caller, files)
@@ -107,7 +102,17 @@ class MessageCommand(Command):
         return 0
 
     def read(self, args: Namespace, caller: Caller) -> int:
+        if not self.messages.is_stored(args.n):
+            return self.deleted(args.n)
         self.show(self.messages.read(self.messages.find(args.n), caller.actor, self._tool_use(caller)))
+        return 0
+
+    def deleted(self, number: int) -> int:
+        deletions = self.entries.deletions(Message.table(), number)
+        if not deletions:
+            raise MissingRow(Message.table(), number)
+        deleter = deletions[0].actor
+        print(f"message {number} was deleted by {deleter.chosen_way('the user', deleter.lookup)}; nothing to do")
         return 0
 
     def unread(self, args: Namespace, caller: Caller) -> int:
@@ -125,7 +130,7 @@ class MessageCommand(Command):
 
     def amend_links(self, args: Namespace, caller: Caller) -> int:
         message = self.messages.find(args.n)
-        if message.author != Author.AGENT:
+        if not message.is_agent_message():
             raise Rejection(f"message {args.n} is not the agent's: only the agent's own messages are linked this way")
         spans = UnlinkedRowNumbers.spans(message.text)
         if not spans:
@@ -142,7 +147,7 @@ class MessageCommand(Command):
 
     def edit(self, args: Namespace, caller: Caller) -> int:
         message = self.messages.find(args.n)
-        if message.author != Author.AGENT:
+        if not message.is_agent_message():
             raise Rejection(f"message {args.n} is not the agent's: only the agent's own messages are edited")
         edited = self.messages.save(message.with_(text=args.text), caller.actor)
         print(f"message {args.n} now reads: {edited.text}")
@@ -187,25 +192,8 @@ class MessageCommand(Command):
             counterpart = link.target if link.source == Ref.build(message) else link.source
             print(f"  {link.link_type} {counterpart}")
             if link.link_type == Messages.COMMENT_LINK and message.is_passage_comment:
-                print(self.passage_place(counterpart, message.quote))
+                print(self.passages.line(counterpart, message.quote))
 
     def _tool_use(self, caller: Caller) -> int:
         agents = self.agents.global_matching(session=caller.session) if caller.session is not None else [agent for agent in (self.agents.current(),) if agent]
         return agents[0].tool_uses if agents else 0
-
-    def passage_place(self, ref: Ref, quote: str) -> str:
-        texts: dict[str, tuple[str, Docs | Reports]] = {"docs": ("doc", self.docs), "reports": ("report", self.reports)}
-        if ref.type not in texts:
-            return ""
-        noun, repository = texts[ref.type]
-        lines = repository.find(ref.id).body.split("\n")
-        first = quote.split("\n")[0].strip()
-        start = next((i for i, line in enumerate(lines) if line.strip() == first), -1)
-        if start < 0:
-            return f"  the passage is not in {noun} {ref.id} as it stands now"
-        end = start + quote.count("\n")
-        section = sum(1 for line in lines[: start + 1] if line.startswith("## "))
-        heading = next((line[3:] for line in reversed(lines[: start + 1]) if line.startswith("## ")), "")
-        line_numbers = f"lines {start + 1}-{end + 1}" if end > start else f"line {start + 1}"
-        location = f"section {section}, {heading}, {line_numbers}" if section else line_numbers
-        return f"  the passage sits in {noun} {ref.id} at {location}: `journal {noun} show {ref.id} --section {section or 1}` or `--grep`"

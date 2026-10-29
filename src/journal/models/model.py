@@ -36,6 +36,9 @@ class Model:
     def refusal(self) -> str:
         return ""
 
+    def is_refused(self) -> bool:
+        return bool(self.refusal())
+
     def pulled_row(self) -> "Model":
         return self
 

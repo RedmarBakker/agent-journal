@@ -6,8 +6,6 @@ from journal.events.rows.message_rows_faulty import MessageRowsFaulty
 from journal.events.models.saved import Saved
 from journal.features.messages.support.row_references import RowReferences
 from journal.features.messages.support.unlinked_row_numbers import ROW_TABLES, UnlinkedRowNumbers
-from journal.support.message_thread import MessageThread
-from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.repositories.messages import Messages
@@ -25,7 +23,7 @@ class UnlinkedNumberRecord(Listener[Saved]):
 
     def handle(self, event: Saved) -> None:
         message = event.model
-        if not isinstance(message, Message) or message.author != Author.AGENT or message.thread != MessageThread.MAIN or not message.session or message.is_thought:
+        if not isinstance(message, Message) or not message.is_agent_message() or not message.is_main_thread() or not message.session or message.is_thought:
             return
         self.deferred.add(partial(self.recorded, message))
 

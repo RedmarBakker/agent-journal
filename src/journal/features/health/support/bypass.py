@@ -21,7 +21,7 @@ class Bypass:
         return cls(float(seconds), type_name, subject)
 
     def described(self) -> str:
-        when = datetime.fromtimestamp(self.at).strftime("%H:%M:%S")
+        clock_time = datetime.fromtimestamp(self.at).strftime("%H:%M:%S")
         if self.bypass_type == SHELL:
-            return f"{when} ran in the shell itself: {' && '.join(Chain.self_parts(self.subject))}"
-        return f"{when} a hook of {self.subject} let the tool go on unchecked"
+            return f"{clock_time} ran in the shell itself: {' && '.join(Chain.self_parts(self.subject))}"
+        return f"{clock_time} a hook of {self.subject} let the tool go on unchecked"

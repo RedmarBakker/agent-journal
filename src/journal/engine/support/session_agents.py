@@ -1,4 +1,6 @@
 from journal.engine.base_state import BaseState
+from journal.engine.support.stack import Stack
+from journal.events.rows.worker_agent_created import WorkerAgentCreated
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
@@ -6,8 +8,8 @@ from journal.repositories.agents import Agents
 from journal.providers.providers import Providers
 from journal.engine.support.session_takeovers import SessionTakeovers
 from journal.support.actor import Actor
-from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.caller import Caller
 
 
 class SessionAgents:
@@ -26,22 +28,41 @@ class SessionAgents:
         return self.row(session, environment_id, provider, role)
 
     def row(self, session: str, environment_id: int, provider: str | None, role: AgentRole, session_started: bool = False) -> Agent:
-        if not session:
-            raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
-        rows = self.agents.session_rows(session)
+        rows = self.session_rows(session)
         if rows:
             return rows[0]
-        current = self.agents.environment_main_agent(environment_id) if role == AgentRole.MAIN else None
+        current = self.agents.environment_main_agent(environment_id)
         if current is not None:
             if session_started and current.session and current.session != session:
                 self.takeovers.remember(environment_id, session, current.update_time)
             return self.agents.save(current.with_session(session, provider or current.provider), Actor.system())
-        bottom = self.states.first() if role == AgentRole.MAIN else self.states.sent_first(role)
-        return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
+        return self.created(session, environment_id, provider, Stack((self.states.first(),)), AgentRole.MAIN)
+
+    def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
+        rows = self.session_rows(session)
+        return rows[0] if rows else self.created(session, environment_id, provider, self.states.helper_layers(self.states.sent_first(role)), role)
+
+    def session_rows(self, session: str) -> list[Agent]:
+        if not session:
+            raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
+        return self.agents.session_rows(session)
+
+    def worker_agent(self, session: str, environment_id: int, provider: str | None) -> Agent:
+        rows = self.session_rows(session)
+        if rows:
+            return rows[0]
+        worker_row = self.unsaved(session, environment_id, provider, self.states.helper_layers(self.states.sent_first(AgentRole.WORKER)), AgentRole.WORKER)
+        return self.agents.save(worker_row.with_event(WorkerAgentCreated(agent_session=session)), Actor.system())
+
+    def created(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:
+        return self.agents.save(self.unsaved(session, environment_id, provider, layers, role), Actor.system())
+
+    def unsaved(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:
+        top = layers.top()
+        return Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=top.name, data=top.serialized(), stack=tuple(layers.serialized()), role=role)
 
     def top(self, session: str) -> BaseState:
-        agent = self.agents.session_agent(session)
-        return self.states.restored(agent.state, agent.data)
+        return self.states.top(self.agents.session_agent(session))
 
     def blocks_tools(self, session: str) -> bool:
         return any(self.states.restored(layer["state"], layer.get("data", {})).blocks_tools() for layer in self.agents.session_agent(session).stack)

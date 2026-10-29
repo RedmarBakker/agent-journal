@@ -22,11 +22,11 @@ class Docs(ScopedRepository[Doc], UnactedWriting):
         super().__init__(connection, bus, scope, time_source)
         self.visible = visible
 
-    def of_project(self, doc: Doc, actor: Actor) -> Doc:
+    def project_saved(self, doc: Doc, actor: Actor) -> Doc:
         with self.scope.environment(PROJECT):
             return self.save(doc, actor)
 
-    def imported_for_project(self, doc: Doc, time: datetime, actor: Actor) -> Doc:
+    def project_imports(self, doc: Doc, time: datetime, actor: Actor) -> Doc:
         with self.scope.environment(PROJECT):
             return self.imported(doc, time, actor)
 
@@ -34,7 +34,7 @@ class Docs(ScopedRepository[Doc], UnactedWriting):
         return query.filter_listed("environment_id", self.visible.visible())
 
     def _placed(self, row: Doc) -> Doc:
-        return row if row.environment_id else row.with_(environment_id=self.visible.own())
+        return self.visible.placed(row)
 
     def recent_docs(self, start: datetime, end: datetime) -> list[Doc]:
         return self.selected(self.query().filter_greater_equal("created_at", start).filter_less("created_at", end).order("id"))

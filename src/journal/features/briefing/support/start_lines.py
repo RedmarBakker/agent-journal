@@ -42,6 +42,9 @@ class StartLines:
         start = self.time_source.moment() - TAKEOVER_WINDOW
         if takeover is not None and takeover >= start:
             return takeover.astimezone().strftime("%H:%M")
+        rows = self.agents.session_rows(session)
+        if rows and rows[0].previous_session_updated_at >= start.timestamp():
+            return datetime.fromtimestamp(rows[0].previous_session_updated_at).astimezone().strftime("%H:%M")
         peer = self.agents.recent_peer(session, start)
         return peer.update_time.astimezone().strftime("%H:%M") if peer else ""
 

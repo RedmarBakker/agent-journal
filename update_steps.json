@@ -64,7 +64,17 @@
   "oldest": "4.63.0",
   "reason": "every release of its window updated to it in the release run"
  },
+ "4.67.1": {
+  "step": true,
+  "oldest": "4.63.0",
+  "reason": "every release of its window updated to it in the release run"
+ },
  "4.67.6": {
+  "step": true,
+  "oldest": "4.63.0",
+  "reason": "every release of its window updated to it in the release run"
+ },
+ "4.68.0": {
   "step": true,
   "oldest": "4.63.0",
   "reason": "every release of its window updated to it in the release run"

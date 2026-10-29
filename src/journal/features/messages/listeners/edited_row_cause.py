@@ -1,6 +1,6 @@
 from journal.events.listener import Listener
 from journal.events.models.updated import Updated
-from journal.features.messages.support.reply_cause import WRITTEN_FIELDS, ReplyCause
+from journal.features.messages.support.reply_cause import ReplyCause
 
 
 class EditedRowCause(Listener[Updated]):
@@ -10,5 +10,4 @@ class EditedRowCause(Listener[Updated]):
         self.cause = cause
 
     def handle(self, event: Updated) -> None:
-        if any(name in WRITTEN_FIELDS for name in event.changed()):
-            self.cause.edited(event.model, event.actor)
+        self.cause.edited(event)

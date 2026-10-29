@@ -9,9 +9,13 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.impasse_report import ImpasseReport
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.agent.ticked import Ticked
+from journal.events.agent.stop import Stop
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_arrived import TaskArrived
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
@@ -20,6 +24,7 @@ from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
+from journal.support.timespan import Timespan
 
 POLL_REPEAT_COMMANDS = 3
 WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
@@ -29,16 +34,19 @@ AWAIT_REFUSAL_COUNT = 2
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a test run started while the task in hand has been in progress a while met with how to put it in testing, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+
+    def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
+        return wake_check(self, event, settings)
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
-        return self.push(ExternalWait.opened(*event.wait_terms()))
+        return self.push(ExternalWait.opened_beside(event.data, *event.wait_terms()))
 
     def on_impasse_report(self, event: ImpasseReport, settings: Settings) -> Transition:
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
+        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings), testing_suggestion(self, event, settings)])
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
         passed = [wait for wait in event.data.part(TasksPart).passed_waits if f"{Check.table()}:{wait.check_id}" == event.ref]
@@ -50,11 +58,27 @@ class TasksConduct(Conduct):
     def on_task_wait_ended(self, event: TaskWaitEnded, settings: Settings) -> Transition:
         return self.none(TasksNudges.PAUSE_WAIT_END.create(n=event.task_id, reason=event.reason))
 
+    def on_task_test_failed(self, event: TaskTestFailed, settings: Settings) -> Transition:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks:
+            return self.none()
+        return self.none(TasksNudges.TEST_FAILURE.create(n=event.task_id, output=event.output_id, outcome=event.outcome))
+
+    def on_task_arrived(self, event: TaskArrived, settings: Settings) -> Transition:
+        return self.none(TasksNudges.TASK_ARRIVED.create(n=event.task_id, source=event.source, state=event.state))
+
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
         if event.outcome != "completed" or tasks.current_task or not tasks.paused or tasks.choosable or event.data.part(TaskSuccession):
             return self.none()
         return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
+
+
+def testing_suggestion(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    task = event.data.part(TasksPart).current_task_row
+    if task is None or not task.is_started() or not event.call.test_runs():
+        return state.none()
+    limit = Timespan(tool_uses=settings.integer(TasksOptions.TESTING_SUGGESTION_TOOL_USES), seconds=settings.integer(TasksOptions.TESTING_SUGGESTION_MINUTES) * 60)
+    return state.none(TasksNudges.TESTING_SUGGESTION.create(n=task.row_id)) if limit <= task.progress_span(event.time) else state.none()
 
 
 def priorities_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -75,10 +99,14 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
 
 
 def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    tasks = event.data.part(TasksPart)
-    if not event.call.is_journal_noun("await") or tasks.next_open is None:
+    if not event.call.is_journal_noun("await"):
+        return state.none()
+    tasks, work = event.data.part(TasksPart), event.data.next_work()
+    if work is None:
         return state.none()
     wait_line = event.call.journal_text("await")
+    if WAITED_OUTPUT.findall(wait_line):
+        return state.none()
     estimate = WaitEstimate.create([f"{CommandOutput.table()}:{n}" for n in WAITED_OUTPUT.findall(wait_line)], tasks.wait_progress, event.time)
     if estimate.is_short(settings):
         return state.none()
@@ -87,11 +115,11 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     if await_count(tasks.command_lines[:-1]) >= AWAIT_REFUSAL_COUNT:
         return reasoned_wait(state, wait_line, wait_name, estimate.seconds_text())
     if tasks.current_task:
-        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
-    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
+    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
 
 
-def await_count(commands: tuple[str, ...]) -> int:
+def wait_count(commands: tuple[str, ...]) -> int:
     return sum(1 for command in commands if command.startswith("journal await "))
 
 
@@ -118,3 +146,15 @@ def impasse_check(state: BaseState, event: ToolStarting) -> Transition:
     if not work_count:
         return state.none()
     return state.refuse(TasksNudges.IMPASSE_REFUSAL.create(count=work_count))
+
+
+def wake_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
+    tasks = event.data.part(TasksPart)
+    minutes = settings.integer(TasksOptions.WAKE_MINUTES)
+    if not minutes or not tasks.turn_finished or tasks.wake_count >= settings.integer(TasksOptions.WAKE_COUNT):
+        return state.none()
+    if not state.takes_pushes() or not (tasks.current_task or tasks.open_work):
+        return state.none()
+    if event.silence_seconds < minutes * 60:
+        return state.none()
+    return state.follow(Stop(session=event.session, environment_id=event.environment_id, prior_refusal=False, time=event.time, agent=event.agent), TasksNudges.STOPPED_WITH_WORK.create())
