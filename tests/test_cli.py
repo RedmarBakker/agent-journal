@@ -50,6 +50,7 @@ def test_a_shell_marked_by_an_agent_program_names_the_agent_and_its_session_when
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
+    assert Providers().caller({"JOURNAL_SESSION": "worker-session", "CODEX_THREAD_ID": "parent-session"}).session == "worker-session", "a session the journal names wins over the one the program marks"
 
 
 def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks_it():
@@ -63,36 +64,6 @@ def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks
     assert providers.caller({"JOURNAL_ACTOR": "verifier:4", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.verifier("main", 4, None, "claude"), "one actor variable names a worker or a verifier by its stamp"
     variables = providers.caller_variables({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "t1", "JOURNAL_LAUNCH": "l1"})
     assert CallerVariables.parsed(variables.body(), "claude") == variables, "what the shim posts reads back as the variables it posted"
-
-
-def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_events(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    codex = Caller.agent("main", "t9", "codex")
-    assert dispatched(app.console(), ["Ada Lovelace", "write storage.py", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "gpt-5"], codex).code == 0
-    assert app.container.get(Workers).find(1).provider == "codex", "the provider comes with the caller, not from the agent's row"
-    assert app.console().run(["stuck", "the build is red"], MAIN).code == 1, "only an agent says it is stuck"
-
-
-def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    environments, agents = app.container.get(Environments), app.container.get(Agents)
-    development = environments.lookup("development")
-    with app.container.get(Scope).environment(development.id):
-        agents.save(Agent(session="codex-session", environment_id=development.id, provider="codex", is_overview_read=False), Actor.system())
-        agents.save(Agent(session="claude-session", environment_id=development.id, provider="claude", is_overview_read=False), Actor.system())
-    caller = Providers().caller({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "codex-session", "CODEX_CI": "1"})
-    assert app.console().run(["environment", "overview"], caller).code == 0
-    with app.container.get(Scope).environment(development.id):
-        assert agents.session_agent("codex-session").is_overview_read
-        assert not agents.session_agent("claude-session").is_overview_read
-    assert app.console().run(["task", "create", "Codex task"], caller).code == 0
-    with app.container.get(Scope).environment(development.id):
-        assert app.container.get(Tasks).all()[-1].creator == Actor.agent("codex-session")
-    assert Providers().caller({"JOURNAL_SESSION": "worker-session", "CODEX_THREAD_ID": "parent-session"}).session == "worker-session"
 
 
 def test_a_workers_shim_never_runs_the_package_when_no_server_answers(app: App):

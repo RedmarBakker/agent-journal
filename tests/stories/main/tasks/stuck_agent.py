@@ -60,3 +60,10 @@ def test_an_agent_stuck_on_its_task_in_hand_waits_over_it_until_its_next_tool_us
     story.agent_reads(story.agents.subject)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_only_an_agent_says_it_is_stuck_and_the_user_typing_it_is_refused(story):
+    story.user_types("stuck 'the build is red'")
+    story.expect_command_refused()
+    story.expect_stack(story.agents.subject, Ready)

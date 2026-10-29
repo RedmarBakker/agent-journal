@@ -17,6 +17,7 @@ def test_codex_reading_its_start_skills_through_the_journals_runner_frees_its_to
     story.expect_allowed()
     story.agent_cats_a_skill_through_the_runner(story.agents.subject, HOMES[1], ETIQUETTE_SKILL)
     story.agent_looks_at_the_overview(story.agents.subject)
+    story.expect_task_made_by(story.agents.subject, story.agent_creates_task(story.agents.subject, "the footer"))
     story.agent_writes(story.agents.subject, "footer.py")
     story.expect_allowed()
     story.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
