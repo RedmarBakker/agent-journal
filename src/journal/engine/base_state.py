@@ -104,6 +104,13 @@ class BaseState:
     def task_number(self) -> int:
         return 0
 
+    def subject(self) -> str:
+        """What the state is about, as the trail names it beside the state: a task, a plan or a Role, or nothing."""
+        return f"task {self.task_number()}" if self.task_number() else ""
+
+    def trail_label(self) -> str:
+        return f"{self.name} ({self.subject()})" if self.subject() else self.name
+
     def question_number(self) -> int:
         return 0
 

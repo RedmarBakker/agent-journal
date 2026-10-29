@@ -1,14 +1,16 @@
 <script setup>
-import {isActivePlan, phaseCount, phaseOf, standingOf} from "../domain/plans.js";
+import {isActivePlan, modeOf, phaseCount, phaseOf, planAgentOf, standingOf} from "../domain/plans.js";
 import {onUnmounted, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import MenuPanel from "../kit/MenuPanel.vue";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
 import {rows} from "../sync/rows.js";
+import {useScope} from "../composables/scope.js";
 
 const CLOSE_AFTER_MS = 200;
 const props = defineProps({plans: Array});
+const scope = useScope();
 const shown = ref(0);
 const anchor = ref(null);
 let closing = 0;
@@ -61,6 +63,13 @@ function open(p) {
                         <p class="planstrip-card-line">Phase {{ plan().current_phase || 1 }} of {{ phaseCount(plan()) }} · {{ phaseOf(plan()) }}</p>
                     </template>
                     <p class="planstrip-card-line">{{ standing(plan()).title }}</p>
+                    <template v-if="modeOf(plan())">
+                        <p class="planstrip-card-line">{{ modeOf(plan()) }}</p>
+                    </template>
+                    <template v-if="plan().chat">
+                        <p class="planstrip-card-line">{{ planAgentOf(plan()) }}</p>
+                        <a class="planstrip-card-open" :href="scope.api.page(plan().chat)">Open its chat</a>
+                    </template>
                     <button type="button" class="planstrip-card-open" @click="open(plan())">Open plan {{ plan().id }}</button>
                 </div>
             </MenuPanel>

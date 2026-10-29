@@ -1,5 +1,5 @@
 <script setup>
-import {PLAN_STATES, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
+import {modeOf, PLAN_STATES, planAgentOf, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
 import {ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import Chip from "../kit/Chip.vue";
@@ -10,9 +10,11 @@ import {useOutside} from "../composables/outside.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
 import {rows} from "../sync/rows.js";
+import {useScope} from "../composables/scope.js";
 
 const props = defineProps({plans: Array, running: Boolean, up: Boolean, anchor: {type: Object, default: null}, heading: {type: String, default: "Other plans"}, picks: Boolean});
 const emit = defineEmits(["close", "pick"]);
+const scope = useScope();
 const menu = ref(null);
 const error = ref("");
 useOutside(menu, () => emit("close"));
@@ -49,9 +51,15 @@ async function run(action, p) {
                                     {{ PLAN_STATES[statusOf(p)] }}
                                 </Chip>
                                 <span>{{ statusOf(p) === "paused" ? stoppedOf(p, rows("tasks")) : sizeOf(p) }}</span>
+                                <template v-if="modeOf(p)">
+                                    <span class="plan-list-mode">{{ modeOf(p) }}</span>
+                                </template>
                             </span>
                         </div>
                         <span class="plan-list-acts">
+                            <template v-if="p.chat">
+                                <Btn small :href="scope.api.page(p.chat)" :title="planAgentOf(p)">Open its chat</Btn>
+                            </template>
                             <template v-if="statusOf(p) === 'approved'">
                                 <Btn small @click="run(pausePlan, p)">Pause</Btn>
                             </template>

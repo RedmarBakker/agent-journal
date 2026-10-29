@@ -201,6 +201,9 @@ class AgentActivity:
     def described(self, state) -> str:
         return state.activity_text()
 
+    def labels(self, layers: list[dict]) -> list[str]:
+        return [self.states.label(row["state"], row.get("data", {})) for row in layers]
+
     def stack(self, agent: Agent) -> list[dict]:
         shown = []
         for state in reversed(self.states.stack(agent).states):
@@ -208,6 +211,5 @@ class AgentActivity:
             shown.append({"name": state.name, "title": self.states.title(state.name), "values": state.serialized(), "awaits": awaits})
         return shown
 
-    @staticmethod
-    def trail_entry(entry) -> dict:
-        return {"time": entry.created_at, "before": [row["state"] for row in entry.data.get("before", [])], "after": [row["state"] for row in entry.data.get("after", [])], "cause": entry.data.get("cause", ""), "refused": entry.data.get("refused", ""), "line": entry.data.get("line", "")}
+    def trail_entry(self, entry) -> dict:
+        return {"time": entry.created_at, "before": self.labels(entry.data.get("before", [])), "after": self.labels(entry.data.get("after", [])), "cause": entry.data.get("cause", ""), "refused": entry.data.get("refused", ""), "line": entry.data.get("line", "")}

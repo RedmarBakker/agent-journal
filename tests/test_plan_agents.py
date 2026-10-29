@@ -6,6 +6,7 @@ import pytest
 
 from journal.app import App
 from journal.engine.agent_launcher import AgentLauncher
+from journal.http.agents.agent_activity import AgentActivity
 from journal.http.plans.plan_outline import PlanOutline
 from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
@@ -118,6 +119,10 @@ def test_a_plan_agents_first_session_takes_the_prepared_row_and_follows_its_plan
     assert [(layer["state"], layer["data"].get("plan_id")) for layer in agent.stack] == [("leading_plan", plan), ("following_plan", plan)], "it leads its plan and follows it"
     told = [entry.data["line"] for entry in app.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("key") == "plans.you_lead_the_plan"]
     assert told == [f"you lead plan {plan} in this worktree; work its tasks here"], "its session start names the plan it leads"
+    with app.container.get(Scope).environment(plan_environment(app, plan).row_id):
+        [row] = [item for item in app.container.get(AgentActivity).page(agents.scoped()) if item["session"] == "plan-session"]
+    [pushed] = [entry["after"] for entry in row["trail"] if len(entry["after"]) == 2]
+    assert pushed[0] == f"leading_plan (plan {plan})" and pushed[1].startswith(f"following_plan (plan {plan}"), "the trail names each state pushed with the plan it is about"
 
 
 def test_pausing_resuming_and_finishing_a_plan_stops_and_starts_its_agent(app: App, supervisors: Supervisors):

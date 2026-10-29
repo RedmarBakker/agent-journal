@@ -21,6 +21,9 @@ class LeadingPlan(PlansReady):
     def keeps_floor(cls) -> bool:
         return True
 
+    def subject(self) -> str:
+        return f"plan {self.plan_id}"
+
     def mode_lines(self) -> tuple[Nudge, ...]:
         return ()
 

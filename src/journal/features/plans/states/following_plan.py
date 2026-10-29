@@ -36,6 +36,9 @@ class FollowingPlan(PlanWork):
     phase: int = 0
     phase_held: bool = False
 
+    def subject(self) -> str:
+        return ", ".join(part for part in (f"plan {self.plan_id}", super().subject()) if part)
+
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
         return self.none()
 

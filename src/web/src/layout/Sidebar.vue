@@ -17,6 +17,7 @@ import {rows} from "../sync/rows.js";
 import {pluginPages} from "../domain/pluginPages.js";
 import {colleagueOwner, environmentLabel} from "../domain/people.js";
 import {ownEnvironments, teamGroups} from "../domain/hub.js";
+import {chatPlanLine} from "../domain/plans.js";
 
 const envs = computed(() => ownEnvironments(rows("environments"), store.people));
 const teams = computed(() => teamGroups(rows("environments"), store.people));
@@ -101,7 +102,10 @@ function point(e) {
                         <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
                             <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
                             <span class="label">{{ environmentLabel(e, store.people) }}</span>
-                            <template v-if="e.worktree">
+                            <template v-if="chatPlanLine(rows('plans'), e.name)">
+                                <span class="worktree" :title="chatPlanLine(rows('plans'), e.name)">{{ chatPlanLine(rows("plans"), e.name) }}</span>
+                            </template>
+                            <template v-else-if="e.worktree">
                                 <span class="worktree" :title="e.worktree">{{ e.worktree }}</span>
                             </template>
                         </a>

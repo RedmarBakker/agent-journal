@@ -97,6 +97,21 @@ export function othersLine(others) {
 
 // A plan list row carries the plan alone; its phases and their task ids are read from a plan held whole.
 export const isWholePlan = (p) => "task_ids" in p;
+
+// A plan's mode in a few words, such as "Solo mode"; nothing for a plan that names none.
+export const modeOf = (p) => (p.mode ? `${p.mode[0].toUpperCase()}${p.mode.slice(1)} mode` : "");
+
+// Where a plan's own agent runs, such as "Plan agent in plan-3", or nothing while it has none.
+export const planAgentOf = (p) => (p.chat ? `Plan agent in ${p.chat}` : "");
+
+// The plan whose agent's chat an environment is, by the chat each plan names, or none.
+export const chatPlan = (plans, name) => plans.find((p) => p.chat && p.chat === name);
+
+// The chat list's words for a Plan agent's chat, such as "Plan 3 · Floors · Solo mode", or nothing for another chat.
+export function chatPlanLine(plans, name) {
+    const p = chatPlan(plans, name);
+    return p ? [`Plan ${p.id}`, p.title, modeOf(p)].filter(Boolean).join(" · ") : "";
+}
 export const wholePhases = (p) => (isWholePlan(p) ? p.phases || [] : []);
 
 // The phase in hand, counted from 1.

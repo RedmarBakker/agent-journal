@@ -611,7 +611,8 @@ def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_to
     with app.container.get(Scope).environment(1):
         row = next(item for item in app.container.get(AgentActivity).page(app.container.get(Agents).scoped()) if item["session"] == "s1")
     assert [s["name"] for s in row["stack"]] == ["stuck", "working", "idle"] and row["stack"][0]["awaits"]
-    assert [(t["before"], t["after"]) for t in row["trail"]] == [([], ["idle"]), (["idle"], ["idle", "working"]), (["idle", "working"], ["idle", "working", "stuck"])]
+    working = f"working (task {row['stack'][1]['values']['task_id']})"
+    assert [(t["before"], t["after"]) for t in row["trail"]] == [([], ["idle"]), (["idle"], ["idle", working]), (["idle", working], ["idle", working, "stuck"])], "the trail names each state, with the task it is about"
     write(app)
     with app.container.get(Scope).environment(1):
         trail = [e.data for e in app.container.get(Entries).kind_entries(StackHistory.KIND) if e.data["session"] == "s1"]

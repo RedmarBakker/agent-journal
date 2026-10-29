@@ -56,6 +56,10 @@ class StatesCatalogue:
         names = ["idle"] + [name for name in self._states if name != "idle"]
         return [{"key": name, "title": self.title(name), "parent": self.parent(name)} for name in names]
 
+    def label(self, name: str, data: dict) -> str:
+        state = self._states.get(name)
+        return state.restored(data or {}).trail_label() if state else name
+
     def restored(self, name: str, data: dict) -> BaseState:
         state = self._states.get(name) or self._states["idle"]
         return state.restored(data or {})

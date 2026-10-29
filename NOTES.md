@@ -1946,6 +1946,11 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   approves it: a colleague is refused by ColleagueWriteGuard, which names the owner, and a Plan agent by the approval
   rule, since its floor delegates nothing. A Plan agent's environment is made by the person who started the plan, is
   theirs, and is seen as the plan's own environment is: shared with that environment's team, or private, set at each start.
+- The viewer shows Plan agents (task 45): the plan bar's card and the plan list name a plan's mode and its Plan agent
+  with an Open its chat link, and the chat list names a Plan agent's chat as Plan <n> · <title> · <mode> (domain/plans.js
+  modeOf, planAgentOf, chatPlanLine, by the chat a whole plan names). The trail names each state with what it is about,
+  `BaseState.subject()` (a task by default, a plan for LeadingPlan and FollowingPlan, a Role for RoleWork in task 26),
+  as `name (subject)`, read through `StatesCatalogue.label`, which keeps an unknown state's bare name.
 
 ## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
 
