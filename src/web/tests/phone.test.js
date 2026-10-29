@@ -5,13 +5,16 @@ window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListen
 test("on the phone the viewer speaks through /p, finds its files beside the page and offers none of the desk's configuring pages", async () => {
     document.documentElement.classList.add("phone");
     vi.resetModules();
+    const {effectScope} = await import("vue");
     const {api} = await import("../src/api/client.js");
     const {useNavigation} = await import("../src/composables/navigation.js");
     expect(api.url("/messages")).toBe("/p/journal/messages");
     expect(api.publicUrl("voices/figures/figures.json")).toBe("./voices/figures/figures.json");
-    const keys = useNavigation().everywhere.value.map((link) => link.key);
+    const navigationScope = effectScope();
+    const keys = navigationScope.run(() => useNavigation()).everywhere.value.map((link) => link.key);
     expect(keys).toContain("files");
     for (const desk of ["settings", "plugins", "mcp", "profiles", "secrets"]) expect(keys).not.toContain(desk);
+    navigationScope.stop();
     document.documentElement.classList.remove("phone");
 });
 
@@ -34,9 +37,12 @@ test("the phone's chat, home and acts go through /p/journal with the phone's own
 
 test("the phone refuses a file at once, and the desk's Project menu keeps its order", async () => {
     vi.resetModules();
+    const {effectScope} = await import("vue");
     const {useNavigation} = await import("../src/composables/navigation.js");
-    const project = useNavigation().sections.value.find((section) => section.key === "project").links.map((link) => link.key);
+    const navigationScope = effectScope();
+    const project = navigationScope.run(() => useNavigation()).sections.value.find((section) => section.key === "project").links.map((link) => link.key);
     expect(project.slice(-9)).toEqual(["files", "git", "plugins", "mcp", "profiles", "secrets", "resources", "team", "settings"]);
+    navigationScope.stop();
     document.documentElement.classList.add("phone");
     vi.resetModules();
     const {api} = await import("../src/api/client.js");

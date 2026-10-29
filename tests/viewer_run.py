@@ -117,6 +117,9 @@ SETS = {
         "tests/approvals.test.js",
         "tests/approvalPhone.test.js",
     ),
+    "phone_navigation": (
+        "tests/phone.test.js",
+    ),
     "figure_home_return": (
         "tests/figureHomeReturn.test.js",
     ),

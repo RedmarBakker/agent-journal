@@ -3,6 +3,15 @@ import {expect, test, vi} from "vitest";
 test("the phone answers an approval through the phone journal path", async () => {
     document.documentElement.classList.add("phone");
     vi.resetModules();
+    const requestDetails = `{
+  "arguments": {
+    "target": "production"
+  },
+  "command": "",
+  "targets": [],
+  "tool": "mcp__release__production_deployment"
+}`;
+    const question = `Approve production deployment for Role Release Manager, task 58, requested by agent:release-manager?\n\nExact normalized request:\n${requestDetails}`;
     const approval = {
         id: 4,
         environment_id: 12,
@@ -20,10 +29,11 @@ test("the phone answers an approval through the phone journal path", async () =>
     const {default:Approvals} = await import("../src/organization/Approvals.vue");
     choose("main");
     const host = document.body.appendChild(document.createElement("div"));
-    const app = createApp({render: () => h(Approvals, {approval, question: "Approve production deployment for Role Release Manager, task 58?"})});
+    const app = createApp({render: () => h(Approvals, {approval, question})});
     app.provide("scope", {api});
     app.mount(host);
 
+    expect(host.querySelector(".approval-title").textContent).toBe(question);
     [...host.querySelectorAll("button")].find((button) => button.textContent.includes("Approve")).click();
     await vi.waitFor(() => expect(host.textContent).toContain("Approved by you, from your phone"));
     expect(fetched.mock.calls[0][0]).toBe("/p/journal/approvals/4/approve");

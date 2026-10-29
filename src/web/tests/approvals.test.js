@@ -1,4 +1,4 @@
-import {createApp, h} from "vue";
+import {createApp, effectScope, h} from "vue";
 import {expect, test, vi} from "vitest";
 import Approvals from "../src/organization/Approvals.vue";
 import TurnQuestion from "../src/chat/TurnQuestion.vue";
@@ -6,7 +6,15 @@ import {useNavigation} from "../src/composables/navigation.js";
 import {store} from "../src/state/store.js";
 import {settle} from "./settle.js";
 
-const question = "Approve production deployment for Role Release Manager, task 58?";
+const requestDetails = `{
+  "arguments": {
+    "target": "production"
+  },
+  "command": "",
+  "targets": [],
+  "tool": "mcp__release__production_deployment"
+}`;
+const question = `Approve production deployment for Role Release Manager, task 58, requested by agent:release-manager?\n\nExact normalized request:\n${requestDetails}`;
 const approval = {
     id: 4,
     table: "approvals",
@@ -37,7 +45,7 @@ async function mounted(component = Approvals, props = {approval, question}, scop
     return {host, app, scope};
 }
 
-test("the card uses the persisted question and names its Role, plan and task", async () => {
+test("the card preserves the exact persisted request and names its Role, plan and task", async () => {
     const {host, app} = await mounted();
 
     expect(host.querySelector(".approval-title").textContent).toBe(question);
@@ -93,11 +101,44 @@ test("the sidebar counts approvals that are still waiting", () => {
     store.rows = {...store.rows, approvals: [approval]};
     store.booted = false;
 
-    const link = useNavigation().everywhere.value.find((item) => item.key === "approvals");
+    const navigationScope = effectScope();
+    const link = navigationScope.run(() => useNavigation()).everywhere.value.find((item) => item.key === "approvals");
     expect(link).toMatchObject({count: 1, countTitle: "approvals waiting", hot: true});
 
+    navigationScope.stop();
     store.rows = priorRows;
     store.booted = priorBooted;
+});
+
+test("a pending card and sidebar count expire as shared time advances without a row event", async () => {
+    vi.useFakeTimers();
+    const expiring = {...approval, expires_at: new Date(Date.now() + 500).toISOString()};
+    const priorRows = store.rows;
+    const priorBooted = store.booted;
+    store.rows = {...store.rows, approvals: [expiring]};
+    const approvalRows = store.rows.approvals;
+    store.booted = false;
+    const {host, app} = await mounted(Approvals, {approval: expiring, question}, {api: {act: vi.fn()}, rows: () => []});
+    const navigationScope = effectScope();
+    const navigation = navigationScope.run(() => useNavigation());
+    const approvalsLink = () => navigation.everywhere.value.find((item) => item.key === "approvals");
+
+    expect(button(host, "Approve")).toBeTruthy();
+    expect(approvalsLink()).toMatchObject({count: 1, hot: true});
+    await vi.advanceTimersByTimeAsync(1000);
+    await settle();
+    expect(host.textContent).toContain("Expired");
+    expect(button(host, "Approve")).toBeFalsy();
+    expect(button(host, "Refuse")).toBeFalsy();
+    expect(approvalsLink()).toMatchObject({count: 0, hot: false});
+    expect(store.rows.approvals).toBe(approvalRows);
+
+    app.unmount();
+    host.remove();
+    navigationScope.stop();
+    store.rows = priorRows;
+    store.booted = priorBooted;
+    vi.useRealTimers();
 });
 
 test("a double click sends one answer and names the actor returned by the server", async () => {

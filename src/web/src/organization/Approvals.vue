@@ -2,8 +2,9 @@
 import {computed, ref} from "vue";
 import {usePressing} from "../composables/pressing.js";
 import {useScope} from "../composables/scope.js";
+import {useSharedNow} from "../composables/now.js";
 import {actorName} from "../domain/people.js";
-import {seconds} from "../domain/row.js";
+import {closedAt} from "../domain/row.js";
 import {store} from "../state/store.js";
 import Btn from "../kit/Btn.vue";
 
@@ -13,13 +14,11 @@ const props = defineProps({
 });
 
 const scope = useScope();
+const now = useSharedNow();
 const {pressing, failure, run} = usePressing();
 const localAnswer = ref(null);
 const current = computed(() => ({...props.approval, ...localAnswer.value}));
-const expired = computed(() => {
-    const expiresAt = seconds(current.value.expires_at);
-    return current.value.decision === "pending" && expiresAt > 0 && expiresAt <= Date.now() / 1000;
-});
+const expired = computed(() => current.value.decision === "pending" && closedAt(current.value, now.value) > 0);
 const waiting = computed(() => current.value.decision === "pending" && !expired.value);
 const decision = computed(() => {
     const value = expired.value ? "expired" : current.value.decision;
@@ -97,6 +96,8 @@ async function answer(choice) {
     font-size: 13.5px;
     font-weight: 550;
     line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .approval-context,

@@ -53,10 +53,10 @@ const ENDED = ["done", "cancelled"];
 const CLOSED = {
     tasks: (r) => seconds(r.completed_at) || (r.state === "cancelled" ? seconds(r.updated_at) : 0),
     questions: (r) => (r.answer ? seconds(r.updated_at) : 0),
-    approvals: (r) => {
+    approvals: (r, now) => {
         const expiresAt = seconds(r.expires_at);
         if (r.decision !== "pending") return seconds(r.decided_at) || seconds(r.updated_at);
-        return expiresAt > 0 && expiresAt <= Date.now() / 1000 ? expiresAt : 0;
+        return expiresAt > 0 && expiresAt <= now ? expiresAt : 0;
     },
     plans: (r) => (ENDED.includes(r.state) ? seconds(r.updated_at) : 0),
     notices: (r) => seconds(r.closed_at),
@@ -70,8 +70,8 @@ const CLOSED = {
 };
 
 // When the row closed, in seconds; 0 while it is open, and always for a table whose rows never close.
-export const closedAt = (row) => (CLOSED[row.table] ? CLOSED[row.table](row) : 0);
-export const isClosed = (row) => closedAt(row) > 0;
+export const closedAt = (row, now = Date.now() / 1000) => (CLOSED[row.table] ? CLOSED[row.table](row, now) : 0);
+export const isClosed = (row, now) => closedAt(row, now) > 0;
 // whether a table's rows close, as a task is done or a question answered; a message never does
 export const closable = (table) => Boolean(CLOSED[table]);
 export const createdAt = (row) => seconds(row.created_at);
