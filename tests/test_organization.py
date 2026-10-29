@@ -221,14 +221,20 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
     approvals = app.container.get(RoleApprovals)
     organization_data = app.container.get(OrganizationDataReader).read(Agent(environment_id=worker.environment_id, session=worker.session))
 
+    def call_for(command: str):
+        return Claude().call("Bash", {"command": command}, frozenset(), CLASSIFIER)
+
     def attempt(command: str):
         data = FeatureData({
             "workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,)),
             "organization": organization_data,
         })
-        call = Claude().call("Bash", {"command": command}, frozenset(), CLASSIFIER)
-        event = ToolStarting(session=worker.session, call=call).with_data(data)
+        event = ToolStarting(session=worker.session, environment_id=worker.environment_id, call=call_for(command)).with_data(data)
         return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
+
+    def approval_for(command: str, action: ApprovalAction):
+        request_hash, _ = ApprovalActions.identity(call_for(command))
+        return app.container.get(Approvals).for_action(Actor.agent(worker.session).stamp, worker.role, worker.plan_id, task.row_id, action.value, request_hash)
 
     deployment = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
     assert attempt("make deploy").refusal == deployment, "the deployment waits before any approval"
@@ -237,7 +243,7 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
     refusal = LineDelivered(session=worker.session, nudge=OrganizationNudges.ACTION_WAITS_FOR_USER.key, values={"action": ApprovalAction.PRODUCTION_DEPLOYMENT.value})
     with scope.environment(1):
         listener.handle(refusal)
-    approved = app.container.get(Approvals).for_action(Actor.agent(worker.session).stamp, worker.role, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    approved = approval_for("make deploy", ApprovalAction.PRODUCTION_DEPLOYMENT)
     assert approved and (approved.actor, approved.role, approved.task_id, approved.action) == (Actor.agent(worker.session).stamp, "deployer", task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT)
     assert approved.expires_at is not None and approved.question_id > 0, "the saved request names its answer question and expiry"
     approved = approvals.approve(approved, actor)
@@ -248,27 +254,112 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
 
     transfer = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.FINANCIAL_TRANSACTION.value)
     assert attempt("wire transfer").refusal == transfer, "a separate approval action waits"
-    refused = approvals.request(worker, ApprovalAction.FINANCIAL_TRANSACTION)
+    refused = approval_for("wire transfer", ApprovalAction.FINANCIAL_TRANSACTION)
     refused = approvals.refuse(refused, actor)
-    asked_again = approvals.request(worker, ApprovalAction.FINANCIAL_TRANSACTION)
-    assert asked_again.row_id == refused.row_id and asked_again.decision == refused.REFUSED, "a refused request stays refused instead of opening another question"
     assert attempt("wire transfer").refusal == transfer, "a refusal never lets the action through"
+    assert approval_for("wire transfer", ApprovalAction.FINANCIAL_TRANSACTION).row_id == refused.row_id, "a refused exact request stays current instead of opening another question"
 
     contract_change = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.CONTRACT_CHANGE.value)
-    expired = approvals.request(worker, ApprovalAction.CONTRACT_CHANGE)
+    assert attempt("amend contract").refusal == contract_change, "a contract change creates its first request"
+    expired = approval_for("amend contract", ApprovalAction.CONTRACT_CHANGE)
     expired = app.container.get(Approvals).save(expired.with_(expires_at=expired.expires_at - timedelta(hours=2)), actor)
     assert attempt("amend contract").refusal == contract_change, "an expired approval cannot authorize a call"
+    replacement = approval_for("amend contract", ApprovalAction.CONTRACT_CHANGE)
     with scope.environment(expired.question_environment_id):
         question = app.container.get(Questions).find(expired.question_id)
     assert app.container.get(Approvals).find(expired.row_id).decision == expired.EXPIRED and question.is_closed(), "expiry settles the approval and closes its question"
+    assert replacement.row_id != expired.row_id and replacement.decision == replacement.PENDING, "the same exact request gets a fresh current approval after expiry"
+    assert app.container.get(Approvals).for_action(Actor.agent(worker.session).stamp, worker.role, worker.plan_id, task.row_id, ApprovalAction.CONTRACT_CHANGE.value, replacement.request_hash).row_id == replacement.row_id, "lookup selects the replacement request"
+    replacement = approvals.approve(replacement, actor)
+    assert replacement.decision == replacement.APPROVED and attempt("amend contract").refusal is None, "the approved replacement passes once"
+    assert attempt("amend contract").refusal == contract_change, "the approved replacement cannot pass a second time"
 
-    security = approvals.request(worker, ApprovalAction.SECURITY_DECISION)
+    assert attempt("grant access").refusal == OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.SECURITY_DECISION.value)
+    security = approval_for("grant access", ApprovalAction.SECURITY_DECISION)
     with scope.environment(security.question_environment_id):
         question = app.container.get(Questions).find(security.question_id)
         approvals.answering.answer(question, "yes", Actor.agent(worker.session))
     security_wait = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.SECURITY_DECISION.value)
     assert attempt("grant access").refusal == security_wait, "an agent's positive question answer cannot approve its own action"
     assert app.container.get(Approvals).find(security.row_id).decision == security.REFUSED, "the non-user answer is recorded as refused"
+
+
+def test_an_approval_is_bound_to_the_exact_tool_arguments_and_target(app, tmp_path):
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "deployer"])
+    contracts = organization.reload()
+    actor = Actor.user(1)
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        worker = app.container.get(Workers).save(Worker(name="Ada Lovelace", brief="deploy", session="bound-worker", role="deployer", contract=contracts.version), actor)
+        tasks = app.container.get(Tasks)
+        task = tasks.save(Task(title="release", state=TaskState.STARTED), actor)
+        tasks.handover(task, Ref.build(worker), actor)
+    approvals = app.container.get(RoleApprovals)
+    repository = app.container.get(Approvals)
+    questions = app.container.get(Questions)
+    organization_data = app.container.get(OrganizationDataReader).read(Agent(environment_id=worker.environment_id, session=worker.session))
+    data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,)), "organization": organization_data})
+
+    def call_for(tool: str, target: str):
+        return Claude().call(tool, {"target": target}, frozenset(), CLASSIFIER)
+
+    def attempt(call):
+        event = ToolStarting(session=worker.session, environment_id=worker.environment_id, call=call).with_data(data)
+        return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
+
+    def approval_for(call):
+        request_hash, _ = ApprovalActions.identity(call)
+        return repository.for_action(Actor.agent(worker.session).stamp, worker.role, worker.plan_id, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value, request_hash)
+
+    original = call_for("mcp__release__production_deployment", "production")
+    altered_target = call_for("mcp__release__production_deployment", "staging")
+    altered_tool = call_for("mcp__release_v2__production_deployment", "production")
+    waits = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    assert attempt(original).refusal == waits, "a tool request waits for a user decision"
+    approved = approval_for(original)
+    assert approved.request_hash and '"target": "production"' in approved.request_details, "the saved grant names its exact normalized arguments and target"
+    with scope.environment(approved.question_environment_id):
+        question = questions.find(approved.question_id)
+    assert "mcp__release__production_deployment" in question.text and '"target": "production"' in question.text, "the question gives the user the tool and target being approved"
+    approvals.approve(approved, actor)
+    assert attempt(altered_target).refusal == waits and attempt(altered_tool).refusal == waits, "an altered target or tool name cannot use the grant"
+    assert approval_for(altered_target).row_id != approved.row_id and approval_for(altered_tool).row_id != approved.row_id, "each altered request has its own pending grant"
+    assert attempt(original).refusal is None and attempt(original).refusal == waits, "the exact approved call passes once and then is refused"
+
+
+def test_a_solo_role_spends_the_same_exact_approval_once(app, tmp_path):
+    from journal.features.organization.states.role_work import RoleWork
+    from journal.features.plans.plans_part import PlansPart
+    from journal.features.plans.support.plans_data import PlansData
+    from journal.features.plans.support.started_plan import StartedPlan
+
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "deployer"])
+    contracts = organization.reload()
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        task = app.container.get(Tasks).save(Task(title="release", state=TaskState.STARTED), Actor.user(1))
+    started = StartedPlan(plan_id=41, next_task=task.row_id, started_task=task.row_id, started_task_briefing="", recent_tasks=(task.row_id,), remaining_tasks=1,
+                          checkpoint_pause=False, checkpoint_phase=0, testing="")
+    data = FeatureData({"organization": app.container.get(OrganizationDataReader).read(Agent(environment_id=1, session="solo-plan")), PlansPart.name: PlansData(approved=(41,), started=started)})
+    call = Claude().call("Bash", {"command": "make deploy"}, frozenset(), CLASSIFIER)
+    state = RoleWork(role="deployer", version=contracts.version)
+
+    def attempt():
+        event = ToolStarting(session="solo-plan", environment_id=1, call=call).with_data(data)
+        with scope.environment(1):
+            return state.on_tool_starting(event, Settings({}))
+
+    waits = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    assert attempt().refusal == waits, "a solo Role asks before running a production deployment"
+    request_hash, _ = ApprovalActions.identity(call)
+    repository = app.container.get(Approvals)
+    approved = repository.for_action(Actor.agent("solo-plan").stamp, "deployer", 41, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value, request_hash)
+    assert approved and app.container.get(RoleApprovals).approve(approved, Actor.user(1)).decision == approved.APPROVED
+    assert attempt().refusal is None and attempt().refusal == waits, "the solo Role consumes the approval on exactly one tool start"
 
 
 def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_another_key_is_refused(app, tmp_path):

@@ -13,6 +13,8 @@ from journal.features.organization.organization_part import OrganizationPart
 from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.role_policy import RolePolicy
 from journal.features.organization.support.tool_ids import ToolIds
+from journal.features.organization.support.role_approvals import RoleApprovalContext
+from journal.features.plans.plans_part import PlansPart
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,14 @@ class RoleWork(BaseState):
         if role is None or event.call.is_journal:
             return self.none()
         if refusal := RolePolicy().refusal(role, event.call):
+            if refusal.key == OrganizationNudges.ACTION_WAITS_FOR_USER.key:
+                organization = event.data.part(OrganizationPart)
+                started = event.data.part(PlansPart).started
+                approvals = organization.approvals
+                if started and started.plan_id and started.started_task and event.environment_id and approvals:
+                    context = RoleApprovalContext(event.session, role.id, started.plan_id, started.started_task, event.environment_id)
+                    if approvals.authorizes(context, role, event.call):
+                        return self.none()
             return self.refuse(refusal)
         if not role.allows_call(event.call.tool):
             return self.refuse(OrganizationNudges.ROLE_TOOL_REFUSED.create(role=role.title, tool=event.call.tool, tools=ToolIds().words(role.tools) or "none"))

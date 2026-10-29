@@ -85,6 +85,9 @@ def whole_rows(server, table: str) -> list[dict]:
 
 
 def requested_role_approval(app: App, action: ApprovalAction):
+    from journal.providers.claude import Claude
+    from tests.test_engine import CLASSIFIER
+
     actor = Actor.user(1)
     scope = app.container.get(Scope)
     with scope.environment(1):
@@ -92,29 +95,36 @@ def requested_role_approval(app: App, action: ApprovalAction):
         tasks = app.container.get(Tasks)
         task = tasks.save(Task(title="release", state=TaskState.STARTED), actor)
         tasks.handover(task, Ref.build(worker), actor)
-    return worker, app.container.get(RoleApprovals).request(worker, action)
+    service = app.container.get(RoleApprovals)
+    context = service.context_for_worker(worker.session, worker)
+    call = Claude().call("Bash", {"command": action.value}, frozenset(), CLASSIFIER)
+    return worker, service.request(context, action, call), call
 
 
 def test_approval_http_actions_store_the_user_decision_and_serve_the_card_fields(server, app):
-    _, approval = requested_role_approval(app, ApprovalAction.PRODUCTION_DEPLOYMENT)
+    _, approval, _ = requested_role_approval(app, ApprovalAction.PRODUCTION_DEPLOYMENT)
     status, listed = call(server, "GET", "/journal/approvals")
     assert status == 200
     row = next(row for row in listed["rows"] if row["id"] == approval.row_id)
     assert (row["actor"], row["role"], row["task_id"], row["action"]) == ("agent:approval-worker", "publisher", approval.task_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value)
     assert row["question_id"] == approval.question_id and row["expires_at"] and row["decision"] == approval.PENDING
+    assert row["request_hash"] == approval.request_hash and '"command": "production_deployment"' in row["request_details"], "the served approval card carries its exact request identity"
+    question = call(server, "GET", f"/journal/questions?ids={approval.question_id}")[1]["rows"][0]
+    assert "Exact normalized request" in question["text"] and "production_deployment" in question["text"], "the user question explains the command being approved"
 
     status, decided = call(server, "POST", f"/journal/approvals/{approval.row_id}/approve", {})
     assert status == 200 and decided["decision"] == approval.APPROVED and decided["updater"] == "user:1"
-    question_rows = call(server, "GET", f"/journal/questions?ids={approval.question_id}")[1]["rows"]
-    assert question_rows[0]["answer"] == "the user approves this action", "the approval endpoint answers its existing question"
+    answered = call(server, "GET", f"/journal/questions?ids={approval.question_id}")[1]["rows"][0]
+    assert answered["answer"] == "the user approves this action", "the approval endpoint answers its existing question"
 
 
 def test_a_refused_approval_stays_refused_over_http(server, app):
-    worker, approval = requested_role_approval(app, ApprovalAction.DESTRUCTIVE_DATA_CHANGE)
+    worker, approval, tool_call = requested_role_approval(app, ApprovalAction.DESTRUCTIVE_DATA_CHANGE)
     status, refused = call(server, "POST", f"/journal/approvals/{approval.row_id}/refuse", {})
     assert status == 200 and refused["decision"] == approval.REFUSED
     assert call(server, "POST", f"/journal/approvals/{approval.row_id}/approve", {})[0] == 409, "a refusal cannot be changed into approval"
-    again = app.container.get(RoleApprovals).request(worker, ApprovalAction.DESTRUCTIVE_DATA_CHANGE)
+    service = app.container.get(RoleApprovals)
+    again = service.request(service.context_for_worker(worker.session, worker), ApprovalAction.DESTRUCTIVE_DATA_CHANGE, tool_call)
     assert again.row_id == approval.row_id and again.decision == approval.REFUSED, "a refused action cannot be re-requested into a new approval"
 
 

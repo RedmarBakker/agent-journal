@@ -1,6 +1,9 @@
+from dataclasses import dataclass
 from datetime import timedelta
 
 from journal.features.organization.support.approval_action import ApprovalAction
+from journal.features.organization.support.approval_actions import ApprovalActions
+from journal.features.organization.support.role import Role
 from journal.features.questions.support.answer_delivery import AnswerDelivery
 from journal.models.approval import Approval
 from journal.models.question import Question
@@ -14,52 +17,80 @@ from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
+from journal.support.tool_call import ToolCall
 
 APPROVAL_TTL = timedelta(hours=1)
 APPROVE_ANSWER = "the user approves this action"
 REFUSE_ANSWER = "the user refuses this action"
 
 
+@dataclass(frozen=True)
+class RoleApprovalContext:
+    """The agent, Role, plan task and environment where the user's question belongs."""
+
+    session: str
+    role: str
+    plan_id: int
+    task_id: int
+    question_environment_id: int
+
+
 class RoleApprovals:
-    """Creates the user's question for a Role action and spends an approval on its first authorized call."""
+    """Creates an exact-call question and atomically spends its user approval once."""
 
     def __init__(self, approvals: Approvals, questions: Questions, answering: AnswerDelivery, agents: Agents, tasks: Tasks, scope: Scope, time_source: TimeSource) -> None:
         self.approvals, self.questions, self.answering, self.agents, self.tasks, self.scope, self.time_source = approvals, questions, answering, agents, tasks, scope, time_source
 
-    def request(self, worker: Worker, action: ApprovalAction) -> Approval | None:
+    def context_for_worker(self, session: str, worker: Worker) -> RoleApprovalContext | None:
+        if worker.is_new or not worker.role:
+            return None
         task_id = self.current_task(worker)
         if task_id is None:
             return None
-        actor = Actor.agent(worker.session)
-        current = self.approvals.for_action(actor.stamp, worker.role, task_id, action.value)
-        now = self.time_source.moment()
-        if current:
-            current = self.refreshed(current)
-        if current and self.keeps(current, now):
-            return current
-        environment_id = self.request_environment(worker)
-        text = f"Approve {action.replace('_', ' ')} for Role {worker.role}, task {task_id}?"
-        with self.scope.environment(environment_id):
-            question = self.questions.save(Question(text=text, options=(APPROVE_ANSWER, REFUSE_ANSWER)), actor)
-            question = self.questions.save(question.posed(now.timestamp()), actor)
-        return self.approvals.save(Approval(environment_id=environment_id, actor=actor.stamp, role=worker.role, plan_id=worker.plan_id, task_id=task_id,
-                                            action=action, question_id=question.row_id, question_environment_id=environment_id, expires_at=now + APPROVAL_TTL), actor)
+        return RoleApprovalContext(session, worker.role, worker.plan_id, task_id, self.request_environment(worker))
 
-    def authorizes(self, session: str, worker: Worker, action: ApprovalAction) -> bool:
-        task_id = self.current_task(worker)
-        if task_id is None:
+    def authorizes_worker(self, session: str, worker: Worker, role: Role, call: ToolCall) -> bool:
+        context = self.context_for_worker(session, worker)
+        return self.authorizes(context, role, call) if context else False
+
+    def authorizes(self, context: RoleApprovalContext, role: Role, call: ToolCall) -> bool:
+        actions = tuple(action for action in ApprovalActions.of(call) if role.needs_approval(action))
+        if context.role != role.id or len(actions) != 1:
             return False
-        actor = Actor.agent(session)
+        action = actions[0]
+        request_hash, details = ApprovalActions.identity(call)
+        actor = Actor.agent(context.session)
         with self.approvals.writing():
-            approval = self.approvals.for_action(actor.stamp, worker.role, task_id, action.value)
-            if approval is None:
-                return False
-            approval = self.refreshed(approval)
+            approval = self.current_or_new(context, action, request_hash, details, actor)
             now = self.time_source.moment()
             if not approval.permits(now):
                 return False
             self.approvals.save(approval.used(now), actor)
             return True
+
+    def request(self, context: RoleApprovalContext, action: ApprovalAction, call: ToolCall) -> Approval | None:
+        if ApprovalActions.of(call) != (action,):
+            return None
+        request_hash, details = ApprovalActions.identity(call)
+        actor = Actor.agent(context.session)
+        with self.approvals.writing():
+            return self.current_or_new(context, action, request_hash, details, actor)
+
+    def current_or_new(self, context: RoleApprovalContext, action: ApprovalAction, request_hash: str, details: str, actor: Actor) -> Approval:
+        current = self.approvals.for_action(actor.stamp, context.role, context.plan_id, context.task_id, action.value, request_hash)
+        now = self.time_source.moment()
+        if current:
+            current = self.refreshed(current)
+            if self.keeps(current, now):
+                return current
+        text = (f"Approve {action.value.replace('_', ' ')} for Role {context.role}, task {context.task_id}, requested by {actor.stamp}?\n\n"
+                f"Exact normalized request:\n{details}")
+        with self.scope.environment(context.question_environment_id):
+            question = self.questions.save(Question(text=text, options=(APPROVE_ANSWER, REFUSE_ANSWER)), actor)
+            question = self.questions.save(question.posed(now.timestamp()), actor)
+        return self.approvals.save(Approval(environment_id=context.question_environment_id, actor=actor.stamp, role=context.role, plan_id=context.plan_id, task_id=context.task_id,
+                                            action=action, request_hash=request_hash, request_details=details, question_id=question.row_id,
+                                            question_environment_id=context.question_environment_id, expires_at=now + APPROVAL_TTL), actor)
 
     def approve(self, approval: Approval, actor: Actor) -> Approval:
         return self.decide(approval, Approval.APPROVED, actor)

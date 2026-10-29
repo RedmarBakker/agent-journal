@@ -1,3 +1,7 @@
+import hashlib
+import json
+import posixpath
+
 from journal.features.organization.support.approval_action import ApprovalAction
 from journal.support.tool_call import ToolCall
 
@@ -29,3 +33,14 @@ class ApprovalActions:
             texts = (command,)
         words = "\n".join(texts).lower()
         return tuple(action for action, names in COMMANDS.items() if any(name in words for name in names))
+
+    @staticmethod
+    def identity(call: ToolCall) -> tuple[str, str]:
+        """Return a stable fingerprint and the complete normalized request shown to the user."""
+        command = call.command.replace("\r\n", "\n").replace("\r", "\n").strip()
+        targets = sorted({posixpath.normpath(path.replace("\\", "/")) for path in call.edited_paths if path.strip()})
+        arguments = {**call.input, "command": command} if command and isinstance(call.input.get("command"), str) else call.input
+        request = {"tool": call.tool.strip(), "command": command, "arguments": arguments, "targets": targets}
+        canonical = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+        details = json.dumps(request, ensure_ascii=False, sort_keys=True, indent=2, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest(), details

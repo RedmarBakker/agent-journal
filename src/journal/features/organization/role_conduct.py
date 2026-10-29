@@ -4,7 +4,6 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.tool_starting import ToolStarting
 from journal.features.organization.organization_part import OrganizationPart
 from journal.features.organization.organization_nudges import OrganizationNudges
-from journal.features.organization.support.approval_actions import ApprovalActions
 from journal.features.organization.support.role_policy import RolePolicy
 from journal.features.workers.workers_part import WorkersPart
 
@@ -21,8 +20,5 @@ class RoleConduct(Conduct):
             return self.none()
         if refusal.key != OrganizationNudges.ACTION_WAITS_FOR_USER.key or role is None or worker is None:
             return self.refuse(refusal)
-        actions = tuple(action for action in ApprovalActions.of(event.call) if role.needs_approval(action))
-        if len(actions) != 1:
-            return self.refuse(refusal)
         approvals = organization.approvals
-        return self.none() if approvals and approvals.authorizes(event.session, worker, actions[0]) else self.refuse(refusal)
+        return self.none() if approvals and approvals.authorizes_worker(event.session, worker, role, event.call) else self.refuse(refusal)

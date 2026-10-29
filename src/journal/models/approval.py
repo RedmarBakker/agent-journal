@@ -20,6 +20,8 @@ class Approval(Model):
     plan_id: int = 0
     task_id: int = 0
     action: ApprovalAction = ApprovalAction.PRODUCTION_DEPLOYMENT
+    request_hash: str = ""
+    request_details: str = ""
     question_id: int = 0
     question_environment_id: int = 0
     expires_at: datetime | None = None
