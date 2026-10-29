@@ -10,6 +10,8 @@ from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent.command_moved import CommandMoved
 from journal.events.agent.impasse_report import ImpasseReport
+from journal.events.agent.role_step_ended import RoleStepEnded
+from journal.events.agent.role_taken import RoleTaken
 from journal.events.agent.helper_assignment import HelperAssignment
 from journal.events.bus import Bus
 from journal.models.agent import Agent
@@ -19,7 +21,7 @@ from journal.support.caller import Caller
 
 
 class CommandEvents:
-    """The events a command or the runner raises, dispatched here as a hook's are, a helper's reaching only the listeners its file allows: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a helper given its job by the journal, a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
+    """The events a command or the runner raises, dispatched here as a hook's are, a helper's reaching only the listeners its file allows: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; the agent taking on a Role for a step and ending it; a helper given its job by the journal, a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
 
     def __init__(self, bus: Bus, audience: AgentEventAudience, clock: Clock, scope: Scope) -> None:
         self.bus, self.audience, self.clock, self.scope = bus, audience, clock, scope
@@ -54,3 +56,9 @@ class CommandEvents:
 
     def help_needed(self, reason: str, caller: Caller) -> None:
         self.audience.dispatch(ImpasseReport(reason=reason).placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+
+    def role_taken(self, role: str, caller: Caller) -> None:
+        self.audience.dispatch(RoleTaken(role=role).placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+
+    def role_step_ended(self, caller: Caller) -> None:
+        self.audience.dispatch(RoleStepEnded().placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))

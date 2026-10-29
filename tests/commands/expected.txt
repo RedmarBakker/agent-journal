@@ -385,6 +385,7 @@ $ agent: journal plan show 1
 exit 0
 plan 1 draft: The shop's checkout
 mode: solo
+owner: Jesse
 phase 1: The cart (complete when the cart adds up)
    3  open     The cart sums its lines
 phase 2: Paying by card (complete when a card pays) [checkpoint]
@@ -2790,3 +2791,11 @@ no organization: set the agentic organization folder on the Settings page
 $ agent: journal organization reload
 exit 0
 no organization: set the agentic organization folder on the Settings page
+
+$ agent: journal role take keeper
+exit 1
+only the Plan agent of a solo plan takes on a Role, in its plan's environment
+
+$ agent: journal role done
+exit 0
+the step as a Role has ended

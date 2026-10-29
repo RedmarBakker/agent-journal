@@ -7,6 +7,7 @@ from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.role_models import RoleModels
 from journal.providers.support.profile import Profile
 from journal.providers.support.profile_type import ProfileType
+from journal.features.organization.support.role_tools import ROLE_TOOLS
 
 EDIT_TOOL = "edit_files"
 
@@ -37,6 +38,9 @@ class Role:
 
     def allows_tool(self, tool: str) -> bool:
         return tool in self.tools
+
+    def allows_call(self, provider_tool: str) -> bool:
+        return any(provider_tool in ROLE_TOOLS.get(tool, ()) for tool in self.tools)
 
     def allows_edits(self) -> bool:
         return self.writes and self.allows_tool(EDIT_TOOL)

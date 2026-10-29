@@ -1951,6 +1951,14 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   modeOf, planAgentOf, chatPlanLine, by the chat a whole plan names). The trail names each state with what it is about,
   `BaseState.subject()` (a task by default, a plan for LeadingPlan and FollowingPlan, a Role for RoleWork in task 26),
   as `name (subject)`, read through `StatesCatalogue.label`, which keeps an unknown state's bare name.
+- Acting as a Role (task 26): `journal role take <role>` and `journal role done` raise RoleTaken and RoleStepEnded
+  through CommandEvents; the command refuses unless the caller leads a solo plan in its environment
+  (`PlanAgents.led_plan`), for an unknown Role, and for a journal-cardinality Role, whose work waits on its queue
+  (task 27). OrganizationConduct pushes `RoleWork(role, version)` with the domain's and Role's guidance; RoleWork reads
+  the Role from `OrganizationPart` at each tool: a journal command always passes, a write is refused unless the Role
+  writes, another tool unless one of its tool ids names it (`Role.allows_call`, Claude's tool names only so far). It is
+  named `role_work (Role <id>)` in the trail, sends its guidance again on resume (after a compaction), and pops on
+  RoleStepEnded. Approval-required actions are still not recognised from a call (doc 3, open).
 
 ## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
 

@@ -176,3 +176,38 @@ def test_a_plan_is_its_owners_to_approve_and_its_agents_chat_is_seen_as_the_plan
     assert console.run(["plan", "approve", str(other)], USER).code == 0 and console.run(["plan", "start", str(other)], USER).code == 0
     app.runtime().deferred.drain()
     assert plan_environment(app, other).team_key == "team-key", "the agent of a plan in a shared environment has a chat the team sees"
+
+
+def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, supervisors: Supervisors, tmp_path):
+    from journal.features.organization.support.organization import Organization
+    from tests.organization_fixture import OrganizationFixture
+    fixture = OrganizationFixture(tmp_path / "organization").write()
+    user_set(app, "workers.organization_folder", str(fixture.root))
+    keeper = app.container.get(Organization).reload().role("keeper")
+    user_set(app, SWITCH, True)
+    plan = started_plan(app, "the review")
+    plans, agents, console = app.container.get(Plans), app.container.get(Agents), app.console()
+    agent_id = plans.agent_id(plans.find(plan))
+    lead = Caller.agent(f"plan-{plan}", "plan-session", "claude")
+    planned = lambda name, **body: posted(app, "/hooks/claude", {"hook_event_name": name, "session_id": "plan-session", **body}, {"X-Journal-Env": f"plan-{plan}"})
+    planned("SessionStart")
+    assert console.run(["role", "take", "keeper"], AGENT).code != 0, "only the Plan agent of a solo plan takes on a Role"
+    taken = console.run(["role", "take", "keeper"], lead)
+    assert taken.code == 0, taken.error
+    top = lambda: agents.find(agent_id).stack[-1]
+    assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
+    status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "notes.md", "content": "a finding"})
+    assert status == 409 and "has no write tool" in body["error"], "acting as a Role that writes nothing, a write is refused"
+    assert planned("PreToolUse", tool_name="Read", tool_input={"file_path": "notes.md"})[0] == 200, "a tool the Role names goes through"
+    assert planned("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "and a journal command always does"
+    guided = lambda: [entry.data["line"] for entry in app.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("key") == "organization.you_act_as_the_role"]
+    assert len(guided()) == 1 and keeper.guidance in guided()[0], "its push brings the Role's guidance"
+    with app.container.get(Scope).environment(plan_environment(app, plan).row_id):
+        [row] = [item for item in app.container.get(AgentActivity).page(agents.scoped()) if item["session"] == "plan-session"]
+    assert row["trail"][-1]["after"][-1] == "role_work (Role keeper)", "the trail names the Role it acts as"
+    assert console.run(["role", "take", "scout"], lead).code != 0, "a Role every plan shares is never taken on"
+    planned("PreCompact")
+    planned("SessionStart", source="compact")
+    console.run(["environment", "overview"], lead)
+    assert top()["state"] == "role_work" and len(guided()) == 2, "after a compaction it is the Role it was, told its guidance again"
+    assert console.run(["role", "done"], lead).code == 0 and top()["state"] != "role_work", "the step's end pops it"

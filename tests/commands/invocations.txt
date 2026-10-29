@@ -344,3 +344,5 @@ agent tests command --help
 agent supervision health
 agent organization list
 agent organization reload
+agent role take keeper
+agent role done

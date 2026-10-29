@@ -31,6 +31,9 @@ class PlanAgents:
         agent = self.agent(plan)
         return self.environments.find(agent.environment_id) if agent else None
 
+    def led_plan(self, environment_id: int) -> Plan | None:
+        return next((plan for plan in self.plans.running_plans() if (environment := self.environment(plan)) and environment.row_id == environment_id), None)
+
     def is_running(self, environment: Environment) -> bool:
         return self.supervisor.runs(environment.row_id)
 
