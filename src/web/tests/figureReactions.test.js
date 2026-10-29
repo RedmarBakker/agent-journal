@@ -15,6 +15,7 @@ const {
     lookOf,
     pastimeFor,
     pastimeOf,
+    queuedFirst,
     reactionTo,
     roomFor,
     workMoments,
@@ -22,17 +23,56 @@ const {
 const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, readingsAfter, sayingsAfter, testResultsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
-const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.js");
+const {EVERY_VOICE_FACES, PILE, VOICE_FACES, givesWay} = await import("../src/figure/pile.js");
 
 // the pile's entries of a moment
 const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
 
-test("a test run that passed turns the figure to its card and nods, the jump for joy being kept for an anticipated run's end, and one that failed gives it a startled hop", () => {
+test("a test run that passed turns the figure to its card and nods, while a failure can startle, dismay or anger it", () => {
     const passed = of("tests_passed").filter((entry) => entry.kind === "clip" && !entry.shenanigan);
     expect(passed.every((entry) => entry.toward === "card" && entry.onto)).toBe(true);
     expect(passed.map((entry) => entry.name)).toEqual(["nod"]);
-    // the start at a failure, and the dismay that came before it, restored beside it (task 2652)
-    expect(of("tests_failed").filter((entry) => entry.kind === "clip").map((entry) => [entry.name, entry.toward])).toEqual([["startled", "card"], ["dismay", "card"]]);
+    expect(of("tests_failed").filter((entry) => entry.kind === "clip").map((entry) => [entry.name, entry.toward])).toEqual([["startled", "card"], ["dismay", "card"], ["tantrum", "card"]]);
+});
+
+test("every voice can throw a tantrum at a test, anticipated run or check failure, with the quieter reactions still available", () => {
+    for (const voice of Object.keys(VOICE_FACES)) {
+        for (const moment of ["tests_failed", "bar_failed", "failed"]) {
+            expect(reactionTo(moment, new Map(), 100, () => 0.6, voice), `${voice} ${moment}`).toMatchObject({
+                clip: "tantrum",
+                toward: moment === "bar_failed" ? "" : "card",
+                holds: moment === "bar_failed",
+            });
+        }
+        for (const [moment, name] of [["tests_failed", "startled"], ["bar_failed", "fume"], ["failed", "shake"]]) {
+            expect(reactionTo(moment, new Map(), 100, () => 0, voice).clip, `${voice} ${moment}`).toBe(name);
+        }
+    }
+});
+
+test("a missing tantrum falls back to existing failure reactions and its failure groups retain their cooldown", () => {
+    const without = (name) => name !== "tantrum";
+    for (const voice of Object.keys(VOICE_FACES)) {
+        expect(reactionTo("tests_failed", new Map(), 100, () => 0.7, voice, without).clip).toBe("dismay");
+        expect(reactionTo("bar_failed", new Map(), 100, () => 0.99, voice, without).clip).toBe("fume");
+        expect(reactionTo("failed", new Map(), 100, () => 0.5, voice, without).clip).toBe("shake");
+        for (const moment of ["tests_failed", "failed"]) {
+            const memory = new Map();
+            expect(reactionTo(moment, memory, 100, () => 0.6, voice).clip).toBe("tantrum");
+            expect(reactionTo(moment, memory, 119.99, () => 0.6, voice)).toBe(null);
+            expect(reactionTo(moment, memory, 120, () => 0.6, voice).clip).toBe("tantrum");
+        }
+    }
+});
+
+test("an anticipated failure's tantrum keeps its queue priority and plays out before later work", () => {
+    const memory = {reacted: new Map(), played: []};
+    const answer = answerTo({beat: "bar_failed", time: 100}, "butler", memory, 100, () => 0.6, () => true);
+    expect(answer).toEqual({beat: {clip: "tantrum", card: "", holds: true}});
+    const call = {clip: "phone_call"}, nod = {clip: "nod"};
+    expect(queuedFirst([call, nod], answer.beat, "phone_call")).toEqual([call, answer.beat, nod]);
+    const clip = CLIPS.find((each) => each.name === "tantrum");
+    expect(givesWay({clip, once: true, holds: answer.beat.holds}, 0.5, {urgent: true})).toBe(false);
 });
 
 test("a reaction fires only when its roll wins, and not again before its cooldown is over", () => {
@@ -229,7 +269,7 @@ test("typing is a moment, and so is the end of a stretch of work long enough, ti
 test("a moment is answered by its egg first, else by its reaction, a beat for the body or a look for the eyes, and a missing clip by nothing", () => {
     const memory = () => ({reacted: new Map(), played: []});
     const has = () => true;
-    expect(answerTo({beat: "failed", time: 1}, "squire", memory(), 0, () => 0, has)).toEqual({beat: {clip: "squire_chase", card: ""}});
+    expect(answerTo({beat: "failed", time: 1}, "squire", memory(), 0, () => 0.6, has)).toEqual({beat: {clip: "squire_chase", card: ""}});
     expect(answerTo({beat: "reacted:\u2764\ufe0f", time: 1}, "butler", memory(), 0, () => 0, has)).toEqual({look: "hearts"});
     // a passed run is answered on its own card: the figure goes onto it first
     expect(answerTo({beat: "tests_passed", time: 1, card: "tests:1"}, "butler", memory(), 0, () => 0, has)).toEqual({

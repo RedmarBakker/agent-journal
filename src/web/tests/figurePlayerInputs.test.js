@@ -13,6 +13,7 @@ function player() {
 }
 
 afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     draw.mockClear();
 });
@@ -46,4 +47,49 @@ test("the walk's animation phase follows measured travel, while unchanged inputs
     expect(draw).toHaveBeenCalledTimes(1);
     shown.show(walk, 9, 90, {posture: "stand", stride: 1.5});
     expect(draw.mock.calls[1][2]).toBeCloseTo(6);
+});
+
+test("the run's animation phase follows measured travel through an eased start and stop", () => {
+    const shown = player();
+    const run = {name: "run", frames: 16};
+    shown.show(run, 8, 90, {posture: "stand", stride: 0.125});
+    expect(draw.mock.calls[0][2]).toBeCloseTo(2);
+    shown.show(run, 9, 90, {posture: "stand", stride: 0.125});
+    expect(draw).toHaveBeenCalledTimes(1);
+    shown.show(run, 10, 90, {posture: "stand", stride: 0.75});
+    expect(draw.mock.calls[1][2]).toBeCloseTo(12);
+});
+
+test("a continuously moving facing eases without restarting the clip blend or freezing its first frame", () => {
+    let clock = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const shown = player();
+    shown.show(clip, 0, 0, {posture: "stand"});
+    const nod = {name: "nod", frames: 10};
+    clock += 16;
+    shown.show(nod, 0, 0, {posture: "stand"});
+    const began = shown.blend.began;
+    const facings = [];
+    for (let index = 1; index <= 15; index++) {
+        clock += 16;
+        shown.show(nod, index / 10, index * 2, {posture: "stand"});
+        expect(shown.blend.began).toBe(began);
+        facings.push(draw.mock.calls.at(-1)[3]);
+    }
+    expect(facings.at(-1)).toBeGreaterThan(20);
+    for (let index = 1; index < facings.length; index++) expect(facings[index]).toBeGreaterThan(facings[index - 1]);
+});
+
+test("a retiring prop keeps redrawing a held frame until its fade finishes", () => {
+    const shown = player();
+    shown.show(clip, 0, 0, {posture: "stand"});
+    shown.figure.propTransitions = {present: true, active: true};
+    shown.show(clip, 0, 0, {posture: "stand"});
+    expect(draw).toHaveBeenCalledTimes(2);
+    expect(draw.mock.calls[1][5].time).toBeGreaterThan(0);
+    shown.figure.propTransitions = {present: false, active: false};
+    shown.show(clip, 0, 0, {posture: "stand"});
+    expect(draw).toHaveBeenCalledTimes(2);
+    shown.show(clip, 1, 0, {posture: "stand"});
+    expect(draw.mock.calls[2][5].time).toBeGreaterThan(0);
 });

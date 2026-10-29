@@ -11,7 +11,7 @@ const names = (entries) => entries.map((entry) => entry.name);
 const rolls = (...shares) => () => shares.shift();
 
 test("the pile is filtered to what may play where things stand: the moment, the voice, how long the state has lasted, a free hand", () => {
-    expect(names(choicesFor({moment: "tests_failed"}))).toEqual(["startled", "dismay", "nothing"]);
+    expect(names(choicesFor({moment: "tests_failed"}))).toEqual(["startled", "dismay", "tantrum", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "butler"}))).toEqual(["bow", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "homie"}))).toEqual(["nod", "nothing"]);
     // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan only with the room for it
@@ -26,7 +26,7 @@ test("the pile is filtered to what may play where things stand: the moment, the 
     expect(names(choicesFor({moment: "jump", high: false}))).toEqual(["jump"]);
     expect(names(choicesFor({moment: "spell", state: "reading"}))).toEqual(["reading", "nothing"]);
     // what the figure cannot draw where it is, it never draws
-    expect(names(choicesFor({moment: "tests_failed", has: (name) => name !== "dismay"}))).toEqual(["startled", "nothing"]);
+    expect(names(choicesFor({moment: "tests_failed", has: (name) => name !== "dismay"}))).toEqual(["startled", "tantrum", "nothing"]);
 });
 
 test("one is drawn by weight, a weight of 3 counting as three tickets, and a moment cools down once it has played", () => {
@@ -54,11 +54,12 @@ test("after three acts in a row with no shenanigan among them, the next draw tha
     expect(draw({moment: "carrier", tally: {plain: 5, last: ""}}, rolls(0)).name).toBe("ufo");
     // the act just played is passed over while another may play
     expect(draw({moment: "reported", tally: {plain: 0, last: "read"}}, rolls(0)).name).toBe("nod");
-    expect(draw({moment: "bar_failed", tally: {plain: 0, last: "fume"}}, rolls(0)).name).toBe("fume");
+    expect(draw({moment: "bar_failed", tally: {plain: 0, last: "fume"}}, rolls(0)).name).toBe("tantrum");
+    expect(draw({moment: "bar_failed", tally: {plain: 0, last: "fume"}, has: (name) => name === "fume"}, rolls(0)).name).toBe("fume");
 });
 
 test("no act played once is cut off by the next moment: it plays out, a look about, a nod or a fall alike", () => {
-    for (const name of ["look_left", "rest", "nod", "fall", "backflip", "tumble", "joy", "phone_call"]) {
+    for (const name of ["look_left", "rest", "nod", "fall", "backflip", "tumble", "joy", "phone_call", "tantrum"]) {
         const clip = CLIPS.find((each) => each.name === name);
         for (const seconds of [0.5, 3, 60]) expect(givesWay({clip, once: true}, seconds, {urgent: true}), `${name} ${seconds}`).toBe(false);
     }
@@ -73,6 +74,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip nod ×2 when moment=tests_fixed, plays out, group cools 20s",
         "clip startled ×2 when moment=tests_failed, plays out, group cools 20s",
         "clip dismay ×1 when moment=tests_failed, plays out, group cools 20s",
+        "clip tantrum ×3 when moment=tests_failed, plays out, group cools 20s",
         "nothing nothing ×1 when moment=tests_failed, group cools 20s",
         "clip nod ×2 when moment=committed, plays out, group cools 30s",
         "nothing nothing ×2 when moment=committed, group cools 30s",
@@ -99,6 +101,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "nothing nothing ×9 when moment=check_passed, group cools 120s",
         "clip joy ×2 when moment=bar_done, plays out",
         "clip fume ×1 when moment=bar_failed, plays out",
+        "clip tantrum ×3 when moment=bar_failed, plays out",
         "clip look_left ×2 when moment=standing, plays out, group cools 12s",
         "clip look_right ×2 when moment=standing, plays out, group cools 12s",
         "clip look_up ×1 when moment=standing, plays out, group cools 12s",
@@ -110,6 +113,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip look_right ×1 when moment=building, plays out, group cools 30s",
         "nothing nothing ×69 when moment=building, group cools 30s",
         "clip shake ×3 when moment=failed, plays out, group cools 20s",
+        "clip tantrum ×2 when moment=failed, plays out, group cools 20s",
         "nothing nothing ×2 when moment=failed, group cools 20s",
         "clip shake ×1 when moment=refused, plays out, group cools 20s",
         "nothing nothing ×1 when moment=refused, group cools 20s",
@@ -165,6 +169,8 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip shield_up ×1 when moment=agent_reacted:🛡️ voices=squire, plays out",
         "clip castle ×1 when moment=agent_reacted:🏰 voices=squire, plays out",
         "clip thanks ×1 when moment=agent_reacted:🙏, plays out",
+        "clip tantrum ×1 when moment=agent_reacted:😠, plays out",
+        "clip tantrum ×1 when moment=agent_reacted:😡, plays out",
         "clip stretch ×3 when moment=pastime free=true lasted=90, plays out, cools 90s",
         "clip rest ×3 when moment=pastime free=true lasted=180, plays out, cools 120s",
         "clip yawn ×2 when moment=pastime free=true lasted=60, plays out, cools 60s",

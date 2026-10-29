@@ -72,7 +72,9 @@ test("the same fingers remain attached to the hat's brim throughout its held tip
             const frame = (0.3 + 0.4 * sample / 40) * (clips.hat_tip.frames - 1);
             const {pose, moves} = posed("hat_tip", frame, "butler", props, posture);
             hat.updateMatrixWorld(true);
-            const brim = new THREE.Vector3(SIDES[side] * (BUTLER.hat.crown + BUTLER.hat.brim), 0, 0).applyMatrix4(hat.matrixWorld);
+            const angle = THREE.MathUtils.degToRad(REACTING.hatGripAngle);
+            const radius = BUTLER.hat.crown + BUTLER.hat.brim;
+            const brim = new THREE.Vector3(SIDES[side] * radius * Math.cos(angle), BUTLER.hat.curl * Math.cos(angle) ** 2 + BUTLER.hat.thick / 2, radius * Math.sin(angle)).applyMatrix4(hat.matrixWorld);
             const grip = pose.grip(side, [REACTING.hatFingers, 0, 0]).applyMatrix4(moves.get(`hand_${side}`)).applyMatrix4(toGlb);
             expect(brim.distanceTo(grip), `${posture} brim contact at ${frame}`).toBeLessThan(1e-7);
         }

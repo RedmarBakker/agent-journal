@@ -1,5 +1,5 @@
 // @vitest-environment node
-import {readFileSync} from "node:fs";
+import {existsSync, readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing} from "../src/figure/figure.js";
@@ -19,11 +19,8 @@ const RIG = {
 };
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 
-// each built-in voice's faces, as the server's catalogue gives them to the agent
-const catalogue = readFileSync(new URL("../../journal/features/voices/support/builtin_catalogue.py", import.meta.url), "utf8");
-const BUILT_IN = Object.fromEntries(
-    [...catalogue.matchAll(/Voice\("(\w+)",[\s\S]*?emoji="([^"]+)"\)/g)].map(([, voice, emoji]) => [voice, emoji.split(" ")])
-);
+// The standalone viewer archive includes the rig and frontend faces, but not the server catalogue.
+const cataloguePath = new URL("../../journal/features/voices/support/builtin_catalogue.py", import.meta.url);
 
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
@@ -36,12 +33,11 @@ function posed(clip, voice, t, posture = "stand") {
 // every bone's move, to compare a pose with the figure at rest
 const movesOf = (pose) => [...pose.moves(0)].map(([name, move]) => [name, move.elements.map((n) => Math.round(n * 1e4) / 1e4 + 0)]);
 
-test("every face of every built-in voice has a clip of that voice's own, which the agent's face on a message calls for", () => {
-    expect(Object.keys(BUILT_IN).sort()).toEqual(["butler", "coach", "colleague", "homie", "squire"]);
-    for (const [voice, faces] of Object.entries(BUILT_IN)) {
-        expect(faces.length, voice).toBe(3);
-        for (const face of faces.filter((each) => !EVERY_VOICE_FACES[each])) {
-            const clip = clipNamed(VOICE_FACES[voice][face]);
+test("every configured voice face has a clip of that voice's own, which the agent's face on a message calls for", () => {
+    expect(Object.keys(VOICE_FACES).sort()).toEqual(Object.keys(stances).sort());
+    for (const [voice, faces] of Object.entries(VOICE_FACES)) {
+        for (const [face, name] of Object.entries(faces)) {
+            const clip = clipNamed(name);
             expect(clip, `${voice} ${face}`).toBeDefined();
             expect(clip.voices, `${voice} ${face}`).toEqual([voice]);
             expect(PILE.find((each) => each.when.moment === `agent_reacted:${face}` && each.when.voices?.includes(voice)).name).toBe(clip.name);
@@ -51,10 +47,26 @@ test("every face of every built-in voice has a clip of that voice's own, which t
     expect(new Set(clips).size).toBe(14);
 });
 
+test("the server's built-in voice catalogue is covered by the viewer's reaction clips", ({skip}) => {
+    if (!existsSync(cataloguePath)) skip("Standalone archive omits journal/features/voices/support/builtin_catalogue.py; the server-to-viewer catalogue cross-check requires the full repository.");
+    const catalogue = readFileSync(cataloguePath, "utf8");
+    const builtIn = Object.fromEntries(
+        [...catalogue.matchAll(/Voice\("(\w+)",[\s\S]*?emoji="([^"]+)"\)/g)].map(([, voice, emoji]) => [voice, emoji.split(" ")])
+    );
+    expect(Object.keys(builtIn).sort()).toEqual(["butler", "coach", "colleague", "homie", "squire"]);
+    for (const [voice, faces] of Object.entries(builtIn)) {
+        expect(faces.length, voice).toBe(3);
+        for (const face of faces) {
+            const name = VOICE_FACES[voice][face] ?? EVERY_VOICE_FACES[face];
+            expect(clipNamed(name), `${voice} ${face}`).toBeDefined();
+        }
+    }
+});
+
 test("the agent's 🙏 on a message plays the thanks for every voice: the hands pressed together before the chest, fingers up", () => {
     const thanks = clipNamed("thanks");
     expect(thanks.voices).toBeUndefined();
-    for (const voice of Object.keys(BUILT_IN)) {
+    for (const voice of Object.keys(stances)) {
         const has = (name) => clipNamed(name) && (!clipNamed(name).voices || clipNamed(name).voices.includes(voice));
         expect(answerTo({beat: "agent_reacted:🙏", time: 1}, voice, {reacted: new Map(), played: []}, 200, () => 0.99, has), voice).toEqual({beat: {clip: "thanks", card: ""}});
         const pose = posed(thanks, voice, 0.5);
@@ -71,10 +83,30 @@ test("the agent's 🙏 on a message plays the thanks for every voice: the hands 
     }
 });
 
+test("both agent anger faces call every voice's tantrum while a user's anger remains a look", () => {
+    const tantrum = clipNamed("tantrum");
+    expect(tantrum).toBeDefined();
+    expect(tantrum.voices).toBeUndefined();
+    expect(tantrum.postures).toEqual(["stand"]);
+    expect(tantrum.loops).toBe(false);
+    for (const voice of Object.keys(stances)) {
+        const has = (name) => clipNamed(name) && (!clipNamed(name).voices || clipNamed(name).voices.includes(voice));
+        for (const face of ["😠", "😡"]) {
+            const moment = {beat: `agent_reacted:${face}`, time: 1, card: "messages:7"};
+            expect(answerTo(moment, voice, {reacted: new Map(), played: []}, 200, () => 0.99, has), `${voice} ${face}`).toEqual({
+                beat: {clip: "tantrum", card: "", mark: "messages:7"},
+            });
+            expect(answerTo(moment, voice, {reacted: new Map(), played: []}, 200, () => 0, (name) => name !== "tantrum")).toBe(null);
+        }
+        expect(answerTo({beat: "reacted:😠", time: 1}, voice, {reacted: new Map(), played: []}, 200, () => 0.99, has)).toEqual({look: "angry"});
+        expect(answerTo({beat: "reacted:😡", time: 1}, voice, {reacted: new Map(), played: []}, 200, () => 0, has)).toBe(null);
+    }
+});
+
 test("each face's clip poses on every frame in every posture it is drawn in, and starts and ends at rest with nothing in hand", () => {
     for (const [voice, faces] of Object.entries(VOICE_FACES)) {
         const rest = movesOf(posed(clipNamed("idle"), voice, 0));
-        for (const name of Object.values({...faces, ...EVERY_VOICE_FACES})) {
+        for (const name of new Set(Object.values({...faces, ...EVERY_VOICE_FACES}))) {
             const clip = clipNamed(name);
             const steps = clip.frames * 5;
             for (const posture of clip.postures) {

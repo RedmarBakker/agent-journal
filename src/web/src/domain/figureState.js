@@ -113,7 +113,7 @@ function wantedClip(scene, canDraw) {
     const {mode, leaving, arriving, trip, landing, place, beat, state, doing, doingFacing = 0, readingFacing = null} = scene;
     // a figure in the air on its feet falls before anything else, leaving included: it lands first, and then goes; one dropping with its
     // seat stays seated
-    if (mode === AIRBORNE && place.posture === "stand") return {clip: scene.chute ? "chute" : "fall", facing: 0};
+    if (mode === AIRBORNE && place.posture === "stand") return {clip: scene.chute ? "chute" : "fall", facing: scene.grabbed ? (place.face ?? 0) : 0};
     // on its run up the bubbles it hops on and on, turned the way it goes
     if (scene.flying) return {clip: "hop_up", facing: scene.flying.way > 0 ? 90 : scene.flying.way < 0 ? 270 : 0};
     if (leaving) return {clip: "exit", facing: 0, once: true, departure: true};
@@ -139,12 +139,12 @@ function wantedClip(scene, canDraw) {
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: reads ? readingFacing : place.posture === "sit" ? place.face : doingFacing};
 }
 
-// the clip of a leg: its hop, or the walk, walked on with what the body is doing where that can be drawn on the move, its steps as much
-// quicker as the trip's `pace` is above a walk
+// A pressing or sprinting trip runs on its own cycle. An ordinary walk can keep a gesture in its upper body.
 function legClip(trip, doing, canDraw) {
     if (trip.hopping) return {clip: trip.clip, facing: trip.facing ?? 0};
     const facing = trip.way > 0 ? 90 : 270;
     const steps = trip.pace > 1 ? {pace: trip.pace} : {};
+    if (trip.running || trip.pressing || trip.sprinting || trip.pace > 1) return {clip: "run", facing, ...steps};
     return doing !== "idle" && canDraw(doing, "walk") ? {clip: doing, facing, posture: "walk", ...steps} : {clip: "walk", facing, ...steps};
 }
 

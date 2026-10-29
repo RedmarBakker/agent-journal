@@ -14,7 +14,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const numbers = (value) => typeof value === "number" ? [value] : value && typeof value === "object" ? Object.values(value).flatMap(numbers) : [];
 const epsilon = 1e-6;
-const report = {clips: CLIPS.length, combinations: 0, poses: 0, nonfinite: [], boundaries: [], loops: []};
+const report = {clips: CLIPS.length, combinations: 0, poses: 0, nonfinite: [], boundaries: [], loops: [], loopVelocities: []};
 
 function sample(clip, stance, posture, frame) {
     const {pose, turned} = drawnPose(RIG, stance, clip, frame, 0, {posture});
@@ -65,6 +65,18 @@ for (const clip of CLIPS) {
             if (clip.loops) {
                 const diff = difference(sample(clip, stance, posture, (clip.intro ?? 0) + epsilon), sample(clip, stance, posture, clip.frames - (clip.outro ?? 0) - epsilon));
                 if (diff.distance > 0.02 || diff.angle > 1) report.loops.push({...label, ...diff});
+                // A loop can return to the same pose yet kick a knee or hand as its velocity reverses at the join.
+                const delta = 0.0001, start = clip.intro ?? 0, end = clip.frames - (clip.outro ?? 0);
+                const samples = [end - 2 * delta, end - delta, start + delta, start + 2 * delta].map((frame) => sample(clip, stance, posture, frame));
+                let velocity = 0, bone = "";
+                for (const name of RIG.order) {
+                    const points = samples.map((moves) => RIG.heads.get(name).clone().applyMatrix4(moves.get(name)));
+                    const before = points[1].sub(points[0]).multiplyScalar(clip.fps / delta);
+                    const after = points[3].sub(points[2]).multiplyScalar(clip.fps / delta);
+                    const change = before.distanceTo(after);
+                    if (change > velocity) { velocity = change; bone = name; }
+                }
+                if (velocity > 0.01) report.loopVelocities.push({...label, velocity, bone});
             }
         }
     }
@@ -72,4 +84,4 @@ for (const clip of CLIPS) {
 const out = resolve(process.argv[2] ?? "out/catalog-audit.json");
 mkdirSync(dirname(out), {recursive: true});
 writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);
-console.log(JSON.stringify({path: out, clips: report.clips, combinations: report.combinations, poses: report.poses, nonfinite: report.nonfinite.length, boundaries: report.boundaries.length, loops: report.loops.length}));
+console.log(JSON.stringify({path: out, clips: report.clips, combinations: report.combinations, poses: report.poses, nonfinite: report.nonfinite.length, boundaries: report.boundaries.length, loops: report.loops.length, loopVelocities: report.loopVelocities.length}));

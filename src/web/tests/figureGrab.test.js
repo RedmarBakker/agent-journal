@@ -1,6 +1,6 @@
 import {expect, test} from "vitest";
 
-const {GRAB, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, thrownFrom} = await import("../src/figure/grab.js");
+const {GRAB, pointerSpeed, thrownFrame, thrownFrom} = await import("../src/figure/grab.js");
 const {CLIPS} = await import("../src/figure/figure.js");
 const {SKYWARD} = await import("../src/figure/skyward.js");
 const {PICTURES, WHOA_SPOT, litPixels} = await import("../src/figure/visorPixels.js");
@@ -31,29 +31,7 @@ function flown(thrown) {
 // the highest floor under `x` whose top is at or below `y`
 const nearestBelow = (x, y) => FLOORS.filter((floor) => floor.left <= x && floor.right >= x && floor.top >= y).sort((a, b) => a.top - b.top)[0];
 
-test("the head dragged across tilts with the pointer, never past the largest angle either way, and only a press above the neck takes the head", () => {
-    expect(headTiltFor(0)).toBe(0);
-    expect(headTiltFor(10)).toBeCloseTo(10 * GRAB.pull, 6);
-    expect(headTiltFor(-10)).toBeCloseTo(-10 * GRAB.pull, 6);
-    for (const across of [GRAB.tilt / GRAB.pull, 200, 5000]) {
-        expect(headTiltFor(across)).toBe(GRAB.tilt);
-        expect(headTiltFor(-across)).toBe(-GRAB.tilt);
-    }
-    const head = {x: 0.5, y: 0.3};
-    expect(onHead({x: 0.5, y: 0.2}, head)).toBe(true);
-    expect(onHead({x: 0.5, y: head.y + GRAB.neck}, head)).toBe(true);
-    expect(onHead({x: 0.5, y: 0.6}, head)).toBe(false);
-});
-
-test("while the head is held the act stands still on its frame, startled with a 'whoa', and once let go goes on from that frame", () => {
-    const clip = CLIPS.find((each) => each.name === "disco");
-    const frameAt = (started, now) => Math.floor(((now - started) / 1000) * clip.fps);
-    // the act started at 0, the head held at 1.3 seconds and let go 4 seconds later: the frame then is the frame it was held on
-    const [started, began, released] = [0, 1300, 5300];
-    const resumed = resumedClock(started, began, released);
-    expect(frameAt(resumed, released)).toBe(frameAt(started, began));
-    // and it plays on from there, a frame each frame's time
-    expect(frameAt(resumed, released + 1000 / clip.fps)).toBe(frameAt(started, began) + 1);
+test("a held figure keeps its startled visor", () => {
     // held, the visor shows wide eyes and a round mouth under them
     const face = {eyed: true, eyes: 1.5, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: 0, sign: null, ticker: null};
     const mouth = (lit) => lit.filter((pixel) => Math.abs(pixel.column - WHOA_SPOT.column) <= 2 && Math.abs(pixel.row - WHOA_SPOT.row) <= 2);
@@ -79,6 +57,36 @@ test("let go, the figure flies off at the pointer's speed and way over its last 
     const next = thrownFrame(thrown, FLOORS, ROOM, 16).airborne;
     expect(next.x - thrown.x).toBeCloseTo(speed.x * 0.016, 6);
     expect(next.y).toBeLessThan(thrown.y);
+});
+
+test("catching a translated, rotated or squashed picture keeps every point in place through the new grip and release pivot", async () => {
+    const {caughtPicture, releasedFeet} = await import("../src/figure/grab.js");
+    const at = {x: 300, y: 250};
+    const pointer = {x: 375, y: 300};
+    const origin = {x: 56, y: 61.6};
+    const apply = (point, base, pivot, matrix) => ({
+        x: base.x + pivot.x + matrix.e + matrix.a * (point.x - pivot.x) + matrix.c * (point.y - pivot.y),
+        y: base.y + pivot.y + matrix.f + matrix.b * (point.x - pivot.x) + matrix.d * (point.y - pivot.y),
+    });
+    for (const [angle, sx, sy, e, f] of [[0, 1, 1, 80, 0], [1.2, 1, 1, 0, 0], [-0.8, 1.12, 0.88, 0, -15]]) {
+        const matrix = {a: Math.cos(angle) * sx, b: Math.sin(angle) * sx, c: -Math.sin(angle) * sy, d: Math.cos(angle) * sy, e, f};
+        const caught = caughtPicture(at, pointer, SIZE, matrix, origin);
+        const grip = {x: caught.point.x * SIZE, y: caught.point.y * SIZE};
+        const held = {...matrix, e: 0, f: 0};
+        const feet = {x: caught.at.x + SIZE / 2, y: caught.at.y + SIZE * 0.95, held: true, hang: caught.angle, grip: caught.point, scale: caught.scale};
+        const released = releasedFeet(feet, SIZE);
+        const thrownAt = {x: released.x - SIZE / 2, y: released.y - SIZE * 0.95};
+        for (const point of [{x: 0, y: 0}, {x: 112, y: 112}, {x: 50, y: 30}]) {
+            const before = apply(point, at, origin, matrix);
+            const after = apply(point, caught.at, grip, held);
+            const thrown = apply(point, thrownAt, origin, held);
+            expect(after.x).toBeCloseTo(before.x, 8);
+            expect(after.y).toBeCloseTo(before.y, 8);
+            expect(thrown.x).toBeCloseTo(before.x, 8);
+            expect(thrown.y).toBeCloseTo(before.y, 8);
+        }
+        expect(thrownFrom(feet, {x: 0, y: 0}, 0).spin).toBeCloseTo(angle * 180 / Math.PI, 8);
+    }
 });
 
 test("let go without a throw, it falls straight down from where it is let go to the nearest floor below: a bubble's top or the chat's floor", () => {
@@ -150,13 +158,8 @@ test("a figure grabbed into the air has the act it was playing cut at once, a se
     expect(CLIPS.find((clip) => clip.name === "chute").cuts).toBe(true);
 });
 
-test("the body pressed and moved up at all is grabbed at once, and hangs from the pointer as a damped pendulum that settles straight down", async () => {
-    const {risesFrom} = await import("../src/figure/grab.js");
+test("a held body hangs as a damped pendulum that settles straight down", async () => {
     const {STILL, swung} = await import("../src/figure/pendulum.js");
-    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 49})).toBe(true);
-    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 50})).toBe(false);
-    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 60})).toBe(false);
-    expect(GRAB.hold, "no hold is waited for").toBeUndefined();
     let hang = swung(STILL, 1 / 60, 0, 40, 112);
     expect(Math.abs(hang.angle), "carried sideways it swings out").toBeGreaterThan(0.1);
     for (let frame = 1; frame < 60 * 20; frame++) hang = swung(hang, 1 / 60, frame / 60, 0, 112);

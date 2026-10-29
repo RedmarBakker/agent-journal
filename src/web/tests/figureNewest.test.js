@@ -54,7 +54,8 @@ test("standing takes the nearest available side on the same floor and travels wi
     const trip = tripBetween(near, aside, figure.size, {random: () => 1});
     expect(trip.pace).toBe(1);
     expect(trip.legs.filter((leg) => leg.ms > 0).every((leg) => !leg.hopping)).toBe(true);
-    expect(trip.legs.find((leg) => !leg.hopping).ms).toBeCloseTo(Math.abs(aside.x - near.x) / 90 * 1000);
+    const leg = trip.legs.find((each) => !each.hopping);
+    expect(leg.ms - leg.ramp).toBeCloseTo(Math.abs(aside.x - near.x) / 90 * 1000);
     expect(newestAsideSpot(figure, near, {left: 490, right: 700}).x).toBeGreaterThan(near.x);
     expect(newestAsideSpot(figure, near, {left: 460, right: 550})).toBeNull();
 });

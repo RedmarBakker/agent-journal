@@ -17,7 +17,7 @@ const first = Number(process.env.FIGURE_START ?? previous?.pages.reduce((sum, pa
 const until = Number(process.env.FIGURE_END ?? Infinity);
 const selectedPages = process.env.FIGURE_PAGES?.split(",").map(Number);
 const selectedClips = process.env.FIGURE_CLIPS?.split(",").filter(Boolean);
-const sourceFiles = ["src/figure/figure.js", "src/figure/acts.js", "src/figure/looks.js", "src/figure/frame.js", "src/figure/blend.js"];
+const sourceFiles = ["src/figure/figure.js", "src/figure/butler.js", "src/figure/homie.js", "src/figure/headphoneClearance.js", "src/figure/acts.js", "src/figure/looks.js", "src/figure/frame.js", "src/figure/blend.js"];
 const sourceContents = sourceFiles.map((name) => ({name, bytes: readFileSync(join(root, name))}));
 const sourceHash = createHash("sha256");
 for (const {name, bytes} of sourceContents) sourceHash.update(name).update(bytes);
@@ -25,27 +25,28 @@ const sourceSnapshot = sourceHash.digest("hex");
 const server = await createServer({root, configFile: false, logLevel: "silent", server: {host: "127.0.0.1", port: 0}});
 await server.listen();
 const browser = await chromium.launch({headless: true, ...(process.env.CHROMIUM_PATH ? {executablePath: process.env.CHROMIUM_PATH} : {}), args: ["--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]});
-const manifest = previous ?? {size, rowsPerPage: rows, omitted: ["press (disabled compaction option)"], scope: "Production bodies and 3D props; separate Vue/page effects have their own targeted checks.", pages: [], errors: []};
+const includeDisabled = process.env.FIGURE_INCLUDE_DISABLED === "1";
+const manifest = previous ?? {size, rowsPerPage: rows, omitted: includeDisabled ? [] : ["press (disabled compaction option)"], scope: "Production bodies and 3D props; separate Vue/page effects have their own targeted checks.", pages: [], errors: []};
 try {
     const page = await browser.newPage({deviceScaleFactor: 1});
     page.on("console", (message) => {if (message.type() === "log") console.log(message.text());});
     page.on("pageerror", (error) => manifest.errors.push(error.message));
     await page.goto(new URL("voices/figures/figures.json", server.resolvedUrls.local[0]).href);
-    const count = await page.evaluate(async () => {
+    const count = await page.evaluate(async (includeDisabled) => {
         const {CLIPS, Stage, figureOf, supportsClip} = await import("/src/figure/figure.js");
         const {throwsFor} = await import("/src/figure/acts.js");
         const index = await (await fetch("/voices/figures/figures.json")).json();
         const voices = Object.keys(index);
         const models = {};
         for (const voice of voices) models[voice] = await figureOf(await (await fetch(`/voices/figures/${index[voice]}`)).arrayBuffer(), voice, "/voices/figures/draco/");
-        const clips = CLIPS.filter((clip) => clip.name !== "press").map((clip, i) => {
+        const clips = CLIPS.filter((clip) => includeDisabled || clip.name !== "press").map((clip, i) => {
             const eligible = (clip.voices ?? voices).filter((voice) => supportsClip(clip.name, models[voice].stance));
             if (!eligible.length) throw new Error(`No supported voice for ${clip.name}`);
             return {clip, voice: eligible[i % eligible.length]};
         });
         window.catalog = {clips, models, stage: new Stage(), throws: throwsFor(() => 0.42)};
         return clips.length;
-    });
+    }, includeDisabled);
     manifest.totalClips = count;
     delete manifest.samplesPerClip;
     manifest.defaultSamples = samples;
@@ -95,7 +96,7 @@ try {
                 }
                 const figure = models[voice];
                 const posture = clip.postures[0];
-                const facing = ["walk", "push", "ladder_climb", "stumble"].includes(clip.name) ? 90 : 0;
+                const facing = ["walk", "run", "push", "ladder_climb", "stumble"].includes(clip.name) ? 90 : 0;
                 const moments = clip.intro && clip.outro ? [
                     clip.intro * 0.8 / clip.frames,
                     (clip.intro + (clip.frames - clip.intro - clip.outro) * 0.25) / clip.frames,

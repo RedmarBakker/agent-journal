@@ -53,7 +53,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {CLEARED_SECONDS, MARK_STAY, phoneSide, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
-import {grabbedInAir, headTiltFor, onHead, pointerSpeed, resumedClock, risesFrom, thrownFrame, thrownFrom} from "../figure/grab.js";
+import {caughtPicture, caughtScale, grabbedInAir, pointerSpeed, releasedFeet, takenBody, thrownFrame, thrownFrom} from "../figure/grab.js";
 import {jumpMost} from "../figure/climbs.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, beamOf, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, boxTop, buildAim, buildRunAt, isPileLeft, grabberAt, grabsOf, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
@@ -351,7 +351,7 @@ function current() {
         arriving: body.arriving,
         trip: body.trip,
         landing: body.landing,
-        place: body.airborne ? {...body.place, posture: body.airborne.posture} : body.place,
+        place: body.airborne ? {...body.place, posture: body.airborne.posture, face: body.airborne.face ?? 0} : body.place,
         beat,
         state: held.value.state,
         doing: doing(),
@@ -360,11 +360,13 @@ function current() {
         flying: flying.value,
         eager: Boolean(eager?.on),
         chute: Boolean(body.airborne?.chute),
+        grabbed: grabbedInAir(body.airborne),
         composeFacing: composeFacing(),
         readingFacing: readingTurn(),
     };
     const chosen = clipFor(scene, canDraw);
-    const wanted = eager?.on || chosen.startsLeg || sits(chosen.clip) ? chosen : {clip: body.place.leans ? "ledge_sit" : "idle", facing: body.place.face ?? 0};
+    // A seat stay constrains resting acts; it cannot replace a movement, arrival, exit or landing already in progress.
+    const wanted = body.airborne || body.landing || body.arriving || body.leaving || body.trip?.started || flying.value || eager?.on || sits(chosen.clip) ? chosen : {clip: body.place.leans ? "ledge_sit" : "idle", facing: body.place.face ?? 0};
     return {...wanted, clip: clipNamed(wanted.clip)};
 }
 
@@ -395,8 +397,8 @@ const playedOut = () =>
 const mayCut = (shown, trip = null) => givesWay(shown, (performance.now() - playing.started) / 1000, trip);
 
 // Feet follow the distance already travelled, including eased starts, stops and a changed walking pace.
-function strideNow(pace) {
-    return strideAtDistance(Math.abs(body.at.x - body.walk.from.x), figureSize().size);
+function strideNow(running = false) {
+    return strideAtDistance(Math.abs(body.at.x - body.walk.from.x), figureSize().size, running);
 }
 
 // how the head leans while the figure rests idle, now to one side, now the other (figure/headTilt.js)
@@ -405,7 +407,7 @@ let headTilt = UPRIGHT;
 function step() {
     cancelAnimationFrame(frameTimer);
     if (!player || document.hidden) return;
-    if (grab?.head) return holdStill();
+    recoverTouchdown();
     if (advanceNewestAside()) return;
     // an act played once that has played to its end is over before what comes next is chosen, so its beat is never left to play again
     if (playing.shown && actOver(playing.shown, frameOf(playing.shown))) return endAct(playing.shown);
@@ -431,10 +433,9 @@ function step() {
         playing = {name: key, started: turning ? playing.started : performance.now(), shown, index: 0, closing: null};
     } else playing.shown = stretchedAs(playing.shown, shown);
     shownClip.value = shown.clip;
-    shownFacing.value = shown.facing;
     const index = frameOf(shown);
     playing.index = index;
-    const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
+    const posture = drawnIn(shown, body.airborne?.posture ?? (body.trip ? POSTURES[body.place.posture].travels : body.place.posture), body.trip?.moves);
     // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
     poseToward({posture, facing: newestAside ? newestAside.face : SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
     smashOn(shown);
@@ -451,9 +452,9 @@ function step() {
     const lit = shown.clip.name === "disco" ? discoScreen(frameOf(shown) / shown.clip.frames, ACTS.disco.beats) : visorAt(visor, performance.now() / 1000, asleep());
     halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
     looking = look.looking;
-    const pace = shown.pace ?? 1;
-    const stride = drawn === "walk" || shown.clip.name === "walk" ? strideNow(pace) : null;
-    walking.value = stride !== null || shown.clip.name === "walk";
+    const running = shown.clip.name === "run";
+    const stride = drawn === "walk" || shown.clip.name === "walk" || running ? strideNow(running) : null;
+    walking.value = stride !== null;
     shownFrame.value = newestAside?.phase === "scoot" ? Math.min((performance.now() - newestAside.began) / (NEWEST_ASIDE.seconds * 1000), 1) * (NEWEST_ASIDE.frames - 1) : frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     drawnClip.value = posed.turning ? clipNamed("idle") : shown.clip;
     drawnFrame.value = posed.turning ? 0 : shownFrame.value;
@@ -475,7 +476,10 @@ function step() {
         ticker: callTicker(),
         // a call made seated has its telephone on the side its seat leaves free, decided once as the call begins (perches.js phoneSide)
         phoneWay: shown.clip.name === "phone_call" && SEATED.has(drawn) ? (playing.phoneWay ??= phoneSide(body.place, figureSize(), latestFloors().floors)) : 1,
+        grabbed: Boolean(body.airborne?.held),
+        airborne: Boolean(body.airborne || flight),
     });
+    shownFacing.value = player.facing ?? shown.facing;
     headAt.value = player.headAt();
     handAt.value = player.handAt();
     keepParcels(shown);
@@ -589,6 +593,7 @@ function endAct(shown) {
     else if (shown.landed) body.landing = false;
     else beats.value = playedFrom(beats.value, shown.clip.name);
     playing = {name: "", started: 0, shown: null, index: 0, closing: null};
+    if (shown.landed) landingPresence();
     return step();
 }
 
@@ -653,8 +658,8 @@ function slideOn() {
 // clip on screen is drawn in that posture first, so the figure gets to its feet or takes its grip where it is before the first leg
 // a trip that is `pressing`, as one out of the way of a new message, sets off at once, breaking off whatever clip plays
 async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgent = false} = {}) {
-    if (!clearOfNewest(spot, figureSize()) || newestAside) return;
-    if (!tripTo(body.place, spot, figureSize(), {straight, pace})) return restOn(spot);
+    if (grab || body.airborne || flight || !clearOfNewest(spot, figureSize()) || newestAside) return;
+    if (!tripTo(body.place, spot, figureSize(), {straight, pace, pressing})) return restOn(spot);
     body.trip = {to: spot, straight, pace, pressing, urgent, footing: footingOn(spot), legs: []};
     // read back, since the ref hands out its reactive copy, never the object it was given
     const trip = body.trip;
@@ -665,7 +670,8 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgen
 
 // Until it sets off the figure keeps to its ground, so the trip's legs are drawn then, from where it is now to where the spot is now
 function setOff() {
-    const {to, straight, pace, footing: held} = body.trip;
+    if (!body.trip || grab || body.airborne || flight) return;
+    const {to, straight, pace, pressing, footing: held} = body.trip;
     const there = keptOnFloor(landingOn(to, held, figureSize()), latestFloors().floors, figureSize());
     const room = roomNow();
     const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there, {memory: memory.reacted, now: now.value, room}, Math.random);
@@ -674,7 +680,7 @@ function setOff() {
         body.trip = null;
         return step();
     }
-    const trip = tripTo(body.place, there, figureSize(), {straight, pace, ...way, memory: memory.reacted, now: now.value, room});
+    const trip = tripTo(body.place, there, figureSize(), {straight, pace, pressing, ...way, memory: memory.reacted, now: now.value, room});
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {
@@ -709,6 +715,7 @@ function nextLeg() {
 
 // the next leg carries the picture to its end, stepped each frame (watchFooting) until it has run its course (endLeg)
 function depart() {
+    if (!body.trip || grab || body.airborne || flight) return;
     const [next, ...legs] = body.trip.legs;
     // the first walk of a trip sets off on its feet from the line the figure rests on: from a seat the picture first eases up onto them
     // (slideOn), and the walk sets off once it is there; every later leg sets off where the one before it ended
@@ -757,6 +764,7 @@ function settle(spot, held = footingOn(spot)) {
 // now (footingUnder), and with none there falls; when the ground went from under it, it goes at once, without waiting for its clip, as gravity does not, straight up or down to the
 // ground at home and on to its place there
 function watchFooting() {
+    if (grab && body.airborne?.held) return dangle();
     if (flight) return flyOn();
     if (body.slide && !body.trip?.moves && !body.airborne) slideOn();
     if (body.airborne?.held) return dangle();
@@ -848,9 +856,10 @@ function fallFrom(spot, to) {
 
 // the figure in the air from this frame, as `airborne` has it
 function airborneFrom(airborne) {
-    endSlide();
+    touchdown.value = null;
     body.airborne = airborne;
     body.trip = null;
+    endSlide();
     body.footing = null;
     body.at = placed(body.airborne, body.airborne.posture);
     step();
@@ -873,7 +882,15 @@ function landOn(spot, standing) {
     groundMoved("dropping");
     settle(spot);
     rest();
+    if (!standing) landingPresence();
     step();
+}
+
+// A hide requested in the air takes effect after the landing, including a seated drop with no standing landing clip.
+function landingPresence() {
+    if (belongs.value) return;
+    body.leaving = true;
+    body.arriving = false;
 }
 
 // A hop is stepped here, frame by frame, toward the ground it is headed for as that moves (aimedAt), so it lands where the ground is now
@@ -898,11 +915,20 @@ function hopOn() {
 const moved = ref("");
 const fall = computed(() => fallOf(voice.value));
 const groundMoved = (motion) => (moved.value = motion);
+// A thrown body's screen-space turn settles over the same time as its landing squash, about its existing tumble pivot.
+const touchdown = ref(null);
+function recoverTouchdown() {
+    if (!touchdown.value) return;
+    const u = Math.min(Math.max((performance.now() - touchdown.value.began) / (fall.value.ms / 2), 0), 1);
+    const k = u * u * (3 - 2 * u);
+    touchdown.value = u === 1 ? null : {...touchdown.value, angle: touchdown.value.from * (1 - k), scale: touchdown.value.scaleFrom.map((scale) => scale + (1 - scale) * k)};
+}
 // a launch or a drop has played out; landing from a launch, it very rarely trips (reactions.js "launched")
 function squashed(event) {
     if (event.target !== event.currentTarget) return;
     if (moved.value === "launched") react({beat: "launched", time: now.value});
     moved.value = "";
+    touchdown.value = null;
 }
 
 // The figure hanging by a hand swings about it (pendulum.js): out the way its trip went as it lands, and with the hand as the ground under
@@ -1016,8 +1042,8 @@ function roomNow() {
 
 function look() {
     clearTimeout(lookTimer);
-    // held by the pointer it decides nothing, standing still or dangling until it is let go
-    if (grab) return void (lookTimer = setTimeout(look, LOOK_EVERY));
+    // Held or in flight, it chooses no new trip or act until it has landed.
+    if (grab || body.airborne || flight) return void (lookTimer = setTimeout(look, LOOK_EVERY));
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
     spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
@@ -1247,60 +1273,137 @@ function clicked(event) {
     look();
 }
 
-// The figure handled with the pointer (figure/grab.js), only while it rests where it is: its head pressed and dragged tilts it with the
-// pointer while it stands still, the act on screen stopped on its frame, startled; its body pressed and held a moment is lifted off where
-// it rests, dangles under the pointer and on release falls from there, or flies off tumbling as hard as it was thrown, to the nearest floor
-// below where it comes down, or off the top of the screen, to come back from above. A press let go before the body lifts is a click, as
-// ever; one that tilted or threw it is not.
+// A primary press takes the figure wherever it is. Its current picture is the source of the blend into the dangling pose; the trip,
+// flight, act and place it left are discarded before any waiting callbacks run. The pointer keeps the same point of that picture in hand.
 let grab = null;
 let handled = false;
 
-const grabbable = () => Boolean(playing.shown) && !newestAside && !body.trip && !body.airborne && !flight && !body.arriving && !body.leaving && body.place.posture !== "hang";
+const grabbable = () => Boolean(player && playing.shown && body.here) && !grab;
 
 function pressed(event) {
-    handled = false;
-    if (!grabbable()) return;
-    const box = event.currentTarget.parentElement.getBoundingClientRect();
-    const point = {x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height};
+    if (event.button !== 0 || event.isPrimary === false || !grabbable()) return;
+    event.preventDefault();
+    handled = true;
+    const caught = pictureCaught(event);
+    const {point} = caught;
+    body.at = caught.at;
     const now = performance.now();
-    grab = {head: onHead(point, headAt.value), from: {x: event.clientX, y: event.clientY}, point, began: now, moves: [{x: event.clientX, y: event.clientY, at: now / 1000}], tilt: 0};
+    const feet = feetOf(body.at);
+    grab = {
+        pointer: event.pointerId,
+        target: event.currentTarget,
+        point,
+        caught: {...feet},
+        hang: {angle: caught.angle, speed: 0},
+        hangAt: now / 1000,
+        offset: {x: feet.x - event.clientX, y: feet.y - event.clientY},
+        moves: [{x: event.clientX, y: event.clientY, at: now / 1000}],
+    };
+    takeControl(feet, point);
+    Object.assign(body.airborne, {hang: caught.angle, scale: caught.scale, scaleFrom: caught.scale, scaleAt: now});
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     window.addEventListener("pointermove", dragged);
-    window.addEventListener("pointerup", released, {once: true});
+    window.addEventListener("pointerup", released);
+    window.addEventListener("pointercancel", released);
+    window.addEventListener("blur", released);
+    step();
+}
+
+// The actor's CSS transform is separate from its bone pose; include it when the pointer catches a chase, landing or tumble.
+function pictureCaught(event) {
+    const pointer = {x: event.clientX, y: event.clientY};
+    if (!window.DOMMatrix) return caughtPicture(body.at, pointer, SIZE);
+    const style = getComputedStyle(event.currentTarget.parentElement);
+    const angle = style.rotate.endsWith("rad") ? parseFloat(style.rotate) * 180 / Math.PI : parseFloat(style.rotate) || 0;
+    const scales = style.scale === "none" ? [1, 1] : style.scale.split(" ").map(Number);
+    const scaleX = Number.isFinite(scales[0]) ? scales[0] : 1;
+    const scaleY = Number.isFinite(scales[1]) ? scales[1] : scaleX;
+    const matrix = new window.DOMMatrix().rotate(angle).scale(scaleX, scaleY).multiply(new window.DOMMatrix(style.transform === "none" ? undefined : style.transform));
+    const [x, y] = style.transformOrigin.split(" ").map(parseFloat);
+    return caughtPicture(body.at, pointer, SIZE, matrix, {x, y});
+}
+
+// No delayed departure, old footing or old act may carry the figure after the pointer has it.
+function takeControl(feet, point) {
+    cancelAnimationFrame(homeFrame);
+    const facing = player.facing ?? posed.facing;
+    player.turn = null;
+    player.drewAt = performance.now();
+    flight = null;
+    flying.value = null;
+    letGo();
+    Object.assign(body, takenBody(body, feet, point));
+    body.place.face = body.airborne.face = facing;
+    endSlide();
+    stopSwinging();
+    stay = {where: "rest", until: 0};
+    perched = null;
+    seatPose = null;
+    wasSeated = false;
+    hurried = false;
+    eager = null;
+    sittingAct = null;
+    barWatch = null;
+    halt = null;
+    smashing.value = null;
+    backing.value = null;
+    ball.value = null;
+    ladder.value = null;
+    moved.value = "";
+    pointer = UNTICKLED;
+    pointerAt = null;
+    posed = {posture: "stand", facing, turning: false};
+    cutting = false;
 }
 
 function dragged(event) {
+    if (!grab || event.pointerId !== grab.pointer) return;
+    event.preventDefault();
     grab.moves = [...grab.moves.slice(-19), {x: event.clientX, y: event.clientY, at: performance.now() / 1000}];
-    if (grab.head) grab.tilt = headTiltFor(event.clientX - grab.from.x);
-    else if (!grab.lifted && risesFrom(grab.from, {x: event.clientX, y: event.clientY})) lift();
+    dangle();
 }
 
-// moved up, the body is lifted off where it rests at once, its feet kept as far from the pointer as when it was pressed
-function lift() {
-    if (!grabbable()) return;
-    const [feet, pointer] = [feetOf(body.at), grab.moves.at(-1)];
-    grab.lifted = {offset: {x: feet.x - pointer.x, y: feet.y - pointer.y}};
-    body.footing = null;
-    body.airborne = {...feet, posture: "stand", face: 0, held: true, hang: 0, grip: grab.point};
-}
-
-// lifted, it dangles under the pointer, kept inside its world
+// The held point follows the pointer, and the body swings beneath it. Its first held frame stays where it was caught, including at a wall.
 function dangle() {
-    const [pointer, room] = [grab.moves.at(-1), flightRoom()];
-    const {offset} = grab.lifted;
+    if (!grab || !body.airborne?.held) return;
+    const pointer = grab.moves.at(-1);
+    const room = flightRoom();
     const now = performance.now() / 1000;
     grab.hang = swung(grab.hang ?? STILL, grab.hangAt ? now - grab.hangAt : 0, now, pointer.x - (grab.hangX ?? pointer.x), SIZE);
     [grab.hangAt, grab.hangX] = [now, pointer.x];
-    body.airborne = {...body.airborne, x: Math.min(Math.max(pointer.x + offset.x, room.left), room.right), y: Math.min(Math.max(pointer.y + offset.y, room.top), room.bottom), hang: grab.hang.angle, grip: grab.point};
+    const x = pointer.x + grab.offset.x;
+    const y = pointer.y + grab.offset.y;
+    const caught = grab.caught;
+    body.airborne = {
+        ...body.airborne,
+        x: Math.min(Math.max(x, Math.min(room.left, caught.x)), Math.max(room.right, caught.x)),
+        y: Math.min(Math.max(y, Math.min(room.top, caught.y)), Math.max(room.bottom, caught.y)),
+        hang: grab.hang.angle,
+        grip: grab.point,
+        scale: caughtScale(body.airborne, performance.now()),
+    };
     body.at = placed(body.airborne, "stand");
 }
 
-function released() {
+function clearGrab() {
     window.removeEventListener("pointermove", dragged);
-    const now = performance.now();
-    handled = grab.head || Boolean(grab.lifted);
-    if (grab.head) playing.started = resumedClock(playing.started, grab.began, now);
-    if (grab.lifted) body.airborne = thrownFrom(body.airborne, pointerSpeed(grab.moves, now / 1000), now);
+    window.removeEventListener("pointerup", released);
+    window.removeEventListener("pointercancel", released);
+    window.removeEventListener("blur", released);
+    if (grab?.target.hasPointerCapture?.(grab.pointer)) grab.target.releasePointerCapture(grab.pointer);
     grab = null;
+}
+
+function released(event) {
+    if (!grab || (event?.type !== "blur" && event?.pointerId !== grab.pointer)) return;
+    const now = performance.now();
+    const cancelled = event.type === "pointercancel" || event.type === "blur";
+    if (!cancelled) dragged(event);
+    const speed = cancelled ? {x: 0, y: 0} : pointerSpeed(grab.moves, now / 1000);
+    body.airborne = thrownFrom(releasedFeet(body.airborne, SIZE), speed, now);
+    body.at = placed(body.airborne, "stand");
+    clearGrab();
+    step();
 }
 
 // thrown, it flies and tumbles and comes down on the nearest floor below, a bubble's top or the chat's floor, which runs the chat's whole
@@ -1308,10 +1411,16 @@ function released() {
 function thrownOn() {
     const room = flightRoom();
     const floors = latestFloors().floors.map((floor) => (floor.id === "home" ? {...floor, left: room.left, right: room.right} : floor));
-    const {airborne, landed, gone} = thrownFrame(body.airborne, floors, {...room, top: worldBox().top}, performance.now());
+    const thrown = body.airborne;
+    const {airborne, landed, gone} = thrownFrame(thrown, floors, {...room, top: worldBox().top}, performance.now());
     if (gone) return goneOff();
     body.airborne = airborne;
-    if (landed) return landOn(landed, true);
+    if (landed) {
+        const angle = ((thrown.spin + 180) % 360 + 360) % 360 - 180;
+        const scale = thrown.scale ?? [1, 1];
+        touchdown.value = {began: performance.now(), from: angle, angle, scaleFrom: scale, scale};
+        return landOn(landed, true);
+    }
     body.at = placed(airborne, "stand");
 }
 
@@ -1323,22 +1432,14 @@ function flightRoom() {
     return {left: world.left + SIZE / 2, right: world.right - SIZE / 2, top, bottom: Math.max(home ? home.top : world.bottom, top)};
 }
 
-// held by the head it stands still, the act on screen stopped on its frame, startled, its head tilted as the pointer pulls it
-function holdStill() {
-    player.show(drawnClip.value, drawnFrame.value, posed.facing, {posture: drawn, tilt: grab.tilt, grabbed: true});
-    frameTimer = requestAnimationFrame(step);
-}
-
 // the part of the picture the body is drawn in above the line it rests on, which takes the click
 const bodyStyle = computed(() => {
-    const clickable = clickedBody(body.place.posture, below.value);
+    const clickable = clickedBody(body.airborne?.posture ?? body.place.posture, below.value);
     return {
         left: `${clickable.left * 100}%`,
         width: `${(clickable.right - clickable.left) * 100}%`,
         top: `${clickable.top * 100}%`,
         height: `${(clickable.bottom - clickable.top) * 100}%`,
-        // where it builds the figure stands over the bars docked above the compose box, and lets every click through to them
-        ...(body.place.stays && {pointerEvents: "none"}),
     };
 });
 
@@ -1782,6 +1883,7 @@ const bodyArea = ref(null);
 let pointer = UNTICKLED;
 let pointerAt = null;
 function pointerMoved(event) {
+    if (grab || body.airborne || flight) return;
     const area = bodyArea.value?.getBoundingClientRect();
     if (!area || !nearBody(area, event.clientX, event.clientY)) return;
     pointer = movedTo(pointer, event.clientX, performance.now());
@@ -1839,6 +1941,7 @@ let homeFrame = 0;
 // back to Home the page can be drawn a frame or more before it.
 function home() {
     cancelAnimationFrame(homeFrame);
+    if (grab || body.airborne || flight) return;
     if (!homeElement()) {
         homeFrame = requestAnimationFrame(home);
         return;
@@ -1849,7 +1952,7 @@ function home() {
 
 // the environment's agent arriving or going: the figure enters, or makes its exit and is gone
 function present(live) {
-    if (!player || live === isPresent(body)) return;
+    if (!player || grab || body.airborne || live === isPresent(body)) return;
     if (live) {
         body.here = true;
         home();
@@ -1866,6 +1969,8 @@ const seen = () => {
 };
 
 async function load(name) {
+    if (grab) body.airborne = thrownFrom(releasedFeet(body.airborne, SIZE), {x: 0, y: 0}, performance.now());
+    clearGrab();
     newestAside = null;
     player = null;
     if (!name) return;
@@ -1952,8 +2057,7 @@ onUnmounted(() => {
     document.removeEventListener("input", onType, true);
     window.removeEventListener("resize", look);
     window.removeEventListener("mousemove", pointerMoved);
-    window.removeEventListener("pointermove", dragged);
-    window.removeEventListener("pointerup", released);
+    clearGrab();
 });
 
 // the mark the clip on screen draws drifting up from the head in this frame (figure.js CLIPS marks), or ""
@@ -2054,8 +2158,10 @@ const actorStyle = computed(() => ({
     ...(squeezed.value && {scale: `${squeezed.value.x} ${squeezed.value.y}`, transformOrigin: `50% ${(1 - below.value) * 100}%`}),
     ...(chasing.value && {animationDuration: `${chaseMs.value}ms`, "--chase": `${chaseRun.value}px`}),
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
+    ...(touchdown.value && {rotate: `${touchdown.value.angle}deg`, scale: touchdown.value.scale.join(" "), transformOrigin: "50% 55%"}),
     ...(body.airborne?.held && {rotate: `${body.airborne.hang}rad`, transformOrigin: `${body.airborne.grip.x * 100}% ${body.airborne.grip.y * 100}%`}),
     ...(body.airborne?.thrown && {rotate: `${body.airborne.spin}deg`, transformOrigin: "50% 55%"}),
+    ...(body.airborne?.scale && {scale: body.airborne.scale.join(" ")}),
 }));
 
 // the figure and all it holds are drawn inside the chat alone, cut off at its walls, as when it climbs out over the top
@@ -2084,8 +2190,8 @@ const style = computed(() => {
         :data-clip="shownClip?.name"
         :data-beats="beats.map((beat) => beat.clip).join(' ')"
     >
-        <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @pointerdown="pressed" @click="clicked" ref="bodyArea" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
+            <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @pointerdown="pressed" @click="clicked" ref="bodyArea" />
             <canvas ref="canvas" class="voice-figure-canvas" :style="passing || hidesBelowFloor(acting?.name) ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
             <template v-if="halo">
                 <span class="voice-figure-halo" :style="haloStyle" />
@@ -2097,9 +2203,9 @@ const style = computed(() => {
                     </template>
                 </span>
             </template>
-            <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" :wall-bugs="wallBugsDrawn" :slush="slushDrawn" :camera="cameraDrawn" />
-            </template>
+            <Transition name="figure-prop" :duration="150">
+                <FigureAct v-if="acting" :key="acting.name" :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" :wall-bugs="wallBugsDrawn" :slush="slushDrawn" :camera="cameraDrawn" />
+            </Transition>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">
                     <path d="M3 3 1 1M3 6H0M3 9 1 11M13 3l2-2M13 6h3M13 9l2 2" stroke="currentColor" stroke-width="1.2" />
@@ -2214,9 +2320,20 @@ const style = computed(() => {
 }
 
 .voice-figure-actor {
+    position: relative;
     width: 100%;
     height: 100%;
     transform-origin: 50% 100%;
+}
+
+.figure-prop-enter-active,
+.figure-prop-leave-active {
+    transition: opacity 150ms ease-out;
+}
+
+.figure-prop-enter-from,
+.figure-prop-leave-to {
+    opacity: 0;
 }
 
 .voice-figure-actor.dropping {

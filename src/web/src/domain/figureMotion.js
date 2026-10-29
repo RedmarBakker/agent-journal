@@ -1,6 +1,7 @@
 import {ACTS, pogoBounces, pogoHop} from "../figure/acts.js";
 import {fallStep} from "./falls.js";
 import {landsIn} from "../figure/places.js";
+import {travelAt} from "../figure/gait.js";
 
 // How far, in pixels, a figure's feet may be from a floor's top and still stand on it: a floor that moves away under the figure must move
 // further than this before it falls, so a pixel or two of the page moving never drops it
@@ -70,10 +71,10 @@ export function eased(easing, share) {
 export const legEnded = (leg, began, now) => now - began >= leg.lead + leg.ms;
 
 // Where a leg under way has carried the picture `elapsed` milliseconds after it set off from `from`: still at the start through the
-// leg's lead, then along it by the leg's easing to its end; with motion kept `still`, a hop is at its end at once
+// leg's lead, then along its ground speed ramps or its airborne easing to the end; with motion kept `still`, a hop is at its end at once
 export function legAt(leg, from, elapsed, still = false) {
     if (leg.pogo && !still) return pogoAt(leg, from, elapsed);
-    const share = still && leg.hopping ? 1 : eased(leg.easing, leg.ms > 0 ? (elapsed - leg.lead) / leg.ms : 1);
+    const share = still && leg.hopping ? 1 : leg.ramp ? travelAt(elapsed - leg.lead, leg.ms, leg.ramp) : eased(leg.easing, leg.ms > 0 ? (elapsed - leg.lead) / leg.ms : 1);
     return {x: from.x + (leg.x - from.x) * share, y: from.y + (leg.y - from.y) * share};
 }
 
