@@ -19,15 +19,15 @@ class IncomingChanges:
         self.tables, self.outgoing, self.links, self.account, self.backups, self.config = tables, outgoing, links, account, backups, config
 
     def apply(self, changes: list[TeamChange]) -> None:
-        applied = [change for change in changes if self.tables.has(change.row_table) and not self.is_kept(change)]
+        applied = [change for change in changes if self.tables.has(change.row_table) and not self.is_retained(change)]
         backup = self.config.home / time.strftime(BACKUP_NAME)
         if any(change.is_withdrawal() for change in applied) and not backup.exists():
             self.backups.write(backup)
         for change in applied:
             self.applied(change)
 
-    def is_kept(self, change: TeamChange) -> bool:
-        return change.is_withdrawal() and change.is_kept_by(Actor.user(self.account.user_number()))
+    def is_retained(self, change: TeamChange) -> bool:
+        return change.is_withdrawal() and change.is_retained_by(Actor.user(self.account.user_number()))
 
     def applied(self, change: TeamChange) -> None:
         if change.is_withdrawal():

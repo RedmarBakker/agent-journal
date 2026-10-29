@@ -133,17 +133,17 @@ class DocCommand(Command):
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
         on_hub = self.hub_move.put(doc, hub.row_id, mode, owner, caller.actor)
-        copy = self.copy_of(on_hub, caller) if args.keep_copy else None
+        copy = self.copy_row(on_hub, caller) if args.keep_copy else None
         print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0
 
     def copy(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
-        copy = self.copy_of(doc, caller)
+        copy = self.copy_row(doc, caller)
         print(f"doc {copy.id}: a copy of doc {doc.id}, kept on this machine")
         return 0
 
-    def copy_of(self, doc: Doc, caller: Caller) -> Doc:
+    def copy_row(self, doc: Doc, caller: Caller) -> Doc:
         copy = self.docs.save(doc.local_copy(), caller.actor)
         self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), link_type=COPY_SOURCE), caller.actor)
         return copy
@@ -167,7 +167,7 @@ class DocCommand(Command):
 
     def unshare(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
-        back = self.hub_move.take_back(doc, self.scope.id, caller.actor)
+        back = self.hub_move.reclaim(doc, self.scope.id, caller.actor)
         print(f"doc {back.id} is off the hub and a document of this environment again")
         return 0
 
@@ -196,6 +196,6 @@ class DocCommand(Command):
         rows = [doc for doc in map(Version3Doc.read, sorted(p for p in folder.iterdir() if p.is_dir())) if doc]
         new = [doc for doc in rows if not self.docs.titled(doc.title)]
         for doc in new:
-            self.docs.of_project(doc, caller.actor)
+            self.docs.project_saved(doc, caller.actor)
         print(f"{len(new)} documents brought in, {len(rows) - len(new)} already here")
         return 0

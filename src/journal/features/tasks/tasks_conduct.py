@@ -119,7 +119,7 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
 
 
-def await_count(commands: tuple[str, ...]) -> int:
+def wait_count(commands: tuple[str, ...]) -> int:
     return sum(1 for command in commands if command.startswith("journal await "))
 
 

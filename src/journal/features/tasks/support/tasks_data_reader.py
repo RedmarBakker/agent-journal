@@ -64,7 +64,7 @@ class TasksDataReader:
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_OWNED_TASKS),
             "task_nouns": lambda: self.labels.hub_nouns("task"),
-            "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_on_a_person(t)),
+            "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_person_wait(t)),
             "unprioritised": lambda: tuple(t.row_id for t in self.tasks.unprioritised()),
             "blocking_priorities": lambda: facts.unprioritised if len(facts.unprioritised) >= self.settings.integer(TasksOptions.PRIORITY_BLOCK_TASKS) else (),
             "polled_checks": lambda: tuple(check.row_id for check in self.checks.unresolved_waits()),

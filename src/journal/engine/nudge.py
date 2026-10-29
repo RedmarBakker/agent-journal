@@ -34,11 +34,11 @@ class Nudge:
             return title
         return f"{title} {brief}" if title.endswith(("?", "!", ".")) else f"{title}. {brief}"
 
-    def is_too_long(self, line: str) -> bool:
+    def is_overlong(self, line: str) -> bool:
         return len(line) > self.longest_characters
 
     def cut(self, line: str) -> str:
-        if not self.is_too_long(line):
+        if not self.is_overlong(line):
             return line
         end_length = min(CUT_END_CHARACTERS, self.longest_characters // 2)
         return line[: self.longest_characters - len(CUT_MARK) - end_length] + CUT_MARK + line[-end_length:]

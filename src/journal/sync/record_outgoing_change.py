@@ -52,8 +52,8 @@ class RecordOutgoingChange(Listener[ModelEvent]):
 
     def entered(self, event: Updated) -> None:
         rows = [event.model, *self.contents(event.model)]
-        rows = [*rows, *(link for link in self.links.touching_any(rows) if self.placement.is_sent(link))]
-        refs = self.renumbering.into_team(rows)
+        rows = [*rows, *(link for link in self.links.row_links(rows) if self.placement.is_sent(link))]
+        refs = self.renumbering.team_numbers(rows)
         if refs:
             rows = [self.tables.rows(row.table()).numbered([refs.get(row.table(), {}).get(row.row_id, row.row_id)])[0] for row in rows]
         for row in rows:

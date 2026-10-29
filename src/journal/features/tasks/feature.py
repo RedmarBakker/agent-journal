@@ -20,7 +20,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.skill import Skill
 from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
 from journal.features.tasks.listeners.paused_decline_clearing import PausedDeclineClearing
-from journal.features.tasks.listeners.user_words_decline import UserWordsDecline
+from journal.features.tasks.listeners.user_paused_work_decline import UserPausedWorkDecline
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
@@ -38,7 +38,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.listeners.delete_ended_wait_checks import DeleteEndedWaitChecks
 from journal.features.tasks.listeners.delete_passed_wait_check import DeletePassedWaitCheck
-from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
+from journal.features.tasks.seeds.unused_wait_checks import UnusedWaitChecks
 from journal.features.tasks.commands.worker_task_command import WorkerTaskCommand
 
 class Tasks(Feature[TasksData]):
@@ -53,8 +53,8 @@ class Tasks(Feature[TasksData]):
     helper_commands = {AgentRole.WORKER: (WorkerTaskCommand,)}
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
-    seeds = (LeftWaitChecks,)
-    answer_listeners = ((UserWordsDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION))
+    seeds = (UnusedWaitChecks,)
+    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION))
     listeners = (TestingRunEnd, PausedDeclineClearing, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}

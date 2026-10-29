@@ -218,7 +218,7 @@ class Agent(Scoped):
             loads[self.mode] = self.work_queue.published()
         return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
-    def model_fit_kept(self, worker: int, fit: str) -> "Agent":
+    def model_fit_recorded(self, worker: int, fit: str) -> "Agent":
         kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
         return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
 

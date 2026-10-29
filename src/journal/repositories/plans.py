@@ -257,11 +257,11 @@ class Plans(ScopedRepository[Plan]):
 
     def first_planned(self, plan: Plan, matching: Query) -> Task | None:
         phase_links = self.links.query().filter(link_type=PHASE_LINK)
-        task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_named(phase_links, "source"))
+        task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_name_column(phase_links, "source"))
         first_phase = self.phases.selected(self.plan_phase_query(plan).filter_existing(task_links).order("id").limit(1))
         if first_phase:
             return self.first_link(phase_links.filter(target=Ref.build(first_phase[0])), matching)
-        planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_named(phase_links, "target"))
+        planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_name_column(phase_links, "target"))
         unphased = matching.filter_absent(planned.filter_ref("source", self.tasks.query()))
         return self.first_link(self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan)), unphased)
 
@@ -270,10 +270,10 @@ class Plans(ScopedRepository[Plan]):
         return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
 
     def has_link(self, links: Query, tasks: Query) -> bool:
-        return bool(self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).limit(1)))
+        return bool(self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).limit(1)))
 
     def first_link(self, links: Query, tasks: Query) -> Task | None:
-        first = self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).order("id").limit(1))
+        first = self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).order("id").limit(1))
         return self.tasks.find(first[0].source.id) if first else None
 
     def waiting_task_ids(self, plan: Plan) -> set[int]:

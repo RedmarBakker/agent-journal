@@ -22,4 +22,4 @@ class DocImport(ProjectType):
         return rows.docs()
 
     def created(self, row: Version3Row, actor: Actor) -> Doc:
-        return self.docs.imported_for_project(Doc(title=row.title, abstract=AbstractText.fitted(row.abstract, row.markdown(), row.title), body=row.markdown()), row.creation_moment(), actor)
+        return self.docs.project_imports(Doc(title=row.title, abstract=AbstractText.fitted(row.abstract, row.markdown(), row.title), body=row.markdown()), row.creation_moment(), actor)

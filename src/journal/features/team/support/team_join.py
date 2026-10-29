@@ -68,8 +68,8 @@ class TeamJoin:
     def join(self, url: TeamUrl, email: str, password: str, name: str) -> str:
         self.trusted(url)
         summary = self.link.summary(url.address)
-        if self.held_refusal(summary, url):
-            raise Rejection(self.held_refusal(summary, url))
+        if self.block_refusal(summary, url):
+            raise Rejection(self.block_refusal(summary, url))
         repository = self.identity.first_commit()
         if self.repository_refusal(summary, repository):
             raise Rejection(self.repository_refusal(summary, repository))
@@ -118,7 +118,7 @@ class TeamJoin:
         if summary.on_hub:
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
 
-    def held_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
+    def block_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
         for account in self.accounts.accounts():
             if account.team_key() == summary.key:
                 return f"this journal has joined the team at {account.address()} already: journal team status says how it stands"
@@ -139,7 +139,7 @@ class TeamJoin:
         return f"joined the team at {url.address} beside this journal's other teams, as its first journal: its hub {name} uploaded"
 
     def added_beside(self, url: TeamUrl, account: TeamAccount, copy: FullCopy) -> str:
-        clashing_numbers = self.copy.taken_numbers(copy.rows)
+        clashing_numbers = self.copy.granted_numbers(copy.rows)
         if clashing_numbers:
             account.path().unlink()
             raise Rejection(f"the team at {url.address} has {len(clashing_numbers)} rows numbered like this journal's, such as {clashing_numbers[0]}: no join")

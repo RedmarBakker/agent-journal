@@ -2,8 +2,8 @@ from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.events.rows.output_full_bar import OutputFullBar
-from journal.events.rows.output_quiet import OutputQuiet
-from journal.events.rows.output_without_total import OutputWithoutTotal
+from journal.events.rows.silent_output_found import SilentOutputFound
+from journal.events.rows.output_total_missing import OutputTotalMissing
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.scoped import Scoped
 
@@ -57,11 +57,11 @@ class CommandOutput(Scoped):
     def backgrounded(self) -> "CommandOutput":
         return self.with_(moved=True)
 
-    def total_asked(self, time: float) -> "CommandOutput":
-        return self.with_(is_total_asked=True).with_event(OutputWithoutTotal(environment_id=self.environment_id, time=time, run_session=self.session))
+    def total_requested(self, time: float) -> "CommandOutput":
+        return self.with_(is_total_asked=True).with_event(OutputTotalMissing(environment_id=self.environment_id, time=time, run_session=self.session))
 
-    def quiet_named(self, time: float, quiet_seconds: int) -> "CommandOutput":
-        return self.with_(is_quiet_named=True).with_event(OutputQuiet(environment_id=self.environment_id, time=time, run_session=self.session, quiet_seconds=quiet_seconds))
+    def silence_marked(self, time: float, quiet_seconds: int) -> "CommandOutput":
+        return self.with_(is_quiet_named=True).with_event(SilentOutputFound(environment_id=self.environment_id, time=time, run_session=self.session, quiet_seconds=quiet_seconds))
 
     def ended_with(self, status: int, time: float, summary: str | None = None) -> "CommandOutput":
         ended = self.with_(ended=True, status=status, summary=summary)

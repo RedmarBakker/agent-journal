@@ -211,7 +211,7 @@ def context(app, percent: int):
 
 
 def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_is_lifted_and_deleted_once_what_it_waited_on_ends(app: App, monkeypatch):
-    from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
+    from journal.features.tasks.seeds.unused_wait_checks import UnusedWaitChecks
     from journal.http.controllers.checks import CheckController
     from journal.http.listing import Listing
     from journal.models.check import Check
@@ -239,7 +239,7 @@ def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_
     console.run(["task", "block", "1", "--until", "false"], AGENT)
     blocking = [check.id for check in checks.wait_rows()]
     checks.save(Check(title="the wait for an earlier deploy ends when this passes", command="false", wait_target=True), Actor.system())
-    app.container.get(LeftWaitChecks).run()
+    app.container.get(UnusedWaitChecks).run()
     assert len(blocking) == 1 and [check.id for check in checks.wait_rows()] == blocking, "at boot a wait's check nothing waits on is deleted, and the one a blocked task waits on stays"
 
 

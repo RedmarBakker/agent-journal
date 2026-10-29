@@ -5,8 +5,8 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.support.actor import Actor
 
 
-class QuietRunRecord(AgentListener[Ticked]):
-    """A background run of the agent's that has printed nothing for long enough is marked on its row at the tick, once, and the mark raises OutputQuiet, which tells the agent."""
+class SilentRunRecord(AgentListener[Ticked]):
+    """A background run of the agent's that has printed nothing for long enough is marked on its row at the tick, once, and the mark raises SilentOutputFound, which tells the agent."""
 
     def __init__(self, silent: SilentRuns, outputs: CommandOutputs) -> None:
         self.silent, self.outputs = silent, outputs
@@ -15,4 +15,4 @@ class QuietRunRecord(AgentListener[Ticked]):
         for run in self.silent.running(event.session):
             output = self.outputs.find(run.output)
             if not output.is_quiet_named:
-                self.outputs.save(output.quiet_named(event.time, run.quiet_seconds), Actor.system())
+                self.outputs.save(output.silence_marked(event.time, run.quiet_seconds), Actor.system())

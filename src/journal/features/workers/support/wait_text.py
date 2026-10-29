@@ -10,13 +10,13 @@ BLOCK_FLAGS = ("--on", "--until")
 WORDED_COMMANDS = (("task", "log"), ("message", "send"))
 
 
-class WrittenWait:
+class WaitText:
     """A wait written in words, in a log line, a message or a reply, rather than as a block with --on or --until."""
 
     @staticmethod
-    def is_written(text: str) -> bool:
+    def is_word_wait(text: str) -> bool:
         return bool(WAIT_WORDS.search(text)) and not any(flag in text for flag in BLOCK_FLAGS)
 
     @staticmethod
-    def worded(call: ToolCall) -> str:
+    def wait_command_text(call: ToolCall) -> str:
         return " ".join(part.text for part in call.parts if tuple(part.text.split()[1:3]) in WORDED_COMMANDS and part.is_journal)

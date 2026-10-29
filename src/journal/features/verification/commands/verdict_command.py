@@ -53,6 +53,6 @@ class VerdictCommand(Command):
         worker = self.workers.save(self.workers.find(judged.id).model_judged(verdict, args.reason, caller.agent_session, self.time_source.moment().timestamp()), caller.actor)
         dispatcher = self.agents.active_main_agent(worker.dispatcher) if worker.dispatcher else None
         if dispatcher is not None:
-            self.agents.save(dispatcher.model_fit_kept(worker.row_id, verdict), caller.actor)
+            self.agents.save(dispatcher.model_fit_recorded(worker.row_id, verdict), caller.actor)
         print(f"verdict {verdict} on worker {worker.id}'s model: {args.reason}; your session ends now")
         return 0

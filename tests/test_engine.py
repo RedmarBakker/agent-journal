@@ -2179,7 +2179,7 @@ def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_mo
     from journal.models.model_tier import ModelTier
     from journal.providers.claude import Claude
     small, large = WorkComplexity(20, 1, 0, 15, 10, 1, True), WorkComplexity(600, 12, 2, 200, 120, 5, True)
-    assert small.points() < 4 <= 16 <= large.points() and (small.called_for(), large.called_for()) == (ModelTier.FAST, ModelTier.STRONGEST)
+    assert small.points() < 4 <= 16 <= large.points() and (small.fitting_tier(), large.fitting_tier()) == (ModelTier.FAST, ModelTier.STRONGEST)
     assert [small.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["right", "too strong", "too strong"], "small work on a stronger model than it needs is too strong"
     assert [large.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["too weak", "too weak", "right"], "large work sent back again and again on a weaker model is too weak"
     assert WorkComplexity(600, 12, 0, 200, 120, 5, True).fit(ModelTier.GENERAL).measured == "right", "on a weaker model with no send-backs it did the work"

@@ -4,7 +4,7 @@ from journal.repositories.checks import Checks
 from journal.support.actor import Actor
 
 
-class LeftWaitChecks(Seed):
+class UnusedWaitChecks(Seed):
     """At boot, the checks earlier waits made for themselves that nothing waits on any more are deleted."""
 
     def __init__(self, checks: Checks, wait_checks: WaitChecks) -> None:

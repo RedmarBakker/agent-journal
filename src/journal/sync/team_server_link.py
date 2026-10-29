@@ -29,7 +29,7 @@ COPY_SECONDS = 120
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. Its requests go through the LibraryLink, which holds the transport, until the row sync is removed."""
+    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with, the pool's fields only when this machine gives the pool slots, since a team server from before the pool refuses fields it does not know: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. Its requests go through the LibraryLink, which holds the transport, until the row sync is removed."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
@@ -40,7 +40,6 @@ class TeamServerLink:
 
     @staticmethod
     def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
-        # a team server from before the pool refuses a push with fields it does not know
         pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
         return {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields}
 

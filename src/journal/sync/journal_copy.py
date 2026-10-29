@@ -24,7 +24,7 @@ class JournalCopy:
         self.tables, self.scopes, self.placement = tables, scopes, placement
 
     def rows(self) -> list[CopiedRow]:
-        return self.copied(lambda row: self.placement.is_sent_to(row, self.placement.account))
+        return self.copied(lambda row: self.placement.is_recipient(row, self.placement.account))
 
     def team_rows(self, team_key: str) -> list[CopiedRow]:
         return self.copied(lambda row: self.placement.team_key(row) == team_key)
@@ -32,7 +32,7 @@ class JournalCopy:
     def copied(self, is_copied: Callable[[Model], bool]) -> list[CopiedRow]:
         return [CopiedRow(table, row.row_id, Schema.team_values(row, None), {name: row.updated_at.timestamp() for name in Schema.team_values(row, None)}) for table in self.tables.names() for row in self.tables.rows(table).rows() if is_copied(row)]
 
-    def taken_numbers(self, rows: tuple[CopiedRow, ...]) -> list[str]:
+    def granted_numbers(self, rows: tuple[CopiedRow, ...]) -> list[str]:
         numbers: dict[str, list[int]] = {}
         for row in rows:
             if self.tables.has(row.row_table):
@@ -83,7 +83,7 @@ class JournalCopy:
         return placed
 
     def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict], account: TeamAccount, waiting: list[OutgoingChange]) -> None:
-        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_sent_to(row, account)] for table in self.tables.names()}
+        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_recipient(row, account)] for table in self.tables.names()}
         for table, numbers in sent.items():
             self.tables.rows(table).clear_numbers(numbers)
         tables: dict[str, dict[int, dict]] = {table: {} for table in self.tables.names()}

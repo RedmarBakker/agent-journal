@@ -130,7 +130,7 @@ class Worker(Helper):
         return next((time for word, time in reversed(self.moves.steps) if word in JOB_STARTS), 0.0)
 
     def rejections(self) -> int:
-        return self.moves.counted_since(REJECTION_MOVE, MERGED)
+        return self.moves.recent_count(REJECTION_MOVE, MERGED)
 
     def model_measured(self, fit: ModelFit, rejections: int, time: float) -> "Worker":
         measured = self.with_(model_fit=fit)
@@ -227,7 +227,7 @@ class Worker(Helper):
     def is_silent(self, time: float) -> bool:
         return self.is_running() and (self.silence.is_elapsed(time) or self.silence.is_split_due(time))
 
-    def silence_named(self, time: float) -> "Worker":
+    def silence_noted(self, time: float) -> "Worker":
         split = self.silence.is_split_due(time)
         minutes = self.silence.dispatcher_minutes() if split else self.silence.minutes()
         return self.with_(silence=self.silence.named(time)).with_event(WorkerSilent(environment_id=self.environment_id, time=time, worker=self.mention(), minutes=minutes, is_split_due=split))

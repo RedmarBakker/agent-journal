@@ -70,12 +70,12 @@ class Console:
         return parser
 
     def run(self, argv: list[str], caller: Caller) -> Outcome:
-        return self.run_into(argv, caller, io.StringIO())
+        return self.scoped_run(argv, caller, io.StringIO())
 
     def run_streamed(self, argv: list[str], caller: Caller, pieces: queue.Queue) -> Outcome:
-        return self.run_into(argv, caller, StreamedOutput(pieces))
+        return self.scoped_run(argv, caller, StreamedOutput(pieces))
 
-    def run_into(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
+    def scoped_run(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
         environment = self.names.resolved(caller.environment).row_id
         with self.scope.environment(environment):
             seated = self.seats.caller_seated(caller)

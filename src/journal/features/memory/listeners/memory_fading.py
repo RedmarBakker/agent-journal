@@ -26,7 +26,7 @@ class MemoryFading(AgentListener[Compacting]):
         with self.scope.environment(event.environment_id):
             owner = self.owners.agent_owner(event.agent)
             lowered_memories = self.memories.fade_all(owner, Actor.system())
-            removed = self.memories.removed_since(owner, self.last_round_at(event.session))
+            removed = self.memories.removed_recent(owner, self.last_round_at(event.session))
         if lowered_memories:
             visible_count = len([memory for memory in lowered_memories if memory.is_visible()])
             self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)

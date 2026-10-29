@@ -38,7 +38,7 @@ HUB_ASK_SECONDS = 60
 
 
 class SyncDesk:
-    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and of the sessions it holds and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and a migration to the hub learnt once a minute while the team is not on it, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
+    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and of the sessions it holds and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and a migration to the hub learnt once a minute while the team is not on it, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in, since the copy would wipe a change sent meanwhile and no pull sends a journal its own changes back."""
 
     def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset, link: TeamServerLink, environments: Environments, drives: HubDrives, sessions: SessionLeases) -> None:
         self.account, self.outgoing, self.incoming, self.rejected, self.status = account, outgoing, incoming, rejected, status
@@ -139,8 +139,6 @@ class SyncDesk:
 
     @contextmanager
     def copy_window(self):
-        # nothing of this journal's goes out between the team's copy being taken and laid in place of its rows, or the copy would
-        # wipe a change sent meanwhile, which no pull sends back, as a journal is never sent its own changes
         with self.locked(self.sending, "lay in the team's copy"), self.locked(self.applying, "lay in the team's copy"):
             yield
 

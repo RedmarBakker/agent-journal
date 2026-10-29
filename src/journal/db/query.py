@@ -129,7 +129,7 @@ class Query:
     def filter_ref(self, column: str, query: "Query") -> "Query":
         return self._with(Condition(f"{self.table}.{self._column(column).name} = ? || {query.table}.id", (f"{query.ref_name}:",)))
 
-    def filter_named(self, query: "Query", column: str) -> "Query":
+    def filter_name_column(self, query: "Query", column: str) -> "Query":
         return self._with(Condition(f"{query.table}.{query._column(column).name} = ? || {self.table}.id", (f"{self.ref_name}:",)))
 
     def inlined(self) -> "Query":

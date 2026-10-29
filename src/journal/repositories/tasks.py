@@ -89,7 +89,7 @@ class Tasks(ScopedRepository[Task]):
 
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
         agent_query = Query.build(Agent).filter_unequal("state", ENDED_STATE).filter_unequal("id", holder.id)
-        claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_named(self.links.query(), "source"))
+        claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_name_column(self.links.query(), "source"))
         return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).filter_absent(claimed_links).filter_absent(self.wait_links()))
 
     def wait_links(self) -> Query:
@@ -186,11 +186,11 @@ class Tasks(ScopedRepository[Task]):
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_less_equal("updated_at", moment)) > 0
 
     def user_paused_planned(self) -> Query:
-        plans = Query.build(Plan).filter(state=PlanState.PAUSED.value, pauser=USER_PAUSER).filter_named(self.links.query(), "target")
+        plans = Query.build(Plan).filter(state=PlanState.PAUSED.value, pauser=USER_PAUSER).filter_name_column(self.links.query(), "target")
         return self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
 
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
-        plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_named(self.links.query(), "target")
+        plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_name_column(self.links.query(), "target")
         planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
         return self.query().filter(state=state, delegated=False).filter_absent(planned).order_descending("priority").order("id")
 
@@ -236,7 +236,7 @@ class Tasks(ScopedRepository[Task]):
         return self.selected(self.agents_state_query(TaskState.PAUSED, agents).filter(pause_reason=reason).order("id"))
 
     def agents_state_query(self, state: TaskState, agents: Query) -> Query:
-        agent_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
+        agent_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_name_column(self.links.query(), "source"))
         return self.query().filter(state=state).filter_existing(agent_links)
 
     def row_holders(self, rows: list[Task]) -> dict[int, Ref]:

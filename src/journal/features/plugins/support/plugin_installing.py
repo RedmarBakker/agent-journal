@@ -64,7 +64,7 @@ class PluginInstalling:
             prior_data = (self.config.home / "plugin-data" / plugin.name).is_dir()
             if not linked:
                 shutil.copytree(folder, self.folders.folder(plugin), ignore=shutil.ignore_patterns(".git"))
-                self.shipped_record(self.folders.folder(plugin), folder)
+                self.package_record(self.folders.folder(plugin), folder)
             try:
                 self.aliases.readers_checked(plugin, folder)
                 self.required(plugin, environment)
@@ -153,11 +153,11 @@ class PluginInstalling:
         stored = target.with_name(f"{target.name}.before-upgrade")
         shutil.rmtree(stored, ignore_errors=True)
         shutil.copytree(target, stored, symlinks=True)
-        dropped = self.shipped_listed(target) - self.shipped_files(folder)
+        dropped = self.package_listed(target) - self.package_files(folder)
         shutil.copytree(folder, target, ignore=shutil.ignore_patterns(".git"), dirs_exist_ok=True)
         for path in dropped:
             (target / path).unlink(missing_ok=True)
-        self.shipped_record(target, folder)
+        self.package_record(target, folder)
         try:
             self.required(upgraded, environment)
             self.prepare(upgraded, environment)
@@ -170,16 +170,16 @@ class PluginInstalling:
         shutil.rmtree(stored, ignore_errors=True)
 
     @staticmethod
-    def shipped_files(source: Path) -> set[str]:
+    def package_files(source: Path) -> set[str]:
         return {str(path.relative_to(source)) for path in source.rglob("*") if path.is_file() and ".git" not in path.relative_to(source).parts}
 
     @staticmethod
-    def shipped_listed(target: Path) -> set[str]:
+    def package_listed(target: Path) -> set[str]:
         listing = target / SHIPPED_FILE
         return set(listing.read_text().splitlines()) if listing.is_file() else set()
 
-    def shipped_record(self, target: Path, source: Path) -> None:
-        (target / SHIPPED_FILE).write_text("\n".join(sorted(self.shipped_files(source))))
+    def package_record(self, target: Path, source: Path) -> None:
+        (target / SHIPPED_FILE).write_text("\n".join(sorted(self.package_files(source))))
 
     def enable(self, name: str, actor: Actor) -> Plugin:
         self.require_user(actor, "switches on")

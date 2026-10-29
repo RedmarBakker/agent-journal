@@ -14,9 +14,9 @@ class HubMove:
     def put(self, doc: Doc, hub_id: int, mode: DocEditMode, owner: int, actor: Actor) -> Doc:
         with self.docs.writing():
             self.revisions.moved(doc, hub_id, actor)
-            return self.docs.save(doc.put_on_hub(hub_id, mode, owner), actor)
+            return self.docs.save(doc.hub_placement(hub_id, mode, owner), actor)
 
-    def take_back(self, doc: Doc, environment_id: int, actor: Actor) -> Doc:
+    def reclaim(self, doc: Doc, environment_id: int, actor: Actor) -> Doc:
         with self.docs.writing():
             self.revisions.moved(doc, environment_id, actor)
-            return self.docs.save(doc.taken_back(environment_id), actor)
+            return self.docs.save(doc.reclaimed(environment_id), actor)

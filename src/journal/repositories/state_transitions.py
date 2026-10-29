@@ -13,5 +13,5 @@ class StateTransitions(Repository[StateTransition]):
         current = rows[0] if rows else StateTransition(before_state=before_state, after_state=after_state, cause=cause)
         return self.save(current.happened(at), actor)
 
-    def seen_since(self, earliest: float) -> list[StateTransition]:
+    def seen_recent(self, earliest: float) -> list[StateTransition]:
         return self.selected(self.query().filter_greater_equal("last_at", earliest).order("count"))

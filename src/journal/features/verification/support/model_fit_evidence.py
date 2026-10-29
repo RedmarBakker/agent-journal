@@ -23,7 +23,7 @@ class ModelFitEvidence:
             "journal verdict model too-strong|right|too-weak \"<one line of reason>\". Every other tool is refused, and your verdict ends your session.",
             f"## The model\n\n{worker.model or 'not named'}, on {worker.provider}",
             f"## How complex the journal measured it\n\n{complexity.lines} lines in {complexity.files} files, {complexity.tests_added} test files, sent back {complexity.send_backs} times, "
-            f"{complexity.tool_uses} tool uses over {complexity.minutes:g} minutes; {complexity.points()} points, which call for the {complexity.called_for().value} model",
+            f"{complexity.tool_uses} tool uses over {complexity.minutes:g} minutes; {complexity.points()} points, which call for the {complexity.fitting_tier().value} model",
             f"## The task's brief\n\n{self.task_brief(worker)}",
             f"## The diff\n\n{self.diff(worker)}",
             f"## The worker's report\n\n{self.reports.last(worker) or '(no report)'}",

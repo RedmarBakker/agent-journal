@@ -51,5 +51,5 @@ class Plugins(Repository[Plugin]):
     def enabled_plugins(self, name: str) -> list[Plugin]:
         return [plugin for plugin in self.enabled() if plugin.name == name]
 
-    def has_hold(self, key: str) -> bool:
+    def has_block(self, key: str) -> bool:
         return any(plugin.manifest.has_window(key) for plugin in self.enabled())

@@ -30,14 +30,14 @@ class WorkComplexity:
         named = 0 if self.brief_named_files else UNNAMED_FILES_POINTS
         return round(self.lines / LINES_A_POINT + self.files / FILES_A_POINT + SEND_BACK_POINTS * self.send_backs + self.tool_uses / TOOL_USES_A_POINT + self.minutes / MINUTES_A_POINT + self.tests_added / TESTS_A_POINT + named, 1)
 
-    def called_for(self) -> ModelTier:
+    def fitting_tier(self) -> ModelTier:
         points = self.points()
         if points < FAST_UNDER:
             return ModelTier.FAST
         return ModelTier.STRONGEST if points >= STRONGEST_FROM else ModelTier.GENERAL
 
     def fit(self, tier: ModelTier) -> ModelFit:
-        called_for = self.called_for()
+        called_for = self.fitting_tier()
         return ModelFit(self.points(), called_for, tier, self.measured(tier, called_for))
 
     def measured(self, tier: ModelTier, called_for: ModelTier) -> str:

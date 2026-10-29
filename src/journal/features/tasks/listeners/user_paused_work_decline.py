@@ -5,7 +5,7 @@ from journal.repositories.agents import Agents
 from journal.support.actor import Actor
 
 
-class UserWordsDecline(AgentListener[PromptSubmitted]):
+class UserPausedWorkDecline(AgentListener[PromptSubmitted]):
     """The user's own words while the agent chooses its paused work set that work aside until the next close: the user said what comes next."""
 
     def __init__(self, agents: Agents) -> None:

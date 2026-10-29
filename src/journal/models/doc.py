@@ -32,13 +32,13 @@ class Doc(Abstracted, Scoped, Commentable):
     def is_on_hub(self) -> bool:
         return self.edit_mode != DocEditMode.LOCAL
 
-    def put_on_hub(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
+    def hub_placement(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
         return self.with_(environment_id=hub_id, edit_mode=mode, owner=owner)
 
     def local_copy(self) -> "Doc":
         return Doc(title=self.title, abstract=self.abstract, body=self.body, is_copy=True)
 
-    def taken_back(self, environment_id: int) -> "Doc":
+    def reclaimed(self, environment_id: int) -> "Doc":
         return self.with_(environment_id=environment_id, edit_mode=DocEditMode.LOCAL, owner=0)
 
     def is_withheld(self) -> bool:
@@ -47,10 +47,10 @@ class Doc(Abstracted, Scoped, Commentable):
     def is_edited_from(self, prior: "Doc") -> bool:
         return (self.title, self.abstract, self.body, self.edit_mode, self.owner, self.environment_id) != (prior.title, prior.abstract, prior.body, prior.edit_mode, prior.owner, prior.environment_id)
 
-    def is_mode_changed_from(self, prior: "Doc") -> bool:
+    def is_mode_change(self, prior: "Doc") -> bool:
         return (self.edit_mode, self.owner, self.environment_id) != (prior.edit_mode, prior.owner, prior.environment_id)
 
-    def is_changed_by(self, member: int, is_admin: bool) -> bool:
+    def is_editable_by(self, member: int, is_admin: bool) -> bool:
         return is_admin or member == self.owner
 
     def summary_line(self) -> str:

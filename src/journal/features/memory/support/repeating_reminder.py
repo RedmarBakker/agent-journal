@@ -15,6 +15,6 @@ class RepeatingReminder:
     said_at: float
     said_tool_use: int
 
-    def is_due(self, time: float, tool_use: int) -> bool:
+    def is_due_now(self, time: float, tool_use: int) -> bool:
         interval = Timeout.minutes(self.every_minutes) if self.every_minutes else Timeout.tool_uses(self.every_tool_uses)
         return interval.reset(Moment(seconds=self.said_at, tool_uses=self.said_tool_use)).has_passed(Moment(seconds=time, tool_uses=tool_use))

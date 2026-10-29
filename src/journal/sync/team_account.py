@@ -150,8 +150,8 @@ class TeamAccount(HubAccount):
     def is_chat_holder(self) -> bool:
         return bool(self.contents().get("holds_chat", False))
 
-    def held_sessions(self) -> list[str]:
+    def hosted_sessions(self) -> list[str]:
         return list(self.contents().get("sessions", []))
 
-    def record_held_sessions(self, names: list[str]) -> None:
+    def record_hosted_sessions(self, names: list[str]) -> None:
         self.merged({"sessions": sorted(set(names))})

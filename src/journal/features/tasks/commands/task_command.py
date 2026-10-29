@@ -126,7 +126,7 @@ class TaskCommand(Command):
 
     def create(self, args: Namespace, caller: Caller) -> int:
         person, team = self.filer.person(args), self.filer.team(args)
-        with self.hub.writing_in(team):
+        with self.hub.hub_scope(team):
             task = self.tasks.save(self.created(args), caller.actor)
             self.filer.link(task, args, person, team, caller.actor)
             self.link_creation(args.message, task, caller)

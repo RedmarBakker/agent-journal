@@ -24,7 +24,7 @@ class StoryTransitions:
     def lines(self, hours: float) -> list[str]:
         earliest = self.time_source.seconds() - hours * HOUR_SECONDS if hours else 0.0
         walked = self.walked()
-        return [self.line(row, walked) for row in self.transitions.seen_since(earliest)]
+        return [self.line(row, walked) for row in self.transitions.seen_recent(earliest)]
 
     def walked(self) -> set[str]:
         return set(json.loads(self.walked_file.read_text())) if self.walked_file.exists() else set()

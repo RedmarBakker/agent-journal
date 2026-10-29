@@ -1,6 +1,6 @@
 from journal.events.worker_merge_result import WorkerMergeResult
 from journal.events.worker_merging import WorkerMerging
-from journal.events.moments.worker_merge_refused import WorkerMergeRefused
+from journal.events.moments.worker_merge_clash import WorkerMergeClash
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.support.decision import Decision
 from journal.engine.clock import Clock
@@ -59,7 +59,7 @@ class CommandEvents:
     def worker_work_merged(self, event: WorkerWorkMerged) -> None:
         self.bus.dispatch(event)
 
-    def worker_merge_refused(self, event: WorkerMergeRefused) -> None:
+    def worker_merge_refused(self, event: WorkerMergeClash) -> None:
         self.bus.dispatch(event)
 
     def help_needed(self, reason: str, caller: Caller) -> None:

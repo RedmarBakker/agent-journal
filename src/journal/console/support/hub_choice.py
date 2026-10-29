@@ -12,7 +12,7 @@ class HubChoice:
     def __init__(self, environments: Environments, scope: Scope) -> None:
         self.environments, self.scope = environments, scope
 
-    def writing_in(self, team: str):
+    def hub_scope(self, team: str):
         return self.scope.environment(self.hub(team).row_id) if team else nullcontext()
 
     def hub(self, team: str) -> Environment:

@@ -18,11 +18,11 @@ class EnvironmentWithdrawal:
 
     def changes(self, environment_id: int, writer: str) -> list[OutgoingChange]:
         environment = self.tables.rows(Environment.table()).find(environment_id)
-        return [*self.content_changes(environment_id, writer), *(OutgoingChange.withdrawal(row, writer, self.keeper(environment_id)) for row in [*self.links.touching_any([environment]), environment])]
+        return [*self.content_changes(environment_id, writer), *(OutgoingChange.withdrawal(row, writer, self.keeper(environment_id)) for row in [*self.links.row_links([environment]), environment])]
 
     def content_changes(self, environment_id: int, writer: str) -> list[OutgoingChange]:
         rows = self.team_rows(environment_id)
-        return [OutgoingChange.withdrawal(row, writer, self.keeper(environment_id)) for row in [*self.links.touching_any(rows), *rows]]
+        return [OutgoingChange.withdrawal(row, writer, self.keeper(environment_id)) for row in [*self.links.row_links(rows), *rows]]
 
     def keeper(self, environment_id: int) -> str:
         return Actor.user(self.owners.owner_number(environment_id) or self.account.user_number()).stamp

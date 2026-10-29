@@ -22,11 +22,11 @@ class Docs(ScopedRepository[Doc], UnactedWriting):
         super().__init__(connection, bus, scope, time_source)
         self.visible = visible
 
-    def of_project(self, doc: Doc, actor: Actor) -> Doc:
+    def project_saved(self, doc: Doc, actor: Actor) -> Doc:
         with self.scope.environment(PROJECT):
             return self.save(doc, actor)
 
-    def imported_for_project(self, doc: Doc, time: datetime, actor: Actor) -> Doc:
+    def project_imports(self, doc: Doc, time: datetime, actor: Actor) -> Doc:
         with self.scope.environment(PROJECT):
             return self.imported(doc, time, actor)
 

@@ -13,7 +13,7 @@ class UnactedWriting:
     def unacted(self, last_id: int, rows: int) -> list:
         candidates = self.unsigned_query()
         links = Query.build(Link)
-        cards = Query.build(Message).filter_present("data->card_type").filter_named(links, "source")
+        cards = Query.build(Message).filter_present("data->card_type").filter_name_column(links, "source")
         touching = links.filter_alternatives(links.filter_ref("source", candidates), links.filter_ref("target", candidates)).filter_unequal("link_type", REVISION_LINK).filter_absent(cards)
         unacted = candidates.filter_lasting_less("created_at", "updated_at", UNCHANGED_SECONDS).filter_absent(touching)
         return self.selected(unacted.filter_greater("id", last_id).with_columns("created_at", "updated_at").order("id").limit(rows))

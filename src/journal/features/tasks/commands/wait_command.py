@@ -42,7 +42,7 @@ class WaitCommand(Command):
         time.add_argument("--until", default="", metavar="SCRIPT", help="a shell script run every 30 seconds; the wait ends once it passes, such as ! kill -0 <pid> for a process")
 
     def clear(self, args: Namespace, caller: Caller) -> int:
-        checks = WaitTargets.awaited_checks(self.agents.session_agent(caller.agent_session).stack)
+        checks = WaitTargets.wait_check_ids(self.agents.session_agent(caller.agent_session).stack)
         self.events.wait_cleared(caller)
         self.wait_checks.deleted(checks, caller.actor)
         print("wait cleared" + (f", and check {', '.join(map(str, sorted(checks)))} removed" if checks else ""))

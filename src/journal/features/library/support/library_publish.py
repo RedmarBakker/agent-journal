@@ -1,4 +1,5 @@
 from journal.db.schema import Schema
+from journal.features.library.support.library_entry import LibraryEntry
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.library_name import LibraryName
@@ -26,21 +27,21 @@ class LibraryPublish:
         bodies = {"sequence": self.sequence_body, "template": self.template_body, "profile": self.profile_body}
         if item_type not in bodies:
             raise Rejection(f"the library publishes {', '.join(bodies)} here; {item_type} is not one of them")
-        name, title, body = bodies[item_type](reference)
-        return self.link.publish(item_type, name, PublishRequest(description if description is not None else title, body, note))
+        entry = bodies[item_type](reference)
+        return self.link.publish(item_type, entry.name, PublishRequest(description if description is not None else entry.title, entry.body, note))
 
-    def sequence_body(self, reference: str) -> tuple[str, str, str]:
+    def sequence_body(self, reference: str) -> LibraryEntry:
         sequence = self.sequences.find(self.number(reference))
-        return LibraryName.from_title(sequence.title), sequence.title, SequenceBody.text(sequence)
+        return LibraryEntry(LibraryName.title_name(sequence.title), sequence.title, SequenceBody.text(sequence))
 
-    def template_body(self, reference: str) -> tuple[str, str, str]:
+    def template_body(self, reference: str) -> LibraryEntry:
         template = self.templates.find(self.number(reference))
-        return LibraryName.from_title(template.title), template.title, TemplateBody.text(template)
+        return LibraryEntry(LibraryName.title_name(template.title), template.title, TemplateBody.text(template))
 
-    def profile_body(self, reference: str) -> tuple[str, str, str]:
+    def profile_body(self, reference: str) -> LibraryEntry:
         view = self.profiles.read(reference)
         profile = Profile(view["name"], view["description"], view["tools"], view["body"], ProfileType(view["profile_type"]))
-        return view["name"], view["description"], ProfileBody.text(profile)
+        return LibraryEntry(view["name"], view["description"], ProfileBody.text(profile))
 
     @staticmethod
     def number(reference: str) -> int:

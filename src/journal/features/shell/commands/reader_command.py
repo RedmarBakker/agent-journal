@@ -65,7 +65,7 @@ class ReaderCommand(Command):
         dismissal.add_argument("--why", required=True, help="why the report is wrong")
 
     @staticmethod
-    def kept_options(prior: Reader, args: Namespace) -> list[str]:
+    def retained_options(prior: Reader, args: Namespace) -> list[str]:
         options = {"progress": prior.progress_pattern, "label": prior.label, "commands": prior.commands.text(), "step": prior.step_pattern, "topic": prior.topic_pattern, "finished": prior.finished_pattern, "failed": prior.failed_pattern, "summary": prior.summary_pattern}
         return [f"--{option} {shlex.quote(value)}" for option, value in options.items() if value and getattr(args, option) is None]
 
@@ -76,7 +76,7 @@ class ReaderCommand(Command):
         prior = self.readers.stored_reader(args.name)
         if prior is None and not (args.pattern or args.script):
             raise Rejection("a new reader says what it picks with --pattern or --script")
-        if self.is_script_left_unreplaced(prior, args):
+        if self.is_script_unreplaced(prior, args):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
@@ -98,7 +98,7 @@ class ReaderCommand(Command):
             self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
-        kept = self.kept_options(prior, args) if prior is not None else []
+        kept = self.retained_options(prior, args) if prior is not None else []
         if kept:
             print(f"kept from the reader before, as you did not give them: {', '.join(kept)}; give one as '' to drop it, such as --progress ''")
         return 0
@@ -160,5 +160,5 @@ class ReaderCommand(Command):
         return 0
 
     @staticmethod
-    def is_script_left_unreplaced(prior: Reader | None, args: Namespace) -> bool:
+    def is_script_unreplaced(prior: Reader | None, args: Namespace) -> bool:
         return prior is not None and bool(prior.script) and not args.script and args.pattern is None

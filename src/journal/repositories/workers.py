@@ -31,7 +31,7 @@ class Workers(ScopedRepository[Worker]):
         with self.connection.transaction():
             current = self.find(worker.row_id)
             if current.is_silent(time):
-                self.save(current.silence_named(time), actor)
+                self.save(current.silence_noted(time), actor)
 
     def numbered(self, n: int) -> list[Worker]:
         return self.selected(self.query().filter(id=n))

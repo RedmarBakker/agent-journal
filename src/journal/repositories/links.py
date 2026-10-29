@@ -88,7 +88,7 @@ class Links(Repository[Link]):
         self.purged_rows(Link, self.query().filter(source=ref).filter_unlisted("link_type", list(Link.SURVIVING_SOURCE)), actor)
         self.purged_rows(Link, self.query().filter(target=ref).filter_unlisted("link_type", list(Link.SURVIVING_TARGET)), actor)
 
-    def touching_any(self, models: Sequence[Model]) -> list[Link]:
+    def row_links(self, models: Sequence[Model]) -> list[Link]:
         refs = [Ref.build(model) for model in models]
         chunks = [refs[start:start + REF_CHUNK] for start in range(0, len(refs), REF_CHUNK)]
         return list({link.id: link for chunk in chunks for link in self.selected(self.query().filter_alternatives(self.query().filter_listed("source", chunk), self.query().filter_listed("target", chunk)))}.values())

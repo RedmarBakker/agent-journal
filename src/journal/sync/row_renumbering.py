@@ -30,10 +30,10 @@ class RowRenumbering:
         self.files_kept(refs)
         return refs
 
-    def into_team(self, rows: list[Model]) -> dict[str, dict[int, int]]:
+    def team_numbers(self, rows: list[Model]) -> dict[str, dict[int, int]]:
         stored: dict[str, tuple[str, list[int]]] = {}
         for row in rows:
-            if self.blocks.is_given(row.number_pool(), row.row_id):
+            if self.blocks.is_granted(row.number_pool(), row.row_id):
                 continue
             stored.setdefault(row.storage(), (row.number_pool(), []))[1].append(row.row_id)
         moves = {storage: self.numbers(pool, ids) for storage, (pool, ids) in stored.items()}

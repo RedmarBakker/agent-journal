@@ -9,7 +9,7 @@ from journal.events.rows.reader_report_raised import ReaderReportRaised
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.features.feature import Feature
 from journal.features.shell.listeners.output_notice import OutputNotice
-from journal.features.shell.listeners.quiet_run_record import QuietRunRecord
+from journal.features.shell.listeners.silent_run_record import SilentRunRecord
 from journal.features.shell.listeners.untotaled_run_record import UntotaledRunRecord
 from journal.features.shell.listeners.stopped_output_end import StoppedOutputEnd
 from journal.features.shell.listeners.watch_progress_record import WatchProgressRecord
@@ -54,7 +54,7 @@ class Shell(Feature[ShellData]):
     commands = (OutputCommand, ReaderCommand)
     helper_commands = {AgentRole.WORKER: (WorkerOutputCommand,)}
     options = (FOREGROUND_OPTION, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT, ShellOptions.READER_SUGGESTIONS, ShellOptions.READER_SUGGESTION_RUNS)
-    listeners = (OutputNotice, QuietRunRecord, UntotaledRunRecord, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard, WatchProgressRecord)
+    listeners = (OutputNotice, SilentRunRecord, UntotaledRunRecord, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard, WatchProgressRecord)
     seeds = (CutOffOutputs, ProjectReadersClear, DefaultReaders, JournalOutputReaders, StrayCommandMarkCleanup, StrayReaderCleanup)
     jobs = (WatchRefresh, RestartWait, RunCardStart, WatchedRunCheck)
     process_cards = (OutputProcessCard,)

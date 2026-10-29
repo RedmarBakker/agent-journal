@@ -3,11 +3,11 @@ from journal.events.worker_merging import WorkerMerging
 from journal.engine.command_events import CommandEvents
 
 from journal.events.rows.worker_reused import WorkerReused
-from journal.events.rows.worker_sent_on import WorkerSentOn
+from journal.events.rows.worker_next_job_sent import WorkerNextJobSent
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
-from journal.events.moments.worker_merge_refused import WorkerMergeRefused
+from journal.events.moments.worker_merge_clash import WorkerMergeClash
 from journal.features.workers.support.merge_clash import MergeClash
 from journal.support.merger import Merger
 from journal.support.time_source import TimeSource
@@ -192,7 +192,7 @@ class WorkerActions:
             steps.started(4)
             worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
         steps.started(5)
-        next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
+        next_line, next_task = self.send_next(worker.id, actor, WorkerNextJobSent)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(self.time_source.moment().timestamp()), actor)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total, merged_shas=merged_shas))
@@ -229,7 +229,7 @@ class WorkerActions:
         try:
             return self.branch.merge_commit(worker) if worker.worktree else ""
         except MergeClash as clash:
-            self.events.worker_merge_refused(WorkerMergeRefused(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, clashing=clash.clashing, line=str(clash)))
+            self.events.worker_merge_refused(WorkerMergeClash(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, clashing=clash.clashing, line=str(clash)))
             raise
 
     def next_job(self, n: int, actor: Actor) -> str:

@@ -32,7 +32,7 @@ class RecordEdit(AgentListener[ToolFinished]):
 
     @property
     def blocking(self) -> Blocking | None:
-        return Blocking.ANSWER if self.plugins.has_hold(FileEdited.type_key()) else None
+        return Blocking.ANSWER if self.plugins.has_block(FileEdited.type_key()) else None
 
     def handle(self, event: ToolFinished) -> None:
         if event.call.is_journal:
