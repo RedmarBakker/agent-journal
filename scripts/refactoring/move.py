@@ -5,7 +5,7 @@
 
 A list line is `old.module new.module`, or `old.module new.module # why`; blank lines and lines starting with #
 are skipped. The file moves with git mv, the packages it lands in get an __init__.py, and every dotted
-name of the old module in src, tests, scripts, docs, NOTES.md and CLAUDE.md is written as the new one, but in
+name of the old module in src, tests, scripts, docs and CLAUDE.md is written as the new one, but in
 this tool and its test, whose examples name modules on purpose. A move
 is refused when the old module is missing or the new one already stands; nothing is written when one is.
 `--dry-run` names every move and how many files each touches without writing. `--names-only` writes the new
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 TEXT_GLOBS = ("src/**/*.py", "tests/**/*.py", "scripts/**/*.py", "docs/**/*.md")
-TEXT_FILES = ("NOTES.md", "CLAUDE.md")
+TEXT_FILES = ("CLAUDE.md",)
 TOOL_FILES = ("scripts/refactoring/move.py", "tests/move_run.py")
 
 

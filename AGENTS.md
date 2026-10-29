@@ -170,9 +170,6 @@ where a noun belongs ("Runs in this order"), or a placeholder where the value is
 more" on a card whose number is set). If a reader has to work out what a label means, the label
 is wrong.
 
-**Notes before memory.** NOTES.md holds what is decided and what is still open; update it
-when either changes, so the next session starts from the record and not from recall.
-
 ## Tests
 
 `journal suite` (scripts/suite.py) runs the whole of `tests/` in parallel shards, one per core but
@@ -236,7 +233,7 @@ nobody decided.
 `events/` (`models/` and `agent/`), `engine/` (the stack of states), `features/` (states, conduct,
 nudges, listeners, commands per subject), `hooks/`, `http/`, `console/`, `providers/`, `launcher/` (the
 picker and the launch file a supervisor starts from). `src/supervisor/` is a separate stdlib-only package that
-knows no journal concept: it runs the processes it is handed and answers its protocol. NOTES.md holds the decisions and what is still open.
+knows no journal concept: it runs the processes it is handed and answers its protocol.
 
 ## Dispatching subagents
 

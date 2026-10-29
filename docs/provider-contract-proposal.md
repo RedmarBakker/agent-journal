@@ -693,8 +693,7 @@ whole, and revised sections 1 to 9 in place. Section 10 keeps every source, with
 
 1. **Three collaborators and an aggregate became one abstract `Provider`.** The draft's
    `Provider` only returned an `Installation`, a `Protocol` and a `Sessions`, which is a service
-   locator: every caller had to pick a part. The code already has the one place, `Provider`, and
-   `NOTES.md` records it as such; the fault is that it is not abstract and that its knowledge leaks.
+   locator: every caller had to pick a part. The code already has the one place, `Provider`; the fault is that it is not abstract and that its knowledge leaks.
    One class per provider, with support values per file, fits "one concept, one place".
 2. **`Sessions` was cut.** Its `submit`, `delivery`, `control`, `interrupt`, `terminate` and `status`
    restate what `SupervisorLink`, `TypedLines`, `ConfirmTyped`, `RetypeLost` and the supervisor
