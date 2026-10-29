@@ -84,6 +84,11 @@ SETS = {
     "services": (
         "tests/settingsServices.test.js",
     ),
+    "settings_organization": (
+        "tests/settingsOrganization.test.js",
+        "tests/settingsCatalog.test.js",
+        "tests/settingsSave.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",
