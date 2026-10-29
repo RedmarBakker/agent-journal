@@ -61,6 +61,8 @@ class ShellRunner:
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
         self.stages, self.slow, self.guess, self.card, self.restarts = stages, slow, guess, card, restarts
         self.wrappers_told: set[str] = set()
+        self._active_lock = threading.Lock()
+        self._active: dict[threading.Thread, OutputFiles] = {}
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
         began = time.perf_counter()
@@ -83,7 +85,9 @@ class ShellRunner:
         ended: list[int] = []
         faults: list[Exception] = []
         thread = threading.Thread(target=lambda: self.worked(folder, request, caller, cap.is_direct(), output_text, ended, faults, environment), name="shell-chain", daemon=True)
-        thread.start()
+        with self._active_lock:
+            self._active[thread] = folder
+            thread.start()
         last = b"\n"
         with self.scope.environment(environment):
             for block in (self.direct(output_text, thread, faults) if cap.is_direct() else self.foreground(folder, request, caller, cap, environment, faults)):
@@ -99,7 +103,22 @@ class ShellRunner:
                 ended.append(self.worker.run(folder, request, caller, direct, output_text.put))
             except Exception as fault:
                 faults.append(fault)
-        output_text.put(None)
+            finally:
+                output_text.put(None)
+                with self._active_lock:
+                    self._active.pop(threading.current_thread(), None)
+
+    def stop_runs(self) -> None:
+        """Stop and join moved shell chains before their output folders are reset."""
+        with self._active_lock:
+            active = tuple(self._active.items())
+        for thread, folder in active:
+            while thread.is_alive() and not folder.shell_pid():
+                thread.join(TICK_SECONDS)
+            if thread.is_alive():
+                folder.stop("the journal stopped this command during cleanup")
+        for thread, _ in active:
+            thread.join()
 
     @staticmethod
     def direct(output_text: queue.Queue, thread: threading.Thread, faults: list[Exception]) -> Iterator[bytes]:

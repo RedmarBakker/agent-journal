@@ -21,7 +21,6 @@ from journal.console.support.verb_rules import VerbRules
 from journal.helpers.helper_listeners import HelperListeners
 from journal.events.bus import Bus
 from journal.runtime import Runtime
-from journal.sync.team_writes import TeamWrites
 from journal.features.registry import Registry
 from journal.features.standard import Standard
 from journal.engine.support.data_readers import DataReaders
@@ -80,7 +79,7 @@ class App:
         return self.container.get(Console)
 
     def console_without_server(self) -> Console:
-        self.container.get(TeamWrites).listen()
+        self.container.get(Runtime).boot()
         return self.console()
 
     def _console(self) -> Console:

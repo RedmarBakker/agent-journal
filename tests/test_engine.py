@@ -106,6 +106,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
+from journal.features.shell.support.shell_runner import ShellRunner
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.tasks.tasks_part import TasksPart
@@ -1145,6 +1146,21 @@ def test_a_line_longer_than_its_longest_is_cut_when_sent_and_the_cut_recorded(jo
     lines, tool_use = ["one", "two", "three", "four"], ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})))
     assert StateMachine.answer_lines(lines, tool_use) == ["one", "two", "three"] and StateMachine.overflow_lines(lines, tool_use) == ["four"], "a tool use's answer takes three lines and queues the rest for the next hook"
     journal.reset()
+
+
+def test_a_shared_journal_reset_stops_and_joins_a_background_chain_before_removing_its_files(journal: SharedJournal):
+    app = journal.app
+    user_set(app, "shell.foreground", 1)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "sleep 30"})
+    assert status == 200, body
+    runner = app.container.get(ShellRunner)
+    with runner._active_lock:
+        thread, output = next(iter(runner._active.items()))
+    assert thread.is_alive() and output.folder.exists(), "a moved command keeps its chain thread and output folder"
+    journal.reset()
+    assert not thread.is_alive() and not output.folder.exists() and not runner._active, "reset stops and joins the chain before restoring its output files"
 
 
 def test_the_engines_own_states_wait_compacting_and_ended_answer_hand_built_events():

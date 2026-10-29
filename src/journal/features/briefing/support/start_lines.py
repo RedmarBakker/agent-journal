@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from journal.events.agent.session_started import SessionStarted
+from journal.engine.support.session_takeovers import SessionTakeovers
 from journal.features.memory.support.closed_rows import ClosedRows
 from journal.models.memory import Memory
 from journal.models.environment import Environment
@@ -26,17 +27,22 @@ INTERRUPTION_WINDOW = timedelta(minutes=30)
 class StartLines:
     """What the start block names, worked out here once: when another session worked here lately, the rules and reminders numbered, the memories still shown by number and weight, heaviest first, each naming the rows its text names that have closed or gone since so the agent checks it still holds, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
 
-    def __init__(self, agents: Agents, rules: Rules, memories: Memories, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource, closed_rows: ClosedRows) -> None:
+    def __init__(self, agents: Agents, rules: Rules, memories: Memories, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource, closed_rows: ClosedRows, takeovers: SessionTakeovers) -> None:
         self.time_source, self.closed_rows = time_source, closed_rows
         self.agents, self.rules, self.memories, self.reminders = agents, rules, memories, reminders
         self.outputs = outputs
         self.tasks, self.messages, self.questions = tasks, messages, questions
+        self.takeovers = takeovers
 
     def takeover_note(self, event: SessionStarted) -> str:
-        return "" if event.source == "compact" else self.other_session_time(event.session)
+        return "" if event.source == "compact" else self.other_session_time(event.session, event.environment_id)
 
-    def other_session_time(self, session: str) -> str:
-        peer = self.agents.recent_peer(session, self.time_source.moment() - TAKEOVER_WINDOW)
+    def other_session_time(self, session: str, environment_id: int) -> str:
+        takeover = self.takeovers.take(environment_id, session)
+        start = self.time_source.moment() - TAKEOVER_WINDOW
+        if takeover is not None and takeover >= start:
+            return takeover.astimezone().strftime("%H:%M")
+        peer = self.agents.recent_peer(session, start)
         return peer.update_time.astimezone().strftime("%H:%M") if peer else ""
 
     def rules_numbered(self) -> str:

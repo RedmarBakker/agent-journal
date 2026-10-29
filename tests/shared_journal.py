@@ -11,12 +11,13 @@ from journal.app import App
 from journal.container import Container
 from journal.db.connection import Connection
 from journal.engine.job_runner import JobRunner
+from journal.features.shell.support.shell_runner import ShellRunner
 from journal.http.server import Server
 from journal.http.share_server import ShareServer
 from journal.support.listener_queue import ListenerQueue
 from journal.support.secret_values import SecretValues
 
-THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner, threading.local)
+THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner, ShellRunner, threading.local)
 """What runs the journal rather than remembers for it: its threads, sockets and pool, and what each thread keeps for itself, are left as they are between tests."""
 
 PLAIN = (type, types.FunctionType, types.MethodType, types.ModuleType, Enum)
@@ -49,6 +50,7 @@ class SharedJournal:
         jobs = self.app.runtime().jobs
         running = jobs._thread is not None
         jobs.stop()
+        self.app.container.get(ShellRunner).stop_runs()
         self.settled()
         self.put_back()
         if running:

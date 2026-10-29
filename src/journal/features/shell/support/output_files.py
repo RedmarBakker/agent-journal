@@ -32,7 +32,10 @@ class OutputFiles:
     def stop(self, reason: str) -> None:
         pid = self.shell_pid()
         if ProcessCheck.is_running(pid):
-            os.killpg(pid, signal.SIGKILL)
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         parts = self.recorded()
         if parts:
             with (self.folder / f"{parts[-1]}.out").open("a") as stream:

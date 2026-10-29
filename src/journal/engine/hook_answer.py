@@ -2,6 +2,7 @@ from journal.engine.delivery import Delivery
 from journal.engine.state_machine import StateMachine
 from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.agent_event import AgentEvent
+from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.agent_listener import AgentListener
 from journal.support.decision import Decision
@@ -20,7 +21,8 @@ class HookAnswer(AgentListener[AgentEvent]):
     def handle(self, event: AgentEvent) -> Decision:
         if isinstance(event, ToolStarting) and event.call.is_panic_line():
             return Decision()
-        agent = self.sessions.agent(event.session, event.environment_id, event.provider)
+        session_started = isinstance(event, SessionStarted) and not event.is_resume() and not event.is_compaction_start()
+        agent = self.sessions.agent(event.session, event.environment_id, event.provider, session_started)
         self.delivery.silence(event)
         reply = self.machine.reply(agent, event)
         self.delivery.applied(reply, event.typing_delay)

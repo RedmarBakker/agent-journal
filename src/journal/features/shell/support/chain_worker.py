@@ -43,11 +43,13 @@ class ChainWorker:
 
     def run(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: Callable[[bytes], None]) -> int:
         stopped = threading.Event()
-        threading.Thread(target=lambda: self.write_heartbeats(folder, stopped), name="shell-heartbeat", daemon=True).start()
+        heartbeat = threading.Thread(target=lambda: self.write_heartbeats(folder, stopped), name="shell-heartbeat", daemon=True)
+        heartbeat.start()
         try:
             return self.chain(folder, request, caller, direct, output_text)
         finally:
             stopped.set()
+            heartbeat.join()
 
     def write_heartbeats(self, folder: OutputFiles, stopped: threading.Event) -> None:
         heartbeat = Heartbeat(folder.folder)

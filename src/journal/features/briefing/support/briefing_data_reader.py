@@ -21,7 +21,7 @@ class BriefingDataReader:
             "is_overview_read": lambda: agent.is_overview_read,
             "environment_row": lambda: self.environments.find(agent.environment_id),
             "environment": lambda: facts.environment_row.name,
-            "peer_session_active_at": lambda: self.start.other_session_time(agent.session),
+            "peer_session_active_at": lambda: self.start.other_session_time(agent.session, agent.environment_id),
             "rules": self.start.rules_numbered,
             "rules_count": lambda: len(self.rules.all()),
             "memories": self.start.memories_weighed,
