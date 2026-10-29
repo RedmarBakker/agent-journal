@@ -23882,12 +23882,15 @@ def test_a_teammate_may_not_approve_or_pause_a_plan_in_a_colleagues_environment_
     plans = app.container.get(Plans)
     with app.container.get(Scope).environment(home.row_id):
         plan = plans.save(Plan(title="ship the organization"), Actor.user(ada.row_id))
-        for refused in (lambda: plans.approve(plan, Actor.user(bob.row_id)), lambda: plans.postpone(plan, Actor.user(bob.row_id)), lambda: plans.cancel(plan, Actor.user(bob.row_id))):
+        for refused in (lambda: plans.approve(plan, Actor.user(bob.row_id)), lambda: plans.cancel(plan, Actor.user(bob.row_id))):
             with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
                 refused()
         assert plans.find(plan.row_id).state.value == "draft", "none of Bob's moves changed the plan"
         approved = plans.approve(plan, Actor.user(ada.row_id))
         assert approved.state.value == "approved" and approved.updater == Actor.user(ada.row_id), "the owner's approval is written, naming Ada"
+        with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
+            plans.postpone(approved, Actor.user(bob.row_id))
+        assert plans.find(plan.row_id).state.value == "approved", "nor did his pause"
         postponed = plans.postpone(approved, Actor.user(ada.row_id))
         assert postponed.state.value == "paused", "and the owner's pause"
         comment = app.container.get(Messages).save(Message(environment_id=home.row_id, author=Author.USER, text="looks right to me"), Actor.user(bob.row_id))
