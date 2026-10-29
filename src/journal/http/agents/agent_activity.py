@@ -201,7 +201,7 @@ class AgentActivity:
     def described(self, state) -> str:
         return state.activity_text()
 
-    def labels(self, layers: list[dict]) -> list[str]:
+    def layer_labels(self, layers: list[dict]) -> list[str]:
         return [self.states.label(row["state"], row.get("data", {})) for row in layers]
 
     def stack(self, agent: Agent) -> list[dict]:
@@ -212,4 +212,4 @@ class AgentActivity:
         return shown
 
     def trail_entry(self, entry) -> dict:
-        return {"time": entry.created_at, "before": self.labels(entry.data.get("before", [])), "after": self.labels(entry.data.get("after", [])), "cause": entry.data.get("cause", ""), "refused": entry.data.get("refused", ""), "line": entry.data.get("line", "")}
+        return {"time": entry.created_at, "before": self.layer_labels(entry.data.get("before", [])), "after": self.layer_labels(entry.data.get("after", [])), "cause": entry.data.get("cause", ""), "refused": entry.data.get("refused", ""), "line": entry.data.get("line", "")}
