@@ -58,6 +58,7 @@ const sections = computed(() => [
                     <TextDisplay v-if="role.guidance" :text="role.guidance" />
                     <p v-else class="role-none">No AGENTS.md file was found.</p>
                 </section>
+                <slot name="after-contract" />
             </template>
         </div>
     </SidePanel>

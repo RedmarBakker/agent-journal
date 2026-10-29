@@ -137,6 +137,12 @@ SETS = {
         "tests/workerInspector.test.js",
         "tests/transcript.test.js",
     ),
+    "shared_roles": (
+        "tests/sharedRoles.test.js",
+        "tests/organizationRoutes.test.js",
+        "tests/organizationSidebar.test.js",
+        "tests/organizationPage.test.js",
+    ),
     "phone_navigation": (
         "tests/phone.test.js",
     ),

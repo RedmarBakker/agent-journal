@@ -116,6 +116,12 @@ function point(e) {
                     :open="!folded.organization"
                     @toggle="fold('organization')"
                 >
+                    <a
+                        :class="['item', 'organization-shared-roles', {on: route.page === 'organization' && route.shared}]"
+                        :href="href.sharedRoles()"
+                    >
+                        <span class="label">Shared Roles</span>
+                    </a>
                     <template v-for="domain in domains" :key="domain.id">
                         <div class="organization-domain-row">
                             <button
