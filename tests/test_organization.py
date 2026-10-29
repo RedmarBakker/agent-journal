@@ -284,7 +284,7 @@ def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_a
 
 
 def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_first_used_domain_and_role(app, tmp_path, monkeypatch):
-    _fixture, organization = plan_contracts(app, tmp_path)
+    contracts = plan_contracts(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
     user_set(app, "workers.openrig_version", "0.7.5")
     calls = []
@@ -313,7 +313,6 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
     before_first_job = len(calls)
 
     environment = app.container.get(Environments).existing(f"plan-{plan_id}")
-    contracts = organization.contracts()
     with app.container.get(Scope).environment(environment.row_id):
         worker = app.container.get(Workers).save(Worker(
             environment_id=environment.row_id, name="Ada Lovelace", brief="write the floor",
@@ -365,7 +364,8 @@ def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_
     assert console.run(["plan", "approve", str(plan_id)], user).code == 0
     assert console.run(["plan", "start", str(plan_id)], user).code == 0
     app.runtime().deferred.drain()
-    task = app.container.get(Plans).plan_tasks(app.container.get(Plans).find(plan_id))[1]
+    with app.container.get(Scope).environment(1):
+        task = app.container.get(Plans).plan_tasks(app.container.get(Plans).find(plan_id))[1]
     dispatched = console.run(["worker", "dispatch", "Grace Hopper", "--task", str(task.id), "--changes", "the parser", "--tests", "Scoped tests", "--role", "builder"], agent)
     assert dispatched.code == 0, dispatched.error
 
