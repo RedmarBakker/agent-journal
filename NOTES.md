@@ -1932,3 +1932,7 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   their Role's guidance and the task's log).
 - Phases 4 to 6 do not depend on OpenRig and stand either way. The trial report names each point's result and which
   of these applies; the decision to go on is recorded here.
+- Journal stays generic: an organization is a folder named by a setting, whose domains and Roles journal auto-detects
+  from its structure. Its .md files are the source of truth and its .toml files are made complete from them; nothing
+  the .md files say is dropped. Concepts journal does not support yet are listed for later (task 62), such as graph
+  communication and responsibility managed by Domain agents (the user, message 486).
