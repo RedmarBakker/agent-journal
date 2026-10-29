@@ -1,12 +1,9 @@
 from dataclasses import asdict
 import json
-import ssl
-import urllib.error
-import urllib.request
 
 from journal.db.schema import Schema
 from journal.sync.team_account import TeamAccount
-from journal.sync.team_refusal import TeamRefusal
+from journal.features.library.support.library_link import LibraryLink, REQUEST_SECONDS
 from sync_server.backup_answer import BackupAnswer
 from sync_server.agent_view_list import AgentViewList
 from sync_server.blocks_answer import BlocksAnswer
@@ -27,27 +24,22 @@ from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
 from sync_server.upload_answer import UploadAnswer
 from sync_server.lease import Lease
-from journal.version import VERSION
-from sync_service.team_link import TeamLink
-from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, UNVERSIONED, VERSION_HEADER
 
-REQUEST_SECONDS = 10
 COPY_SECONDS = 120
-ROOT_CERTIFICATE = "/root.crt"
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join stored. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
+    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with, the pool's fields only when this machine gives the pool slots, since a team server from before the pool refuses fields it does not know: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. Its requests go through the LibraryLink, which holds the transport, until the row sync is removed."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
+        self.transport = LibraryLink(account, schema)
 
     def bound(self, account: TeamAccount) -> "TeamServerLink":
         return TeamServerLink(account, self.schema)
 
     @staticmethod
     def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
-        # a team server from before the pool refuses a push with fields it does not know
         pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
         return {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields}
 
@@ -98,10 +90,10 @@ class TeamServerLink:
         return BackupAnswer(**json.loads(self.sent(self.account.address(), "/backups", b"{}", COPY_SECONDS)))
 
     def invite(self, email: str) -> InvitationAnswer:
-        return InvitationAnswer(**json.loads(self.posted("/invite", {"email": email})))
+        return self.transport.invite(email)
 
     def devices(self) -> DeviceList:
-        return DeviceList.parsed(**json.loads(self.sent(self.account.address(), "/devices", None, REQUEST_SECONDS)))
+        return self.transport.devices()
 
     def pin_version(self, version: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/version", {"version": version})))
@@ -110,7 +102,7 @@ class TeamServerLink:
         return int(json.loads(self.posted("/people/leave", {})).get("withdrawn", 0))
 
     def remove_person(self, account_id: int) -> str:
-        return str(json.loads(self.posted("/people/remove", {"account_id": account_id})).get("name", ""))
+        return self.transport.remove_person(account_id)
 
     def move_to_hub(self) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/hub", {})))
@@ -122,27 +114,25 @@ class TeamServerLink:
         return TeamSummary(**json.loads(self.posted("/team/versions", {"versions": rule})))
 
     def people(self) -> PeopleAnswer:
-        return PeopleAnswer.parsed(**json.loads(self.sent(self.account.address(), "/people", None, REQUEST_SECONDS)))
+        return self.transport.people()
 
     def revoke(self, device_id: int) -> Device:
-        return Device(**json.loads(self.posted("/devices/revoke", {"device_id": device_id})))
+        return self.transport.revoke(device_id)
 
     def summary(self, address: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.sent(address, "/team", None, REQUEST_SECONDS)))
 
     def accept(self, address: str, code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"code": code, "email": email, "name": name, "password": password, "password_repeat": password, "device_name": device_name}).encode()
-        return LoginAnswer(**json.loads(self.sent(address, "/accept", body, REQUEST_SECONDS)))
+        return self.transport.accept(address, code, email, name, password, device_name)
 
     def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
-        return LoginAnswer(**json.loads(self.sent(address, "/install", body, REQUEST_SECONDS)))
+        return self.transport.install(address, email, name, password, device_name)
 
     def change_password(self, old: str, new: str) -> None:
-        self.posted("/password", {"old": old, "new": new})
+        self.transport.change_password(old, new)
 
     def reset_password(self, account_id: int) -> str:
-        return PasswordAnswer(**json.loads(self.posted("/people/password", {"account_id": account_id}))).password
+        return self.transport.reset_password(account_id)
 
     def signin_code(self) -> str:
         return SigninAnswer(**json.loads(self.posted("/signin-links", {}))).code
@@ -151,13 +141,10 @@ class TeamServerLink:
         return SigninAnswer(**json.loads(self.posted("/signin-links/redeem", {"code": code})))
 
     def login(self, address: str, request: LoginRequest) -> LoginAnswer:
-        return LoginAnswer(**json.loads(self.sent(address, "/login", json.dumps(request.__dict__).encode(), REQUEST_SECONDS)))
+        return self.transport.login(address, request)
 
     def root_certificate(self, address: str) -> str:
-        unchecked = ssl.create_default_context()
-        unchecked.check_hostname, unchecked.verify_mode = False, ssl.CERT_NONE
-        with urllib.request.urlopen(address + ROOT_CERTIFICATE, timeout=REQUEST_SECONDS, context=unchecked) as answer:
-            return answer.read().decode()
+        return self.transport.root_certificate(address)
 
     def posted(self, path: str, body: dict) -> bytes:
         return self.sent(self.account.address(), path, json.dumps(body).encode(), REQUEST_SECONDS)
@@ -184,23 +171,7 @@ class TeamServerLink:
         return self.sent(self.account.address(), f"/files/{place.address()}", None, COPY_SECONDS)
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float) -> bytes:
-        request = urllib.request.Request(address + path, data=body, headers=self.headers())
-        try:
-            with urllib.request.urlopen(request, timeout=seconds, context=self.trust()) as answer:
-                self.checked(answer.headers)
-                return answer.read()
-        except urllib.error.HTTPError as refused:
-            raise TeamRefusal(TeamLink.refusal_line(refused)) from refused
+        return self.transport.sent(address, path, body, seconds)
 
     def headers(self) -> dict[str, str]:
-        return {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
-
-    @staticmethod
-    def checked(headers) -> None:
-        server_protocol = int(headers.get(PROTOCOL_HEADER, UNVERSIONED))
-        if server_protocol < PROTOCOL:
-            raise TeamRefusal(f"the team server speaks protocol {server_protocol}, older than this journal's {PROTOCOL}: upgrade the team server's image")
-
-    def trust(self) -> ssl.SSLContext:
-        root = self.account.root_path()
-        return ssl.create_default_context(cafile=str(root)) if root.is_file() else ssl.create_default_context()
+        return self.transport.headers()

@@ -1,5 +1,6 @@
 import time
 
+from journal.support.timeout import Timeout
 from journal.events.announcer import Announcer
 from journal.events.moments.team_chat_files_diverged import TeamChatFilesDiverged
 from journal.config import Config
@@ -33,7 +34,7 @@ class TeamChatBranch:
             return
         if files_hash != self.files_hash:
             self.files_hash, self.files_hash_at = files_hash, time
-        elif time - self.files_hash_at >= COMMIT_DELAY_SECONDS:
+        elif Timeout.seconds(COMMIT_DELAY_SECONDS).started(self.files_hash_at).is_elapsed(time):
             self.commit(files_hash)
         head = self.worktree.local_branch()
         if head != self.remote_head:

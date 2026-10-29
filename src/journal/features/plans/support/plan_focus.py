@@ -15,9 +15,9 @@ class PlanFocus:
         if self.orchestrator.delegates_work():
             return
         for started in self.plans.running_plans_beside(plan_id):
-            self.plans.save(started.postponed(self.time_source.seconds(), False), actor)
+            self.plans.save(started.agent_postponed(self.time_source.seconds()), actor)
 
-    def keep_furthest(self, actor: Actor) -> None:
+    def furthest_plan(self, actor: Actor) -> None:
         started_plans = self.plans.running_plans()
         if self.orchestrator.delegates_work() or len(started_plans) < 2:
             return

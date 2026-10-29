@@ -10,7 +10,7 @@ from journal.features.workers.listeners.subagent_turn_record import SubagentTurn
 from journal.features.workers.states.researching import Researching
 from journal.features.helper import Helper
 from journal.support.agent_role import AgentRole
-
+from journal.models.alias import Alias
 
 class ResearcherHelper(Helper):
     """A subagent of Claude Code, on its own row from its start, researching over Void: it reads and answers, runs the journal's reading commands but for memories and writes documents, reports and plans of its own, since its command names no row of its own to keep them by, reaches the plugins whose manifests name subagents, and its turns become its messages."""
@@ -42,3 +42,7 @@ class ResearcherHelper(Helper):
         (TaskCommand, "show"),
     )
     listeners = (SubagentTurnRecord,)
+
+    @classmethod
+    def runs_alias(cls, alias: Alias) -> bool:
+        return False

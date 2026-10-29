@@ -21,8 +21,12 @@ class SubagentCard:
     reason: str
 
     @classmethod
-    def built(cls, session: str, agent: int, row: Subagent, state: SubagentState, reason: str) -> "SubagentCard":
-        return cls(session, agent, row.agent_type, row.model, row.session, state.value, reason)
+    def built(cls, session: str, agent: int, row: Subagent) -> "SubagentCard":
+        return cls(session, agent, row.agent_type, row.model, row.session, row.state.value, row.reason)
+
+    @property
+    def outcome(self) -> CardOutcome:
+        return STATE_OUTCOMES.get(self.state, CardOutcome.NONE)
 
     def as_data(self) -> dict:
-        return {"kind": "subagent", **asdict(self), "outcome": str(STATE_OUTCOMES.get(self.state, CardOutcome.NONE))}
+        return {"kind": "subagent", **asdict(self), "outcome": str(self.outcome)}

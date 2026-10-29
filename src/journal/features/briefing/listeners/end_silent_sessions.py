@@ -16,7 +16,7 @@ class EndSilentSessions(AgentListener[Ticked]):
     def handle(self, event: Ticked) -> None:
         if event.silence_seconds < SILENCE_SECONDS or self.is_supervised(event):
             return
-        self.agents.save(self.agents.session_agent(event.session).retired(event.time), Actor.system())
+        self.agents.rewritten(event.agent, Actor.system(), lambda row: row.retired(event.time))
 
     def is_supervised(self, event: Ticked) -> bool:
         agent = self.agents.current()

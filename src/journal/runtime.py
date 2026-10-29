@@ -16,6 +16,9 @@ from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.engine.delivery import Delivery
 from journal.engine.hook_answer import HookAnswer
+from journal.features.workers.listeners.researcher_end import ResearcherEnd
+from journal.features.workers.listeners.researcher_start import ResearcherStart
+from journal.features.workers.listeners.researchers_closed import ResearchersClosed
 from journal.engine.row_assignment import RowAssignment
 from journal.events.rows.task_closed import TaskClosed
 from journal.engine.state_machine import StateMachine
@@ -31,6 +34,7 @@ from journal.events.models.created import Created
 from journal.events.models.deleted import Deleted
 from journal.events.bus import Bus
 from journal.features.registry import Registry
+from journal.events.blocking import Blocking
 from journal.features.switches import Switches
 from journal.support.listener_queue import ListenerQueue
 from journal.config import Config
@@ -82,8 +86,10 @@ class Runtime:
     def boot(self) -> None:
         self.register_nudges()
         self.machine.index_listeners()
-        self.bus.listen(AgentEvent, self.container.get(HookAnswer))
-        self.bus.listen(RowEvent, self.container.get(RowEventDelivery))
+        self.bus.add_answer_listener(AgentEvent, self.container.get(HookAnswer), Blocking.ANSWER)
+        self.bus.add_answer_listener(RowEvent, self.container.get(RowEventDelivery), Blocking.NEXT_DECISION)
+        for researcher_listener in (ResearcherStart, ResearcherEnd, ResearchersClosed):
+            self.bus.add_answer_listener(researcher_listener.event_type(), self.container.get(researcher_listener), Blocking.NEXT_DECISION)
         self.bus.listen(Created, Creations())
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
         self.container.get(TeamWrites).listen()
@@ -98,6 +104,8 @@ class Runtime:
         for feature in self.registry.features:
             for assigner in feature.assigners:
                 assigners.register(self.container.get(assigner))
+            for listener, reason in feature.answer_listeners:
+                self.bus.add_answer_listener(listener.event_type(), Switches(feature, self.container.get(listener), self.registry, self.scope, reason), reason)
             for listener in feature.listeners:
                 self.bus.listen(listener.event_type(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
@@ -105,7 +113,7 @@ class Runtime:
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
-        self.bus.listen(TaskClosed, self.container.get(RowAssignment))
+        self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 

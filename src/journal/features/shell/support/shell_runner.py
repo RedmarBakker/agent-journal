@@ -4,11 +4,10 @@ import time
 from dataclasses import replace
 from typing import Iterator
 
-from journal.engine.support.session_agents import SessionAgents
+from journal.support.timeout import Timeout
 from journal.engine.nudger import Nudger
 from journal.engine.nudge import Nudge
 from journal.repositories.entries import Entries
-from journal.supervisor_link import SupervisorLink
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_lines import CommandLines
 from journal.support.command_shape import CommandShape
@@ -33,8 +32,13 @@ from journal.support.chain import Chain
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.stage_times import StageTimes
-from journal.features.faults.support.slow_requests import SlowRequests
+from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
 from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.shell.support.sleep_loop import SleepLoop
+from journal.features.shell.support.sleep_loop_wait import SleepLoopWait
+from journal.hooks.support.hook_seats import HookSeats
+from journal.engine.support.decision_returns import DecisionReturns
+from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.restart_queue import RestartQueue
@@ -54,24 +58,39 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own. While a restart waits, a command that goes to the background at once would be cut off by it, so it is not started; a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit, and any other runs in the foreground until it passes the limit; a run whose card shows, or will, keeps its output for the card to open."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands, loops: SleepLoopWait, seats: HookSeats, returns: DecisionReturns, states: StatesCatalogue) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
-        self.nudger, self.sessions = nudger, sessions
+        self.loops, self.seats, self.returns, self.states = loops, seats, returns, states
+        self.nudger = nudger
         self.config, self.caps, self.limits, self.worker, self.record, self.scope = config, caps, limits, worker, record, scope
-        self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
-        self.stages, self.slow, self.guess, self.card, self.restarts = stages, slow, guess, card, restarts
+        self.aliases, self.outputs, self.readers, self.entries = aliases, outputs, readers, entries
+        self.stages, self.recorder, self.guess, self.card, self.restarts = stages, recorder, guess, card, restarts
         self.wrappers_told: set[str] = set()
 
-    def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+    def run(self, posted: ShellRequest, unseated: Caller, environment: int) -> Iterator[bytes]:
+        with self.scope.environment(environment):
+            caller = self.seats.caller_seated(unseated)
+        line = self.aliases.expanded(posted.line)
+        if SleepLoop.matches(line):
+            yield self.loop_waited(SleepLoop.parsed(line), caller, environment)
+            return
+        yield from self.chain_run(replace(posted, line=line), posted, caller, environment)
+
+    def loop_waited(self, loop: SleepLoop, caller: Caller, environment: int) -> bytes:
+        with self.scope.environment(environment):
+            wait_text = self.loops.declared(loop, caller)
+            notes = self.send_notes(caller, environment, [ShellNudges.SLEEP_LOOP_WAIT.create(title=loop.title, script=loop.script)])
+        return f"{wait_text}{notes}{EXIT} 0\n".encode()
+
+    def chain_run(self, request: ShellRequest, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
         began = time.perf_counter()
-        request = replace(posted, line=self.aliases.expanded(posted.line))
         with self.scope.environment(environment), self.stages.timed("shell setup"):
             cap = self.caps.build(request.line)
             folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
             folder.split(request.line, [self.lines.part_with_code_read(part) for part in Chain.parts(request.line)], self.classifier)
             if not cap.is_whole() and not cap.is_direct():
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller, request.cwd))
-        self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
+        self.recorder.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         if self.is_held(request, caller, environment):
             yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
             return
@@ -91,7 +110,7 @@ class ShellRunner:
                 yield block
         if cap.is_direct() or folder.is_finished():
             self.closed(folder, request, caller, cap)
-            yield f"{'' if last == b'\n' else chr(10)}{EXIT} {ended[0] if ended else 0}\n".encode()
+        yield f"{'' if last == b'\n' else chr(10)}{EXIT} {ended[0] if ended else 0}\n".encode()
 
     def worked(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: queue.Queue, ended: list[int], faults: list[Exception], environment: int) -> None:
         with self.scope.environment(environment):
@@ -130,7 +149,7 @@ class ShellRunner:
                     self.starting_reader_watch(folder, caller)
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
-            if limit > 0 and (immediate or time.monotonic() - began >= limit):
+            if limit > 0 and (immediate or Timeout.seconds(limit).started(began).is_elapsed(time.monotonic())):
                 folder.moved()
                 part = self.readers.read_part(reader, request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
@@ -138,7 +157,7 @@ class ShellRunner:
                 watching = self.watch_lines(number, part, alias, reader, caller)
                 moved = [] if any(line.key == ShellNudges.WATCH_VIEW.key for line in watching) else [ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder))]
                 notes = self.send_notes(caller, environment, [*display.notes, *moved, *watching])
-                yield f"{notes}{EXIT} 0\n".encode()
+                yield notes.encode()
                 return
             time.sleep(TICK_SECONDS)
             tick += 1
@@ -168,15 +187,10 @@ class ShellRunner:
         return self.labels.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
 
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
-        if caller.session is None:
+        if not caller.has_agent_row():
             return ""
-        agent = self.sessions.caller_agent(caller, caller.session, environment)
-        lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
-        if caller.worker_number is not None or caller.subagent:
-            return "".join(f"[journal] {line}\n" for line in lines)
-        for line in lines:
-            self.supervisor.remark(environment, line)
-        return ""
+        lines = [line for note in notes if (line := self.nudger.deliver(caller.agent_row, note))]
+        return self.returns.chosen(self.states.stack(caller.agent_row).bottom()).note_lines(lines, environment)
 
     def remove_plugin_alias_readers(self, line: str) -> None:
         alias = self.aliases.line_alias(line)

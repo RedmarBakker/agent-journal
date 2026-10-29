@@ -18,3 +18,6 @@ class PullAnswer:
     @classmethod
     def parsed(cls, changes: list, head: int, server_time: float, team_version: str = "", copy_needed: bool = False, requests: tuple = ()) -> "PullAnswer":
         return cls(tuple(LoggedChange(**change) for change in changes), head, server_time, team_version, copy_needed, tuple(HostRequest(**request) for request in requests))
+
+    def needs_copy(self, sequence: int) -> bool:
+        return self.copy_needed and sequence < self.head

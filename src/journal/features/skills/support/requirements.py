@@ -1,5 +1,3 @@
-import re
-
 from journal.engine.base_state import BaseState
 from journal.engine.nudger import Nudger
 from journal.features.registry import Registry
@@ -9,6 +7,7 @@ from journal.support.actor import Actor
 from journal.models.agent import Agent
 from journal.repositories.agents import Agents
 from journal.features.skills.skills_nudges import SkillsNudges
+from journal.support.keyword_match import KeywordMatch
 
 
 class Requirements:
@@ -24,7 +23,9 @@ class Requirements:
         return list(agent.skills_due)
 
     def obligation(self, agent: Agent, skills: list[Skill]) -> None:
-        names = tuple(skill.name for skill in skills)
+        self.obligation_names_added(agent, tuple(skill.name for skill in skills))
+
+    def obligation_names_added(self, agent: Agent, names: tuple[str, ...]) -> None:
         if set(names) - set(agent.skills_due):
             self.agents.touched(agent, Actor.system(), lambda time: {"skills_due": tuple(dict.fromkeys((*time.skills_due, *names)))})
 
@@ -50,8 +51,7 @@ class Requirements:
         return [skill] if skill else []
 
     def mentioned(self, prompt: str) -> list[Skill]:
-        text = {w.lower() for w in re.findall(r"[a-z]+", prompt, re.I)}
-        return [skill for skill in self.registry.skills() if text & {k.lower() for k in skill.keywords}]
+        return [skill for skill in self.registry.skills() if KeywordMatch.matches(prompt, skill.keywords)]
 
     def require(self, agent: Agent, skills: list[Skill]) -> list[str]:
         if self.registry.silenced(SkillsNudges.SKILL_READ_REQUEST):

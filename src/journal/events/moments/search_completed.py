@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from journal.events.event import Event
+from journal.support.search_hit import SearchHit
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -10,4 +11,4 @@ class SearchCompleted(Event):
     environment_id: int
     session: str | None
     terms: str
-    answer: str
+    hits: tuple[SearchHit, ...]

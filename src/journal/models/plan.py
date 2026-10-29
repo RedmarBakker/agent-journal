@@ -9,6 +9,7 @@ from journal.events.rows.plan_review_started import PlanReviewStarted
 from journal.events.rows.plan_readied import PlanReadied
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_postponed import PlanPostponed
+from journal.events.rows.plan_return_answer import PlanReturnAnswer
 from journal.events.rows.plan_delegated import PlanDelegated
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_finished import PlanFinished
@@ -20,11 +21,17 @@ from journal.models.phase_states import PhaseStates
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
+
+USER_PAUSER = "user"
+AGENT_PAUSER = "agent"
+# a plan the agent paused and said it does not return to once its outside task is done
+DECLINED_RETURN_PAUSER = "agent, no return"
 
 @dataclass(frozen=True)
-class Plan(Scoped):
-    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase."""
+class Plan(Scoped, Commentable):
+    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase, and the test runs the agent was allowed mid-phase and has not yet used."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
 
@@ -39,6 +46,14 @@ class Plan(Scoped):
     priorities_at: float = 0.0
     priorities_phase: int = 0
     is_dismissed: bool = False
+    pauser: str = ""
+    allowed_test_runs: int = 0
+
+    def with_test_run_allowed(self) -> "Plan":
+        return self.with_(allowed_test_runs=self.allowed_test_runs + 1)
+
+    def with_allowed_test_run_used(self) -> "Plan":
+        return self.with_(allowed_test_runs=max(self.allowed_test_runs - 1, 0))
 
     def waiting_reason(self) -> str:
         return self.block_reason
@@ -51,12 +66,15 @@ class Plan(Scoped):
 
     def reviewers_counted(self, reviewers: int, time: float) -> "Plan":
         counted = self.with_(reviewers=reviewers)
-        if self.state != PlanState.REVIEWING or reviewers or not self.reviewers:
+        if not self.is_reviewing() or reviewers or not self.reviewers:
             return counted
         return counted.with_event(PlanReviewed(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def approved(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def user_approved(self, time: float, comment_id: int | None = None) -> "Plan":
+        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True, comment_id=comment_id))
+
+    def agent_approved(self, time: float) -> "Plan":
+        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def task_startable(self, task_id: int) -> "Plan":
         if self.state.is_unapproved():
@@ -82,11 +100,23 @@ class Plan(Scoped):
     def reopened(self, time: float) -> "Plan":
         return self.moved(PlanState.STARTED).with_event(PlanStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id, task_id=0))
 
+    def unfinished(self, reason: str, time: float) -> "Plan":
+        return self.moved(PlanState.STARTED).with_event(PlanReopened(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
+
     def delegated(self, time: float) -> "Plan":
         return self.moved(PlanState.DELEGATED).with_event(PlanDelegated(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def postponed(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.PAUSED).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def user_postponed(self, time: float) -> "Plan":
+        return self.moved(PlanState.PAUSED).with_(pauser=USER_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True))
+
+    def agent_postponed(self, time: float) -> "Plan":
+        return self.moved(PlanState.PAUSED).with_(pauser=AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
+
+    def with_return(self, time: float) -> "Plan":
+        return self.with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=True))
+
+    def without_return(self, time: float) -> "Plan":
+        return self.with_(pauser=DECLINED_RETURN_PAUSER).with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=False))
 
     def blocked(self, reason: str, time: float) -> "Plan":
         return self.moved(PlanState.BLOCKED).with_(block_reason=reason).with_event(PlanBlocked(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
@@ -106,13 +136,16 @@ class Plan(Scoped):
     def finished(self, time: float) -> "Plan":
         return self.moved(PlanState.FINISHED).with_event(PlanFinished(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def cancelled(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def user_cancelled(self, time: float) -> "Plan":
+        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True))
+
+    def agent_cancelled(self, time: float) -> "Plan":
+        return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def moved(self, state: PlanState) -> "Plan":
         if not self.state.can_become(state):
             raise Rejection(f"plan {self.id} is {self.state} and cannot become {state}")
-        return self.with_(state=state)
+        return self.with_(state=state, pauser="")
 
     def is_finished(self, task_count: int, remaining_count: int) -> bool:
         return bool(task_count) and not remaining_count
@@ -143,3 +176,9 @@ class Plan(Scoped):
 
     def docked(self) -> DockCard:
         return DockCard((DockButton("Open plan", "open"), DockButton("Approve", "approve"), DockButton("Close", "close")))
+
+    def is_started(self) -> bool:
+        return self.state == PlanState.STARTED
+
+    def is_reviewing(self) -> bool:
+        return self.state == PlanState.REVIEWING

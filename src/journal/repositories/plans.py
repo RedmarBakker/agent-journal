@@ -1,3 +1,4 @@
+from typing import Callable
 from datetime import datetime, timezone
 from journal.db.connection import Connection
 from journal.db.query import Query
@@ -5,7 +6,7 @@ from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.models.link import Link
 from journal.models.phase import Phase
-from journal.models.plan import Plan
+from journal.models.plan import AGENT_PAUSER, Plan
 from journal.models.plan_state import PlanState
 from journal.support.rejection import Rejection
 from journal.models.task import Task
@@ -35,15 +36,27 @@ class Plans(ScopedRepository[Plan]):
         super().__init__(connection, bus, scope, time_source)
         self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
 
-    def approve(self, plan: Plan, actor: Actor) -> Plan:
-        if plan.state == PlanState.REVIEWING:
+    def user_approved(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
+        return self.approval(plan, actor, lambda time: plan.user_approved(time, comment_id))
+
+    def agent_approved(self, plan: Plan, actor: Actor) -> Plan:
+        return self.approval(plan, actor, plan.agent_approved)
+
+    def approval(self, plan: Plan, actor: Actor, approved: Callable[[float], Plan]) -> Plan:
+        if plan.is_reviewing():
             raise Rejection(f"plan {plan.id} is in review: it can be approved once its reviewers are back and their findings are in it")
         if plan.state in (PlanState.STARTED, PlanState.FINISHED, PlanState.CANCELLED):
             return plan
-        return self.save(plan.approved(self._time().timestamp(), actor.is_user()), actor)
+        return self.save(approved(self._time().timestamp()), actor)
 
-    def cancel(self, plan: Plan, actor: Actor) -> list[Task]:
-        self.save(plan.cancelled(self.time_source.moment().timestamp(), actor.is_user()), actor)
+    def user_cancelled(self, plan: Plan, actor: Actor) -> list[Task]:
+        return self.cancellation(plan, actor, plan.user_cancelled)
+
+    def agent_cancelled(self, plan: Plan, actor: Actor) -> list[Task]:
+        return self.cancellation(plan, actor, plan.agent_cancelled)
+
+    def cancellation(self, plan: Plan, actor: Actor, cancelled_plan: Callable[[float], Plan]) -> list[Task]:
+        self.save(cancelled_plan(self.time_source.moment().timestamp()), actor)
         cancelled = []
         for task in self.plan_tasks(plan):
             if task.is_closed() or self.is_shared(task, plan):
@@ -53,6 +66,10 @@ class Plans(ScopedRepository[Plan]):
 
     def is_shared(self, task: Task, plan: Plan) -> bool:
         return any(ref.id != plan.id and self.find(ref.id).state != PlanState.CANCELLED for ref in self.links.targets(task, PLAN_LINK))
+
+    def remove_task(self, plan: Plan, task: Task, actor: Actor) -> None:
+        for link in [link for counterpart in [plan, *self.plan_phases(plan)] for link in self.links.connecting(task, counterpart)]:
+            self.links.delete(link, actor)
 
     def plan_states(self, task: Task) -> set[PlanState]:
         return {plan.state for plan in self.containing(task)}
@@ -98,6 +115,10 @@ class Plans(ScopedRepository[Plan]):
     def recent_task_ids(self, plan: Plan, count: int) -> list[int]:
         return self.tasks.selected_ids(self.plan_task_query(plan).order_descending("updated_at").order_descending("id").limit(count))
 
+    def assignable_tasks(self, task_ids: list[int]) -> list[Task]:
+        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))}
+        return [assignable[n] for n in task_ids if n in assignable]
+
     def plan_task_ids(self, plan: Plan) -> list[int]:
         return [ref.id for ref in self.links.sources(plan, PLAN_LINK)]
 
@@ -116,6 +137,10 @@ class Plans(ScopedRepository[Plan]):
 
     def task_counts(self, plans: list[Plan]) -> dict[int, int]:
         return self.links.target_counts(plans, PLAN_LINK)
+
+    def unclosed_phase_tasks(self, phase: Phase) -> list[Task]:
+        ids = [ref.id for ref in self.links.sources(phase, PHASE_LINK)]
+        return self.tasks.selected(self.tasks.query().filter_listed("id", ids).filter_unlisted("state", [TaskState.COMPLETED, TaskState.CANCELLED]).order("id"))
 
     def phase_tasks(self, phase: Phase) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(phase, PHASE_LINK))
@@ -139,11 +164,14 @@ class Plans(ScopedRepository[Plan]):
     def reviewed(self) -> list[Plan]:
         return self.selected(self.query().filter(state=PlanState.REVIEWING, reviewers=0).order("id"))
 
+    def agent_paused(self) -> list[Plan]:
+        return self.matching(state=PlanState.PAUSED, pauser=AGENT_PAUSER)
+
     def approved(self) -> list[Plan]:
         return self.matching(state=PlanState.APPROVED)
 
     def related(self) -> list[Task]:
-        started = [plan for plan in self.scoped() if plan.state == PlanState.STARTED]
+        started = [plan for plan in self.scoped() if plan.is_started()]
         if not started:
             return self.free()
         task = self.next_task(started[0])
@@ -153,10 +181,13 @@ class Plans(ScopedRepository[Plan]):
         return [plan for plan in self.started_plans(task) if self.is_stalled(plan)]
 
     def complete_plans(self) -> list[Plan]:
-        return [plan for plan in self.all() if plan.state == PlanState.STARTED and self.finished(plan)]
+        return [plan for plan in self.all() if plan.is_started() and self.finished(plan)]
 
     def running_plans(self) -> list[Plan]:
         return self.matching(state=PlanState.STARTED)
+
+    def allowing_test_runs(self) -> list[Plan]:
+        return self.selected(self.query().filter(state=PlanState.STARTED).filter_greater("allowed_test_runs", 0))
 
     def running_plans_beside(self, plan_id: int) -> list[Plan]:
         return self.selected(self.query().filter(state=PlanState.STARTED).filter_unequal("id", plan_id))
@@ -172,7 +203,7 @@ class Plans(ScopedRepository[Plan]):
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED)]
 
     def started_plans(self, task: Task) -> list[Plan]:
-        return [plan for plan in self.containing(task) if plan.state == PlanState.STARTED]
+        return [plan for plan in self.containing(task) if plan.is_started()]
 
     def unstarted_plans(self, task: Task) -> list[Plan]:
         return [plan for plan in self.containing(task) if plan.state in (PlanState.APPROVED, PlanState.PAUSED)]
@@ -226,11 +257,11 @@ class Plans(ScopedRepository[Plan]):
 
     def first_planned(self, plan: Plan, matching: Query) -> Task | None:
         phase_links = self.links.query().filter(link_type=PHASE_LINK)
-        task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_named(phase_links, "source"))
+        task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_name_column(phase_links, "source"))
         first_phase = self.phases.selected(self.plan_phase_query(plan).filter_existing(task_links).order("id").limit(1))
         if first_phase:
             return self.first_link(phase_links.filter(target=Ref.build(first_phase[0])), matching)
-        planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_named(phase_links, "target"))
+        planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_name_column(phase_links, "target"))
         unphased = matching.filter_absent(planned.filter_ref("source", self.tasks.query()))
         return self.first_link(self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan)), unphased)
 
@@ -239,10 +270,10 @@ class Plans(ScopedRepository[Plan]):
         return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
 
     def has_link(self, links: Query, tasks: Query) -> bool:
-        return bool(self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).limit(1)))
+        return bool(self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).limit(1)))
 
     def first_link(self, links: Query, tasks: Query) -> Task | None:
-        first = self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).order("id").limit(1))
+        first = self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).order("id").limit(1))
         return self.tasks.find(first[0].source.id) if first else None
 
     def waiting_task_ids(self, plan: Plan) -> set[int]:
@@ -279,9 +310,15 @@ class Plans(ScopedRepository[Plan]):
     def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
-    def postpone(self, plan: Plan, actor: Actor) -> Plan:
+    def user_postponed(self, plan: Plan, actor: Actor) -> Plan:
+        return self.postponement(plan, actor, plan.user_postponed)
+
+    def agent_postponed(self, plan: Plan, actor: Actor) -> Plan:
+        return self.postponement(plan, actor, plan.agent_postponed)
+
+    def postponement(self, plan: Plan, actor: Actor, postponed_plan: Callable[[float], Plan]) -> Plan:
         time = self.time_source.moment()
-        postponed = self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)
+        postponed = self.save(postponed_plan(time.timestamp()), actor)
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
             self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
         return postponed

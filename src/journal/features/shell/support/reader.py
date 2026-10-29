@@ -22,6 +22,8 @@ TOPIC_LABEL_PREFIX = "topic label: "
 PREFIXES = (PROGRESS_PREFIX, LABEL_PREFIX, COMMANDS_PREFIX, STEP_PREFIX, TOPIC_PREFIX, FINISHED_PREFIX, FAILED_PREFIX, SUMMARY_PREFIX, TOPIC_LABEL_PREFIX)
 SCRIPT_SECONDS = 30
 STAGE_VARIABLE = "JOURNAL_OUTPUT_STAGE"
+JOURNAL_COMMAND_READERS = ("worker-merge",)
+PLUGIN_OWNER_PREFIX = "plugin: "
 
 
 @dataclass(frozen=True)
@@ -61,7 +63,7 @@ class Reader:
     def patterned(cls, path: Path) -> "Reader":
         lines = path.read_text().splitlines()
         if len(lines) < 2:
-            raise Rejection(f"reader {path.stem} needs two lines: '# what it picks', then its pattern")
+            raise Rejection(f"reader {path.stem} needs two lines: '# what it selects', then its pattern")
         settings = {prefix: line.removeprefix(prefix) for line in lines[2:] for prefix in PREFIXES if line.startswith(prefix)}
         return cls(path.stem, lines[0].removeprefix("#").strip(), lines[1], settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""), summary_pattern=settings.get(SUMMARY_PREFIX, ""), topic_label=settings.get(TOPIC_LABEL_PREFIX, ""))
 
@@ -97,9 +99,9 @@ class Reader:
         if not self.summary_pattern:
             return ""
         for line in reversed(lines):
-            found = re.search(self.summary_pattern, line)
-            if found:
-                return ", ".join(group.strip() for group in found.groups() if group) if found.groups() else found.group(0).strip()
+            summary_match = re.search(self.summary_pattern, line)
+            if summary_match:
+                return ", ".join(group.strip() for group in summary_match.groups() if group) if summary_match.groups() else summary_match.group(0).strip()
         return ""
 
     def has_summary_reader(self) -> bool:
@@ -110,6 +112,9 @@ class Reader:
 
     def is_progress_line(self, line: str) -> bool:
         return self.is_counting() and bool(re.search(self.progress_pattern, line))
+
+    def reads_journal_output(self, alias_names: frozenset[str]) -> bool:
+        return self.name not in JOURNAL_COMMAND_READERS and any(name not in alias_names for name in self.commands.journal_commands())
 
     def matches(self, command: str) -> bool:
         return bool(self.pattern) and self.pattern in command

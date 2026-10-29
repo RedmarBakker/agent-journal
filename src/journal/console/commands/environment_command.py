@@ -24,7 +24,6 @@ from journal.features.briefing.support.overview_commands import OverviewCommands
 from journal.features.tasks.active_task import ActiveTask
 from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
-from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.repositories.questions import Questions
 from journal.repositories.reminders import Reminders
@@ -57,14 +56,14 @@ class EnvironmentCommand(Command):
         self.memory, self.overview_commands, self.taking, self.launches = memory, overview_commands, taking, launches
 
     def arguments(self, verbs) -> None:
-        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules and reminders, opening with the memories by weight, then each command the setting briefing.look_commands lists, under its heading; owed at every session start")
+        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules and reminders, opening with the memories by weight, then each command the setting briefing.look_commands lists, under its heading; required at every session start")
         self.verb(verbs, "list", "every environment and when it was last used")
         self.verb(verbs, "json", "the same, for the boot menu")
         creation = self.verb(verbs, "create", "a new line of work")
         creation.add_argument("name")
-        creation.add_argument("--session", help="a kept conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
-        creation.add_argument("--provider", default="claude", help="the program that kept that session")
-        self.verb(verbs, "sessions", "the project's kept conversations a new environment can carry on from, for the boot menu")
+        creation.add_argument("--session", help="a stored conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
+        creation.add_argument("--provider", default="claude", help="the program that stored that session")
+        self.verb(verbs, "sessions", "the project's stored conversations a new environment can carry on from, for the boot menu")
         self.verb(verbs, "filling", "how far a new environment's chat has been filled from its past session, in percent, for the boot menu").add_argument("name")
         branch = self.verb(verbs, "branch", "record the branch an environment's worktree works on, as the launcher does when it makes one")
         branch.add_argument("name")
@@ -77,14 +76,15 @@ class EnvironmentCommand(Command):
         rename.add_argument("new")
 
     def rows(self) -> list[EnvironmentRow]:
-        rows = []
+        used = []
         for environment in self.environments.all():
             agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
             last = agents[-1] if agents else None
             resumable = {provider: session for item in agents for provider, session in item.last_sessions().items() if session and self.providers.lookup(provider).transcript(self.config.root, session)}
             working = last is not None and not self.states.restored(last.state, last.data).final and not self.launches.is_abandoned(environment.name)
-            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", resumable, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch, f"{last.provider} session {last.session[:8]}" if last else "", last.session if last else ""))
-        return rows
+            row = EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", resumable, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch, f"{last.provider} session {last.session[:8]}" if last else "", last.session if last else "")
+            used.append((last.update_time.timestamp() if last else 0.0, row))
+        return [row for _, row in sorted(used, key=lambda pair: pair[0], reverse=True)]
 
     def overview(self, args: Namespace, caller: Caller) -> int:
         for line in self.current_work(caller):
@@ -135,12 +135,8 @@ class EnvironmentCommand(Command):
         return f"{subject}: " + "; ".join(rows) if rows else ""
 
     def overview_record(self, caller: Caller) -> None:
-        if caller.session is None:
-            return
-        try:
-            self.agents.save(self.agents.session_agent(caller.session).overview_read(self.time_source.moment().timestamp()), caller.actor)
-        except MissingRow:
-            return
+        if caller.has_agent_row():
+            self.agents.save(self.agents.newest_row(caller.agent_row).overview_read(self.time_source.moment().timestamp()), caller.actor)
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for row in self.rows():

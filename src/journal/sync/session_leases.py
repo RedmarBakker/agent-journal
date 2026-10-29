@@ -1,5 +1,6 @@
 import time
 
+from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
@@ -25,10 +26,10 @@ class SessionLeases:
         if not self.account.is_joined():
             raise Rejection("a session is a team's, held by one machine at a time: join a team first with journal team join")
         if name == TEAM_CHAT:
-            raise Rejection("the Team chat is the team's own session: journal team claim holds it")
+            raise Rejection("the Team chat is the team's own session: journal team claim takes it")
         TeamRequests.reached(lambda: self.link.acquire_lease(self.lease_name(name)))
         session = self.session(name, actor)
-        self.account.record_held_sessions([*self.account.held_sessions(), name])
+        self.account.record_hosted_sessions([*self.account.hosted_sessions(), name])
         return session
 
     def session(self, name: str, actor: Actor) -> Environment:
@@ -36,13 +37,13 @@ class SessionLeases:
         return sessions[0] if sessions else self.environments.save(Environment.session(self.account.team_key(), name).with_(branch=SESSION_BRANCH + name), actor)
 
     def hosted(self) -> list[Environment]:
-        return self.environments.session_rows(self.account.held_sessions())
+        return self.environments.session_rows(self.account.hosted_sessions())
 
     def is_hosted_session(self, environment: Environment) -> bool:
-        return environment.is_session() and not environment.is_team_chat() and environment.team_name in self.account.held_sessions()
+        return environment.is_session() and not environment.is_team_chat() and environment.team_name in self.account.hosted_sessions()
 
     def start_refusal(self, environment: Environment) -> str:
-        if not environment.is_session() or environment.is_team_chat() or environment.team_name in self.account.held_sessions():
+        if not environment.is_session() or environment.is_team_chat() or environment.team_name in self.account.hosted_sessions():
             return ""
         return f"the agent of session {environment.team_name} runs on the machine that holds it: journal session start {environment.team_name} takes it once that machine lets it go"
 
@@ -56,17 +57,17 @@ class SessionLeases:
         return f"session {environment.team_name} is {holder}: your message waits on the team server and reaches the session's agent once a machine holds it; journal session start {environment.team_name} claims it"
 
     def renew(self) -> None:
-        if time.monotonic() - self.renewed_at < RENEW_SECONDS:
+        if not Timeout.seconds(RENEW_SECONDS).started(self.renewed_at).is_elapsed(time.monotonic()):
             return
         self.renewed_at = time.monotonic()
-        for name in self.account.held_sessions():
+        for name in self.account.hosted_sessions():
             self.renewed(name)
 
     def renewed(self, name: str) -> None:
         try:
             self.link.acquire_lease(self.lease_name(name))
         except TeamRefusal:
-            self.account.record_held_sessions([session_name for session_name in self.account.held_sessions() if session_name != name])
+            self.account.record_hosted_sessions([session_name for session_name in self.account.hosted_sessions() if session_name != name])
 
     @staticmethod
     def lease_name(name: str) -> str:

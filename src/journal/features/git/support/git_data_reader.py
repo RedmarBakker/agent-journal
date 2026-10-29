@@ -1,6 +1,7 @@
 import subprocess
 import time
 
+from journal.support.timeout import Timeout
 from journal.config import Config
 from journal.features.git.support.git_data import GitData
 from journal.models.agent import Agent
@@ -21,7 +22,7 @@ class GitDataReader:
         return GitData(uncommitted=self.uncommitted())
 
     def uncommitted(self) -> str:
-        if time.monotonic() - self.read_at < RECENCY_SECONDS:
+        if not Timeout.seconds(RECENCY_SECONDS).started(self.read_at).is_elapsed(time.monotonic()):
             return self.last_uncommitted
         self.last_uncommitted, self.read_at = self.status_files(), time.monotonic()
         return self.last_uncommitted

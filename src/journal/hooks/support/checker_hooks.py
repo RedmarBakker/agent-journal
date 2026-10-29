@@ -8,6 +8,7 @@ from journal.repositories.checkers import Checkers
 from journal.repositories.verifiers import Verifiers
 from journal.support.actor import Actor
 from journal.support.hook import Hook
+from journal.models.agent import Agent
 
 
 class CheckerHooks:
@@ -20,13 +21,12 @@ class CheckerHooks:
         verifier = hook.verifier is not None and self.identity.is_verifier_token(hook.verifier, hook.actor_token)
         return verifier or (hook.reviewer is not None and self.identity.is_reviewer_token(hook.reviewer, hook.actor_token))
 
-    def bind(self, hook: Hook, environment: Environment) -> None:
+    def bind(self, hook: Hook, environment: Environment) -> Agent:
         if hook.verifier is not None:
-            self.bound(self.verifiers.find(hook.verifier), self.verifiers, hook, environment, AgentRole.VERIFIER)
-        if hook.reviewer is not None:
-            self.bound(self.reviewers.find(hook.reviewer), self.reviewers, hook, environment, AgentRole.REVIEWER)
+            return self.bound(self.verifiers.find(hook.verifier), self.verifiers, hook, environment, AgentRole.VERIFIER)
+        return self.bound(self.reviewers.find(hook.reviewer), self.reviewers, hook, environment, AgentRole.REVIEWER)
 
-    def bound(self, checker: Helper, rows: Checkers, hook: Hook, environment: Environment, role: AgentRole) -> None:
+    def bound(self, checker: Helper, rows: Checkers, hook: Hook, environment: Environment, role: AgentRole) -> Agent:
         if not checker.session:
             rows.save(checker.with_(session=hook.session), Actor.system())
-        self.agents.helper_agent(hook.session, environment.row_id, hook.provider, role)
+        return self.agents.helper_agent(hook.session, environment.row_id, hook.provider, role)

@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import JOURNAL
@@ -14,7 +15,6 @@ from journal.features.sequences.listeners.deleted_sequence_run_end import Delete
 from journal.features.sequences.listeners.run_start_card import RunStartCard
 from journal.features.sequences.listeners.run_step_card import RunStepCard
 from journal.features.sequences.listeners.run_end_card import RunEndCard
-from journal.features.sequences.listeners.run_skip_card import RunSkipCard
 from journal.features.sequences.listeners.run_cancel_card import RunCancelCard
 from journal.features.sequences.listeners.step_command_match import StepCommandMatch
 from journal.features.sequences.listeners.creation_start import CreationStart
@@ -38,7 +38,8 @@ class Sequences(Feature[SequencesData]):
     title = "Sequences"
     help = "Steps the agent follows one at a time."
     commands = (SequenceCommand,)
-    listeners = (CreationStart, ReviewStart, PromptPhraseStart, MessagePhraseStart, CallStart, SessionRunTransfer, StepCommandMatch, DeletedSequenceRunEnd, DeletedRowRunEnd, CancelledRowRunEnd, RunStartCard, RunStepCard, RunSkipCard, RunCancelCard, RunEndCard, AbandonedRunCard)
+    answer_listeners = ((PromptPhraseStart, Blocking.NEXT_DECISION), (SessionRunTransfer, Blocking.NEXT_DECISION), (StepCommandMatch, Blocking.NEXT_DECISION))
+    listeners = (CreationStart, ReviewStart, MessagePhraseStart, CallStart, DeletedSequenceRunEnd, DeletedRowRunEnd, CancelledRowRunEnd, RunStartCard, RunStepCard, RunCancelCard, RunEndCard, AbandonedRunCard)
     data = (SequencesDataReader,)
     states = (FollowingSequence,)
     conduct = (SequencesConduct,)

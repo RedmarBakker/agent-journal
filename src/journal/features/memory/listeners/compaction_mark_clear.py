@@ -7,12 +7,10 @@ from journal.support.actor import Actor
 class CompactionMarkClear(AgentListener[Compacting]):
     """A compaction ends the window a mark was owed in, so the mark owed is cleared; the marks start again with the first reading of the new window."""
 
-    blocking = True
-
     def __init__(self, agents: Agents) -> None:
         self.agents = agents
 
     def handle(self, event: Compacting) -> None:
-        agent = self.agents.session_agent(event.session)
+        agent = self.agents.newest_row(event.agent)
         if agent.threshold_due:
-            self.agents.touch(agent, Actor.system(), threshold_due=0)
+            self.agents.touched(agent, Actor.system(), lambda row: {"threshold_due": 0})

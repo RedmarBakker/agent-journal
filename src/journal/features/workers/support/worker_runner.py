@@ -21,7 +21,6 @@ from journal.features.workers.support.worker_chat import WorkerChat
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
 from journal.models.worker import Worker
-from journal.models.worker_state import WorkerState
 from journal.models.model_tier import ModelTier
 from journal.providers.providers import Providers
 from journal.features.profiles.support.profile_files import ProfileFiles
@@ -196,7 +195,7 @@ class WorkerRunner:
 
     @staticmethod
     def awaits_report(current: Worker) -> bool:
-        return not current.is_mid_turn() and current.state == WorkerState.DISPATCHED
+        return not current.is_mid_turn() and current.is_dispatched()
 
     def close(self, current: Worker, outcome: str, actor: Actor) -> None:
         self.workers.save(current.unfinished(self.time_source.seconds(), outcome) if current.is_mid_turn() else current, actor)

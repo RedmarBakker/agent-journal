@@ -6,8 +6,6 @@ from journal.features.edits.support.file_modification_tracker import FileModific
 class ScriptStartRecorder(AgentListener[ToolStarting]):
     """Before an interpreter runs a script that writes, the modification time of every project file is stored, so its edits are found from what changed on disk."""
 
-    blocking = True
-
     def __init__(self, modified_at: FileModificationTracker) -> None:
         self.modified_at = modified_at
 

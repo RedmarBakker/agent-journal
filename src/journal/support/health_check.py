@@ -22,8 +22,8 @@ class HealthCheck:
 
     def is_answer(self, line: str) -> bool:
         try:
-            given = json.loads(line)
+            reported = json.loads(line)
         except json.JSONDecodeError:
             return False
         wanted = json.loads(self.answer)
-        return isinstance(given, dict) and all(given.get(key) == value for key, value in wanted.items() if not str(value).startswith(PLACEHOLDER_MARK))
+        return isinstance(reported, dict) and all(reported.get(key) == value for key, value in wanted.items() if not str(value).startswith(PLACEHOLDER_MARK))

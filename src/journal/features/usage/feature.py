@@ -1,5 +1,6 @@
 from journal.features.feature import Feature
 from journal.features.usage.jobs.context_limit_compaction import ContextLimitCompaction
+from journal.features.usage.jobs.process_usage_watch import ProcessUsageWatch
 from journal.features.usage.states.usage_limited import UsageLimited
 from journal.features.usage.usage_conduct import UsageConduct
 from journal.features.usage.usage_nudges import UsageNudges
@@ -17,4 +18,4 @@ class Usage(Feature):
     conduct = (UsageConduct,)
     nudges = (UsageNudges.LIMIT_CHECK,)
     options = (UsageOptions.CHECK_MINUTES,)
-    jobs = (ContextLimitCompaction,)
+    jobs = (ContextLimitCompaction, ProcessUsageWatch)

@@ -3,10 +3,11 @@ from typing import ClassVar
 
 from journal.events.rows.rule_created import RuleCreated
 from journal.models.model import Model
+from journal.models.support.commentable import Commentable
 
 
 @dataclass(frozen=True)
-class Rule(Model):
+class Rule(Model, Commentable):
     """Project-wide: binds every environment."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text", "reason")
@@ -19,8 +20,11 @@ class Rule(Model):
     is_single_use: bool = False
     presence: bool = False
 
-    def created(self, agent_index: bool) -> "Rule":
-        return self.with_event(RuleCreated(agent_origin=agent_index))
+    def agent_created(self) -> "Rule":
+        return self.with_event(RuleCreated(agent_origin=True))
+
+    def person_created(self) -> "Rule":
+        return self.with_event(RuleCreated(agent_origin=False))
 
     def summary_line(self) -> str:
         return self.opening_line(self.text)

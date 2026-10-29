@@ -1,5 +1,7 @@
 from dataclasses import dataclass, replace
 
+from journal.support.timeout import Timeout
+
 UPDATE_PAUSE_SECONDS = 900.0
 
 
@@ -17,7 +19,7 @@ class UpdatePause:
         return replace(self, step=step)
 
     def is_stale(self, time: float) -> bool:
-        return time - self.time > UPDATE_PAUSE_SECONDS
+        return Timeout.seconds(UPDATE_PAUSE_SECONDS).started(self.time).is_exceeded(time)
 
     def is_pending(self, version: str, pid: int, time: float) -> bool:
         return self.target != version and self.pid == pid and not self.is_stale(time)

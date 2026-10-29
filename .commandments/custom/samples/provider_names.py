@@ -1,10 +1,10 @@
 def program_flags(provider: str) -> list[str]:
-    # @sin ProviderNameComparedDetector
+    # @sin SessionPurityProviderNameComparedDetector
     return ["--no-daemon"] if provider == "codex" else []
 
 
 def is_dispatch(tool: str) -> bool:
-    # @sin ProviderNameComparedDetector
+    # @sin SessionPurityProviderNameComparedDetector
     return tool in ("Agent", "Task")
 
 
@@ -13,7 +13,7 @@ RESUME = {"claude": "--resume", "codex": "resume"}
 
 
 def flags(provider) -> list[str]:
-    # @righteous ProviderNameComparedDetector
+    # @righteous SessionPurityProviderNameComparedDetector
     return list(provider.prompt_flags)
 
 

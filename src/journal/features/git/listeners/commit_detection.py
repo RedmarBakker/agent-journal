@@ -1,5 +1,6 @@
 import re
 import subprocess
+from journal.support.timeout import Timeout
 from journal.models.support.worker_task import WorkerTask
 from pathlib import Path
 
@@ -29,8 +30,6 @@ TRAILER = re.compile(r"^Journal: (?:tasks|todos) done ((?:\d+(?:[ ,]+(?:and +)?)
 class CommitDetection(AgentListener[ToolFinished]):
     """A shell command that committed is followed by a read of the head: the commit becomes a card in the chat, once, a Journal: tasks done line in its message finishes those tasks, and the bus is informed a commit was made with what it closed; what the agent is informed about it is the git conduct's, returned with the command's own answer. A commit whose own hook never arrived, lost to an install or a restart in the same line, is found at the next tool use because the head's log has changed, the first read after the journal starts counting as changed, and its tasks close when one of the session's last tool starts contained the commit."""
 
-    blocking = True
-
     def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_tasks: NextTaskReader, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.announcer = announcer
@@ -55,7 +54,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         return self.commit(event, head.sha, head.body if self.is_agents(event, head) else "")
 
     def is_agents(self, event: ToolFinished, head: HeadCommit) -> bool:
-        if self.time_source.seconds() - head.committed <= COMMIT_WINDOW_SECONDS:
+        if not Timeout.seconds(COMMIT_WINDOW_SECONDS).started(head.committed).is_exceeded(self.time_source.seconds()):
             return True
         starts = self.entries.tool_starts(event.session, last=RECENT_TOOL_STARTS)
         return any(part.text.startswith("git commit") for start in starts for part in start.recorded_call().parts)
@@ -82,7 +81,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         worker_tasks = tuple(WorkerTask(n, owners[n]) for n in numbers if n in owners)
         completions = self.completions(event, sha, [n for n in numbers if n not in owners])
         next_task = self.next_tasks.holder_task(self.tasks.find(completions[-1])) if completions else None
-        commit = CommitDetected(sha=sha, closed=tuple(completions), next_task=next_task, worker_tasks=worker_tasks).placed(event.session, event.environment_id, event.provider, event.context, event.time)
+        commit = CommitDetected(sha=sha, closed=tuple(completions), next_task=next_task, worker_tasks=worker_tasks, agent=event.agent).placed(event.agent, event.context, event.time)
         return next((answer for answer in self.events.post(commit) if isinstance(answer, Decision)), None)
 
     def folder(self, event: ToolFinished) -> Path:

@@ -25,10 +25,10 @@ class ModelFitSample(Listener[WorkerMerged]):
         self.deferred.add(partial(self.sampled, event))
 
     def sampled(self, event: WorkerMerged) -> None:
-        every = self.settings.integer(WorkersOptions.MODEL_FIT_SAMPLE)
-        if every <= 0 or not self.work_mode.delegates_work():
+        sample_interval = self.settings.integer(WorkersOptions.MODEL_FIT_SAMPLE)
+        if sample_interval <= 0 or not self.work_mode.delegates_work():
             return
-        if self.statistics.incremented(f"{MERGES}.{event.environment_id}", Actor.system()).value % every:
+        if self.statistics.incremented(f"{MERGES}.{event.environment_id}", Actor.system()).value % sample_interval:
             return
         worker = self.workers.find(event.worker.id)
         self.dispatch.sent(worker, self.evidence.brief(worker), lambda: True)

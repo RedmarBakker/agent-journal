@@ -74,8 +74,8 @@ class ActivityLabel:
         label = self.classifier.row_classification(" ".join(tokens)).label
         if is_runner and len(arguments) > 1 and SCRIPT_FILE.search(arguments[1]):
             return label or "running a script"
-        if (body := BODY.match(part)):
-            return self.build(body[1]) if WAITING.match(body[2]) else self.build(body[2])
+        if BODY.match(part):
+            return self.loop_label(BODY.match(part))
         arguments = arguments[1:] if is_runner and not label and len(arguments) > 1 else arguments
         if not arguments or SHELL_SYNTAX.match(arguments[0]):
             return IDLE
@@ -88,3 +88,6 @@ class ActivityLabel:
         if not script:
             return line
         return "" if ";" in script else script.split("&&")[-1].strip()
+
+    def loop_label(self, body: re.Match) -> str:
+        return self.build(body[1]) if WAITING.match(body[2]) else self.build(body[2])

@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from journal.support.timeout import Timeout
+
 HEARTBEAT_FILE = "heartbeat"
 HEARTBEAT_INTERVAL_SECONDS = 10.0
 LIMIT_SECONDS = 30.0
@@ -23,4 +25,4 @@ class Heartbeat:
         return float(text) if text else 0.0
 
     def is_running(self, seconds: float, began_seconds: float) -> bool:
-        return seconds - (self.last_seconds() or began_seconds) < LIMIT_SECONDS
+        return not Timeout.seconds(LIMIT_SECONDS).started(self.last_seconds() or began_seconds).is_elapsed(seconds)

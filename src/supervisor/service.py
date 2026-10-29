@@ -93,6 +93,8 @@ class Service:
             return ""
         self._failures = 0
         self._restarts += 1
+        if self.boot is not None:
+            self.boot.tell(f"The journal stopped answering well, {self.health.failures} health checks in a row ({fault}), so its supervisor started it again.")
         self.restart()
         return f"{self.name} failed its health check {self.health.failures} times in a row ({fault}): started again"
 

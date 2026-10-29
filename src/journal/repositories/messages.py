@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from journal.db.connection import Connection
 from journal.events.bus import Bus
@@ -10,7 +10,6 @@ from journal.models.message import TERMINAL_LINE, Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.support.rejection import Rejection
-from journal.repositories.agents import Agents
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
 from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
@@ -24,6 +23,10 @@ CHAT_PAGE_ROWS = 400
 
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
+# how long a message the agent read waits for its answer; one read longer ago never holds the agent
+WAITING_HOURS = 24
+# the most cards of running commands docked above a chat, which the viewer reads apart from the chat's pages
+DOCKED_CARD_COUNT = 50
 
 
 class Messages(ScopedRepository[Message]):
@@ -33,12 +36,14 @@ class Messages(ScopedRepository[Message]):
     SUBJECT_LINK = "about"
     EDIT_LINK = "edited"
     COMMENT_LINK = "comments_on"
+    # the rows whose comments are answered in the row itself, never filed as work, each with the word the agent's line names it by
+    WRITINGS = {"docs": "doc", "reports": "report"}
     REFERENCE_LINK = "refers_to"
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, agents: Agents, time_source: TimeSource) -> None:
-        self.owners, self.agents = owners, agents
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, time_source: TimeSource) -> None:
+        self.owners = owners
         super().__init__(connection, bus, scope, time_source)
         self.reactions, self.links = reactions, links
 
@@ -55,9 +60,6 @@ class Messages(ScopedRepository[Message]):
     def check_chat(self, message: Message) -> None:
         if message.author == Author.SYSTEM and not message.data.get("kind"):
             raise Rejection("a system message has its kind, so the chat knows what it shows")
-        roles = self.agents.session_roles(message.session) if message.session else []
-        if roles and message.thread != MessageThread.agent_thread(roles[0]):
-            raise Rejection(f"a message of session {message.session} goes in the {roles[0]} chat, not the {message.thread} one")
 
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
@@ -105,16 +107,25 @@ class Messages(ScopedRepository[Message]):
         return [message for type_name in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", type_name).order("id"))]
 
     def unanswered(self) -> list[Message]:
-        voiced_at = self.last_message()
-        query = self.main_chat().filter(author=Author.USER).filter_present("read_at")
-        read = self.selected((query if voiced_at is None else query.filter_greater("read_at", voiced_at)).without("text").order("id"))
-        return [m for m in read if not m.is_terminal_line and not self.answered(m) and not self.agent_reaction(m)]
+        return sorted(self.selected(self.unanswered_query().without("text")), key=lambda message: message.row_id)
+
+    def unanswered_ids(self) -> list[int]:
+        return sorted(self.column_values(self.unanswered_query(), "id"))
+
+    def unanswered_query(self) -> Query:
+        window_start = self.time_source.moment() - timedelta(hours=WAITING_HOURS)
+        read = self.main_chat().filter(author=Author.USER).filter_greater_equal("read_at", window_start).filter_unequal("data->kind", TERMINAL_LINE)
+        answered = sorted(self.answered_ids(window_start))
+        answered_reads = sorted(set(self.column_values(read.filter_listed("id", answered), "read_position")))
+        return read.filter_unlisted("id", answered).filter_unlisted("read_position", answered_reads)
+
+    def answered_ids(self, window_start: datetime) -> set[int]:
+        replied = set(self.column_values(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", window_start), "reply_target"))
+        linked = {Ref.parse(target).id for target in self.links.column_values(self.links.query().filter(link_type=self.ANSWERS).filter_greater_equal("created_at", window_start), "target")}
+        return replied | linked | self.reactions.agent_reacted_ids(window_start)
 
     def latest_voice(self) -> Message | None:
         return next(iter(self.selected(self.main_voice().order_descending("id").limit(1))), None)
-
-    def last_message(self) -> str | None:
-        return self.maximum(self.main_voice().filter(acknowledgement=False).filter_unequal("data->kind", Message.THOUGHT), "created_at", None)
 
     def answered(self, message: Message) -> bool:
         return self.first_reply(message) is not None
@@ -155,6 +166,10 @@ class Messages(ScopedRepository[Message]):
         if previous:
             query = query.filter_less("created_at", self.find(previous).created_at.isoformat())
         return query
+
+    def docked_cards(self, chat: Query) -> list[Message]:
+        running_cards = chat.filter_json("data->docked", True).filter_json("data->active", True)
+        return self.selected(running_cards.order_descending("id").limit(DOCKED_CARD_COUNT))
 
     def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
@@ -237,9 +252,17 @@ class Messages(ScopedRepository[Message]):
     def read(self, message: Message, actor: Actor, tool_use: int) -> Message:
         if self.owners.is_colleague(actor, message.environment_id):
             return message
-        if message.is_comment() and actor.is_user():
+        if message.is_comment() and actor.can_read_comments():
             return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
-        return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use), actor)
+        return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use, self.commented_writing(message)), actor)
+
+    def commented_writing(self, message: Message) -> str | None:
+        writings = [f"{self.WRITINGS[ref.type]} {ref.id}" for ref in self.links.targets(message, self.COMMENT_LINK) if ref.type in self.WRITINGS]
+        return writings[0] if writings else None
+
+    def newest_session_moment(self, kind: str, session: str, key: str) -> Message | None:
+        moments = self.selected(self.query().filter_json("data->shows", kind).filter(session=session).filter_present(f"data->{key}").order_descending("id").limit(1))
+        return moments[0] if moments else None
 
     def newest_moments(self, kinds: tuple[str, ...], last: int) -> list[Message]:
         moments = [message for type_name in kinds for message in self.selected(self.query().filter_json("data->shows", type_name).order_descending("id").limit(last))]

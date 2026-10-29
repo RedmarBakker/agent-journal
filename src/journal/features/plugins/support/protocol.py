@@ -14,7 +14,7 @@ from journal.support.time_source import TimeSource
 
 ANSWERS = ("allow", "refuse", "tell")
 ANSWER_COMMANDS = 20
-PLACED = ("session", "environment_id", "bound_environment_ids", "provider", "context", "subagent", "time", "data", "propagation")
+PLACED = ("agent", "session", "environment_id", "bound_environment_ids", "provider", "context", "subagent", "time", "data", "propagation")
 EVENT_NAMES = {"stop": "idle", "edit_overridden": "edit_kept", "plugin_recovered": "plugin_answering", "plugin_card_requested": "plugin_card_asked", "plugin_upgrade_failed": "plugin_not_upgraded",
                "plugin_disabled": "plugin_switched_off", "search_completed": "search_made", "shared_comment_posted": "shared_comment_left"}
 ANSWER_FIELDS = {"tell": "message"}

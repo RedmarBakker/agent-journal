@@ -4,7 +4,7 @@ from journal.repositories.entries import Entries
 
 OPENED = frozenset({"tasks", "messages", "plans", "docs", "reports", "memories", "rules", "reminders", "questions", "checks", "secrets"})
 CHANGES = {"created": "made", "updated": "changed", "deleted": "deleted"}
-
+DELETED = "deleted"
 
 class PluginRecord:
     """What a plugin did in the journal, newest first: its holds and lines to the agent, the commands it ran, its faults and warnings, and every row it wrote, each with when."""
@@ -17,9 +17,9 @@ class PluginRecord:
 
     def line(self, entry: Entry) -> RecordLine | None:
         data, time = entry.data, entry.creation_time
-        if entry.entry_type in CHANGES:
+        if Entries.is_kind(entry, tuple(CHANGES)):
             table = data.get("table", "")
-            opens = table in OPENED and entry.entry_type != "deleted"
+            opens = table in OPENED and not Entries.is_kind(entry, (DELETED,))
             return RecordLine(time=time, action_type="row", text=f"{CHANGES[entry.entry_type]} {table[:-1].replace('_', ' ')} {data.get('id', '')}" + (f": {data['title']}" if data.get("title") else ""), ref=f"{table}:{data.get('id')}" if opens else "")
         line_text = {
             "plugin_said": lambda: f"{data.get('how', '')} at {data.get('event', '')}: {data.get('words', '')}",

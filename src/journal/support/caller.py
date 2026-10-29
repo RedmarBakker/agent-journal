@@ -3,6 +3,10 @@ from dataclasses import dataclass, replace
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
+from journal.models.agent import Agent
+from journal.repositories.origin import Origin
+from journal.models.support.ref import Ref
+from journal.models.worker import Worker
 
 LOCAL_USER = 1
 
@@ -26,7 +30,20 @@ class Caller:
     verifier_number: int | None = None
     reviewer_number: int | None = None
     subagent: bool = False
+    subagent_session: str = ""
     person: int = LOCAL_USER
+    agent_row: Agent | None = None
+
+    def holder_ref(self) -> Ref | None:
+        if self.is_worker():
+            return Ref(Worker.table(), self.worker_number)
+        return Ref.build(self.agent_row) if self.agent_row is not None else None
+
+    def has_agent_row(self) -> bool:
+        return self.agent_row is not None
+
+    def origin(self, environment_id: int) -> Origin:
+        return Origin(lambda: environment_id, self.actor, self.role, self.session, self.agent_row)
 
     @classmethod
     def user(cls, environment: str) -> "Caller":
@@ -56,37 +73,41 @@ class Caller:
     def reviewer(cls, environment: str, number: int, session: str | None, provider: str) -> "Caller":
         return cls(environment, session, provider, reviewer_number=number)
 
-    def subagent_caller(self) -> "Caller":
-        return replace(self, subagent=True)
+    def subagent_caller(self, subagent_session: str = "") -> "Caller":
+        return replace(self, subagent=True, subagent_session=subagent_session)
 
     @property
     def role(self) -> AgentRole:
+        if self.is_plugin():
+            return AgentRole.PLUGIN
         return AgentRole.SUBAGENT if self.subagent else self.session_role
 
     @property
     def session_role(self) -> AgentRole:
-        if self.worker_number is not None:
+        if self.is_worker():
             return AgentRole.WORKER
-        if self.verifier_number is not None:
+        if self.is_verifier():
             return AgentRole.VERIFIER
-        if self.reviewer_number is not None:
+        if self.is_reviewer():
             return AgentRole.REVIEWER
         return AgentRole.MAIN
 
     def is_main_agent(self) -> bool:
-        return self.role == AgentRole.MAIN and self.plugin_name is None and (self.session is not None or self.provider is not None)
+        return self.role == AgentRole.MAIN and not self.is_plugin() and (self.session is not None or self.provider is not None)
 
     @property
     def actor(self) -> Actor:
-        if self.plugin_name is not None:
+        if self.is_plugin():
             return Actor.plugin(self.plugin_name)
-        if self.worker_number is not None:
+        if self.is_worker():
             return Actor.worker(self.worker_number)
-        if self.verifier_number is not None:
+        if self.is_verifier():
             return Actor.verifier(self.verifier_number)
-        if self.reviewer_number is not None:
+        if self.is_reviewer():
             return Actor.reviewer(self.reviewer_number)
-        return Actor.user(self.person) if self.session is None else Actor.agent(self.session)
+        if self.session is None:
+            return Actor.user(self.person)
+        return Actor.subagent(self.session, self.subagent_session) if self.subagent else Actor.agent(self.session)
 
     @property
     def agent_session(self) -> str:
@@ -101,4 +122,16 @@ class Caller:
         return self.provider
 
     def is_unnamed_agent(self) -> bool:
-        return self.provider is not None and self.session is None and self.worker_number is None and self.verifier_number is None and self.reviewer_number is None
+        return self.provider is not None and self.session is None and not self.is_worker() and not self.is_verifier() and not self.is_reviewer()
+
+    def is_worker(self) -> bool:
+        return self.worker_number is not None
+
+    def is_verifier(self) -> bool:
+        return self.verifier_number is not None
+
+    def is_reviewer(self) -> bool:
+        return self.reviewer_number is not None
+
+    def is_plugin(self) -> bool:
+        return self.plugin_name is not None

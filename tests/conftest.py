@@ -27,10 +27,15 @@ from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.models.setting import Setting
 from journal.support.actor import Actor
+from tests.behaviour_record import BehaviourRecord
 from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
+from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
+
+# the folder whose stories go to one shard together
+STORIES_FOLDER = "tests/stories/"
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
@@ -153,14 +158,25 @@ def recorded_seconds() -> dict[str, float]:
     return json.loads(path.read_text()) if path.is_file() else {}
 
 
+def dealt_unit(nodeid: str) -> str:
+    """What a shard is dealt: a test on its own, but the stories all together, since their paths are laid over each other at the end of the run that played them, unless each shard writes its paths for the run that started it, when a story file is dealt on its own."""
+    if not nodeid.startswith(STORIES_FOLDER):
+        return nodeid
+    return nodeid.split("::", 1)[0] if os.environ.get(STORY_RECORDS_VARIABLE) else STORIES_FOLDER
+
+
 def pytest_collection_modifyitems(config, items):
     """A run started as one shard of a parallel suite keeps the tests the deal by last run's seconds gives its shard."""
     shard = os.environ.get(SHARD_VARIABLE, "")
     if not shard:
         return
     index, count = (int(part) for part in shard.split("/"))
-    mine = set(ShardDeal(recorded_seconds()).shards([item.nodeid for item in items], count)[index])
-    kept = [item for item in items if item.nodeid in mine]
+    seconds = recorded_seconds()
+    dealt = {item.nodeid: dealt_unit(item.nodeid) for item in items}
+    totals = {unit: sum(seconds.get(nodeid, 0.0) for nodeid, owner in dealt.items() if owner == unit) for unit in set(dealt.values())} if seconds else {}
+    unit_seconds = {unit: total for unit, total in totals.items() if total}
+    mine = set(ShardDeal(unit_seconds).shards(sorted(set(dealt.values())), count)[index])
+    kept = [item for item in items if dealt[item.nodeid] in mine]
     config.hook.pytest_deselected(items=[item for item in items if item.nodeid not in mine])
     items[:] = kept
 
@@ -206,3 +222,21 @@ def pytest_runtest_protocol(item, nextitem):
 
 def pytest_runtest_logreport(report) -> None:
     seconds_taken[report.nodeid] = seconds_taken.get(report.nodeid, 0.0) + report.duration
+
+
+BEHAVIOUR = BehaviourRecord()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    asked = BehaviourRecord.is_asked() and "app" in getattr(item, "funcargs", {}) and not item.nodeid.startswith(STORIES_FOLDER)
+    start = BEHAVIOUR.started(item.funcargs["app"]) if asked else 0
+    yield
+    if asked:
+        BEHAVIOUR.read(item.nodeid, item.funcargs["app"], start)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config) -> None:
+    if BehaviourRecord.is_asked():
+        BEHAVIOUR.saved()

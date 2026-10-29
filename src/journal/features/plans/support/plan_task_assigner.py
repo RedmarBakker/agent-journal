@@ -8,7 +8,6 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
-from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.plans import Plans
@@ -21,7 +20,7 @@ FOLLOWING_PLAN = "following_plan"
 
 
 class PlanTaskAssigner:
-    """The task assigner a followed plan names: when the agent finishes a task of a started plan, or stops with none in progress, it starts the plan's next task in the plan's order, a paused one first; the plan the closed task was in goes first, else the plan the agent follows now; nothing while a blocked task of the plan waits to be checked, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, in the orchestrator's mode, or with the agent on a task. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
+    """The task assigner a followed plan names: when the agent finishes a task of a started plan, or stops with none in progress, it starts the plan's next task in the plan's order, a paused one first; the plan the closed task was in goes first, else the plan the agent follows now; while the plan is blocked, the next open task the default assigner picks, worked over the plan; nothing while a blocked task of the plan waits to be checked, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, in the orchestrator's mode, or with the agent on a task. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource) -> None:
         self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source
@@ -33,6 +32,8 @@ class PlanTaskAssigner:
 
     def next_plan_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int) -> Assignment:
         plan = self.current_plan(agent, event)
+        if plan is not None and plan.is_blocked():
+            return self.default.next_task(agent, event, quantity)
         if plan is None or not self.is_advancing(plan):
             return Assignment()
         task = self.following_task(plan)
@@ -59,7 +60,7 @@ class PlanTaskAssigner:
         return self.plans.find(plan_id) if plan_id else None
 
     def is_advancing(self, plan: Plan) -> bool:
-        return plan.state == PlanState.STARTED and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan)
+        return plan.is_started() and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan)
 
     def passes_checkpoints(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))

@@ -1,10 +1,11 @@
 from journal.engine.safety_conduct import PANIC_REFUSAL_COUNT
 from journal.models.agent import Agent
 from journal.repositories.entries import Entries
+from journal.references import events
 
 # the most stops refused in a row counted: enough to reach the count that panics, past the stop being answered
 RECENT_TURN_EVENTS = PANIC_REFUSAL_COUNT + 1
-STOP = "Stop"
+STOP = events.STOP
 
 
 class StopRefusalsReader:

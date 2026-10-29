@@ -6,6 +6,7 @@ from journal.events.rows.memory_removed import MemoryRemoved
 from journal.events.rows.memory_weighed import MemoryWeighed
 from journal.models.scoped import Scoped
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 LIGHTEST = 0
 LOWEST_WEIGHT = 1
@@ -13,7 +14,7 @@ HEAVIEST = 10
 
 
 @dataclass(frozen=True)
-class Memory(Scoped):
+class Memory(Scoped, Commentable):
     """What one agent keeps in mind in an environment, the main agent or a helper its owner by a link, with a weight from 0 to 10 that each of its owner's compactions lowers by one; at nought it is no longer shown, and a removed one stays on its row, never shown again; one may end itself when a row it names closes or a moment it names passes."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)
@@ -22,7 +23,7 @@ class Memory(Scoped):
     weight: int = 5
     keywords: tuple[str, ...] = ()
     removed_at: datetime | None = None
-    expiry_row: str = ""
+    expiry_row: str | None = None
     expires_at: datetime | None = None
 
     def weighed(self, weight: int) -> "Memory":
@@ -42,7 +43,7 @@ class Memory(Scoped):
         return replace(self, removed_at=removal_time).with_event(MemoryRemoved())
 
     def end_reason(self) -> str:
-        if self.expiry_row:
+        if self.expiry_row is not None:
             table, _, number = self.expiry_row.partition(":")
             return f"{table.removesuffix('s')} {number} ended"
         if self.expires_at is not None and self.removed_at is not None and self.expires_at <= self.removed_at:

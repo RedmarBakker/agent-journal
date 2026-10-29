@@ -1,15 +1,24 @@
-from typing import Generic, TypeVar, get_args
+from typing import ClassVar, Generic, TypeVar, get_args
 
 from journal.events.event import Event
+from journal.support.actor import Actor
 
 E = TypeVar("E", bound=Event)
 
 
 class Listener(Generic[E]):
-    """Receives one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. A helper's hook reaches it only when the helper's file allows the class it is registered as."""
+    """Receives one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. A helper's hook reaches it only when the helper's file allows the class it is registered as, and a row event only when its actor is of a kind the listener names."""
+
+    actors: ClassVar[tuple[type[Actor], ...]] = (Actor,)
 
     def handle(self, event: E) -> object:
         return None
+
+    def accepts(self, event: E) -> bool:
+        actor = getattr(event, "actor", None)
+        if not actor:
+            return True
+        return isinstance(Actor.parse(actor) if isinstance(actor, str) else actor, self.actors)
 
     def registered_class(self) -> type:
         return type(self)

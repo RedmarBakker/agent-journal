@@ -29,7 +29,7 @@ class RecordCommand(Command):
         self.creation_arguments(creation)
         self.verb(verbs, "list", f"every {self.noun} here")
         self.verb(verbs, "read", f"a {self.noun} whole, which puts it in your context window").add_argument("n", type=int)
-        self.verb(verbs, "strike", f"a {self.noun} that no longer holds").add_argument("n", type=int)
+        self.verb(verbs, "strike", f"a {self.noun} that is no longer true").add_argument("n", type=int)
 
     def creation_arguments(self, creation) -> None:
         return None

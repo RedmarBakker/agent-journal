@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, replace
 
 from journal.support.hook_type import HookType
+from journal.support.actor import Actor
 from journal.support.researcher_session import ResearcherSession
 
 RESEARCHER_KINDS = (HookType.PRE_TOOL_USE, HookType.POST_TOOL_USE, HookType.POST_TOOL_USE_FAILURE)
@@ -27,6 +28,7 @@ class Hook:
     boot_wait_seconds: float = 0.0
     firing: str = ""
     silence_start: str = ""
+    researcher: bool = False
 
     @classmethod
     def parse(cls, body: dict, environment: str, provider: str, launch: str) -> "Hook":
@@ -41,6 +43,15 @@ class Hook:
     def reviewer_hook(self, number: int, token: str | None) -> "Hook":
         return replace(self, reviewer=number, actor_token=token)
 
+    def actor(self) -> Actor:
+        if self.worker is not None:
+            return Actor.worker(self.worker)
+        if self.verifier is not None:
+            return Actor.verifier(self.verifier)
+        if self.reviewer is not None:
+            return Actor.reviewer(self.reviewer)
+        return Actor.agent(self.session)
+
     def is_sent(self) -> bool:
         return self.worker is not None or self.verifier is not None or self.reviewer is not None
 
@@ -53,7 +64,7 @@ class Hook:
 
     def researcher_hook(self) -> "Hook":
         body = {key: value for key, value in self.body.items() if key not in SUBAGENT_KEYS}
-        return replace(self, session=self.researcher_session, body={**body, "session_id": self.researcher_session})
+        return replace(self, session=self.researcher_session, body={**body, "session_id": self.researcher_session}, researcher=True)
 
     def stamped(self, started_ms: int) -> "Hook":
         return replace(self, started_ms=started_ms)
@@ -151,3 +162,15 @@ class Hook:
     @property
     def assistant_message(self) -> str:
         return self.body.get("last_assistant_message", "")
+
+    def is_pre_tool_use(self) -> bool:
+        return self.hook_type == HookType.PRE_TOOL_USE
+
+    def is_session_end(self) -> bool:
+        return self.hook_type == HookType.SESSION_END
+
+    def is_session_start(self) -> bool:
+        return self.hook_type == HookType.SESSION_START
+
+    def is_main_agent_hook(self) -> bool:
+        return not self.researcher and self.worker is None and not self.is_sent()

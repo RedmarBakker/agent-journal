@@ -7,6 +7,10 @@ from journal.events.event import Event
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_arrived import TaskArrived
+from journal.events.rows.task_transferred import TaskTransferred
+from journal.events.rows.task_test_failed import TaskTestFailed
+from journal.support.timespan import Timespan
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_released import TaskReleased
@@ -17,6 +21,7 @@ from journal.models.scoped import Scoped
 from journal.support.task_priority import NORMAL
 from journal.models.task_state import TaskState
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 
 BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
@@ -26,7 +31,7 @@ POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
 DECLINED = "declined: "
 
 @dataclass(frozen=True)
-class Task(Scoped):
+class Task(Scoped, Commentable):
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "outcome")
 
     title: str = ""
@@ -43,9 +48,10 @@ class Task(Scoped):
     delegated: bool = False
     priority_set: bool = False
     wait_ended_at: float = 0.0
+    tool_uses: int = 0
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
-        return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()
+        return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.is_open() else ()
 
     def pulled_events(self, previous: "Task") -> tuple[Event, ...]:
         move = PULLED_MOVES.get(self.state) if self.state != previous.state else None
@@ -64,7 +70,7 @@ class Task(Scoped):
         return self.is_closed()
 
     def is_assignable(self) -> bool:
-        return self.state == TaskState.OPEN and not self.delegated and bool(self.brief.strip())
+        return self.is_open() and not self.delegated and bool(self.brief.strip())
 
     def waiting_reason(self) -> str:
         return self.block_reason or self.pause_reason
@@ -94,7 +100,7 @@ class Task(Scoped):
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
-        return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
+        return self.with_(state=TaskState.STARTED, started_at=self.started_at or time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
 
     def prioritised(self, level: int) -> "Task":
         return self.with_(priority=level, priority_set=True)
@@ -112,8 +118,16 @@ class Task(Scoped):
     def released(self, time: float) -> "Task":
         return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
 
+    def transferred(self, environment_id: int, source: str, destination: str, time: datetime) -> "Task":
+        transfer_event = TaskTransferred(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, destination=destination)
+        arrival_event = TaskArrived(environment_id=environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, source=source, state=self.state)
+        return self.with_(environment_id=environment_id).with_event(transfer_event).with_event(arrival_event)
+
+    def is_active(self) -> bool:
+        return self.is_started() or self.is_testing()
+
     def paused(self, reason: str, time: datetime) -> "Task":
-        if self.state != TaskState.STARTED:
+        if not self.is_started():
             raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
         return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, "paused")
 
@@ -129,8 +143,29 @@ class Task(Scoped):
     def closed(self, task: "Task", time: datetime, manner: str, worker_id: int = 0) -> "Task":
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
 
+    def testing(self, time: datetime) -> "Task":
+        if not self.is_started():
+            raise Rejection(f"task {self.id} is {self.state}: only a started task waits in testing")
+        return self.closed(self.with_(state=TaskState.TESTING), time, "testing")
+
+    def test_passed(self, time: datetime, outcome: str) -> "Task":
+        return self.completed(time, f"tested: {outcome}")
+
+    def test_failed(self, time: datetime, output_id: int, outcome: str) -> "Task":
+        event = TaskTestFailed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, output_id=output_id, outcome=outcome)
+        return self.with_(state=TaskState.PAUSED, pause_reason=f"its test run failed: {outcome}", wait_ended_at=0.0).with_event(event)
+
+    def tool_used(self) -> "Task":
+        return self.with_(tool_uses=self.tool_uses + 1)
+
+    def progress_span(self, moment: float) -> Timespan:
+        return Timespan(self.tool_uses, moment - self.started_at.timestamp()) if self.started_at else Timespan()
+
+    def is_testing(self) -> bool:
+        return self.state == TaskState.TESTING
+
     def blocked(self, reason: str, time: datetime) -> "Task":
-        if self.state == TaskState.STARTED:
+        if self.is_started():
             raise Rejection(f"task {self.id} has started, so pause it: `journal task pause {self.id} \"<why>\"`, with --on or --until")
         return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
 
@@ -153,6 +188,12 @@ class Task(Scoped):
 
     def summary_line(self) -> str:
         return self.opening_line(self.brief)
+
+    def is_open(self) -> bool:
+        return self.state == TaskState.OPEN
+
+    def is_completed(self) -> bool:
+        return self.state == TaskState.COMPLETED
 
 
 # a change pulled from the team, by the state it reached, replayed on the row as it stood here, so it carries the events the same change made here would

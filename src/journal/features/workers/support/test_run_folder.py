@@ -23,8 +23,8 @@ class TestRunFolder:
     def folder(self, line: str, working: str) -> str:
         folder = Path(working)
         for part in self.parts(line):
-            words = part.split()
-            if words[:1] == ["cd"] and len(words) > 1:
+            tokens = part.split()
+            if tokens[:1] == ["cd"] and len(tokens) > 1:
                 folder = folder / os.path.expanduser(part[2:].strip().strip(QUOTES))
             elif self.is_test(part):
                 return str(folder.resolve())

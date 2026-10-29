@@ -9,10 +9,11 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.rows.output_full_bar import OutputFullBar
-from journal.events.rows.output_quiet import OutputQuiet
-from journal.events.rows.output_without_total import OutputWithoutTotal
+from journal.events.rows.silent_output_found import SilentOutputFound
+from journal.events.rows.output_total_missing import OutputTotalMissing
 from journal.events.rows.reader_report_judged import ReaderReportJudged
 from journal.events.rows.reader_report_raised import ReaderReportRaised
+from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
@@ -37,6 +38,7 @@ from journal.features.shell.support.shell_data import ShellData
 
 # the output a journal output command names: journal output show 21620
 OUTPUT_NUMBER = re.compile(r"\boutput\s+[a-z-]+\s+(\d+)")
+SLEEP_LINE = re.compile(r"^\s*sleep\s+\d+(?:\.\d+)?[smhd]?\s*$")
 
 SILENCE_SECONDS = 5.0
 BACKGROUND_CHECK_DELAY_SECONDS = 300.0
@@ -44,10 +46,16 @@ ALIAS_RUNS = 3
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a command that ended in the background is named once, at its end, as one line through the delivery queue, with one reader said for it, a watched one with its last view, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a sleep with nothing to wait on is refused, a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a command that ended in the background is named once, at its end, as one line through the delivery queue, with one reader said for it, a watched one with its last view, one the agent waits on left to the wait, one running five minutes is looked at, a stop with one of the agent's own still running refused unless the agent waits on it, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+
+    def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        outputs = event.data.part(ShellPart).background
+        if self.is_waiting() or self.blocks_tools() or not outputs:
+            return self.none()
+        return self.refuse(ShellNudges.OPEN_OUTPUT_STOP.create(outputs=", ".join(str(n) for n in outputs)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings)])
+        return Transition.merged(self, [sleep_line_check(self, event, settings), journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         watch = event.data.part(ShellPart).watch
@@ -70,11 +78,11 @@ class ShellConduct(Conduct):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings), run_title_check(self, event, settings)])
 
-    def on_output_without_total(self, event: OutputWithoutTotal, settings: Settings) -> Transition:
+    def on_output_total_missing(self, event: OutputTotalMissing, settings: Settings) -> Transition:
         return self.none(ShellNudges.RUN_TOTAL_MISSING.create(n=event.row_id)) if event.run_session == event.session else self.none()
 
-    def on_output_quiet(self, event: OutputQuiet, settings: Settings) -> Transition:
-        return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.quiet_seconds)) if event.run_session == event.session else self.none()
+    def on_silent_output_found(self, event: SilentOutputFound, settings: Settings) -> Transition:
+        return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.silence_seconds)) if event.run_session == event.session else self.none()
 
     def on_output_full_bar(self, event: OutputFullBar, settings: Settings) -> Transition:
         return self.none(ShellNudges.COMPLETE_PROGRESS_RUN.create(n=event.row_id, seconds=event.full_seconds)) if event.run_session == event.session else self.none()
@@ -88,6 +96,10 @@ class ShellConduct(Conduct):
         return self.none(ShellNudges.REPORT_REFUTED.create(verdicts=f"reader report {event.row_id}: {event.reason}"))
 
 
+# the times the shown lines a file read in one go may hold before it must be read in parts
+READ_LIMIT_FACTOR = 2
+
+
 def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
     outcomes: dict[str, list[int]] = {}
     for output in ended:
@@ -99,7 +111,12 @@ def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
 
 def partial_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     cap = settings.integer(ShellOptions.SHOWN)
-    return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > 2 * cap else state.none()
+    return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > READ_LIMIT_FACTOR * cap else state.none()
+
+
+def sleep_line_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    parts = [part.text for part in event.call.parts]
+    return state.refuse(ShellNudges.SLEEP_LINE_REFUSAL.create()) if parts and all(SLEEP_LINE.match(part) for part in parts) else state.none()
 
 
 def journal_poll_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

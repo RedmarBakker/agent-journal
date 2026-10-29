@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 import re
 import shlex
 import shutil
@@ -27,7 +28,7 @@ from journal.support.decision import Decision
 from journal.support.hook import Hook
 from journal.support.hook_type import HookType
 from journal.support.response import Response
-from journal.events.agent.peer_message import PeerMessage
+from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.turn import Turn
 from journal.providers.support.past_session import PastSession
 from journal.providers.support.file_writes import FileWrites
@@ -49,6 +50,8 @@ CONTEXT_LIMIT_LINES = 8
 # the mark the provider draws before a result or an error shown under the line that caused it
 OUTPUT_CORNER = "⎿"
 HOOK_SCRIPT = Path(__file__).resolve().parents[1] / "hooks" / "hook.sh"
+# the journal's shell runner: Claude reaches it as its shell prefix, Codex by a shell line rewritten to call it
+RUN_SCRIPT = HOOK_SCRIPT.with_name("run.sh")
 PATH_KEYS = ("file_path", "path", "notebook_path")
 
 VERSION_3_HOOKS = ("/.journal/src/hook.sh", "/.journal/hook.py", "/.journal/journal hook")
@@ -192,7 +195,7 @@ class Provider(ABC):
     def texts(self, line: dict) -> list[str]: ...
 
     @abstractmethod
-    def peer_messages(self, line: dict) -> list[PeerMessage]: ...
+    def peer_messages(self, line: dict) -> list[PeerNote]: ...
 
     @staticmethod
     def last_line_start(path: Path, size: int) -> int:
@@ -222,7 +225,10 @@ class Provider(ABC):
         return self.transcript(target, session) is not None or self.transcript(source, session) is not None
 
     def status(self, session: str, home: Path) -> AgentStatus:
-        return self._status_files.setdefault(home, ContextFile(home)).reading(session)
+        return self.status_file(home).reading(session)
+
+    def status_file(self, home: Path) -> ContextFile:
+        return self._status_files.setdefault(home, ContextFile(home))
 
     @abstractmethod
     def write_mcp(self, project: Path, servers: list[McpServer]) -> Path: ...
@@ -253,6 +259,17 @@ class Provider(ABC):
 
     def agent_answer(self, hook: Hook, decision: Decision) -> Response:
         return self.reply(hook, decision, "")
+
+    def with_user_line(self, response: Response, line: str) -> Response:
+        if not self.user_line_key or not isinstance(response.body, dict) or (response.status == 409 and "answer" not in response.body):
+            return response
+        if "answer" in response.body:
+            return replace(response, body={**response.body, "answer": self.user_lined(response.body["answer"], line)})
+        return replace(response, body=self.user_lined(response.body, line))
+
+    def user_lined(self, body: dict, line: str) -> dict:
+        shown = body.get(self.user_line_key, "")
+        return {**body, self.user_line_key: f"{shown}\n{line}" if shown else line}
 
     def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
         type_name = hook.hook_type

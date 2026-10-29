@@ -30,7 +30,7 @@ class SecretRun:
         fields = [SecretField.build(raw) for raw in secret.fields]
         keys = self.servers.key_variables()
         if any(f.variable in keys for f in fields):
-            raise Rejection(f"{secret.title} is the key of an MCP server, which only the journal itself uses: no program is given it")
+            raise Rejection(f"{secret.title} is the key of an MCP server, which only the journal itself uses: no program receives it")
         values = self.values.values()
         missing = [f.name for f in fields if f.variable not in values]
         if missing:
@@ -55,7 +55,7 @@ class SecretRun:
         if "/" in name:
             raise Rejection(f"name the program bare, as {Path(name).name}: a path could be a file of anyone's making")
         if Programs.is_withheld(name):
-            raise Rejection(f"a secret is never given to {name}: name the program that uses it directly, such as curl or gh")
+            raise Rejection(f"a secret is never passed to {name}: name the program that uses it directly, such as curl or gh")
         if name not in secret.programs:
             raise Rejection(f"secret {secret.id} may not go to {name}: `journal secret propose {secret.id} {name}`")
         rows = shutil.which(name, path=self.search_path())

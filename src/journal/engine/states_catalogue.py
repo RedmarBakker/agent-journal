@@ -59,6 +59,12 @@ class StatesCatalogue:
         state = self._states.get(name) or self._states["idle"]
         return state.restored(data or {})
 
+    def top(self, agent: Agent) -> BaseState:
+        return self.restored(agent.state, agent.data)
+
+    def has_ended(self, agent: Agent) -> bool:
+        return self.top(agent).final
+
     def first(self) -> BaseState:
         return self.restored("idle", {})
 
@@ -72,20 +78,12 @@ class StatesCatalogue:
     def is_mode_floor(self, state: BaseState) -> bool:
         return any(type(state) in modes.states.values() for modes in self.modes)
 
-    def floor(self, stack: Stack, settings: Settings, role: AgentRole) -> Stack:
-        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack)
+    def floor(self, stack: Stack, settings: Settings) -> Stack:
+        return Stack((stack.bottom().floored(self.mode_state(settings)), *stack.states[1:]))
 
-    def helper_floor(self, stack: Stack) -> Stack:
-        bottom = stack.states[0]
-        if isinstance(bottom, Void):
-            return stack
-        return Stack((Void(), *(stack.states[1:] if self.is_bottom(bottom) else stack.states)))
-
-    def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
-        state = self.mode_state(settings)
-        if type(stack.states[0]) is state:
-            return stack
-        return Stack((state.restored(stack.states[0].serialized()), *stack.states[1:]))
+    @staticmethod
+    def helper_layers(first_state: BaseState) -> Stack:
+        return Stack((first_state,)) if isinstance(first_state, Void) else Stack((Void(), first_state))
 
     def is_bottom(self, state: BaseState) -> bool:
         return isinstance(state, (self.bottom_root(), Void))
@@ -94,12 +92,10 @@ class StatesCatalogue:
         return [base for base in type(self.first()).__mro__ if getattr(base, "name", "") == "idle"][-1]
 
     def stack(self, agent: Agent) -> Stack:
-        stored = Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.restored(agent.state, agent.data), agent.role)
-        return self.helper_floor(stored) if agent.role.is_helper() else stored
+        return Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.top(agent))
 
-    def stack_base(self, state: BaseState, role: AgentRole) -> Stack:
-        layers = Stack((state,)) if self.is_bottom(state) else Stack((self.first(), state))
-        return self.helper_floor(layers) if role.is_helper() else layers
+    def stack_base(self, state: BaseState) -> Stack:
+        return Stack((state,)) if self.is_bottom(state) else Stack((self.first(), state))
 
-    def reset_stack(self, stack: Stack, role: AgentRole) -> Stack:
-        return Stack(self.helper_floor(stack).states[:2]) if role.is_helper() else Stack((self.first(),))
+    def reset_stack(self, stack: Stack) -> Stack:
+        return Stack(stack.bottom().reset_states(stack.states))

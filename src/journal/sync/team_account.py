@@ -1,8 +1,6 @@
 import fcntl
-import hashlib
 import json
 import os
-import ssl
 import re
 import socket
 import threading
@@ -13,7 +11,7 @@ from journal.models.environment import UNKNOWN_TEAM_KEY
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.release import Release
-from journal.sync.team_url import TeamUrl
+from journal.sync.hub_account import HubAccount
 from sync_server.account import ADMIN
 
 TEAM_FILE = "team.json"
@@ -25,7 +23,7 @@ PREFIX_FILE = "team-prefix"
 ACCOUNT_LOCK_FILE = "team-account.lock"
 
 
-class TeamAccount:
+class TeamAccount(HubAccount):
     """This journal's place in a team: whether it has joined one and which device of the team this machine is, whether it holds the team's upgrade, and the team's key and number T, read from the file the join writes in the teams folder beside the database, named by the team's key; the home team's, the first joined, unless made for one team's key; an account from before teams had keys is read from team.json until its key is recorded, which moves it into the teams folder. Merged fields written at the same moment never put back the old ones."""
 
     def __init__(self, config: Config) -> None:
@@ -39,6 +37,9 @@ class TeamAccount:
 
     def is_joined(self) -> bool:
         return self.path().is_file()
+
+    def is_connected(self) -> bool:
+        return self.is_joined()
 
     def path(self) -> Path:
         if self.key:
@@ -105,15 +106,15 @@ class TeamAccount:
             self.write({**self.contents(), **fields})
 
     def write(self, contents: dict) -> None:
-        held = self.path()
-        path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else held
+        old_path = self.path()
+        path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else old_path
         path.parent.mkdir(exist_ok=True)
         draft = path.with_name(f"{path.stem}.{os.getpid()}-{threading.get_ident()}.draft")
         draft.write_text(json.dumps(contents))
         os.chmod(draft, 0o600)
         draft.replace(path)
-        if held != path:
-            held.unlink(missing_ok=True)
+        if old_path != path:
+            old_path.unlink(missing_ok=True)
 
     def contents(self) -> dict:
         return json.loads(self.path().read_text()) if self.is_joined() else {}
@@ -123,13 +124,6 @@ class TeamAccount:
 
     def root_path(self) -> Path:
         return self.config.home / ROOT_FILE
-
-    def fingerprint(self) -> str:
-        root = self.root_path()
-        return hashlib.sha256(ssl.PEM_cert_to_DER_cert(root.read_text())).hexdigest() if root.is_file() else ""
-
-    def invitation_url(self, code: str) -> str:
-        return TeamUrl(self.address()).invitation(code, self.fingerprint())
 
     def device_name(self) -> str:
         return socket.gethostname()
@@ -156,8 +150,8 @@ class TeamAccount:
     def is_chat_holder(self) -> bool:
         return bool(self.contents().get("holds_chat", False))
 
-    def held_sessions(self) -> list[str]:
+    def hosted_sessions(self) -> list[str]:
         return list(self.contents().get("sessions", []))
 
-    def record_held_sessions(self, names: list[str]) -> None:
+    def record_hosted_sessions(self, names: list[str]) -> None:
         self.merged({"sessions": sorted(set(names))})

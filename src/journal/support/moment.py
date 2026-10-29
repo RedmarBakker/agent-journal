@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -12,3 +12,6 @@ class Moment:
 
     def value(self, unit: str) -> float:
         return {"seconds": self.seconds, "tool_uses": self.tool_uses, "edits": self.edits, "context_thresholds": self.context_thresholds}[unit]
+
+    def previous_tool_use(self) -> "Moment":
+        return replace(self, tool_uses=self.tool_uses - 1)

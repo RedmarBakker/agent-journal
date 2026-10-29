@@ -57,7 +57,7 @@ class ManifestReader:
     def manifest_file(folder: Path) -> Path:
         file = folder / MANIFEST
         if not file.is_file():
-            raise Rejection(f"{folder} holds no {MANIFEST}")
+            raise Rejection(f"{folder} contains no {MANIFEST}")
         return file
 
     @staticmethod
@@ -94,16 +94,16 @@ class ManifestReader:
                 raise Rejection(f"{manifest.name} hears {event}: the {row['table']} rows are never sent to a plugin")
         for event, kinds in manifest.reaches.items():
             if event not in manifest.events:
-                raise Rejection(f"{manifest.name} says who {event} reaches but does not hear it")
+                raise Rejection(f"{manifest.name} states who {event} reaches but does not hear it")
             if not set(kinds) <= set(REACH_ROLES):
                 raise Rejection(f"{manifest.name} lets {event} reach {', '.join(kinds)}; it may reach only {', '.join(REACH_ROLES)}")
         for window in manifest.blocks:
             if window.event not in manifest.events:
-                raise Rejection(f"{manifest.name} holds {window.event} but does not hear it")
+                raise Rejection(f"{manifest.name} blocks {window.event} but does not hear it")
             if window.event not in HOLDABLE:
-                raise Rejection(f"{manifest.name} holds {window.event}, which no plugin may hold; it may hold {', '.join(HOLDABLE)}")
+                raise Rejection(f"{manifest.name} blocks {window.event}, which no plugin may hold; it may hold {', '.join(HOLDABLE)}")
             if window.window_ms < 0:
-                raise Rejection(f"{manifest.name} holds {window.event} within {window.window_ms} ms: a window is 0 or more milliseconds")
+                raise Rejection(f"{manifest.name} blocks {window.event} within {window.window_ms} ms: a window is 0 or more milliseconds")
 
     def reach_check(self, manifest: PluginManifest) -> None:
         for event, names in manifest.reaches.items():

@@ -1,0 +1,31 @@
+from journal.features.tasks.states.ready import Ready
+from journal.features.tasks.states.working import Working
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.models.task_state import TaskState
+from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
+from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.started_task import StartedTask
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(story):
+    header = story.agent_creates_task(story.agents.subject, "the header")
+    story.agent_runs(story.agents.subject, f"task block {header} --on task:{story.tasks.started}")
+    story.expect_task(header, state=TaskState.BLOCKED)
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
+    story.expect_task(header, state=TaskState.STARTED)
+    story.expect_agent_told(story.agents.subject, TasksNudges.TASK_REOPENED, n=header)
+    story.expect_stack(story.agents.subject, Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_task_blocked_by_hand_opens_when_unblocked(story):
+    logo = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {logo} 'waits on the designer'")
+    story.expect_task(logo, state=TaskState.BLOCKED)
+    story.agent_runs(story.agents.subject, f"task unblock {logo}")
+    story.expect_task(logo, state=TaskState.OPEN)
+    story.expect_task(story.tasks.started, state=TaskState.STARTED)
+    story.expect_stack(story.agents.subject, Ready, Working)
+

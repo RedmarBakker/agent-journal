@@ -9,6 +9,7 @@ USAGE_LIMIT_ERROR = "rate_limit"
 class TurnFailed(AgentEvent):
     """The agent's turn ended on an error of its provider's, such as the usage limit, instead of on its own words."""
 
+    takes_remarks = False
     is_turn_end = True
 
     error: str = ""

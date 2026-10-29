@@ -27,7 +27,6 @@ REFUSABLE = ("tool_starting", "command_starting", "file_edited", "idle")
 class PluginAgentRelay(AgentListener[AgentEvent]):
     """The plugins that receive an agent event: those that can block it are asked at once, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest receive it after the reply, and so does every one once the event is blocked. It stays a listener on purpose: it is the one funnel through which a plugin's text and blocks reach the agent, and what it says is each plugin's, never the journal's conduct."""
 
-    blocking = True
     free_request = True
     last_request = True
 
@@ -39,7 +38,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         hearers = self.relay.listeners(event, event.environment_id)
         ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
         waiting = self.relay.waiting_lines(event.session) if Protocol.published_name(event) in LINE_EVENT_KEYS else []
-        if Protocol.published_name(event) in LINE_EVENT_KEYS and self.relay.plugins.enabled() and not self.relay.helper_role(event).is_helper():
+        if Protocol.published_name(event) in LINE_EVENT_KEYS and self.relay.plugins.enabled() and self.relay.registry.role_file(self.relay.helper_role(event)).takes_plugin_lines():
             waiting += [line for plugin in self.relay.plugins.enabled() for line in self.queue.lines(plugin, event)]
         decision = Decision.allowed_with("\n".join(waiting)) if waiting else Decision()
         decision = self.request(hearers, event, ceiling_ms, decision)
@@ -52,7 +51,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
     def edited(self, event: AgentEvent) -> list[FileEdited]:
         if not isinstance(event, ToolFinished):
             return []
-        return [FileEdited.build(edit, event.environment_id) for edit in self.edits.tool_use_edits(event.session, event.tool_use)]
+        return [FileEdited.build(edit, event.agent) for edit in self.edits.tool_use_edits(event.session, event.tool_use)]
 
     def request(self, hearers: list[Plugin], event: AgentEvent, ceiling_ms: int, decision: Decision) -> Decision:
         for plugin in hearers:
@@ -80,7 +79,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         if not isinstance(event, ToolStarting):
             return []
         parts = [part for part in event.call.parts if not part.is_journal]
-        return [CommandStarting(text=part.text, writes=part.writes, files=part.files, position=position, parts=len(parts), tool_use=event.tool_use).placed(event.session, event.environment_id, event.provider, event.context, event.time) for position, part in enumerate(parts, 1)]
+        return [CommandStarting(text=part.text, writes=part.writes, files=part.files, position=position, parts=len(parts), tool_use=event.tool_use, agent=event.agent).placed(event.agent, event.context, event.time) for position, part in enumerate(parts, 1)]
 
     @staticmethod
     def blocks(plugin: Plugin, event: AgentEvent) -> bool:

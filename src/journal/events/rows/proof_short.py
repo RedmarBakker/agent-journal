@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from journal.events.rows.row_event import RowEvent
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -20,4 +19,4 @@ class ProofShort(RowEvent):
     model: str = ""
 
     def is_reviewers(self) -> bool:
-        return bool(self.actor) and Actor.parse(self.actor).actor_type == ActorType.REVIEWER
+        return bool(self.actor) and Actor.parse(self.actor).is_reviewer_actor()

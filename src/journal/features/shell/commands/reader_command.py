@@ -42,30 +42,30 @@ class ReaderCommand(Command):
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
 
     def arguments(self, verbs) -> None:
-        addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
+        addition = self.verb(verbs, "add", "a reader stored in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
         addition.add_argument("name")
         source = addition.add_mutually_exclusive_group()
-        source.add_argument("--pattern", help="the lines it picks; a new reader needs this or --script, an existing one keeps its own")
-        source.add_argument("--script", type=Path, help="a shell script given the output on its input")
-        addition.add_argument("--about", help="what it picks, in a few words; a new reader needs it")
-        addition.add_argument("--progress", help="a pattern whose last match says how far the command has come: one group for a percentage, two for a count of a total")
-        addition.add_argument("--topic", help="a pattern read over the command line whose matches say what a run is about, after the card's title: the test files a line names, or its -k, such as '(\\S+\\.py)'")
+        source.add_argument("--pattern", help="the lines it selects; a new reader needs this or --script, an existing one keeps its own")
+        source.add_argument("--script", type=Path, help="a shell script that receives the output on its input")
+        addition.add_argument("--about", help="what it selects, in a few words; a new reader needs it")
+        addition.add_argument("--progress", help="a pattern whose last match shows how far the command has come: one group for a percentage, two for a count of a total")
+        addition.add_argument("--topic", help="a pattern read over the command line whose matches say what a run is about, after the card's title: the test files a line mentions, or its -k, such as '(\\S+\\.py)'")
         addition.add_argument("--label", help=f"the card's title and the words before its progress: {TITLE_RULE}")
         addition.add_argument("--step", help="a pattern for one step, such as a test's dot, that moves the progress between two of its counts")
-        addition.add_argument("--finished", help="a pattern for the lines it picks once the command finished, such as its summary; the pattern picks them while it runs")
-        addition.add_argument("--failed", help="a pattern for the lines it picks once the command failed, such as its failures; the pattern picks them while it runs")
+        addition.add_argument("--finished", help="a pattern for the lines it selects once the command finished, such as its summary; the pattern selects them while it runs")
+        addition.add_argument("--failed", help="a pattern for the lines it selects once the command failed, such as its failures; the pattern selects them while it runs")
         addition.add_argument("--summary", help="a pattern whose last match in the output is the summary its card shows once opened, a few words such as '(\\d+ failed), (\\d+ passed)': its groups are joined, or the whole match without any")
-        addition.add_argument("--commands", help="the commands whose output it reads, comma-separated, such as pytest or dotnet test: a command moved to the background that runs one is told to watch it with this reader")
-        self.verb(verbs, "list", "the project's readers, each with what it picks")
+        addition.add_argument("--commands", help="the commands whose output it reads, comma-separated, such as pytest or dotnet test: a command moved to the background that runs one is instructed to watch it with this reader")
+        self.verb(verbs, "list", "the project's readers, each with what it selects")
         self.verb(verbs, "remove", "take a reader away, with its files; an alias it read for runs with no reader, and a reader a plugin ships goes only with its plugin").add_argument("name")
         self.verb(verbs, "default", "make a reader the one that reads its commands, over every other reader of them").add_argument("name")
         self.verb(verbs, "report", "read a reader report: what the reader judge found a reader showed poorly, and how to fix it").add_argument("n", type=int)
-        dismissal = self.verb(verbs, "dismiss", "set a reader report aside as wrong, saying why; the reason is kept for the user")
+        dismissal = self.verb(verbs, "dismiss", "set a reader report aside as wrong, saying why; the reason is stored for the user")
         dismissal.add_argument("n", type=int)
         dismissal.add_argument("--why", required=True, help="why the report is wrong")
 
     @staticmethod
-    def kept_options(prior: Reader, args: Namespace) -> list[str]:
+    def retained_options(prior: Reader, args: Namespace) -> list[str]:
         options = {"progress": prior.progress_pattern, "label": prior.label, "commands": prior.commands.text(), "step": prior.step_pattern, "topic": prior.topic_pattern, "finished": prior.finished_pattern, "failed": prior.failed_pattern, "summary": prior.summary_pattern}
         return [f"--{option} {shlex.quote(value)}" for option, value in options.items() if value and getattr(args, option) is None]
 
@@ -75,11 +75,11 @@ class ReaderCommand(Command):
         self.readers.refuse_locked(args.name, "replaced")
         prior = self.readers.stored_reader(args.name)
         if prior is None and not (args.pattern or args.script):
-            raise Rejection("a new reader says what it picks with --pattern or --script")
-        if prior is not None and prior.script and not args.script and args.pattern is None:
+            raise Rejection("a new reader states what it selects with --pattern or --script")
+        if self.is_script_unreplaced(prior, args):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
-            raise Rejection("a new reader says what it picks with --about")
+            raise Rejection("a new reader states what it selects with --about")
         unread_commands = [command.strip() for command in (args.commands or "").split(",") if self.mark_policy.takes_no_reader(command.strip())]
         if unread_commands:
             raise Rejection(f"{', '.join(unread_commands)} gets no reader: a search, a read and a git or GitHub command show no card in the chat")
@@ -98,9 +98,9 @@ class ReaderCommand(Command):
             self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
-        kept = self.kept_options(prior, args) if prior is not None else []
-        if kept:
-            print(f"kept from the reader before, as you did not give them: {', '.join(kept)}; give one as '' to drop it, such as --progress ''")
+        retained = self.retained_options(prior, args) if prior is not None else []
+        if retained:
+            print(f"kept from the reader before, as you did not give them: {', '.join(retained)}; give one as '' to drop it, such as --progress ''")
         return 0
 
     def tried(self, reader: Reader, prior: Reader | None) -> None:
@@ -158,3 +158,7 @@ class ReaderCommand(Command):
         for reader in readers:
             print(f"{reader.name}: {reader.subject}" + (" (locked)" if self.readers.is_locked(reader.name) else "") + (" (the default for its commands)" if reader.name in defaults else ""))
         return 0
+
+    @staticmethod
+    def is_script_unreplaced(prior: Reader | None, args: Namespace) -> bool:
+        return prior is not None and bool(prior.script) and not args.script and args.pattern is None

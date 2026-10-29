@@ -6,8 +6,6 @@ from journal.features.sequences.support.run_tracker import RunTracker
 class SessionRunTransfer(AgentListener[SessionStarted]):
     """A session that starts with no sequence running takes over the runs of the last session here that ended with some."""
 
-    blocking = True
-
     def __init__(self, active: RunTracker) -> None:
         self.running = active
 

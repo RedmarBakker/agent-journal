@@ -16,6 +16,6 @@ class DeleteEndedWaitChecks(Listener[Updated]):
         previous = event.previous_row(Agent)
         if previous is None:
             return
-        ended = WaitTargets.awaited_checks(previous.stack) - WaitTargets.awaited_checks(event.model.stack)
+        ended = WaitTargets.wait_check_ids(previous.stack) - WaitTargets.wait_check_ids(event.model.stack)
         if ended:
             self.passed_checks.deleted(ended, Actor.system())

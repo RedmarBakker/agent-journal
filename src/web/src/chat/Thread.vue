@@ -14,7 +14,6 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
-import {POINTER_GONE_MS, usePointerPresence} from "../composables/pointerPresence.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
@@ -37,9 +36,11 @@ import OutputDialog from "./OutputDialog.vue";
 import {useOpenInPlace} from "../composables/openInPlace.js";
 import ChatDock from "./ChatDock.vue";
 import DockGroup from "./DockGroup.vue";
+import RunMenu from "./RunMenu.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
 import {dockedDump, dockedRows, isRun, keptRuns, streamRows} from "../domain/docks.js";
+import {useDockedCards} from "../composables/dockedCards.js";
 import {useRunGroup} from "../composables/runGroup.js";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
@@ -52,6 +53,7 @@ import {planCardChoice} from "../state/planCardChoice.js";
 import {seconds} from "../domain/row.js";
 import {ui} from "../state/ui.js";
 import {useColleague} from "../composables/colleague.js";
+import {approveWithMessage} from "../actions/plans.js";
 
 const scroller = ref(null);
 const views = ref(null);
@@ -126,7 +128,8 @@ const {waiting: waitingNow, open: waitingOpen, anchor: waitingAnchor, toggle: to
 const planCard = computed(() => cardPlan(rows("plans"), planCardChoice.value));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
 const dockNow = useSharedNow();
-const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));
+const dockCards = useDockedCards(chat);
+const rowDocks = computed(() => dockedRows(dockCards.value, dockNow.value));
 // the runs docked are drawn together (chat/DockGroup.vue), as cards or, from three at once, folded into one compact row; the rows docked
 // from their inspectors are drawn alone
 const runDocks = computed(() => keptRuns(rowDocks.value.filter(isRun)));
@@ -150,13 +153,10 @@ const sizeWatch = new ResizeObserver(([entry]) => (short.value = entry.contentRe
 // the docks and the status line take their own room under the pane, so the pane changes height as they open, fold or leave: a reader
 // following the foot stays at it, and the bubbles move up or down with the docks
 const paneWatch = new ResizeObserver(() => scroller.value && !away.value && (scroller.value.scrollTop = scroller.value.scrollHeight));
-const AT_BOTTOM = 2;
+const AT_BOTTOM = 0;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
-// a reader who scrolled up and has the pointer anywhere over the chat, its pane, its docks or its composer, is reading it: nothing
-// scrolls it for them until the pointer has been outside it for a minute, and then a reader still away is taken back to the foot
-const presence = usePointerPresence(() => away.value && toBottom(true), POINTER_GONE_MS, threadRoot);
 const {
     away,
     missed,
@@ -165,13 +165,28 @@ const {
     toBottom: glideTo,
     left: readingUp,
     arrived,
-} = useFollowing(scroller, FAR, presence.isGone);
+} = useFollowing(scroller, AT_BOTTOM, () => false);
 // away from the foot, messages that arrive are loaded but held off the screen, so nothing below the reader grows and moves the page;
 // back at the foot, every held message appears
-const heldAfter = ref(null);
-watch(away, (isAway) => (heldAfter.value = isAway ? Math.max(0, ...chat.value.map((m) => (typeof m.id === "number" ? m.id : 0))) : null));
-const shownChat = computed(() =>
-    heldAfter.value === null ? chat.value : chat.value.filter((m) => !(typeof m.id === "number" && m.id > heldAfter.value))
+const readingPage = ref(null);
+const releasingHeld = ref(false);
+watch(away, (isAway) => {
+    if (isAway) {
+        readingPage.value = {ids: new Set(chat.value.map((message) => message.id)), newestAt: Math.max(0, ...chat.value.map((message) => seconds(message.created_at)))};
+        return;
+    }
+    if (!readingPage.value) return;
+    releasingHeld.value = true;
+    comeIn.flush();
+    readingPage.value = null;
+    nextTick(() => {
+        releasingHeld.value = false;
+        if (!away.value) glideTo(false);
+    });
+}, {flush: "sync"});
+const shownChat = computed(() => readingPage.value
+    ? chat.value.filter((message) => readingPage.value.ids.has(message.id) || seconds(message.created_at) < readingPage.value.newestAt)
+    : chat.value
 );
 const held = computed(() => chat.value.length - shownChat.value.length);
 const settledOnce = ref(false);
@@ -207,7 +222,7 @@ function toBottom(smooth = false) {
 // the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after, nor
 // while a bubble the reader pressed opens, so it opens in place and the chat stays exactly where the reader has it
 function followDown(smooth = false) {
-    if (Date.now() - scrolledAt < BY_HAND || opening.isOpening()) return;
+    if (isByHand() || opening.isOpening()) return;
     toBottom(smooth);
 }
 
@@ -255,6 +270,13 @@ function pressed(event) {
     opening.press(event);
 }
 
+// the keys that scroll the page move the chat by the reader's hand from wherever the focus is, outside a field they type in
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "ArrowUp", "ArrowDown", "Home", "End", " "]);
+
+function pagedByKey(event) {
+    if (SCROLL_KEYS.has(event.key) && !event.target.closest?.("input, textarea, [contenteditable]")) scrolledByHand();
+}
+
 function keyed(event) {
     scrolledByHand();
     opening.keyed(event);
@@ -273,6 +295,7 @@ onMounted(() => {
     if (scroller.value) added.observe(scroller.value, {childList: true});
     if (views.value) sizeWatch.observe(views.value);
     if (scroller.value) paneWatch.observe(scroller.value);
+    window.addEventListener("keydown", pagedByKey);
     frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => (rendering.value = true));
     });
@@ -292,12 +315,18 @@ onUnmounted(() => {
     added?.disconnect();
     sizeWatch.disconnect();
     paneWatch.disconnect();
+    window.removeEventListener("keydown", pagedByKey);
     clearTimeout(planTimer);
     cancelAnimationFrame(frame);
 });
 
 let scrolledAt = 0;
 const BY_HAND = 600;
+// a scroll the reader's hand made just now
+const isByHand = () => Date.now() - scrolledAt < BY_HAND;
+// a scroll up the reader made, by hand or by asking for a turn above; the pane pulled up by a row that shrank or a dock that folded
+// is no reader leaving the foot
+const isReaderMove = () => isByHand() || Boolean(store.focus);
 
 // the reader's own hand on the pane always wins: a glide the chat started stops where it is, and the chat moves itself no more for
 // a moment (followDown)
@@ -326,7 +355,7 @@ function followPlan(s) {
     const up = s.scrollTop < lastTop;
     lastTop = s.scrollTop;
     if (gap <= AT_BOTTOM && down) settlePlan(true);
-    else if (up && gap > foldingRoom()) settlePlan(false);
+    else if (up && isReaderMove() && gap > foldingRoom()) settlePlan(false);
     return gap;
 }
 
@@ -341,59 +370,43 @@ function settlePlan(open) {
 }
 
 function leftTheBottom(s) {
-    const up = s.scrollTop < lastScroll - 1;
+    const up = s.scrollTop < lastScroll;
     lastScroll = s.scrollTop;
-    if (!up || s.scrollHeight - s.scrollTop - s.clientHeight <= AT_BOTTOM) return;
+    if (!up || !isReaderMove() || s.scrollHeight - s.scrollTop - s.clientHeight <= AT_BOTTOM) return;
     glidedAt = 0;
     readingUp();
     if (settledOnce.value) scrolledUp.value = true;
 }
 
-// a reader who is away and comes to rest near the foot without scrolling there, as when the docks fold and the pane gets shorter,
-// follows again only once the pane has rested there for RESTED_MS with no scroll of theirs, and never while the plan bar is open, where
-// a snap to the foot would fold and open it again; their own scroll to the foot follows at once
-const RESTED_MS = 5000;
-let restTimer = 0;
-// the status line keeps its row at the foot and slides out only while the pane is scrolled up from it, wherever the following stands
 const offFoot = ref(false);
-
-function restAtFoot() {
-    clearTimeout(restTimer);
-    restTimer = setTimeout(() => {
-        const s = scroller.value;
-        if (
-            s &&
-            away.value &&
-            !planOpen.value &&
-            presence.isGone() &&
-            Date.now() - scrolledAt >= RESTED_MS &&
-            s.scrollHeight - s.scrollTop - s.clientHeight <= FAR
-        )
-            atTheFoot();
-    }, RESTED_MS);
-}
 
 // a turn that arrives while the reader follows the foot is pushed in by the chat gliding up first, then faded in (arrival.js); one that
 // arrives while the reader is away, while the tab is hidden or its latest page is read on return, or before the chat settled, just appears
 // a message the user just sent, drawn before the journal has it, whose key is its placeholder's
 const isOwnSent = (el) => (el.dataset?.ref || el.querySelector?.("[data-ref]")?.dataset.ref || "").startsWith("pending:");
-const following = () => settledOnce.value && !away.value && !ui.away.tabHidden && !ui.away.readingLatest;
+const following = () => settledOnce.value && !away.value && !releasingHeld.value && !ui.away.tabHidden && !ui.away.readingLatest;
 const arrivalPane = () => ({pane: scroller.value, follows: following});
 const comeIn = arrivalQueue();
-let turnsWhenHidden = 0;
 watch(
     () => ui.away.tabHidden,
     (tabHidden) => {
         if (!tabHidden) return;
-        turnsWhenHidden = turns.value.length;
         comeIn.flush();
     }
 );
-// back on the tab, a reader who followed the foot is at the foot of the latest page at once, with no glide, and so is one who had
-// scrolled up when messages came while the tab was hidden
+// back on the page, by the tab or the window's focus, the turns still queued to come in one by one are shown at once and the reader is at the
+// foot, so nothing that came while they were away plays out in front of them
+watch(
+    () => ui.away.returnedAt,
+    () => {
+        comeIn.flush();
+        if (!away.value) toFoot();
+    }
+);
+// A tab refresh keeps the reader's place; only a reader already following returns to the bottom.
 watch(
     () => ui.away.readingLatest,
-    (reading) => reading || (away.value && turns.value.length <= turnsWhenHidden) || toFoot()
+    (reading) => reading || away.value || toFoot()
 );
 const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));
 const closeUp = (el, done) => (following() ? depart(el, done) : done());
@@ -405,14 +418,13 @@ function watchScroll() {
     offFoot.value = gap > FAR;
     leftTheBottom(s);
     if (Date.now() - glidedAt < GLIDE) return;
-    const far = gap > FAR;
-    if (far && !away.value && !store.focus) {
+    const far = gap > AT_BOTTOM;
+    if (far && !away.value && !store.focus && !isByHand()) {
         followDown();
         return;
     }
-    if (far) readingUp();
-    else if (!away.value || (Date.now() - scrolledAt < BY_HAND && (gap <= AT_BOTTOM || presence.isGone()))) atTheFoot();
-    else restAtFoot();
+    if (far && isReaderMove()) readingUp();
+    else if (!far && (!away.value || isByHand())) atTheFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
 }
@@ -424,7 +436,8 @@ async function post(text, files) {
         return;
     }
     const replying = quote.value;
-    const body = withQuote(replying.text, text);
+    // a comment on a row names its row with on and quotes nothing; the band shows the row's title alone
+    const body = replying.on ? text : withQuote(replying.text, text);
     if (scope.chat) {
         quote.value = {text: "", ref: ""};
         await scope.chat.send(body);
@@ -440,13 +453,14 @@ async function post(text, files) {
     toFoot();
     let sent;
     try {
-        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo, refers: replying.refers}, files, id);
+        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo, refers: replying.refers, on: replying.on}, files, id);
     } catch (e) {
         drop(placeholder);
         if (!quote.value.ref && !quote.value.text) quote.value = replying;
         throw e;
     }
     sent.delivered.then((delivered) => delivered || change(placeholder, {unsent: true}));
+    if (replying.approves) sent.delivered.then((delivered) => delivered && approveWithMessage(replying.approves, sent.id));
 }
 
 function measured(url) {
@@ -629,6 +643,7 @@ const {colleague, me} = useColleague();
                                 </div>
                             </div>
                         </template>
+                        <RunMenu />
                     </div>
                 </template>
                 <Transition name="pane">
@@ -792,7 +807,10 @@ const {colleague, me} = useColleague();
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 18px 8px 20px;
+    --scroll-top-padding: 18px;
+    /* a group's head sticks at the scroller's very top, so nothing shows above it in the padding */
+    --fold-top: calc(-1 * var(--scroll-top-padding));
+    padding: var(--scroll-top-padding) 8px 20px;
     /* bubbles scrolled under the foot fade out over its last stretch rather than end at a hard line; the padding keeps the newest clear of the fade */
     mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }

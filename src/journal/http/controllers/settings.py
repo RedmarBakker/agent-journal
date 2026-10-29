@@ -30,7 +30,7 @@ class SettingController:
         for name, value in inner.items():
             if top == FEATURES and name not in existing:
                 continue
-            if f"{top}.{name}" in reserved and not actor.is_user():
+            if f"{top}.{name}" in reserved and not actor.can_set_user_options():
                 raise Rejection(f"{top}.{name} is the user's to set: the user sets it on the plan bar or the Settings page")
             if value is None:
                 self.settings.unset(f"{top}.{name}", actor)

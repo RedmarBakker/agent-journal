@@ -42,7 +42,7 @@ from journal.models.worker_state import WorkerState
 from journal.support.rejection import Rejection
 from journal.support.timeout import Timeout
 
-SILENCE = Timeout.minutes(20)
+SILENCE = Timeout.minutes(10)
 ENDED_UNFINISHED = "ended without clocking out"
 QUEUE_TURN_END = "ended mid-queue"
 # how a run that went past the time limit says it was stopped
@@ -104,7 +104,7 @@ class Worker(Helper):
         return self.resume or self.session or self.recovered_session
 
     def mention(self) -> WorkerMention:
-        return WorkerMention(self.row_id, self.name, self.dispatcher)
+        return WorkerMention(self.row_id, self.name, self.dispatcher, self.session)
 
     def dispatched(self, time: float) -> "Worker":
         return self.contacted(time).moved("dispatched", time).with_(state=WorkerState.DISPATCHED).with_event(self.pending(WorkerDispatched, time))
@@ -130,7 +130,7 @@ class Worker(Helper):
         return next((time for word, time in reversed(self.moves.steps) if word in JOB_STARTS), 0.0)
 
     def rejections(self) -> int:
-        return self.moves.counted_since(REJECTION_MOVE, MERGED)
+        return self.moves.recent_count(REJECTION_MOVE, MERGED)
 
     def model_measured(self, fit: ModelFit, rejections: int, time: float) -> "Worker":
         measured = self.with_(model_fit=fit)
@@ -197,7 +197,7 @@ class Worker(Helper):
         return self.moved(MERGED, time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task, clashes=0).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def released(self, time: float) -> "Worker":
-        return self.moved("released", time).with_(state=WorkerState.RELEASED, token_hash="").with_event(WorkerReleased(environment_id=self.environment_id, time=time, worker=self.mention()))
+        return self.moved("released", time).with_(state=WorkerState.RELEASED, token_hash="").with_event(WorkerReleased(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, released"))
 
     def running_as(self, pid: int, began: float) -> "Worker":
         return self.with_(pid=pid, began=began, recovered_session="")
@@ -227,9 +227,9 @@ class Worker(Helper):
     def is_silent(self, time: float) -> bool:
         return self.is_running() and (self.silence.is_elapsed(time) or self.silence.is_split_due(time))
 
-    def silence_named(self, time: float) -> "Worker":
+    def silence_noted(self, time: float) -> "Worker":
         split = self.silence.is_split_due(time)
-        minutes = 2 * self.silence.minutes() if split else self.silence.minutes()
+        minutes = self.silence.dispatcher_minutes() if split else self.silence.minutes()
         return self.with_(silence=self.silence.named(time)).with_event(WorkerSilent(environment_id=self.environment_id, time=time, worker=self.mention(), minutes=minutes, is_split_due=split))
 
     def notified(self, text: str, time: float, sender: str) -> "Worker":
@@ -258,19 +258,19 @@ class Worker(Helper):
         return bool(self.token_hash) and self.is_running()
 
     def is_ended_mid_queue(self) -> bool:
-        return self.state == WorkerState.UNFINISHED and bool(self.moves.steps) and self.moves.steps[-1][0] == QUEUE_TURN_END
+        return self.is_unfinished() and bool(self.moves.steps) and self.moves.steps[-1][0] == QUEUE_TURN_END
 
     def is_active(self) -> bool:
-        return self.is_running() or self.state == WorkerState.DELIVERED
+        return self.is_running() or self.is_delivered()
 
     def is_closed(self) -> bool:
         return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
 
     def is_unanswered(self, time: float, seconds: float, tested_at: float = 0.0) -> bool:
-        return self.state == WorkerState.DELIVERED and not self.review_pending and time - max(self.silence.timeout.start, tested_at) > seconds
+        return self.is_delivered() and not self.review_pending and Timeout.seconds(seconds).started(max(self.silence.timeout.start, tested_at)).is_exceeded(time)
 
     def is_retirable(self, time: float, seconds: float) -> bool:
-        return not self.adopted and not self.is_active() and not self.review_pending and time - self.moves.last_time() > seconds
+        return not self.adopted and not self.is_active() and not self.review_pending and Timeout.seconds(seconds).started(self.moves.last_time()).is_exceeded(time)
 
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted
@@ -288,3 +288,12 @@ class Worker(Helper):
 
     def summary_line(self) -> str:
         return self.opening_line(self.brief)
+
+    def is_delivered(self) -> bool:
+        return self.state == WorkerState.DELIVERED
+
+    def is_dispatched(self) -> bool:
+        return self.state == WorkerState.DISPATCHED
+
+    def is_unfinished(self) -> bool:
+        return self.state == WorkerState.UNFINISHED

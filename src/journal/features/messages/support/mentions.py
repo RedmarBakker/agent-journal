@@ -24,6 +24,6 @@ class Mentions:
 
     @staticmethod
     def pattern(teams: list[str]) -> re.Pattern:
-        named = "|".join(re.escape(team) for team in teams if team)
-        team = rf"(?:\b({named})\s+)?" if named else "()"
+        team_pattern = "|".join(re.escape(team) for team in teams if team)
+        team = rf"(?:\b({team_pattern})\s+)?" if team_pattern else "()"
         return re.compile(rf"{team}\b({NOUNS})s?\s+#?(\d+)\b", re.IGNORECASE)

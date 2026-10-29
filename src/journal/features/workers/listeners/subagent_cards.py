@@ -14,7 +14,6 @@ from journal.features.workers.support.subagent_entries import SUBAGENT_KINDS, Su
 from journal.features.workers.support.subagent_process_card import SubagentProcessCard
 from journal.models.subagent import Subagent
 from journal.support.actor import Actor
-from journal.repositories.agents import Agents
 from journal.support.card_type import CardType
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.time_source import TimeSource
@@ -23,14 +22,14 @@ from journal.support.time_source import TimeSource
 class SubagentCards(AgentListener[AgentEvent]):
     """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the text it returned or the tool's error, which the mark opens to."""
 
-    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, agents: Agents, time_source: TimeSource) -> None:
+    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, time_source: TimeSource) -> None:
         self.time_source = time_source
-        self.subagents, self.card, self.cards, self.processes, self.agents = subagents, card, cards, processes, agents
+        self.subagents, self.card, self.cards, self.processes = subagents, card, cards, processes
 
     def handle(self, event: AgentEvent) -> None:
         if not self.moves(event):
             return
-        actor, agent, moment = Actor.agent(event.session), self.agents.session_agent(event.session).row_id, self.time_source.seconds()
+        actor, agent, moment = Actor.agent(event.session), event.agent.row_id, self.time_source.seconds()
         for row in self.subagents.current_rows(event.session, moment):
             self.carded(event, row, agent, actor)
 
@@ -50,5 +49,5 @@ class SubagentCards(AgentListener[AgentEvent]):
         if self.cards.is_shown(key, actor):
             return
         report = self.subagents.report(event.session, row)
-        data = {**SubagentCard.built(event.session, agent, row, row.state, row.reason).as_data(), "returned": report}
+        data = {**SubagentCard.built(event.session, agent, row).as_data(), "returned": report}
         self.cards.show_fields(event.environment_id, event.session, f"Subagent {row.agent_type} ended: {row.task}", data, actor, CardType.SUBAGENTS, report or row.task, key)

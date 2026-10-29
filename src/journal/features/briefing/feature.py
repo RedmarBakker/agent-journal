@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.features.briefing.listeners.session_exclusivity import SessionExclusivity
 from journal.features.briefing.listeners.end_silent_sessions import EndSilentSessions
 from journal.features.briefing.listeners.start_overview_obligation import StartOverviewObligation
@@ -17,7 +18,8 @@ class Briefing(Feature[BriefingData]):
     help = "Every session start, and every resume after a compaction, tells the agent where it is and what binds it: the start block, the engine's own, said before any state's own line at the start."
     conduct = (BriefingConduct,)
     states = (ReadingOverview,)
-    listeners = (StartOverviewObligation, SessionExclusivity, EndSilentSessions)
+    answer_listeners = ((StartOverviewObligation, Blocking.NEXT_DECISION), (SessionExclusivity, Blocking.NEXT_DECISION))
+    listeners = (EndSilentSessions,)
     data = (BriefingDataReader,)
     options = (BriefingOptions.OVERVIEW_COMMANDS,)
 

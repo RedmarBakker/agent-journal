@@ -7,10 +7,11 @@ from journal.models.support.sequence_trigger import SequenceTrigger
 from journal.models.support.sequence_trigger_type import SequenceTriggerType
 from journal.support.phrases import Phrases
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 
 @dataclass(frozen=True)
-class Sequence(Model):
+class Sequence(Model, Commentable):
     """Steps the agent follows in order, one at a time, and the triggers that start it. Project-wide, so every environment can run it. One shipped with the journal is locked: shown, never changed or deleted."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title",)

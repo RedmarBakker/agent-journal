@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
 from journal.models.support.agent_load import AgentLoad
 
 
@@ -20,4 +21,4 @@ class PlaceScaling:
 
     @staticmethod
     def dwelt(queue: AgentLoad, moment: float, minutes: float) -> bool:
-        return moment - queue.scaled_at >= minutes * 60
+        return Timeout.minutes(minutes).started(queue.scaled_at).is_elapsed(moment)

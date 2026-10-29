@@ -1,4 +1,3 @@
-from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.compacting import Compacting
 from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
@@ -8,11 +7,8 @@ from journal.repositories.agents import Agents
 class CompactionReset(AgentListener[Compacting]):
     """A compacted window no longer contains the skills it read; they must be read again."""
 
-    blocking = True
-
-    def __init__(self, sessions: SessionAgents, agents: Agents) -> None:
-        self.sessions, self.agents = sessions, agents
+    def __init__(self, agents: Agents) -> None:
+        self.agents = agents
 
     def handle(self, event: Compacting) -> None:
-        agent = self.sessions.agent(event.session, event.environment_id)
-        self.agents.save(agent.with_(skills_loaded={}), Actor.system())
+        self.agents.rewritten(event.agent, Actor.system(), lambda row: row.with_(skills_loaded={}))

@@ -24,12 +24,12 @@ class ProofCommand(Command):
         record = self.verb(verbs, "record", "show how one point of your task's brief is met: the file and line, and the test that shows it")
         record.add_argument("point", type=int)
         record.add_argument("text")
-        record.add_argument("--not-done", action="store_true", help="the point is not met, and the text says why")
+        record.add_argument("--not-done", action="store_true", help="the point is not met, and the text explains why")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        holdings = [] if caller.worker_number is None else self.tasks.holder_task_ids(Ref(Worker.table(), caller.worker_number))
+        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), caller.worker_number))
         if not holdings:
-            raise Rejection("a proof is for a point of the task a worker holds: only a worker on a task proves")
+            raise Rejection("a proof is for a point of the task a worker has: only a worker on a task proves")
         task = self.tasks.find(holdings[0])
         if not 1 <= args.point <= len(task.points()):
             raise Rejection(f"task {task.id}'s brief has {len(task.points())} points: journal task show {task.id} lists them")

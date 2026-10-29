@@ -1,4 +1,5 @@
 import shutil
+import threading
 from pathlib import Path
 
 from journal.support.caller import Caller
@@ -9,16 +10,18 @@ from journal.features.shell.shell_options import ShellOptions
 
 
 class OutputLog:
-    """The runner's outputs as numbered rows, a rolling log: each line it runs is a row, and past the stored number the oldest are removed with their folders."""
+    """The runner's outputs as numbered rows, a rolling log: each line it runs is a row, and past the stored number the oldest are removed with their folders, one start at a time, so two runs started together never remove the same folder."""
 
     def __init__(self, outputs: CommandOutputs, settings: SettingRows) -> None:
         self.outputs, self.settings = outputs, settings
+        self.pruning = threading.Lock()
 
     def start(self, chain: str, command: str, folder: Path, caller: Caller, ran_in: str = "") -> CommandOutput:
         actor = caller.actor
         output = self.outputs.save(CommandOutput(chain=chain, command=command, session=caller.session, folder=str(folder), ran_in=ran_in), actor)
-        for old in self.outputs.surplus(self.settings.integer(ShellOptions.OUTPUT_COUNT)):
-            if Path(old.folder).is_dir():
-                shutil.rmtree(old.folder)
-            self.outputs.delete(old, actor)
+        with self.pruning:
+            for old in self.outputs.surplus(self.settings.integer(ShellOptions.OUTPUT_COUNT)):
+                if Path(old.folder).is_dir():
+                    shutil.rmtree(old.folder)
+                self.outputs.delete(old, actor)
         return output

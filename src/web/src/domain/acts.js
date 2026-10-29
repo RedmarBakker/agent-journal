@@ -6,7 +6,6 @@ import {isClosed} from "./row.js";
 const act = (name, label, more = {}) => ({name, label, asks: false, field: "how", danger: false, ...more});
 const DELETE = act("delete", "Delete", {danger: true});
 const UNSTARTED = ["open", "paused", "blocked"];
-const UNAPPROVED = ["draft", "ready", "reviewing"];
 const RUNNING = ["started", "blocked"];
 
 const ACTS = {
@@ -16,7 +15,7 @@ const ACTS = {
         DELETE,
     ],
     plans: (r) => [
-        ...(UNAPPROVED.includes(r.state) ? [act("approve", "Approve")] : []),
+        ...(r.state === "ready" ? [act("approve", "Approve")] : []),
         ...(["approved", "paused"].includes(r.state) ? [act("start", "Start")] : []),
         ...(RUNNING.includes(r.state) ? [act("pause", "Pause"), act("finish", "Finish")] : []),
         ...(isClosed(r) ? [] : [act("abandon", "Abandon", {danger: true})]),

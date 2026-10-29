@@ -8,6 +8,7 @@ from journal.events.rows.dump_choice import DumpChoice
 from journal.events.rows.dump_sorted import DumpSorted
 from journal.models.support.dump_item import DumpItem
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 
 TEXT = "text"
 
@@ -15,7 +16,7 @@ USER_TEXT = -2
 
 
 @dataclass(frozen=True)
-class Dump(Scoped):
+class Dump(Scoped, Commentable):
     """A set of material the user drops in one place, which the agent sorts by subject and files as rows of their own."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "summary", "outcome")
@@ -66,8 +67,11 @@ class Dump(Scoped):
     def open_items(self) -> list[str]:
         return [name for name in self.item_names if not self.item(name).resolved]
 
-    def arrived(self, time: float, user_origin: bool) -> "Dump":
-        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=user_origin))
+    def user_arrival(self, time: float) -> "Dump":
+        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=True))
+
+    def agent_arrival(self, time: float) -> "Dump":
+        return self.with_event(DumpArrived(environment_id=self.environment_id, time=time, dump_id=self.row_id, waiting=len(self.waiting()), user_origin=False))
 
     def posed_question(self, text: str, guesses: list[str], time: float) -> "Dump":
         return self.with_(question={"time": time, "text": text, "guesses": guesses}).with_event(DumpQuestion(environment_id=self.environment_id, time=time, dump_id=self.row_id))

@@ -23,7 +23,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "your wait on the deploy was lifted; check 1 is still running and you are informed when it passes; journal check remove 1 if you no longer want to hear about it"
+          "additionalContext": "your wait on the deploy was lifted; check 1 still runs. remove it if not needed: `journal check remove 1`"
         }
       },
       "typed": [],
@@ -39,7 +39,7 @@
       "name": "a stop back at work",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [],
       "nudges": [
@@ -86,10 +86,10 @@
       "name": "the answer releases the wait",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [
-        "[journal] question 1 is answered. `journal question show 1`, then act on it"
+        "[journal] question 1 is answered. read it with `journal question show 1` and act on it"
       ],
       "nudges": [
         "questions.question_answered",
@@ -115,7 +115,7 @@
       "name": "the report releases the wait",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\nworker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
+        "reason": "task 1 is in hand: carry on\nworker 1 (Lady Lovelace) reported. give it its next job with `journal worker send <n> \"<job>\"`, stop it, or mark it done"
       },
       "typed": [
         "[journal] wait over: worker 1, Lady Lovelace, reported",
@@ -136,7 +136,7 @@
       "name": "running a sequence",
       "answer": {
         "decision": "block",
-        "reason": "sequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
+        "reason": "sequence 6, step 1: tag it. run `journal sequence follow`, then `journal sequence next` when done"
       },
       "typed": [],
       "nudges": [
@@ -153,7 +153,7 @@
       "name": "the last step ends the sequence",
       "answer": {
         "decision": "block",
-        "reason": "sequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
+        "reason": "sequence 6, step 1: tag it. run `journal sequence follow`, then `journal sequence next` when done"
       },
       "typed": [],
       "nudges": [

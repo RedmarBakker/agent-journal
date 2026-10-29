@@ -1,6 +1,7 @@
 <script setup>
 import {computed, ref, watch} from "vue";
 import ChatMark from "../kit/ChatMark.vue";
+import GrowIn from "../kit/GrowIn.vue";
 import Turn from "./Turn.vue";
 import {focusTurn} from "../platform/view.js";
 import {store} from "../state/store.js";
@@ -40,13 +41,13 @@ watch(
 <template>
     <div class="thread-turn group" :data-ref="turn.key">
         <ChatMark :mark="mark" :open="unfolded" @click="toggle" @act="focusTurn(turn.data.continues)" />
-        <template v-if="unfolded">
+        <GrowIn :shown="unfolded">
             <div class="thread-group">
                 <template v-for="t in turn.turns" :key="t.key">
                     <Turn :turn="t" @reply="emit('reply', $event)" />
                 </template>
             </div>
-        </template>
+        </GrowIn>
     </div>
 </template>
 

@@ -22,4 +22,4 @@ class PlanReopening(Listener[Updated]):
             return
         for plan in [self.plans.find(ref.id) for ref in self.links.targets(task, PLAN_LINK)]:
             if plan.state == PlanState.FINISHED:
-                self.plans.save(plan.reopened(self.time_source.moment().timestamp()), event.actor)
+                self.plans.save(plan.unfinished("a task of it was opened again", self.time_source.moment().timestamp()), event.actor)

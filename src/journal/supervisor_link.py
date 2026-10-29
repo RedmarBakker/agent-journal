@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import time
+from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from journal.support.supervisor_reply import SupervisorReply
 from journal.support.supervisor_socket import SupervisorSocket
 from journal.repositories.environments import Environments
 from journal.support.time_source import TimeSource
+from journal.support.process_usage import ProcessUsage
 
 JOURNAL_PREFIX = "[journal]"
 LINE_ERASE = "\x15"
@@ -58,17 +60,11 @@ class SupervisorLink:
         return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.is_batching(environment_id)
 
     def is_batching(self, environment_id: int) -> bool:
-        if not self.typed.is_working(environment_id):
-            return self.is_batch_open(environment_id)
         return self.typed.is_recent(environment_id, self.batch_seconds()) or self.is_queue_open(environment_id)
-
-    def is_batch_open(self, environment_id: int) -> bool:
-        oldest = self.typed.batch_start(environment_id)
-        return oldest is not None and self.time_source.seconds() - oldest < self.batch_seconds()
 
     def is_queue_open(self, environment_id: int) -> bool:
         oldest = self.typed.queue_start(environment_id)
-        return self.typed.is_working(environment_id) and (oldest is None or self.time_source.seconds() - oldest < self.settings.integer(FOREGROUND_OPTION))
+        return self.typed.is_working(environment_id) and (oldest is None or not Timeout.seconds(self.settings.integer(FOREGROUND_OPTION)).started(oldest).is_elapsed(self.time_source.seconds()))
 
     def working(self, environment_id: int) -> None:
         self.typed.work(environment_id)
@@ -88,6 +84,12 @@ class SupervisorLink:
 
     def pending_lines(self, environment_id: int) -> str:
         return "\n".join(self.typed.pending_lines(environment_id))
+
+    def pending_remarks(self, environment_id: int) -> str:
+        return "\n".join(self.typed.pending_remarks(environment_id))
+
+    def pending_instructions(self, environment_id: int) -> str:
+        return "\n".join(self.typed.pending_instructions(environment_id))
 
     def disable(self, environment_id: int) -> None:
         self.typed.disable(environment_id)
@@ -167,6 +169,9 @@ class SupervisorLink:
 
     def memory(self, environment_id: int) -> dict[int, int]:
         return self._send(environment_id, "memory", {}).groups
+
+    def usage(self, environment_id: int, groups: set[int]) -> dict[int, ProcessUsage]:
+        return self._send(environment_id, "usage", {"groups": sorted(groups)}).usage
 
     def stop_service(self, environment_id: int, name: str) -> None:
         self._send(environment_id, "stop", {"name": name})

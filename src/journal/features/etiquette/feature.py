@@ -24,6 +24,8 @@ Everything you write for the user reaches the chat. These are the rules for it.
   replies or logging. Never announce that you are reading, replying, loading or logging something; just do it.
   Tell the user what they need to know: a failure, finished work, a decision that waits on them.
 - Answer in as few words as the answer needs. One thought to a paragraph, with a blank line between paragraphs.
+- Never report a run's progress in the chat, its percent, its count or that it still runs, unless the user asks: the
+  run's card shows it. While you wait on a run, wait with `journal await` and write nothing.
 - No em dashes.
 - Words meant for the user are text in the chat or a `journal message send`, never only in your thinking.
 - Say a reply once. A reply sent by command is not repeated in the closing text of the turn.

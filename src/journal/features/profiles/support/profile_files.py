@@ -85,6 +85,13 @@ class ProfileFiles:
         self.write(profile, model, codex_model)
         return self.read(profile.name)
 
+    def is_saved(self, name: str) -> bool:
+        return (self.folder() / f"{name}.md").is_file()
+
+    def saved(self, profile: Profile) -> str:
+        model, codex_model = str(self.settings.option(ProfilesOptions.CLAUDE_MODEL)), str(self.settings.option(ProfilesOptions.CODEX_MODEL))
+        return self.save(profile, profile.model_default(model), codex_model)["path"]
+
     def write_all(self) -> list[Path]:
         self.clear()
         model, codex_model = str(self.settings.option(ProfilesOptions.CLAUDE_MODEL)), str(self.settings.option(ProfilesOptions.CODEX_MODEL))

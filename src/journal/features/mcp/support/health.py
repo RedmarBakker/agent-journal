@@ -56,7 +56,6 @@ class Health:
         except Rejection as failed:
             return HealthReport(failure=str(failed))
         rows = {}
-        for line in output.splitlines():
-            if match := LINE.match(line.strip()):
-                rows[match["name"]] = ServerCatalogue(match["name"], match["how"].replace(" (HTTP)", "").replace(" (SSE)", ""), STATES[match["mark"]], match["words"].strip())
+        for match in (LINE.match(line.strip()) for line in output.splitlines() if LINE.match(line.strip())):
+            rows[match["name"]] = ServerCatalogue(match["name"], match["how"].replace(" (HTTP)", "").replace(" (SSE)", ""), STATES[match["mark"]], match["words"].strip())
         return HealthReport(rows)

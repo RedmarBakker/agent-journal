@@ -5,14 +5,16 @@ from typing import ClassVar
 from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
 from journal.events.rows.message_read import MessageRead
+from journal.events.rows.reply_posted import ReplyPosted
 from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 TERMINAL_LINE = "typed"
 
 
 @dataclass(frozen=True)
-class Message(Scoped):
+class Message(Scoped, Commentable):
     """A bubble of a chat: who wrote it, its words and files, and the session and kind of the agent whose chat it is in."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)
@@ -80,17 +82,21 @@ class Message(Scoped):
     def with_reading_request(self) -> "Message":
         return self.with_merged("data", {"reading_request": True})
 
-    def with_read_time(self, read_at: datetime, tool_use: int) -> "Message":
-        return self.with_(read_at=read_at, read_position=tool_use).with_event(MessageRead(environment_id=self.environment_id, time=read_at.timestamp(), row_id=self.id))
+    def user_text(self) -> str:
+        return self.text_body if self.is_user_message() else ""
+
+    def with_read_time(self, read_at: datetime, tool_use: int, commented_writing: str | None) -> "Message":
+        return self.with_(read_at=read_at, read_position=tool_use).with_event(MessageRead(environment_id=self.environment_id, time=read_at.timestamp(), row_id=self.id, user_text=self.user_text(), commented_writing=commented_writing))
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":
-        if target.thread == MessageThread.MAIN:
-            return cls(author=Author.AGENT, text=text, reply_target=target.id)
-        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread)
+        reply_event = ReplyPosted(reply_target=target.id)
+        if target.is_main_thread():
+            return cls(author=Author.AGENT, text=text, reply_target=target.id).with_event(reply_event)
+        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread).with_event(reply_event)
 
     def authored(self, session: str | None) -> "Message":
-        return self.with_(session=session) if self.is_new and self.session is None and self.thread == MessageThread.MAIN else self
+        return self.with_(session=session) if self.is_new and self.session is None and self.is_main_thread() else self
 
     def host_fields(self) -> dict:
         return {"text": self.text, "reply_target": self.reply_target, "idempotency": self.idempotency}
@@ -105,7 +111,7 @@ class Message(Scoped):
         return self.with_merged("data", {self.VIEWED: 1})
 
     def is_unsaved_user_message(self) -> bool:
-        return self.is_new and self.author == Author.USER and self.thread == MessageThread.MAIN
+        return self.is_new and self.is_user_message() and self.is_main_thread()
 
     def commented(self, name: str, user: int) -> "Message":
         comment = self.without_events().with_(author=Author.COLLEAGUE).with_merged("data", {self.COLLEAGUE_NAME: name, self.COLLEAGUE_USER: user, self.VIEWED: 0})
@@ -121,7 +127,7 @@ class Message(Scoped):
 
     @property
     def is_agents_reply(self) -> bool:
-        return self.reply_target is not None and self.author == Author.AGENT
+        return self.reply_target is not None and self.is_agent_message()
 
     @property
     def quoted_lines(self) -> int:
@@ -157,9 +163,18 @@ class Message(Scoped):
 
     @property
     def is_main_unread(self) -> bool:
-        return self.author == Author.USER and self.read_at is None and self.thread == MessageThread.MAIN
+        return self.is_user_message() and self.read_at is None and self.is_main_thread()
 
     @property
     def is_user_facing(self) -> bool:
-        return self.author == Author.AGENT and not self.acknowledgement and not self.is_thought
+        return self.is_agent_message() and not self.acknowledgement and not self.is_thought
+
+    def is_agent_message(self) -> bool:
+        return self.author == Author.AGENT
+
+    def is_user_message(self) -> bool:
+        return self.author == Author.USER
+
+    def is_main_thread(self) -> bool:
+        return self.thread == MessageThread.MAIN
 

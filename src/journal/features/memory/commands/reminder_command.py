@@ -22,9 +22,9 @@ class ReminderCommand(RecordCommand):
         self.repository, self.agents, self.clock = reminders, agents, clock
 
     def creation_arguments(self, creation) -> None:
-        creation.add_argument("--at", default="", help="a local date and time, such as 2026-10-24 09:30: quiet until then, told once then, and struck")
-        creation.add_argument("--every-minutes", type=int, default=0, help="send it again every so many minutes while it holds")
-        creation.add_argument("--every-tool-uses", type=int, default=0, help="send it again every so many tool uses while it holds")
+        creation.add_argument("--at", default="", help="a local date and time, such as 2026-10-24 09:30: quiet until then, sent once then, and struck")
+        creation.add_argument("--every-minutes", type=int, default=0, help="send it again every so many minutes while it is in force")
+        creation.add_argument("--every-tool-uses", type=int, default=0, help="send it again every so many tool uses while it is in force")
 
     def new(self, args: Namespace) -> Reminder:
         if args.every_minutes and args.every_tool_uses:
@@ -34,7 +34,7 @@ class ReminderCommand(RecordCommand):
         return Reminder(text=args.text, keywords=self.keywords(args), due_at=self.moment(args.at) if args.at else None, every_minutes=args.every_minutes, every_tool_uses=args.every_tool_uses)
 
     def for_caller(self, row: Reminder, caller: Caller) -> Reminder:
-        return row.sent(self.clock.time(), self.agents.session_agent(caller.session).tool_uses if caller.session else 0)
+        return row.sent(self.clock.time(), self.agents.newest_row(caller.agent_row).tool_uses if caller.has_agent_row() else 0)
 
     def listed(self, row: Reminder) -> str:
         return f"{row.text} (at {row.due_at.astimezone().strftime(Reminder.MOMENT)})" if row.due_at else row.text

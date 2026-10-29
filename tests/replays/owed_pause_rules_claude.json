@@ -5,7 +5,7 @@
       "name": "a stop before orienting",
       "answer": {
         "decision": "block",
-        "reason": "you stopped before running `journal environment overview` this session. run it first"
+        "reason": "you stopped without running `journal environment overview`. run it now"
       },
       "typed": [],
       "nudges": [
@@ -25,7 +25,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "context 90% full: weigh your 0 memories (journal memory list shows them). `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
+          "additionalContext": "writes wait at 90%: weigh 0 memories, `journal memory weigh <numbers> <weights>`, or `journal memory skip \"<why>\"`"
         }
       },
       "typed": [],
@@ -41,7 +41,7 @@
       "name": "a stop under the mark",
       "answer": {
         "decision": "block",
-        "reason": "you stopped before weighing your memories at the context mark, 90% full. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"` first"
+        "reason": "stop held at 90% of context: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [

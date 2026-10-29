@@ -2,6 +2,23 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.0
+
+- The journal decides which of its work must come before a hook or a command answers: only what refuses, speaks or writes a row the agent's next step reads runs first; the rest, its measurements, logs and most marks, runs just after the answer, so hooks answer sooner.
+- Every line the journal says to the agent is an instruction or a remark. A remark asks for nothing now, such as the etiquette lines, and rides on the agent's next hook that can carry a line, a stop, a prompt or a session start included, so none is lost when a turn ends first. Closing words written after a reply sent by command are named back to the agent at the stop.
+- A search shows in the chat as one mark naming its words and how many results it found; opened, each result is a line that opens its row, at most ten, the last opening the search page with them all.
+- A weighed memory's mark reads "weight set to", and the memory panel shows the weight as a number alone.
+- Each hook can show its duration in the terminal (faults.terminal_hook_times), for Claude and Codex.
+- A docked run awaited by the agent stays docked while it runs; the docked cards the viewer reads are only those of running commands.
+- Codex sessions drive the context marks from their own status, show their own status after a takeover, and run their shell lines through the journal's runner.
+- A plugin update installs only when Install is pressed in its dialog.
+- The suite prints its twenty slowest tests at its end.
+- The chat keeps following the newest bubble while you sit at the bottom: only your own scroll up, by wheel, touch, scrollbar or a scroll key, or a jump you ask for, lets go of the bottom; a row or a dock shrinking under you no longer does.
+- Two commands started at the same moment no longer leave one of them shown as running with nothing behind it, which could hold a restart.
+- The Developer tab lists the records each request read only while load counting is on.
+- Faster lookups for the docked cards, the hook path's entries and every scoped read, from three new indexes.
+- A team refusal reaches the join, sign-in and member checks as itself, and the next task is started and the plan moved on before a closing command answers.
+
 ## 4.67.6
 
 - An environment has one agent, whichever provider starts its session: a new Claude or Codex session takes over the environment's agent, with its stack and its task in hand, instead of making a second agent beside it. The earlier session takes the agent back when it is continued.

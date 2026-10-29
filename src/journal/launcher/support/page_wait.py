@@ -6,6 +6,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from journal.support.timeout import Timeout
 from journal.support.supervisor_socket import SupervisorSocket
 
 WAIT_LIMIT_SECONDS = 600.0
@@ -23,7 +24,7 @@ class PageWait:
 
     def wait(self) -> None:
         began = time.time()
-        while time.time() - began < WAIT_LIMIT_SECONDS:
+        while not Timeout.seconds(WAIT_LIMIT_SECONDS).started(began).is_elapsed(time.time()):
             url = self.is_responsive()
             if url:
                 self.shown(url)
@@ -56,7 +57,7 @@ class PageWait:
 
     def tab_open(self, url: str) -> bool:
         began = time.time()
-        while time.time() - began < TAB_WAIT_SECONDS:
+        while not Timeout.seconds(TAB_WAIT_SECONDS).started(began).is_elapsed(time.time()):
             try:
                 with urllib.request.urlopen(url + "journal/viewer", timeout=0.5) as reply:
                     if json.loads(reply.read()).get("open"):

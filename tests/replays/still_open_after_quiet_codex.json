@@ -21,8 +21,14 @@
     {
       "name": "fourteen quiet minutes",
       "answer": null,
-      "typed": [],
-      "nudges": [],
+      "typed": [
+        "[journal] your turn ended and nothing has arrived since; the stop check, run again, answers:",
+        "[journal] task 1, last logged 14 min ago. log it first: journal task log 1 \"<status>\""
+      ],
+      "nudges": [
+        "tasks.woken_with_work_in_hand",
+        "tasks.log_first_at_stop"
+      ],
       "stack": [
         "idle",
         "working"
@@ -32,10 +38,12 @@
       "name": "sixteen quiet minutes",
       "answer": null,
       "typed": [
-        "[journal] task 1 is still open: log where it stands or finish it"
+        "[journal] task 1 is still open: log where it stands or finish it",
+        "[journal] task 1, last logged 16 min ago. log it first: journal task log 1 \"<status>\""
       ],
       "nudges": [
-        "tasks.task_still_open"
+        "tasks.task_still_open",
+        "tasks.log_first_at_stop"
       ],
       "stack": [
         "idle",
@@ -45,8 +53,14 @@
     {
       "name": "twenty quiet minutes",
       "answer": null,
-      "typed": [],
-      "nudges": [],
+      "typed": [
+        "[journal] your turn ended and nothing has arrived since; the stop check, run again, answers:",
+        "[journal] task 1, last logged 20 min ago. log it first: journal task log 1 \"<status>\""
+      ],
+      "nudges": [
+        "tasks.woken_with_work_in_hand",
+        "tasks.log_first_at_stop"
+      ],
       "stack": [
         "idle",
         "working"

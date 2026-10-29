@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT, REMINDERS
@@ -43,7 +44,8 @@ class Memory(Feature[MemoryData]):
     conduct = (MemoryConduct,)
     helper_conduct = {AgentRole.WORKER: (WorkerMemoryConduct,)}
     states = (WeighingMemories,)
-    listeners = (ContextThresholdCheck, CompactionMarkClear, MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, StartMemory, DueReminderStrike, SingleUseMemoryStrike, MemoryTaskEnd, MemoryPlanEnd, MemoryMomentEnd)
+    answer_listeners = ((ContextThresholdCheck, Blocking.NEXT_DECISION), (CompactionMarkClear, Blocking.NEXT_DECISION), (StartMemory, Blocking.ANSWER))
+    listeners = (MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, DueReminderStrike, SingleUseMemoryStrike, MemoryTaskEnd, MemoryPlanEnd, MemoryMomentEnd)
     helper_listeners = {AgentRole.WORKER: (ContextThresholdCheck, CompactionMarkClear, MemoryFading)}
     data = (MemoryDataReader,)
     commands = (RuleCommand, ReminderCommand, MemoryCommand)

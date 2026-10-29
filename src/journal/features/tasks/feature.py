@@ -1,9 +1,11 @@
+from journal.events.blocking import Blocking
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT, JOURNAL, WORK
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
+from journal.features.tasks.listeners.testing_run_end import TestingRunEnd
 from journal.features.tasks.support.tasks_data_reader import TasksDataReader
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.features.tasks.commands.wait_command import WaitCommand
@@ -18,7 +20,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.skill import Skill
 from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
 from journal.features.tasks.listeners.paused_decline_clearing import PausedDeclineClearing
-from journal.features.tasks.listeners.user_words_decline import UserWordsDecline
+from journal.features.tasks.listeners.user_paused_work_decline import UserPausedWorkDecline
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
@@ -36,8 +38,8 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.listeners.delete_ended_wait_checks import DeleteEndedWaitChecks
 from journal.features.tasks.listeners.delete_passed_wait_check import DeletePassedWaitCheck
-from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
-
+from journal.features.tasks.seeds.unused_wait_checks import UnusedWaitChecks
+from journal.features.tasks.commands.worker_task_command import WorkerTaskCommand
 
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
@@ -48,15 +50,17 @@ class Tasks(Feature[TasksData]):
     states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)
     assigners = (DefaultTaskAssigner,)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
+    helper_commands = {AgentRole.WORKER: (WorkerTaskCommand,)}
     demands = (TasksDemands.PRIORITIES,)
-    options = (TasksOptions.AUTO, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
-    seeds = (LeftWaitChecks,)
-    listeners = (PausedDeclineClearing, UserWordsDecline, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
+    options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
+    seeds = (UnusedWaitChecks,)
+    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION), (PulledTaskMoves, Blocking.NEXT_DECISION))
+    listeners = (TestingRunEnd, PausedDeclineClearing, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_PAUSED_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
+    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.STOPPED_WITH_WORK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_PAUSED_TASK, TasksNudges.TEST_FAILURE, TasksNudges.TESTING_SUGGESTION, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED, TasksNudges.TASK_ARRIVED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
@@ -96,7 +100,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the current work is named
   again so drift is visible, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
   tasks.name_every and tasks.log_after). A log line starts a new version.
-- A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
+- A stop with current work names it again, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: at a stop, or when your task closes, with no task
   in hand the journal starts the next one for you: your own paused task whose wait ended first, then the next task of your plan or

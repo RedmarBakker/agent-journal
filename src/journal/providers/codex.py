@@ -1,5 +1,4 @@
 import json
-import json
 import os
 import re
 import shlex
@@ -11,10 +10,12 @@ from pathlib import Path
 from typing import Iterator
 
 from journal.support.hook_type import HookType
+from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.codex_row import CodexRow
+from journal.providers.support.codex_status_file import CodexStatusFile
 from journal.providers.support.profile_view import ProfileView
-from journal.providers.provider import Provider
-from journal.events.agent.peer_message import PeerMessage
+from journal.providers.provider import RUN_SCRIPT, Provider
+from journal.providers.support.peer_note import PeerNote
 from journal.providers.support.turn import Turn
 from journal.providers.support.capability import Capability
 from journal.providers.support.mcp_tables import McpTables
@@ -25,6 +26,7 @@ from journal.providers.support.patch_paths import PatchPaths
 from journal.support.file_edit import FileEdit
 from journal.support.file_read import FileRead
 from journal.support.file_write import FileWrite
+from journal.support.part import Part
 from journal.support.shell_line import ShellLine
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
@@ -33,8 +35,15 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
+from journal.support.decision import Decision
+from journal.support.hook import Hook
+from journal.support.response import Response
 
 SCRIPT_FLAGS = ("-c", "-lc")
+SHELL_TOOL = "Bash"
+# the flag a shell line rewritten for the journal's runner hands its line to run.sh with, and the four words of that rewrite
+RUNNER_FLAG = "--command"
+RUNNER_TOKEN_COUNT = 4
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
 CONTEXT_LIMIT_NONE = 0
 
@@ -49,7 +58,7 @@ class Codex(Provider):
     home = ".codex"
     settings_file = "hooks.json"
     decoders = {
-        "Bash": lambda input: Codex.shell_line(input.get("command", "")),
+        SHELL_TOOL: lambda input: Codex.shell_line(input.get("command", "")),
         "apply_patch": lambda input: FileEdit(PatchPaths.build(input), *LineCount.patch(input)),
         "write_file": lambda input: FileWrite(str(input.get("path", "") or input.get("file_path", "")), LineCount.lines(input.get("content"))),
         "read_file": lambda input: FileRead(str(input.get("path", "") or input.get("file_path", "")), bool(input.get("offset") or input.get("limit"))),
@@ -57,7 +66,8 @@ class Codex(Provider):
         "request_user_input": lambda input: UserQuestion(),
     }
     hook_kinds = tuple(hook for hook in HookType if hook not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
-    capabilities = frozenset()
+    capabilities = frozenset({Capability.CONTEXT_STATUS})
+    user_line_key = "systemMessage"
     profile_suffix = ".toml"
     default = False
     session_inbox = False
@@ -70,7 +80,14 @@ class Codex(Provider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._rollouts: dict[str, Path] = {}
+        self._rollouts: dict[tuple[Path, str], Path] = {}
+        self._rollout_status: dict[Path, CodexStatusFile] = {}
+
+    def status(self, session: str, home: Path) -> AgentStatus:
+        path = self.transcript(home, session)
+        if path is None:
+            return self.status_file(home).session_reading(session)
+        return self._rollout_status.setdefault(path, CodexStatusFile(path)).reading()
 
     @property
     def sessions(self) -> Path:
@@ -117,22 +134,32 @@ class Codex(Provider):
 
     @staticmethod
     def shell_line(command) -> ShellLine:
-        if not isinstance(command, list):
-            return ShellLine(str(command))
+        if isinstance(command, list):
+            return Codex.argv_line(command)
+        tokens = Part(str(command)).tokens()
+        return Codex.shell_line(tokens[-1]) if Codex.is_runner_tokens(tokens) else ShellLine(str(command))
+
+    @staticmethod
+    def argv_line(command: list) -> ShellLine:
         if len(command) == 3 and command[1] in SCRIPT_FLAGS:
             return ShellLine(str(command[2]), str(command[0]), str(command[1]))
         return ShellLine(shlex.join(str(part) for part in command))
+
+    @staticmethod
+    def is_runner_tokens(tokens: list[str]) -> bool:
+        return len(tokens) == RUNNER_TOKEN_COUNT and tokens[:-1] == ["sh", str(RUN_SCRIPT), RUNNER_FLAG]
 
     def profile_model(self, profile: ProfileView) -> str:
         return profile["codex_model"]
 
     def transcript(self, project: Path, session: str) -> Path | None:
-        stored = self._rollouts.get(session)
+        key = (self.sessions, session)
+        stored = self._rollouts.get(key)
         if stored and stored.is_file():
             return stored
         rows = next(self.sessions.glob(f"**/rollout-*-{session}.jsonl"), None)
         if rows:
-            self._rollouts[session] = rows
+            self._rollouts[key] = rows
         return rows
 
     def latest_session(self, project: Path, start: float) -> str:
@@ -189,7 +216,7 @@ class Codex(Provider):
     def turn_thoughts(self, project: Path, session: str) -> list[str]:
         return []
 
-    def peer_messages(self, line: dict) -> list[PeerMessage]:
+    def peer_messages(self, line: dict) -> list[PeerNote]:
         return []
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
@@ -198,6 +225,25 @@ class Codex(Provider):
 
     def launch_environment(self, runner: Path) -> dict[str, str]:
         return {}
+
+    def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
+        if decision.allowed and self.is_runner_line(hook):
+            return self.runner_run(hook, decision, copy_key)
+        return super().reply(hook, decision, copy_key)
+
+    @staticmethod
+    def is_runner_line(hook: Hook) -> bool:
+        return hook.is_pre_tool_use() and hook.tool == SHELL_TOOL and bool(Codex.shell_line(hook.input.get("command", "")).command)
+
+    def runner_run(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
+        response = super().reply(hook, decision, copy_key)
+        command = self.runner_command(self.shell_line(hook.input.get("command", "")).line_with_shell())
+        answer = {**response.body.get("hookSpecificOutput", {}), "hookEventName": hook.hook_type.value, "permissionDecision": "allow", "updatedInput": {"command": command}}
+        return Response(response.status, {**response.body, "hookSpecificOutput": answer})
+
+    @staticmethod
+    def runner_command(line: str) -> str:
+        return shlex.join(["sh", str(RUN_SCRIPT), RUNNER_FLAG, line])
 
     def resume(self, session: str) -> tuple[str, ...]:
         return ("resume", session)

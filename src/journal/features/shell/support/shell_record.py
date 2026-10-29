@@ -58,8 +58,8 @@ class ShellRecord:
     def moved(self, chain: str, part: str, folder: Path, caller: Caller) -> int:
         self.record(caller, MOVED, {"chain": chain, "part": part, "doing": self.labels.build(part), "file": str(folder)})
         output = self.outputs.save(self.outputs.chain_output(chain).backgrounded(), caller.actor)
-        if caller.session is not None:
-            self.events.moved(output, caller.session)
+        if caller.has_agent_row():
+            self.events.moved(output, caller)
         return output.row_id
 
     def ended(self, chain: str, status: int, folder: Path, last: str, caller: Caller) -> None:

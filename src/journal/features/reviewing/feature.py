@@ -34,7 +34,8 @@ class ReviewingFeature(Feature[ReviewingData]):
     states = (Reviewing,)
     helper_listeners = {AgentRole.REVIEWER: (ReviewerTestFailed, ReviewerTestPassed)}
     options = (ReviewingOptions.REVIEWER,)
-    commands = (ReviewCommand, ReviewerCommand)
+    commands = (ReviewerCommand,)
+    helper_commands = {AgentRole.REVIEWER: (ReviewCommand,)}
     data = (ReviewingDataReader,)
     listeners = (ReviewerStart, ReviewerRetirement, ReviewerLoss, ReviewerTestPassed, ReviewerTestFailed, ReviewReportSteps)
     conduct = (ReviewingConduct,)

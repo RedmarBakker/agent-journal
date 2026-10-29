@@ -11,4 +11,7 @@ class Stop(AgentEvent):
 
     prior_refusal: bool = False
 
+    def defers_remarks(self) -> bool:
+        return self.prior_refusal
+
 

@@ -1,0 +1,66 @@
+{
+  "nudges": true,
+  "steps": [
+    {
+      "name": "the agent pauses its own plan",
+      "answer": null,
+      "typed": [
+        "[journal] task 1 is open. take it up with `journal task start 1`",
+        "[journal] task 2 is open. take it up with `journal task start 2`",
+        "[journal] plan 1 approved",
+        "[journal] the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through"
+      ],
+      "nudges": [
+        "briefing.journal_ready",
+        "briefing.handle_the_journal_quietly",
+        "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
+        "voices.how_to_talk_to_the_user",
+        "tasks.task_opened",
+        "tasks.task_opened",
+        "plans.the_user_approved_the_plan",
+        "plans.name_the_test_commands"
+      ],
+      "stack": [
+        "idle"
+      ]
+    },
+    {
+      "name": "a stop with the agent's paused plan",
+      "answer": {
+        "decision": "block",
+        "reason": "paused: task 1. `journal task resume <n>`, or `journal task skip-paused` to take the open task"
+      },
+      "typed": [],
+      "nudges": [
+        "tasks.paused_work_to_choose"
+      ],
+      "stack": [
+        "idle",
+        "choosing_paused_work"
+      ]
+    },
+    {
+      "name": "the user pauses the plan",
+      "answer": null,
+      "typed": [],
+      "nudges": [
+        "plans.name_the_test_commands"
+      ],
+      "stack": [
+        "idle"
+      ]
+    },
+    {
+      "name": "a stop with the user's paused plan",
+      "answer": {},
+      "typed": [
+        "[journal] the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through"
+      ],
+      "nudges": [],
+      "stack": [
+        "idle"
+      ]
+    }
+  ]
+}

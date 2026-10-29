@@ -3,6 +3,7 @@ import {computed} from "vue";
 
 const COLOR = {
     started: "var(--progress)",
+    testing: "var(--tone-work)",
     blocked: "var(--blocking)",
     paused: "var(--paused)",
     delegated: "var(--delegated)",

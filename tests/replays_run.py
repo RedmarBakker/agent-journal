@@ -27,7 +27,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.engine.clock import Clock
 from journal.support.heartbeat import Heartbeat
-from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, tick_after
+from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, silent_tick
 from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER, context
 from tests.main_journal import main_journal
@@ -147,7 +147,7 @@ def the_clock_ticks(app, replay: Replay, provider: str) -> None:
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the header", "--brief", "the header names the shop"], USER)
-    tick = lambda silent: tick_after(app, silent)
+    tick = lambda silent: silent_tick(app, silent)
     hook_as(app, provider, "Stop")
     replay.step("the stop starts task 1")
     for name, silent in (("a minute", 60.0), ("half an hour", 1800.0), ("half an hour again", 1800.0)):
@@ -172,8 +172,8 @@ def test_clock_ticks_matches_its_record(journal, monkeypatch):
     replay, rows = played(f"the_clock_ticks_{provider}", app, monkeypatch, the_clock_ticks, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["the stop starts task 1"]["stack"] == ["idle", "working"], "the stop in auto mode starts the open task"
-    assert name_index["quiet for a minute"]["typed"] == [] and "task 1 is still open" in str(name_index["quiet for half an hour"]["typed"]) and name_index["quiet for half an hour again"]["typed"] == [], "the task in hand is named at half an hour, once inside the window"
-    assert "task 1 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and the paused task is asked after once inside the window"
+    assert name_index["quiet for a minute"]["typed"] == [] and "task 1 is still open" in str(name_index["quiet for half an hour"]["typed"]) and "task 1 is still open" not in str(name_index["quiet for half an hour again"]["typed"]), "the task in hand is named at half an hour, once inside the window"
+    assert name_index["a minute with a task paused"]["typed"] == [] and name_index["a minute more"]["typed"] == [], "and a paused task is asked after at the next stop, never on the clock"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -239,6 +239,48 @@ def test_a_queue_runs_to_merge_matches_its_record(journal, monkeypatch):
     steps = {s["name"]: s for s in replay.record()}
     assert steps["moves on after part 1"]["typed"] == [] and steps["moves on after part 2"]["typed"] == [], "a move inside the queue says nothing to the dispatcher"
     assert "[journal] worker 1 ready: task 3" in steps["reports once"]["typed"], "the worker reports once, at its queue's end"
+    assert rows == [], "the agent would have seen the same, and the record says the same"
+
+
+def a_plan_phase_goes_to_one_worker(app, replay: Replay, provider: str) -> None:
+    """The steps: a plan of two phases, approved, its first phase dispatched to one worker; the worker moves from the phase's first task to its second in silence and reports at the phase's end, the second phase left open."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    for n in (1, 2, 3):
+        console.run(["plan", "add", "1", f"part {n}", "--brief", f"1. part {n} is written"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "parts 1 and 2 are written"], USER)
+    console.run(["plan", "phase", "1", "two", "--when", "part 3 is written"], USER)
+    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
+    console.run(["plan", "todos", "1", "2", "3"], USER)
+    console.run(["plan", "ready", "1"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--plan", "1", "--phase", "1", "--changes", "the files of its tasks", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"], AGENT)
+    worker = Caller.worker("main", 1, "w1", "claude")
+    console.run(["clock-in"], worker)
+    replay.step("the plan's first phase dispatched to one worker")
+    console.run(["proof", "1", "part1.md:1"], worker)
+    console.run(["clock-out", "part 1 written"], worker)
+    app.runtime().deferred.drain()
+    replay.step("moves on to the phase's second task")
+    console.run(["proof", "1", "part2.md:1"], worker)
+    console.run(["clock-out", "parts 1 and 2 written"], worker)
+    app.runtime().deferred.drain()
+    replay.step("reports at the phase's end")
+
+
+def test_a_plan_phase_goes_to_one_worker_matches_its_record(journal, monkeypatch):
+    from journal.features.workers.support.worker_actions import WorkerActions
+    app, provider = journal
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
+    replay, rows = played(f"a_plan_phase_goes_to_one_worker_{provider}", app, monkeypatch, a_plan_phase_goes_to_one_worker, provider, nudges=True)
+    steps = {s["name"]: s for s in replay.record()}
+    assert steps["moves on to the phase's second task"]["typed"] == [], "a move inside the phase says nothing to the dispatcher"
+    assert "[journal] worker 1 ready: task 2" in steps["reports at the phase's end"]["typed"], "the worker reports once, at the phase's end"
+    assert "open" in app.console().run(["task", "show", "3"], AGENT).text.split("\n")[1], "the second phase is left for later"
+    assert "delegated" in app.console().run(["plan", "show", "1"], AGENT).text.split("\n")[0], "the plan sent to a worker is delegated"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -341,8 +383,7 @@ def test_changed_settings_keep_their_meaning_in_the_tool_workflow(journal, monke
     app, provider = journal
     replay, rows = played(f"tool_uses_with_changed_settings_{provider}", app, monkeypatch, tool_uses_with_changed_settings, provider, nudges=True)
     name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
-    assert name_index["read 1 while owed"]["answer"] == {} and f"reply due, message {number}: 1" in str(name_index["read 2 while owed"]["answer"]) and f"reply due, message {number}: 0" in str(name_index["read 3 while owed"]["answer"]), "with the setting changed, the countdown starts later and still ends on the last use"
-    assert "error" in name_index["read 4 while owed"]["answer"] and "error" in name_index["read 5 while owed"]["answer"], "and holds after four"
+    assert "error" not in name_index["read 4 while owed"]["answer"] and "error" in name_index["read 5 while owed"]["answer"], "and holds on the fifth"
     assert "in hand, 2 edits" in str(name_index["write 3"]["answer"]) and nudge_reached(app, str(name_index["write 4"]["answer"]), TasksNudges.LOG_REQUEST, edits=3, name="task 1") and "in hand, 4 edits" in str(name_index["write 5"]["answer"]) and name_index["write 6"]["answer"] == {} and "error" in name_index["write 7"]["answer"], "the task is named every two edits, the log asked at three and held at six"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
@@ -351,10 +392,10 @@ def test_tool_about_to_run_matches_its_record_on_the_inbox(journal, monkeypatch)
     app, provider = journal
     replay, rows = played(f"tool_uses_with_the_inbox_{provider}", app, monkeypatch, tool_uses_with_the_inbox, provider, nudges=True)
     name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
-    assert f"read due, message {number}: 3" in str(name_index["read 1"]["answer"]) and f"read due, message {number}: 1" in str(name_index["read 3"]["answer"]) and f"read due, message {number}: 0" in str(name_index["read 4"]["answer"]), "each tool use counts down the uses left before the writes wait, then names the hold"
-    assert "you have 1 unread messages" in str(name_index["a write at 17"]["answer"]), "and holds the write after five namings"
-    assert f"[!reply:{number}]" in str(name_index["a read while owed"]["answer"]) and "unread" not in str(name_index["a read while owed"]["answer"]), "the read message's reply line comes with the next tool use, and no word is asked for yet"
-    assert name_index["a journal command while owed"]["answer"] == {} and name_index["a look at its files"]["answer"] == {} and name_index["a read after the reply"]["answer"] == {}, "a read message has its grace of five uses before a word is asked for"
+    assert "1 unread messages" in str(name_index["a write at 17"]["answer"]), "and holds the write after five namings"
+    assert "--reply-to" in str(name_index["a read while owed"]["answer"]) and "unread" not in str(name_index["a read while owed"]["answer"]), "the read message's reply line comes with the next tool use, and no word is asked for yet"
+    graced = [str(name_index[step]["answer"]) for step in ("a journal command while owed", "a look at its files", "a read after the reply")]
+    assert not any("error" in answer or f"message {number}" in answer and "answered" not in answer for answer in graced), "a read message has its grace of five uses before a word is asked for"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -413,7 +454,7 @@ def test_the_phone_is_heard_as_the_user_is(journal, monkeypatch):
 
 def tick(app, silent: float) -> None:
     """A tick as the clock gives it, dispatched to every listener; the machine types what a state says on it."""
-    tick_after(app, silent)
+    silent_tick(app, silent)
 
 
 def working_rules(app, replay: Replay, provider: str) -> None:
@@ -619,7 +660,7 @@ def plan_rules(app, replay: Replay, provider: str) -> None:
     console.run(["plan", "cancel", "2"], USER)
     app.runtime().deferred.drain()
     replay.step("a second plan started and cancelled")
-    replay.step("a stop after", hook_as(app, provider, "Stop")[1])
+    replay.step("a stop after", hook_as(app, provider, "Stop", session="s2")[1])
 
 
 def awaiting_rules(app, replay: Replay, provider: str) -> None:
@@ -759,7 +800,50 @@ def outside_task_rules(app, replay: Replay, provider: str) -> None:
     replay.step("the task outside the plan is done")
 
 
-STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules}
+def paused_plan_rules(app, replay: Replay, provider: str) -> None:
+    """The steps: the agent pauses its own plan and stops with nothing in hand, so the plan's task is offered again; the plan started again, the user pauses it, and a stop offers nothing of it."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first", "--brief", "1. the first is written"], USER)
+    console.run(["plan", "add", "1", "second", "--brief", "1. the second is written"], USER)
+    console.run(["plan", "ready", "1"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["plan", "pause", "1"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("the agent pauses its own plan")
+    replay.step("a stop with the agent's paused plan", hook_as(app, provider, "Stop")[1])
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["plan", "pause", "1"], USER)
+    app.runtime().deferred.drain()
+    replay.step("the user pauses the plan")
+    replay.step("a stop with the user's paused plan", hook_as(app, provider, "Stop")[1])
+
+
+def running_output_rules(app, replay: Replay, provider: str) -> None:
+    """The steps: with a task open, a command moves to the background; a stop is refused naming it; the agent awaits it and a stop passes, the agent waiting; the command ends and the agent is told."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the next one", "--brief", "1. it is done"], AGENT)
+    folder = app.config.root / "c8"
+    folder.mkdir()
+    ShellVerbs(app).split("pytest -q", str(folder))
+    ShellVerbs(app).moved("c8", "pytest -q", str(folder / "out"))
+    replay.step("a command in the background")
+    replay.step("a stop with it running", hook_as(app, provider, "Stop")[1])
+    replay.step("the agent awaits it", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": 'journal await "the tests" --output 1'})[1])
+    console.run(["await", "the tests", "--output", "1"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("a stop while it waits", hook_as(app, provider, "Stop")[1])
+    ShellVerbs(app).ended("c8", 0, str(folder / "out"))
+    app.runtime().deferred.drain()
+    replay.step("it ended")
+
+
+STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules, "paused_plan_rules": paused_plan_rules, "running_output_rules": running_output_rules}
 
 
 @pytest.mark.parametrize("name", sorted(STATE_RULES))
@@ -896,16 +980,16 @@ def test_a_conduct_matches_its_record(journal, monkeypatch, name):
 
 def two_agents(app, replay: Replay, provider: str) -> None:
     """The steps: a second session starts in the environment of the first, which it ends, and awaits a worker; a message arrives, then the worker reports."""
-    hook_as(app, provider, "SessionStart")
+    hook_as(app, provider, "SessionStart", source="startup")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    hook_as(app, provider, "SessionStart", session="s2")
+    hook_as(app, provider, "SessionStart", session="s2", source="startup")
     second = Caller.agent("main", "s2", "claude")
     console.run(["environment", "overview"], second)
     console.run(["task", "create", "the parser", "--start"], second)
     dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast"], second)
     console.run(["worker", "wait", "1"], second)
-    hook_as(app, provider, "Stop")
+    hook_as(app, provider, "Stop", session="s2")
     replay.step("one idle, one awaiting")
     console.run(["message", "send", "how is it going?"], USER)
     app.runtime().deferred.drain()
@@ -937,7 +1021,7 @@ def test_a_second_session_in_one_environment_takes_the_first_ones_place_and_a_li
     assert name_index["a message arrives"]["typed"] == [f"[journal] new message {user_message_ids(app)[-1]}"], "named once for the environment, whatever marks, cards and the worker's job took the numbers before it"
     reported = name_index["the worker reports"]["typed"]
     assert reported[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and reported[1] == "[journal] worker 1 reported" and len(reported) == 2, "the awaiting agent is told and released, once"
-    assert app.container.get(SessionAgents).top("s2").task_id == 1 and app.container.get(SessionAgents).top("s1").name == "ended", "an environment keeps one session: the second took the first one's place"
+    assert app.container.get(SessionAgents).top("s2").task_id == 1 and not app.container.get(Agents).session_rows("s1"), "an environment keeps one session: the second took the first one's row"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -953,7 +1037,6 @@ def test_the_inbox_is_named_on_the_third_tool_use_across_a_stop_a_prompt_and_a_s
     app, provider = journal
     replay, rows = played(f"count_survives_events_{provider}", app, monkeypatch, tool_uses_across_events, provider, nudges=True)
     name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
-    assert f"read due, message {number}: 1" in str(name_index["read 3, the third use since the message"]["answer"]) and f"read due, message {number}: 0" in str(name_index["read 4"]["answer"]), "the uses since the message are counted across the stop, the prompt and the session start: the third is the last left, the fourth names the hold"
     assert rows == [], "the record says the same"
 
 
@@ -1004,7 +1087,7 @@ def test_a_session_in_a_worktree_works_its_environment_and_its_commit_closes_its
     assert "error" not in name_index["a write inside the worktree"]["answer"], "the agent's own worktree is its to write in"
     assert app.container.get(Tasks).find(1).state.value == "completed", "the trailer of a commit in the environment's own worktree closes its task at the commit"
     assert "task 1" not in str(name_index["the merge that lands it"]["answer"]), "the merge that lands the commit closes nothing a second time"
-    assert any(m.text.startswith("Working in the worktree main, on the branch worktree-main") for m in app.container.get(Messages).recent(30)), "the session is marked with its worktree and branch"
+    assert any(m.text.startswith("Working on a separate copy of the project, branch worktree-main") for m in app.container.get(Messages).recent(30)), "the session is marked with its worktree and branch"
     assert rows == [], "the record says the same"
 
 

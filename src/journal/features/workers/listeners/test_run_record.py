@@ -24,7 +24,7 @@ class TestRunRecord(Listener[RowResolved]):
         ref = Ref.parse(event.ref)
         if ref.type != CommandOutput.table():
             return
-        turns = self.rows.of_output(ref.id)
+        turns = self.rows.output_turns(ref.id)
         output = self.outputs.find(ref.id)
         if not turns or output.is_interrupted:
             return

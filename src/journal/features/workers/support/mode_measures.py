@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+from journal.support.timeout import Timeout
 from journal.features.workers.support.closeness import Closeness
 from journal.features.workers.support.fitness_score import FitnessScore
 from journal.features.workers.fitness_options import FitnessOptions
@@ -9,7 +10,7 @@ from journal.features.workers.support.measure_range import MeasureRange
 from journal.features.workers.support.measure_source import MeasureSource
 from journal.features.workers.support.measure_spec import MeasureSpec
 from journal.features.workers.support.active_worker_measure import ActiveWorkerMeasure
-from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE, WorkersOptions
 from journal.models.agent import Agent
 from journal.models.support.measure_state import MeasureState
 from journal.models.support.measure_states import MeasureStates
@@ -22,9 +23,7 @@ SHOWN = MeasureRange(float("inf"), float("inf"))
 BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4, label="Your own share of the code"), HIGH_QUEUE)
 COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0, label="Tasks completed an hour")
 MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3, label="Minutes the oldest message waited")
-MODE_SPECS = {
-    "solo": (MESSAGE_WAIT, COMPLETION_RATE),
-}
+OPEN_WORK_WAIT = MeasureSpec("open_work_wait_share", SHOWN, MeasureSource.open_work_wait_share, Closeness.share, 3, label="Share of the hour spent waiting with work open")
 ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3, label="Minutes the oldest worker waited"), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3, label="Your own share of the landed code"),
                       MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0, label="Minutes a place stood free"),
                       MeasureSpec("report_share", MeasureRange(0.5, 0.34), MeasureSource.report_share, Closeness.mean, 2, label="First reports per merged task"),
@@ -42,8 +41,13 @@ class ModeMeasures:
         line_minutes = self.settings.decimal(WorkersOptions.PLACE_OPENING_MINUTES) + LINE_DELAY_MINUTES
         orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, MESSAGE_WAIT, COMPLETION_RATE)
         worker_limit = self.settings.decimal(FitnessOptions.BUILDER_ACTIVE_WORKERS)
-        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), MESSAGE_WAIT, COMPLETION_RATE)
-        return {**MODE_SPECS, "builder": builder, "orchestrator": orchestrator}.get(mode, ())
+        open_work_wait = replace(OPEN_WORK_WAIT, range=MeasureRange(self.settings.decimal(FitnessOptions.OPEN_WORK_WAIT_FAIL), self.settings.decimal(FitnessOptions.OPEN_WORK_WAIT_PASS)))
+        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), open_work_wait, MESSAGE_WAIT, COMPLETION_RATE)
+        return {SOLO_MODE: (open_work_wait, MESSAGE_WAIT, COMPLETION_RATE), BUILDER_MODE: builder, ORCHESTRATOR_MODE: orchestrator}.get(mode, ())
+
+    def paired(self, measures: MeasureStates) -> list[tuple[MeasureState, MeasureSpec]]:
+        specs = {spec.key: spec for spec in self.specs(measures.mode)}
+        return [(state, specs[state.key]) for state in measures.states if state.key in specs]
 
     def worked(self, agent: Agent, mode: str, time: float) -> MeasureStates:
         previous = agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)
@@ -54,7 +58,7 @@ class ModeMeasures:
     def scored(measures: MeasureStates, mode_specs: tuple[MeasureSpec, ...], warmup_seconds: float) -> FitnessScore:
         specs = {spec.key: spec for spec in mode_specs}
         weighed = [(specs[state.key], specs[state.key].closeness(state.value, specs[state.key].range)) for state in measures.states if state.is_measured and state.key in specs and specs[state.key].weight]
-        if not weighed or measures.latest_time() - measures.started_at < warmup_seconds:
+        if not weighed or not Timeout.seconds(warmup_seconds).started(measures.started_at).is_elapsed(measures.latest_time()):
             return FitnessScore(measures.mode, 100, is_measured=False, version=SCORE_VERSION)
         score = round(100 * sum(spec.weight * closeness for spec, closeness in weighed) / sum(spec.weight for spec, _ in weighed))
         return FitnessScore(measures.mode, score, parts=tuple((spec.key, round(100 * closeness)) for spec, closeness in weighed), version=SCORE_VERSION)

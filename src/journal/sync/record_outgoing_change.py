@@ -52,8 +52,8 @@ class RecordOutgoingChange(Listener[ModelEvent]):
 
     def entered(self, event: Updated) -> None:
         rows = [event.model, *self.contents(event.model)]
-        rows = [*rows, *(link for link in self.links.touching_any(rows) if self.placement.is_sent(link))]
-        refs = self.renumbering.into_team(rows)
+        rows = [*rows, *(link for link in self.links.row_links(rows) if self.placement.is_sent(link))]
+        refs = self.renumbering.team_numbers(rows)
         if refs:
             rows = [self.tables.rows(row.table()).numbered([refs.get(row.table(), {}).get(row.row_id, row.row_id)])[0] for row in rows]
         for row in rows:
@@ -77,7 +77,9 @@ class RecordOutgoingChange(Listener[ModelEvent]):
     def team_person(self, team_key: str) -> Callable[[str], str]:
         team = self.accounts.keyed(team_key)
         home, theirs = Actor.user(self.account.user_number()).stamp, Actor.user(team.user_number()).stamp
-        return (lambda stamp: theirs if stamp == home else stamp) if team.key else (lambda stamp: stamp)
+        if not team.key:
+            return lambda stamp: stamp
+        return lambda stamp: theirs if stamp == home else stamp
 
     @staticmethod
     def names(event: ModelEvent, action: str) -> tuple[str, ...] | None:

@@ -1,7 +1,6 @@
 from journal.http.plans.timeline_moment import TimelineMoment
 from journal.models.plan import Plan
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.repositories.plans import Plans
 from journal.repositories.task_logs import TaskLogs
 
@@ -21,5 +20,5 @@ class PlanTimeline:
         if task.started_at:
             rows.append(TimelineMoment(task.started_at.timestamp(), "started", task.row_id, task.title))
         if task.completed_at:
-            rows.append(TimelineMoment(task.completed_at.timestamp(), "done" if task.state == TaskState.COMPLETED else "ended", task.row_id, task.title, task.outcome))
+            rows.append(TimelineMoment(task.completed_at.timestamp(), "done" if task.is_completed() else "ended", task.row_id, task.title, task.outcome))
         return rows

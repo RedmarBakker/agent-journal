@@ -22,5 +22,5 @@ class TestTurns(ScopedRepository[TestTurn]):
             rows = self.connection.all(*self.query().filter(state=TestTurnState.ENDED).filter_greater_equal("updated_at", since).grouped("outcome"))
         return {TestOutcome(row["value"]): row["total"] for row in rows}
 
-    def of_output(self, output: int) -> list[TestTurn]:
+    def output_turns(self, output: int) -> list[TestTurn]:
         return self.selected_globally(self.query().filter(output=output).order("id").limit(1))

@@ -117,3 +117,13 @@ test("the agents grid slides its cells to their new places when the order change
     expect(grid).toMatch(/<TransitionGroup tag="div" name="cell" class="agent-grid">/);
     expect(grid).toMatch(/\.cell-move \{\s*transition: transform/);
 });
+
+test("an agent's cell shows what its processes take of the machine once they are sampled, and nothing before", () => {
+    const worker = {id: 4, brief: "the parser", model: "sonnet", state: "running", created_at: at(1000), updated_at: at(1100), processes: {cpu_percent: 34.4, resident_bytes: 1.2 * 1024 ** 3}};
+    const [entry] = orchestraOf({environments: []}, [worker], null, "main", 1200);
+    expect(entry.facts.processes).toBe("CPU 34%, 1.2 GB");
+    const [unsampled] = orchestraOf({environments: []}, [{...worker, processes: null}], null, "main", 1200);
+    expect(unsampled.facts.processes).toBe(null);
+    const [small] = orchestraOf({environments: []}, [{...worker, processes: {cpu_percent: 2, resident_bytes: 300 * 1024 ** 2}}], null, "main", 1200);
+    expect(small.facts.processes).toBe("CPU 2%, 300 MB");
+});

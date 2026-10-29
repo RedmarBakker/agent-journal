@@ -22,6 +22,7 @@ import TextInput from "../kit/TextInput.vue";
 import Segmented from "../kit/Segmented.vue";
 import DocumentLibrary from "./DocumentLibrary.vue";
 import {useSlashFocus} from "../composables/slashFocus.js";
+import {useRowsShown} from "../composables/rowsShown.js";
 
 const props = defineProps({table: String});
 const kind = computed(() => meta(props.table));
@@ -75,6 +76,11 @@ const listed = computed(() =>
         (a, b) => (closedTab.value ? closedAt(b) - closedAt(a) : 0) || createdAt(b) - createdAt(a) || b.id - a.id
     )
 );
+
+// a collection's card names its members, which only a collection read by id carries
+const collectionIds = computed(() => (props.table === "collections" ? listed.value.map((r) => r.id) : []));
+const {rows: collectionsShown} = useRowsShown(() => "collections", collectionIds);
+const membersOf = (r) => collectionsShown.value.find((shown) => shown.id === r.id);
 
 const total = computed(() => (kind.value.filters.length ? COUNTS[filter.value] || COUNTS.every : COUNTS.every)());
 
@@ -150,7 +156,7 @@ function select(id) {
                     <div class="cards">
                         <template v-for="r in listed" :key="r.id">
                             <div class="card-wrap">
-                                <ResourceCard :resource="r" @click="go(table, r.id)" />
+                                <ResourceCard :resource="membersOf(r) || r" @click="go(table, r.id)" />
                                 <ResourceEnd :resource="r" />
                             </div>
                         </template>

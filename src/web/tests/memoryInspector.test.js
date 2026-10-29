@@ -32,7 +32,7 @@ test("a memory's inspector shows its text, its weight, when it was added and las
     expect(host.textContent).toContain("The user signs off with a single word");
     const facts = [...host.querySelectorAll(".memory-facts .fact")].map((fact) => [fact.querySelector(".label").textContent, fact.querySelector(".value").textContent.trim()]);
     expect(facts.map(([label]) => label)).toEqual(["Weight", "Added", "Last weighed"]);
-    expect(facts[0][1]).toBe("7 of 10");
+    expect(facts[0][1]).toBe("7");
     expect(facts.slice(1).map(([, value]) => value)).toEqual(["3d ago", "1h ago"]);
     expect(host.textContent).not.toContain("Keywords");
     const buttons = [...host.querySelectorAll("button")];

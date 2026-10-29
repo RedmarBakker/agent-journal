@@ -2,6 +2,7 @@ from typing import ClassVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from journal.support.timeout import Timeout
 from journal.models.scoped import Scoped
 
 
@@ -27,7 +28,7 @@ class Phone(Scoped):
         return self.ended_at is None and self.expires_at > time
 
     def is_presence_due(self, time: datetime) -> bool:
-        return self.last_visited_at is None or time - self.last_visited_at >= self.PRESENCE_INTERVAL
+        return self.last_visited_at is None or Timeout.seconds(self.PRESENCE_INTERVAL).started(self.last_visited_at).is_elapsed(time)
 
     def visit(self, time: datetime) -> "Phone":
         return self.with_(last_visited_at=time)
@@ -39,7 +40,7 @@ class Phone(Scoped):
         return bool(set(obligations) - set(self.pushed_refs()))
 
     def is_push_due(self, obligations: list[str], time: datetime) -> bool:
-        resting = self.subscription_failed_at is not None and time - self.subscription_failed_at < self.NOTIFICATION_RETRY_DELAY
+        resting = self.subscription_failed_at is not None and not Timeout.seconds(self.NOTIFICATION_RETRY_DELAY).started(self.subscription_failed_at).is_elapsed(time)
         return self.has_updates(obligations) and not resting
 
     def subscribed(self, endpoint: str, obligations: list[str]) -> "Phone":

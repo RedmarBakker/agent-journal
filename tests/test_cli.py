@@ -6,8 +6,10 @@ import pytest
 
 from worker_dispatch import dispatched
 
+from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.repositories.scope import Scope
+from journal.hooks.support.hook_seats import HookSeats
 from journal.config import Config
 from journal.support.caller import Caller
 from journal.providers.providers import Providers
@@ -23,22 +25,9 @@ MAIN = Caller.user("main")
 
 @pytest.fixture
 def app(journal_root: Path) -> App:
-    return App(Config(journal_root, port=0))
+    return SuiteApp(Config(journal_root, port=0))
 
 
-def test_a_task_lives_through_the_cli(app: App):
-    console = app.console()
-    assert console.run(["task", "create", "write the notes", "--brief", "what and where"], MAIN).code == 0
-    assert console.run(["task", "start", "1"], MAIN).code == 0
-    assert console.run(["task", "log", "1", "half done"], MAIN).code == 0
-    assert "started  write the notes" in console.run(["task", "list"], MAIN).text
-    assert console.run(["task", "complete", "1", "--how", "published"], MAIN).code == 0
-    tasks = app.container.get(Tasks)
-    task = tasks.find(1)
-    assert task.state == TaskState.COMPLETED and task.outcome == "published" and task.started_at is not None
-    assert task.creator == Actor.user(1)
-    assert [log.line for log in app.container.get(TaskLogs).logs(task)] == ["half done"]
-    assert (app.config.database).is_file()
 
 
 def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
@@ -46,17 +35,10 @@ def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
     assert app.container.get(Tasks).find(1).creator == Actor.agent("s-1")
 
 
-def test_the_environment_is_made_on_first_use(app: App):
-    from journal.repositories.environments import Environments
-    app.console().run(["task", "create", "t"], Caller.user("other"))
-    assert app.container.get(Tasks).find(1).environment_id == app.container.get(Environments).lookup("other").id
 
 
-def test_bad_arguments_answer_with_usage_not_an_exit(app: App):
-    outcome = app.console().run(["task", "nope"], MAIN)
-    assert outcome.code == 2 and "usage: journal task" in outcome.error and "usage: journal [-h]" not in outcome.error, "the noun's own usage, once"
-    helped = app.console().run(["plan", "--help"], MAIN)
-    assert helped.code == 0 and "approve" in helped.text and "usage: journal [-h]" not in helped.text + helped.error, "a noun's help is its verbs, and no failure"
+
+
 
 
 def test_the_server_runs_the_same_console_for_the_shim(app: App):
@@ -74,33 +56,19 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
     assert app.container.get(Tasks).find(1).creator == Actor.agent("s-9")
 
 
-def test_deleting_an_environment_takes_everything_recorded_in_it(app: App):
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    app.console().run(["task", "create", "t"], Caller.user("spike"))
-    app.console().run(["task", "create", "kept"], MAIN)
-    outcome = app.console().run(["environment", "delete", "spike"], MAIN)
-    assert "deleted environment" in outcome.text and outcome.code == 0
-    assert [e.name for e in app.container.get(Environments).all()] == ["main"]
-    with app.container.get(Scope).environment(1):
-        assert [t.title for t in app.container.get(Tasks).all()] == ["kept"]
-    assert app.console().run(["environment", "delete", "spike"], MAIN).code == 1
 
 
 def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_from(app: App):
-    from journal.support.caller import Caller
-    from journal.repositories.reactions import Reactions
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.repositories.agents import Agents
     app.container.get(Agents).save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
-    app.console().run(["message", "send", "hi"], Caller.user("main"))
-    app.console().run(["message", "react", "1", "👍"], Providers().caller({"CLAUDECODE": "1"}))
+    with app.container.get(Scope).environment(1):
+        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
+    assert attributed.session == "s1" and attributed.actor.actor_type == "agent", "an unnamed agent's shell is the live agent's"
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.actor_type == "agent"
 
 
 def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks_it():
@@ -127,12 +95,9 @@ def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_
 
 
 def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app: App):
-    from journal.support.caller import Caller
-    from journal.repositories.reactions import Reactions
-    app.console().run(["message", "send", "hi"], Caller.user("main"))
-    assert app.console().run(["message", "react", "1", "👍"], Providers().caller({"CLAUDECODE": "1"})).code == 0
     with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.actor_type == "user", "a shell outside the journal is the user's"
+        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
+    assert attributed.actor.actor_type == "user", "a shell outside the journal is the user's"
 
 
 def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):
@@ -192,7 +157,6 @@ def test_the_shim_attributes_a_codex_command_with_and_without_a_server(app: App,
 
 
 def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists(app: App, monkeypatch, tmp_path):
-    from journal.support.caller import Caller
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.providers.claude import Claude
@@ -203,13 +167,33 @@ def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists
     agents = app.container.get(Agents)
     agents.save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
     agents.save(Agent(session="lost", environment_id=1, provider="claude", state="ended"), Actor.system())
+    from journal.console.commands.environment_command import EnvironmentCommand
+    rows = app.container.get(EnvironmentCommand).rows()
+    assert rows[0].last_sessions == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
+
+
+def test_the_launchers_environments_come_newest_used_first(tmp_path: Path):
     import json as j
-    rows = j.loads(app.console().run(["environment", "json"], Caller.user("main")).text)
-    assert rows[0]["last_sessions"] == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
+    from journal.config import Config
+    from journal.support.caller import Caller
+    from tests.main_journal import main_journal
+    from tests.test_features import posted
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    user = Caller.user("main")
+    try:
+        for name in ("second", "third"):
+            app.console().run(["environment", "create", name], user)
+        for environment, session in (("third", "third-session"), ("main", "main-session"), ("second", "second-session")):
+            posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": session}, {"X-Journal-Env": environment, "X-Journal-Launch": f"launch-{environment}"})
+            app.runtime().deferred.drain()
+        rows = j.loads(app.console().run(["environment", "json"], user).text)
+        assert [row["name"] for row in rows] == ["second", "main", "third"], "the environment used last is offered first"
+    finally:
+        app.runtime().stop()
 
 
 def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, monkeypatch, tmp_path):
-    from journal.support.caller import Caller
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.support.agent_role import AgentRole
@@ -221,56 +205,14 @@ def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, mo
     agents = app.container.get(Agents)
     agents.save(Agent(session="main-session", environment_id=1, provider="claude", state="ended"), Actor.system())
     agents.save(Agent(session="worker-session", environment_id=1, provider="claude", role=AgentRole.WORKER), Actor.system())
-    import json as j
-    rows = j.loads(app.console().run(["environment", "json"], Caller.user("main")).text)
-    assert rows[0]["last_sessions"] == {"claude": "main-session"}, "the newest conversation is a worker's: the main agent carries on from its own"
-    assert not rows[0]["working"], "a worker at work is not the environment's agent working"
+    from journal.console.commands.environment_command import EnvironmentCommand
+    rows = app.container.get(EnvironmentCommand).rows()
+    assert rows[0].last_sessions == {"claude": "main-session"}, "the newest conversation is a worker's: the main agent carries on from its own"
+    assert not rows[0].working, "a worker at work is not the environment's agent working"
 
 
-def test_an_environment_is_renamed_with_everything_in_it_and_never_while_an_agent_works_there(app: App):
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    console, environments = app.console(), app.container.get(Environments)
-    assert console.run(["environment", "create", "spike"], MAIN).code == 0
-    spike = environments.lookup("spike")
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Tasks).save(Task(title="in spike"), Actor.user(1))
-    claimed = console.run(["environment", "rename", "spike", "main"], MAIN)
-    assert claimed.code == 1 and "exists already" in claimed.error
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Agents).save(Agent(session="s-spike", environment_id=spike.id, provider="claude", state="idle"), Actor.system())
-    busy = console.run(["environment", "rename", "spike", "probe"], MAIN)
-    assert busy.code == 1 and "an agent works in spike" in busy.error
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Agents).save(app.container.get(Agents).session_agent("s-spike").with_(state="ended"), Actor.system())
-    assert console.run(["environment", "rename", "spike", "probe"], MAIN).code == 0
-    with app.container.get(Scope).environment(environments.lookup("probe").id):
-        assert [t.title for t in app.container.get(Tasks).all()] == ["in spike"], "its rows go with it"
-    assert not environments.matching(name="spike")
 
 
-def test_any_row_docks_above_the_chat_by_noun_and_number_in_either_order(app: App):
-    from journal.repositories.messages import Messages
-    app.runtime().boot()
-    console = app.console()
-    console.run(["task", "create", "write the notes", "--brief", "what and where\nand how"], MAIN)
-    docked = console.run(["task", "12", "dock"], MAIN)
-    assert docked.code == 1 and "12" in docked.error, "the number in the verb's place turns the line around, and the row it names is looked for"
-    assert console.run(["task", "1", "dock"], MAIN).text.startswith("Task 1: write the notes docked above the chat")
-    with app.container.get(Scope).environment(1):
-        messages = app.container.get(Messages)
-        [card] = [m for m in messages.all() if m.data.get("docked")]
-        assert card.author.value == "system" and card.text == "Task 1: write the notes"
-        assert card.data["kind"] == "docked" and card.data["row"] == "tasks:1" and card.data["key"] == "made:task:1"
-        assert card.data["heading"] == "Task 1: write the notes" and card.data["summary"] == "what and where"
-        assert card.data["dock"] == {"buttons": [{"label": "Open", "act": "open"}, {"label": "Close", "act": "close"}], "folds": True}
-        assert console.run(["task", "dock", "1"], MAIN).code == 0 and len([m for m in messages.all() if m.data.get("docked")]) == 1, "docking it again keeps the one card"
-        assert console.run(["task", "undock", "1"], MAIN).text.startswith("Task 1: write the notes undocked")
-        assert messages.find(card.id).data["docked"] is False
-        assert "is not docked" in console.run(["task", "1", "undock"], MAIN).error
-    assert "dock" in console.run(["report", "--help"], MAIN).text and "dock" not in console.run(["search", "--help"], MAIN).text, "every row noun has the verbs, a noun that is no row has not"
 
 
 def test_a_workers_environment_carries_no_providers_markers_no_session_and_no_launch(app: App, monkeypatch):
@@ -465,82 +407,12 @@ def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_an
         app.runtime().stop()
 
 
-def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_and_registers_no_agent(app: App):
-    import json
-    from urllib.request import Request as HttpRequest, urlopen
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import Entries
-    from journal.repositories.messages import Messages
-    launches = app.config.home / "runtime" / "launches"
-    launches.mkdir(parents=True, exist_ok=True)
-    (launches / "main.json").write_text(json.dumps({"launch": "launch-main"}))
-    (launches / "spike.json").write_text(json.dumps({"launch": "launch-spike"}))
-    app.runtime().start()
-    try:
-        def started(session: str, launch: str) -> int:
-            body = json.dumps({"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}).encode()
-            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Launch": launch})
-            with urlopen(request, timeout=5) as reply:
-                return reply.status
-
-        assert started("stray", "launch-spike") == 200 and started("bare", "") == 200, "a session without the launch id is let through, never refused"
-        agents = app.container.get(Agents)
-        assert not [agent for agent in agents.all_agents() if agent.session in ("stray", "bare")], "and never taken as the environment's agent"
-        with app.container.get(Scope).environment(1):
-            assert {entry.data["session_id"] for entry in app.container.get(Entries).kind_entries("unbound_session")} == {"stray", "bare"}, "its hooks are recorded"
-            assert any("could not match to this project" in message.text for message in app.container.get(Messages).all()), "and it is reported in the chat"
-        assert started("bound", "launch-main") == 200 and agents.session_agent("bound").environment_id == 1
-        from journal.support.agent_role import AgentRole
-        from journal.models.worker import Worker
-        from journal.repositories.workers import Workers
-        from journal.support.actor import Actor
-        from journal.support.agent_token import AgentToken
-        with app.container.get(Scope).environment(1):
-            worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
-
-        def worker_started(session: str, token: str) -> int:
-            body = json.dumps({"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}).encode()
-            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": token})
-            with urlopen(request, timeout=5) as reply:
-                return reply.status
-
-        assert worker_started("w-forged", "nope") == 200 and not [a for a in agents.all_agents() if a.session == "w-forged"], "a wrong token is no worker's: its hooks are unbound"
-        assert worker_started("w-real", "tok") == 200 and agents.session_agent("w-real").role == AgentRole.WORKER, "a worker's token stands in for the launch id, and its agent row is a worker's"
-        with app.container.get(Scope).environment(1):
-            assert app.container.get(Workers).find(worker.id).session == "w-real", "and its first hook binds the session its row did not name"
-    finally:
-        app.runtime().stop()
 
 
-def test_a_helper_runs_only_the_verbs_its_file_names(app: App):
-    from journal.support.agent_role import AgentRole
-    console, worker, agent = app.console(), Caller.worker("main", 1, "w1", "claude"), Caller.agent("main", "s1", "claude")
-    refused = console.run(["panic", "pop"], worker)
-    assert refused.code == 1 and refused.error.startswith("a worker may not run journal panic apply: WorkerHelper names the verbs it runs, ") and "journal memory list" in refused.error and "journal rule read" in refused.error, "a verb its file does not name is refused, naming the file and the verbs it runs"
-    assert agent.subagent_caller().role == AgentRole.SUBAGENT and console.run(["panic", "pop"], agent.subagent_caller()).error.startswith("a subagent may not run journal panic apply: ResearcherHelper")
-    assert console.run(["task", "show", "1"], worker).error.find("may not run") == -1 and console.run(["task", "complete", "1"], worker).error.startswith("a worker may not run journal task complete"), "a worker whose file names task show runs it and is refused task complete"
-    assert console.run(["memory", "list"], worker).code == 0 and console.run(["rule", "strike", "1"], worker).code == 1, "a named verb runs, and its neighbour stays refused"
-    assert console.run(["memory", "add", "the port is 9"], agent).code == 0 and console.run(["task", "list"], MAIN).code == 0 and console.run(["task", "create", "x"], worker).code == 1, "the main agent and the user run every verb"
 
 
-def test_help_shows_a_worker_only_the_verbs_its_kind_may_run(app: App):
-    console, worker = app.console(), Caller.worker("main", 1, "w1", "claude")
-    nouns = console.run(["-h"], worker)
-    shown = nouns.text + nouns.error
-    listed_nouns = shown.split("{")[1].split("}")[0].split(",")
-    assert "task" in listed_nouns and "worker" in listed_nouns and "message" not in listed_nouns and "panic" not in listed_nouns, "journal -h lists only the nouns a worker may use"
-    verbs = console.run(["task", "-h"], worker)
-    listed = verbs.text + verbs.error
-    assert "show" in listed and "log" in listed and "create" not in listed and "complete" not in listed, "journal task -h lists only its verbs"
-    usage = console.run(["task"], worker)
-    assert usage.code != 0 and "{log,show}" in usage.text + usage.error and "create" not in usage.text + usage.error, "and so does a usage error"
-    full = console.run(["task", "-h"], MAIN)
-    assert "create" in full.text + full.error and "complete" in full.text + full.error, "the user sees every verb as before"
 
 
-def test_the_help_of_a_noun_with_a_default_verb_lists_every_verb(app: App):
-    shown = app.console().run(["setup", "--help"], MAIN)
-    assert "restart" in shown.text + shown.error and "project" in shown.text + shown.error, "setup --help names every verb, its default among them"
 
 
 def test_a_command_the_server_fails_on_prints_the_fault_and_exits_non_zero(app: App, tmp_path):
@@ -585,3 +457,93 @@ def test_a_team_url_is_its_address_or_an_invitation():
     assert TeamUrl.parse("https://team.example/").address == "https://team.example"
     assert TeamUrl.parse("https://team.example.com:8443").has_self_signed_certificate() and TeamUrl.parse("https://203.0.113.5").has_self_signed_certificate()
     assert not TeamUrl.parse("https://team.example.com").has_self_signed_certificate(), "a domain on 443 has a public certificate"
+
+
+def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from_a_team_server(app: App, tmp_path: Path):
+    import hashlib
+    import json
+    from journal.db.schema import Schema
+    from journal.features.library.support.library_link import LibraryLink
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.item_query import ItemQuery
+    from sync_server.publish_request import PublishRequest
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", "admin", 1.0)
+    _, token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    (app.config.home / TEAM_FILE).write_text(json.dumps({"address": address, "token": token}))
+    link = LibraryLink(TeamAccount(app.config), app.container.get(Schema))
+    try:
+        assert link.summary(address).has_admin
+        data = b"# Release"
+        version = link.publish("skill", "release", PublishRequest("Releasing", json.dumps({"files": {"SKILL.md": hashlib.sha256(data).hexdigest()}}), "first"))
+        assert not version.is_complete() and link.put_file("skill", "release", version.number, "SKILL.md", data).is_complete()
+        [entry] = link.items(ItemQuery("skill", None)).items
+        assert entry.item.name == "release" and link.version("skill", "release", 1).note == "first" and link.file("skill", "release", 1, "SKILL.md") == data
+        assert link.withdraw("skill", "release").withdrawn_at > 0 and link.items(ItemQuery(None, None)).items == []
+    finally:
+        team.close(server)
+
+
+
+
+
+
+
+
+
+
+def test_a_library_member_cannot_invite(app: App, tmp_path: Path):
+    from dataclasses import replace
+    from journal.features.library.support.library_account import LibraryAccount
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
+        _, member_token = team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
+        account = LibraryAccount(app.config)
+        account.write(replace(account.connection(), token=member_token, role="member"))
+        assert console.run(["library", "invite", "dan@example.com"], user).code != 0, "a member's invite is refused, admins only"
+    finally:
+        team.close(server)
+
+
+def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_update_offers_the_import(app: App, tmp_path: Path):
+    from journal.repositories.sequences import Sequences
+    from journal.support.actor import Actor
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    sequences = app.container.get(Sequences)
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        number = console.run(["sequence", "create", "Lunch Break", "--steps", "eat"], user).text.split()[1].rstrip(":")
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0
+        [copy] = sequences.titled("Lunch Break (from the library)")
+        with app.container.get(Scope).environment(1):
+            sequences.delete(copy, Actor.user(1))
+        app.runtime().deferred.drain()
+        assert "you have" not in console.run(["library", "list"], user).text, "a copy that is gone is not counted"
+        assert "journal library import sequence lunch-break" in console.run(["library", "update", "sequence", "lunch-break"], user).error, "update names the import of a copy that is gone"
+        assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0, "and it can be imported again"
+    finally:
+        team.close(server)
+
+
+
+

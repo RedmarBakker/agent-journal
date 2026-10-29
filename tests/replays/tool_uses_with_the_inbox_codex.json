@@ -36,7 +36,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 3"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 4 more"
         }
       },
       "typed": [],
@@ -53,7 +53,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 2"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 3 more"
         }
       },
       "typed": [],
@@ -70,7 +70,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 1"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 2 more"
         }
       },
       "typed": [],
@@ -87,7 +87,24 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 1 more"
+        }
+      },
+      "typed": [],
+      "nudges": [
+        "messages.writes_held_soon_until_read"
+      ],
+      "stack": [
+        "idle",
+        "working"
+      ]
+    },
+    {
+      "name": "read 5",
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -100,29 +117,11 @@
       ]
     },
     {
-      "name": "read 5",
-      "answer": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
-        }
-      },
-      "typed": [],
-      "nudges": [
-        "messages.next_write_held_until_read"
-      ],
-      "stack": [
-        "idle",
-        "working",
-        "demand_block"
-      ]
-    },
-    {
       "name": "read 6",
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -140,7 +139,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -158,7 +157,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -176,7 +175,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -194,7 +193,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -212,7 +211,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -230,7 +229,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -248,7 +247,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -266,7 +265,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -284,7 +283,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -302,7 +301,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
         }
       },
       "typed": [],
@@ -318,7 +317,7 @@
     {
       "name": "a write at 17",
       "answer": {
-        "error": "you have 1 unread messages. `journal message unread` before any other write"
+        "error": "1 unread messages. run `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [
@@ -335,7 +334,8 @@
       "answer": null,
       "typed": [],
       "nudges": [
-        "messages.answer_the_message_read"
+        "messages.answer_the_message_read",
+        "messages.reply_by_command"
       ],
       "stack": [
         "idle",
@@ -348,7 +348,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "reply with [!reply:3] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
+          "additionalContext": "answer message 3: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory\nreply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn"
         }
       },
       "typed": [],
@@ -360,7 +360,15 @@
     },
     {
       "name": "a journal command while owed",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "allow",
+          "updatedInput": {
+            "command": "sh <package>/journal/hooks/run.sh --command 'journal task list'"
+          }
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [
@@ -382,7 +390,9 @@
       "name": "the reply",
       "answer": null,
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "messages.reply_in_the_chat"
+      ],
       "stack": [
         "idle",
         "working"
@@ -390,7 +400,12 @@
     },
     {
       "name": "a read after the reply",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "message 3 answered: reply 4. go on; closing text is not sent"
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [

@@ -16,9 +16,9 @@ class HubRows:
         team, colon, n = text.rpartition(":")
         if not colon:
             return int(n)
-        named = [name for name in names if name and name == team]
-        if not named:
+        matching_names = [name for name in names if name and name == team]
+        if not matching_names:
             raise Rejection(f"no team is named {team}")
-        if len(named) > 1:
+        if len(matching_names) > 1:
             raise Rejection(f"more than one team is named {team}")
         return int(n)

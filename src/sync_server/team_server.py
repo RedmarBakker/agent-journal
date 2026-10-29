@@ -42,8 +42,13 @@ from sync_server.push_handler import PushHandler
 from sync_server.push_results import PushResults
 from sync_server.backup_handler import BackupHandler
 from sync_server.server_backups import ServerBackups
+from sync_server.item_file_place import ITEMS_FOLDER
 from sync_server.server_clock import ServerClock
 from sync_server.team_request_handler import TeamRequestHandler
+from sync_server.library import Library
+from sync_server.library_routes import LibraryRoutes
+from sync_server.db.item_rows import ItemRows
+from sync_server.db.item_version_rows import ItemVersionRows
 
 DATABASE = "team.db"
 BACKUPS = "backups"
@@ -67,6 +72,8 @@ class TeamServer:
         self.ranges = IdRanges(self.store, IdBlockRows(self.store), self.details)
         self.blocks = BlocksHandler(self.ranges, self.devices)
         self.files = FileStore(data / FILES)
+        self.library = Library(self.store, ItemRows(self.store), ItemVersionRows(self.store), self.files)
+        self.library_routes = LibraryRoutes(self)
         self.leases = Leases(self.store, LeaseRows(self.store), self.accounts)
         self.departure = Departure(self.store, self.log, self.leases, self.files, self.accounts, self.clock)
         self.admins = AdminHandler(self.devices, self.accounts, self.invitations, self.clock, self.details, self.departure)
@@ -78,7 +85,7 @@ class TeamServer:
         self.people = PeopleHandler(self.accounts, self.devices)
         self.agent_views = AgentViews(self.devices)
         self.copies = CopyHandler(self.store, self.log, self.devices, self.clock)
-        self.backups = ServerBackups(self.store, data / BACKUPS)
+        self.backups = ServerBackups(self.store, data / BACKUPS, data / FILES / ITEMS_FOLDER)
         self.upgrades = UpgradeHandler(self.store, self.log, self.ranges, self.devices, self.leases, self.details, self.clock, self.backups)
         self.backup_requests = BackupHandler(self.devices, self.backups)
 

@@ -1,6 +1,8 @@
 import time
 from dataclasses import dataclass
 
+from journal.support.timeout import Timeout
+
 
 @dataclass(frozen=True)
 class PlanStatus:
@@ -16,12 +18,12 @@ class PlanStatus:
     moved_at: float
     blocked: int = 0
 
-    def line(self, now: float) -> str:
+    def line(self, current_time: float) -> str:
         phase = f"phase {self.phase} of {self.phases}, " if self.phases else ""
-        return f"plan {self.plan_id}, {self.title}: {phase}{self.done} of {self.total} tasks done, {self.unassigned} open with no worker, last moved {int((now - self.moved_at) // 60)} minutes ago"
+        return f"plan {self.plan_id}, {self.title}: {phase}{self.done} of {self.total} tasks done, {self.unassigned} open with no worker, last moved {int((current_time - self.moved_at) // 60)} minutes ago"
 
-    def is_stalled(self, now: float, seconds: float) -> bool:
-        return now - self.moved_at >= seconds
+    def is_stalled(self, current_time: float, seconds: float) -> bool:
+        return Timeout.seconds(seconds).started(self.moved_at).is_elapsed(current_time)
 
     def moved_line(self) -> str:
         return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.moved_at))

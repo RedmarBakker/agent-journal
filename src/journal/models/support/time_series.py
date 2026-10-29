@@ -1,3 +1,6 @@
+from journal.support.timeout import Timeout
+
+
 SHA_COUNT = 50
 
 
@@ -10,8 +13,8 @@ class TimeSeries:
 
     @staticmethod
     def total(pairs: tuple[tuple[float, int], ...], moment: float, seconds: float) -> int:
-        return sum(count for time, count in pairs if moment - seconds < time <= moment)
+        return sum(count for time, count in pairs if Timeout.seconds(seconds).started(time).is_active(moment))
 
     @staticmethod
     def count(pairs: tuple[tuple[float, int], ...], moment: float, seconds: float) -> int:
-        return sum(1 for time, _ in pairs if moment - seconds < time <= moment)
+        return sum(1 for time, _ in pairs if Timeout.seconds(seconds).started(time).is_active(moment))

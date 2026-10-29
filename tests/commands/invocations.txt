@@ -12,6 +12,8 @@ agent task next --quantity 2
 agent task pause 1 "the cart comes first"
 agent task resume 1
 agent task skip-paused
+agent task test --help
+agent task transfer --help
 agent task block 2 "waits on the tax rates"
 agent task unblock 2
 agent task dock 1
@@ -53,6 +55,8 @@ agent plan phase 1 "The cart" --when "the cart adds up"
 agent plan phase 1 "Paying" --when "a card pays" --checkpoint
 agent plan add 1 "The cart sums its lines" --brief "Done when the total is the sum"
 agent plan add 1 "A card pays the total" --brief "Done when a test card pays"
+agent plan complete-phase --help
+agent plan cancel-phase --help
 agent plan todos 1 1 3
 agent plan todos 1 2 4
 agent plan testing 1 "Tests at each phase end"
@@ -64,6 +68,8 @@ agent plan review 1
 agent plan ready 1 --changed "nothing changed in review"
 user plan approve 1
 agent plan start 1
+agent plan allow-tests 1 --why "one test of the cart, to check the guard"
+agent plan return 1 no
 agent plan priorities "task 3 first: the cart comes before paying"
 agent plan block 1 "waits on the payment provider"
 agent plan unblock 1
@@ -174,6 +180,7 @@ agent reader dismiss --help
 agent output list
 agent output status
 agent output read --help
+agent output test --help
 agent output watch --help
 agent output unwatch
 agent output undock --help
@@ -287,6 +294,7 @@ agent developer queries --help
 agent developer reads --help
 agent developer slowest
 agent developer inspect --help
+agent developer transitions --help
 agent developer reset
 agent developer profile --help
 agent developer client-errors
@@ -340,3 +348,32 @@ agent tests load
 agent tests budget --help
 agent tests command --help
 agent supervision health
+agent task comments 1
+agent plan comments 1
+agent doc comments 1
+agent report comments 1
+agent memory comments 1
+agent rule comments 1
+agent reminder comments 1
+agent question comments 1
+agent message comments 1
+agent sequence comments 1
+agent dump comments 1
+user library connect --help
+user library login --help
+user library status --help
+user library disconnect --help
+user library invite --help
+user library devices --help
+user library revoke --help
+user library people --help
+user library password --help
+user library publish --help
+user library list --help
+user library show --help
+user library import --help
+user library update --help
+user library withdraw --help
+user library delete --help
+user library remove --help
+user library reset --help

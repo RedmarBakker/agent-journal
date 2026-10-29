@@ -26,4 +26,4 @@ class ModelFitRecord(Listener[WorkerMerged]):
         self.workers.rewritten(worker, Actor.system(), lambda row: row.model_measured(fit, complexity.send_backs, event.time))
         dispatcher = self.agents.active_main_agent(worker.dispatcher) if worker.dispatcher and fit.measured else None
         if dispatcher is not None:
-            self.agents.save(dispatcher.model_fit_kept(worker.row_id, fit.measured), Actor.system())
+            self.agents.save(dispatcher.model_fit_recorded(worker.row_id, fit.measured), Actor.system())

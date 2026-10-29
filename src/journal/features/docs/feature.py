@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT
@@ -19,7 +20,8 @@ class DocsFeature(Feature):
     title = "Documents"
     help = "What the project keeps knowing: documents shared by every environment, listed on the Documents page."
     commands = (DocCommand,)
-    listeners = (DocumentCard, DocumentCardStatus, DocRevisionRecord, HubDocGuard)
+    answer_listeners = ((HubDocGuard, Blocking.ANSWER),)
+    listeners = (DocumentCard, DocumentCardStatus, DocRevisionRecord)
     options = (DocsOptions.REVISION_WINDOW,)
 
     skill = Skill("docs", 'Store lasting knowledge of the project in a document; load it when something should still be known next month', """

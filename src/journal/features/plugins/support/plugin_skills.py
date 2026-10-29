@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+from journal.features.shell.support.reader import PLUGIN_OWNER_PREFIX
 from journal.config import Config
 from journal.features.plugins.support.manifest_reader import ManifestReader
 from journal.features.plugins.support.plugin_folders import PluginFolders
@@ -10,7 +11,6 @@ from journal.models.plugin import Plugin
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.repositories.plugins import Plugins
 
-STAMP = "plugin: "
 
 
 class PluginSkills:
@@ -49,7 +49,7 @@ class PluginSkills:
     def withdraw(self, plugin: Plugin) -> None:
         for home in HOMES:
             for skill in (self.config.root / home).glob("*/SKILL.md"):
-                if f"\n{STAMP}{plugin.name}\n" in skill.read_text():
+                if f"\n{PLUGIN_OWNER_PREFIX}{plugin.name}\n" in skill.read_text():
                     self.remove(skill.parent)
 
     @staticmethod
@@ -62,5 +62,5 @@ class PluginSkills:
     @staticmethod
     def stamped(text: str, name: str) -> str:
         if text.startswith("---\n"):
-            return f"---\n{STAMP}{name}\n" + text[4:]
-        return f"---\n{STAMP}{name}\n---\n\n{text}"
+            return f"---\n{PLUGIN_OWNER_PREFIX}{name}\n" + text[4:]
+        return f"---\n{PLUGIN_OWNER_PREFIX}{name}\n---\n\n{text}"

@@ -1,6 +1,7 @@
 import time
 from typing import Callable
 
+from journal.support.timeout import Timeout
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.models.environment import Environment
 from journal.models.plan import Plan
@@ -12,7 +13,6 @@ from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
 from journal.sync.hosting import Hosting
@@ -51,7 +51,7 @@ class HubDrives:
         return row if lease.holder else self.repositories[type(row)].save(row.with_(driver="", driver_agent=""), actor)
 
     def renew(self) -> None:
-        if time.monotonic() - self.renewed_at < RENEW_SECONDS:
+        if not Timeout.seconds(RENEW_SECONDS).started(self.renewed_at).is_elapsed(time.monotonic()):
             return
         self.renewed_at = time.monotonic()
         for ref in self.bindings.bound_refs():
@@ -66,7 +66,7 @@ class HubDrives:
 
 
     def doer(self, actor: Actor) -> str:
-        return self.owners.person_name(int(actor.id)) if actor.actor_type == ActorType.USER else "someone"
+        return actor.person_name(self.owners.person_name)
 
     def driven(self, row: Task | Plan, lease_request: Callable[[str], Lease], actor: Actor) -> Task | Plan:
         environment = self.drivable(row)

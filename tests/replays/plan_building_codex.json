@@ -5,7 +5,7 @@
       "name": "the plan is created and Building a plan starts",
       "answer": null,
       "typed": [
-        "[journal] sequence 1, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`. `journal sequence follow`, then `journal sequence next` when it is done"
+        "[journal] sequence 1, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`. run `journal sequence follow`, then `journal sequence next` when done"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -23,7 +23,7 @@
     {
       "name": "a write before the goal is taken up",
       "answer": {
-        "error": "a write waits for sequence 1, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`. `journal sequence follow`, or `journal sequence pause --why \"<why>\"`"
+        "error": "sequence 1 step 1 waits: Write what this as\u2026. `journal sequence follow` or `journal sequence pause --why \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -36,7 +36,15 @@
     },
     {
       "name": "the goal's command takes the step up",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "allow",
+          "updatedInput": {
+            "command": "sh <package>/journal/hooks/run.sh --command 'journal plan brief 1 \"a tagged release\"'"
+          }
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [
@@ -46,7 +54,15 @@
     },
     {
       "name": "the phases' command takes the step up",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "allow",
+          "updatedInput": {
+            "command": "sh <package>/journal/hooks/run.sh --command 'journal plan phase 1 \"Tag\" --when \"tagged\"'"
+          }
+        }
+      },
       "typed": [],
       "nudges": [
         "sequences.step_to_follow"
@@ -58,7 +74,15 @@
     },
     {
       "name": "the tasks' command takes the step up",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "allow",
+          "updatedInput": {
+            "command": "sh <package>/journal/hooks/run.sh --command 'journal plan add 1 \"Tag it\" --brief \"tagged\"'"
+          }
+        }
+      },
       "typed": [],
       "nudges": [
         "sequences.step_to_follow"
@@ -71,7 +95,7 @@
     {
       "name": "the last step refused before the plan is ready",
       "answer": {
-        "err": "sequence 1 ends when plans:1 is ready or approved or started or done; it is draft. finish it first, or `journal sequence abandon --why \"<why>\"`\n"
+        "err": "sequence 1 ends when plans:1 is ready or approved or started or done, not draft: finish it first\n"
       },
       "typed": [],
       "nudges": [

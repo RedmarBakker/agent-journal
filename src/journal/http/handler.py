@@ -1,4 +1,4 @@
-import traceback
+from urllib.parse import urlsplit
 
 from journal.http.support.json_out import JsonOut
 from journal.http.support.file_response import FileResponse
@@ -7,6 +7,9 @@ from journal.http.support.identity import Identity
 from journal.http.support.login_gate import LoginGate
 from journal.http.support.pooled_handler import PooledHandler
 from journal.http.support.request import Request
+from journal.support.actor import Actor
+from journal.http.support.request_faults import RequestFaults
+from journal.support.fault_log import FaultLog
 from journal.http.support.request_reading import RequestReading
 from journal.support.response import Response
 from journal.http.router import Router
@@ -21,32 +24,51 @@ UNHELD_PREFIXES = ("/journal/sync/",)
 
 
 class Handler(PooledHandler):
-    """Turns one HTTP exchange into a Request for the router and writes its Response back, holding it while the journal boots; nothing else lives here."""
+    """Turns one HTTP exchange into a Request for the router and writes its Response back, holding it while the journal boots and counting the requests that fail in a row; the health question is read without who asks it, so a journal that fails to read its callers can still say it is unwell."""
 
     router: Router
     identity: Identity
     static: StaticFiles
     gate: LoginGate
     lifecycle: Lifecycle
+    faults: RequestFaults
+    fault_log: FaultLog
 
     def do_GET(self) -> None:
-        request = self._request()
-        if refusal := self.gate.refusal(request):
-            return self._reply(refusal)
+        if urlsplit(self.path).path in UNHELD_PATHS:
+            return self._answer(self._dispatched(self._unidentified_request()))
+        request = self._counted_request()
+        if self.gate.is_refused(request):
+            return self._reply(self.gate.refusal(request))
         if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and self.router.matched(request) is None and (rows := self.static.serve(request.path)):
             return self._file(rows)
         self._answer(self._dispatched(request))
 
     def do_POST(self) -> None:
-        request = self._request()
-        self._answer(self.gate.refusal(request) or self._dispatched(request))
+        request = self._counted_request()
+        self._answer(self.gate.refusal(request) if self.gate.is_refused(request) else self._dispatched(request))
+
+    def _unidentified_request(self) -> Request:
+        head = RequestReading.head(self.command, self.path, dict(self.headers.items()))
+        return Request(head.method, urlsplit(self.path).path, {}, {}, {}, head.headers, Actor.system())
+
+    def _counted_request(self) -> Request:
+        try:
+            return self._request()
+        except Exception as fault:
+            self.faults.failed(fault)
+            self.fault_log.reported(f"request {self.command} {urlsplit(self.path).path}", fault)
+            raise
 
     def _dispatched(self, request: Request):
         try:
-            return self.router.route(request)
+            answer = self.router.route(request)
         except Exception as fault:
-            traceback.print_exc()
+            self.fault_log.reported(f"request {request.method} {request.path}", fault)
+            self.faults.failed(fault)
             return Response(500, {"error": f"{type(fault).__name__}: {fault}"})
+        self.faults.answered()
+        return answer
 
     def _answer(self, answer) -> None:
         if isinstance(answer, StreamResponse):
@@ -90,7 +112,7 @@ class Handler(PooledHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
         except Exception as fault:
-            traceback.print_exc()
+            self.fault_log.reported(f"streamed answer {urlsplit(self.path).path}", fault)
             self.wfile.write(f"the journal failed while answering: {type(fault).__name__}: {fault}\n".encode())
 
     def _reply(self, response: Response) -> None:

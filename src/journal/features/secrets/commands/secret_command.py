@@ -3,6 +3,7 @@ from argparse import Namespace
 from pathlib import Path
 from datetime import datetime, timezone
 
+from journal.support.timeout import Timeout
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.secrets.support.browser_logins import WINDOW_SECONDS
@@ -52,7 +53,7 @@ class SecretCommand(Command):
         store.add_argument("field")
         store.add_argument("file")
         self.verb(verbs, "list", "every secret, with what it waits for")
-        self.verb(verbs, "show", "a secret's fields, which are filled and the programs it may be given to").add_argument("n", type=int)
+        self.verb(verbs, "show", "a secret's fields, which are filled and the programs it may be passed to").add_argument("n", type=int)
         run = self.verb(verbs, "run", "give a secret to a program it may go to: its value on the program's input, or in variables with --env, and masked in what it prints")
         run.add_argument("secret", help="the secret's number or title")
         run.add_argument("--stdin", default="", help="what the program reads, with {field} where a value goes; the hidden value alone when left out")
@@ -65,7 +66,7 @@ class SecretCommand(Command):
         login.add_argument("n", type=int)
         login.add_argument("--wait", action="store_true")
         self.verb(verbs, "folder", "the file the values live in, outside the project")
-        self.verb(verbs, "delete", "a secret put away; its values are kept thirty days for a restore").add_argument("n", type=int)
+        self.verb(verbs, "delete", "a secret put away; its values are stored for thirty days for a restore").add_argument("n", type=int)
         self.verb(verbs, "restore", "a deleted secret back, with its values").add_argument("n", type=int)
 
     def create(self, args: Namespace, caller: Caller) -> int:
@@ -138,7 +139,7 @@ class SecretCommand(Command):
         secret = self.secrets.find(args.n)
         name = args.program
         if "/" in name or Programs.is_withheld(name):
-            raise Rejection(f"a secret is never given to {name}: propose the program that uses it directly, named bare, such as curl or gh")
+            raise Rejection(f"a secret is never passed to {name}: propose the program that uses it directly, named bare, such as curl or gh")
         if name in secret.programs or name in secret.proposed:
             print(f"{name} is {'allowed' if name in secret.programs else 'proposed'} for secret {secret.id} already")
             return 0
@@ -158,7 +159,7 @@ class SecretCommand(Command):
 
     def waited(self, secret: Secret) -> int:
         began = self.time_source.seconds()
-        while self.secrets.find(secret.row_id).login_started_at and self.time_source.seconds() - began < WINDOW_SECONDS:
+        while self.secrets.find(secret.row_id).login_started_at and not Timeout.seconds(WINDOW_SECONDS).started(began).is_elapsed(self.time_source.seconds()):
             time.sleep(1)
         finished = self.secrets.find(secret.row_id)
         print(f"logged in to {finished.title}" if finished.session_at else f"no login to {finished.title} is saved")
@@ -167,7 +168,7 @@ class SecretCommand(Command):
     def lookup(self, value: str) -> Secret:
         rows = self.secrets.title_matches(value)
         if not rows:
-            raise Rejection(f"no secret is numbered or titled {value!r}: `journal secret list` names them")
+            raise Rejection(f"no secret is numbered or titled {value!r}: `journal secret list` shows them")
         return rows[0]
 
     def folder(self, args: Namespace, caller: Caller) -> int:
@@ -176,7 +177,7 @@ class SecretCommand(Command):
 
     def delete(self, args: Namespace, caller: Caller) -> int:
         secret = self.secrets.save(self.secrets.find(args.n).deleted(self.time_source.moment()), caller.actor)
-        print(f"secret {secret.id} deleted; its values are kept thirty days, journal secret restore {secret.id} brings it back")
+        print(f"secret {secret.id} deleted; its values are stored for thirty days, journal secret restore {secret.id} brings it back")
         return 0
 
     def restore(self, args: Namespace, caller: Caller) -> int:

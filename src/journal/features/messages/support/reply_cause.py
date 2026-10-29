@@ -1,18 +1,17 @@
-from datetime import datetime, timedelta, timezone
 
-from journal.models.author import Author
+from journal.support.timeout import Timeout
+from journal.events.models.updated import Updated
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.missing_row import MissingRow
 from journal.support.time_source import TimeSource
 
-CAUSED_TABLES = ("tasks", "plans", "docs", "reports")
-WRITTEN_FIELDS = ("title", "brief", "body", "abstract")
+CAUSE_TABLES = ("tasks", "plans", "docs", "reports")
+TEXT_FIELDS = ("title", "brief", "body", "abstract")
 REPLY_WINDOW_SECONDS = 120
 
 
@@ -24,24 +23,30 @@ class ReplyCause:
         self.messages, self.links = messages, links
 
     def created(self, row: Model, actor: Actor) -> None:
-        for requested in self.requested(row, actor):
+        requested_messages = self.requested(row, actor)
+        if requested_messages and self.links.sources(row, Messages.SUBJECT_LINK):
+            return
+        for requested in requested_messages:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
-    def edited(self, row: Model, actor: Actor) -> None:
-        for requested in self.requested(row, actor):
+    def edited(self, event: Updated) -> None:
+        if not event.has_changed_fields(TEXT_FIELDS):
+            return
+        row = event.model
+        for requested in self.requested(row, event.actor):
             if Ref.build(row) in self.links.targets(requested, Messages.SUBJECT_LINK):
                 continue
-            self.links.linked(Ref.build(requested), Ref.build(row), Messages.EDIT_LINK, actor)
-            self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
+            self.links.linked(Ref.build(requested), Ref.build(row), Messages.EDIT_LINK, event.actor)
+            self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, event.actor)
 
     def requested(self, row: Model, actor: Actor) -> list[Message]:
-        if actor.actor_type != ActorType.AGENT or row.table() not in CAUSED_TABLES:
+        if not actor.is_agent_actor() or row.table() not in CAUSE_TABLES:
             return []
         reply = self.messages.latest_voice()
-        if reply is None or not reply.reply_target or self.time_source.moment() - reply.created_at > timedelta(seconds=REPLY_WINDOW_SECONDS):
+        if reply is None or not reply.reply_target or Timeout.seconds(REPLY_WINDOW_SECONDS).started(reply.created_at.timestamp()).is_exceeded(self.time_source.seconds()):
             return []
         try:
             requested = self.messages.find(reply.reply_target)
         except MissingRow:
             return []
-        return [requested] if requested.author == Author.USER else []
+        return [requested] if requested.is_user_message() else []

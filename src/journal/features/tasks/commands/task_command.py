@@ -16,7 +16,10 @@ from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.models.environment import Environment
+from journal.models.plan import Plan
 from journal.models.task import Task
+from journal.support.actor import Actor
 from journal.models.worker import Worker
 from journal.support.task_priority import NORMAL, TaskPriority
 from journal.models.task_log import TaskLog
@@ -25,7 +28,10 @@ from journal.repositories.messages import Messages
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
+from journal.repositories.environments import Environments
 from journal.repositories.tasks import Tasks
+from journal.repositories.command_outputs import CommandOutputs
+from journal.features.tasks.support.task_test_runs import TaskTestRuns
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.sync.hub_drives import HubDrives
@@ -45,8 +51,9 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents) -> None:
-        self.assigners, self.sessions, self.scope, self.agents = assigners, sessions, scope, agents
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
+        self.environments = environments
+        self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
@@ -55,6 +62,10 @@ class TaskCommand(Command):
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
         creation.add_argument("title")
+        transfer = self.verb(verbs, "transfer", "move a task, with its log, to another environment of this project")
+        transfer.add_argument("n", type=int)
+        transfer.add_argument("environment", help="the name of the environment it moves to")
+        transfer.add_argument("--force", action="store_true", help="move a task in progress, paused first, or a task of a plan here, taken out of the plan")
         rename = self.verb(verbs, "rename", "a task's title written again, when the first one was wrong")
         rename.add_argument("n", type=int)
         rename.add_argument("title")
@@ -93,6 +104,9 @@ class TaskCommand(Command):
         block.add_argument("why", nargs="?", default="")
         Waits.arguments(block, "task")
         self.verb(verbs, "unblock", "what it waited on came: the task is open again").add_argument("n", type=int)
+        testing = self.verb(verbs, "test", "the work is done but a test run must say so: the task waits in testing, out of your hand; the run passing completes it, failing puts it back in progress")
+        testing.add_argument("n", type=int)
+        testing.add_argument("--output", type=int, default=0, help="the run that tests it, by its output number")
         pause = self.verb(verbs, "pause", "set a task aside for something else first, by choice; it stays open and stops being nudged")
         pause.add_argument("n", type=int)
         pause.add_argument("why")
@@ -112,7 +126,7 @@ class TaskCommand(Command):
 
     def create(self, args: Namespace, caller: Caller) -> int:
         person, team = self.filer.person(args), self.filer.team(args)
-        with self.hub.writing_in(team):
+        with self.hub.hub_scope(team):
             task = self.tasks.save(self.created(args), caller.actor)
             self.filer.link(task, args, person, team, caller.actor)
             self.link_creation(args.message, task, caller)
@@ -143,6 +157,32 @@ class TaskCommand(Command):
 
     def start(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "started")
+
+    def transfer(self, args: Namespace, caller: Caller) -> int:
+        task, environment = self.tasks.find(args.n), self.environments.existing(args.environment)
+        plans = self.plans.containing(task)
+        self.refuse_transfer(task, plans, args.force)
+        for plan in plans:
+            self.plans.remove_task(plan, task, caller.actor)
+        task = self.paused_beside_work(task, environment, caller.actor)
+        for line in self.logs.logs(task):
+            self.logs.save(line.with_(environment_id=environment.id), caller.actor)
+        self.tasks.save(task.transferred(environment.id, self.environments.find(task.environment_id).name, environment.name, self._time()), caller.actor)
+        print(f"task {task.id} moved to environment {environment.name}")
+        return 0
+
+    def refuse_transfer(self, task: Task, plans: list[Plan], force: bool) -> None:
+        if task.delegated:
+            raise Rejection(f"task {task.id} is worker {self.tasks.holder(task).id}'s: release the worker first")
+        if not force and task.is_active():
+            raise Rejection(f"task {task.id} is in progress: pause it first, or --force moves it as it is")
+        if not force and plans:
+            raise Rejection(f"task {task.id} is in plan {plans[0].id}: --force takes it out of the plan and moves it")
+
+    def paused_beside_work(self, task: Task, environment: Environment, actor: Actor) -> Task:
+        if not task.is_started() or not self.tasks.environment_started_tasks(environment.id):
+            return task
+        return self.tasks.save(task.paused(f"moved to environment {environment.name}, where a task is in progress", self._time()), actor)
 
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
@@ -199,6 +239,16 @@ class TaskCommand(Command):
         print(f"{self.labels.name('task', task)} paused{waits}")
         return 0
 
+    def test(self, args: Namespace, caller: Caller) -> int:
+        task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)
+        if not args.output:
+            print(f"{self.labels.name('task', task)} waits in testing: complete it with `journal task complete {task.id}` once it is tested")
+            return 0
+        output = self.outputs.find(args.output)
+        self.test_runs.attach([task], output, caller.actor)
+        print(f"{self.labels.name('task', task)} waits in testing on output {output.id}: it completes when the run passes, and is in progress again if it fails")
+        return 0
+
     def resume(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "resumed")
 
@@ -233,7 +283,7 @@ class TaskCommand(Command):
 
     def complete(self, args: Namespace, caller: Caller) -> int:
         holdings = self.tasks.task_worker_holdings({args.n})
-        if args.n in holdings and not caller.actor.is_user():
+        if args.n in holdings and not caller.actor.can_move_worker_tasks():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
         task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
         print(f"{self.labels.name('task', task)} done")
@@ -256,7 +306,7 @@ class TaskCommand(Command):
         return 0
 
     def readable(self, n: int, caller: Caller) -> Task:
-        return self.tasks.find(n) if caller.worker_number is None else self.tasks.worker_task(n, caller.worker_number)
+        return self.tasks.find(n)
 
     def show(self, args: Namespace, caller: Caller) -> int:
         if args.n == CURRENT:
@@ -290,7 +340,7 @@ state: {task.state}
 
     def next(self, args: Namespace, caller: Caller) -> int:
         agent = self.sessions.agent(caller.agent_session, self.scope.id)
-        request = NextTasksRequest(session=agent.session, environment_id=self.scope.id, provider=agent.provider, time=self.time_source.moment().timestamp())
+        request = NextTasksRequest(agent=agent).placed(agent, None, self.time_source.moment().timestamp())
         assignment = self.assigners.resolved(agent).next_task(agent, request, args.quantity)
         if not assignment.has_task():
             print("no task to hand out now: the builder is handed its next task at a stop or when its task closes")

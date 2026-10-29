@@ -3,11 +3,11 @@ from journal.events.worker_merging import WorkerMerging
 from journal.engine.command_events import CommandEvents
 
 from journal.events.rows.worker_reused import WorkerReused
-from journal.events.rows.worker_sent_on import WorkerSentOn
+from journal.events.rows.worker_next_job_sent import WorkerNextJobSent
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
-from journal.events.moments.worker_merge_refused import WorkerMergeRefused
+from journal.events.moments.worker_merge_clash import WorkerMergeClash
 from journal.features.workers.support.merge_clash import MergeClash
 from journal.support.merger import Merger
 from journal.support.time_source import TimeSource
@@ -24,6 +24,7 @@ from journal.features.workers.support.merge_statuses import MergeStatuses
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
 from journal.models.support.report_choice import ReportChoice
+from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
@@ -57,9 +58,16 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire. A check names the task the worker is on, or one of its queue it finished, which waits for the same merge; every point found short is saved at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out; one unchecked point of any task the merge would close refuses the whole merge, naming the task."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses, assigner: WorkerTaskAssigner) -> None:
+        self.assigner = assigner
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
         self.account, self.moves, self.failures, self.settings, self.merger, self.time_source, self.statuses = account, moves, failures, settings, merger, time_source, statuses
+
+    def task_holdings(self, number: int, task: int | None) -> tuple[int, ...]:
+        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), number))
+        if task and holdings and task not in holdings:
+            raise Rejection(f"worker {number} works on task {holdings[0]} until it is merged or released: send it that task's next job")
+        return holdings
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -184,7 +192,7 @@ class WorkerActions:
             steps.started(4)
             worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
         steps.started(5)
-        next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
+        next_line, next_task = self.send_next(worker.id, actor, WorkerNextJobSent)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(self.time_source.moment().timestamp()), actor)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total, merged_shas=merged_shas))
@@ -221,7 +229,7 @@ class WorkerActions:
         try:
             return self.branch.merge_commit(worker) if worker.worktree else ""
         except MergeClash as clash:
-            self.events.worker_merge_refused(WorkerMergeRefused(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, clashing=clash.clashing, line=str(clash)))
+            self.events.worker_merge_refused(WorkerMergeClash(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, clashing=clash.clashing, line=str(clash)))
             raise
 
     def next_job(self, n: int, actor: Actor) -> str:
@@ -231,16 +239,15 @@ class WorkerActions:
         current_tasks = self.tasks.holder_task_ids(Ref.build(self.workers.find(n)))
         if current_tasks:
             return f"it is already on task {current_tasks[0]} from its queue", current_tasks[0]
-        queued = self.tasks.queue(Ref.build(self.workers.find(n)))
-        if not queued:
+        task = self.assigner.following(self.workers.find(n))
+        if task is None:
             return "", 0
-        task = queued[0]
         try:
             with self.runner.lock(n):
                 worker = self.relaunch(self.local(n), f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor, JOB_MOVE, reused)
         except Rejection as refused:
             return f"its next queued task {task.id} was not sent, since {refused}", 0
-        self.tasks.handover(task, Ref.build(worker), actor)
+        self.assigner.handed(worker, task, actor)
         return f"it went straight on to task {task.id} from its queue, in its own session and worktree", task.id
 
     def merged_worktree_line(self, worker: Worker) -> str:
@@ -261,7 +268,7 @@ class WorkerActions:
         worker_tasks = tuple(self.tasks.find(task_id) for task_id in self.merged_task_ids(worker))
         proved = tuple(task for task in worker_tasks if self.latest_proofs(task))
         owned = proved or worker_tasks
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             return self.checked_tasks(worker, owned)
         for task in owned:
             self.refuse_unchecked(worker, task, "" if task is owned[-1] else f" --task {task.id}")
@@ -274,9 +281,9 @@ class WorkerActions:
         return checked
 
     def release_rest(self, worker: Worker, actor: Actor) -> None:
-        if worker.state != WorkerState.DELIVERED or not self.unproved_task_ids(worker):
+        if not worker.is_delivered() or not self.unproved_task_ids(worker):
             self.tasks.release(Ref.build(worker), actor)
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             self.tasks.unqueued(Ref.build(worker), actor)
 
     def unproved_task_ids(self, worker: Worker) -> list[int]:
@@ -290,7 +297,7 @@ class WorkerActions:
 
     def delivered(self, n: int, purpose: str) -> Worker:
         worker = self.local(n)
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that clocked out has {purpose}")
         return worker
 

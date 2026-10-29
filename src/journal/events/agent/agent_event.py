@@ -3,6 +3,7 @@ from typing import ClassVar, Self
 
 from journal.events.event import Event
 from journal.events.feature_data import FeatureData
+from journal.models.agent import Agent
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -14,7 +15,10 @@ class AgentEvent(Event):
     typing_delay: ClassVar[float] = 0.0
     is_work: ClassVar[bool] = False
     is_turn_end: ClassVar[bool] = False
+    reads_transcript: ClassVar[bool] = True
+    takes_remarks: ClassVar[bool] = True
 
+    agent: Agent = field(compare=False)
     session: str = ""
     environment_id: int = 0
     provider: str = ""
@@ -36,6 +40,12 @@ class AgentEvent(Event):
     def has_hook_lines(self) -> bool:
         return self.answers_hook and self.has_lines
 
+    def is_remark_carrier(self) -> bool:
+        return self.has_hook_lines() and self.takes_remarks
+
+    def defers_remarks(self) -> bool:
+        return False
+
     def with_data(self, data: FeatureData) -> Self:
         return replace(self, data=data)
 
@@ -45,8 +55,8 @@ class AgentEvent(Event):
     def gap_seconds(self) -> float:
         return 0.0
 
-    def counted(self, tool_use: int) -> Self:
-        return replace(self, tool_use=tool_use)
+    def counted(self, agent: Agent) -> Self:
+        return replace(self, agent=agent, tool_use=agent.tool_uses)
 
     def hooked(self, key: str) -> Self:
         return replace(self, hook_key=key)
@@ -57,5 +67,5 @@ class AgentEvent(Event):
     def is_boot_delayed(self) -> bool:
         return self.boot_wait_seconds > 0
 
-    def placed(self, session: str, environment_id: int, provider: str, context: float | None, time: float, subagent: str = "") -> Self:
-        return replace(self, session=session, environment_id=environment_id, provider=provider, context=context, time=time, subagent=subagent)
+    def placed(self, agent: Agent, context: float | None, time: float, subagent: str = "") -> Self:
+        return replace(self, agent=agent, session=agent.session, environment_id=agent.environment_id, provider=agent.provider, context=context, time=time, subagent=subagent)

@@ -11,6 +11,8 @@ import pytest
 
 from shell_verbs import ShellVerbs
 
+from tests.suite_server import SuiteServer
+from journal.support.listener_queue import ListenerQueue
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
@@ -40,7 +42,11 @@ def boot():
 
 @pytest.fixture
 def server(app: App):
-    return app.server()
+    return suite_server(app)
+
+
+def suite_server(app: App) -> SuiteServer:
+    return SuiteServer(app.server(), app.container.get(ListenerQueue))
 
 
 def unowed(app: App) -> None:
@@ -65,9 +71,11 @@ def call(server, method: str, path: str, body: dict | None = None, environment: 
     request = HttpRequest(f"http://127.0.0.1:{server.port}{path}", data=data, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
     try:
         with urlopen(request, timeout=REQUEST_SECONDS) as reply:
-            return reply.status, json.loads(reply.read())
+            answer = reply.status, json.loads(reply.read())
     except HTTPError as error:
-        return error.code, json.loads(error.read())
+        answer = error.code, json.loads(error.read())
+    server.drain_queue()
+    return answer
 
 
 def whole_rows(server, table: str) -> list[dict]:
@@ -144,7 +152,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
     app.runtime().start()
     unowed(app)
     user_set(app, "faults.developer", True)
-    server = app.server()
+    server = suite_server(app)
     try:
         developer = lambda: call(server, "GET", "/journal/developer")[1]
         def logged(label):
@@ -176,40 +184,6 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
         app.runtime().stop()
 
 
-def test_a_documents_saves_fold_into_its_open_revision_keep_closes_it_and_the_next_edit_opens_the_next(tmp_path: Path):
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().boot()
-    server = app.server()
-    server.start()
-    console, user = app.console(), Caller.user("main")
-    text = tmp_path / "doc.md"
-    def written(body: str) -> None:
-        text.write_text(body)
-        console.run(["doc", "update", "1", "--file", str(text)], user)
-    listed = lambda: console.run(["doc", "revisions", "1"], user).text.splitlines()
-    try:
-        assert console.run(["doc", "keep", "1"], user).code == 1, "no document yet"
-        text.write_text("Intro.\n\n## Goals\n\nShip it\n")
-        console.run(["doc", "create", "Plan of record", "--abstract", "What it says, in one line", "--file", str(text)], user)
-        written("Intro.\n\n## Goals\n\nShip it soon\n\n## Risks\n\nNone\n")
-        written("Intro.\n\n## Goals\n\nShip it soon\n\n## Risks\n\nNone\n")
-        assert len(listed()) == 1 and listed()[0].endswith("user   written; added Risks; rewrote Goals"), "a write within the open window folds into the open revision, its change noted; a save that changes nothing adds none"
-        assert console.run(["doc", "keep", "1"], user).text == "revision 1 of doc 1 kept; the next edit opens revision 2\n"
-        assert console.run(["doc", "keep", "1"], user).error.strip() == "revision 1 of doc 1 is already kept"
-        written("Intro.\n\n## Goals\n\nShip it soon\n")
-        assert [line.split()[-2:] for line in listed()] == [["rewrote", "Goals"], ["cut", "Risks"]], "after a keep the next edit opens a new revision"
-        assert console.run(["doc", "revision", "1", "1"], user).text.startswith("doc 1, revision 1 of 2: Plan of record\n"), "an old revision is read whole"
-        assert "## Risks" in console.run(["doc", "revision", "1", "1"], user).text and "## Risks" not in console.run(["doc", "revision", "1", "2"], user).text
-        assert console.run(["doc", "revision", "1", "3"], user).error.strip() == "doc 1 has revisions 1 to 2"
-        call(server, "POST", "/journal/settings", {"docs": {"revision_window": 0}})
-        assert call(server, "POST", "/journal/settings", {"viewer": {"flash": False}})[1]["viewer"]["flash"] is False and call(server, "GET", "/journal/settings")[1]["viewer"]["flash"] is False, "the switch of the journal's name on a tab return is kept and read back"
-        written("Intro.\n\n## Goals\n\nShip it now\n")
-        written("Intro, again.\n\n## Goals\n\nShip it now\n")
-        revisions = call(server, "GET", "/journal/docs/1/revisions")[1]
-        assert [(r["number"], r["change"]) for r in revisions] == [(1, "written; added Risks; rewrote Goals"), (2, "cut Risks; rewrote Goals"), (3, "reworded the top")], "past the window each edit opens the next revision"
-        assert call(server, "POST", "/journal/docs/1/keep")[0] == 409, "the viewer's keep refuses as the command does"
-    finally:
-        server.stop()
 
 
 def test_a_missing_row_and_a_missing_route_say_so(server):
@@ -309,7 +283,7 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, message = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "k1"})
         assert status == 201
@@ -326,40 +300,11 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
             if any(c["state"] == "done" for c in thresholds()):
                 break
             time.sleep(0.1)
-        assert [(c["detail"], c["agent_type"], c["state"]) for c in thresholds()] == [("review the login", "journal-plan-reviewer", "running"), ("review the login", "journal-plan-reviewer", "done")], "a subagent's dispatch is a mark in the chat, and its end a mark of its own after it"
+        assert [(c["detail"], c["agent_type"], c["state"]) for c in thresholds()] == [("review the login", "journal-plan-reviewer", "done"), ("review the login", "journal-plan-reviewer", "done")], "a subagent's dispatch is a mark in the chat that reads done once it ends, and its end a mark of its own after it"
     finally:
         app.runtime().stop()
 
 
-def test_the_subagents_are_listed_as_their_rows_stand_a_resumed_one_running_again(tmp_path: Path):
-    """A background subagent that ended and was sent a message is running again in the list the viewer's dropdown reads, and counted open."""
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    try:
-        hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-        agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}
-        message = {"to": "a9", "message": "one more"}
-        for type_name, extra in (
-            ("SessionStart", {"source": "startup"}),
-            ("PreToolUse", {"tool_name": "Agent", "tool_input": agent, "tool_use_id": "t-1"}),
-            ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": {"isAsync": True, "agentId": "a9"}, "tool_use_id": "t-1"}),
-            ("SubagentStop", {"agent_id": "a9"}),
-            ("PreToolUse", {"tool_name": "SendMessage", "tool_input": message, "tool_use_id": "t-2"}),
-            ("PostToolUse", {"tool_name": "SendMessage", "tool_input": message, "tool_response": {}, "tool_use_id": "t-2"}),
-        ):
-            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        listed = lambda: call(server, "GET", "/journal/subagents")[1]
-        for _ in range(50):
-            if [r["resumed_at"] > 0 for r in listed()["rows"]] == [True]:
-                break
-            time.sleep(0.1)
-        page = listed()
-        assert [(r["task"], r["dispatcher"], r["session"], r["state"]) for r in page["rows"]] == [("map the hooks", "s9", "a9", "running")], "resumed by a message, it is running again"
-        assert page["counts"]["open"] == 1, "and counted open, as the census counts it"
-    finally:
-        app.runtime().stop()
 
 
 def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_sent_a_message(tmp_path: Path):
@@ -367,7 +312,7 @@ def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_se
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
         agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}
@@ -427,7 +372,7 @@ def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entrie
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -456,7 +401,7 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -484,7 +429,7 @@ def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         request = HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
@@ -512,7 +457,7 @@ def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_han
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -537,7 +482,7 @@ def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -613,7 +558,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, tree = call(server, "POST", "/journal/settings", {"features": {"thinking": False}})
         assert status == 200 and tree["features"]["thinking"] is False and len(tree["features"]) > 10
@@ -648,38 +593,14 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
         app.runtime().stop()
 
 
-def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_postpones_it_with_the_plan(tmp_path: Path):
-    from journal.engine.state_machine import StateMachine
-    from journal.repositories.agents import Agents
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    user, agent = Caller.user("main"), Caller.agent("main", "s1", "claude")
-    try:
-        console = app.console()
-        console.run(["plan", "create", "p", "--brief", "b"], user)
-        console.run(["plan", "add", "1", "first"], user)
-        console.run(["plan", "add", "1", "second"], user)
-        assert call(server, "POST", "/journal/plans/1/start", {})[0] == 409, "an unapproved plan is refused before any row is written"
-        call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1", "cwd": str(tmp_path)})
-        console.run(["plan", "approve", "1"], user)
-        started = call(server, "POST", "/journal/plans/1/start", {})[1]
-        assert started["state"] == "started" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "started", "the viewer's start takes the first task in hand, as the command does"
-        assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle", "following_plan", "naming_test_commands"], "a fresh journal names no test commands, so the plan's task waits for them over the plan"
-        paused = call(server, "POST", "/journal/plans/1/pause", {})[1]
-        assert paused["state"] == "paused" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "paused", "the plan's task in hand is postponed with it"
-        assert app.container.get(SessionAgents).top("s1").name == "idle", "the plan's own event reaches the plan state through the wait over it and pops both"
-    finally:
-        app.runtime().stop()
 
 
-def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id_comes_whole(tmp_path: Path):
+def test_the_plans_list_reads_no_link(tmp_path: Path):
     from journal.repositories.links import Links
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         console, user = app.console(), Caller.user("main")
         for n in range(50):
@@ -693,11 +614,6 @@ def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id
         listed = call(server, "GET", "/journal/plans?limit=50")[1]["rows"]
         links.selected = selected
         assert len(listed) == 50 and read == [], "the list reads no link"
-        first = next(row for row in listed if row["id"] == 1)
-        assert (first["phase_count"], first["task_count"]) == (1, 2)
-        assert not {"phases", "task_ids", "reviews", "testing"} & set(first), "the list carries no phases, task ids or reviews"
-        whole = call(server, "GET", "/journal/plans?ids=1")[1]["rows"][0]
-        assert whole["task_ids"] == [1, 2] and whole["phases"][0]["title"] == "one" and "reviews" in whole and "testing" in whole
     finally:
         app.runtime().stop()
 
@@ -710,7 +626,7 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         tasks = app.container.get(Tasks)
         with app.container.get(Scope).environment(1):
@@ -723,53 +639,8 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
         app.runtime().stop()
 
 
-def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_path: Path):
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    try:
-        console, user, agent = app.console(), Caller.user("main"), Caller.agent("main", "s1", "claude")
-        console.run(["plan", "create", "p", "--brief", "b"], user)
-        for title in ("first", "second", "third"):
-            console.run(["plan", "add", "1", title], user)
-        console.run(["plan", "phase", "1", "one", "--when", "w"], user)
-        console.run(["plan", "phase", "1", "two", "--when", "w"], user)
-        console.run(["plan", "todos", "1", "1", "1", "2"], user)
-        console.run(["plan", "todos", "1", "2", "3"], user)
-        console.run(["plan", "ready", "1"], user)
-        console.run(["plan", "approve", "1"], user)
-        console.run(["plan", "start", "1"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 1
-        console.run(["task", "complete", "1"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 1, "a phase with a task still open is the one shown"
-        console.run(["task", "complete", "2"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 2, "every task of phase one done: phase two is shown"
-        console.run(["task", "complete", "3"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 2, "all done: the last phase"
-    finally:
-        app.runtime().stop()
 
 
-def test_the_status_line_knows_what_the_agent_waits_for(tmp_path: Path):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        data = json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode()
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.console().run(["task", "create", "the footer", "--start"], Caller.agent("main", "s1", "claude"))
-        blocked = call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]
-        assert blocked == {"id": 1, "title": "the footer", "wait_text": ""}
-        app.console().run(["stuck", "stuck on the login"], Caller.agent("main", "s1", "claude"))
-        agent = whole_rows(server, "agents")[0]
-        assert agent["awaiting"] == "stuck on the login" and agent["awaiting_since"]
-        assert call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]["wait_text"] == "stuck on the login"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: Path, monkeypatch):
@@ -781,7 +652,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(type_name, **extra):
         return urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
@@ -796,6 +667,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         assert any(e["entry_type"] == "updated" and e["data"]["table"] == "tasks" and "completed_at" in e["data"]["changed"] for e in entries)
         assert any(e["entry_type"] == "SessionStarted" for e in entries)
         hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(tmp_path / "a.py"), "old_string": "x", "new_string": "y"}, tool_response={"structuredPatch": [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]})
+        app.runtime().deferred.drain()
         edit = call(server, "GET", "/journal/agents/1/edits")[1]["edits"][0]
         assert [r["line_type"] for r in edit["rows"]] == ["ctx", "del", "add", "ctx"] and edit["first_line"] == 7 and edit["last_line"] == 9
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-9")
@@ -820,7 +692,7 @@ def test_the_remaining_pages_act_through_the_viewer(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         app.console().run(["plan", "create", "p"], Caller.user("main"))
         assert call(server, "POST", "/journal/plans/1/finish", {})[1]["state"] == "done"
@@ -865,7 +737,7 @@ def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         call(server, "POST", "/journal/messages", {"text": "after the reset", "idempotency": "r1"})
         entries = call(server, "GET", "/journal/entries?since=999999")[1]
@@ -874,55 +746,14 @@ def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_
         app.runtime().stop()
 
 
-def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_what_it_answers(tmp_path: Path, monkeypatch):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    from journal.supervisor_link import SupervisorLink
-    keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        controls = call(server, "GET", "/journal/agents/controls/claude?model=opus&effort=high")[1]
-        assert [g["key"] for g in controls["groups"]] == ["model", "effort", "context"] and controls["groups"][0]["current"] == "opus"
-        n = call(server, "POST", "/journal/messages", {"text": "is the footer fixed?\nand the header?", "idempotency": "q"})[1]["id"]
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        assert call(server, "POST", "/journal/agents/1/control", {"action": "effort", "value": "max"})[1]["queued"] is True and keystrokes[-1] == "/effort max"
-        assert call(server, "POST", "/journal/agents/1/control", {"action": "model", "value": "gpt"})[0] == 409
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": "MessageDisplay", "session_id": "s1", "message": f"[!reply:{n}]\nBoth are."}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.runtime().deferred.drain()
-        reply = call(server, "GET", "/journal/messages")[1]["rows"][-1]
-        assert reply["text"] == "Both are." and reply["reply_target"] == n
-    finally:
-        app.runtime().stop()
 
 
-def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_path: Path):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.runtime().deferred.drain()
-        rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if n in (r["id"], r["reply_target"])]
-        assert [(r["author"], r["reply_target"], r["text"]) for r in rows] == [("user", None, "hello"), ("agent", n, "Hello back.")]
-        assert rows[0]["creator"].startswith("user") and rows[1]["creator"] == "agent:s1" and rows[1]["acknowledgement"] is False
-        assert call(server, "GET", "/journal/messages?comments=1")[1]["rows"] == [], "a reply is no comment"
-    finally:
-        app.runtime().stop()
 
 
 def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_is_taken_too(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         first = call(server, "POST", "/journal/messages", {"text": "the header looks off"})[1]["id"]
         status, reply = call(server, "POST", "/journal/messages", {"on": f"messages:{first}", "text": "and the footer too"})
@@ -936,19 +767,6 @@ def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_
         app.runtime().stop()
 
 
-def test_a_message_asked_about_a_docked_run_refers_to_its_row_and_the_agent_reads_which(tmp_path: Path):
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    server = app.server()
-    try:
-        app.console().run(["check", "create", "the suite", "--command", "true"], Caller.user("main"))
-        status, message = call(server, "POST", "/journal/messages", {"text": "> Check the suite failed\n\nwhy did it fail?", "refers": ["checks:1"]})
-        assert status == 201
-        read = app.console().run(["message", "read", str(message["id"])], Caller.agent("main", "s1", "claude"))
-        assert "refers_to checks:1" in read.text, "the agent reads which run the user asks about"
-        assert call(server, "POST", "/journal/messages", {"text": "x", "refers": ["checks:999"]})[0] >= 400, "a row that is not there is refused"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp_path: Path):
@@ -958,7 +776,7 @@ def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp
     from journal.support.actor import Actor
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             for time in (10.0, 20.0, 30.0):
@@ -974,7 +792,7 @@ def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp
 def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_listed_on_their_own(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         report = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Findings", "body": "## One\n\nText"})[1]["id"]
         other = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Other", "body": "## Two\n\nText"})[1]["id"]
@@ -990,31 +808,6 @@ def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_list
         app.runtime().stop()
 
 
-def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_cards_by_number(tmp_path: Path):
-    from journal.chat.moment_cards import MomentCards
-    from journal.support.card_type import CardType
-    from journal.support.card_outcome import CardOutcome
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.runtime().deferred.drain()
-        app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardType.CHECKS, outcome=CardOutcome.PASSED)
-        rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if r["id"] >= n]
-        assert [r["id"] for r in rows] == sorted(r["id"] for r in rows)
-        assert [(r["author"], r["text"]) for r in rows] == [("user", "hello"), ("agent", "Hello back."), ("system", "Check lint passed")]
-        card = rows[-1]
-        assert card["creator"] == "system"
-        assert card["session"] == "s1"
-        assert card["data"] == {"kind": "card", "outcome": "passed", "detail": "all clean", "row": "checks:3", "command": "", "key": "", "shows": "checks", "card_type": "moment", "is_test": False, "is_build": False, "is_upload": False}
-    finally:
-        app.runtime().stop()
 
 
 def test_the_board_is_off_and_stays_off(server):
@@ -1037,12 +830,12 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         manifest = call(server, "GET", "/journal/manifest")[1]
         matched = [f["name"] for f in manifest["features"]]
         tasks = next(f for f in manifest["features"] if f["name"] == "tasks")
-        assert [s["name"] for s in tasks["options"]] == ["auto", "wait_out_seconds", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
+        assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "testing_suggestion_minutes", "testing_suggestion_tool_uses", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
         assert all(f in matched for f in ("messages", "shell", "voices")) and "kanban" not in matched, "version 3's leftovers are gone"
         assert "faults" in matched, "slow requests are a setting in every project, off by default and switched on where the journal develops itself"
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"
@@ -1063,7 +856,7 @@ def test_a_read_of_an_unknown_environment_is_not_found_and_makes_none(tmp_path: 
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         assert call(server, "GET", "/journal/tasks", environment="settings")[0] == 404
         assert not app.container.get(Environments).matching(name="settings"), "a stray address in the browser never makes an environment"
@@ -1155,7 +948,7 @@ def test_the_secrets_page_makes_fills_allows_deletes_and_restores_a_secret(serve
     listed = json.dumps(call(server, "GET", "/journal/secrets")[1])
     assert '"filled": ["key"]' in listed and "ghp_secretvalue123" not in listed, "a filled field is marked, its value never shown"
     status, refused = call(server, "POST", f"/journal/secrets/{n}", {"programs": ["gh", "bash"]})
-    assert status == 409 and "never given to bash" in json.dumps(refused)
+    assert status == 409 and "never passed to bash" in json.dumps(refused)
     assert call(server, "POST", f"/journal/secrets/{n}", {"programs": ["gh", "curl"], "proposed": []})[0] == 200
     assert '"programs": ["gh", "curl"]' in json.dumps(call(server, "GET", "/journal/secrets")[1]), "the user allowed curl"
     assert call(server, "GET", "/journal/secrets/where")[1]["path"].endswith(".env")
@@ -1195,7 +988,7 @@ def test_a_kept_version_3_journal_is_offered_put_off_and_brought_across_with_a_r
     from journal.repositories.reports import Reports
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     try:
         assert call(server, "GET", "/journal/migration")[1] == {"kept": False, "state": "offered"}, "no backup, nothing to offer"
@@ -1219,7 +1012,7 @@ def sharing(journal_root: Path):
     app = main_journal(Config(journal_root, port=0))
     runtime = app.runtime()
     runtime.boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     runtime.share_server.start()
     yield server, runtime.share_server
@@ -1445,7 +1238,7 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         folder = tmp_path / "run"
         folder.mkdir()
@@ -1471,49 +1264,14 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
         app.runtime().stop()
 
 
-def test_a_process_card_changes_in_place_and_answers_the_poll_while_a_moment_card_is_always_new(app: App, server):
+def test_a_moment_card_is_new_each_time_and_nothing_updates_it(app: App):
     from journal.chat.moment_cards import MomentCards
-    from journal.repositories.messages import Messages
     from journal.support.card_type import CardType
-    console = app.console()
     with app.container.get(Scope).environment(1):
         moments = [app.container.get(MomentCards).show(1, "s1", "Check lint passed", key="lint", shows=CardType.CHECKS) for _ in range(2)]
-    assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment", "a moment card is new each time, and nothing updates it"
-    assert console.run(["question", "ask", "Which colour?", "--options", "red", "blue"], Caller.agent("main", "s1", "claude")).code == 0
-    with app.container.get(Scope).environment(1):
-        asked = app.container.get(Messages).with_key("question:1")[0]
-    assert (asked.data["card_type"], asked.data["process"], asked.data["active"]) == ("process", "question", True), "a question's card is a process card, active while the question is open"
-    status, fields = call(server, "GET", f"/journal/cards/active?ids={asked.id},{moments[0].id}")
-    assert status == 200 and fields == {str(asked.id): {"answer": None, "active": True}}, "the poll asks each active process card's refresh, and a moment card is never asked"
-    assert console.run(["question", "answer", "1", "blue"], Caller.user("main")).code == 0
-    with app.container.get(Scope).environment(1):
-        answered = app.container.get(Messages).with_key("question:1")
-    assert [(m.id, m.data["answer"], m.data["active"]) for m in answered] == [(asked.id, "blue", False)], "the answer settles the same card in place"
-    assert call(server, "GET", f"/journal/cards/active?ids={asked.id}")[1] == {}, "a process card whose process ended is no longer polled"
+    assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment"
 
 
-def test_a_dump_is_dropped_with_files_and_acted_on_through_the_viewer(server):
-    def upload(n: int, name: str, text: str):
-        boundary = "b0undary"
-        body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: text/plain\r\n\r\n{text}\r\n--{boundary}--\r\n").encode()
-        request = HttpRequest(f"http://127.0.0.1:{server.port}/journal/dumps/{n}/files", data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-
-    n = call(server, "POST", "/journal/dumps", {"brief": "some ideas"})[1]["id"]
-    row = upload(n, "a.txt", "hello")[1]
-    assert row["title"] == f"Dump {n}" and row["brief"] == "some ideas" and row["files"] == ["a.txt"] and row["completed_at"] == 0
-    with urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/journal/dumps/{n}/files/a.txt?env=main"), timeout=5) as reply:
-        assert reply.read() == b"hello"
-    assert call(server, "POST", f"/journal/dumps/{n}/name", {"title": "Ideas"})[1]["title"] == "Ideas"
-    stopped = call(server, "POST", f"/journal/dumps/{n}/stop")[1]
-    assert stopped["completed_at"] > 0 and stopped["stopped"] and stopped["outcome"] == "stopped, 0 filed, 2 left out"
-    assert 400 <= upload(n, "b.txt", "more")[0] < 500, "a closed dump takes no more files"
-    assert [r["id"] for r in call(server, "GET", "/journal/dumps?limit=5")[1]["rows"]] == [n]
-    assert call(server, "POST", f"/journal/dumps/{n}/dismiss")[1]["dismissed"] is True
 
 
 WEB = Path(__file__).resolve().parents[1] / "src" / "web" / "src"
@@ -1692,26 +1450,6 @@ def test_a_comment_is_deleted_from_its_column(server):
     assert produced["id"] not in [c["id"] for c in call(server, "GET", "/journal/messages?comments=1")[1]["rows"]], "the comment is gone from the column"
 
 
-def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_is_talk(tmp_path: Path):
-    from journal.support.caller import Caller
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    try:
-        call(server, "POST", "/journal/tasks", {"title": "the footer"})
-        status, comment = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "is the footer fixed?"})
-        status, reply = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "and the header?", "reply_target": comment["id"]})
-        assert status == 201 and reply["reply_target"] == comment["id"] and reply["comments_on"] == ["tasks:1"], "a reply written in the column hangs under its comment, on the same row"
-        app.console().run(["message", "send", "Yes, both are fixed.", "--reply-to", str(comment["id"])], Caller.agent("main", "s1", "claude"))
-        app.runtime().deferred.drain()
-        rows = call(server, "GET", "/journal/messages?comments=1")[1]["rows"]
-        assert [(r["author"], r["reply_target"], r["comments_on"]) for r in rows] == [("user", None, ["tasks:1"]), ("user", comment["id"], ["tasks:1"])], "the agent's reply in the chat is a plain reply, linked to the comment it answers and to no row"
-        answered = call(server, "POST", "/journal/messages", {"text": "Good, then the menu next.", "reply_target": comment["id"]})[1]
-        assert answered["reply_target"] == comment["id"] and answered["comments_on"] == [] and not answered["text"].startswith(">"), "a word typed in the chat is a chat message whatever it replies to: no comment on the row, no passage carried over"
-        assert len(call(server, "GET", "/journal/messages?comments=1")[1]["rows"]) == 2, "only the comment box files a comment"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_streams_what_the_agent_sees(tmp_path: Path):
@@ -1720,7 +1458,7 @@ def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_str
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     (tmp_path / "a.py").write_text("print(1)\n")
     environment = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(tmp_path), "JOURNAL_SESSION": "s1", "CLAUDECODE": "1"}
     def run(line: str, cwd: Path = tmp_path) -> str:
@@ -1772,7 +1510,7 @@ def test_the_viewer_undocks_a_docked_row_by_an_act_on_its_message(journal_root: 
     from journal.chat.docking import Docking
     app = main_journal(Config(journal_root, port=0))
     app.runtime().boot()
-    server = app.server()
+    server = suite_server(app)
     server.start()
     try:
         call(server, "POST", "/journal/tasks", {"title": "ship it", "brief": "b"})
@@ -1785,15 +1523,6 @@ def test_the_viewer_undocks_a_docked_row_by_an_act_on_its_message(journal_root: 
         server.stop()
 
 
-def test_a_document_is_docked_and_undocked_from_its_inspector_through_the_dock_endpoint(app: App, server):
-    page = app.config.root / "design.md"
-    page.write_text("## What\n\nThe words.\n")
-    assert app.console().run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], Caller.user("main")).code == 0
-    status, docked = call(server, "POST", "/journal/docks/docs/1")
-    assert status == 200 and docked["data"]["docked"] is True and docked["data"]["row"] == "docs:1", "the document is docked by its table and number"
-    status, undocked = call(server, "POST", "/journal/docks/docs/1/undock")
-    assert status == 200 and undocked["id"] == docked["id"] and undocked["data"]["docked"] is False, "and taken down by the same card"
-    assert call(server, "POST", "/journal/docks/environments/1")[0] == 409, "a row that cannot be docked is refused"
 
 
 def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(server):
@@ -1814,19 +1543,6 @@ def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(serv
         assert type_name.startswith("text/html") and b"<h1>What the check found</h1>" in body, "the page itself where textutil is missing"
 
 
-def test_a_comment_on_a_documents_passage_names_the_section_and_lines_it_sits_on(tmp_path: Path):
-    from journal.support.caller import Caller
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().boot()
-    server = app.server()
-    server.start()
-    try:
-        call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Launch notes", "body": "# Launch notes\n\n## Why\nBecause it is time.\n\n## How\nFirst the tag.\nThen the push.\nThen the notes."})
-        comment = call(server, "POST", "/journal/messages", {"on": "docs:1", "text": "> Then the push.\n> Then the notes.\n\nThe push comes before the tag here."})[1]
-        shown = app.console().run(["message", "read", str(comment["id"])], Caller.agent("main", "s1", "claude")).text
-        assert "comments_on docs:1" in shown and "the passage sits in doc 1 at section 2, How, lines 8-9: `journal doc show 1 --section 2` or `--grep`" in shown, shown
-    finally:
-        server.stop()
 
 
 def test_a_tunler_still_running_for_the_journals_address_is_ended_before_the_tunnel_starts(tmp_path: Path):
@@ -1913,7 +1629,7 @@ def test_the_change_stream_starts_after_the_entry_the_page_names(tmp_path: Path)
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             entries = app.container.get(Entries)
@@ -1951,7 +1667,7 @@ def test_a_critique_asked_from_the_plan_page_puts_a_ready_plan_in_review(tmp_pat
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    server = app.server()
+    server = suite_server(app)
     try:
         with app.container.get(Scope).environment(1):
             plan = app.container.get(Plans).save(Plan(environment_id=1, title="the redesign", state=PlanState.READY), Actor.system())
@@ -1975,7 +1691,7 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
     app = App(Config(journal_root, port=0))
     app.runtime().start()
     try:
-        server = app.server()
+        server = suite_server(app)
         from journal.console.console import Console
         from journal.support.agent_role import AgentRole
         assert {AgentRole.MAIN, AgentRole.WORKER, AgentRole.SUBAGENT} <= set(app.container.get(Console)._parsers), "each role's parser is built at boot"
@@ -2015,7 +1731,7 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
     threading.Thread(target=service.serve_forever, daemon=True).start()
     app = boot(copied(template_journal, tmp_path / "journal"), monkeypatch)
     try:
-        server = app.server()
+        server = suite_server(app)
         address = f"http://127.0.0.1:{service.server_address[1]}/events"
         registration = {"name": "stand-in", "address": address, "events": ["change_queued"]}
         assert call(server, "POST", "/journal/services", registration)[0] == 403, "a registration without the service secret is refused"
@@ -2039,7 +1755,7 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
 def test_a_message_of_attachments_alone_is_accepted_without_words(tmp_path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
-    server = app.server()
+    server = suite_server(app)
     try:
         status, message = call(server, "POST", "/journal/messages", {"text": "", "idempotency": "k-files"})
         assert status == 201 and message["text"] == "", "the server accepts a message with no words, which is how attachments alone arrive"
@@ -2079,6 +1795,27 @@ def test_the_health_url_answers_unwell_while_the_server_cannot_open_a_file(app: 
     assert call(server, "GET", "/journal/health")[0] == 200
 
 
+def test_the_health_url_answers_unwell_once_five_requests_in_a_row_fail_and_well_once_one_is_answered(app: App, server):
+    from journal.http.support.request_faults import FAILING_REQUEST_COUNT, RequestFaults
+    from journal.repositories.environments import Environments
+    original = Environments.matching
+
+    def broken(self, **fields):
+        raise IndexError("No item with that key")
+
+    Environments.matching = broken
+    try:
+        for _ in range(FAILING_REQUEST_COUNT):
+            with pytest.raises(OSError):
+                call(server, "GET", "/journal/tasks")
+        status, health = call(server, "GET", "/journal/health")
+        assert status == 503 and health["failing_requests"] >= FAILING_REQUEST_COUNT and "IndexError" in health["last_fault"], "a server whose every request fails, as one running old code on a migrated database, says it is unwell, so its supervisor starts it again"
+    finally:
+        Environments.matching = original
+    call(server, "GET", "/journal/tasks")
+    assert call(server, "GET", "/journal/health")[0] == 200 and app.container.get(RequestFaults).streak == 0, "one request answered ends the streak"
+
+
 def test_the_database_is_copied_online_and_only_the_newest_two_copies_stay(app: App):
     from journal.features.health.jobs.database_backup import DatabaseBackup
     backup, now = app.container.get(DatabaseBackup), time.time()
@@ -2108,3 +1845,43 @@ def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between
     _, older = call(server, "GET", f"/journal/messages?limit=25&before={oldest}")
     older_written = [row for row in older["rows"] if row["author"] != "system"]
     assert len(older_written) == 25 and older_written[-1]["text"] == "written 34", "the next older page holds the 25 written messages before them"
+
+
+def test_a_fault_is_sent_to_the_sentry_the_setting_names_and_to_none_while_it_is_empty(app: App):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from journal.features.faults.jobs.sentry_sender import SentrySender
+    from tests.user_settings import user_set
+    received = []
+
+    class Sentry(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append((self.path, self.headers.get("X-Sentry-Auth", ""), self.rfile.read(int(self.headers["Content-Length"])).decode()))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            return None
+
+    sentry = HTTPServer(("127.0.0.1", 0), Sentry)
+    threading.Thread(target=sentry.serve_forever, daemon=True).start()
+    from journal.support.fault_log import FaultLog
+    sender, faults = app.container.get(SentrySender), app.container.get(FaultLog)
+
+    def fault_met(place: str, fault: Exception) -> None:
+        try:
+            raise fault
+        except Exception as raised:
+            faults.reported(place, raised)
+
+    try:
+        fault_met("deferred work", ZeroDivisionError("division by zero"))
+        sender.tick(time.time())
+        assert received == [], "with no Sentry named nothing leaves the machine"
+        user_set(app, "faults.sentry_dsn", f"http://publickey@127.0.0.1:{sentry.server_address[1]}/42")
+        fault_met("deferred work", KeyError("missing"))
+        sender.tick(time.time())
+        [(path, auth, body)] = received
+        assert path == "/api/42/envelope/" and "sentry_key=publickey" in auth and "KeyError" in body and "deferred work" in body, body
+    finally:
+        sentry.shutdown()

@@ -20,7 +20,7 @@
       "name": "fifty quiet minutes",
       "answer": null,
       "typed": [
-        "[journal] blocked, with nothing that opens it by itself: task 1 (the footer). `journal task unblock <n>` once what it waits on has come"
+        "[journal] blocked with nothing to open them: task 1 (the foote\u2026. run `journal task unblock <n>` once what it waits on has arrived"
       ],
       "nudges": [
         "tasks.blocked_task_asked_about"

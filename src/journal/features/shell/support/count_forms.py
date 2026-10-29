@@ -90,7 +90,6 @@ class CountForms:
         if cls.has_total(lines):
             return False
         counts: dict[str, list[int]] = {}
-        for line in lines:
-            if match := COUNTER_LINE.match(line):
-                counts.setdefault(match["lead"], []).append(int(match["count"]))
+        for match in (COUNTER_LINE.match(line) for line in lines if COUNTER_LINE.match(line)):
+            counts.setdefault(match["lead"], []).append(int(match["count"]))
         return any(len(values) >= LEAST_COUNTS and values == sorted(set(values)) for values in counts.values())

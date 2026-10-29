@@ -16,12 +16,12 @@ class PersonWait:
     def __init__(self, tasks: Tasks, users: Users) -> None:
         self.tasks, self.users = tasks, users
 
-    def is_on_a_person(self, task: Task) -> bool:
-        return not self.tasks.open_waits(task) and self.names_a_person(task.waiting_reason())
+    def is_person_wait(self, task: Task) -> bool:
+        return not self.tasks.open_waits(task) and self.has_person_name(task.waiting_reason())
 
-    def names_a_person(self, reason: str) -> bool:
+    def has_person_name(self, reason: str) -> bool:
         names = [word for user in self.users.all() for word in user.name.split()[:1] if len(word) > 1]
         return bool(PERSON_WORDS.search(reason)) or any(re.search(rf"\b{re.escape(name)}\b", reason, re.IGNORECASE) for name in names)
 
-    def names_someone_outside(self, reason: str) -> bool:
-        return self.names_a_person(reason) or bool(OUTSIDE_WORDS.search(reason))
+    def has_outside_name(self, reason: str) -> bool:
+        return self.has_person_name(reason) or bool(OUTSIDE_WORDS.search(reason))

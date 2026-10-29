@@ -51,7 +51,7 @@ class LoadMeter:
     def measured(self, agent: Agent, work_queue: AgentLoad, message_queue: AgentLoad, items: list[LoadItem], time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
         band = self.bands.band(agent, mode, work_queue, [item for item in items if item.ref.startswith(WORKER_REF)], time)
-        queued = agent.queues_measured(work_queue, message_queue).band_moved(band, time)
+        queued = agent.queue_loads_measured(work_queue, message_queue).band_moved(band, time)
         measured = queued.measures_worked(self.measures.worked(queued, mode, time))
         return self.scaled(measured, time) if self.work_mode.delegates_work() else measured
 

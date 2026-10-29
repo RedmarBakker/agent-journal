@@ -17,7 +17,7 @@ const skills = computed(() => loadedSkills(props.data));
 const usage = computed(() => usageWindows(props.data));
 const used = (window) => Math.max(0, Math.min(100, Number(window.used ?? 100 - window.remaining)));
 const usageLabel = computed(() => (usage.value.length ? `${Math.round(used(usage.value[0]))}%` : "usage"));
-const filled = computed(() => Math.round(Number((props.data && props.data.context) || 0)));
+const filled = computed(() => (props.data?.context == null ? null : Math.round(Number(props.data.context))));
 const live = (rows) => (rows || []).filter((r) => r.running).length;
 const skillCount = computed(() => ({
     key: "skills",
@@ -79,7 +79,7 @@ const toggle = (key, e) => emit("toggle", key, e);
                     {{ usageLabel }}
                 </AgentFact>
             </template>
-            <template v-if="offers(data, 'context status')">
+            <template v-if="offers(data, 'context status') && filled !== null">
                 <AgentFact
                     :class="['agent-fact', 'agent-count', 'agent-context', {open: open === 'context'}]"
                     icon="gauge"

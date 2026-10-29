@@ -36,6 +36,8 @@ class MessageController(Controller[Message]):
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
+        if request.query.get("docked"):
+            return self.docked_listed(self.repository.main_chat())
         if request.query.get("comments"):
             return self.comments_listed(Listing.query_listing(request.query))
         if "on" not in request.query:
@@ -63,7 +65,13 @@ class MessageController(Controller[Message]):
         rows, has_older = self.repository.message_page(chat, listing.limit, listing.upper_id, listing.lower_id)
         return RowListPage(rows=rows, is_last_page=not has_older)
 
+    def docked_listed(self, chat: Query) -> Response:
+        rows = self.repository.docked_cards(chat)
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0)))
+
     def agent_chat(self, request: Request) -> Response:
+        if request.query.get("docked"):
+            return self.docked_listed(self.repository.agent_chat(request.params["session"]))
         listing = Listing.query_listing(request.query)
         page = self.chat_page(self.repository.agent_chat(request.params["session"]), listing)
         return Response.json(RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=Counts(all=len(page["rows"]), open=0, unread=0)))
@@ -92,7 +100,7 @@ class MessageController(Controller[Message]):
             reply = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=target.id).arrived(), request.actor)
             return Response.json(self.shown(reply), 201)
         reply_ref = request.body.get("reply_target")
-        message = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=int(reply_ref) if reply_ref else None).arrived(), request.actor)
+        message = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=int(reply_ref) if reply_ref else None, idempotency=request.body.get("idempotency", "")).arrived(), request.actor)
         self.links.save(Link(source=Ref.build(message), target=target, link_type=Messages.COMMENT_LINK), request.actor)
         return Response.json(self.shown(message), 201)
 
@@ -133,6 +141,9 @@ class MessageController(Controller[Message]):
 
     def dock(self, request: Request) -> Response:
         return Response.json(self.shown(self.docking.pin_message(self.repository.find(request.number("id")), request.actor)))
+
+    def unpin(self, request: Request) -> Response:
+        return Response.json(self.shown(self.docking.unpin_message(self.repository.find(request.number("id")), request.actor)))
 
     def undock(self, request: Request) -> Response:
         return Response.json(self.shown(self.docking.release(self.repository.find(request.number("id")), request.actor)))

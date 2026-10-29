@@ -6,15 +6,12 @@ import MarkIcon from "../kit/MarkIcon.vue";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import ChatDock from "./ChatDock.vue";
 import RunChip from "./RunChip.vue";
-import {keepDocked} from "../actions/docking.js";
 import {useMeasuredHeight} from "../composables/measuredHeight.js";
-import {useScope} from "../composables/scope.js";
 
 // The runs docked above the chat: each its own card, and once they are `grouped`, one compact row with a chip per run, the cards shrinking
 // into it and growing back out of it with the dock's height easing along. A click on the row's title opens every run's card, and a click
 // on a chip opens that run's card, folds the others and keeps it
 const props = defineProps({runs: {type: Array, required: true}, grouped: Boolean, folded: Boolean});
-const scope = useScope();
 const open = ref(false);
 const chosen = ref(0);
 // the row stands for runs that are docked: with none left, there is nothing to fold
@@ -36,7 +33,6 @@ function toggle() {
 function choose(message) {
     chosen.value = message.id;
     open.value = true;
-    if (message.data.auto_docked) keepDocked(scope, message);
 }
 
 const foldedRun = (message) => props.folded || Boolean(chosen.value && chosen.value !== message.id);

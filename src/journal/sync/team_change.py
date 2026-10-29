@@ -25,7 +25,7 @@ class TeamChange:
     def is_withdrawal(self) -> bool:
         return self.action == WITHDRAWN
 
-    def is_kept_by(self, person: Actor) -> bool:
+    def is_retained_by(self, person: Actor) -> bool:
         return self.kept_by in (KEPT_BY_ALL, person.stamp)
 
     def actor(self) -> Actor:

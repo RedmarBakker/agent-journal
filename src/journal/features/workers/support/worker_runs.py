@@ -2,7 +2,6 @@ import shlex
 
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.models.worker import Worker
-from journal.models.worker_state import WorkerState
 from journal.repositories.command_outputs import CommandOutputs
 
 MERGE_LINE = "journal worker merge"
@@ -23,4 +22,4 @@ class WorkerRuns:
 
     def merging(self, workers: list[Worker]) -> set[int]:
         merge_arguments = {argument for output in self.outputs.prefix_runs(MERGE_LINE) for argument in shlex.split(output.command)[len(MERGE_LINE.split()):]}
-        return {worker.row_id for worker in workers if str(worker.row_id) in merge_arguments or ("--all" in merge_arguments and worker.state == WorkerState.DELIVERED)}
+        return {worker.row_id for worker in workers if str(worker.row_id) in merge_arguments or ("--all" in merge_arguments and worker.is_delivered())}

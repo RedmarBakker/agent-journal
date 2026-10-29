@@ -12,8 +12,6 @@ from journal.sync.team_account import TeamAccount
 class EnvironmentOwnerRecord(Listener[Created]):
     """An environment made on this machine is owned by this machine's person, linked from their user row; one pulled from a colleague's machine arrives with its own link, and the Team chat and a team's hub are owned by no one."""
 
-    blocking = True
-
     def __init__(self, links: Links, account: TeamAccount) -> None:
         self.links, self.account = links, account
 

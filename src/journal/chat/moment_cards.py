@@ -2,6 +2,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
 from journal.chat.card_detail import CardDetail
+from journal.support.answer_phase import AnswerPhase
 from journal.chat.card_category import CardCategory
 from journal.repositories.setting_rows import SettingRows
 from journal.support.option import Option
@@ -25,8 +26,8 @@ FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind wit
 class MomentCards:
     """A card for a moment, in the chat of the agent whose session it names, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, save one of a kind that folds, posted within the fold window after a mark of its kind that is the chat's newest message, which is counted in that mark with its detail. A role card shows in the chat of a session whose agent may not have hooked in yet, such as a reviewer's, and names its role itself."""
 
-    def __init__(self, messages: Messages, settings: SettingRows, agents: Agents, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, messages: Messages, settings: SettingRows, agents: Agents, time_source: TimeSource, phase: AnswerPhase) -> None:
+        self.time_source, self.phase = time_source, phase
         self.messages, self.settings, self.agents = messages, settings, agents
 
     def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, type_name: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE, place: RunPlace | None = None) -> Message:
@@ -41,6 +42,7 @@ class MomentCards:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
         card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, thread=MessageThread.agent_thread(role), text=label, data=data)
         cutoff_at = self.time_source.moment() - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))
+        self.phase.record_viewer_write(type(self).__name__)
         foldable = self.messages.fold_target(card, cutoff_at) if shows.folds() else []
         return self.messages.save(foldable[0].folded(label, detail) if foldable else card, actor)
 

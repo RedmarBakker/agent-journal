@@ -36,7 +36,11 @@ class StartLines:
         return "" if event.source == "compact" else self.other_session_time(event.session)
 
     def other_session_time(self, session: str) -> str:
-        peer = self.agents.recent_peer(session, self.time_source.moment() - TAKEOVER_WINDOW)
+        earliest = self.time_source.moment() - TAKEOVER_WINDOW
+        rows = self.agents.session_rows(session)
+        if rows and rows[0].previous_session_updated_at >= earliest.timestamp():
+            return datetime.fromtimestamp(rows[0].previous_session_updated_at).astimezone().strftime("%H:%M")
+        peer = self.agents.recent_peer(session, earliest)
         return peer.update_time.astimezone().strftime("%H:%M") if peer else ""
 
     def rules_numbered(self) -> str:

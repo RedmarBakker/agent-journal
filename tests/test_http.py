@@ -7,6 +7,7 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
+from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.config import Config
 from journal.repositories.entries import Entries
@@ -14,12 +15,15 @@ from journal.repositories.scope import Scope
 from journal.support.listener_queue import ListenerQueue
 
 MAIN = 1
+from journal.models.agent import Agent
+
+EVENT_AGENT = Agent(environment_id=1, session="s1", provider="claude")
 
 
 @pytest.fixture(scope="module")
 def boot():
     def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-        app = App(Config(root, port=0))
+        app = SuiteApp(Config(root, port=0))
         app.container.get(ListenerQueue).start()
         app.server().start()
         return app
@@ -68,7 +72,7 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     lifecycle.booting()
     try:
         assert lifecycle.marker().read_text().isdigit(), "the booting file names the booting server's process, for the hook script"
-        assert sent(app, "GET", "/journal/health") == (200, {"answering": True, "phase": "booting", "hooks_lost": []}), "the health answer is the one thing answered while booting, and it names no environment whose hooks were lost"
+        assert sent(app, "GET", "/journal/health") == (200, {"answering": True, "phase": "booting", "hooks_lost": [], "failing_requests": 0, "last_fault": ""}), "the health answer is the one thing answered while booting, and it names no environment whose hooks were lost"
         answers = {}
         stamp = str(int(time.time() * 1000))
         hook = threading.Thread(target=lambda: answers.update(hook=sent(app, "POST", "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, {"X-Journal-Request-At": stamp})))
@@ -84,14 +88,14 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     with app.container.get(Scope).environment(MAIN):
         [entry] = [entry for entry in app.container.get(Entries).scoped() if entry.entry_type == "ToolStarting" and "hook_ms" in entry.data]
     assert entry.data["boot_wait_ms"] >= 350, "the hook's entry says how long it waited for the boot"
-    assert entry.data["hook_ms"] < entry.data["boot_wait_ms"], "and its own time leaves the wait out"
+    assert entry.data["hook_ms"] >= entry.data["boot_wait_ms"], "and its time counts from the script's own start, the wait in it"
 
 
 def test_every_hook_event_carries_the_seconds_it_waited_for_the_boot():
     from journal.events.agent.stop import Stop
-    event = Stop().boot_delayed(1.5)
+    event = Stop(agent=EVENT_AGENT).boot_delayed(1.5)
     assert event.is_boot_delayed() and event.boot_wait_seconds == 1.5
-    assert not Stop().is_boot_delayed()
+    assert not Stop(agent=EVENT_AGENT).is_boot_delayed()
 
 
 def test_the_runtime_loads_while_booting_and_starts_its_workers_and_jobs_only_once_booted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

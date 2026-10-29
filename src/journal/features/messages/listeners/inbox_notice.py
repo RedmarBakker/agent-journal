@@ -1,6 +1,5 @@
 from typing import TypeVar
 
-from journal.engine.support.session_agents import SessionAgents
 from journal.engine.nudger import Nudger
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent_listener import AgentListener
@@ -15,14 +14,12 @@ E = TypeVar("E", bound=AgentEvent)
 class InboxNotice(AgentListener[E]):
     """What the three moments share: what waits unread is named to the agent by number, so it reads and answers it before anything else."""
 
-    blocking = True
-
-    def __init__(self, sessions: SessionAgents, nudger: Nudger, messages: Messages) -> None:
-        self.sessions, self.nudger, self.messages = sessions, nudger, messages
+    def __init__(self, nudger: Nudger, messages: Messages) -> None:
+        self.nudger, self.messages = nudger, messages
 
     def handle(self, event: E) -> Decision | None:
         unread = self.messages.unread_page_ids(INBOX_LINE_IDS)
         if not unread:
             return None
-        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), MessagesNudges.inbox(tuple(unread), self.messages.unread_count()))
+        line = self.nudger.deliver(event.agent, MessagesNudges.inbox(tuple(unread), self.messages.unread_count()))
         return Decision.allowed_with(line) if line else None

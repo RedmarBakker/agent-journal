@@ -2,7 +2,6 @@ import json
 import time
 
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.models.author import Author
 from journal.models.dump import Dump
 from journal.models.link import Link
@@ -39,11 +38,13 @@ class DumpFiler:
 
     def create(self, brief: str, actor: Actor) -> Dump:
         dump = self.dumps.save(Dump(title="Dump", brief=brief.strip(), queued_at=self.time_source.seconds()), actor)
-        return self.dumps.save(dump.with_(title=f"Dump {dump.id}").arrived(self.time_source.seconds(), actor.is_user()), actor)
+        dump_row = dump.with_(title=f"Dump {dump.id}")
+        return self.dumps.save(actor.chosen_way(dump_row.user_arrival, dump_row.agent_arrival)(self.time_source.seconds()), actor)
 
     def attach(self, n: int, name: str, actor: Actor) -> Dump:
         dump = self.open(n, f"dump {n} is already filed: start a new dump for more")
-        return self.dumps.save(dump.with_(files=tuple(dict.fromkeys((*dump.files, name)))).arrived(self.time_source.seconds(), actor.is_user()), actor)
+        attached = dump.with_(files=tuple(dict.fromkeys((*dump.files, name))))
+        return self.dumps.save(actor.chosen_way(attached.user_arrival, attached.agent_arrival)(self.time_source.seconds()), actor)
 
     def items(self, n: int) -> list[str]:
         dump = self.dumps.find(n)
@@ -57,7 +58,7 @@ class DumpFiler:
             raise Rejection("say what was done with it")
         rows, owned = self.refs(refs), self.refs(added)
         if set(owned) - set(rows):
-            raise Rejection("--added names rows you also list in refs")
+            raise Rejection("--added contains rows you also list in refs")
         dump = self.dumps.find(n)
         missing = [ref for ref in rows if not self.rows.is_row(Ref.parse(ref))]
         if missing:
@@ -213,7 +214,7 @@ class DumpFiler:
 
     @staticmethod
     def require_user(actor: Actor, subject: str) -> None:
-        if actor.actor_type == ActorType.AGENT:
+        if actor.is_agent_actor():
             raise Rejection(f"only the user {subject}")
 
     def entry(self, text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:

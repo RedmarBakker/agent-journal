@@ -11,12 +11,10 @@ from journal.events.rows.paused_work_declined import PausedWorkDeclined
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.support.task_state_names import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.features.tasks.tasks_part import TasksPart
 
-CHOOSING_PAUSED_WORK = "choosing_paused_work"
-# the stops the choice refuses before the first paused task, or the more urgent open one, is taken up for the agent
-CHOICE_REFUSALS = 2
 
 
 @dataclass(frozen=True)

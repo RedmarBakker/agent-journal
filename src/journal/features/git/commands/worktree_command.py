@@ -16,7 +16,7 @@ class WorktreeCommand(Command):
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "the worktrees launches made, each with its branch, and those whose environment is gone marked so")
-        self.verb(verbs, "remove", "remove a launch's worktree folder, keeping its branch and its last commit; refused while a session works in it or it holds uncommitted work").add_argument("name")
+        self.verb(verbs, "remove", "remove a launch's worktree folder, keeping its branch and its last commit; refused while a session works in it or it contains uncommitted work").add_argument("name")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         names, orphan_names = self.worktrees.names(), {tree.name for tree in self.worktrees.orphan_worktrees()}

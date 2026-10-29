@@ -7,3 +7,4 @@ from journal.events.agent.agent_event import AgentEvent
 class Compacting(AgentEvent):
     """The agent's context is about to be compacted: the last chance to make it write something down."""
 
+    takes_remarks = False

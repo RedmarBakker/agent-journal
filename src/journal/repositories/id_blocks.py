@@ -33,7 +33,7 @@ class IdBlocks(Repository[IdBlock]):
     def open_blocks(self, table: str, team_key: str = "") -> list[IdBlock]:
         return [block for block in self.all_matching(row_table=table, team_key=team_key) if block.spare_count() > 0]
 
-    def is_given(self, table: str, number: int) -> bool:
+    def is_granted(self, table: str, number: int) -> bool:
         return any(block.first_number <= number < block.next_number for block in self.all_matching(row_table=table))
 
     def clear(self) -> None:

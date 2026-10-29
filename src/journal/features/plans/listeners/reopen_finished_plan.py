@@ -21,4 +21,4 @@ class ReopenFinishedPlan(Listener[Created]):
             return
         plan = self.plans.find(link.target.id)
         if plan.state == PlanState.FINISHED and not self.plans.finished(plan):
-            self.plans.save(plan.reopened(self.time_source.moment().timestamp()), event.actor)
+            self.plans.save(plan.unfinished("a task was added to it", self.time_source.moment().timestamp()), event.actor)

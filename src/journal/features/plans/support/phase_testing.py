@@ -25,6 +25,9 @@ class PhaseTesting:
         run = self.outputs.last_run(command)
         return run is not None and run.status == 0 and run.update_time.timestamp() > moment
 
+    def is_refused(self, plan: Plan) -> bool:
+        return bool(self.unpassed(plan))
+
     def refusal(self, plan: Plan) -> str:
         unpassed = self.unpassed(plan)
         return f"plan {plan.id}'s next phase starts once its testing template's commands pass after the last phase's last task: run {' and '.join(unpassed)}" if unpassed else ""

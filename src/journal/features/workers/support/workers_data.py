@@ -23,9 +23,6 @@ class WorkersData:
     subagents: tuple[Subagent, ...]
     worktrees_root: Path
     worktrees: tuple[WorkerWorktree, ...]
-    session_workers: tuple[Worker, ...] = ()
-    todos: tuple[WorkerTodo, ...] = ()
-    unfinished_outputs: tuple[int, ...] = ()
     ready_work: tuple[ReadyWork, ...] = ()
     delivered_workers: tuple[Worker, ...] = ()
     delivered_runs: tuple[tuple[int, int], ...] = ()

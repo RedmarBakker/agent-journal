@@ -1,7 +1,5 @@
 from pathlib import Path
-import hashlib
 import socket
-import ssl
 import time
 from datetime import datetime, timezone
 
@@ -26,6 +24,7 @@ from journal.repositories.shared_tables import SharedTables
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.block_supply import BlockSupply
+from journal.sync.certificate_fingerprint import CertificateFingerprint
 from journal.sync.record_outgoing_change import RecordOutgoingChange
 from journal.sync.row_renumbering import RowRenumbering
 from journal.events.models.created import Created
@@ -69,8 +68,8 @@ class TeamJoin:
     def join(self, url: TeamUrl, email: str, password: str, name: str) -> str:
         self.trusted(url)
         summary = self.link.summary(url.address)
-        if self.held_refusal(summary, url):
-            raise Rejection(self.held_refusal(summary, url))
+        if self.block_refusal(summary, url):
+            raise Rejection(self.block_refusal(summary, url))
         repository = self.identity.first_commit()
         if self.repository_refusal(summary, repository):
             raise Rejection(self.repository_refusal(summary, repository))
@@ -119,7 +118,7 @@ class TeamJoin:
         if summary.on_hub:
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
 
-    def held_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
+    def block_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
         for account in self.accounts.accounts():
             if account.team_key() == summary.key:
                 return f"this journal has joined the team at {account.address()} already: journal team status says how it stands"
@@ -140,7 +139,7 @@ class TeamJoin:
         return f"joined the team at {url.address} beside this journal's other teams, as its first journal: its hub {name} uploaded"
 
     def added_beside(self, url: TeamUrl, account: TeamAccount, copy: FullCopy) -> str:
-        clashing_numbers = self.copy.taken_numbers(copy.rows)
+        clashing_numbers = self.copy.granted_numbers(copy.rows)
         if clashing_numbers:
             account.path().unlink()
             raise Rejection(f"the team at {url.address} has {len(clashing_numbers)} rows numbered like this journal's, such as {clashing_numbers[0]}: no join")
@@ -195,8 +194,8 @@ class TeamJoin:
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)
-        if hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest() != fingerprint.lower():
-            raise Rejection(f"the server at {address} does not hold the certificate the fingerprint names: check the join line, or the address")
+        if not CertificateFingerprint.matches(certificate, fingerprint):
+            raise Rejection(f"the server at {address} does not hold the certificate of the fingerprint: check the join line, or the address")
         self.account.root_path().write_text(certificate)
 
     def uploaded(self, repository: str, team_number: int) -> str:
@@ -221,17 +220,17 @@ class TeamJoin:
         copy = self.link.full_copy()
         backup = self.config.home / time.strftime(BACKUP_NAME)
         self.backups.write(backup)
-        kept = [environment.key for environment in self.environments.working()]
+        working_keys = [environment.key for environment in self.environments.working()]
         team_keys = {row.fields.get("key") for row in copy.rows if row.row_table == Environment.table()}
         self.renumbering.renumbered(account_id)
         self.copy.laid_beside(copy.rows)
         self.account.record_sequence(copy.head)
         self.claim_environments(prefix, account_id)
-        for key in kept:
+        for key in working_keys:
             self.namesakes_renamed(self.environments.keyed(key)[0])
         self.stamp_workers()
         self.outgoing.clear()
-        for key in kept:
+        for key in working_keys:
             if key not in team_keys:
                 self.entered(self.environments.keyed(key)[0])
         self.add_user(account_id, name)
@@ -265,7 +264,7 @@ class TeamJoin:
         for environment in self.environments.working():
             if not self.owners.owner_number(environment.row_id):
                 self.links.save(Link(source=Ref(User.table(), account_id), target=Ref.build(environment), link_type=OWNER), Actor.system())
-            if environment.team_name is None:
+            if not environment.has_team():
                 self.environments.save(environment.team_ready(prefix), Actor.system())
 
     def name_user(self, account_id: int, name: str) -> None:

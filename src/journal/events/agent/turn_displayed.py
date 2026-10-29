@@ -8,6 +8,8 @@ from journal.events.agent.agent_event import AgentEvent
 class TurnDisplayed(AgentEvent):
     """The agent wrote a turn for the user: the text so far, the part that just arrived, and whether that part was the last. What reaches the chat and what the tags are read from is the whole text, on the final part."""
 
+    reads_transcript: ClassVar[bool] = False
+
     has_lines: ClassVar[bool] = False
     text: str
     delta: str = ""
@@ -18,6 +20,9 @@ class TurnDisplayed(AgentEvent):
     @property
     def content(self) -> str:
         return self.text if self.final else ""
+
+    def has_final_words(self) -> bool:
+        return self.final and bool(self.text.strip())
 
     def with_text(self, full: str) -> "TurnDisplayed":
         return replace(self, text=full)

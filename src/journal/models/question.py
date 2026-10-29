@@ -7,6 +7,7 @@ from journal.events.rows.question_closed import QuestionClosed
 from journal.events.rows.question_posed import QuestionPosed
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 
 
 # the answer a question keeps once the user closed it, no longer needed, without answering it
@@ -14,7 +15,7 @@ CLOSED_ANSWER = "The user closed it without an answer."
 
 
 @dataclass(frozen=True)
-class Question(Scoped):
+class Question(Scoped, Commentable):
     text_fields: ClassVar[tuple[str, ...]] = ("text", "answer")
     PERSONAL: ClassVar[re.Pattern] = re.compile(r"\b(i|i'll|i'm|i've|me|my|we|we'll|us|our|you|you'll|you're|your)\b", re.IGNORECASE)
 

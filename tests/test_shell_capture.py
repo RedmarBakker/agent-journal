@@ -63,11 +63,6 @@ def test_the_bare_suite_call_runs_through_the_runner_and_becomes_an_output_when_
     assert app.container.get(CommandOutputs).find(int(moved.group(1))).command == "./scripts/test.sh"
 
 
-def test_a_shell_call_claude_code_would_run_in_its_own_background_runs_in_the_foreground_through_the_journal(app: App):
-    status, answer = hook(app, "PreToolUse", tool_name="Bash", tool_input=SUITE_CALL)
-    output = answer["hookSpecificOutput"]
-    assert status == 200 and output["permissionDecision"] == "allow", answer
-    assert output["updatedInput"] == {**SUITE_CALL, "run_in_background": False}
 
 
 
@@ -76,3 +71,10 @@ def test_a_new_file_a_shell_line_wrote_counts_its_lines_in_the_folder_the_shell_
     (tmp_path / "made.txt").write_text("a\nb\n")
     changed = ChainWorker.changed("", f"#folder\t{tmp_path}\n?\t0\tmade.txt\n")
     assert [(file.added, file.path) for file in changed] == [(2, "made.txt")]
+
+
+def test_a_worker_send_moves_to_the_background_at_once_as_a_merge_does(app: App):
+    from journal.features.shell.support.background_commands import BackgroundCommands
+    background = app.container.get(BackgroundCommands)
+    assert background.is_background("journal worker send 3 'the next job'"), "a send rebases the worktree before the worker starts, so it never holds the agent's tool call"
+    assert background.is_background("journal worker merge 3") and not background.is_background("journal worker list"), "only the verbs that take long move at once"

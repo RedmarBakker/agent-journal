@@ -11,10 +11,9 @@ from journal.models.test_turn_state import TestTurnState
 class TestTurn(Scoped):
     """A worker's turn to run tests: the worker, the test ids it named, the command that runs them, the worktree it runs in, where it stands and since when it has run, the number of the output of its run once that moved to the background, and how the run came out with how many of its tests failed. Stored on this machine."""
 
-    __test__ = False
-
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False
+    __test__: ClassVar[bool] = False
 
     worker: int = 0
     ids: str = ""
@@ -43,3 +42,6 @@ class TestTurn(Scoped):
 
     def with_run_event(self, time: float) -> "TestTurn":
         return self.with_event(ClockOutTestRunChanged(environment_id=self.environment_id, time=time, turn=self.row_id))
+
+    def has_passed(self) -> bool:
+        return self.outcome == TestOutcome.PASSED

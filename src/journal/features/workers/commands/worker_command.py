@@ -30,10 +30,10 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
-from journal.models.worker_state import WorkerState
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
+from journal.features.workers.support.plan_delegation import PlanDelegation
 from journal.repositories.workers import Workers
 from journal.repositories.templates import Templates
 from journal.features.workers.support.worker_actions import WorkerActions
@@ -71,10 +71,10 @@ class WorkerCommand(Command):
 
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
-    background_verbs = frozenset({"merge"})
+    background_verbs = frozenset({"merge", "send"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, delegation: PlanDelegation) -> None:
+        self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
@@ -87,10 +87,10 @@ class WorkerCommand(Command):
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
         dispatch.add_argument("name")
-        dispatch.add_argument("brief", nargs="?", default="", help="what the worker is told beside its task's brief")
+        dispatch.add_argument("brief", nargs="?", default="", help="what the worker is sent beside its task's brief")
         dispatch.add_argument("--provider", choices=("claude", "codex"), help="the program the worker runs; the dispatching agent's own when not named")
         dispatch.add_argument("--changes", required=True, help="the files, folders or document the worker changes; a job that only reads, searches or reviews goes to a subagent, never a worker")
-        dispatch.add_argument("--tests", default="", help="the test template that says how the worker tests when the setting is Run the tests it wrote: Scoped tests by default, Full suite, or one of the project's own; with Hand the tests over the worker runs none, and with Test budget it tests only through journal tests turn")
+        dispatch.add_argument("--tests", default="", help="the test template that sets how the worker tests when the setting is Run the tests it wrote: Scoped tests by default, Full suite, or one of the project's own; with Hand the tests over the worker runs none, and with Test budget it tests only through journal tests turn")
         dispatch.add_argument("--profile", required=True, help="the worker profile it works by: senior, on Opus, for a job that needs judgement; medior, on Sonnet, for one whose shape is settled")
         dispatch.add_argument("--model", help="a model other than the profile's")
         dispatch.add_argument("--worktree", action="store_true", help="in a worktree of its own, for code; then name its library folders with --libraries or --copies, or say --no-libraries")
@@ -98,11 +98,14 @@ class WorkerCommand(Command):
         dispatch.add_argument("--copies", default="", help="library folders the worktree gets copies of its own of, comma separated, such as vendor for composer, whose autoloader would load the main checkout's classes through a link")
         dispatch.add_argument("--no-libraries", action="store_true", help="a worktree with no library folders, for a job that changes the libraries themselves")
         dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
-        dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets kept on this machine, so it cannot go to the pool")
+        dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets stored on this machine, so it cannot go to the pool")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
         dispatch.set_defaults(job_text="")
         dispatch.add_argument("--report", nargs="+", action=ReportArgument, help="when it reports on a queue: queue (once its queue is empty, the default), each (after every task) or every <n> (after every n tasks)")
-        dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
+        work = dispatch.add_mutually_exclusive_group(required=True)
+        work.add_argument("--task", type=int, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
+        work.add_argument("--plan", type=int, help="a whole plan it works through: its open tasks go to it one after another in the plan's order, and it tests the way the plan sets")
+        dispatch.add_argument("--phase", type=int, default=0, help="with --plan, only this phase of it, numbered from 1")
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
         release.add_argument("n", type=int)
         release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it completed and that wait for the merge; their commits stay on its branch")
@@ -122,12 +125,12 @@ class WorkerCommand(Command):
         line.add_argument("brief")
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
         line.add_argument("--model", help="the model it runs the job on from now, in the same session and worktree")
-        line.add_argument("--profile", help="the worker profile it works by from now, and its model unless --model names one")
+        line.add_argument("--profile", help="the worker profile it works by from now, and its model unless --model sets one")
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order, a started or paused one in your own hands let go to it: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
         queue.add_argument("--report", nargs="+", help="when it reports from now: each, queue or every <n>; unnamed, its choice stays")
-        queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order given, taking one from another worker's queue if it is there, so the first is the next one sent")
+        queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order listed, taking one from another worker's queue if it is there, so the first is the next one sent")
         rebase = self.verb(verbs, "rebase", "have the journal rebase workers' worktrees onto the project's branch: one on a task at its next clock-out, any other at once")
         rebase.add_argument("workers", type=int, nargs="*", help="the workers to rebase; all of yours with a worktree when none are named")
         rebase.add_argument("--force", action="store_true", help="rebase a running worker at once: the journal pauses its writes, stashes its changes, rebases and takes them back")
@@ -168,6 +171,15 @@ class WorkerCommand(Command):
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
         return matches[0]
 
+    def testing_brief(self, args: Namespace, planned: list[Task]) -> str:
+        plan_testing = self.delegation.testing_brief(args.plan) if planned else ""
+        return plan_testing or self.testing_template(args.tests).brief
+
+    def plan_line(self, args: Namespace, planned: list[Task]) -> str:
+        if not planned:
+            return ""
+        return f"You work {self.delegation.scope_name(args.plan, args.phase)}: tasks {', '.join(str(task.row_id) for task in planned)}, in this order; each next one comes to you when you clock out of the one before."
+
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
@@ -181,15 +193,20 @@ class WorkerCommand(Command):
             raise Rejection((WorkersNudges.PLACES_FULL.create(n=min(waiting, key=lambda worker: worker.silence.timeout.start).id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
         if args.pool and self.pool_refusal(args):
             raise Rejection(self.pool_refusal(args))
-        task = self.assignment(args.task, caller)
+        planned = self.delegation.tasks(args.plan, args.phase) if args.plan else []
+        task = self.assignment(planned[0].row_id if planned else args.task, caller)
         provider = args.provider or self.provider_default(caller)
         moment = self.time_source.moment().timestamp()
         if args.changes.strip().lower() in EMPTY_CHANGES:
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
-        testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        testing = self.testing_brief(args, planned)
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
+        for queued_task in planned[1:]:
+            self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
+        if planned:
+            self.delegation.delegate(args.plan, moment, caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)
@@ -240,7 +257,7 @@ class WorkerCommand(Command):
         if args.worktree and not (links or copies or args.no_libraries):
             raise Rejection("name the worktree's libraries: --libraries node_modules,.venv, --copies vendor, or --no-libraries")
         if args.no_libraries and (links or copies):
-            raise Rejection("--no-libraries says none, so name no folders beside it")
+            raise Rejection("--no-libraries means none, so name no folders beside it")
         refusal = self.libraries.refusal((*links, *copies))
         if refusal:
             raise Rejection(refusal)
@@ -281,24 +298,16 @@ class WorkerCommand(Command):
         return self.providers.lookup(provider).profile_model(self.profiles.read(profile))
 
     def report(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is not None and caller.worker_number != args.n:
-            raise Rejection(f"worker {args.n} is not you: a worker reports for itself, worker {caller.worker_number}")
         worker = self.workers.find(args.n)
-        if caller.worker_number is not None and worker.token_hash:
-            raise Rejection("a worker reports by clocking out: journal clock-out \"<report>\", once each point of its brief has a proof")
         message = self.reports.file(worker.with_(session=worker.session if caller.session is None else caller.session, touched_paths=self.branch.touched(worker)), args.text, caller.actor)
         print(f"worker {worker.id} reported in message {message.id}")
         return 0
 
     def send(self, args: Namespace, caller: Caller) -> int:
-        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
-        if args.task and holdings and args.task not in holdings:
-            raise Rejection(f"worker {args.n} holds task {holdings[0]} until it is merged or released: send it that task's next job")
-        if not args.task and not holdings and caller.worker_number is None:
+        holdings = self.actions.task_holdings(args.n, args.task)
+        if not args.task and not holdings:
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
-        if caller.worker_number is not None and (args.model or args.profile):
-            raise Rejection("only the agent that dispatched a worker changes its model or its profile")
-        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
+        worker = self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
@@ -387,7 +396,7 @@ class WorkerCommand(Command):
         return 0
 
     def notify(self, args: Namespace, caller: Caller) -> int:
-        worker = self.actions.peer_notify(args.n, args.text, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.notify(args.n, args.text, caller.actor)
+        worker = self.actions.notify(args.n, args.text, caller.actor)
         print(f"worker {worker.id} {worker.name} has the message in its session")
         return 0
 
@@ -407,7 +416,7 @@ class WorkerCommand(Command):
         return 0
 
     def state_line(self, worker: Worker) -> str:
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             return f"worker {worker.id}, {worker.name}, is not out: it is {worker.state}"
         task_ids = self.tasks.holder_task_ids(Ref.build(worker))
         if not task_ids:
@@ -430,14 +439,7 @@ class WorkerCommand(Command):
         return 0
 
     def peers(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is None:
-            raise Rejection("only a worker has peers: `journal worker list` lists the workers you dispatched")
-        sender = self.workers.find(caller.worker_number)
-        peers = self.workers.peers(sender)
-        for worker in peers:
-            print(f"{worker.id:>4}  {'out' if worker.is_running() else 'idle':<5} {worker.name}: {worker.brief}")
-        print(f"`journal worker notify <n> \"<text>\"` tells one that is out, `journal worker send <n> \"<job>\"` gives one that is idle a job" if peers else "no other worker of the agent that dispatched you is out or idle")
-        return 0
+        raise Rejection("only a worker has peers: `journal worker list` lists the workers you dispatched")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         workers = list(reversed(self.workers.scoped_page(LISTED_WORKERS)))

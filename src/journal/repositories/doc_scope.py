@@ -1,5 +1,10 @@
+from typing import TypeVar
+
+from journal.models.scoped import Scoped
 from journal.repositories.environments import Environments
 from journal.repositories.scope import PROJECT, Scope
+
+S = TypeVar("S", bound=Scoped)
 
 
 class DocScope:
@@ -13,3 +18,6 @@ class DocScope:
 
     def own(self) -> int:
         return self.scope.id_default(PROJECT)
+
+    def placed(self, row: S) -> S:
+        return row if row.environment_id else row.with_(environment_id=self.own())

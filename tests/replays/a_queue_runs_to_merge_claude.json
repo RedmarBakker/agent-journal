@@ -73,7 +73,7 @@
       "name": "all three merged",
       "answer": null,
       "typed": [
-        "[journal] worker 1 has no work left. queue it tasks with journal worker queue 1 <task> <task>, or retire it"
+        "[journal] worker 1 idle: queue it tasks or `journal worker complete 1 --why \"<why>\"`"
       ],
       "nudges": [
         "workers.worker_has_no_work_left"
