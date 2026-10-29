@@ -1906,7 +1906,7 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   queued on.
 - A single task outside any plan is handled the way a one-task solo plan is, without a plan row being made for it.
 - Cardinality: journal (one for all plans), plan (one per plan), many (one per job, own worktree); the split of the
-  52 Roles is in doc 1. Journal-cardinality Roles live in the main agent's environment in one long-lived organization
+  50 Roles is in doc 1 (software-engineer and qa-test-engineer are not created, doc 2). Journal-cardinality Roles live in the main agent's environment in one long-lived organization
   rig; each queued job carries its plan, task and the plan's driver.
 - Permissions: a policy from the tools in a Role's role.toml, plus actions marked as always waiting for the user's
   approval (the list of ARCHITECTURE.md 12.1). No autonomy levels.
