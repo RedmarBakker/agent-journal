@@ -40,6 +40,17 @@ class Entries(ScopedRepository[Entry]):
         for boundary in self.selected_globally(self.query().filter(entry_type=NUDGE).order_descending("id").limit(1).offset(stored)):
             self._purged(self.query().filter(entry_type=NUDGE).filter_less_equal("id", boundary.row_id))
 
+    def is_latest_move_kind(self, moves: tuple[str, ...], kinds: tuple[str, ...], session: str) -> bool:
+        latest = self.session_moves(moves, session)
+        return bool(latest) and latest[0].entry_type in kinds
+
+    def has_no_moves(self, moves: tuple[str, ...], session: str) -> bool:
+        return not self.session_moves(moves, session)
+
+    @staticmethod
+    def is_kind(entry: Entry, kinds: tuple[str, ...]) -> bool:
+        return entry.entry_type in kinds
+
     def keyed(self, key: str) -> list[Entry]:
         return self.selected(self.query().filter(idempotency=key).limit(1)) if key else []
 

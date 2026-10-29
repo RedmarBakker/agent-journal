@@ -15,9 +15,11 @@ LAST_FILE_EXTRA_SECONDS = 1.0
 FILE_STEP_SECONDS = 0.001
 TOOLS = (events.TOOL_STARTING, events.TOOL_FINISHED)
 PARTS = (PART_START, PART_END)
+from journal.repositories.entries import Entries
 
 
 @dataclass(frozen=True)
+
 class BarRow:
     """What one entry adds to the status bar: a tool's call or a shell part's run, opening or closing. A shell command as a whole adds nothing, its parts do; every path it shows is named from the project's folder; a part that changed files is followed by one item per file, editing it with the lines added and removed so far, half a second each, or less so the roll fits two and a half seconds, the last staying a second more."""
 
@@ -36,26 +38,26 @@ class BarRow:
 
     @staticmethod
     def is_shown(entry: Entry) -> bool:
-        if entry.entry_type in PARTS:
+        if Entries.is_kind(entry, tuple(PARTS)):
             return entry.data["part"].split(" ", 1)[0] not in SETUP_COMMANDS
-        return entry.entry_type in TOOLS and not entry.recorded_call().command
+        return Entries.is_kind(entry, tuple(TOOLS)) and not entry.recorded_call().command
 
     @classmethod
     def build(cls, entry: Entry, text: CommandText) -> "BarRow":
-        return cls.part_row(entry, text) if entry.entry_type in PARTS else cls.tool_row(entry)
+        return cls.part_row(entry, text) if Entries.is_kind(entry, tuple(PARTS)) else cls.tool_row(entry)
 
     @classmethod
     def part_row(cls, entry: Entry, text: CommandText) -> "BarRow":
         changed = entry.data.get("changed", [])
         files = tuple((c["path"], c["added"], c["removed"]) for c in changed)
-        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], text.shown(entry.data["part"]), entry.data["time"], entry.entry_type == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
+        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], text.shown(entry.data["part"]), entry.data["time"], Entries.is_kind(entry, (PART_END,)), sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
 
     @classmethod
     def tool_row(cls, entry: Entry) -> "BarRow":
         call = entry.recorded_call()
         tool, paths = entry.data.get("tool_name", ""), call.edited_paths or call.read_paths or ("",)
         path, (added, removed) = paths[0], call.operation.changed_lines()
-        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), entry.entry_type == events.TOOL_FINISHED, added, removed)
+        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), Entries.is_kind(entry, (events.TOOL_FINISHED,)), added, removed)
 
     def counts(self) -> list[dict]:
         return [{"value": n, "prefix": sign, "color": color, "increments": True} for n, sign, color in ((self.added, "+", "green"), (self.removed, "-", "red")) if n]

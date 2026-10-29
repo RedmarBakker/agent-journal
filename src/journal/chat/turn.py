@@ -16,10 +16,8 @@ class Turn:
 
     def is_finished(self, agent: Agent) -> bool:
         with self.scope.environment(agent.environment_id):
-            moves = self.entries.session_moves(MOVES, agent.session)
-        return not moves or moves[0].entry_type in TURN_ENDS
+            return self.entries.has_no_moves(MOVES, agent.session) or self.entries.is_latest_move_kind(MOVES, tuple(TURN_ENDS), agent.session)
 
     def is_using_tools(self, agent: Agent) -> bool:
         with self.scope.environment(agent.environment_id):
-            moves = self.entries.session_moves(MOVES, agent.session)
-        return bool(moves) and moves[0].entry_type in TOOL_MOVES
+            return self.entries.is_latest_move_kind(MOVES, tuple(TOOL_MOVES), agent.session)
