@@ -2,15 +2,13 @@ import json
 import os
 import socket
 import time
-from journal.support.timeout import Timeout
 from journal.models.environment import Environment
 from pathlib import Path
 
 from journal.config import Config
 from journal.support.foreground_option import FOREGROUND_OPTION
-from journal.support.typed_line import TypedLine
 from journal.support.queued_line import QueuedLine
-from journal.support.typed_lines import BATCH_OPTION, TypedLines
+from journal.support.typed_lines import WAKE_LINE, TypedLines
 from journal.repositories.setting_rows import SettingRows
 from journal.support.old_supervisor import OldSupervisor
 from journal.support.supervisor_announcement import SupervisorAnnouncement
@@ -49,22 +47,13 @@ class SupervisorLink:
         if not self.typed.is_disabled(environment_id):
             self.typed.queue(QueuedLine(environment_id, f"{JOURNAL_PREFIX} {' '.join(line.split())}", is_remark=True))
 
-    def type_whole(self, environment_id: int, flagged: str, following: float) -> None:
-        segment, remainder = TypedLine.opening_segment(flagged, JOURNAL_PREFIX)
-        self.typed.typed(environment_id, segment)
-        self._send(environment_id, "type", {"name": AGENT, "line": segment, "after": following})
-        if remainder:
-            self.typed.queue(QueuedLine(environment_id, remainder, following))
+    def wake(self, environment_id: int, following: float) -> None:
+        self.typed.typed(environment_id, WAKE_LINE)
+        self.typed.work(environment_id)
+        self._send(environment_id, "type", {"name": AGENT, "line": WAKE_LINE, "after": following})
 
     def is_busy(self, environment_id: int) -> bool:
-        return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.is_batching(environment_id)
-
-    def is_batching(self, environment_id: int) -> bool:
-        return self.typed.is_recent(environment_id, self.batch_seconds()) or self.is_queue_open(environment_id)
-
-    def is_queue_open(self, environment_id: int) -> bool:
-        oldest = self.typed.queue_start(environment_id)
-        return self.typed.is_working(environment_id) and (oldest is None or not Timeout.seconds(self.settings.integer(FOREGROUND_OPTION)).started(oldest).is_elapsed(self.time_source.seconds()))
+        return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.typed.is_working(environment_id)
 
     def working(self, environment_id: int) -> None:
         self.typed.work(environment_id)
@@ -108,14 +97,8 @@ class SupervisorLink:
         self.release(environment_id)
 
     def release(self, environment_id: int) -> None:
-        if self.is_busy(environment_id):
-            return
-        blocked = self.typed.batched(environment_id)
-        if blocked is not None:
-            self.type_whole(environment_id, blocked.line, blocked.delay_seconds)
-
-    def batch_seconds(self) -> float:
-        return self.settings.decimal(BATCH_OPTION)
+        if not self.is_busy(environment_id) and self.typed.has_instructions(environment_id):
+            self.wake(environment_id, self.typed.wake_delay(environment_id))
 
     def erase(self, environment_id: int) -> None:
         self.keys(environment_id, LINE_ERASE * (self.typed.waiting_count(environment_id) + ERASE_MARGIN_LINES))

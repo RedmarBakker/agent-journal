@@ -1154,10 +1154,11 @@ Code commandments judges `src/journal` clean (657 files). Decided on the way:
   <branch>`: the check reads the branch's head on GitHub and compares it with the commit the installer recorded in
   `.journal/src/commit`; only a pushed commit counts, never a working tree. This checkout's journal follows
   development.
-- Lines typed to the agent go at most once a window, `delivery.batch_seconds` (5): a line within the window of the
-  last is held in the typing funnel, SupervisorLink.type, never in a workflow, and the tick types the held lines as
-  one marked line, the instructions joined with " | ". The window and the hold until a line is seen back are the
-  same hold; 0 types each line at once, which the tests about other conduct set.
+- One line is typed into the terminal per stop, always the same wake line, `[journal] new lines for you come with this
+  prompt` (Sir Jesse, messages 82776 and 82782, 2026-10-29): every line is held in the typing funnel, SupervisorLink.type,
+  and rides the answer of the agent's next work hook; an agent that has stopped is woken by the wake line, whose
+  prompt carries what waits, and counts as working until it stops again. The batch window `delivery.batch_seconds`
+  and the typing of a line into a working terminal after the foreground wait are gone with it.
 - A settings save from the viewer names only the keys it sets, null clearing one; the server never unsets a key
   by its absence. Before, a pane layout or colour scheme save dropped every other viewer key, the tour's finished
   mark among them, so the tour replayed after every update.
@@ -1841,8 +1842,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   before and after, and each removed since the agent's last round. The mark opens to it in place; a mark from before rounds
   were kept says the round was not recorded.
 - Marking a message read raises MessageRead; the messages conduct answers it with the reply line for that message, once.
-  A hook answer says each line once (Decision). A stopped agent's lines wait delivery.batch_seconds from the first one and
-  are typed together on the clock's tick, each once; a working agent's go into its next hook answer as before.
+  A hook answer says each line once (Decision). A stopped agent is woken by the one wake line and its lines ride that prompt's
+  answer; a working agent's go into its next hook answer.
 - No Python name in src/journal is kind (task 3801, worker 1143). Each field takes its table's type name: entry_type,
   link_type, helper_type, secret_type, edit_type, environment_type, report_type, and trigger_type and line_type for the
   records a sequence and an edit hold; migration 75 (TypeColumns) moves the stored columns and records. A model names its

@@ -19,6 +19,7 @@ class FixtureCopies:
         if fixture.parent is not None:
             reached.inherits(self.reached(story, fixture.parent))
         story.fixture = reached
+        story.typed_from = len(story.typed)
         mark = len(story.path)
         for option, value in fixture.settings:
             story.user_sets(option, value)

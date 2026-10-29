@@ -1440,7 +1440,6 @@ shell.reader_suggestions = 3
 shell.reader_suggestion_runs = 50
 reviewing.reviewer = False  (the user sets it)
 sharing.host = ''  (the user sets it)
-delivery.batch_seconds = 0
 reports.update_every = 60
 reports.unacted_minutes = 60
 docs.revision_window = 30

@@ -33,7 +33,7 @@ def fresh(folder: Path, monkeypatch) -> Simulator:
     monkeypatch.setattr(Config, "status_home", property(lambda self: self.root / "status"))
     app = main_journal(Config(folder, port=0))
     settings = app.container.get(SettingRows)
-    for key, value in (("features.skills", False), ("delivery.batch_seconds", 0), ("workers.testing", "Hand the tests over")):
+    for key, value in (("features.skills", False), ("workers.testing", "Hand the tests over")):
         settings.save(Setting(environment_id=0, key=key, value=value), Actor.system())
     app.runtime().start()
     return Simulator(app, monkeypatch)
