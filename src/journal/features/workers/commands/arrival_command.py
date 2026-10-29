@@ -27,8 +27,6 @@ class ArrivalCommand(Command):
         self.verb(verbs, "record", "say you are ready: your task is started under you")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        if not caller.is_worker():
-            raise Rejection("only a worker clocks in: a worker's commands carry its number")
         worker = self.workers.find(caller.worker_number)
         if not worker.is_dispatched():
             raise Rejection(f"worker {worker.id} is {worker.state}: a worker clocks in once each time it is sent")

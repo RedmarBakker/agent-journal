@@ -41,7 +41,8 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.shell.support.streaming_form import COUNTING
 from journal.features.shell.support.activity_title import TITLE_RULE
-
+from journal.features.shell.commands.worker_output_command import WorkerOutputCommand
+from journal.support.agent_role import AgentRole
 
 class Shell(Feature[ShellData]):
     FOREGROUND = FOREGROUND_OPTION
@@ -51,6 +52,7 @@ class Shell(Feature[ShellData]):
     title = "Shell commands"
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
+    helper_commands = {AgentRole.WORKER: (WorkerOutputCommand,)}
     options = (FOREGROUND_OPTION, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT, ShellOptions.READER_SUGGESTIONS, ShellOptions.READER_SUGGESTION_RUNS)
     listeners = (OutputNotice, QuietRunRecord, UntotaledRunRecord, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard, WatchProgressRecord)
     seeds = (CutOffOutputs, ProjectReadersClear, DefaultReaders, JournalOutputReaders, StrayCommandMarkCleanup, StrayReaderCleanup)

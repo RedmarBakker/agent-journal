@@ -43,7 +43,8 @@ class PluginsFeature(Feature[PluginsData]):
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
     nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP, PluginsNudges.PLUGIN_BROKEN)
-    commands = (PluginCommand, DashboardCommand)
+    commands = (PluginCommand,)
+    helper_commands = {AgentRole.PLUGIN: (DashboardCommand,)}
     seeds = (PluginServicesSeed,)
     jobs = (PluginHealthCheck,)
     skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """

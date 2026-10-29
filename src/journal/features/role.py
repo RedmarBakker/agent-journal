@@ -63,3 +63,7 @@ class Role:
     @classmethod
     def has_researchers(cls) -> bool:
         raise NotImplementedError
+
+    @classmethod
+    def alias_line(cls) -> type:
+        raise NotImplementedError

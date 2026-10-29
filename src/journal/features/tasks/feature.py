@@ -39,7 +39,7 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.listeners.delete_ended_wait_checks import DeleteEndedWaitChecks
 from journal.features.tasks.listeners.delete_passed_wait_check import DeletePassedWaitCheck
 from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
-
+from journal.features.tasks.commands.worker_task_command import WorkerTaskCommand
 
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
@@ -50,6 +50,7 @@ class Tasks(Feature[TasksData]):
     states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)
     assigners = (DefaultTaskAssigner,)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
+    helper_commands = {AgentRole.WORKER: (WorkerTaskCommand,)}
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (LeftWaitChecks,)

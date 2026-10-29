@@ -7,6 +7,7 @@ from typing import Iterator
 from journal.features.aliases.support.worker_alias_line import WorkerAliasLine
 from journal.models.alias import Alias
 from journal.features.registry import Registry
+from journal.features.aliases.support.plain_alias_line import PlainAliasLine
 from journal.console.console import Console
 from journal.features.aliases.support.alias_lines import AliasLines
 from journal.support.caller import Caller
@@ -33,8 +34,9 @@ EXEC = "__journal_exec"
 class CliController:
     """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's. A background command's printed lines go out as they are printed, into the output its shell line writes, with its errors and exit line once it ends."""
 
-    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands, worker_lines: WorkerAliasLine, registry: Registry) -> None:
-        self.accounts, self.background, self.worker_lines, self.registry = accounts, background, worker_lines, registry
+    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands, worker_lines: WorkerAliasLine, plain_lines: PlainAliasLine, registry: Registry) -> None:
+        self.accounts, self.background, self.registry = accounts, background, registry
+        self.alias_lines = {WorkerAliasLine: worker_lines, PlainAliasLine: plain_lines}
         self.console, self.tokens, self.subagents, self.launches, self.providers, self.aliases = console, tokens, subagents, launches, providers, aliases
         self.identity = identity
 
@@ -81,7 +83,7 @@ class CliController:
     def alias_answer(self, alias: Alias, argv: list[str], caller: Caller) -> StreamResponse:
         if self.is_alias_refused(alias, caller):
             return StreamResponse("text/plain", iter([f"a {caller.role.value} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
-        return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(self.worker_lines.argv(argv, caller)[1:])}\n{EXIT} 0\n".encode()]))
+        return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(self.alias_lines[self.registry.role_file(caller.role).alias_line()].argv(argv, caller)[1:])}\n{EXIT} 0\n".encode()]))
 
     def is_alias_refused(self, alias: Alias, caller: Caller) -> bool:
         return not self.registry.role_file(caller.role).runs_alias(alias)

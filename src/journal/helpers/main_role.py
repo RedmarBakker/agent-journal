@@ -11,6 +11,7 @@ from journal.features.role import Role
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
 from journal.models.alias import Alias
+from journal.features.aliases.support.plain_alias_line import PlainAliasLine
 
 class MainRole(Role):
     """The main agent's role: every feature's conduct, mode conduct and demands reach it, every listener hears it, no part is refused it and it runs every verb."""
@@ -64,3 +65,7 @@ class MainRole(Role):
     @classmethod
     def has_researchers(cls) -> bool:
         return True
+
+    @classmethod
+    def alias_line(cls) -> type:
+        return PlainAliasLine

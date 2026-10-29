@@ -1,4 +1,5 @@
 """The first features through the real server: the briefing at session start, and the memory hold at a context mark."""
+import argparse
 
 import json
 import os
@@ -6480,7 +6481,7 @@ def test_every_caller_names_its_kind_and_a_subagent_is_told_by_its_agents_sessio
     from journal.support.agent_role import AgentRole
     from journal.http.support.subagent_commands import SubagentCommands
     callers = (Caller.user("main"), Caller.agent("main", "s1", "claude"), Caller.shell("main", "claude"), Caller.plugin("main", "echo"), Caller.worker("main", 3, "w-1", "claude"))
-    assert [c.role for c in callers] == [AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.WORKER] and [c.is_main_agent() for c in callers] == [False, True, True, False, False]
+    assert [c.role for c in callers] == [AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.PLUGIN, AgentRole.WORKER] and [c.is_main_agent() for c in callers] == [False, True, True, False, False]
     subagent = Caller.worker("main", 3, "w-1", "claude").subagent_caller()
     assert subagent.role == AgentRole.SUBAGENT and subagent.session_role == AgentRole.WORKER, "a subagent of a worker is a subagent first, in its worker's session"
     announced, subagents = app.container.get(AnnouncedCommands), app.container.get(SubagentCommands)
@@ -14358,6 +14359,13 @@ NUDGE_SHIM_COMMANDS = {"suite"}
 NUDGE_COMMAND = re.compile(r"`(journal [^`]+)`")
 
 
+def nudge_command_parsed(console, role, words: list[str]):
+    try:
+        return console.parser(role).parse_args(console.with_verb(console.switched(words, role), role))
+    except (SystemExit, argparse.ArgumentError):
+        return None
+
+
 def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_the_console_parses_it(app: App):
     import argparse
     import shlex
@@ -14372,11 +14380,11 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
                 if command.split(" ")[1].startswith(("{{", "<")) or command.split(" ")[1] in NUDGE_SHIM_COMMANDS:
                     continue
                 words = shlex.split(NUDGE_PLACEHOLDER.sub("1", re.sub(r"\[[^\]]*\]", "", command)).replace("...", ""))[1:]
-                try:
-                    args = console.parser(AgentRole.MAIN).parse_args(console.with_verb(console.switched(words, AgentRole.MAIN), AgentRole.MAIN))
-                except (SystemExit, argparse.ArgumentError) as error:
-                    refused.append(f"{nudge.key}: {command} ({error})")
+                parsed = [parsed_args for role in (AgentRole.MAIN, *AgentRole.helpers()) if (parsed_args := nudge_command_parsed(console, role, words)) is not None]
+                if not parsed:
+                    refused.append(f"{nudge.key}: {command} (no role's console parses it)")
                     continue
+                args = parsed[0]
                 if args.noun == "await" and args.verb == "begin" and not (args.output or args.until):
                     refused.append(f"{nudge.key}: {command} (journal await needs --output or --until)")
     assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)

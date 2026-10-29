@@ -52,8 +52,6 @@ class DepartureCommand(Command):
         record.add_argument("--tests", default="", help="the arguments the project's test command takes to run the tests that cover the files you changed and the tests you wrote, never the whole suite; the journal runs them before your clock-out stands")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        if not caller.is_worker():
-            raise Rejection("only a worker clocks out: a worker's commands carry its number")
         worker = self.workers.find(caller.worker_number)
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         if not holdings:

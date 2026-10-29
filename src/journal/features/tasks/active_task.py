@@ -37,9 +37,8 @@ class ActiveTask:
         return self.tasks.save(counterpart.paused(f"task {task.id} was started", self.time_source.moment()), caller.actor)
 
     def holder(self, caller: Caller) -> Ref | None:
-        if caller.is_worker():
-            return Ref(Worker.table(), caller.worker_number)
-        if caller.has_agent_row():
-            return Ref.build(caller.agent_row)
+        caller_holder = caller.holder_ref()
+        if caller_holder is not None:
+            return caller_holder
         present = self.agents.current()
         return None if present is None else Ref.build(present)

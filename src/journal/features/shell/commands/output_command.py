@@ -53,10 +53,7 @@ class OutputCommand(Command):
         self.verb(verbs, "undock", "take an output's card down from above the chat").add_argument("n", type=int)
 
     def owned(self, n: int, caller: Caller) -> CommandOutput:
-        output = self.outputs.find(n)
-        if caller.is_worker() and output.creator != caller.actor:
-            raise Rejection(f"output {n} is not worker {caller.worker_number}'s: a worker reads only the outputs of its own commands")
-        return output
+        return self.outputs.find(n)
 
     def opened(self, n: int, caller: Caller) -> CommandOutput:
         output = self.owned(n, caller)
@@ -122,9 +119,7 @@ class OutputCommand(Command):
         return 0
 
     def page(self, last: int, caller: Caller) -> list[CommandOutput]:
-        if not caller.is_worker():
-            return self.outputs.page(last)
-        return self.outputs.page(last, creator=caller.actor)
+        return self.outputs.page(last)
 
     def test(self, args: Namespace, caller: Caller) -> int:
         output = self.outputs.find(args.n)

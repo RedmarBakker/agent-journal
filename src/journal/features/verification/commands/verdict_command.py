@@ -35,8 +35,6 @@ class VerdictCommand(Command):
         fitting.add_argument("reason")
 
     def give(self, args: Namespace, caller: Caller) -> int:
-        if not caller.is_verifier():
-            raise Rejection("only a verifier the journal sent gives a verdict")
         judged = self.dispatch.judged(caller.verifier_number)
         if judged.type != ReaderReport.table():
             raise Rejection("you judge a worker's model: journal verdict model too-strong|right|too-weak \"<reason>\"")
@@ -48,8 +46,6 @@ class VerdictCommand(Command):
         return 0
 
     def model(self, args: Namespace, caller: Caller) -> int:
-        if not caller.is_verifier():
-            raise Rejection("only a verifier the journal sent gives a verdict")
         judged = self.dispatch.judged(caller.verifier_number)
         if judged.type != Worker.table():
             raise Rejection("you judge a dismissal: journal verdict yes|no \"<reason>\"")

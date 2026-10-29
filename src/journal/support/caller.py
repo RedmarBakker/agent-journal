@@ -5,6 +5,8 @@ from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
 from journal.models.agent import Agent
 from journal.repositories.origin import Origin
+from journal.models.support.ref import Ref
+from journal.models.worker import Worker
 
 LOCAL_USER = 1
 
@@ -31,6 +33,11 @@ class Caller:
     subagent_session: str = ""
     person: int = LOCAL_USER
     agent_row: Agent | None = None
+
+    def holder_ref(self) -> Ref | None:
+        if self.is_worker():
+            return Ref(Worker.table(), self.worker_number)
+        return Ref.build(self.agent_row) if self.agent_row is not None else None
 
     def has_agent_row(self) -> bool:
         return self.agent_row is not None
@@ -71,6 +78,8 @@ class Caller:
 
     @property
     def role(self) -> AgentRole:
+        if self.is_plugin():
+            return AgentRole.PLUGIN
         return AgentRole.SUBAGENT if self.subagent else self.session_role
 
     @property

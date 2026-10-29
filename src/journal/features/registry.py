@@ -13,6 +13,7 @@ from journal.features.helper_files_invalid import HelperFilesInvalid
 from journal.features.helper import Helper
 from journal.features.role import ENGINE, Role
 from journal.helpers.main_role import MainRole
+from journal.helpers.plugin_role import PluginRole
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
 from journal.support.skill import Skill
@@ -29,7 +30,7 @@ class Registry:
         self._by_state = {state.name: feature for feature in features for state in feature.states}
         self._feature_names = self.feature_names(features)
         self._helpers = self.helper_files(helpers)
-        self._roles: dict[AgentRole, type[Role]] = {AgentRole.MAIN: MainRole, **self._helpers}
+        self._roles: dict[AgentRole, type[Role]] = {AgentRole.MAIN: MainRole, AgentRole.PLUGIN: PluginRole, **self._helpers}
 
     @staticmethod
     def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
