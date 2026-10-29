@@ -45,6 +45,7 @@ from journal.support.instance_guard import InstanceGuard
 from journal.events.announcer import Announcer
 from journal.events.moments.server_replaced import ServerReplaced
 from journal.version import VERSION
+from journal.repositories.environments import Environments
 from journal.http.share_server import ShareServer
 from journal.sync.team_account import TeamAccount
 from journal.console.console import Console
@@ -122,6 +123,7 @@ class Runtime:
         notices = self.container.get(BootNotices)
         notices.write_boot_seconds(self.container.get(SettingRows).decimal(UpdatesOptions.BOOT_SECONDS))
         notices.announce()
+        self.container.get(Environments).name_index()
         gc.freeze()
 
     def replacement_announced(self) -> None:

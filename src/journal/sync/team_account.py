@@ -124,10 +124,6 @@ class TeamAccount(HubAccount):
         prefix_file = self.config.home / PREFIX_FILE
         return prefix_file.read_text().strip() if prefix_file.is_file() else ""
 
-    def personal_name(self, name: str) -> str:
-        prefix = self.prefix()
-        return f"{prefix}-{name}" if prefix and not name.startswith(f"{prefix}-") else name
-
     def is_admin(self) -> bool:
         return self.contents().get("role") == ADMIN
 
