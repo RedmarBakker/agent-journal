@@ -11,6 +11,7 @@ from journal.support.actor import Actor
 from journal.http.support.request_faults import RequestFaults
 from journal.support.fault_log import FaultLog
 from journal.http.support.request_reading import RequestReading
+from journal.http.support.supervisor_authentication import SupervisorRequestAuth
 from journal.support.response import Response
 from journal.http.router import Router
 from journal.http.static_files import StaticFiles
@@ -33,6 +34,7 @@ class Handler(PooledHandler):
     lifecycle: Lifecycle
     faults: RequestFaults
     fault_log: FaultLog
+    supervisor_auth: SupervisorRequestAuth
 
     def do_GET(self) -> None:
         if urlsplit(self.path).path in UNHELD_PATHS:
@@ -83,7 +85,7 @@ class Handler(PooledHandler):
     def _request(self) -> Request:
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
-        request = RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity)
+        request = RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity, self.supervisor_auth)
         if request.path in UNHELD_PATHS or request.path.startswith(UNHELD_PREFIXES):
             return request
         boot_wait = self.lifecycle.boot_wait_seconds()

@@ -10,6 +10,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.agent_message import AgentMessage
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.references import events
+from journal.support.rejection import Rejection
 
 
 ENTRIES = Query.build(Entry)
@@ -52,7 +53,9 @@ class Entries(ScopedRepository[Entry]):
         query = self.query().filter_less_equal("id", newest - stored).filter_unequal("entry_type", NUDGE)
         for entry_type in SUPERVISOR_ENTRY_TYPES:
             query = query.filter_unequal("entry_type", entry_type)
-        self._purged(query)
+        protected = self.query().filter_alternatives(self.query().filter_prefix("entry_type", "Supervisor"), self.query().filter_prefix("entry_type", "supervisor"))
+        protected_ids = [entry.row_id for entry in self.selected_globally(protected)]
+        self._purged(query.filter_unlisted("id", protected_ids))
 
     def trim_lines(self, stored: int) -> None:
         for boundary in self.selected_globally(self.query().filter(entry_type=NUDGE).order_descending("id").limit(1).offset(stored)):
@@ -73,9 +76,97 @@ class Entries(ScopedRepository[Entry]):
         return self.selected(self.query().filter(idempotency=key).limit(1)) if key else []
 
     def recorded(self, entry: Entry, actor: Actor) -> Entry:
+        self._ordinary(entry)
+        return self._recorded(entry, actor)
+
+    def _recorded(self, entry: Entry, actor: Actor) -> Entry:
         with self.writing():
             prior = self.keyed(entry.idempotency)
-            return prior[0] if prior else self.save(entry, actor)
+            if prior:
+                if self._is_control(prior[0].entry_type):
+                    raise Rejection("supervisor control entries are private to the checked supervisor operation")
+                return prior[0]
+            return self.save(entry, actor)
+
+    def recorded_control(self, entry: Entry, actor: Actor) -> Entry:
+        if not self._is_control(entry.entry_type):
+            raise Rejection("the supervisor writer records protected supervisor control entries only")
+        with self.writing():
+            prior = self.keyed(entry.idempotency)
+            if prior:
+                if not self._is_control(prior[0].entry_type):
+                    raise Rejection("the supervisor control entry key is already in use")
+                return prior[0]
+            return super().save(entry, actor)
+
+    def save(self, row: Entry, actor: Actor) -> Entry:
+        self._ordinary(row)
+        if row.id is not None:
+            stored = self._stored(row.id)
+            if stored and self._is_control(stored.entry_type):
+                raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        return super().save(row, actor)
+
+    def touch(self, row: Entry, actor: Actor, **fields) -> Entry:
+        self._ordinary(row)
+        stored = self._stored(row.row_id)
+        if stored and self._is_control(stored.entry_type):
+            raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        return super().touch(row, actor, **fields)
+
+    def delete(self, row: Entry, actor: Actor) -> None:
+        stored = self._stored(row.row_id) if row.id is not None else None
+        if self._is_control(row.entry_type) or (stored and self._is_control(stored.entry_type)):
+            raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        super().delete(row, actor)
+
+    def imported(self, row: Entry, time: datetime, actor: Actor) -> Entry:
+        self._ordinary(row)
+        return super().imported(row, time, actor)
+
+    def pulled_creation(self, id: int, fields: dict, actor: Actor) -> Entry:
+        row = self._team_row(id, fields)
+        self._ordinary(row)
+        return super().pulled_creation(id, fields, actor)
+
+    def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[Entry]:
+        stored = self._stored(id)
+        parsed = self._parsed(fields)
+        if (stored and self._is_control(stored.entry_type)) or self._is_control(str(parsed.get("entry_type", ""))):
+            raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        return super().pulled_update(id, fields, actor)
+
+    def pulled_deletion(self, id: int, actor: Actor) -> list[Entry]:
+        stored = self._stored(id)
+        if stored and self._is_control(stored.entry_type):
+            raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        return super().pulled_deletion(id, actor)
+
+    def restored(self, rows: list[tuple[int, dict]]) -> None:
+        if any(self._is_control(str((fields.get("entry_type") or fields.get("kind") or ""))) for _, fields in rows):
+            raise Rejection("supervisor control entries are restored through their protected control origin")
+        super().restored(rows)
+
+    def _purged(self, query: Query) -> None:
+        candidates = {row["id"] for row in self.connection.all(*query.select_ids())}
+        protected = self.query().filter_alternatives(self.query().filter_prefix("entry_type", "Supervisor"), self.query().filter_prefix("entry_type", "supervisor"))
+        protected_ids = {entry.row_id for entry in self.selected_globally(protected)}
+        if candidates.intersection(protected_ids):
+            raise Rejection("supervisor control entries are append only and private to the checked supervisor operation")
+        super()._purged(query)
+
+    def _stored(self, id: int) -> Entry | None:
+        rows = self.selected_globally(self.query().filter(id=id).limit(1))
+        return rows[0] if rows else None
+
+    def _ordinary(self, entry: Entry) -> None:
+        if self._is_control(entry.entry_type):
+            raise Rejection("supervisor control entries are private to the checked supervisor operation")
+
+    @staticmethod
+    def _is_control(entry_type: str) -> bool:
+        return entry_type.casefold().startswith("supervisor")
+
 
     def supervisor_records(self, entry_type: str, last: int = 100, **data) -> list[Entry]:
         if entry_type not in SUPERVISOR_ENTRY_TYPES or not 1 <= last <= 100:
@@ -204,6 +295,7 @@ class Entries(ScopedRepository[Entry]):
 
     def recent_lines(self, session: str, key: str, entry_id: int) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_json("data->key", key).filter_greater("id", entry_id).order("id"))]
+
 
     def environment_values(self, key: str, name: str) -> list[str]:
         return [entry.data["values"][name] for entry in self.selected(self.query().filter(entry_type=NUDGE).filter_json("data->key", key).filter_present("data->values").order("id"))]

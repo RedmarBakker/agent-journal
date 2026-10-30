@@ -6,6 +6,7 @@ from journal.http.support.json_out import JsonOut
 from journal.http.support.login_gate import LoginGate
 from journal.http.support.request_reading import RequestReading
 from journal.support.listener_queue import ListenerQueue
+from journal.http.support.supervisor_authentication import SupervisorRequestAuth
 
 
 def posted(app, path: str, body: dict, headers: dict) -> tuple[int, dict]:
@@ -18,9 +19,12 @@ def get_answer(app, path: str, headers: dict) -> tuple[int, dict]:
     return answered(app, "GET", path, b"", headers)
 
 
+got = get_answer
+
+
 def answered(app, method: str, path: str, raw: bytes, headers: dict) -> tuple[int, dict]:
     head = RequestReading.head(method, path, {"Content-Type": "application/json", **headers})
-    request = RequestReading.read(head, raw, app.container.get(Identity))
+    request = RequestReading.read(head, raw, app.container.get(Identity), app.container.get(SupervisorRequestAuth))
     gate, deferred = app.container.get(LoginGate), app.container.get(ListenerQueue)
     deferred.drain()
     answer = gate.refusal(request) if gate.is_refused(request) else app.container.get(Router).route(request)

@@ -66,6 +66,7 @@ from journal.http.controllers.viewer import ViewerController
 from journal.http.controllers.client_errors import ClientErrorController
 from journal.http.controllers.voices import VoiceController
 from journal.http.controllers.subagents import SubagentController
+from journal.http.controllers.supervisor import SupervisorController
 from journal.http.controllers.verifiers import VerifierController
 from journal.http.controllers.reviewers import ReviewerController
 from journal.http.controllers.test_turns import TestTurnController
@@ -84,6 +85,9 @@ class Routes:
 
     def mount(self, router: Router) -> Router:
         get = self.container.get
+        supervisor = get(SupervisorController)
+        router.post_unscoped("/_supervisor/v1/enrollment", supervisor.enroll)
+        router.post_unscoped("/_supervisor/v1/enrollment/change", supervisor.change)
         router.post("/hooks/{agent}", get(HookController).receive)
         router.post("/shell/run", get(ShellController).run)
         router.post("/cli", get(CliController).run)

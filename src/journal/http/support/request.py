@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from dataclasses import dataclass, field, replace
 
@@ -5,6 +7,8 @@ from journal.support.actor import Actor
 from journal.http.support.cli_post import CliPost
 from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
+from journal.support.response import Response
+from journal.supervisor_principal import SupervisorPrincipal
 
 ENVIRONMENT_HEADER = "X-Journal-Env"
 REQUEST_TIME_HEADER = "x-journal-request-at"
@@ -24,6 +28,8 @@ class Request:
     request_at: float = field(default_factory=time.time)
     boot_wait_seconds: float = 0.0
     arrived_at: float = field(default_factory=time.time)
+    supervisor: SupervisorPrincipal | None = None
+    auth_error: Response | None = None
 
     @staticmethod
     def request_time(headers: dict) -> float:
