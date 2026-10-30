@@ -266,9 +266,10 @@ def test_generated_member_bash_environment_prefers_its_project_journal_command(a
     rig = f"plan-path-{tmp_path.name}"
     worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
     project_journal = tmp_path / "project" / ".journal" / "bin" / "journal"
-    monkeypatch.setattr(writer, "command", lambda: project_journal)
-
-    spec_path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    with monkeypatch.context() as patch:
+        patch.setattr(writer, "command", lambda: project_journal)
+        spec_path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+        shell_path_command = writer.shell_path_command()
     spec = json.loads(spec_path.read_text())
     planner = next(member for pod in spec["pods"] for member in pod["members"] if member["id"] == "planner")
     project_journal.parent.mkdir(parents=True, exist_ok=True)
@@ -294,8 +295,8 @@ def test_generated_member_bash_environment_prefers_its_project_journal_command(a
         project_journal.unlink()
 
     assert planner["env"]["PATH"].split(os.pathsep)[0] == str(project_journal.parent)
-    assert planner["env"]["PROMPT_COMMAND"].endswith(writer.shell_path_command())
-    assert Path(planner["env"]["BASH_ENV"]).read_text().strip() == writer.shell_path_command()
+    assert planner["env"]["PROMPT_COMMAND"].endswith(shell_path_command)
+    assert Path(planner["env"]["BASH_ENV"]).read_text().strip() == shell_path_command
     assert resolved.stdout.strip() == "project-journal:task show 117", "the member's noninteractive shell runs the generated project command over a global journal"
 
 
@@ -311,11 +312,11 @@ def test_generated_seat_keeps_its_plan_journal_root_through_the_project_command(
     shim = tmp_path / "journal shim.sh"
     shim.write_text('#!/bin/sh\nprintf "%s\\n" "$JOURNAL_ROOT"\n')
     command = ProjectCommand(main_root, shim).write()
-    monkeypatch.setattr(writer, "command", lambda: command)
-    monkeypatch.setattr(writer, "setup", HelperSetup(Config(plan_root, port=0), writer.providers))
     worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "plan-1")
-
-    spec_path = writer.write("plan-1", contracts, ("alpha",), app.config.root, worker_for)
+    with monkeypatch.context() as patch:
+        patch.setattr(writer, "command", lambda: command)
+        patch.setattr(writer, "setup", HelperSetup(Config(plan_root, port=0), writer.providers))
+        spec_path = writer.write("plan-1", contracts, ("alpha",), app.config.root, worker_for)
     spec = json.loads(spec_path.read_text())
     planner = next(member for pod in spec["pods"] for member in pod["members"] if member["id"] == "planner")
     environment = planner["env"]
@@ -1828,6 +1829,7 @@ def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_
     from journal.features.organization.support.hub_routes import HubRoutes
     from journal.models.worker import Worker
     from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     from journal.support.actor import Actor
     from journal.support.rejection import Rejection
@@ -1842,6 +1844,9 @@ def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_
         sender = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="b", role="builder", dispatcher="s1"), Actor.system())
         peer = workers.save(Worker(environment_id=1, name="Grace Hopper", brief="b", role="scout", dispatcher="s1"), Actor.system())
         plain = workers.save(Worker(environment_id=1, name="Ida Rhodes", brief="b", dispatcher="s1"), Actor.system())
+        tasks = app.container.get(Tasks)
+        task = tasks.save(Task(environment_id=1, title="Grace's task", state=TaskState.STARTED), Actor.system())
+        tasks.handover(task, Ref.build(peer), Actor.system())
         refusal = routes.refusal(sender, peer)
         assert "Roles do not send to each other" in refusal and "domain:alpha" in refusal, refusal
         assert routes.refusal(sender, plain) == "" and routes.refusal(plain, peer) == "", "a worker with no Role is not Role traffic"
@@ -2168,7 +2173,6 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         def start(self):
             threads.append(self)
 
-    monkeypatch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
     monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
     monkeypatch.setattr(SeatRunner, "record_usage", lambda *args: None)
@@ -2217,6 +2221,12 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     runtime.add = add_member
 
     actor = Actor.system()
+
+    def launch_worker(worker):
+        with monkeypatch.context() as patch:
+            patch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
+            return app.container.get(WorkerLaunch).launched(worker, actor)
+
     with app.container.get(Scope).environment(1):
         plans, tasks, links = (app.container.get(kind) for kind in (Plans, Tasks, Links))
         plan = plans.save(Plan(environment_id=1, title="Write the note", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
@@ -2232,7 +2242,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         ).contacted(10), actor)
         tasks.handover(task, Ref.build(worker), actor)
 
-        launched = app.container.get(WorkerLaunch).launched(worker, actor)
+        launched = launch_worker(worker)
         states = app.container.get(StatesCatalogue)
         waiting = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
         assert launched.state == WorkerState.DISPATCHED and isinstance(waiting, ExternalWait), "dispatch is recorded before the Domain agent waits for its Role"
@@ -2260,7 +2270,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         ).contacted(20), actor)
         tasks.handover(next_task, Ref.build(next_worker), actor)
         worker = next_worker
-        second_launched = app.container.get(WorkerLaunch).launched(next_worker, actor)
+        second_launched = launch_worker(next_worker)
         assert second_launched.state == WorkerState.DISPATCHED and len(threads) == 2
         threads[1].target(*threads[1].args)
 
