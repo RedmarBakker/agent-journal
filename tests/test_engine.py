@@ -447,7 +447,7 @@ def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_to
         row = next(item for item in app.container.get(AgentActivity).page(app.container.get(Agents).scoped()) if item["session"] == "s1")
     assert [s["name"] for s in row["stack"]] == ["stuck", "working", "idle"] and row["stack"][0]["awaits"]
     working = f"working (task {row['stack'][1]['values']['task_id']})"
-    assert [(t["before"], t["after"]) for t in row["trail"]] == [([], ["idle"]), (["idle"], ["idle", working]), (["idle", working], ["idle", working, "stuck"])], "the trail names each state, with the task it is about"
+    assert [(t["before"], t["after"]) for t in row["trail"]] == [(["idle"], ["idle", working]), (["idle", working], ["idle", working, "stuck"])], "the trail names each state, with the task it is about"
     write(app)
     with app.container.get(Scope).environment(1):
         trail = [e.data for e in app.container.get(Entries).kind_entries(StackHistory.KIND) if e.data["session"] == "s1"]
@@ -504,6 +504,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert all(status == 200 for status, _ in writes), "a worker is never held by the user's unread messages, which are the main agent's to read"
     with scope.environment(1):
         workers.save(workers.find(worker.id).with_(edit_lock=True), Actor.system())
+        assert workers.session_worker("w1")[0].edit_lock, "the worker's rebase lock is stored on its session row"
     status, body = worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": "locked.py"})
     assert status == 409 and "the journal is rebasing your worktree" in body["error"], "a worker's writes wait while the journal rebases its worktree"
     with scope.environment(1):
