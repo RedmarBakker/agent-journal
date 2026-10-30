@@ -1,6 +1,5 @@
 import {createApp, h, nextTick} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
-import AppPages from "../src/AppPages.vue";
 import HomePlanBoard from "../src/pages/HomePlanBoard.vue";
 import {pageOf} from "../src/sync/paging.js";
 
@@ -36,6 +35,7 @@ async function until(done) {
 }
 
 test("the Board route keeps the separate plan board without the main chat", async () => {
+    const {default: AppPages} = await import("../src/AppPages.vue");
     mount(AppPages, {page: "board"});
     await until(() => host.querySelector("[data-home-plan-board]"));
 

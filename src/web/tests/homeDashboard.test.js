@@ -2,6 +2,8 @@ import {createApp, h, nextTick} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import HomeDashboard from "../src/pages/HomeDashboard.vue";
 
+window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+
 let app = null;
 let host = null;
 
@@ -98,7 +100,7 @@ test("Home shows the approved dashboard cards, their live rows, and the honest t
     expect(release.textContent).toContain("Organization mode");
     expect(release.textContent).toContain("1 of 3 tasks done");
     expect(release.querySelector("time.expected-finish").getAttribute("datetime")).toBe("2026-11-01");
-    expect(release.textContent).toContain("simple estimate from tasks completed per day");
+    expect(page.querySelector('[data-dashboard-card="plans"]').textContent).toContain("simple estimate from tasks completed per day");
     expect(page.querySelector('[data-plan-id="9"]').textContent).toContain("No finish date yet: no task has finished");
 
     expect(page.querySelector('[data-worker-id="7"]').textContent).toContain("Task 1: Write migration");
