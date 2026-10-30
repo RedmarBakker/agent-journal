@@ -147,7 +147,7 @@ function nudgeRowsOf(f, key, settings) {
         .map(([line, nudge]) => nudgeRow(f, line, nudge, settings));
 }
 
-function settingRow(f, setting, settings) {
+function settingRow(f, setting, settings, features) {
     const saved = (settings[f.name] || {})[setting.name] ?? setting.default;
     const value = setting.option_type !== "choice" || setting.choices.includes(saved) ? saved : setting.default;
     const defaults = Object.fromEntries(f.settings.map((s) => [s.name, s.default]));
@@ -158,7 +158,7 @@ function settingRow(f, setting, settings) {
         hint: `${setting.abstract}.`,
         unit: setting.unit,
         provider: setting.provider,
-        indent: Boolean(setting.under),
+        indent: Boolean(setting.under) || switchDepth(setting, features) > 0,
         options: setting.option_type === "choice" ? choiceOptions(setting) : [],
         example: (setting.examples || {})[value] || "",
         value,
@@ -167,17 +167,33 @@ function settingRow(f, setting, settings) {
     });
 }
 
-const settingRows = (f, setting, settings) => [settingRow(f, setting, settings)];
+const settingRows = (f, setting, settings, features) => [settingRow(f, setting, settings, features)];
 
-// whether a setting sits behind a switch of its feature that is off, so it would do nothing and is not shown
-function isBehindOffSwitch(f, setting, settings) {
-    const master = setting.main_switch && f.settings.find((each) => each.key === setting.main_switch);
-    return Boolean(master) && !((settings[f.name] || {})[master.name] ?? master.default);
+// The switch a setting sits under, by its key: a feature's own switch, features.<name>, or a switch setting of any feature.
+function switchOf(key, features) {
+    const feature = features.find((f) => `features.${f.name}` === key);
+    if (feature) return {on: (settings) => switchValue(settings, feature.name, feature.default), setting: null};
+    const owner = features.find((f) => f.settings.some((s) => s.key === key));
+    const setting = owner && owner.settings.find((s) => s.key === key);
+    return setting ? {on: (settings) => Boolean((settings[owner.name] || {})[setting.name] ?? setting.default), setting} : null;
 }
 
-function featureRows(f, settings, extras) {
-    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models" && !isBehindOffSwitch(f, s, settings));
-    const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings));
+// whether a setting sits behind a switch that is off, or behind one that sits behind an off switch, so it would do nothing and is not shown
+function isBehindOffSwitch(setting, settings, features) {
+    const master = setting.main_switch && switchOf(setting.main_switch, features);
+    if (!master) return false;
+    return !master.on(settings) || (master.setting !== null && isBehindOffSwitch(master.setting, settings, features));
+}
+
+// how many switch settings stand between a setting and its feature, so a group's settings sit indented under its switch
+function switchDepth(setting, features) {
+    const master = setting.main_switch && switchOf(setting.main_switch, features);
+    return master && master.setting ? 1 + switchDepth(master.setting, features) : 0;
+}
+
+function featureRows(f, settings, extras, features) {
+    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models" && !isBehindOffSwitch(s, settings, features));
+    const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings, features));
     const own =
         hasTiming(f.trigger) && f.trigger_label
             ? [row({key: `${f.name}:timing`, kind: "timing", label: f.trigger_label, timing: timing(f.name, f.trigger, settings)})]
@@ -189,7 +205,7 @@ function featureRows(f, settings, extras) {
             ...nudgeRowsOf(f, key, settings),
             ...under(key),
         ]),
-        ...declared.filter((s) => !s.under).flatMap((s) => settingRows(f, s, settings)),
+        ...declared.filter((s) => !s.under).flatMap((s) => settingRows(f, s, settings, features)),
         ...(extras[f.name] || []),
     ];
 }
@@ -211,14 +227,14 @@ function featureHead(f, label, hint, settings) {
 
 const plain = (f, extras) => !f.fixed && !f.parts && !hasTiming(f.trigger) && !(extras[f.name] || []).length;
 
-function block(f, settings, extras) {
+function block(f, settings, extras, features) {
     return {
         key: f.name,
         block: true,
         explains: f.explains,
         promises: f.promises || [],
         head: featureHead(f, f.label, f.hint, settings),
-        rows: featureHead(f, f.label, f.hint, settings).off ? [] : featureRows(f, settings, extras),
+        rows: featureHead(f, f.label, f.hint, settings).off ? [] : featureRows(f, settings, extras, features),
     };
 }
 
@@ -227,7 +243,7 @@ function normalised(f) {
     return {...f, label: f.title, hint: f.help, settings: f.options, behaviours: {}, nudges: {}, group: f.name, parts: f.options.length};
 }
 
-function group(g, members, settings, loose) {
+function group(g, members, settings, loose, features) {
     const lead = members.find((f) => f.name === g.lead);
     const rest = members
         .filter((f) => f !== lead)
@@ -247,11 +263,11 @@ function group(g, members, settings, loose) {
         promises: lead ? lead.promises || [] : [],
         head,
         items: [
-            ...(lead && !head.off ? featureRows(lead, settings, extras) : []),
+            ...(lead && !head.off ? featureRows(lead, settings, extras, features) : []),
             ...(loose.rows[g.key] || []),
             ...rest
                 .filter((f) => flat.includes(f) || blocks.includes(f))
-                .map((f) => (flat.includes(f) ? featureHead(f, f.label, f.hint, settings) : block(f, settings, extras))),
+                .map((f) => (flat.includes(f) ? featureHead(f, f.label, f.hint, settings) : block(f, settings, extras, features))),
         ],
         always: always.map((f) => ({key: f.name, label: f.label, explains: f.explains, promises: f.promises || []})),
         danger: loose.danger[g.key] || [],
@@ -297,7 +313,8 @@ export function catalog(spec, settings) {
             g,
             features.filter((f) => f.group === g.key),
             settings || {},
-            loose
+            loose,
+            features
         )
     );
     const titles = [...new Set((spec.groups || []).map((g) => g.section))];
