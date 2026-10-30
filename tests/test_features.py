@@ -3291,12 +3291,12 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     assert status == 200 and "stays" in answer["worktree"] and tree.is_dir(), "the viewer's Delete, which wipes the environment, keeps its worktree too"
     console.run(["environment", "create", "calm-river"], USER)
     environment = app.container.get(Environments).existing("calm-river")
-        with app.container.get(Scope).environment(environment.row_id):
-            working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
+    with app.container.get(Scope).environment(environment.row_id):
+        working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
     refused = console.run(["worktree", "remove", "calm-river"], USER)
     assert refused.code != 0 and "a session works in the worktree calm-river" in refused.error and tree.is_dir(), "removing is refused while a session works in it"
-        with app.container.get(Scope).environment(environment.row_id):
-            app.container.get(Agents).save(working.with_(state="ended"), Actor.system())
+    with app.container.get(Scope).environment(environment.row_id):
+        app.container.get(Agents).save(working.with_(state="ended"), Actor.system())
     (tree / "draft.txt").write_text("unsaved\n")
     refused = console.run(["worktree", "remove", "calm-river"], USER)
     assert refused.code != 0 and "1 uncommitted files (draft.txt)" in refused.error and tree.is_dir(), "and while it holds uncommitted work"
