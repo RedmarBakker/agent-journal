@@ -400,12 +400,12 @@ export class ApiClient {
         return this.get("/people");
     }
 
-    // whether this journal is connected to a team, and as whom
-    team() {
-        return this.get("/team");
+    // whether this journal is connected to a team, and as whom; the one team, or the team named
+    team(team = "") {
+        return this.get(`/team${query({team})}`);
     }
 
-    // every team this journal is connected to, with as whom, the role and how many people
+    // every team this journal is connected to, with as whom, the role and how many people, devices and shared items
     teams() {
         return this.get("/teams");
     }
@@ -415,63 +415,62 @@ export class ApiClient {
         return this.post("/team/connect", fields, LONG_WAIT_MS);
     }
 
-    // disconnects from the team; what was imported from its library stays
-    disconnectTeam() {
-        return this.post("/team/disconnect", {});
+    // disconnects from one team, the one or the one named; what was imported from its library stays
+    disconnectTeam(team = "") {
+        return this.post("/team/disconnect", {team});
     }
 
     // an invitation URL for a person's email; admins only
-    inviteToTeam(email) {
-        return this.post("/team/invite", {email});
+    inviteToTeam(email, team = "") {
+        return this.post("/team/invite", {email, team});
     }
 
     // the team's devices and people, and a device revoked; admins only
-    teamDevices() {
-        return this.get("/team/devices");
+    teamDevices(team = "") {
+        return this.get(`/team/devices${query({team})}`);
     }
 
-    revokeTeamDevice(device) {
-        return this.post("/team/revoke", {device});
+    revokeTeamDevice(device, team = "") {
+        return this.post("/team/revoke", {device, team});
     }
 
-    teamPeople() {
-        return this.get("/team/people");
+    teamPeople(team = "") {
+        return this.get(`/team/people${query({team})}`);
     }
 
     // changes this person's own password on the team
-    changeTeamPassword(old, fresh) {
-        return this.post("/team/password", {old, new: fresh});
+    changeTeamPassword(old, fresh, team = "") {
+        return this.post("/team/password", {old, new: fresh, team});
     }
 
     // the library's items, each with its newest version and the version this journal imported, by kind and words
-    libraryItems(type, search) {
-        const query = new URLSearchParams(Object.entries({type, search}).filter(([, value]) => value));
-        return this.get(`/library/items?${query}`);
+    libraryItems(type, search, team = "") {
+        return this.get(`/library/items${query({type, search, team})}`);
     }
 
     // one library item with every version and its note, and the version this journal imported
-    libraryItem(type, name) {
-        return this.get(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}`);
+    libraryItem(type, name, team = "") {
+        return this.get(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}${query({team})}`);
     }
 
     // every copy here that came from the library, with the version it came from and the row or file it is
-    libraryCopies() {
-        return this.get("/library/copies");
+    libraryCopies(team = "") {
+        return this.get(`/library/copies${query({team})}`);
     }
 
     // publishes a sequence or template, by its number, or a profile, by its name, as the library's next version
-    publishLibraryItem(type, reference, note, description) {
-        return this.post(`/library/items/${encodeURIComponent(type)}/publish`, {reference, note, description}, LONG_WAIT_MS);
+    publishLibraryItem(type, reference, note, description, team = "") {
+        return this.post(`/library/items/${encodeURIComponent(type)}/publish`, {reference, note, description, team}, LONG_WAIT_MS);
     }
 
     // imports a library item's version as this journal's own copy; accept writes a reader or a sequence whose script or powers were read
-    importLibraryItem(type, name, version, accept = false) {
-        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version, accept});
+    importLibraryItem(type, name, version, accept = false, team = "") {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version, accept, team});
     }
 
     // updates the imported copy to the newest version; replace writes over a copy edited here
-    updateLibraryItem(type, name, replace) {
-        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace});
+    updateLibraryItem(type, name, replace, team = "") {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace, team});
     }
 
     // the work mode the plan bar's buttons set, and the pause of an agent

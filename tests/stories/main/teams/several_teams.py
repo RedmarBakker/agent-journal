@@ -19,11 +19,13 @@ def test_connecting_a_second_team_keeps_the_first_connected(story):
 
 
 @story(TwoTeamsConnected, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_the_team_page_route_lists_both_teams_with_the_role_and_people_of_each(story):
+def test_the_team_page_route_lists_both_teams_with_the_role_people_devices_and_items_of_each(story):
     result = story.user_opens("/journal/teams")
     result.expect_viewer_rows("teams", "team", [FIRST, SECOND])
     result.expect_viewer_rows("teams", "role", ["admin", "admin"])
     result.expect_viewer_rows("teams", "people", [1, 1])
+    result.expect_viewer_rows("teams", "devices", [1, 1])
+    result.expect_viewer_rows("teams", "items", [0, 0])
     story.expect_stack(story.agents.subject, Ready)
 
 

@@ -10,6 +10,8 @@ from journal.http.support.request import Request
 from journal.support.rejection import Rejection
 from journal.support.response import Response
 from journal.sync.team_url import TeamUrl
+from sync_server.account import ADMIN
+from sync_server.item_query import ItemQuery
 
 
 class TeamController:
@@ -28,8 +30,9 @@ class TeamController:
         return Response.json({"teams": [asdict(self.entry(account)) for account in self.accounts.all()]})
 
     def entry(self, account: LibraryAccount) -> TeamEntry:
-        connection = account.connection()
-        return TeamEntry(connection.team, connection.address, connection.name, connection.role, len(LibraryLink(account, self.schema).people().people))
+        connection, link = account.connection(), LibraryLink(account, self.schema)
+        devices = len(link.devices().devices) if connection.role == ADMIN else 0
+        return TeamEntry(connection.team, connection.address, connection.name, connection.role, len(link.people().people), devices, len(link.items(ItemQuery(None, None)).items))
 
     def connect(self, request: Request) -> Response:
         url, email, password = (str(request.body.get(field, "")).strip() for field in ("url", "email", "password"))
