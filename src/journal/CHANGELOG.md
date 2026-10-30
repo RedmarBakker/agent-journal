@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.3
+
+- The Team page's connect form sends what you type: its text boxes carried nothing back to the form, so every connect was refused as empty.
+
 ## 4.69.2
 
 - A new team server is claimed only with its setup code: the server makes it at its first start, the install prints it once with the line that claims it, `journal team connect "<url>/setup?code=<code>"`, and `python -m sync_server setup-code` reads it again on the server's own machine while it has no admin.

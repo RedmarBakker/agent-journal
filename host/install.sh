@@ -1,5 +1,5 @@
 #!/bin/sh
-# Sets up a team's library server on this machine with Docker: asks for the project and the address, or reads them from
+# Sets up a team server on this machine with Docker: asks for the project and the address, or reads them from
 # TEAM_PROJECT and TEAM_ADDRESS without asking, as a GitHub Actions run does; starts the team server in a new volume and
 # prints its URL: the first journal to connect to it becomes its admin.
 # Run it on the server with the copy each release carries, which pulls that release's team image:

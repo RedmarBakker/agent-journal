@@ -1,11 +1,16 @@
 <script setup>
-import {computed, ref, useAttrs} from "vue";
+import {computed, getCurrentInstance, ref, useAttrs} from "vue";
 import Icon from "./Icon.vue";
 import {ownValue as vOwnValue} from "./ownValue.js";
 
 defineOptions({inheritAttrs: false});
 defineProps({label: {type: String, default: ""}, icon: {type: String, default: ""}, large: Boolean});
+// the text, both ways under v-model; a box given :value alone shows that and leaves its input event to the parent
+const model = defineModel({type: String, default: null});
 const attrs = useAttrs();
+const isModelled = "onUpdate:modelValue" in (getCurrentInstance()?.vnode.props || {});
+const shown = computed(() => (isModelled ? model.value : attrs.value));
+const typed = (event) => isModelled && (model.value = event.target.value);
 const inputAttrs = computed(() =>
     Object.fromEntries(Object.entries(attrs).filter(([key]) => key !== "class" && key !== "style" && key !== "value"))
 );
@@ -23,14 +28,14 @@ defineExpose({focus: () => input.value && input.value.focus()});
             <template v-if="label">
                 <span class="text-field-label">{{ label }}</span>
             </template>
-            <input ref="input" v-own-value="attrs.value" class="text-field-input" spellcheck="false" v-bind="inputAttrs" />
+            <input ref="input" v-own-value="shown" class="text-field-input" spellcheck="false" v-bind="inputAttrs" @input="typed" />
             <template v-if="$slots.end">
                 <span class="text-field-end"><slot name="end" /></span>
             </template>
         </label>
     </template>
     <template v-else>
-        <input ref="input" v-own-value="attrs.value" class="text-input" spellcheck="false" v-bind="bareAttrs" />
+        <input ref="input" v-own-value="shown" class="text-input" spellcheck="false" v-bind="bareAttrs" @input="typed" />
     </template>
 </template>
 
