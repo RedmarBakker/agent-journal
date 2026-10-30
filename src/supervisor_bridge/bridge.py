@@ -12,6 +12,7 @@ from supervisor_bridge.contracts import (
     strict_object,
     validate_operation,
 )
+from supervisor_bridge.metering import grant_token_limits
 from supervisor_bridge.state import StateError, StateStore
 from supervisor_bridge.transport import (
     AuthorizationError,
@@ -113,10 +114,19 @@ class SupervisorBridge:
             self.state.record_failure("service_rejected", False)
             return ReconcileResult("failed", "invalid_admission")
 
-        if not self.budget.is_verified(run):
+        if (previous_run == run and previous["budget_gate"] == "unknown_cost") or previous["blocked_run"] == run.to_dict():
             self.state.record_unknown_cost()
             return ReconcileResult("blocked", "unknown_cost", run.to_dict())
-        if (previous_run == run and previous["budget_gate"] == "unknown_cost") or previous["blocked_run"] == run.to_dict():
+        if previous_run == run and previous["metering"]["status"] == "settled":
+            return ReconcileResult("skipped", "run_settled", run.to_dict())
+
+        try:
+            observed = self.observe(run.to_dict(), None)
+            self.state.record_budget_limits(run, grant_token_limits(observed["snapshot"], run))
+        except (ContractError, KeyError, StateError, TransportError, TypeError):
+            self.state.record_unknown_cost()
+            return ReconcileResult("blocked", "unknown_cost", run.to_dict())
+        if not self.budget.is_verified(run):
             self.state.record_unknown_cost()
             return ReconcileResult("blocked", "unknown_cost", run.to_dict())
         self.state.record_budget_verified(run)

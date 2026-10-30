@@ -19,6 +19,7 @@ OPENCLAW_TOOL_NAMES = (
     "journal__journal_supervisor-apply_maintenance",
     "journal__journal_supervisor-receipt",
 )
+METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840/v1"
 RUN_KEYS = frozenset({
     "run_id",
     "episode_id",
@@ -323,7 +324,7 @@ def validate_pinned_fixture(fixture: dict) -> None:
             "order": {"openai": ["openai:supervisor-api"]},
         },
         "models": {"providers": {"openai": {
-            "baseUrl": "https://api.openai.com/v1",
+            "baseUrl": METERED_PROVIDER_BASE_URL,
             "auth": "api-key",
             "api": "openai-responses",
             "agentRuntime": {"id": "openclaw"},

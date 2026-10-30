@@ -23,7 +23,7 @@
     "models": {
       "providers": {
         "openai": {
-          "baseUrl": "https://api.openai.com/v1",
+          "baseUrl": "http://127.0.0.1:17840/v1",
           "auth": "api-key",
           "api": "openai-responses",
           "agentRuntime": {

@@ -18,6 +18,13 @@ from supervisor_bridge.contracts import (
 )
 from supervisor_bridge.hints import HintSpool
 from supervisor_bridge.mcp import McpServer
+from supervisor_bridge.metering import (
+    METERED_PROVIDER_BASE_URL,
+    MeteredAggregateBudgetProof,
+    MeteringError,
+    MeteringProxy,
+    ProviderResponse,
+)
 from supervisor_bridge.state import StateStore
 from supervisor_bridge.transport import (
     AuthorizationError,
@@ -66,7 +73,15 @@ class StubJournal:
         return {
             "protocol_version": 1,
             "run": dict(RUN),
-            "snapshot": {},
+            "snapshot": {"grant": {
+                "grant_id": RUN["grant_id"],
+                "grant_version": RUN["grant_version"],
+                "limits": {
+                    "max_input_tokens_per_turn": 24000,
+                    "max_output_tokens_per_turn": 8000,
+                    "max_provider_requests_per_turn": 8,
+                },
+            }},
             "page": {
                 "protocol_version": 1,
                 "cursor": request["cursor"],
@@ -139,6 +154,53 @@ class StubOpener:
     def open(self, request, timeout):
         self.requests.append((request, timeout))
         return StubResponse(self.bodies.pop(0))
+
+
+class StubProvider:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.requests = []
+
+    def post(self, path, payload, accept):
+        self.requests.append((path, payload, accept))
+        return self.responses.pop(0)
+
+
+def metered_state(directory, max_input=100, max_output=100, max_requests=8):
+    state = StateStore(directory)
+    run = RunReference.from_run(RUN)
+    state.record_admitted(run)
+    state.record_budget_limits(run, {
+        "max_input_tokens_per_turn": max_input,
+        "max_output_tokens_per_turn": max_output,
+        "max_provider_requests_per_turn": max_requests,
+    })
+    state.record_budget_verified(run)
+    return state
+
+
+def provider_input_tokens(count):
+    return ProviderResponse(200, json.dumps({"object": "response.input_tokens", "input_tokens": count}).encode())
+
+
+def provider_response(input_tokens, output_tokens, cached_tokens=0):
+    return ProviderResponse(200, json.dumps({
+        "id": "response-1",
+        "usage": {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "input_tokens_details": {"cached_tokens": cached_tokens},
+        },
+    }).encode())
+
+
+def model_request(max_output_tokens=20):
+    return {
+        "model": "gpt-6.1-sol",
+        "input": "Review the current failed check.",
+        "tools": [{"type": "function", "name": "observe"}],
+        "max_output_tokens": max_output_tokens,
+    }
 
 
 def make_receipt():
@@ -458,4 +520,172 @@ def test_apply_ack_without_readback_is_not_reported_as_complete(tmp_path):
     assert [call[0] for call in journal.calls] == ["apply", "receipt"]
     assert state.snapshot()["receipt"] is None
     assert state.snapshot()["last_error"] == "receipt_pending"
+
+
+def test_tool_loop_stops_at_the_grant_token_caps(tmp_path):
+    state = metered_state(tmp_path, max_input=8, max_output=8, max_requests=8)
+    provider = StubProvider([
+        provider_input_tokens(3), provider_response(3, 3, 1),
+        provider_input_tokens(5), provider_response(5, 5, 2),
+    ])
+    proxy = MeteringProxy(state, provider)
+
+    first = proxy.forward(model_request())
+    second = proxy.forward(model_request())
+
+    assert first.status == 200 and second.status == 200
+    assert second_body_max_output(provider.requests) == 5
+    with pytest.raises(MeteringError, match="token cap"):
+        proxy.forward(model_request())
+    assert len(provider.requests) == 4
+    usage = state.snapshot()["metering"]
+    assert (usage["input_tokens"], usage["output_tokens"], usage["cached_tokens"]) == (8, 8, 3)
+    assert usage["status"] == "capped"
+
+
+def test_bounded_provider_retries_consume_the_request_cap(tmp_path):
+    state = metered_state(tmp_path, max_requests=4)
+    provider = StubProvider([
+        provider_input_tokens(2),
+        ProviderResponse(429, b'{"error":"rate limited"}', headers={"Retry-After": "0"}),
+        provider_response(2, 1),
+    ])
+    proxy = MeteringProxy(state, provider, retry_wait=lambda _seconds: None)
+
+    assert proxy.forward(model_request()).status == 200
+    usage = state.snapshot()["metering"]
+    assert usage["provider_requests"] == 3
+    assert usage["provider_retries"] == 1
+    with pytest.raises(MeteringError, match="request cap"):
+        proxy.forward(model_request())
+    assert len(provider.requests) == 3
+
+
+def test_successful_provider_response_without_usage_fails_closed(tmp_path):
+    state = metered_state(tmp_path)
+    provider = StubProvider([provider_input_tokens(2), ProviderResponse(200, b'{"id":"response-1"}')])
+    proxy = MeteringProxy(state, provider)
+
+    with pytest.raises(MeteringError, match="usage"):
+        proxy.forward(model_request())
+
+    snapshot = state.snapshot()
+    assert snapshot["budget_gate"] == "unknown_cost"
+    assert snapshot["active_run"] is None
+    assert snapshot["blocked_run"] == RUN_REF
+    assert snapshot["metering"]["status"] == "unknown_cost"
+    assert len(provider.requests) == 2
+
+
+def test_provider_credentials_fail_without_an_alternate_route(tmp_path):
+    state = metered_state(tmp_path)
+    provider = StubProvider([ProviderResponse(401, b'{"error":"unauthorized"}')])
+    proxy = MeteringProxy(state, provider)
+
+    with pytest.raises(MeteringError, match="no fallback") as error:
+        proxy.forward(model_request())
+
+    assert error.value.status_code == 401
+    assert [path for path, _, _ in provider.requests] == ["/v1/responses/input_tokens"]
+    assert state.snapshot()["budget_gate"] == "unknown_cost"
+
+
+def test_provider_usage_totals_survive_a_bridge_restart(tmp_path):
+    state = metered_state(tmp_path, max_input=5, max_output=10, max_requests=8)
+    first_provider = StubProvider([provider_input_tokens(3), provider_response(3, 2, 1)])
+    assert MeteringProxy(state, first_provider).forward(model_request()).status == 200
+
+    restarted_state = StateStore(tmp_path)
+    second_provider = StubProvider([provider_input_tokens(3)])
+    restarted_proxy = MeteringProxy(restarted_state, second_provider)
+
+    with pytest.raises(MeteringError, match="input token cap"):
+        restarted_proxy.forward(model_request())
+    assert len(second_provider.requests) == 1
+    usage = restarted_state.snapshot()["metering"]
+    assert (usage["input_tokens"], usage["output_tokens"], usage["cached_tokens"]) == (3, 2, 1)
+
+
+def test_under_cap_provider_usage_settles_against_the_readback_receipt(tmp_path):
+    state = metered_state(tmp_path, max_input=10, max_output=10, max_requests=8)
+    provider = StubProvider([provider_input_tokens(3), provider_response(3, 2, 1)])
+    proxy = MeteringProxy(state, provider)
+    assert proxy.forward(model_request()).status == 200
+    bridge = SupervisorBridge(StubJournal(), state)
+
+    receipt = bridge.receipt(RUN_REF)
+
+    assert receipt["verification"] == "verified"
+    bridge.receipt(RUN_REF)
+    snapshot = state.snapshot()
+    assert snapshot["usage_settlement"] == "settled"
+    assert snapshot["receipt"]["usage"] == {
+        "input_tokens": 3,
+        "output_tokens": 2,
+        "cached_tokens": 1,
+        "provider_requests": 2,
+        "provider_retries": 0,
+    }
+    assert snapshot["metering"]["status"] == "settled"
+    with pytest.raises(MeteringError, match="budget is closed"):
+        proxy.forward(model_request())
+    assert len(provider.requests) == 2
+
+
+def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
+    state = metered_state(tmp_path)
+    fixture = json.loads(FIXTURE_PATH.read_text())
+    config_path = tmp_path / "openclaw.json"
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    proof = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: True)
+    run = RunReference.from_run(RUN)
+
+    assert proof.is_verified(run) is True
+    assert NoAggregateBudgetProof().is_verified(run) is False
+
+    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = "https://api.openai.com/v1"
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    assert proof.is_verified(run) is False
+
+    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = METERED_PROVIDER_BASE_URL
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    offline = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: False)
+    assert offline.is_verified(run) is False
+
+    fixture["openclaw_config"]["agents"]["defaults"]["maxConcurrent"] = 2
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    concurrent = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: True)
+    assert concurrent.is_verified(run) is False
+
+
+def test_reconcile_invokes_hook_only_with_live_metered_proxy(tmp_path):
+    fixture = json.loads(FIXTURE_PATH.read_text())
+    config_path = tmp_path / "openclaw.json"
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    state = StateStore(tmp_path / "routed")
+    hook = StubHook()
+    journal = StubJournal([admitted()])
+    proof = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: True)
+
+    result = SupervisorBridge(journal, state, proof, hook).reconcile("timer")
+
+    assert result.status == "hook_acknowledged"
+    assert hook.calls == [RunReference.from_run(RUN)]
+
+    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = "https://api.openai.com/v1"
+    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    blocked_state = StateStore(tmp_path / "unrouted")
+    blocked_hook = StubHook()
+    blocked_journal = StubJournal([admitted()])
+    blocked_proof = MeteredAggregateBudgetProof(blocked_state, config_path, health_probe=lambda: True)
+
+    blocked = SupervisorBridge(blocked_journal, blocked_state, blocked_proof, blocked_hook).reconcile("timer")
+
+    assert blocked.status == "blocked" and blocked.reason == "unknown_cost"
+    assert blocked_hook.calls == []
+
+
+def second_body_max_output(provider_requests):
+    generation = [payload for path, payload, _ in provider_requests if path == "/v1/responses"]
+    return generation[-1]["max_output_tokens"]
 
