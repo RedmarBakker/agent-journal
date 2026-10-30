@@ -11,3 +11,5 @@ class SeatWorker:
     actor: Actor
     token: AgentToken
     environment: str
+    organization_seat: str = ""
+    organization_rig: str = ""

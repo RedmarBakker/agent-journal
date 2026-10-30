@@ -14,6 +14,8 @@ AGENT_SHELL = "JOURNAL_AGENT_SHELL"
 # who runs a shell: agent, sub-agent, or a sent agent as its actor stamp, worker:12, verifier:3 or reviewer:4, which proves itself with the token beside it
 ACTOR = "JOURNAL_ACTOR"
 ACTOR_TOKEN = "JOURNAL_ACTOR_TOKEN"
+ORGANIZATION_SEAT = "JOURNAL_ORGANIZATION_SEAT"
+ORGANIZATION_RIG = "JOURNAL_ORGANIZATION_RIG"
 
 AGENT_REQUIRED = "no agent runs this: only an agent's own session can"
 
@@ -32,6 +34,9 @@ class Caller:
     subagent: bool = False
     subagent_session: str = ""
     agent_row: Agent | None = None
+    organization_seat: str = ""
+    organization_rig: str = ""
+    actor_token: str = ""
 
     def holder_ref(self) -> Ref | None:
         if self.is_worker():

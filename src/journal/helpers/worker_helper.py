@@ -2,6 +2,7 @@ from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.edits.feature import EditsFeature
 from journal.features.memory.feature import Memory
 from journal.features.organization.feature import OrganizationFeature
+from journal.features.organization.commands.organization_command import OrganizationCommand
 from journal.features.tasks.feature import Tasks
 from journal.features.workers.feature import Workers
 from journal.features.memory.commands.rule_command import RuleCommand
@@ -49,6 +50,7 @@ class WorkerHelper(Helper):
         (WorkerBuildCommand, ("queued",)),
         (TodoCommand, ("add", "check", "list")),
         (WorkerPeerCommand, ("notify", "peers", "report", "send")),
+        (OrganizationCommand, ("handoff", "inbox")),
     )
 
     @classmethod

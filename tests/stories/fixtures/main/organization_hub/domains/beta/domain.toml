@@ -1,0 +1,16 @@
+id = "beta"
+title = "Beta"
+icon = "b"
+description = "The Beta domain."
+outcome = "Beta work is complete."
+responsible = ["beta work"]
+not_responsible = ["alpha work"]
+roles = ["reviewer"]
+skills = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

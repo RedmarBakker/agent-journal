@@ -19,7 +19,7 @@ from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.repositories.setting_rows import SettingRows
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT
 
 OPENRIG_VERSION = "0.7.5"
 RIG_SPEC_VERSION = "0.2"
@@ -147,7 +147,8 @@ class RigSpecs:
         path = (str(self.command().parent), *filter(None, (os.environ.get("PATH", ""),)))
         shell_path_command = self.shell_path_command()
         prompt_command = "; ".join(filter(None, (launched.get("PROMPT_COMMAND", ""), shell_path_command)))
-        return {**{name: launched[name] for name in SEAT_VARIABLES}, "PATH": os.pathsep.join(path),
+        routed = {ORGANIZATION_SEAT: worker.organization_seat, ORGANIZATION_RIG: worker.organization_rig}
+        return {**{name: launched[name] for name in SEAT_VARIABLES}, **{name: value for name, value in routed.items() if value}, "PATH": os.pathsep.join(path),
                 "BASH_ENV": str(self.shell_path_file()), "PROMPT_COMMAND": prompt_command}
 
     def shell_path_command(self) -> str:

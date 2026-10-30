@@ -135,6 +135,16 @@ class AgentSteps:
         outcome = self.app.console().run(arguments, self.caller_of(agent))
         return self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
 
+    def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
+        arguments = shlex.split(line)
+        rig = f"plan-{self.plans.first}"
+        token = f"story-seat-{rig}-{seat}"
+        answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "agent": True, "provider": self.provider,
+                                             "session": self.session_of(agent), "organization_seat": seat, "organization_rig": rig,
+                                             "actor_token": token}, MAIN)[1]
+        outcome = Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
+        return self.record_command(f"agent runs {' '.join(arguments[:2])} from organization seat {seat}{', refused' if outcome.code else ''}", outcome)
+
     def command_from_a_shell_naming_no_session(self, line: str) -> StepResult:
         arguments = shlex.split(line)
         answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "agent": True, "provider": self.provider}, MAIN)[1]

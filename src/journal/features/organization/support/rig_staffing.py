@@ -52,7 +52,7 @@ class RigStaffing:
         rig_name = f"plan-{plan.id}"
         provider = self.providers.lookup(agent.provider)
         path = self.specs.write(rig_name, self.organization.contracts(), (), self.config.root,
-                                lambda _seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name), provider)
+                                lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig_name), provider)
         self.runtime.start_rig(path)
         rig = self.rigs.save(Rig(environment_id=plan.environment_id, name=rig_name), actor)
         self.plans.rig_linked(plan, rig, actor)
@@ -103,7 +103,7 @@ class RigStaffing:
             seats = (domain_seat, role_seat)
             links = self.seats.links(contracts, seats)
             path = self.specs.write_shared(name, seats, links, cwd,
-                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment))
+                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment, name))
             self.runtime.start_rig(path)
             return self.rigs.save(Rig(environment_id=plan.environment_id, name=name), Actor.system())
 
@@ -113,7 +113,7 @@ class RigStaffing:
             seats = (domain_seat, role_seat)
             links = self.seats.links(contracts, seats)
             path = self.specs.write_shared(rig.name, seats, links, cwd,
-                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment))
+                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment, rig.name))
             self.runtime.start_rig(path)
             return rig
 
@@ -145,7 +145,7 @@ class RigStaffing:
             fragment, pod = self.specs.pod_fragment(
                 rig.name, domain_seat.pod, (domain_seat, role_seat), links,
                 lambda seat: cwd if seat.qualified == role_seat.qualified else self.config.root,
-                lambda seat: self.seat_worker(seat, role_seat, worker, environment),
+                lambda seat: self.seat_worker(seat, role_seat, worker, environment, rig.name),
             )
             if running:
                 self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
@@ -153,14 +153,14 @@ class RigStaffing:
         elif not any(member.get("id") == role_seat.member for member in pod.get("members", [])):
             fragment, member = self.specs.member_fragment(
                 rig.name, role_seat, cwd,
-                self.seat_worker(role_seat, role_seat, worker, environment),
+                self.seat_worker(role_seat, role_seat, worker, environment, rig.name),
             )
             pod.setdefault("members", []).append(member)
             role_fragment = fragment
         else:
             index = next(index for index, member in enumerate(pod["members"]) if member.get("id") == role_seat.member)
             previous = pod["members"][index]
-            assigned = self.seat_worker(role_seat, role_seat, worker, environment)
+            assigned = self.seat_worker(role_seat, role_seat, worker, environment, rig.name)
             if previous.get("env", {}).get(ACTOR) != assigned.actor.stamp:
                 fragment, member = self.specs.member_fragment(rig.name, role_seat, cwd, assigned)
                 pod["members"][index] = member
@@ -220,9 +220,9 @@ class RigStaffing:
         fragment.unlink(missing_ok=True)
 
     @staticmethod
-    def seat_worker(seat: Seat, role: Seat, worker: int, environment: str) -> SeatWorker:
+    def seat_worker(seat: Seat, role: Seat, worker: int, environment: str, rig: str) -> SeatWorker:
         actor = Actor.worker(worker) if seat.qualified == role.qualified else Actor.agent("")
-        return SeatWorker(actor, AgentToken.random(), environment)
+        return SeatWorker(actor, AgentToken.random(), environment, seat.qualified, rig)
 
     def worker_seat(self, role: Role, domain: Domain, worker: int, provider: Provider) -> Seat:
         seat = self.seats.role_seat(role, domain, provider)

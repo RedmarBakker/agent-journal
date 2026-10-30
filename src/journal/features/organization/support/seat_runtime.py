@@ -17,7 +17,7 @@ from journal.features.workers.organization_options import OrganizationOptions
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.repositories.setting_rows import SettingRows
 from journal.support.agent_token import AgentToken
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_SEAT
 from journal.support.rejection import Rejection
 
 
@@ -54,6 +54,7 @@ class SeatMember:
     path: str
     active: str
     agent_shell: str
+    organization_seat: str = ""
 
 
 @dataclass(frozen=True)
@@ -118,9 +119,16 @@ class SeatRuntime:
                     str(environment.get(ACTOR, "")), str(environment.get(ACTOR_TOKEN, "")),
                     str(environment.get("JOURNAL_ENV", "")), str(environment.get("JOURNAL_ROOT", "")),
                     str(environment.get("PATH", "")), str(environment.get(JOURNAL_ACTIVE, "")),
-                    str(environment.get(AGENT_SHELL, "")),
+                    str(environment.get(AGENT_SHELL, "")), str(environment.get(ORGANIZATION_SEAT, "")),
                 )
         raise Rejection(f"OpenRig spec for {rig} has no seat {pod}.{member}")
+
+    def organization_member(self, rig: str, identity: str, provider: str) -> SeatMember:
+        for address in self.roster(rig):
+            member = self.member(rig, address.pod, address.member, provider)
+            if member.organization_seat == identity:
+                return member
+        raise Rejection(f"OpenRig rig {rig} has no organization seat {identity}")
 
     def generated_boundary(self, folder: Path, member: dict, provider: str, runtime: str) -> None:
         if not provider or not runtime:

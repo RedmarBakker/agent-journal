@@ -7,6 +7,7 @@ from journal.features.organization.support.domain_plan import DomainPlan
 from journal.features.organization.support.domain_plans import DomainPlans
 from journal.features.organization.support.hub_traffic_audit import HubTrafficAudit
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.organization_hub import OrganizationHub
 from journal.features.organization.support.contracts import Contracts
 from journal.support.caller import Caller
 
@@ -19,14 +20,18 @@ class OrganizationCommand(Command):
     noun = "organization"
     default_verb = "list"
 
-    def __init__(self, organization: Organization, domain_plans: DomainPlans, traffic: HubTrafficAudit) -> None:
-        self.organization, self.domain_plans, self.traffic = organization, domain_plans, traffic
+    def __init__(self, organization: Organization, domain_plans: DomainPlans, traffic: HubTrafficAudit, hub: OrganizationHub) -> None:
+        self.organization, self.domain_plans, self.traffic, self.hub = organization, domain_plans, traffic, hub
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "list the domains with their Roles, the problems found in the files and the version read")
         self.verb(verbs, "reload", "read the organization folder again, then list it")
         self.verb(verbs, "plans", "list each domain's board: the plans with tasks handed to its Roles, each with only that domain's tasks, the phase it stands in there, and whether it is active: a Role of the domain works or holds one of them")
         self.verb(verbs, "audit", "list OpenRig queue items that route around their organization's hub, with the recorded actor and identity provenance")
+        handoff = self.verb(verbs, "handoff", "hand a task to the next seat along the organization's hub routes")
+        handoff.add_argument("task", type=int)
+        handoff.add_argument("target", help="domain:<id> or role:<domain>/<role>")
+        self.verb(verbs, "inbox", "read tasks handed to this generated organization seat")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         self.print_contracts(self.organization.contracts())
@@ -54,6 +59,14 @@ class OrganizationCommand(Command):
             if isinstance(provenance, (dict, list)):
                 provenance = json.dumps(provenance, sort_keys=True)
             print(f"hub-skipping queue item {finding.item_id}: {finding.source} -> {finding.destination}; actor session {finding.actor_session or 'not reported'}; identity provenance {provenance or 'not reported'}")
+        return 0
+
+    def handoff(self, args: Namespace, caller: Caller) -> int:
+        self.hub.handoff(args.task, args.target, caller)
+        return 0
+
+    def inbox(self, args: Namespace, caller: Caller) -> int:
+        self.hub.inbox(caller)
         return 0
 
     @staticmethod

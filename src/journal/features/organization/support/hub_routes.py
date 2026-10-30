@@ -20,4 +20,18 @@ class HubRoutes:
         source, destination = contracts.role(sender.role), contracts.role(target.role)
         if source is None or destination is None or self.allowed(contracts.role_id(source), contracts.role_id(destination)):
             return ""
-        return f"worker {sender.id} works as the Role {source.id} and worker {target.id} as {destination.id}: Roles do not send to each other. Send it to your Domain agent, {contracts.domain_id(source.domain)}, which passes it on"
+        return f"worker {sender.id} works as the Role {source.id} and worker {target.id} as {destination.id}: {self.refusal_for(contracts.role_id(source), contracts.role_id(destination))}"
+
+    def refusal_for(self, source: str, target: str) -> str:
+        if self.allowed(source, target):
+            return ""
+        if source.startswith("role:"):
+            domain = source.removeprefix("role:").split("/", 1)[0]
+            return f"Roles do not send to each other. Send it to your Domain agent, domain:{domain}, which passes it on"
+        if source.startswith("domain:"):
+            return "Domain agents do not send sideways. Send it to your Plan agent, plan, which passes it on"
+        if source == "plan":
+            return "the Plan agent sends to the main agent; send it to your main agent, main"
+        if source == MAIN:
+            return "the main agent sends to the Plan agent, plan"
+        return f"{source} may not send to {target} along the organization's hub routes"

@@ -16,7 +16,7 @@ PLAN_POD = "plan"
 PLAN_AGENT = "plan-agent"
 DOMAIN_AGENT = "domain-agent"
 LEADER_TOOLS = ("read_files",)
-PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to the Domain agents of its domains and write no code."
+PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to the Domain agents of its domains and write no code. Route a task with `journal organization handoff <task> domain:<id>`. Read tasks handed to you with `journal organization inbox`."
 
 
 class RigSeats:
@@ -41,11 +41,13 @@ class RigSeats:
 
     def domain_agent(self, domain: Domain, provider: Provider) -> Seat:
         effort = domain.models.effort if provider.supports_reasoning_effort else ""
-        return Seat(Contracts.domain_id(domain.id), domain.id, DOMAIN_AGENT, "", provider.name, domain.models.for_provider(provider.name), effort, domain.body(), domain.skills, self.tools.provider_tools(LEADER_TOOLS), False)
+        guidance = f"{domain.body()}\n\nRead tasks handed to you with `journal organization inbox`; hand work to a Role with `journal organization handoff <task> role:{domain.id}/<role>`."
+        return Seat(Contracts.domain_id(domain.id), domain.id, DOMAIN_AGENT, "", provider.name, domain.models.for_provider(provider.name), effort, guidance, domain.skills, self.tools.provider_tools(LEADER_TOOLS), False)
 
     def role_seats(self, contracts: Contracts, domain: Domain, provider: Provider) -> tuple[Seat, ...]:
         return tuple(self.role_seat(role, domain, provider) for role in contracts.roles_of(domain.id) if role.cardinality is Cardinality.PLAN)
 
     def role_seat(self, role: Role, domain: Domain, provider: Provider) -> Seat:
         effort = role.models.effort if provider.supports_reasoning_effort else ""
-        return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, role.body(domain.guidance), role.skills, self.tools.provider_tools(role.tools), role.writes)
+        guidance = f"{role.body(domain.guidance)}\n\nRead tasks handed to your seat with `journal organization inbox`."
+        return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, guidance, role.skills, self.tools.provider_tools(role.tools), role.writes)

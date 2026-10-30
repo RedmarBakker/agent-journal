@@ -13,6 +13,8 @@ from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
+from journal.repositories.domain_rows import DomainRows
+from journal.features.organization.support.organization import Organization
 from journal.models.support.ref import Ref
 from tests.full_project import MAIN
 from tests.in_process import get_answer
@@ -232,6 +234,16 @@ class StoryChecks:
 
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
+
+    def expect_task_tied_to_domain(self, task: int, domain: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            names = self.app.container.get(DomainRows).domain_names(self.app.container.get(Tasks).find(task))
+        assert names == [domain], f"task {task} is tied to {names}, expected {domain}"
+
+    def expect_organization_domains(self, *expected: str) -> None:
+        contracts = self.app.container.get(Organization).contracts()
+        found = tuple(domain.id for domain in contracts.domains)
+        assert found == expected, f"organization folder {contracts.folder} has domains {found}, expected {expected}; problems: {contracts.problems}"
 
     def expect_task_made_by(self, agent: StoryAgent, n: int) -> None:
         self.expect_row("tasks", n, {"creator": f"agent:{self.session_of(agent)}"})

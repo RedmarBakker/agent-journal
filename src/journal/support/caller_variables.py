@@ -1,9 +1,9 @@
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT, Caller
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,8 @@ class CallerVariables:
     verifier: int | None = None
     actor_token: str | None = None
     reviewer: int | None = None
+    organization_seat: str = ""
+    organization_rig: str = ""
 
     @classmethod
     def read(cls, environ: Mapping[str, str], provider: str, session_variables: tuple[str, ...], markers: tuple[str, ...]) -> "CallerVariables":
@@ -29,27 +31,31 @@ class CallerVariables:
         actor = set_variables.get(ACTOR, "")
         return cls(set_variables.get("JOURNAL_ENV", "main"), provider, any(name in set_variables for name in (*markers, AGENT_SHELL)), session,
                    set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), Actor.stamp_number(actor, ActorType.WORKER), set_variables.get("JOURNAL_LAUNCH"),
-                   Actor.stamp_number(actor, ActorType.VERIFIER), set_variables.get(ACTOR_TOKEN), Actor.stamp_number(actor, ActorType.REVIEWER))
+                   Actor.stamp_number(actor, ActorType.VERIFIER), set_variables.get(ACTOR_TOKEN), Actor.stamp_number(actor, ActorType.REVIEWER),
+                   set_variables.get(ORGANIZATION_SEAT, ""), set_variables.get(ORGANIZATION_RIG, ""))
 
     @classmethod
     def parsed(cls, body: dict, provider: str) -> "CallerVariables":
         fields = {key: value for key, value in body.items() if value not in ("", None)}
         return cls(fields.get("env", "main"), fields.get("provider", provider), bool(fields.get("agent")), fields.get("session"), fields.get("plugin"), fields.get("token"), fields.get("worker"), fields.get("launch"),
-                   fields.get("verifier"), fields.get("actor_token"), fields.get("reviewer"))
+                   fields.get("verifier"), fields.get("actor_token"), fields.get("reviewer"), fields.get("organization_seat", ""), fields.get("organization_rig", ""))
 
     def body(self) -> dict:
         return {"env": self.environment, "provider": self.provider, "agent": self.agent_shell, "session": self.session, "plugin": self.plugin, "token": self.token, "worker": self.worker, "launch": self.launch,
-                "verifier": self.verifier, "actor_token": self.actor_token, "reviewer": self.reviewer}
+                "verifier": self.verifier, "actor_token": self.actor_token, "reviewer": self.reviewer, "organization_seat": self.organization_seat,
+                "organization_rig": self.organization_rig}
 
     def caller(self) -> Caller:
         if self.plugin is not None:
-            return Caller.plugin(self.environment, self.plugin)
-        if self.worker is not None:
-            return Caller.worker(self.environment, self.worker, self.session, self.provider)
-        if self.verifier is not None:
-            return Caller.verifier(self.environment, self.verifier, self.session, self.provider)
-        if self.reviewer is not None:
-            return Caller.reviewer(self.environment, self.reviewer, self.session, self.provider)
-        if self.session is not None:
-            return Caller.agent(self.environment, self.session, self.provider)
-        return Caller.shell(self.environment, self.provider) if self.agent_shell else Caller.user(self.environment)
+            caller = Caller.plugin(self.environment, self.plugin)
+        elif self.worker is not None:
+            caller = Caller.worker(self.environment, self.worker, self.session, self.provider)
+        elif self.verifier is not None:
+            caller = Caller.verifier(self.environment, self.verifier, self.session, self.provider)
+        elif self.reviewer is not None:
+            caller = Caller.reviewer(self.environment, self.reviewer, self.session, self.provider)
+        elif self.session is not None:
+            caller = Caller.agent(self.environment, self.session, self.provider)
+        else:
+            caller = Caller.shell(self.environment, self.provider) if self.agent_shell else Caller.user(self.environment)
+        return replace(caller, organization_seat=self.organization_seat, organization_rig=self.organization_rig, actor_token=self.actor_token or "")

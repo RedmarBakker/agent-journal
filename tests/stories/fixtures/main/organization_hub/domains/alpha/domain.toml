@@ -1,0 +1,16 @@
+id = "alpha"
+title = "Alpha"
+icon = "a"
+description = "The Alpha domain."
+outcome = "Alpha work is complete."
+responsible = ["alpha work"]
+not_responsible = ["beta work"]
+roles = ["builder", "scout"]
+skills = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

@@ -1,0 +1,36 @@
+from pathlib import Path
+
+from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.rig_specs import RigSpecs
+from journal.features.organization.support.seat_worker import SeatWorker
+from journal.features.workers.organization_options import OrganizationOptions
+from journal.models.plan_state import PlanState
+from journal.providers.providers import Providers
+from journal.support.actor import Actor
+from journal.support.agent_token import AgentToken
+from tests.stories.fixtures.main.working_agent import WorkingAgent
+
+
+class OrganizationHubPlan(WorkingAgent):
+    """A draft plan with one task and an organization with two Domains and three plan Roles."""
+
+    settings = ((OrganizationOptions.FOLDER, str(Path(__file__).resolve().with_name("organization_hub"))),)
+
+    def steps(self, story) -> None:
+        super().steps(story)
+        self.plans.first = story.user_creates_plan("p", "b")
+        self.tasks.first = story.user_adds_plan_task(self.plans.first, "first")
+        rig = f"plan-{story.plans.first}"
+        contracts = story.app.container.get(Organization).reload()
+        domains = tuple(domain.id for domain in contracts.domains)
+        provider = story.app.container.get(Providers).lookup(story.provider)
+        story.app.container.get(RigSpecs).write(
+            rig, contracts, domains, story.app.config.root,
+            lambda seat: SeatWorker(Actor.agent(""), AgentToken(f"story-seat-{rig}-{seat.qualified}"), "main", seat.qualified, rig),
+            provider,
+        )
+
+    def expected(self, story) -> None:
+        super().expected(story)
+        story.expect_plan(self.plans.first, state=PlanState.DRAFT)
+        story.expect_organization_domains("alpha", "beta")
