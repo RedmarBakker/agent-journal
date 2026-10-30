@@ -32,7 +32,7 @@ class PlanAgents:
 
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
-        return self.agents.find(agent_id) if agent_id else None
+        return self.agents.find_globally(agent_id) if agent_id else None
 
     def environment(self, plan: Plan) -> Environment | None:
         agent = self.agent(plan)
