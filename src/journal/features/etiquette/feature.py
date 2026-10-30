@@ -18,8 +18,6 @@ class Etiquette(Feature[EtiquetteData]):
 Everything you write for the user reaches the chat. These are the rules for it.
 
 - You speak to the user. Say "you", never "the user" or their name in the third person.
-- A line that starts with [journal] is an instruction from the journal, not a message from the user. Act on it.
-  Never answer it, quote it or mention it in the chat.
 - Talk about the work. Never talk about the journal's own mechanics in the chat: its lines, hooks, skills, blocks,
   replies or logging. Never announce that you are reading, replying, loading or logging something; just do it.
   Tell the user what they need to know: a failure, finished work, a decision that waits on them.

@@ -41,7 +41,7 @@ class Skills(Feature[SkillsData]):
 # The journal
 
 A line that starts with [journal] is the journal speaking, never the user: act on it as an instruction, and never
-answer it in the chat.
+answer it, quote it or write about it in the chat.
 
 The journal stores this project's lasting state beside the code and tells you what to do at the
 moments you would otherwise get wrong. Every command is `journal <noun> <verb>`; `journal <noun> --help`
@@ -72,6 +72,4 @@ lists the verbs.
   all the words: search there before saying you do not know or asking the user again.
 - Also: **report**, **doc**, **check**, **plugin**, **secret**, **template**, **notice**; `journal <noun> --help` lists the verbs.
 - `journal stuck "<why>"` when you are stuck: the journal sends nothing until your next tool use.
-
-A line from the journal is an instruction, never a message: act on it, and write nothing about it in the chat.
 """)
