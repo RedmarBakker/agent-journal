@@ -1,13 +1,12 @@
 import json
 
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import BUILDER_MODE, setting, story
-from tests.stories.fixtures.main.plan_approved import PlanApproved
+from tests.stories.builder.story_marks import BUILDER_MODE, story
+from tests.stories.fixtures.main.coordinating_plan_agent import CoordinatingPlanAgent
 
 
 def recorded_cost(story, session: str, amount: float) -> None:
@@ -16,8 +15,7 @@ def recorded_cost(story, session: str, amount: float) -> None:
     path.write_text(json.dumps({"session_id": session, "cost": {"total_cost_usd": amount}}))
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
+@story(CoordinatingPlanAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_solo_plan_records_its_plan_agent_session_cost(story):
     story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=(): None)
     plan = story.plans.first
@@ -32,7 +30,7 @@ def test_a_solo_plan_records_its_plan_agent_session_cost(story):
     recorded_cost(story, session, 0.37)
     story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.first} --how done")
     story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
-    story.user_opens(f"/journal/plans/{plan}/team")
-    story.expect_viewer_passed()
-    story.expect_viewer_shows("estimated_api_cost_usd", 0.37)
+    result = story.user_opens(f"/journal/plans/{plan}/team")
+    result.expect_viewer_passed()
+    result.expect_viewer_shows("estimated_api_cost_usd", 0.37)
     story.expect_stack(story.agents.main, CoordinatingPlans)

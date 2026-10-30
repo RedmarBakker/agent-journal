@@ -3,7 +3,6 @@ from pathlib import Path
 from journal.engine.agent_launcher import AgentLauncher
 from journal.features.git.support.branch_holders import BranchHolders
 from journal.features.git.support.start_rule import StartRule
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.launcher.launch import Launch
@@ -21,12 +20,11 @@ from journal.support.project_command import ProjectCommand
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
 from journal.supervisor_link import SupervisorLink
-from tests.stories.builder.story_marks import BUILDER_MODE, setting, story
-from tests.stories.fixtures.main.plan_approved import PlanApproved
+from tests.stories.builder.story_marks import BUILDER_MODE, story
+from tests.stories.fixtures.main.coordinating_plan_agent import CoordinatingPlanAgent
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
+@story(CoordinatingPlanAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(story, monkeypatch):
     app = story.app
     environments = app.container.get(Environments)
@@ -38,7 +36,7 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
     branch_before_launch = target_branch.read_text() if target_branch.is_file() else "main"
     (root / ".plan-agent-branches-before-launch").write_text(f"{(root / '.plan-agent-branch').read_text()}|{branch_before_launch}")
 
-    monkeypatch.setattr(WorkspaceWorktree, "chosen", classmethod(lambda cls, root, name: cls(root, name)))
+    monkeypatch.setattr(WorkspaceWorktree, "chosen", classmethod(lambda cls, root, name, repositories=(): cls(root, name, repositories)))
 
     creations = 0
 
