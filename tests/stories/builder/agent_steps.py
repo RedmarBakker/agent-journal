@@ -645,6 +645,20 @@ class AgentSteps:
             log.write(f"{int(self.app.container.get(TimeSource).seconds())} shell {line}\n")
         return self.observed("a shell line ran around the journal", None, None)
 
+    def the_supervisor_stopped_without_closing_its_inbox(self, agent: StoryAgent) -> StepResult:
+        inbox = self.inbox_file()
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        inbox.write_text(json.dumps({"socket": str(inbox.parent / "gone.sock"), "protocol": 1}))
+        return self.observed("the supervisor stopped without closing its inbox", None, None)
+
+    def the_supervisor_closed_its_inbox(self, agent: StoryAgent) -> StepResult:
+        self.inbox_file().unlink(missing_ok=True)
+        return self.observed("the supervisor closed its inbox", None, None)
+
+    def inbox_file(self) -> Path:
+        environment_id = self.app.container.get(Agents).session_agent(self.main_session()).environment_id
+        return self.app.config.home / "runtime" / "inboxes" / self.app.container.get(Environments).find(environment_id).name
+
     def the_project_holds_a_file(self, path: str, data: bytes) -> StepResult:
         (self.app.config.root / path).write_bytes(data)
         return self.observed("the project holds a file", None, None)

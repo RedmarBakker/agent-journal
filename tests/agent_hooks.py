@@ -5,6 +5,7 @@ from journal.engine.clock import Clock
 from journal.support.typed_lines import JOURNAL_PREFIX, TypedLines
 from journal.repositories.environments import Environments
 from journal.supervisor_link import SupervisorLink
+from journal.support.supervisor_reply import SupervisorReply
 from tests.in_process import posted
 from journal.support.time_source import TimeSource
 
@@ -32,24 +33,28 @@ def typing_capture(app, monkeypatch, keystrokes: list) -> None:
     """Catches each line typed to the agent into typed and confirms it at once, as the agent's prompt hook would, so the next is not held behind it."""
     lines = app.container.get(TypedLines)
 
-    def seen_back(link, environment_id: int, verb: str, fields: dict) -> None:
+    def keystroke_capture(link, environment_id: int, verb: str, fields: dict) -> SupervisorReply:
+        if "line" not in fields:
+            return SupervisorReply(False, "no supervisor runs here")
         keystrokes.append(fields["line"])
         lines.confirm(environment_id, fields["line"])
+        return SupervisorReply(True)
 
-    monkeypatch.setattr(SupervisorLink, "_send", seen_back)
+    monkeypatch.setattr(SupervisorLink, "_send", keystroke_capture)
 
 
 def woken_capture(app, monkeypatch, keystrokes: list) -> None:
     """Catches what reaches a stopped agent as an agent that wakes and stops again at once sees it: the line typed into its terminal, taken back by its prompt, and every line waiting that the prompt's answer carries, each caught into keystrokes; then the agent stops, so the next line is typed again."""
     lines = app.container.get(TypedLines)
 
-    def woken(link, environment_id: int, verb: str, fields: dict) -> None:
+    def woken(link, environment_id: int, verb: str, fields: dict) -> SupervisorReply:
         if "line" not in fields:
-            return
+            return SupervisorReply(False, "no supervisor runs here")
         keystrokes.append(fields["line"])
         lines.confirm(environment_id, fields["line"])
         keystrokes.extend(f"{JOURNAL_PREFIX} {line}" for line in lines.pending_lines(environment_id))
         lines.rest(environment_id)
+        return SupervisorReply(True)
 
     monkeypatch.setattr(SupervisorLink, "_send", woken)
 

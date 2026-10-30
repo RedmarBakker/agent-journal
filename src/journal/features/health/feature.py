@@ -3,6 +3,7 @@ from journal.features.health.commands.supervision_command import SupervisionComm
 from journal.features.health.health_options import HealthOptions
 from journal.features.health.listeners.bypass_notice import BypassNotice
 from journal.features.health.listeners.hook_health_record import HookHealthRecord
+from journal.features.health.listeners.supervisor_loss_notice import SupervisorLossNotice
 from journal.features.health.seeds.hook_health_seed import HookHealthSeed
 from journal.features.health.jobs.database_backup import DatabaseBackup
 from journal.features.health.health_conduct import HealthConduct
@@ -15,9 +16,9 @@ from journal.features.health.support.unchecked_work_reader import UncheckedWorkR
 class Health(Feature[UncheckedWork]):
     name = HealthPart.name
     title = "Health and backups"
-    help = "The supervisor asks the journal every few seconds whether it is well, and starts it again after so many misses in a row; the journal answers unwell when an environment's hooks stop reaching it or it cannot open a file or read its database. The journal also writes an online copy of its database every so many minutes to .journal/backups-watch, keeping the newest few. A hook or a shell command that went around a journal that did not answer is named once in the chat at the journal's next answer, and the agent is told in one line to check them."
+    help = "The supervisor asks the journal every few seconds whether it is well, and starts it again after so many misses in a row; the journal answers unwell when an environment's hooks stop reaching it or it cannot open a file or read its database. The journal also writes an online copy of its database every so many minutes to .journal/backups-watch, keeping the newest few. A hook or a shell command that went around a journal that did not answer is named once in the chat at the journal's next answer, and the agent is told in one line to check them. A supervisor stopped without closing its inbox is named once in the chat, since the user's messages then reach the agent only at its next step."
     options = (HealthOptions.CHECK_SECONDS, HealthOptions.ANSWER_SECONDS, HealthOptions.MISSES, HealthOptions.BOOT_SECONDS, HealthOptions.HOOK_HEALTH_SECONDS, HealthOptions.BACKUP_MINUTES, HealthOptions.BACKUP_COUNT)
-    listeners = (BypassNotice, HookHealthRecord)
+    listeners = (BypassNotice, HookHealthRecord, SupervisorLossNotice)
     seeds = (HookHealthSeed,)
     jobs = (DatabaseBackup,)
     commands = (SupervisionCommand,)
