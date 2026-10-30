@@ -10,7 +10,7 @@ class PlansNudges:
     TEST_COMMANDS_NEEDED = Nudge("plans", "name_the_test_commands", "the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through", "", repeat=Timeout.seconds(0))
     MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end", "to run one now: `journal plan allow-tests {{n}} --why \"<reason>\"`", repeat=Timeout.seconds(0), longest_characters=170, longest_reason="it shows the plan, its phase and the command that lets one test run through")
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
-    BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", repeat=Timeout.seconds(0))
+    BUILDER_MODE = Nudge("plans", "now_building", "your mode changed: you are now the builder.", "read what it asks: journal mode show", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}", repeat=Timeout.seconds(0), longest_characters=1540, longest_reason="it contains the brief of the next task")
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
     PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))

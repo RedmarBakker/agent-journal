@@ -27,6 +27,7 @@ from journal.features.workers.seeds.test_turns_resume import TestTurnsResume
 from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.arrival_command import ArrivalCommand
 from journal.features.workers.commands.todo_command import TodoCommand
+from journal.features.workers.commands.mode_command import ModeCommand
 from journal.features.workers.commands.proof_command import ProofCommand
 from journal.features.workers.commands.departure_command import DepartureCommand
 from journal.features.workers.workers_conduct import WorkersConduct
@@ -83,6 +84,7 @@ from journal.features.workers.states.soloing import Soloing
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.fitness_options import FitnessOptions
+from journal.features.workers.support.work_mode_briefs import WorkModeBriefs
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE, WorkersOptions
 from journal.features.workers.listeners.test_run_card import TestRunCard
 from journal.features.workers.support.test_run_process_card import TestRunProcessCard
@@ -105,7 +107,7 @@ class Workers(Feature[WorkersData]):
     modes = Modes(WorkersOptions.MODE, {BUILDER_MODE: PlansReady, ORCHESTRATOR_MODE: Orchestrating, SOLO_MODE: Soloing})
     options = (LOCKOUT_OPTION, WorkersOptions.MEMORY_WARNING_MEGABYTES, WorkersOptions.MEMORY_LIMIT_MEGABYTES, WorkersOptions.MEMORY_TOTAL_MEGABYTES, FitnessOptions.EDIT_WAIT_MINUTES, FitnessOptions.BUILDER_ACTIVE_WORKERS, FitnessOptions.SCORE_WARMUP_MINUTES, FitnessOptions.ORCHESTRATOR_HIGH_ENTRY, FitnessOptions.ORCHESTRATOR_HIGH_EXIT, FitnessOptions.ORCHESTRATOR_LOW_ENTRY, FitnessOptions.ORCHESTRATOR_LOW_EXIT, FitnessOptions.BUILDER_HIGH_ENTRY, FitnessOptions.BUILDER_HIGH_EXIT, FitnessOptions.BUILDER_LOW_ENTRY, FitnessOptions.BUILDER_LOW_EXIT, FitnessOptions.BAND_MINUTES, FitnessOptions.EMPTY_QUEUE_MINUTES, WorkersOptions.SERIES_HOURS, WorkersOptions.COMMIT_LINE_CAP, WorkersOptions.IDLE_HOURS, FitnessOptions.WARNINGS, WorkersOptions.MERGE_WINDOW_SECONDS, WorkersOptions.MERGE_LIMIT, WorkersOptions.CLASH_LIMIT, WorkersOptions.ORCHESTRATOR_WRITES_PLANS, WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL, WorkersOptions.ORCHESTRATOR_RELEASES, WorkersOptions.PLAN_STALL_MINUTES, WorkersOptions.WORKLOAD_WINDOW_MINUTES, WorkersOptions.WORKLOAD_SMOOTHING_MINUTES, WorkersOptions.WORKLOAD_WARNING_RATIO, WorkersOptions.BUILDER_CEILING, WorkersOptions.REVIEWER_LIMIT, WorkersOptions.VERIFIER_LIMIT, WorkersOptions.BUILDER_DISPATCH_ALLOWED, WorkersOptions.BUILDER_QUEUE_ALLOWED, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED, WorkersOptions.SOLO_SUBAGENTS_ALLOWED, WorkersOptions.WORKLOAD_CRITICAL_RATIO, WorkersOptions.PLACE_OPENING_RATIO, WorkersOptions.PLACE_CLOSING_RATIO, WorkersOptions.PLACE_OPENING_MINUTES, WorkersOptions.PLACE_CLOSING_MINUTES, WorkersOptions.MIN_PLACES, WorkersOptions.MAX_PLACES, WorkersOptions.WEIGHT_USER_MESSAGE, WorkersOptions.RESEND_WEIGHT, WorkersOptions.SMALL_TASK_POINTS, WorkersOptions.LARGE_TASK_POINTS, WorkersOptions.LONG_QUEUE_TASKS, WorkersOptions.STALLED_BLOCK_MINUTES, WorkersOptions.BLOCKED_SHARE, WorkersOptions.UNORDERED_PLAN_TASKS, WorkersOptions.PRIORITIES_MINUTES, WorkersOptions.MODEL_FIT_SAMPLE, WorkersOptions.COSTLY_SHAPED_WORK, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.TESTING, WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS, WorkersOptions.TEST_COMMAND, WorkersOptions.AFFECTED_TESTS_COMMAND, WorkersOptions.TEST_COMMAND_PROOF, WorkersOptions.TEST_RUN_LINES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.ALLOWED_MODELS)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating, WorkingTask, Researching)
-    commands = (WorkerCommand, SubagentCommand, TestsCommand)
+    commands = (WorkerCommand, SubagentCommand, TestsCommand, ModeCommand)
     seeds = (WorkersSeed, SubagentsSeed, TestTurnsResume)
     jobs = (WorkerWatch, WorkerMemoryWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
@@ -149,20 +151,7 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   code), and `--no-libraries` gives none, for a job that changes the libraries. Each applies in every inner repository too.
   The project's own commands around the creation of a worktree are settings: `journal settings show workers.preparation_commands`,
   `workers.completion_commands` and `workers.worktree_step`, which you may set with `journal settings set`.
-- The work mode is the bottom state of your stack. Builder, the default: you build it yourself and send a worker when a job
-  is better done beside you. Orchestrator: you plan, give every task you can to a worker and review what comes back;
-  a stop or a long idle time with open tasks tells you to check the plans and dispatch, and a current task is one to hand
-  over, never to do yourself. The builder is handed its next task at a stop or when its task closes; the orchestrator asks
-  for its next tasks: `journal task next --quantity <n>` names the next n tasks to give workers, the started plans in turn
-  so each moves fairly and the most pressing first, and starts none; use it to choose what to dispatch or queue unless the
-  user says otherwise, and who takes which stays your choice. The orchestrator decides on its own and keeps the work moving; it waits for the user only
-  before a step that cannot be undone or reaches outside the project. A task that waits on something blocks that task
-  alone: it blocks it and continues with every other open task. A task that waits on another task is blocked with
-  `journal task block <n> --on task:<m>`, one that waits on anything else with `--until '<command>'`, so it opens by
-  itself; a wait written only in words, in a log line or a reply, is one the journal cannot see, and you are told to make
-  it a block. Blocked or paused tasks that stand still for workers.held_still_minutes, or that pass workers.held_share
-  of the tasks not done, are named as a plan to restructure; a started plan with workers.unordered_plan_tasks open tasks
-  and none blocked on another is asked which depend on which. Solo: you do everything yourself and a worker's dispatch is refused. The user sets it
+- The work mode is the bottom state of your stack. """ + WorkModeBriefs.teaching() + """ The user sets it
   with the plan bar's buttons. The builder and the orchestrator are told by their measures, each line naming
   one action: the builder to write the task itself while its own share of the code is low, to take in the oldest worker
   while the worker queue stands high and to merge a worker before handing out more while too many are active; the
