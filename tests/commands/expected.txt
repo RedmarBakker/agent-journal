@@ -1717,7 +1717,7 @@ plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main 
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it
 plans.plan_reopened  [plans]  plan {{n}} is open again: {{why|cap=53}}. continue with `journal plan start {{n}}`
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
-plans.put_the_review_into_the_plan  [plans]  plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan
+plans.put_the_review_into_the_plan  [plans]  plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan. then `journal plan ready {{n}} --changed "<what this round changed>"`
 plans.return_to_the_paused_plan  [plans]  plan {{n}} paused, task {{task}} in hand: back to the plan after it?. `journal plan return {{n}} yes` or `no`
 plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end. to run one now: `journal plan allow-tests {{n}} --why "<reason>"`
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}

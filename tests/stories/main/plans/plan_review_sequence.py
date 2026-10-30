@@ -19,6 +19,7 @@ def test_a_plan_review_lets_edits_through_while_reviewers_are_out_holds_them_whi
     story.agent_sends_subagent_in_the_background(story.agents.subject, RESEARCHER, f"review plan {story.plans.first}", "a1")
     result = story.subagent_ends("a1")
     result.expect_agent_told(story.agents.subject, PlansNudges.REVIEW_ENTRY_REQUEST, n=story.plans.first)
+    result.expect_agent_told_words(story.agents.subject, PlansNudges.REVIEW_ENTRY_REQUEST, f"journal plan ready {story.plans.first} --changed")
     story.agent_runs(story.agents.subject, "sequence follow")
     result = story.agent_writes(story.agents.subject, "a.md")
     result.expect_refused(story.agents.subject, SequencesNudges.STEP_EDITS_WAIT)

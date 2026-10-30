@@ -94,6 +94,9 @@ async function start() {
             </span>
             <span class="plan-card-acts chat-dock-acts" data-fades>
                 <Btn small @click="peek('plans', plan.id)">Open plan</Btn>
+                <template v-if="plan.state === 'ready' && !reviewing">
+                    <Btn small v-tip="'Reviewers read it before you approve'" @click="critiquing = true">Ask for a critique</Btn>
+                </template>
                 <template v-if="!reviewing && !paused">
                     <SplitButton
                         kind="primary"
@@ -109,9 +112,6 @@ async function start() {
                         <template #menu="{close}">
                             <MenuItem @click="close(), start()">Approve</MenuItem>
                             <MenuItem description="Type a comment; sending it approves the plan" @click="close(), approveWithComment()">Approve with a comment</MenuItem>
-                            <template v-if="plan.state === 'ready'">
-                                <MenuItem description="Reviewers read it before you approve" @click="close(), (critiquing = true)">Ask for a critique</MenuItem>
-                            </template>
                         </template>
                     </SplitButton>
                 </template>
