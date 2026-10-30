@@ -405,6 +405,11 @@ export class ApiClient {
         return this.get("/team");
     }
 
+    // every team this journal is connected to, with as whom, the role and how many people
+    teams() {
+        return this.get("/teams");
+    }
+
     // connects to a team by its server's URL: a new server's makes this person its admin, an invitation URL a member, a bare URL logs in
     connectTeam(fields) {
         return this.post("/team/connect", fields, LONG_WAIT_MS);

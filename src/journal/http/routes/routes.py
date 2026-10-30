@@ -253,6 +253,7 @@ class Routes:
         router.post(f"{API}/skills/{{name}}/moment", skills.moment)
         team = get(TeamController)
         router.get(f"{API}/team", team.status)
+        router.get(f"{API}/teams", team.teams)
         router.post(f"{API}/team/connect", team.connect)
         router.post(f"{API}/team/disconnect", team.disconnect)
         router.post(f"{API}/team/invite", team.invite)

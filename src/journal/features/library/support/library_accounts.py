@@ -4,13 +4,14 @@ from journal.support.rejection import Rejection
 
 
 class LibraryAccounts:
-    """Every team this journal is connected to, one account file each in the libraries folder: all of them, one by its key or its name, the one a command or request names, which may be left out with one team only, and the home team, the first joined."""
+    """Every team this journal is connected to, one account file each in the libraries folder: all of them by name, one by its key or its name, the one a command or request names, which may be left out with one team only, and the home team, the first joined."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
 
     def all(self) -> list[LibraryAccount]:
-        return [self.keyed(path.stem) for path in LibraryAccount(self.config).files()]
+        accounts = [self.keyed(path.stem) for path in LibraryAccount(self.config).files()]
+        return sorted(accounts, key=lambda account: account.connection().team)
 
     def keyed(self, key: str) -> LibraryAccount:
         return LibraryAccount.keyed(self.config, key)

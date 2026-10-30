@@ -417,7 +417,7 @@ def test_the_team_accounts_list_every_team_find_one_by_name_and_keep_the_first_j
     account.write(LibraryConnection("zz-key", "https://shop.example", "t1", 1, 1, "Ada", "admin", "shop"))
     account.write(LibraryConnection("aa-key", "https://studio.example", "t2", 2, 1, "Ada", "member", "studio"))
     accounts = LibraryAccounts(config)
-    assert accounts.names() == ["studio", "shop"], "the teams are listed by their key"
+    assert accounts.names() == ["shop", "studio"], "the teams are listed by their name, whatever their keys"
     assert accounts.team("studio").connection().key == "aa-key"
     assert accounts.home().connection().team == "shop" and account.connection().team == "shop", "the first joined is home, also for the one-team account"
     try:

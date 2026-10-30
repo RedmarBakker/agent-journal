@@ -3,6 +3,7 @@ from dataclasses import replace
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
+from journal.features.library.support.team_bound import TeamBound
 from journal.features.library.support.portable_body import PortableBody
 from journal.features.library.support.profile_body import ProfileBody
 from journal.features.library.support.file_body import FileBody
@@ -21,7 +22,7 @@ from journal.support.release import Release
 from journal.version import VERSION
 
 
-class LibraryUpdate:
+class LibraryUpdate(TeamBound):
     """Bringing an imported item to the library's latest version: the local copy, found by its imported_as link, is compared with the body kept when it was written; an unedited copy takes the new version and keeps its local title, an edited one is refused naming the fields that changed, unless the update replaces it."""
 
     def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, sequences: Sequences, templates: Templates, profiles: ProfileFiles) -> None:
