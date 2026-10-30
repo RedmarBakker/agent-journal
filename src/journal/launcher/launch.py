@@ -49,7 +49,7 @@ RESUME_FLAGS = {"--resume", "-r", "--continue", "-c"}
 
 @dataclass(frozen=True)
 class Launch:
-    """What was requested on the command line: which agent, in which project, with which arguments; the menu fills in the rest. A bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds; a worktree launch never shares an environment a live session holds, and takes name-2, name-3 and so on; the worktree a launch named follows its environment when that was renamed for a live session holding it; an environment that records a worktree works in one however it is launched, its folder made again from the kept tip when lost; the supervisor's health check takes its numbers from the Health and backups settings, or none when the journal cannot say them."""
+    """What was requested on the command line: which agent, in which project, with which arguments; the menu fills in the rest. A bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds; a worktree launch never shares an environment a live session holds, and takes name-2, name-3 and so on, except an environment paired with its own worktree keeps its name; the worktree a launch named follows its environment when that was renamed for a live session holding it; an environment that records a worktree works in one however it is launched, its folder made again from the kept tip when lost; the supervisor's health check takes its numbers from the Health and backups settings, or none when the journal cannot say them."""
 
     agent: str
     root: Path
@@ -101,7 +101,8 @@ class Launch:
 
     def choice(self) -> Choice:
         menu = Menu(self.root, self.package / "journal.sh")
-        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu) or self.unused_name(menu))
+        requested = self.environment or self.worktree or self.resume_folder(menu) or self.unused_name(menu)
+        matched = requested if self.environment and self.environment == self.worktree else self.unheld(menu, requested)
         if not sys.stdin.isatty():
             menu.environment_rows(matched or self.default_environment(), menu.environments())
             return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
@@ -127,7 +128,22 @@ class Launch:
         return candidate
 
     def chosen(self, choice: Choice) -> "Launch":
-        return replace(self, worktree=choice.environment) if self.worktree and not self.environment else self
+        if self.worktree and (not self.environment or self.worktree == self.environment):
+            return replace(self, worktree=choice.environment)
+        return self
+
+    def prepare_worktree(self, choice: Choice) -> None:
+        worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
+        if worktree.name in {TEAM_CHAT, self.default_environment()}:
+            return
+        if self.is_worktree_launch(worktree):
+            worktree.created()
+
+    def prepare_requested_worktree(self) -> str:
+        if not self.worktree or self.environment != self.worktree:
+            return ""
+        self.prepare_worktree(Choice(self.environment))
+        return self.worktree
 
     def is_resumable(self, choice: Choice, folder: Path) -> bool:
         if not choice.resume or folder == self.root or self.provider.copy_session(self.root, folder, choice.resume):
@@ -185,8 +201,12 @@ class Launch:
             ProjectCommand(self.root, self.package / "journal.sh").write()
             peers = ForeignHooks(self.root, self.provider)
             peers.restore()
+            prepared = self.prepare_requested_worktree()
             choice = self.choice()
-            refusal = self.start_refusal(choice)
+            launch = self.chosen(choice)
+            if not prepared or launch.worktree != prepared:
+                launch.prepare_worktree(choice)
+            refusal = launch.start_refusal(choice)
             if refusal:
                 self.log(f"refused: {refusal}")
                 print(refusal, file=sys.stderr)
@@ -195,7 +215,7 @@ class Launch:
             if choice.stashed_hooks:
                 peers.stash()
             try:
-                code = self.chosen(choice).supervise(choice)
+                code = launch.supervise(choice)
             finally:
                 peers.restore()
             self.log(f"ended: the supervisor's loop exited with {code}")
