@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from journal.config import Config
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.nudge import Nudge
@@ -21,19 +20,14 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.plans_part import PlansPart
 from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
 from journal.features.plans.states.naming_test_commands import NamingTestCommands
-from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.started_plan import StartedPlan
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.tasks.tasks_part import TasksPart
 from journal.models.plan_mode import PlanMode
-from journal.support.workspace_worktree import WorkspaceWorktree
 
 
 class PlansConduct(Conduct):
     """The plans feature's conduct in every state: approvals and plan changes informed, solo plan branches merged, the next task named, waits and testing named, and reviewer reports shown."""
-
-    def __init__(self, agents: PlanAgents, config: Config) -> None:
-        self.agents, self.config = agents, config
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         if not event.user_origin:
@@ -79,7 +73,7 @@ class PlansConduct(Conduct):
         return Transition.merged(self, [
             plan_return_check(self, event),
             mid_phase_test_check(self, event, settings),
-            plan_agent_write_check(self, event, self.agents, self.config),
+            plan_agent_write_check(self, event),
         ])
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
@@ -128,19 +122,17 @@ def plan_return_check(state: BaseState, event: ToolStarting) -> Transition:
     return Transition.merged(state, [state.push(choice), state.refuse(choice.question())])
 
 
-def plan_agent_write_check(state: BaseState, event: ToolStarting, agents: PlanAgents, config: Config) -> Transition:
+def plan_agent_write_check(state: BaseState, event: ToolStarting) -> Transition:
     if not event.call.writes or not event.call.edited_paths:
         return state.none()
-    plan = agents.led_plan(event.environment_id)
-    environment = agents.environment(plan) if plan else None
-    if environment is None:
+    scope = event.data.part(PlansPart).plan_agent_write_scope
+    if scope is None:
         return state.none()
-    worktree = WorkspaceWorktree.chosen(config.root, environment.name).path.resolve()
-    folder = Path(event.folder or worktree).expanduser()
-    folder = (folder if folder.is_absolute() else config.root / folder).resolve()
+    folder = Path(event.folder or scope.worktree).expanduser()
+    folder = (folder if folder.is_absolute() else scope.root / folder).resolve()
     paths = [Path(path).expanduser() for path in event.call.edited_paths]
     paths = [(path if path.is_absolute() else folder / path).resolve() for path in paths]
-    outside = next((path for path in paths if not path.is_relative_to(worktree)), None)
+    outside = next((path for path in paths if not path.is_relative_to(scope.worktree)), None)
     if outside is None:
         return state.none()
-    return state.refuse(PlansNudges.PLAN_AGENT_WRITE_SCOPE.create(path=str(outside), worktree=str(worktree)))
+    return state.refuse(PlansNudges.PLAN_AGENT_WRITE_SCOPE.create(path=str(outside), worktree=str(scope.worktree)))
