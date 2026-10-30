@@ -4,6 +4,7 @@ import {createApp, h, nextTick} from "vue";
 import {api} from "../src/api/client.js";
 import {PAGES} from "../src/domain/navigation.js";
 import {TABS} from "../src/domain/settingsCatalog.js";
+import {store} from "../src/state/store.js";
 import TeamPage from "../src/pages/TeamPage.vue";
 
 const settled = async () => {
@@ -39,13 +40,24 @@ test("the Team page connects, disconnects, invites, lists people and devices, ch
 
 test("with no team connected the page offers the connect form and the server setup with this release's install.sh", async () => {
     const status = vi.spyOn(api, "team").mockResolvedValue({connected: false});
-    const releases = vi.spyOn(api, "releases").mockResolvedValue({installed: "3.4.5"});
+    store.summary = {version: "3.4.5"};
     const root = mounted();
     await settled();
     expect(root.textContent).toContain("Connect to a team");
     expect(root.textContent).toContain("Set a team server up");
     expect(root.textContent).toContain("curl -fsSL https://github.com/jessegall/agent-journal/releases/download/v3.4.5/install.sh | sh");
     expect(root.textContent).toContain("Docker");
+    status.mockRestore();
+});
+
+test("on a development install the setup still names the release the journal carries, never the branch and commit", async () => {
+    const status = vi.spyOn(api, "team").mockResolvedValue({connected: false});
+    const releases = vi.spyOn(api, "releases").mockResolvedValue({installed: "development at 4158ac7"});
+    store.summary = {version: "3.4.5"};
+    const root = mounted();
+    await settled();
+    expect(root.textContent).toContain("releases/download/v3.4.5/install.sh");
+    expect(root.textContent).not.toContain("development");
     [status, releases].forEach((spy) => spy.mockRestore());
 });
 

@@ -2,6 +2,7 @@ from dataclasses import asdict
 
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
+from journal.features.library.support.library_accounts import LibraryAccounts
 from journal.features.library.support.library_connect import LibraryConnect
 from journal.features.library.support.library_link import LibraryLink
 from journal.http.support.request import Request
@@ -13,13 +14,14 @@ from journal.sync.team_url import TeamUrl
 class TeamController:
     """The team as the viewer reads and changes it, through the very support classes the team command uses: whether and to whom this journal is connected, connecting and disconnecting, the admin's invitations, devices and people, and a password change."""
 
-    def __init__(self, account: LibraryAccount, schema: Schema, connecting: LibraryConnect) -> None:
-        self.account, self.schema, self.connecting = account, schema, connecting
+    def __init__(self, account: LibraryAccount, accounts: LibraryAccounts, schema: Schema, connecting: LibraryConnect) -> None:
+        self.account, self.accounts, self.schema, self.connecting = account, accounts, schema, connecting
 
     def status(self, request: Request) -> Response:
-        if not self.account.is_connected():
+        account = self.accounts.chosen(str(request.query.get("team", "")))
+        if not account.is_connected():
             return Response.json({"connected": False})
-        return Response.json({"connected": True, **self.account.connection().fields(), "token": ""})
+        return Response.json({"connected": True, **account.connection().fields(), "token": ""})
 
     def connect(self, request: Request) -> Response:
         url, email, password = (str(request.body.get(field, "")).strip() for field in ("url", "email", "password"))
@@ -29,7 +31,7 @@ class TeamController:
         return Response.json({"connected": True, **connection.fields(), "token": ""})
 
     def disconnect(self, request: Request) -> Response:
-        return Response.json({"connected": False, "address": self.account.disconnect()})
+        return Response.json({"connected": False, "address": self.accounts.chosen(str(request.body.get("team", ""))).disconnect()})
 
     def invite(self, request: Request) -> Response:
         answer = self.link().invite(str(request.body.get("email", "")))

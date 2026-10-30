@@ -2687,10 +2687,11 @@ options:
 
 $ user: journal team disconnect --help
 exit 0
-usage: journal team disconnect [-h]
+usage: journal team disconnect [-h] [--team TEAM]
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team to disconnect; needed with several teams
 
 $ user: journal team invite --help
 exit 0

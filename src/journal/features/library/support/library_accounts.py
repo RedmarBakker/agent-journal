@@ -4,7 +4,7 @@ from journal.support.rejection import Rejection
 
 
 class LibraryAccounts:
-    """Every team this journal is connected to, one account file each in the libraries folder: all of them, one by its key or its name, and the home team, the first joined."""
+    """Every team this journal is connected to, one account file each in the libraries folder: all of them, one by its key or its name, the one a command or request names, which may be left out with one team only, and the home team, the first joined."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -23,6 +23,14 @@ class LibraryAccounts:
         if not accounts:
             raise Rejection(f"no team called {name} is connected here; the teams are {', '.join(self.names()) or 'none'}")
         return accounts[0]
+
+    def chosen(self, name: str) -> LibraryAccount:
+        if name:
+            return self.team(name)
+        names = self.names()
+        if len(names) > 1:
+            raise Rejection(f"this journal is connected to the teams {', '.join(names)}: name one with --team")
+        return LibraryAccount(self.config)
 
     def home(self) -> LibraryAccount:
         return self.keyed(LibraryAccount(self.config).path().stem)

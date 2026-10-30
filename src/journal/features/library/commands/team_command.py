@@ -3,6 +3,7 @@ from argparse import Namespace
 from journal.console.command import Command
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
+from journal.features.library.support.library_accounts import LibraryAccounts
 from journal.features.library.support.library_connect import LibraryConnect
 from journal.features.library.support.library_link import LibraryLink
 from journal.support.caller import Caller
@@ -17,8 +18,8 @@ class TeamCommand(Command):
 
     noun = "team"
 
-    def __init__(self, account: LibraryAccount, connect: LibraryConnect, schema: Schema) -> None:
-        self.account, self.connect_step, self.schema = account, connect, schema
+    def __init__(self, account: LibraryAccount, accounts: LibraryAccounts, connect: LibraryConnect, schema: Schema) -> None:
+        self.account, self.accounts, self.connect_step, self.schema = account, accounts, connect, schema
 
     def arguments(self, verbs) -> None:
         connect = self.verb(verbs, "connect", "connect to a team's server by its URL: a new server's bare URL makes you its admin, an invitation URL an admin shared makes you a member, a bare URL with your account logs you in")
@@ -40,7 +41,7 @@ class TeamCommand(Command):
         changing.add_argument("--old", required=True)
         changing.add_argument("--new", required=True)
         self.verb(verbs, "status", "the team this journal is connected to, as whom and in which role")
-        self.verb(verbs, "disconnect", "disconnect from the team; what you imported from its library stays")
+        self.verb(verbs, "disconnect", "disconnect from one team; the others stay connected, and what you imported from its library stays").add_argument("--team", default="", help="the team to disconnect; needed with several teams")
 
     def connect(self, args: Namespace, caller: Caller) -> int:
         connection = self.connect_step.connected(TeamUrl.parse(args.url), args.email, args.name or args.email.split("@")[0], self.typed_password(args), args.team)
@@ -94,7 +95,7 @@ class TeamCommand(Command):
         return 0
 
     def disconnect(self, args: Namespace, caller: Caller) -> int:
-        print(f"disconnected from the team at {self.account.disconnect()}; what you imported from its library stays")
+        print(f"disconnected from the team at {self.accounts.chosen(args.team).disconnect()}; what you imported from its library stays")
         return 0
 
     def link(self) -> LibraryLink:

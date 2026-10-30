@@ -1,15 +1,14 @@
 <script setup>
-import {computed, onMounted, ref} from "vue";
-import {api} from "../api/client.js";
+import {computed} from "vue";
 import CopyButton from "../kit/CopyButton.vue";
+import {store} from "../state/store.js";
 
 const INSTALLER = "https://github.com/jessegall/agent-journal/releases/download/{tag}/install.sh";
 const BACKUP = "docker exec agent-journal-<project> python -m sync_server backup --data /data/team";
 
-const installed = ref("");
-const command = computed(() => installed.value && `curl -fsSL ${INSTALLER.replace("{tag}", `v${installed.value}`)} | sh`);
-
-onMounted(async () => (installed.value = (await api.releases()).installed));
+// the release this journal's code carries, also on a development install, whose installed label names a branch and commit
+const version = computed(() => store.summary?.version);
+const command = computed(() => version.value && `curl -fsSL ${INSTALLER.replace("{tag}", `v${version.value}`)} | sh`);
 </script>
 
 <template>

@@ -2,6 +2,7 @@ import socket
 
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
+from journal.features.library.support.library_accounts import LibraryAccounts
 from journal.features.library.support.library_connection import LibraryConnection
 from journal.features.library.support.library_link import LibraryLink
 from journal.support.rejection import Rejection
@@ -14,46 +15,56 @@ from sync_server.login_request import LoginRequest
 
 
 class LibraryConnect:
-    """Connecting this journal to its team's library by the URL a person pastes: a server with no admin yet makes this person its admin, an invitation URL makes them a member, and a bare URL logs an account in; a server that signs its own certificate is trusted through its certificate authority, checked against the fingerprint an invitation carries."""
+    """Connecting this journal to one more team by the URL a person pastes, beside the teams it has: a server with no admin yet makes this person its admin, an invitation URL makes them a member, and a bare URL logs an account in; until the server names its key the account is kept by its address, so no other team's token or certificate goes to it; a server that signs its own certificate is trusted through its certificate authority, checked against the fingerprint an invitation carries; a team already connected, or a name another team has, is refused."""
 
-    def __init__(self, account: LibraryAccount, schema: Schema) -> None:
-        self.account, self.link = account, LibraryLink(account, schema)
+    def __init__(self, account: LibraryAccount, accounts: LibraryAccounts, schema: Schema) -> None:
+        self.account, self.accounts, self.link = account, accounts, LibraryLink(account, schema)
 
     def connected(self, url: TeamUrl, email: str, name: str, password: str, team: str) -> LibraryConnection:
-        if self.account.is_connected():
-            raise Rejection(f"this journal is connected to the team at {self.account.address()}: journal team disconnect first")
-        self.trusted(url)
-        summary = self.link.summary(url.address)
-        login = self.login(url, summary, email, name, password)
-        connection = LibraryConnection(summary.key, url.address, login.token, login.device_id, login.account_id, login.name, login.role, team or url.host())
-        self.account.write(connection)
+        team_name = team or url.host()
+        if team_name in self.accounts.names():
+            raise Rejection(f"a team called {team_name} is connected here already: give this one another name with --team")
+        self.account.move_shared_root()
+        joining = self.accounts.keyed(url.file_name())
+        link = self.link.bound(joining)
+        self.trusted(url, joining, link)
+        summary = link.summary(url.address)
+        joined = self.accounts.keyed(summary.key)
+        if joined.is_connected():
+            raise Rejection(f"this journal is connected to {url.address} already, as the team {joined.connection().team}")
+        login = self.login(url, summary, email, name, password, link)
+        connection = LibraryConnection(summary.key, url.address, login.token, login.device_id, login.account_id, login.name, login.role, team_name)
+        joined.write(connection)
+        joining.move_root(joined)
         return connection
 
     def renewed_connection(self, email: str, password: str) -> LibraryConnection:
         connection = self.account.connection()
-        login = self.account_login(TeamUrl.parse(connection.address), email, password)
+        login = self.account_login(TeamUrl.parse(connection.address), email, password, self.link)
         renewed = LibraryConnection(connection.key, connection.address, login.token, login.device_id, login.account_id, login.name, login.role, connection.team)
         self.account.write(renewed)
         return renewed
 
-    def login(self, url: TeamUrl, summary: LibraryAnswer, email: str, name: str, password: str) -> LoginAnswer:
+    def login(self, url: TeamUrl, summary: LibraryAnswer, email: str, name: str, password: str, link: LibraryLink) -> LoginAnswer:
         if not summary.has_admin:
-            return self.link.install(url.address, email, name, password, socket.gethostname())
+            return link.install(url.address, email, name, password, socket.gethostname())
         if url.is_invitation():
-            return self.link.accept(url.address, url.code, email, name, password, socket.gethostname())
-        return self.account_login(url, email, password)
+            return link.accept(url.address, url.code, email, name, password, socket.gethostname())
+        return self.account_login(url, email, password, link)
 
-    def account_login(self, url: TeamUrl, email: str, password: str) -> LoginAnswer:
+    @staticmethod
+    def account_login(url: TeamUrl, email: str, password: str, link: LibraryLink) -> LoginAnswer:
         try:
-            return self.link.login(url.address, LoginRequest(email, password, socket.gethostname()))
+            return link.login(url.address, LoginRequest(email, password, socket.gethostname()))
         except TeamRefusal as refused:
             raise Rejection(f"{url.address} did not take this email and password ({refused}): connect with an invitation URL an admin shares") from refused
 
-    def trusted(self, url: TeamUrl) -> None:
+    @staticmethod
+    def trusted(url: TeamUrl, joining: LibraryAccount, link: LibraryLink) -> None:
         if not url.fingerprint and not url.has_self_signed_certificate():
             return
-        certificate = self.link.root_certificate(url.address)
+        certificate = link.root_certificate(url.address)
         if url.fingerprint and not CertificateFingerprint.matches(certificate, url.fingerprint):
             raise Rejection(f"the certificate of {url.address} does not match the fingerprint in the invitation URL: check the URL or the address")
-        self.account.folder().mkdir(parents=True, exist_ok=True)
-        self.account.root_path().write_text(certificate)
+        joining.folder().mkdir(parents=True, exist_ok=True)
+        joining.team_root_path().write_text(certificate)
