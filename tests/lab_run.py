@@ -460,38 +460,50 @@ def test_the_outside_world_answers_due_questions_and_the_user_can_be_away(tmp_pa
 def test_a_planted_domain_route_fault_is_found_shrunk_and_replayed_from_its_file(tmp_path, monkeypatch):
     scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
     business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
-    request = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
     seed = 1035
 
-    with LabJournal(request, scenario, business, monkeypatch) as lab:
-        domain = lab.app.container.get(Organization).contracts().domain("engineering")
-        invariant = PrimaryRoleRoute(domain.id, domain.routing[0].role)
-
-        def route_trace(actions, out_of_route_rate, trace_seed=seed):
+    def play(actions, folder, out_of_route_rate, trace_seed=seed):
+        request = replace(
+            lab_journal_request(folder / "root", folder / "home", PlanMode.ORGANIZATION),
+            seed=trace_seed,
+        )
+        with LabJournal(request, scenario, business, monkeypatch) as lab:
+            domain = lab.app.container.get(Organization).contracts().domain("engineering")
             profile = lab_behaviour_profile("domain", "sonnet", 1.0, 1.0, 0.0, out_of_route_rate, 0.0)
             actor = DomainAgentActor(lab.simulator, domain, "main", profile, trace_seed)
+            assert not actor.session_start().is_refused()
             trace = []
-            for index, action in enumerate(actions, 1):
+            for second, action in enumerate(actions, 1):
                 if action != "route":
                     raise ValueError(f"unknown simulated Domain action: {action}")
                 role = actor.route("a product change")
-                trace.append(TraceEntry(index * 30, f"domain:{domain.id}", f"route:{role}", False, (), status=200))
-            return trace
+                trace.append(TraceEntry(second * 30, f"domain:{domain.id}", f"route:{role}", False, (), (), 200))
+            return domain.routing[0].role, trace
 
-        actions = ["route", "route"]
-        broken_trace = route_trace(actions, 1.0)
-        assert invariant.violated(broken_trace)
-        assert not invariant.violated(route_trace(["route"], 0.0))
+    primary_role, planted = play(["route", "route"], tmp_path / "planted", 1.0)
+    invariant = PrimaryRoleRoute("engineering", primary_role)
+    assert invariant.violated(planted)
+    _, clean = play(["route"], tmp_path / "clean", 0.0)
+    assert not invariant.violated(clean)
 
-        shrunk = Shrinker(lambda remaining: route_trace(remaining, 1.0), invariant).shrunk(actions)
-        assert shrunk == ["route"]
-        trace_path = TraceFile(tmp_path / "traces").written(scenario.id, seed, "PrimaryRoleRoute", broken_trace, shrunk)
-        replay = json.loads(trace_path.read_text(encoding="utf-8"))
-        assert (replay["scenario"], replay["seed"], replay["broken"], replay["actions"]) == (
-            scenario.id, seed, "PrimaryRoleRoute", shrunk,
-        )
-        replayed_trace = route_trace(replay["actions"], 1.0, replay["seed"])
-        assert invariant.violated(replayed_trace)
+    replay_number = 0
+
+    def replay(actions, trace_seed=seed):
+        nonlocal replay_number
+        replay_number += 1
+        return play(actions, tmp_path / f"shrink-{replay_number}", 1.0, trace_seed)[1]
+
+    shrunk = Shrinker(replay, invariant).shrunk(["route", "route"])
+    assert shrunk == ["route"]
+
+    path = TraceFile(tmp_path / "traces").written(
+        scenario.id, seed, invariant.violated(planted), planted, shrunk,
+    )
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert stored["scenario"] == scenario.id and stored["seed"] == seed and stored["actions"] == ["route"]
+    replayed = replay(stored["actions"], stored["seed"])
+    assert invariant.violated(replayed)
+    assert stored["trace"] == json.loads(json.dumps([asdict(entry) for entry in replayed]))
 
 
 def test_a_fully_observed_empty_count_is_zero():
