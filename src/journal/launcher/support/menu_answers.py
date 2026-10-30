@@ -43,6 +43,6 @@ class MenuAnswers:
 
     def with_hooks(self, hooks_picker: Callable[[str, bool], bool]) -> "MenuStage":
         stashed_choice = self.stashed or self.previous.stashed_hooks
-        if self.stashed or self.resume:
+        if self.stashed:
             return MenuStage(replace(self, stashed_hooks=stashed_choice), False)
         return MenuStage(replace(self, stashed_hooks=hooks_picker(self.agent, self.previous.stashed_hooks)), True)

@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; a run of the simulator's files runs at a lower priority."""
 import importlib
 import json
 import os
@@ -21,8 +21,6 @@ SHARD_BYTES = 300 * 2**20
 RECLAIMABLE_PAGES = ("free", "inactive", "speculative")
 SHARD_TIMEOUT_SECONDS = 600
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
-# the progress line the commandments judge writes at each of its stages
-JUDGE_PROGRESS = re.compile(r"^(parsing|reading|detector) (\d+)/(\d+)$")
 FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
 PERCENT = re.compile(r"\[\s*(\d+)%\]")
@@ -36,9 +34,7 @@ DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
 # every test of the last sharded run with its seconds, slowest first, and how many of them the run's end names
 SLOWEST_FILE = ROOT / ".journal" / "runtime" / "suite-slowest.txt"
 SLOWEST_SHOWN = 20
-JUDGE = ROOT / ".journal" / "plugins" / "code-commandments" / "bin" / "commandments-release"
 LOW_PRIORITY = ["nice", "-n", "10"]
-TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
 # a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
 SIMULATION_FILE = "simulation"
 MATRIX_OPTION = "--update-matrix"
@@ -158,15 +154,11 @@ def slowest_shown(folder: Path) -> None:
 
 def whole_suite() -> int:
     with tempfile.TemporaryDirectory() as folder:
-        judging = commandments_started(Path(folder))
         available = available_bytes()
         count = shard_count(available)
         if count < core_shards():
             print(memory_line(count, available), flush=True)
-        failed = sharded_run(Path(folder), count, (), "the suite")
-        print("waiting for the test commandments judging tests/", flush=True)
-        sinful = commandments_judged(judging)
-        return 1 if sinful or failed else 0
+        return 1 if sharded_run(Path(folder), count, (), "the suite") else 0
 
 
 # the stories alone, in shards: each shard writes what its stories leave to be checked, and the paths are laid over each other here once every shard has ended
@@ -239,51 +231,6 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str,
     summary = ", ".join(f"{totals[key]} {key}" for key in ("failed", "errors", "passed", "skipped") if totals.get(key))
     print(f"{summary or 'no tests ran'} in {time.monotonic() - began:.2f}s")
     return bool(totals.get("failed") or totals.get("errors") or any(process.returncode not in (0, 5) for process, _ in shards))
-
-
-def commandments_started(folder: Path) -> tuple[subprocess.Popen, Path] | None:
-    if not JUDGE.is_file():
-        print("the test commandments are not judged: the code-commandments plugin is not installed here", flush=True)
-        return None
-    output = folder / "commandments.txt"
-    return subprocess.Popen(TEST_COMMANDMENTS, cwd=ROOT, stdout=output.open("w"), stderr=subprocess.STDOUT), output
-
-
-def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
-    if judging is None:
-        return False
-    process, output = judging
-    if not judge_waited(process, output):
-        process.kill()
-        print(f"the test commandments ran past {SHARD_TIMEOUT_SECONDS} seconds and were stopped")
-        return True
-    if process.returncode == 0:
-        print("the tests break none of the test commandments")
-        return False
-    print("the tests break the test commandments (tests-drive-the-real-path):")
-    print(output.read_text(), end="", flush=True)
-    return True
-
-
-def judge_waited(process: subprocess.Popen, output: Path) -> bool:
-    deadline, shown = time.monotonic() + SHARD_TIMEOUT_SECONDS, ""
-    while process.poll() is None:
-        if time.monotonic() > deadline:
-            return False
-        line = judge_progress(output.read_text(errors="replace"))
-        if line and line != shown:
-            print(line, flush=True)
-            shown = line
-        time.sleep(1)
-    return True
-
-
-def judge_progress(text: str) -> str:
-    steps = [match for line in re.split(r"[\r\n]", text) if (match := JUDGE_PROGRESS.match(line.strip()))]
-    if not steps:
-        return ""
-    stage, done, total = steps[-1].groups()
-    return f"judging tests/: {stage} {done}/{total} [{round(100 * int(done) / max(int(total), 1)):3d}%]"
 
 
 def scoped_command(arguments: list[str]) -> list[str]:

@@ -21,6 +21,9 @@ from journal.supervisor_link import SupervisorLink
 from journal.launcher.dispatcher import Dispatcher
 from journal.support.project_command import ProjectCommand
 
+# what the project's .gitignore keeps out of git, each with the spellings that already do: the journal's folder, and the
+# agent's settings of this machine, which hold the journal's hooks with this machine's paths
+IGNORED_PATHS = (("/.journal", ".journal", ".journal/"), ("/.claude/settings.local.json", ".claude/settings.local.json"))
 
 
 class SetupCommand(Command):
@@ -101,8 +104,9 @@ class SetupCommand(Command):
     def ignored(self) -> Path:
         path = self.config.root / ".gitignore"
         prior = path.read_text() if path.is_file() else ""
-        if "/.journal" not in prior.splitlines() and ".journal" not in prior.splitlines() and ".journal/" not in prior.splitlines():
-            path.write_text((prior.rstrip("\n") + "\n" if prior.strip() else "") + "/.journal\n")
+        missing = [spellings[0] for spellings in IGNORED_PATHS if not set(spellings) & set(prior.splitlines())]
+        if missing:
+            path.write_text((prior.rstrip("\n") + "\n" if prior.strip() else "") + "".join(f"{entry}\n" for entry in missing))
         return path
 
     def shim(self) -> Path:

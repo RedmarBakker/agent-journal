@@ -15,6 +15,10 @@ class StepChecks:
         refusal = (self.verdict.body.get("error", "") if self.verdict else "") or (self.command.error if self.command else "")
         assert PROJECT_REFUSAL_PREFIX in refusal, f"not refused as another project's: {self.verdict or self.command}"
 
+    def expect_command_lines_holding(self, part: str, count: int) -> None:
+        holding = [line for line in self.command.text.splitlines() if part in line] if self.command else []
+        assert len(holding) == count, f"{len(holding)} lines of the command hold {part!r}, not {count}: {holding}"
+
     def account(self) -> str:
         return f"told {[(lines.session, lines.key, lines.values) for lines in self.said]}; stack {self.story.stack()}"
 

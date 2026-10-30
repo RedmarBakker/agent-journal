@@ -57,5 +57,4 @@ DOCUMENT_SORTING = Sequence(
         SequenceStep(title="Tell the user", instructions="Tell the user in one or two plain lines what the document concludes, then its reference on a line of its own, like doc 41, never in backticks", file_edits_allowed=False),
     ),
 )
-RETIRED = ("Sort dumped files",)
 SHIPPED = (PLAN_BUILDING, PLAN_REVIEW_APPLYING, UPDATE_WRITING, INSTRUCTION_FILES_CHECK, DOCUMENT_SORTING)

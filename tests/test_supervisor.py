@@ -94,6 +94,18 @@ def test_a_menu_line_longer_than_the_terminal_is_cut_to_its_width_so_a_redraw_la
     assert all(len(line) < 30 for line in plain), "no line drawn wider than the terminal, so none wraps"
 
 
+def test_the_hooks_question_is_asked_when_carrying_on_a_conversation_too_and_only_a_set_aside_launch_skips_it():
+    from dataclasses import replace
+    from journal.launcher.support.answers import Answers
+    from journal.launcher.support.menu_answers import MenuAnswers
+    asked = []
+    carrying_on = replace(MenuAnswers("claude", "", False, False, False, ROWS, Answers(True, False)), resume="abc")
+    stage = carrying_on.with_hooks(lambda agent, previous: asked.append(agent) or True)
+    assert asked == ["claude"] and stage.is_shown and stage.answers.stashed_hooks, "a carried-on conversation is asked whether to set the other hooks aside, as a new one is"
+    set_aside = replace(carrying_on, stashed=True).with_hooks(lambda agent, previous: asked.append(agent) or False)
+    assert asked == ["claude"] and not set_aside.is_shown and set_aside.answers.stashed_hooks, "a launch told to set them aside is not asked"
+
+
 def test_the_hooks_question_is_asked_even_when_no_other_hooks_are_found_yet(tmp_path: Path, monkeypatch):
     menu = menu_answering(tmp_path, monkeypatch, ["", "2", "2", "1"])
     assert menu.choose("claude") == Choice("main", "", stashed_hooks=True, prompt_flags=False)
@@ -517,7 +529,7 @@ def test_an_update_a_running_journal_installs_later_is_waited_for_before_the_lau
 
 def test_every_start_asks_to_skip_the_permission_prompts_with_skip_selected_even_when_carrying_on(tmp_path: Path, monkeypatch):
     requested = []
-    menu = menu_answering(tmp_path, monkeypatch, ["", "", ""])
+    menu = menu_answering(tmp_path, monkeypatch, ["", "", "", ""])
     selected = menu.screen.pick
     monkeypatch.setattr(menu.screen, "pick", lambda heading, notes, options, default: requested.append((heading, default)) or selected(heading, notes, options, default))
     choice = menu.choose("claude")

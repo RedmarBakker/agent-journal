@@ -38,14 +38,6 @@ def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dot
     assert suite.shard_progress(output) == (9, 9), "an assertion line of a failure's report is no result"
 
 
-def test_the_suite_waiting_on_the_commandments_judge_prints_the_judges_own_progress_for_its_card():
-    suite = suite_script()
-    line = suite.judge_progress("parsing 3/10\rparsing 10/10\nreading 40/120\n")
-    assert line == "judging tests/: reading 40/120 [ 33%]", "the judge's latest stage is said with its count and its share"
-    assert suite.PERCENT.search(line).group(1) == "33", "in the form the suite's card reads its bar from"
-    assert suite.judge_progress("") == "", "a judge that has printed nothing yet adds no line"
-
-
 def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_memory_on_macos_and_linux():
     suite = suite_script()
     shard = suite.SHARD_BYTES
