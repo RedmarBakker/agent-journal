@@ -108,6 +108,9 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     app.directive("tip", {});
     app.mount(host);
 
+    const homeLinks = [...host.querySelector(".side .group").querySelectorAll("a.item")];
+    expect(homeLinks.slice(0, 2).map((link) => link.textContent.trim())).toEqual(["Home", "Board"]);
+
     await until(() => host.querySelector('a[href="#/organization?domain=sales"]') && hasLoaded("domain_counts"));
     expect(api.organization).toHaveBeenCalledOnce();
     expect(organization.domains).toHaveLength(13);

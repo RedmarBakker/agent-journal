@@ -112,6 +112,7 @@ SETS = {
     "organization_page": ("tests/organizationPage.test.js",),
     "organization_communication": ("tests/planCommunicationTimeline.test.js", "tests/organizationPage.test.js"),
     "organization_home": ("tests/homePlanBoard.test.js", "tests/organizationBoard.test.js", "tests/homeBoard.test.js"),
+    "board_page": ("tests/boardPage.test.js", "tests/organizationSidebar.test.js", "tests/organizationBoard.test.js"),
     "organization_sidebar": ("tests/organizationSidebar.test.js",),
     "organization_board": ("tests/organizationBoard.test.js",),
     "plan_agent_chat": ("tests/planAgents.test.js", "tests/planAgentChats.test.js", "tests/planAgentSection.test.js"),

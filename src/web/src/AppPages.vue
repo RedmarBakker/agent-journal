@@ -50,6 +50,7 @@ const open = (row) => peek(row.table, row.id);
             </template>
             <template v-else><Home /></template>
         </template>
+        <template #board><HomePlanBoard /></template>
         <template #settings><SettingsPage /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
