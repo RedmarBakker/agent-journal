@@ -1,0 +1,290 @@
+id = "software_company"
+title = "Software company"
+
+[[domains]]
+id = "product"
+title = "Product"
+icon = "🧭"
+description = "Choose product outcomes from customer and business needs."
+outcome = "Product decisions are ready for engineering."
+responsible = ["Product direction", "Customer problems and product opportunities"]
+not_responsible = ["Implementation details", "Production operations"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "engineering", about = "A product decision needs implementation." }]
+routing = [{ when = "a new product request", role = "product_manager", then = ["product_analyst"] }]
+board = { planned = "Planned", in_progress = "Building", in_review = "Review", done = "Released" }
+
+[[domains]]
+id = "engineering"
+title = "Engineering"
+icon = "🛠️"
+description = "Design and build reliable product changes."
+outcome = "A tested software change is ready for review."
+responsible = ["Software design", "Implementation and technical operations"]
+not_responsible = ["Product strategy", "Customer contract decisions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "quality", about = "An implementation needs verification." }]
+routing = [{ when = "a product change", role = "engineering_lead", then = ["software_engineer", "platform_engineer"] }]
+board = { planned = "Ready", in_progress = "Building", in_review = "Verifying", done = "Complete" }
+
+[[domains]]
+id = "quality"
+title = "Quality"
+icon = "✅"
+description = "Verify product behavior and manage releases."
+outcome = "A verified change is ready for release."
+responsible = ["Test coverage", "Release readiness"]
+not_responsible = ["Feature prioritization", "Production deployment without approval"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "security", about = "A security finding needs review." }]
+routing = [{ when = "a change is ready to verify", role = "qa_engineer", then = ["release_manager"] }]
+board = { planned = "Queued", in_progress = "Testing", in_review = "Release review", done = "Approved" }
+
+[[domains]]
+id = "customer_success"
+title = "Customer success"
+icon = "💬"
+description = "Help customers use the product and resolve their issues."
+outcome = "Customer requests have a clear and useful response."
+responsible = ["Customer support", "Product feedback"]
+not_responsible = ["Unapproved customer liability commitments", "Product implementation"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "product", about = "Customer feedback informs product decisions." }]
+routing = [{ when = "a customer request", role = "customer_success_manager", then = ["support_specialist"] }]
+board = { planned = "New", in_progress = "In progress", in_review = "Needs review", done = "Resolved" }
+
+[[domains]]
+id = "security"
+title = "Security and privacy"
+icon = "🔒"
+description = "Protect customer data and review security risks."
+outcome = "Security and privacy decisions are documented."
+responsible = ["Security reviews", "Privacy decisions"]
+not_responsible = ["General product prioritization", "Production changes without approval"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "finance", about = "A financial risk needs an accountable decision." }]
+routing = [{ when = "a security review", role = "security_engineer", then = ["privacy_officer"] }]
+board = { planned = "Planned", in_progress = "Reviewing", in_review = "Decision", done = "Recorded" }
+
+[[domains]]
+id = "finance"
+title = "Finance"
+icon = "💰"
+description = "Review financial actions and their supporting records."
+outcome = "Financial decisions have an auditable approval."
+responsible = ["Financial controls", "Transaction review"]
+not_responsible = ["Product investment strategy", "Unapproved transactions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = []
+routing = [{ when = "a financial action", role = "finance_controller" }]
+board = { planned = "Queued", in_progress = "Reviewing", in_review = "Approval", done = "Recorded" }
+
+[[roles]]
+id = "product_manager"
+title = "Product manager"
+domain = "product"
+description = "Turn customer and business needs into product decisions."
+cardinality = "plan"
+writes = false
+responsible = ["Product goals", "Prioritized requirements"]
+not_responsible = ["Code changes", "Production operations"]
+inputs = ["Customer needs", "Business priorities"]
+outputs = ["A scoped product decision"]
+edges = [{ kind = "delegates_to", to = "product_analyst", about = "Research the customer need." }]
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "product_analyst"
+title = "Product analyst"
+domain = "product"
+description = "Summarize customer evidence and product usage."
+cardinality = "many"
+writes = false
+responsible = ["Customer and usage research"]
+not_responsible = ["Product decisions", "Code changes"]
+inputs = ["A product question"]
+outputs = ["A research summary"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "engineering_lead"
+title = "Engineering lead"
+domain = "engineering"
+description = "Plan implementation and coordinate engineering work."
+cardinality = "plan"
+writes = false
+responsible = ["Technical approach", "Engineering task routing"]
+not_responsible = ["Product strategy", "Writing implementation code"]
+inputs = ["A scoped product decision"]
+outputs = ["An implementation plan"]
+edges = [{ kind = "delegates_to", to = "software_engineer", about = "Implement the application change." }, { kind = "delegates_to", to = "platform_engineer", about = "Implement the platform change." }]
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "software_engineer"
+title = "Software engineer"
+domain = "engineering"
+description = "Implement application behavior and maintain its tests."
+cardinality = "many"
+writes = true
+responsible = ["Application code", "Focused tests"]
+not_responsible = ["Product decisions", "Production deployment"]
+inputs = ["An engineering task"]
+outputs = ["A tested code change"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "platform_engineer"
+title = "Platform engineer"
+domain = "engineering"
+description = "Maintain the infrastructure used to build and run the product."
+cardinality = "many"
+writes = true
+responsible = ["Build and deployment systems", "Runtime reliability"]
+not_responsible = ["Feature prioritization", "Production deployment without approval"]
+inputs = ["A platform task"]
+outputs = ["A tested platform change"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "qa_engineer"
+title = "Quality engineer"
+domain = "quality"
+description = "Verify product behavior and identify regressions."
+cardinality = "many"
+writes = true
+responsible = ["Test design", "Verification results"]
+not_responsible = ["Product implementation", "Production deployment"]
+inputs = ["A change ready for verification"]
+outputs = ["Test results and defects"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "release_manager"
+title = "Release manager"
+domain = "quality"
+description = "Confirm release readiness and coordinate approved deployments."
+cardinality = "plan"
+writes = true
+responsible = ["Release readiness", "Deployment preparation"]
+not_responsible = ["Approving its own production deployment", "Product prioritization"]
+inputs = ["Verification results", "A release plan"]
+outputs = ["A release decision"]
+edges = [{ kind = "delegates_to", to = "qa_engineer", about = "Confirm release verification." }]
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = ["production_deployment"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "customer_success_manager"
+title = "Customer success manager"
+domain = "customer_success"
+description = "Coordinate customer support and product feedback."
+cardinality = "plan"
+writes = false
+responsible = ["Customer communication", "Customer feedback routing"]
+not_responsible = ["Unapproved liability commitments", "Product code changes"]
+inputs = ["Customer requests", "Support history"]
+outputs = ["A customer response plan"]
+edges = [{ kind = "delegates_to", to = "support_specialist", about = "Prepare a response to the customer." }]
+skills = []
+tools = ["read_files"]
+approval_required = ["customer_liability_commitment"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "support_specialist"
+title = "Support specialist"
+domain = "customer_success"
+description = "Investigate product questions and prepare clear customer replies."
+cardinality = "many"
+writes = false
+responsible = ["Product support", "Issue summaries"]
+not_responsible = ["Customer liability decisions", "Product prioritization"]
+inputs = ["A customer question"]
+outputs = ["A support response"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "security_engineer"
+title = "Security engineer"
+domain = "security"
+description = "Review security risks and recommend controls."
+cardinality = "plan"
+writes = true
+responsible = ["Security review", "Recommended controls"]
+not_responsible = ["Privacy decisions", "Unapproved production changes"]
+inputs = ["A security question", "A proposed change"]
+outputs = ["A security assessment"]
+edges = [{ kind = "delegates_to", to = "privacy_officer", about = "Review customer data implications." }]
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = ["security_decision"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "privacy_officer"
+title = "Privacy officer"
+domain = "security"
+description = "Review privacy questions and document user-impact decisions."
+cardinality = "journal"
+writes = false
+responsible = ["Privacy review", "Privacy decision records"]
+not_responsible = ["Security implementation", "Product prioritization"]
+inputs = ["A privacy question", "A proposed data use"]
+outputs = ["A privacy decision"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["privacy_decision"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "finance_controller"
+title = "Finance controller"
+domain = "finance"
+description = "Review financial actions and preserve their supporting records."
+cardinality = "journal"
+writes = false
+responsible = ["Financial controls", "Transaction records"]
+not_responsible = ["Product investment choices", "Unapproved transactions"]
+inputs = ["A financial action", "Supporting records"]
+outputs = ["A finance review and approval request"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["financial_transaction"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
