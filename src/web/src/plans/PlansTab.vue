@@ -8,7 +8,7 @@ import PSection from "../layout/PSection.vue";
 import {peek} from "../route.js";
 import {rows} from "../sync/rows.js";
 
-// The Home page's Plans window: the plans being worked on as their bars, then those waiting to start, then the newest closed ones, each with its progress.
+// The Home page's Plans window: the open plans, those being worked on as their bars, then those waiting to start, each with its progress.
 const groups = computed(() => planGroups(rows("plans")));
 const error = ref("");
 usePlanRows(() => groups.value.flatMap((group) => group.plans));
@@ -45,7 +45,7 @@ async function runBar(p) {
                         <button type="button" class="plan-row" @click="peek('plans', p.id)">
                             <span class="plan-number">{{ p.id }}</span>
                             <span class="plan-title">{{ p.title }}</span>
-                            <span class="plan-state">{{ PLAN_STATES[statusOf(p)] || "Closed" }}</span>
+                            <span class="plan-state">{{ PLAN_STATES[statusOf(p)] }}</span>
                             <span class="plan-progress">{{ progress(p).title }} · {{ sizeOf(p) }}</span>
                             <span class="plan-bar"><span class="plan-bar-done" :style="{width: `${progress(p).donePart}%`}" /></span>
                         </button>

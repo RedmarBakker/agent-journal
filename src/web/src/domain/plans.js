@@ -66,16 +66,12 @@ export function cardChoices(plans, shown) {
 
 const isRunning = (p) => PLAN_RUNNING.includes(statusOf(p));
 
-const CLOSED_SHOWN = 5;
-
-// The Plans window's groups: the plans being worked on, the ones waiting to start or paused, and the newest closed ones.
+// The Plans window's groups of open plans: those being worked on, then those waiting to start or paused.
 export function planGroups(plans) {
     const open = openPlans(plans);
-    const closed = plans.filter((p) => isClosed(p) && p.state !== "cancelled").sort((a, b) => b.id - a.id);
     return [
         {key: "running", title: "Being worked on", plans: open.filter(isRunning)},
         {key: "waiting", title: "Waiting to start", plans: open.filter((p) => !isRunning(p))},
-        {key: "closed", title: "Closed", plans: closed.slice(0, CLOSED_SHOWN)},
     ].filter((group) => group.plans.length);
 }
 
