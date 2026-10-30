@@ -7376,3 +7376,16 @@ def test_a_plans_cancelled_tasks_leave_its_task_count(app: App):
     with app.container.get(Scope).environment(MAIN):
         plans = app.container.get(Plans)
         assert plans.uncancelled_count(plans.plan_task_ids(plans.find(1))) == 2, "a cancelled task leaves the count, so a plan with a cancelled phase can still be done"
+
+
+def test_a_resting_docked_card_older_than_its_chats_first_page_is_taken_down_and_newer_or_running_ones_stay(connection):
+    from journal.db.migrations.scrolled_docks_undock import SHOWN_MESSAGE_COUNT, ScrolledDocksUndock
+    cards = ('{"docked": true}', '{"docked": true, "active": true}', '{"docked": true, "undock_at": 5}')
+    for data in cards:
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'system', 'old card', ?, '2026-10-01')", (data,))
+    for _ in range(SHOWN_MESSAGE_COUNT):
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'agent', 'words', '{}', '2026-10-30')")
+    connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'system', 'new card', '{\"docked\": true}', '2026-10-31')")
+    ScrolledDocksUndock().apply(connection)
+    docked = [row["id"] for row in connection.all("SELECT id FROM messages WHERE json_extract(data, '$.docked') = 1 ORDER BY id")]
+    assert docked == [2, 3, SHOWN_MESSAGE_COUNT + 4], "the old resting card goes; the running one, the leaving one and the card on the first page stay"

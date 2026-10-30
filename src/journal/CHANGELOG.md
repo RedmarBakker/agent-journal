@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.9
+
+- On upgrade, a document's or report's card left docked but long scrolled out of the chat is taken down, so the docked list shows what was shown before 4.69.8 (migration 84).
+
 ## 4.69.8
 
 - A docked document shows above the chat however old its card is: the list of docked cards now holds every docked card, not only those of running commands.
