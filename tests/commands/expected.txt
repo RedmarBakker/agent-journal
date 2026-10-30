@@ -1240,7 +1240,6 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message <n>
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
