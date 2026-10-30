@@ -120,8 +120,8 @@ class ShellRunner:
 
     def test_run_watched(self, folder: OutputFiles, line: str, caller: Caller) -> None:
         if self.is_carded_test_run(folder, caller):
-            reading = self.readers.reading(line)
-            self.outputs.watch(self.outputs.find(folder.number()), reading.name if reading is not None else "", "", caller.actor)
+            reader = self.readers.reading(line)
+            self.outputs.watch(self.outputs.find(folder.number()), reader.name if reader is not None else "", "", caller.actor)
 
     def worked(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: queue.Queue, ended: list[int], faults: list[Exception], environment: int) -> None:
         with self.scope.environment(environment):
