@@ -511,6 +511,13 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert worker_agent.role == AgentRole.WORKER, "the hook stays in the worker's role"
     session_worker = app.container.get(DataReaders).agent_data(worker_agent).part(SessionWorkersPart).session_workers[0]
     assert session_worker.edit_lock, "the worker's state data includes its rebase lock"
+    from journal.engine.state_machine import StateMachine
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.support.file_write import FileWrite
+    from journal.support.tool_call import ToolCall
+    call = ToolCall.decoded("Write", {"file_path": "locked.py"}, FileWrite("locked.py"), ())
+    reply = app.container.get(StateMachine).reply(worker_agent, ToolStarting(agent=worker_agent, call=call))
+    assert not reply.decision.allowed, "the role-aware state machine refuses a locked worker write"
     status, body = worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": "locked.py"})
     assert status == 409 and "the journal is rebasing your worktree" in body["error"], "a worker's writes wait while the journal rebases its worktree"
     with scope.environment(1):
