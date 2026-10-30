@@ -817,10 +817,11 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
     deployment = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
     assert attempt("make deploy").refusal == deployment, "the deployment waits before any approval"
     listener = app.container.get(RoleRefusalReport)
-    monkeypatch.setattr(listener.escalation, "report", lambda *args: None)
     refusal = LineDelivered(agent=Agent(environment_id=worker.environment_id, session=worker.session, provider=worker.provider), session=worker.session, environment_id=worker.environment_id, nudge=OrganizationNudges.ACTION_WAITS_FOR_USER.key, values={"action": ApprovalAction.PRODUCTION_DEPLOYMENT.value})
-    with scope.environment(1):
-        listener.handle(refusal)
+    with monkeypatch.context() as patch:
+        patch.setattr(listener.escalation, "report", lambda *args: None)
+        with scope.environment(1):
+            listener.handle(refusal)
     approved = approval_for("make deploy", ApprovalAction.PRODUCTION_DEPLOYMENT)
     assert approved and (approved.actor, approved.role, approved.task_id, approved.action) == (Actor.agent(worker.session).stamp, "deployer", task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT)
     assert approved.expires_at is not None and approved.question_id > 0, "the saved request names its answer question and expiry"
@@ -1851,7 +1852,7 @@ def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_
         assert "Roles do not send to each other" in refusal and "domain:alpha" in refusal, refusal
         assert routes.refusal(sender, plain) == "" and routes.refusal(plain, peer) == "", "a worker with no Role is not Role traffic"
         with pytest.raises(Rejection, match="Roles do not send"):
-            app.container.get(WorkerActions).peer(peer.id, sender.id)
+            app.container.get(WorkerActions).peer_send(peer.id, "take the routed path", sender.id, Actor.system())
 
 
 def test_a_changed_contract_is_reported_and_taken_up_by_new_jobs_only_while_the_version_a_job_began_on_is_kept(app, tmp_path):
