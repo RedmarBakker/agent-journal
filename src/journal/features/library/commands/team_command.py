@@ -26,6 +26,7 @@ class TeamCommand(Command):
         connect.add_argument("--email", required=True, help="your email, the account's user name")
         connect.add_argument("--name", default="", help="the name the team sees beside what you publish")
         connect.add_argument("--password", default="", help="filled in by the journal command's own prompt; never type it on a command line")
+        connect.add_argument("--team", default="", help="the team's name in this journal; its host when left out")
         login = self.verb(verbs, "login", "log this machine in again, as after its device was revoked")
         login.add_argument("--email", required=True)
         login.add_argument("--password", default="", help="filled in by the journal command's own prompt; never type it on a command line")
@@ -42,7 +43,7 @@ class TeamCommand(Command):
         self.verb(verbs, "disconnect", "disconnect from the team; what you imported from its library stays")
 
     def connect(self, args: Namespace, caller: Caller) -> int:
-        connection = self.connect_step.connected(TeamUrl.parse(args.url), args.email, args.name or args.email.split("@")[0], self.typed_password(args))
+        connection = self.connect_step.connected(TeamUrl.parse(args.url), args.email, args.name or args.email.split("@")[0], self.typed_password(args), args.team)
         print(f"connected to the team at {connection.address} as {connection.name}, {connection.role}")
         return 0
 

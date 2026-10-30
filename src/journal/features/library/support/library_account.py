@@ -11,22 +11,34 @@ LIBRARIES_FOLDER = "libraries"
 
 
 class LibraryAccount(HubAccount):
-    """This journal's account on its team's library, one library at a time: the file connect writes in the libraries folder beside the database, named by the library's key, holding its address, this device's token and number, the person's account number, name and role, with the library's certificate authority beside it when its server signs its own."""
+    """This journal's account on one team: the file connect writes in the libraries folder beside the database, named by the team's key, holding its name and address, this device's token and number, the person's account number, name and role, with the team's certificate authority beside it when its server signs its own; the home team's, the first joined, unless made for one team's key."""
 
     def __init__(self, config: Config) -> None:
-        self.config = config
+        self.config, self.key = config, ""
+
+    @classmethod
+    def keyed(cls, config: Config, key: str) -> "LibraryAccount":
+        account = cls(config)
+        account.key = key
+        return account
 
     def folder(self) -> Path:
         return self.config.home / LIBRARIES_FOLDER
 
     def path(self) -> Path:
-        files = sorted(self.folder().glob("*.json"))
+        if self.key:
+            return self.folder() / f"{self.key}.json"
+        files = self.files()
         if not files:
             raise Rejection("this journal is connected to no team: connect with journal team connect <url>")
-        return files[0]
+        homes = [path for path in files if json.loads(path.read_text()).get("home")]
+        return (homes or files)[0]
+
+    def files(self) -> list[Path]:
+        return sorted(self.folder().glob("*.json"))
 
     def is_connected(self) -> bool:
-        return self.folder().is_dir() and any(self.folder().glob("*.json"))
+        return self.path().is_file() if self.key else bool(self.files())
 
     def connection(self) -> LibraryConnection:
         return LibraryConnection.read(json.loads(self.path().read_text()))
@@ -44,10 +56,15 @@ class LibraryAccount(HubAccount):
         self.folder().mkdir(parents=True, exist_ok=True)
         target = self.folder() / f"{connection.key}.json"
         draft = target.with_suffix(".draft")
-        draft.write_text(json.dumps(connection.fields()))
+        draft.write_text(json.dumps({**connection.fields(), "home": self.is_home(target)}))
         os.chmod(draft, 0o600)
         draft.replace(target)
         return target
+
+    def is_home(self, target: Path) -> bool:
+        if target.is_file():
+            return bool(json.loads(target.read_text()).get("home"))
+        return not self.files()
 
     def disconnect(self) -> str:
         address = self.address()

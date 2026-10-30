@@ -405,6 +405,30 @@ def test_a_team_url_is_its_address_or_an_invitation():
     assert not TeamUrl.parse("https://team.example.com").has_self_signed_certificate(), "a domain on 443 has a public certificate"
 
 
+def test_the_team_accounts_list_every_team_find_one_by_name_and_keep_the_first_joined_as_home(tmp_path: Path):
+    import json
+    from journal.config import Config
+    from journal.features.library.support.library_account import LibraryAccount
+    from journal.features.library.support.library_accounts import LibraryAccounts
+    from journal.features.library.support.library_connection import LibraryConnection
+    from journal.support.rejection import Rejection
+    config = Config(tmp_path)
+    account = LibraryAccount(config)
+    account.write(LibraryConnection("zz-key", "https://shop.example", "t1", 1, 1, "Ada", "admin", "shop"))
+    account.write(LibraryConnection("aa-key", "https://studio.example", "t2", 2, 1, "Ada", "member", "studio"))
+    accounts = LibraryAccounts(config)
+    assert accounts.names() == ["studio", "shop"], "the teams are listed by their key"
+    assert accounts.named("studio").connection().key == "aa-key"
+    assert accounts.home().connection().team == "shop" and account.connection().team == "shop", "the first joined is home, also for the one-team account"
+    try:
+        accounts.named("nowhere")
+        raise AssertionError("an unknown team name was found")
+    except Rejection as refused:
+        assert "nowhere" in str(refused) and "shop" in str(refused)
+    (config.home / "libraries" / "old.json").write_text(json.dumps({"key": "old", "address": "https://203.0.113.5:8443", "token": "t", "device_id": 3, "account_id": 1, "name": "Ada", "role": "admin"}))
+    assert accounts.keyed("old").connection().team == "203.0.113.5", "a file from before names is named by its host"
+
+
 def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from_a_team_server(app: App, tmp_path: Path):
     import hashlib
     import json

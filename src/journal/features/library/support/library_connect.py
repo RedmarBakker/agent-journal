@@ -19,20 +19,20 @@ class LibraryConnect:
     def __init__(self, account: LibraryAccount, schema: Schema) -> None:
         self.account, self.link = account, LibraryLink(account, schema)
 
-    def connected(self, url: TeamUrl, email: str, name: str, password: str) -> LibraryConnection:
+    def connected(self, url: TeamUrl, email: str, name: str, password: str, team: str) -> LibraryConnection:
         if self.account.is_connected():
             raise Rejection(f"this journal is connected to the team at {self.account.address()}: journal team disconnect first")
         self.trusted(url)
         summary = self.link.summary(url.address)
         login = self.login(url, summary, email, name, password)
-        connection = LibraryConnection(summary.key, url.address, login.token, login.device_id, login.account_id, login.name, login.role)
+        connection = LibraryConnection(summary.key, url.address, login.token, login.device_id, login.account_id, login.name, login.role, team or url.host())
         self.account.write(connection)
         return connection
 
     def renewed_connection(self, email: str, password: str) -> LibraryConnection:
         connection = self.account.connection()
         login = self.account_login(TeamUrl.parse(connection.address), email, password)
-        renewed = LibraryConnection(connection.key, connection.address, login.token, login.device_id, login.account_id, login.name, login.role)
+        renewed = LibraryConnection(connection.key, connection.address, login.token, login.device_id, login.account_id, login.name, login.role, connection.team)
         self.account.write(renewed)
         return renewed
 

@@ -25,7 +25,7 @@ class TeamController:
         url, email, password = (str(request.body.get(field, "")).strip() for field in ("url", "email", "password"))
         if not (url and email and password):
             raise Rejection("connecting to a team takes its server's address or invitation URL, your email and your password")
-        connection = self.connecting.connected(TeamUrl.parse(url), email, str(request.body.get("name") or email.split("@")[0]), password)
+        connection = self.connecting.connected(TeamUrl.parse(url), email, str(request.body.get("name") or email.split("@")[0]), password, str(request.body.get("team", "")).strip())
         return Response.json({"connected": True, **connection.fields(), "token": ""})
 
     def disconnect(self, request: Request) -> Response:

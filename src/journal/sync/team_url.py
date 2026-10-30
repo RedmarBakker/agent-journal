@@ -23,6 +23,9 @@ class TeamUrl:
     def invitation(self, code: str, fingerprint: str) -> str:
         return f"{self.address}{JOIN_PATH}?{urlencode({'code': code, 'fingerprint': fingerprint})}"
 
+    def host(self) -> str:
+        return urlsplit(self.address).hostname or self.address
+
     def is_invitation(self) -> bool:
         return bool(self.code)
 

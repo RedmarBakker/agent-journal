@@ -2653,7 +2653,7 @@ options:
 $ user: journal team connect --help
 exit 0
 usage: journal team connect [-h] --email EMAIL [--name NAME]
-                            [--password PASSWORD]
+                            [--password PASSWORD] [--team TEAM]
                             url
 
 positional arguments:
@@ -2666,6 +2666,7 @@ options:
   --name NAME          the name the team sees beside what you publish
   --password PASSWORD  filled in by the journal command's own prompt; never
                        type it on a command line
+  --team TEAM          the team's name in this journal; its host when left out
 
 $ user: journal team login --help
 exit 0
