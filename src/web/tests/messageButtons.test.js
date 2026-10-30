@@ -18,7 +18,7 @@ test("a link button opens its address in a new tab and a form button posts its h
         text: "Create the app.",
         data: {
             buttons: [
-                {label: "Open the setup page", action: "http://localhost:8765/", note: "opens the page in a new tab", method: "GET", fields: {}},
+                {label: "Open the app settings", action: "https://github.com/organizations/acme/settings/apps", note: "opens the settings in a new tab", method: "GET", fields: {}},
                 {label: "Create the app", action: "https://github.com/organizations/acme/settings/apps/new", note: "sends the app manifest to GitHub", method: "POST", fields: {manifest: '{"name": "acme deploys"}', state: "one"}},
             ],
         },
@@ -30,7 +30,7 @@ test("a link button opens its address in a new tab and a form button posts its h
     app.mount(host);
     await flush();
     const link = host.querySelector("a.message-button");
-    expect([link.textContent.trim(), link.getAttribute("href"), link.getAttribute("target")]).toEqual(["Open the setup page", "http://localhost:8765/", "_blank"]);
+    expect([link.textContent.trim(), link.getAttribute("href"), link.getAttribute("target")]).toEqual(["Open the app settings", "https://github.com/organizations/acme/settings/apps", "_blank"]);
     const form = host.querySelector("form");
     expect([form.getAttribute("method"), form.getAttribute("action"), form.getAttribute("target")]).toEqual(["post", "https://github.com/organizations/acme/settings/apps/new", "_blank"]);
     expect(Object.fromEntries([...form.querySelectorAll("input[type=hidden]")].map((i) => [i.name, i.value]))).toEqual({manifest: '{"name": "acme deploys"}', state: "one"});

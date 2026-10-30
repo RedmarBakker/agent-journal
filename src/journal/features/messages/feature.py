@@ -79,8 +79,8 @@ The user sends messages; you answer them before anything else.
   messages among it, and must be run before any other write; `journal message recent` shows the latest messages alone.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
 - When the user must open a web address outside the journal, or send a form to one, put a button under your message
-  instead of asking them to visit it: `--button 'Open the setup page|http://localhost:8765/|opens the page in a new tab'`
-  opens it, and `--form-button 'Create the app|<address>|sends the manifest to GitHub|manifest=<json>'` posts the hidden
+  instead of asking them to visit it, and never build a page of your own just to hold a button:
+  `--button 'Open the app settings|https://github.com/settings/apps|opens the settings in a new tab'` opens it, and `--form-button 'Create the app|<address>|sends the manifest to GitHub|manifest=<json>'` posts the hidden
   fields to it, as GitHub's app manifest flow takes one. The label says what happens, the third part a line on it. Never
   a button for a journal row: task 12 or plan 3 written in the text is a link already.
 - A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
