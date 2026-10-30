@@ -69,9 +69,40 @@ test("the plan label shows a likely finish and uses the delivery chance", async 
 });
 
 test("delivery chance colors use the approved 70 and 40 percent thresholds", () => {
+    expect(forecastTone(100)).toBe("good");
     expect(forecastTone(70)).toBe("good");
+    expect(forecastTone(69)).toBe("caution");
     expect(forecastTone(40)).toBe("caution");
     expect(forecastTone(39)).toBe("risk");
+    expect(forecastTone(0)).toBe("risk");
+    expect(forecastTone(null)).toBe("unknown");
+});
+
+test("plan cards color likely finishes green, amber and red at the approved thresholds", async () => {
+    const forecasts = [70, 69, 39].map((probability) => ({...mature, probability_this_sprint: probability}));
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h("div", forecasts.map((forecast, index) => h(DeliveryForecastLabel, {
+        key: index, forecast, sprint, plan: {state: "started"},
+    })))});
+    app.mount(host);
+    await nextTick();
+
+    const labels = [...host.querySelectorAll(".delivery-forecast-label")];
+    expect(labels.map((label) => label.dataset.chanceTone)).toEqual(["good", "caution", "risk"]);
+    expect(labels.map((label) => label.querySelector(".delivery-likely-finish").classList.contains(`tone-${label.dataset.chanceTone}`))).toEqual([true, true, true]);
+});
+
+test("a plan card with too little history shows no invented finish date or percentage", async () => {
+    const cold = {...mature, status: "not enough history", p50: null, probability_this_sprint: null, delivered_outcomes: 0, as_of: null};
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastLabel, {forecast: cold, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("Not enough history yet");
+    expect(host.textContent).not.toContain("Likely finish");
+    expect(host.textContent).not.toContain("6 Nov");
+    expect(host.textContent).not.toMatch(/\b\d+%/);
 });
 
 test("the plan forecast explains scope, delivery policy, ranges, history and freshness", async () => {

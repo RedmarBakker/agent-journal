@@ -111,11 +111,15 @@ test("the Plans view puts unfinished ended sprints first, then current, next and
         {id: 21, title: "Waiting for deployment", phase: "done", state: "done", mode: "organization", tasks: [1], done: 1, story_points: {total: 13, done: 13, sized_tasks: 1, unknown_tasks: 0}},
         {id: 22, title: "Current plan", phase: "in_progress", state: "started", mode: "solo", tasks: [2], done: 0, story_points: {total: 5, done: null, sized_tasks: 1, unknown_tasks: 0}},
         {id: 23, title: "Next plan", phase: "planned", state: "ready", mode: "organization", tasks: [3], done: 0, story_points: {total: 8, done: null, sized_tasks: 1, unknown_tasks: 0}},
-        {id: 24, title: "Unscheduled plan", phase: "planned", state: "ready", mode: "solo", tasks: [4], done: 0, story_points: {total: null, done: null, sized_tasks: 0, unknown_tasks: 1}},
+        {id: 24, title: "Later plan", phase: "planned", state: "ready", mode: "solo", tasks: [4], done: 0, story_points: {total: 3, done: null, sized_tasks: 1, unknown_tasks: 0}},
+        {id: 25, title: "Delivered plan", phase: "done", state: "done", mode: "solo", tasks: [5], done: 1, story_points: {total: 2, done: 2, sized_tasks: 1, unknown_tasks: 0}},
+        {id: 26, title: "Unscheduled plan", phase: "planned", state: "ready", mode: "solo", tasks: [6], done: 0, story_points: {total: null, done: null, sized_tasks: 0, unknown_tasks: 1}},
     ];
     const sprintForecasts = [
-        {sprint: {id: 23, starts_on: "2026-11-09", ends_on: "2026-11-23", state: "draft", plan_ids: [23]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 23, delivery_complete: false, status: "not enough history"}]}},
+        {sprint: {id: 24, starts_on: "2026-11-23", ends_on: "2026-12-07", state: "draft", plan_ids: [24]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 24, delivery_complete: false, status: "not enough history"}]}},
+        {sprint: {id: 20, starts_on: "2026-09-28", ends_on: "2026-10-12", state: "closed", plan_ids: [25]}, forecast: {as_of: "2026-10-30", status: "forecast", plan_forecasts: [{plan_id: 25, delivery_complete: true, status: "forecast"}]}},
         {sprint: {id: 22, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [22]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 22, delivery_complete: false, status: "not enough history"}]}},
+        {sprint: {id: 23, starts_on: "2026-11-09", ends_on: "2026-11-23", state: "draft", plan_ids: [23]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 23, delivery_complete: false, status: "not enough history"}]}},
         {sprint: {id: 21, starts_on: "2026-10-12", ends_on: "2026-10-26", state: "closed", plan_ids: [21]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 21, delivery_complete: false, status: "not enough history", delivery_status: "awaiting deployment"}]}},
     ];
     host = document.body.appendChild(document.createElement("div"));
@@ -123,19 +127,29 @@ test("the Plans view puts unfinished ended sprints first, then current, next and
     app.mount(host);
     await nextTick();
 
-    expect([...host.querySelectorAll("[data-sprint-group]")].map((group) => group.dataset.sprintId)).toEqual(["21", "22", "23", "none"]);
+    expect([...host.querySelectorAll("[data-sprint-group]")].map((group) => group.dataset.sprintId)).toEqual(["21", "22", "23", "24", "20", "none"]);
     expect(host.querySelector('[data-sprint-id="21"]').textContent).toContain("Waiting for deployment");
+    expect(host.querySelector('[data-sprint-id="21"]').textContent).toContain("12 Oct to 25 Oct");
     expect(host.querySelector('[data-sprint-group][data-sprint-id="21"]').textContent).toContain("13 points");
+    expect(host.querySelector('[data-sprint-id="23"]').textContent).toContain("Next plan");
+    expect(host.querySelector('[data-sprint-id="24"]').textContent).toContain("Later plan");
+    expect(host.querySelector('[data-sprint-id="20"]').textContent).toContain("Delivered plan");
     expect(host.querySelector('[data-plan-id="21"]').textContent).toContain("Not enough history yet");
-    expect(host.querySelector('[data-plan-id="24"]').textContent).toContain("No sprint");
-    expect(host.querySelector('[data-plan-id="24"]').textContent).toContain("Size unknown");
+    expect(host.querySelector('[data-plan-id="26"]').textContent).toContain("No sprint");
+    expect(host.querySelector('[data-plan-id="26"]').textContent).toContain("Size unknown");
     expect(host.querySelector('[data-sprint-group][data-sprint-id="none"]').textContent).not.toContain("0 points");
 });
 
 test("the Board keeps each sprint together across its phase lanes", async () => {
-    const plans = [sharedPlan("planned", "Ready", [1], 0, ""), {id: 79, title: "Unscheduled", phase: "done", mode: "solo", tasks: [2], done: 1, waits_on: ""}];
-    plans[0].id = 77;
+    const plans = [
+        {...sharedPlan("planned", "Ready", [1], 0, ""), id: 77},
+        {...sharedPlan("in_review", "Checking", [2], 0, ""), id: 80},
+        {id: 79, title: "Unscheduled", phase: "done", mode: "solo", tasks: [3], done: 1, waits_on: ""},
+    ];
     const sprintForecasts = [{
+        sprint: {id: 23, starts_on: "2026-11-09", ends_on: "2026-11-23", state: "draft", plan_ids: [80]},
+        forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 80, status: "not enough history"}]},
+    }, {
         sprint: {id: 22, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [77]},
         forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 77, status: "not enough history"}]},
     }];
@@ -144,9 +158,13 @@ test("the Board keeps each sprint together across its phase lanes", async () => 
     app.mount(host);
     await nextTick();
 
+    expect([...host.querySelectorAll("[data-sprint-group]")].map((group) => group.dataset.sprintId)).toEqual(["22", "23", "none"]);
     const sprintBoard = host.querySelector('[data-sprint-id="22"]');
+    const nextSprintBoard = host.querySelector('[data-sprint-id="23"]');
     expect(sprintBoard.querySelectorAll(".organization-board-lane")).toHaveLength(4);
+    expect(nextSprintBoard.querySelectorAll(".organization-board-lane")).toHaveLength(4);
     expect(sprintBoard.querySelector('[data-phase="planned"] [data-plan-id="77"]')).not.toBeNull();
+    expect(nextSprintBoard.querySelector('[data-phase="in_review"] [data-plan-id="80"]')).not.toBeNull();
     expect(host.querySelector('[data-sprint-group][data-sprint-id="none"] [data-phase="done"] [data-plan-id="79"]')).not.toBeNull();
     expect(host.querySelector('[data-plan-id="77"]').textContent).not.toContain("Move to another sprint");
 });
