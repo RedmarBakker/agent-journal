@@ -2119,6 +2119,103 @@ def test_a_journal_role_job_stops_its_old_session_and_launches_a_fresh_context(a
     assert calls[1][:4] == ("seat", "launch", "--fresh", member.target) and "task 57" in calls[1][5], "the next job launches in a fresh OpenRig session with its task id"
 
 
+def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its_domain_agent(app, tmp_path, monkeypatch):
+    from journal.engine.states_catalogue import StatesCatalogue
+    from journal.features.organization.support.rig_staffing import RigStaffing
+    from journal.features.organization.support.seat_runtime import SeatSession
+    from journal.features.tasks.states.external_wait import ExternalWait
+    from journal.features.workers.support.worker_launch import WorkerLaunch
+    from journal.features.workers.support.worker_reports import WorkerReports
+    from journal.support.caller import Caller
+    from tests.test_features import WORKER_RUNNER_START
+
+    _fixture, organization = plan_contracts(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
+    user_set(app, "workers.openrig_version", "0.7.5")
+    monkeypatch.setattr(WorkerRunner, "start", WORKER_RUNNER_START)
+
+    threads, launches, sent = [], [], []
+
+    class CapturedThread:
+        def __init__(self, *, target, args, name, daemon):
+            self.target, self.args, self.name, self.daemon = target, args, name, daemon
+
+        def start(self):
+            threads.append(self)
+
+    monkeypatch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
+    monkeypatch.setattr(SeatRunner, "record_usage", lambda *args: None)
+
+    def run(_runtime, *arguments, check=True):
+        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    runtime = app.container.get(SeatRuntime)
+    launch_state = {"started": False}
+
+    def launch(member, reason):
+        launches.append((member, reason))
+        launch_state["started"] = True
+
+    def session(_member, _native_session=""):
+        return SeatSession(4321, "role-session", "running", 10) if launch_state["started"] else None
+
+    def send(member, prompt):
+        sent.append((member, prompt))
+        status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "role-session"}, {
+            "X-Journal-Env": member.environment,
+            "X-Journal-Actor": member.actor,
+            "X-Journal-Actor-Token": member.token,
+        })
+        assert status == 200, answer
+        caller = Caller.worker(member.environment, worker.id, "role-session", member.provider)
+        clocked_in = app.console().run(["clock-in", "record"], caller)
+        assert clocked_in.code == 0, clocked_in.error
+        app.container.get(WorkerReports).delivered(app.container.get(Workers).find(worker.id), "The note is written.", caller.actor)
+
+    runtime.launch = launch
+    runtime.session = session
+    runtime.send = send
+
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plans, tasks, links = (app.container.get(kind) for kind in (Plans, Tasks, Links))
+        plan = plans.save(Plan(environment_id=1, title="Write the note", state=PlanState.STARTED, mode=PlanMode.ORGANIZATION), actor)
+        app.container.get(RigStaffing).start_plan(plan, app.container.get(Environments).find(1), Agent(environment_id=1, provider="claude"), actor)
+        domain_agent = app.container.get(Agents).save(Agent(environment_id=1, session="domain-session", provider="claude"), actor)
+        app.container.get(DomainRows).agent_linked("alpha", domain_agent, actor)
+        task = tasks.save(Task(environment_id=1, title="Write one note", brief="Write a short note."), actor)
+        links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        worker = app.container.get(Workers).save(Worker(
+            environment_id=1, name="Ada Lovelace", brief="Write a short note.", role="planner",
+            contract=organization.contracts().version, plan_id=plan.id, provider="claude", model="sonnet",
+            dispatcher="domain-session",
+        ).contacted(10), actor)
+        tasks.handover(task, Ref.build(worker), actor)
+
+        launched = app.container.get(WorkerLaunch).launched(worker, actor)
+        states = app.container.get(StatesCatalogue)
+        waiting = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
+        assert launched.state == WorkerState.DISPATCHED and isinstance(waiting, ExternalWait), "dispatch is recorded before the Domain agent waits for its Role"
+        assert len(threads) == 1
+        threads[0].target(*threads[0].args)
+
+        current = app.container.get(Workers).find(worker.id)
+        returned = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
+        spec = json.loads((app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "rig.yaml").read_text())
+        pod = next(pod for pod in spec["pods"] if pod["id"] == "alpha")
+        role_member = next(member for member in pod["members"] if member["id"] == "planner")
+
+    assert len(launches) == len(sent) == 1 and sent[0][0].actor == f"worker:{worker.id}", "Journal launches the generated Role session and sends its job to that seat"
+    assert "Write a short note." in sent[0][1] and current.state == WorkerState.DELIVERED, "the Role clocks in, receives its brief, and clocks out"
+    assert not isinstance(returned, ExternalWait), "the Role's clock-out resolves the Domain agent's wait through its worker report"
+    assert pod["edges"] == [{"kind": "delegates_to", "from": "domain-agent", "to": "planner"}], "staffing keeps the Domain-to-Role hub route"
+    assert {"Bash(rig send *)", "Bash(rig queue *)"}.issubset(role_member["claude_permissions"]["deny"]), "the Role seat keeps the direct-send and queue denials"
+
+
 def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_no_job_to_a_second_instance(tmp_path, monkeypatch):
     from journal.config import Config
     from journal.features.workers.support.worker_runner import WorkerRunner
