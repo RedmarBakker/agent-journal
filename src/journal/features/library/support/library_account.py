@@ -22,7 +22,7 @@ class LibraryAccount(HubAccount):
     def path(self) -> Path:
         files = sorted(self.folder().glob("*.json"))
         if not files:
-            raise Rejection("this journal is connected to no library: connect with journal library connect <url>")
+            raise Rejection("this journal is connected to no team: connect with journal team connect <url>")
         return files[0]
 
     def is_connected(self) -> bool:

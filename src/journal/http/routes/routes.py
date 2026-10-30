@@ -31,6 +31,7 @@ from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
 from journal.http.controllers.profiles import ProfileController
 from journal.http.controllers.library import LibraryController
+from journal.http.controllers.team import TeamController
 from journal.http.controllers.project_files import ProjectFileController
 from journal.http.controllers.questions import QuestionController
 from journal.http.controllers.reactions import ReactionController
@@ -250,15 +251,16 @@ class Routes:
         router.get(f"{API}/skills/{{name}}", skills.show)
         router.post(f"{API}/skills/{{name}}/load", skills.load)
         router.post(f"{API}/skills/{{name}}/moment", skills.moment)
+        team = get(TeamController)
+        router.get(f"{API}/team", team.status)
+        router.post(f"{API}/team/connect", team.connect)
+        router.post(f"{API}/team/disconnect", team.disconnect)
+        router.post(f"{API}/team/invite", team.invite)
+        router.get(f"{API}/team/devices", team.devices)
+        router.post(f"{API}/team/revoke", team.revoke)
+        router.get(f"{API}/team/people", team.people)
+        router.post(f"{API}/team/password", team.password)
         library = get(LibraryController)
-        router.get(f"{API}/library", library.status)
-        router.post(f"{API}/library/connect", library.connect)
-        router.post(f"{API}/library/disconnect", library.disconnect)
-        router.post(f"{API}/library/invite", library.invite)
-        router.get(f"{API}/library/devices", library.devices)
-        router.post(f"{API}/library/revoke", library.revoke)
-        router.get(f"{API}/library/people", library.people)
-        router.post(f"{API}/library/password", library.password)
         router.get(f"{API}/library/copies", library.copies)
         router.get(f"{API}/library/items", library.items_listed)
         router.get(f"{API}/library/items/{{item_type}}/{{name}}", library.item)

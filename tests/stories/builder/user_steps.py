@@ -51,11 +51,6 @@ class UserSteps:
         self.observed("a team server runs", None, None)
         return f"http://127.0.0.1:{server.server_address[1]}"
 
-    def user_connects_to_a_library(self) -> str:
-        library = self.a_team_server_runs()
-        self.user_types(f"library connect {library} --email ada@example.com --name Ada --password 'correct horse battery'")
-        return library
-
     def user_connects_to_a_team(self) -> str:
         team = self.a_team_server_runs()
         self.user_types(f"team connect {team} --email ada@example.com --name Ada --password 'correct horse battery'")
@@ -72,7 +67,7 @@ class UserSteps:
     def a_library_holds_a_sequence_imported_here(self, title: str, steps: str) -> int:
         library = self.a_team_server_runs()
         console, user = self.app.console(), Caller.user("main")
-        lines = (["library", "connect", library, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ["sequence", "create", title, "--steps", steps])
+        lines = (["team", "connect", library, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ["sequence", "create", title, "--steps", steps])
         outcomes = [console.run(line, user) for line in lines]
         sequence = int(re.search(r"sequence (\d+)", outcomes[-1].text)[1])
         outcomes += [console.run(line, user) for line in (["library", "publish", "sequence", str(sequence)], ["library", "import", "sequence", re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")])]

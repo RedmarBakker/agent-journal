@@ -389,7 +389,7 @@ def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_regi
     assert "TEAM_PROJECT: ${{ inputs.project }}" in workflow and "TEAM_ADDRESS: ${{ inputs.address }}" in workflow
     assert 'curl -fsSL "https://github.com/jessegall/agent-journal/releases/download/v${TEAM_VERSION}/install.sh" | sh' in workflow
     told = capsys.readouterr().out
-    assert "--labels agent-journal" in told and "journal library connect <url>" in told
+    assert "--labels agent-journal" in told and "journal team connect <url>" in told
     assert RemoteGithub.parsed(["init"], root).run() == 1, "a workflow already there is not written over"
     assert RemoteGithub.parsed(["init", "--replace"], root).run() == 0
 
@@ -455,7 +455,7 @@ def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_updat
     console, user = app.console(), Caller.user("main")
     sequences = app.container.get(Sequences)
     try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        assert console.run(["team", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
         number = console.run(["sequence", "create", "Lunch Break", "--steps", "eat"], user).text.split()[1].rstrip(":")
         assert console.run(["library", "publish", "sequence", number], user).code == 0
         assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0

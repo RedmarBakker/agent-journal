@@ -9,7 +9,7 @@ PATTERN = "error:"
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reader_published_to_the_library_is_imported_only_once_its_pattern_is_read_and_accepted(story):
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     story.user_types(f"reader add errors --pattern '{PATTERN}' --about 'the errors a run prints'")
     result = story.user_types("library publish reader errors --note first")
     result.expect_command_passed()
@@ -29,7 +29,7 @@ def test_a_reader_published_to_the_library_is_imported_only_once_its_pattern_is_
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reader_from_the_library_never_overwrites_a_reader_file_this_journal_has(story):
     story.user_types(f"reader add errors --pattern '{PATTERN}' --about 'the errors a run prints'")
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     story.user_types("library publish reader errors")
     result = story.user_types("library import reader errors --accept")
     result.expect_command_refused()

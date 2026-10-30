@@ -23,18 +23,18 @@ a journal trusts on its first connect. A domain gets a public certificate only w
 keeps, its accounts, the items and their files, lives in one Docker volume. At the end it prints the server's URL.
 
 Connect to that URL first, before anyone else: the first journal to connect to a new server becomes its admin. Give
-the URL, your email, your name and a password in Settings, Library, or run `journal library connect <URL>`.
+the URL, your email, your name and a password in Settings, Library, or run `journal team connect <URL>`.
 
 Back up a running server with `docker exec agent-journal-<project> python -m sync_server backup --data /data/team`; the
 backup keeps the items' files beside the database.
 
 ## Connecting
 
-An admin invites a person with Settings, Library, Invite, or `journal library invite <email>`, and sends them the
+An admin invites a person with Settings, Library, Invite, or `journal team invite <email>`, and sends them the
 invitation URL. Paste it in Settings, Library, with your email, name and a password, or run
-`journal library connect <invitation URL>`. A machine whose device was revoked logs in again with
-`journal library login`. `journal library status` says which library this journal is connected to, as whom and in which
-role, and `journal library disconnect` lets it go; what you imported stays.
+`journal team connect <invitation URL>`. A machine whose device was revoked logs in again with
+`journal team login`. `journal team status` says which team this journal is connected to, as whom and in which
+role, and `journal team disconnect` lets it go; what you imported stays.
 
 ## Publishing
 
@@ -54,7 +54,7 @@ one to read its versions and import it, or run `journal library import`. A newer
 
 ## People
 
-`journal library people` lists the library's people and their roles. An admin lists the devices with
-`journal library devices`, revokes one with `journal library revoke`, removes a person with `journal library remove`
-and gives a person a new password with `journal library reset`. Anyone changes their own password with
-`journal library password`.
+`journal team people` lists the team's people and their roles. An admin lists the devices with
+`journal team devices`, revokes one with `journal team revoke`, removes a person with `journal team remove`
+and gives a person a new password with `journal team reset`. Anyone changes their own password with
+`journal team password`.

@@ -21,7 +21,7 @@ class LibraryConnect:
 
     def connected(self, url: TeamUrl, email: str, name: str, password: str) -> LibraryConnection:
         if self.account.is_connected():
-            raise Rejection(f"this journal is connected to the library at {self.account.address()}: journal library disconnect first")
+            raise Rejection(f"this journal is connected to the team at {self.account.address()}: journal team disconnect first")
         self.trusted(url)
         summary = self.link.summary(url.address)
         login = self.login(url, summary, email, name, password)

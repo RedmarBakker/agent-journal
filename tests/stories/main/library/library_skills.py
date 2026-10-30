@@ -12,7 +12,7 @@ EXAMPLE_TEXT = "One line per change.\n"
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_skill_folder_published_to_the_library_imports_with_every_file_intact_and_a_journal_skill_is_never_published(story):
     story.the_project_holds_a_skill(SKILL, {"SKILL.md": SKILL_TEXT, "examples/short.md": EXAMPLE_TEXT})
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     result = story.user_types("library publish skill journal")
     result.expect_command_refused()
     result.expect_command_text("the journal's own skills")

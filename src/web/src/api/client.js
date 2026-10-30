@@ -399,42 +399,42 @@ export class ApiClient {
         return this.get("/people");
     }
 
-    // whether this journal is connected to the team's library, and as whom
-    library() {
-        return this.get("/library");
+    // whether this journal is connected to a team, and as whom
+    team() {
+        return this.get("/team");
     }
 
-    // connects to a library by its URL: a new server's makes this person its admin, an invitation URL a member, a bare URL logs in
-    connectLibrary(fields) {
-        return this.post("/library/connect", fields, LONG_WAIT_MS);
+    // connects to a team by its server's URL: a new server's makes this person its admin, an invitation URL a member, a bare URL logs in
+    connectTeam(fields) {
+        return this.post("/team/connect", fields, LONG_WAIT_MS);
     }
 
-    // disconnects from the library; what was imported stays
-    disconnectLibrary() {
-        return this.post("/library/disconnect", {});
+    // disconnects from the team; what was imported from its library stays
+    disconnectTeam() {
+        return this.post("/team/disconnect", {});
     }
 
     // an invitation URL for a person's email; admins only
-    inviteToLibrary(email) {
-        return this.post("/library/invite", {email});
+    inviteToTeam(email) {
+        return this.post("/team/invite", {email});
     }
 
-    // the library's devices and people, and a device revoked; admins only
-    libraryDevices() {
-        return this.get("/library/devices");
+    // the team's devices and people, and a device revoked; admins only
+    teamDevices() {
+        return this.get("/team/devices");
     }
 
-    revokeLibraryDevice(device) {
-        return this.post("/library/revoke", {device});
+    revokeTeamDevice(device) {
+        return this.post("/team/revoke", {device});
     }
 
-    libraryPeople() {
-        return this.get("/library/people");
+    teamPeople() {
+        return this.get("/team/people");
     }
 
-    // changes this person's own password on the library
-    changeLibraryPassword(old, fresh) {
-        return this.post("/library/password", {old, new: fresh});
+    // changes this person's own password on the team
+    changeTeamPassword(old, fresh) {
+        return this.post("/team/password", {old, new: fresh});
     }
 
     // the library's items, each with its newest version and the version this journal imported, by kind and words

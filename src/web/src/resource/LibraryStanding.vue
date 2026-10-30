@@ -16,7 +16,7 @@ const fields = ref({description: "", note: ""});
 const copy = computed(() => copies.value.find((c) => c.item_type === props.type && (c.place === props.place || c.name === props.place)));
 
 async function load() {
-    connected.value = Boolean((await api.library()).connected);
+    connected.value = Boolean((await api.team()).connected);
     copies.value = connected.value ? (await api.libraryCopies()).copies : [];
 }
 
