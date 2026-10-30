@@ -12,7 +12,7 @@ class Etiquette(Feature[EtiquetteData]):
     name = EtiquettePart.name
     title = "Chat etiquette"
     help = "Shop talk and the third person in the chat are named, and code is kept in plain words."
-    skill = Skill("etiquette", "How to behave in the chat with the user, and where the voice stops; load it first in every session, after the journal skill", """
+    skill = Skill("etiquette", "How to behave in the chat with the user, and where the voice stops; read at the start of every session, with the journal skill", """
 # Chat etiquette
 
 Everything you write for the user reaches the chat. These are the rules for it.

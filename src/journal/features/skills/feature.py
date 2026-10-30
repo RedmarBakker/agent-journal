@@ -37,7 +37,7 @@ class Skills(Feature[SkillsData]):
 
     nudges = (SkillsNudges.SKILL_VIEWER_REQUEST, SkillsNudges.SKILL_READ_REQUEST, SkillsNudges.UNREAD_SKILL_STOP)
 
-    skill = Skill("journal", 'The journal, its commands and when each applies; load it first in every session', """
+    skill = Skill("journal", 'The journal, its commands and when each applies; read at the start of every session, with the etiquette skill', """
 # The journal
 
 A line that starts with [journal] is the journal speaking, never the user: act on it as an instruction, and never

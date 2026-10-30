@@ -1596,7 +1596,7 @@ created: setting 8
 
 $ agent: journal skill list
 exit 0
-journal              The journal, its commands and when each applies; load it first in every session
+journal              The journal, its commands and when each applies; read at the start of every session, with the etiquette skill
 journal-memory       Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark
 journal-tasks        Declare, log and finish the current work; load it when you start or are asked to
 journal-messages     Read and answer the user's messages; load it when there are unread messages or before replying
@@ -1614,7 +1614,7 @@ journal-collections  Gather rows that belong together into a named collection; l
 journal-flowcharts   Draw a flowchart in the chat, and know when one fits; load it when the user asks for a flowchart or a diagram, or a process with branches is easier to see than to read
 journal-dumps        File what the user dropped in a dump: sort the material by subject into rows of their own; load it when a dump arrives
 journal-pinned-links Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.
-journal-etiquette    How to behave in the chat with the user, and where the voice stops; load it first in every session, after the journal skill
+journal-etiquette    How to behave in the chat with the user, and where the voice stops; read at the start of every session, with the journal skill
 journal-plugins      Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help
 
 $ agent: journal skill write --help
