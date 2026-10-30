@@ -14,7 +14,7 @@ const emit = defineEmits(["elaborated"]);
 const shown = computed(() => answered(props.question));
 const own = ref("");
 const elaborated = ref(false);
-const options = computed(() => (props.question.options || []).map((title) => ({title, description: "", code: ""})));
+const options = computed(() => (props.question.options || []).map((title) => ({title, description: title === props.question.recommended ? "The agent recommends this" : "", code: ""})));
 const settled = computed(() => shown.value.answer != null);
 const chosen = computed(() => options.value.findIndex((o) => o.title === shown.value.answer));
 const ownWords = computed(() => settled.value && chosen.value < 0 && !shown.value.closed);

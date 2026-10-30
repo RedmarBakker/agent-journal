@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from journal.engine.support.machine_reply import MachineReply
 from journal.engine.support.typist import CLEAR, DISABLE, ENABLE, PAUSE, RESUME
 from journal.events.agent.agent_event import AgentEvent
@@ -48,7 +50,8 @@ class Delivery:
     def with_remarks(self, event: AgentEvent, decision: Decision) -> Decision:
         if event.is_work or not event.is_remark_carrier() or event.defers_remarks():
             return decision
-        return self.with_lines(decision, self.supervisor.pending_remarks(event.environment_id))
+        remarks = self.supervisor.pending_remarks(event.environment_id)
+        return replace(self.with_lines(decision, remarks), remarked=True) if remarks else decision
 
     def line_backlog(self, event: AgentEvent) -> str:
         if event.is_remark_carrier():

@@ -165,7 +165,7 @@ class Entries(ScopedRepository[Entry]):
 
     def refusal_run_count(self, session: str, upper_id: int, count_cap: int) -> int:
         turn_entries = self.turn_query(session).filter_less("id", upper_id) if upper_id else self.turn_query(session)
-        unrefused = turn_entries.filter_alternatives(self.query().filter_unequal("entry_type", events.STOP), self.query().filter_null("data->refused"))
+        unrefused = turn_entries.filter_alternatives(self.query().filter_unequal("entry_type", events.STOP), self.query().filter_null("data->refused"), self.query().filter_json("data->remarked", True))
         run_start = self.selected_ids(unrefused.order_descending("id").limit(1))
         refused = turn_entries.filter(entry_type=events.STOP).filter_present("data->refused")
         return min(self.counted(refused.filter_greater("id", run_start[0]) if run_start else refused), count_cap)

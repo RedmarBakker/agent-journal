@@ -1,4 +1,4 @@
-import {GROUPS, groupOf, planned, questionAbout, refParts} from "./records.js";
+import {GROUPS, groupOf, questionAbout, refParts, unstartedPlan} from "./records.js";
 import {standingOf, wholePhases} from "./plans.js";
 import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
@@ -122,7 +122,7 @@ function byPlan(shown, all, rows, folded) {
         const mine = shown.filter((t) => t.plan_id === plan.id);
         if (!mine.length) continue;
         const key = `p${plan.id}`;
-        const note = planned(mine[0]) ? "Waiting for your approval" : standingOf(plan, all).title;
+        const note = unstartedPlan(plan) ? "Waiting for your approval" : standingOf(plan, all).title;
         lines.push(head(key, 0, plan.title, note, {number: `Plan ${plan.id}`}));
         if (!folded[key])
             lines.push(

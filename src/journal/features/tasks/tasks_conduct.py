@@ -47,7 +47,7 @@ class TasksConduct(Conduct):
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings), testing_suggestion(self, event, settings)])
+        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings), testing_suggestion(self, event, settings)])
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
         passed = [wait for wait in event.data.part(TasksPart).passed_waits if f"{Check.table()}:{wait.check_id}" == event.ref]
@@ -139,16 +139,6 @@ def output_poll_check(state: BaseState, event: ToolStarting) -> Transition:
         return state.none()
     polled_numbers = [line_match.group(1) for command in event.data.part(TasksPart).command_lines[-3:-1] if (line_match := POLLED_OUTPUT.match(command.strip()))]
     return state.refuse(TasksNudges.OUTPUT_POLL_REFUSAL.create(n=polled.group(1))) if polled_numbers == [polled.group(1)] * 2 else state.none()
-
-
-def impasse_check(state: BaseState, event: ToolStarting) -> Transition:
-    if not any(part.text.split()[:2] == ["journal", "stuck"] for part in event.call.parts):
-        return state.none()
-    tasks = event.data.part(TasksPart)
-    work_count = tasks.open_count + len(tasks.started_ids) + len(tasks.paused)
-    if not work_count:
-        return state.none()
-    return state.refuse(TasksNudges.IMPASSE_REFUSAL.create(count=work_count))
 
 
 def wake_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:

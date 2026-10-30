@@ -187,6 +187,7 @@ agent sequence run 2
 agent sequence follow
 agent sequence next
 agent sequence pause --why "the tag waits"
+agent sequence delegate --why "two planners write it"
 agent sequence follow
 agent sequence abandon --why "not today" --sure
 agent sequence dock 2

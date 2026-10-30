@@ -1228,7 +1228,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     working = PlansWorking(task_id=7, logged_at=1000.0)
     write = lambda state, time=1001.0: state.respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Edit", input={}, operation=Claude().operation("Edit", {}), writes=True), time=time).with_data(of()), settings)
     first = write(working)
-    assert first.target == PlansWorking(task_id=7, logged_at=1000.0, edits=1, active_at=1001.0) and first.nudges == ()
+    assert first.target == PlansWorking(task_id=7, logged_at=1000.0, edits=1, active_at=1001.0, untested_edits=True) and first.nudges == ()
     second = write(first.target)
     assert second.target.edits == 2 and second.nudges == ()
     third = write(second.target)
@@ -1240,7 +1240,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     read = fourth.target.respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=1002.0).with_data(of()), settings)
     assert read.target.edits == 4 and read.refusal is None and read.target.active_at == 1002.0
     logged = fourth.target.respond(TaskLogged(environment_id=1, time=1500.0, task_id=7).with_data(of()), settings)
-    assert logged.target == PlansWorking(task_id=7, logged_at=1500.0, edits=0, active_at=1001.0)
+    assert logged.target == PlansWorking(task_id=7, logged_at=1500.0, edits=0, active_at=1001.0, untested_edits=True)
     assert fourth.target.respond(TaskLogged(environment_id=1, time=1500.0, task_id=8).with_data(of()), settings).target == fourth.target
     stop = lambda state, time, approved=(), prior_refusal=False: state.respond(Stop(agent=EVENT_AGENT, prior_refusal=prior_refusal, time=time).with_data(of(approved=approved)), settings)
     assert stop(working, 1100.0).refusal.rendered().startswith("task 7 is in hand: carry on")

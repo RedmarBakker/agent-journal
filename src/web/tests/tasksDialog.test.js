@@ -218,7 +218,7 @@ describe("the tasks dialog's rules", () => {
         store.rows = {tasks: board(), plans: [plan], questions: []};
         const shown = shownTasks(board(), {statuses: [], display: {showDone: true}, words: ""});
         const lines = boardLines("status", {shown, all: board(), plans: [plan], folded: {sopen: true}});
-        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Completed", 3]);
+        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id)), "the plan's open task 1 waits under Planned, the loose task 4 under the folded Open").toEqual(["Blocked", 2, "Open", "Planned", 1, "Completed", 3]);
     });
 
     test("grouped by status, a task with a worker sits under its own state, in progress or open, never under a status of its own", () => {

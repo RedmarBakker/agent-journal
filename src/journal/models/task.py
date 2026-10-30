@@ -27,6 +27,8 @@ from journal.models.support.commentable import Commentable
 BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
 INLINE_POINTS = re.compile(r"\bpoints:\s*(.+)$", re.IGNORECASE | re.DOTALL)
 POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
+# how a task's close names a pause, the agent's own or one made by starting another task
+PAUSED_OUTCOME = "paused"
 # how the outcome of a request its recipient turned down begins: the task is cancelled, since a task has no declined state
 
 @dataclass(frozen=True)
@@ -124,7 +126,7 @@ class Task(Scoped, Commentable):
     def paused(self, reason: str, time: datetime) -> "Task":
         if not self.is_started():
             raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
-        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, "paused")
+        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, PAUSED_OUTCOME)
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, completed_at=self.completed_at or time, outcome=outcome), time, "cancelled")

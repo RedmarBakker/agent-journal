@@ -9,7 +9,7 @@ STOP = events.STOP
 
 
 class StopRefusalsReader:
-    """Counts the agent's stops refused in a row from its newest turn events: the stop being answered now is not counted, and a tool use, a message of the user's or a stop let through ends the run."""
+    """Counts the agent's stops refused in a row from its newest turn events: the stop being answered now is not counted, and a tool use, a message of the user's, a stop let through or a stop that carried remarks the agent had waiting ends the run, since the agent was given something new."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries

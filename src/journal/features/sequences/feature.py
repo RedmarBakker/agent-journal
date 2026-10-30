@@ -60,7 +60,9 @@ until its last step is done.
   wait, while reads, journal commands and a subagent's dispatch go through. A command the step names, in backticks, also takes it up when you run it.
 - `journal sequence next` when the step is done: you are given the next one, or that the sequence ended and what
   you were doing before it. A step never taken up cannot be moved on.
-- `journal sequence pause --why "<why>"` sets the run aside, its holds quiet; `journal sequence follow` resumes it.
+- `journal sequence pause --why "<why>"` sets the run aside, its holds quiet; `journal sequence follow` resumes it. A run about
+  a row you write yourself, such as Building a plan, is not paused: write it, or hand its writing to subagents with
+  `journal sequence delegate --why "<who writes it>"`, which lets your edits through while they write it.
 - A sequence about a row ends only when the row is where it promises: Building a plan's last step waits for a ready
   plan. A row cancelled or deleted, or the sequence deleted, ends the run and you are informed.
 - `journal sequence abandon --why "<why>"` names the steps it would leave undone; again with `--sure` it gives the run

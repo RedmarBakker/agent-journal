@@ -14,6 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
+import {isScrollbarPress, wheelsInside} from "../domain/readerHand.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
@@ -152,7 +153,8 @@ const sizeWatch = new ResizeObserver(([entry]) => (short.value = entry.contentRe
 // the docks and the status line take their own room under the pane, so the pane changes height as they open, fold or leave: a reader
 // following the foot stays at it, and the bubbles move up or down with the docks
 const paneWatch = new ResizeObserver(() => scroller.value && !away.value && (scroller.value.scrollTop = scroller.value.scrollHeight));
-const AT_BOTTOM = 0;
+// how near the foot counts as at it, past the fraction of a pixel a zoomed or fractional layout leaves under the last row
+const AT_BOTTOM = 2;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
@@ -265,7 +267,7 @@ let added = null;
 const opening = useOpenInPlace(scroller, FAR, readingUp);
 
 function pressed(event) {
-    scrolledByHand();
+    if (isScrollbarPress(event, scroller.value)) scrolledByHand();
     opening.press(event);
 }
 
@@ -277,7 +279,6 @@ function pagedByKey(event) {
 }
 
 function keyed(event) {
-    scrolledByHand();
     opening.keyed(event);
 }
 
@@ -337,6 +338,7 @@ function scrolledByHand() {
 }
 
 function wheeled(e) {
+    if (wheelsInside(e, scroller.value)) return;
     scrolledByHand();
     const s = scroller.value;
     if (e.deltaY < 0 && s && s.scrollHeight > s.clientHeight + AT_BOTTOM) {
@@ -423,7 +425,7 @@ function watchScroll() {
         return;
     }
     if (far && isReaderMove()) readingUp();
-    else if (!far && (!away.value || isByHand())) atTheFoot();
+    else if (!far) atTheFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
 }
