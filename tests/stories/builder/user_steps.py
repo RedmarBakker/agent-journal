@@ -191,6 +191,9 @@ class UserSteps:
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})
 
+    def user_starts_plan(self, plan: int) -> None:
+        self.user_posted(f"/journal/plans/{plan}/start", {})
+
     def user_pauses_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/pause", {})
 
