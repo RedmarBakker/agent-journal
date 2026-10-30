@@ -106,8 +106,8 @@ Every shell command you run goes through the journal's runner.
   refuses it naming what it missed, such as the counts of a passing or a failing run, or a --progress that matches no line;
   fix what it names and add it again. A reader the journal made on its own reads the run at once and the user sees a card
   for it: keep it, or write your own over it. The journal ships readers for pytest, dotnet test and phpunit
-  or pest in .journal/readers as examples. Waiting on a command, `journal await "<what>" --output N --reader <name>`
-  watches it too, so the user sees it progress while you wait.
+  or pest in .journal/readers as examples. A wait on a command given `--reader <name>`
+  (the tasks skill) watches it too, so the user sees it progress while you wait.
 - A test run, a build or any other command's output is shown in full up to 400 characters; past that you see only a
   line naming the output to read by its number, with its lines, its characters and the part of the line it belongs to. A command that reads (cat, grep, sed, git diff) is shown up to 8,000
   characters, past that by its two ends. A line of journal commands is shown in full and stored as no output.

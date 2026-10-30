@@ -66,10 +66,8 @@ lists the verbs.
   the setting briefing.look_commands names, each under its heading, a line not starting with journal in the project's shell: by default the started plan with its current phase,
   the task list, the unread messages, the workers, the open questions and the current task in full. `journal plan show
   current` and `journal task show current` show the started plan and the current task.
-- `journal await "<what>" --output <n>` or `--until "<script>"` when you wait for something outside your control, then end
-  your turn: the wait ends by itself once that is done.
+- Waiting for something outside your control, or stuck: the tasks skill says how.
 - `journal search "<words>"` finds every task, plan, message, document, report and agent conversation here that contains
   all the words: search there before saying you do not know or asking the user again.
 - Also: **report**, **doc**, **check**, **plugin**, **secret**, **template**, **notice**; `journal <noun> --help` lists the verbs.
-- `journal stuck "<why>"` when you are stuck: the journal sends nothing until your next tool use.
 """)

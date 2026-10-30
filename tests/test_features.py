@@ -3143,6 +3143,14 @@ def test_every_line_a_feature_declares_is_registered_with_it(app: App):
     assert unregistered == [], f"a line the registry cannot find is taken for one whose answer stays out of the chat: {unregistered}"
 
 
+def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skill_names_it(app: App):
+    from journal.features.registry import Registry
+    skills = app.container.get(Registry).skills()
+    for command in ("journal await", "journal stuck"):
+        teaching = [skill.name for skill in skills if command in skill.body]
+        assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
+
+
 def test_an_outputs_tail_and_a_polled_transcript_are_read_only_as_far_as_needed(tmp_path):
     from journal.features.shell.support.output_files import OutputFiles
     from journal.http.transcripts.transcript_turns import TranscriptTurns

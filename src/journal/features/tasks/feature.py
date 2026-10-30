@@ -91,8 +91,8 @@ needs no task; file one for work that is an item of its own, that waits, or that
   single quotes, so your shell keeps a `$(...)` in it to run each time instead of expanding it once. Unblocking a task or a
   plan, by hand or by its wait, releases its waits and retires the check its block made.
 - Waiting for something outside your control: `journal await "<what you wait for>" --output <n>` for a command running in the
-  background (add `--reader <name>` to watch it as it runs while you wait), or `--until "<script>"`, run every 30 seconds, for anything else. The wait ends by itself once that is done,
-  and you are informed of the result; working again ends it too. A wait that names neither, or a wait on the user, is
+  background (add `--reader <name>` to watch it as it runs while you wait), or `--until "<script>"`, run every 30 seconds, for anything else; then end
+  your turn. The wait ends by itself once that is done, and you are informed of the result; working again ends it too. A wait that names neither, or a wait on the user, is
   refused: ask with `journal question ask`, or end your turn.
 - Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the current work is named
   again so drift is visible, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
@@ -107,5 +107,6 @@ needs no task; file one for work that is an item of its own, that waits, or that
   every paused one is started at once, and with no open task the first paused one is. With auto mode off the journal starts
   no task for you.
 - Work you put off in words is work lost: file it as a task instead.
-- Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
+- Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`, and the journal sends nothing
+  until your next tool use.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'), commands=('task',))
