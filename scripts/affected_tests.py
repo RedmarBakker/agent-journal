@@ -27,8 +27,15 @@ def checkout() -> Path:
 def affected(changed: list[str], covered: dict[str, list[str]], seconds: dict[str, float]) -> list[str]:
     test_files = [path for path in changed if TEST_FILE.match(path)]
     sources = set(changed) - set(test_files)
-    running = sorted((node for node, files in covered.items() if sources.intersection(files) and node.split("::")[0] not in test_files), key=lambda node: seconds.get(node, 0.0))
+    running = sorted((node for node, files in covered.items() if sources.intersection(files) and node.split("::")[0] not in test_files and is_present(node)), key=lambda node: seconds.get(node, 0.0))
     return [*test_files, *running][:MOST_TESTS]
+
+
+def is_present(node: str) -> bool:
+    """Whether a test the coverage map names is still in its file, since the map is only as new as the last suite run that wrote it."""
+    path, _, name = node.partition("::")
+    file = Path(path)
+    return file.is_file() and f"def {name.split('[')[0]}(" in file.read_text()
 
 
 if __name__ == "__main__":
