@@ -29,6 +29,10 @@ from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.option import Option
+from journal.support.plugin_tokens import PluginTokens
+from journal.features.plugins.support.manifest_reader import MANIFEST
+from journal.features.plugins.support.plugin_folders import PluginFolders
+from journal.repositories.plugins import Plugins
 from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
 from journal.features.shell.support.shell_runner import EXIT
 from journal.engine.clock import Clock
@@ -355,8 +359,24 @@ class AgentSteps:
         return {row["id"]: row["state"] for row in get_answer(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
 
     def plugin_runs(self, plugin: str, line: str) -> None:
+        self.plugin_runs_with_token(plugin, self.app.container.get(PluginTokens).build(plugin), line)
+
+    def plugin_runs_with_token(self, plugin: str, token: str, line: str) -> None:
         arguments = shlex.split(line)
-        self.record_command(f"the plugin runs {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.plugin("main", plugin)))
+        status, answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "plugin": plugin, "token": token}, MAIN)
+        outcome = Outcome(answer["code"], answer["text"], answer.get("error", "")) if status < 300 else Outcome(status, "", answer.get("error", ""))
+        self.record_command(f"the plugin runs {' '.join(arguments[:2])}", outcome)
+
+    def plugin_folder_copied(self, source: Path) -> Path:
+        copy = self.app.config.root / "plugin-sources" / source.name
+        shutil.copytree(source, copy, ignore=shutil.ignore_patterns("__pycache__"))
+        self.observed(f"the user has a copy of plugin {source.name} in a folder of their own", None, None)
+        return copy
+
+    def plugin_manifest_written(self, plugin: str, text: str) -> None:
+        installed = self.app.container.get(Plugins).lookup(plugin)
+        (self.app.container.get(PluginFolders).folder(installed) / MANIFEST).write_text(text)
+        self.observed(f"the manifest of plugin {plugin} is written over", None, None)
 
     def plugin_number(self, plugin: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/plugins", {"X-Journal-Env": "main"})[1]["rows"] if row["name"] == plugin)
