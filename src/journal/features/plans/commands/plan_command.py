@@ -7,6 +7,9 @@ from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.organization.support.contracts import PLAN
 from journal.features.plans.support.plan_branch_merge import PlanBranchMerge
 from journal.features.plans.support.plan_owners import PlanOwners
+from journal.features.plans.support.plan_composition_readiness import PlanCompositionReadiness
+from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.estimates.support.estimates_forecast import EstimatesForecast
 from journal.features.organization.support.organization import Organization
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
@@ -50,7 +53,7 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies, composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast) -> None:
         self.time_source, self.logs = time_source, logs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
@@ -59,6 +62,7 @@ class PlanCommand(Command):
         self.branch_merge = branch_merge
         self.task_sizes = task_sizes
         self.task_dependencies = task_dependencies
+        self.composition, self.estimates_forecast = composition, estimates_forecast
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -233,12 +237,14 @@ class PlanCommand(Command):
         empty = [i for i, phase in enumerate(phases, 1) if not self.plans.phase_tasks(phase)]
         if empty:
             raise Rejection(f"phase {', '.join(str(i) for i in empty)} of plan {plan.id} has no task yet: journal plan todos {plan.id} <phase> <tasks>")
+        self.composition.validate(plan)
         output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.is_reviewing() and caller.session is not None else 0
         if output:
             raise Rejection(f"plan {plan.id} is in review, {output} reviewers still out: wait, add what they found, then ready it")
         if plan.is_reviewing():
             self.close_round(plan, args.changed, caller)
-        plan = self.plans.save(plan.ready(self.time_source.seconds()), caller.actor)
+        forecast_basis = self.estimates_forecast.basis(self.estimates_forecast.forecast(plan)) if self.settings.option(EstimatesOptions.MODE) in ("report", "enforce") else ""
+        plan = self.plans.save(plan.ready(self.time_source.seconds(), forecast_basis), caller.actor)
         print(f"plan {plan.id} ready: the user approves it on the plan page")
         return 0
 

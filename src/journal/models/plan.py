@@ -62,8 +62,8 @@ class Plan(Scoped, Commentable):
     def waiting_reason(self) -> str:
         return self.block_reason
 
-    def ready(self, time: float) -> "Plan":
-        return self.moved(PlanState.READY).with_event(PlanReadied(environment_id=self.environment_id, time=time, plan_id=self.row_id))
+    def ready(self, time: float, forecast_basis: str = "") -> "Plan":
+        return self.moved(PlanState.READY).with_event(PlanReadied(environment_id=self.environment_id, time=time, plan_id=self.row_id, forecast_basis=forecast_basis))
 
     def reviewing(self, time: float) -> "Plan":
         return self.moved(PlanState.REVIEWING).with_(reviewers=0).with_event(PlanReviewStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id))

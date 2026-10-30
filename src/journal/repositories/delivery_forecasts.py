@@ -43,8 +43,22 @@ class DeliveryForecasts:
         return rows
 
     def plan(self, plan_id: int, actor: Actor) -> dict:
+        plan, source, forecast = self.plan_projection(plan_id, actor)
+        return self.snapshots.capture(plan, source, forecast, actor)
+
+    def estimate_plan(self, plan_id: int, actor: Actor) -> dict:
+        return self.plan_projection(plan_id, actor)[2]
+
+    def plan_projection(self, plan_id: int, actor: Actor) -> tuple[Plan, dict, dict]:
         history = self.history.read(plan_id, actor)
         plan = self.history.plans.find(plan_id)
+        source, forecast = self.plan_forecast(plan, history, actor)
+        return plan, source, forecast
+
+    def estimate_from_history(self, plan: Plan, history: dict, actor: Actor) -> dict:
+        return self.plan_forecast(plan, history, actor)[1]
+
+    def plan_forecast(self, plan: Plan, history: dict, actor: Actor) -> tuple[dict, dict]:
         sprint = self.plan_sprint(plan)
         if sprint:
             _sprint, source, shared = self.sprint_read(sprint.row_id, actor)
@@ -55,7 +69,7 @@ class DeliveryForecasts:
             forecast = {**forecast, **self.capacity_freshness(forecast, source)}
         forecast = {**forecast, **self.delivery_summary(history),
                     "sprint": self.sprints.summary(sprint) if sprint else None}
-        return self.snapshots.capture(plan, source, forecast, actor)
+        return source, forecast
 
     def sprint_read(self, sprint_id: int, actor: Actor) -> tuple[Sprint, dict, dict]:
         report = self.metrics.read(sprint_id, actor)

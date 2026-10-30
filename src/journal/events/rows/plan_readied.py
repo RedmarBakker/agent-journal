@@ -10,3 +10,4 @@ class PlanReadied(RowEvent):
     feature_name = "plans"
 
     plan_id: int
+    forecast_basis: str = ""

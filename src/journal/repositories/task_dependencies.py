@@ -9,6 +9,7 @@ from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.task_sizes import TaskSizes
 from journal.repositories.tasks import DEPENDENCY_LINK, DELIVERY_GATE_LINK, Tasks
+from journal.support.missing_row import MissingRow
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
@@ -73,6 +74,50 @@ class TaskDependencies:
         edges = [{"task_id": link.source.id, "prerequisite_id": link.target.id}
                  for link in links if link.source.id in task_ids and link.target.type == Task.table()]
         return {"plan_id": plan.row_id, "edges": edges}
+
+    def validate_plan(self, plan: Plan) -> None:
+        tasks = self.plans.plan_tasks(plan)
+        prerequisites = {task.row_id: self.prerequisites(task) for task in tasks}
+        for task in tasks:
+            if prerequisites[task.row_id] and not self.has_declaration_reason(task, prerequisites[task.row_id]):
+                raise Rejection(f"task {task.row_id} has an invalid prerequisite declaration: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+        visited: set[int] = set()
+        visiting: set[int] = set()
+        for task in tasks:
+            self.visit(task.row_id, visited, visiting)
+
+    def prerequisites(self, task: Task) -> list[int]:
+        refs = self.links.targets(task, DEPENDENCY_LINK)
+        if any(ref.type != Task.table() for ref in refs):
+            raise Rejection(f"task {task.row_id} has an invalid prerequisite reference: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+        task_ids = [ref.id for ref in refs]
+        if task.row_id in task_ids or len(set(task_ids)) != len(task_ids):
+            raise Rejection(f"task {task.row_id} has an invalid prerequisite declaration: remove the self-reference or duplicate with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+        try:
+            for task_id in task_ids:
+                self.tasks.find(task_id)
+        except MissingRow as error:
+            raise Rejection(f"task {task.row_id} names a missing prerequisite: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`") from error
+        return task_ids
+
+    def has_declaration_reason(self, task: Task, prerequisite_ids: list[int]) -> bool:
+        declaration = f"planned prerequisites: {', '.join(map(str, prerequisite_ids))}"
+        return any((log.line.startswith(declaration + ": ")
+                    or log.line.startswith(declaration + " and delivery gate for task "))
+                   and log.line.rpartition(": ")[2].strip()
+                   for log in self.logs.logs(task))
+
+    def visit(self, task_id: int, visited: set[int], visiting: set[int]) -> None:
+        if task_id in visiting:
+            raise Rejection(f"planned prerequisites contain a cycle at task {task_id}: revise the dependency with `journal task depends {task_id} --on <task> --reason \"why the order is valid\"`")
+        if task_id in visited:
+            return
+        visiting.add(task_id)
+        task = self.tasks.find(task_id)
+        for prerequisite_id in self.prerequisites(task):
+            self.visit(prerequisite_id, visited, visiting)
+        visiting.remove(task_id)
+        visited.add(task_id)
 
     def require_delivery_evidence(self, gate: Task) -> None:
         refs = self.links.typed_targets(gate, DELIVERY_GATE_LINK, Task.table())
