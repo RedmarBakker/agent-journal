@@ -256,7 +256,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
     with restored_scope.environment(PROJECT):
         restored_entries = restored.container.get(Entries)
         copied = restored_entries.supervisor_records(OBSERVATION_ENTRY, last=10, grant_id=grant["grant_id"], grant_version=grant["grant_version"])
-        grant_row = restored_entries.supervisor_records("SupervisorGrant", last=1, grant_id=grant["grant_id"])[0]
+        grant_row = restored_entries.selected_globally(restored_entries.query().filter(entry_type="SupervisorGrant").filter_json("data->grant_id", grant["grant_id"]).order_descending("id").limit(1))[0]
     assert [row.data["observation"]["facts"]["output_excerpt"] for row in reversed(copied)] == list(outputs), "trimmed evidence remains distinguishable in a restored journal backup"
     restored_authority = restored.container.get(SupervisorAuthority)
     monkeypatch.setattr(restored_authority.agents, "is_running", lambda _: True)
