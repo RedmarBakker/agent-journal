@@ -8,9 +8,15 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from tests.lab.business_type import BusinessType
 from tests.lab.organization_builder import OrganizationBuilder
+from tests.test_features import booted
 from tests.user_settings import USER_CALLER, user_set
 
 BUSINESS_TYPES = Path(__file__).parent / "business_types"
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 def test_software_company_generates_and_loads_with_the_journal_contract_reader(app, tmp_path):
