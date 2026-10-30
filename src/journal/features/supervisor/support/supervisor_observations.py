@@ -367,7 +367,7 @@ class SupervisorObservations:
             entry_type="SupervisorRun",
             actor=EVIDENCE_ACTOR,
             data={
-                "tenant_id": tenant_id,
+                "tenant_id": principal.scope["tenant_id"],
                 "project_id": scope["project_id"],
                 "environment_id": scope["environment_id"],
                 "manager_id": scope["manager_id"],
