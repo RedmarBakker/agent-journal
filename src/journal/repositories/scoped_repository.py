@@ -30,12 +30,6 @@ class ScopedRepository(Repository[S]):
             raise MissingRow(self.table, id)
         return rows[0]
 
-    def find_globally(self, id: int) -> S:
-        rows = self.selected_globally(self.query().filter(id=id))
-        if not rows:
-            raise MissingRow(self.table, id)
-        return rows[0]
-
     def global_matching(self, **fields) -> list[S]:
         return self.selected_globally(self.query().filter(**fields).order("id"))
 

@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from shutil import copytree
 from types import SimpleNamespace
-from traceback import extract_tb
 from urllib.request import Request, urlopen
 
 import pytest
@@ -12,7 +11,7 @@ from journal.app import App
 from journal.config import Config
 from journal.db.connection import Connection
 from journal.events.rows.check_completed import CheckCompleted
-from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance, diagnostic_task_values
+from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.http.server import Server
 from journal.models.support.ref import Ref
@@ -1032,49 +1031,14 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "rationale": "The current failed check needs a bounded diagnostic task.",
             }
             applied = scripted_call(TOOL_NAMES[1], action, "apply_maintenance")
-            assert not maintenance_errors, maintenance_errors
-            assert applied["result"]["isError"] is False, {
-                "applied": applied,
-                "usage_settlement": state.snapshot()["usage_settlement"],
-                "last_error": state.snapshot()["last_error"],
-                "service_errors": service_errors,
-                "maintenance_errors": maintenance_errors,
-            }
+            assert applied["result"]["isError"] is False, applied
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
-            assert applied_receipt["verification"] == "verified", {
-                "status": applied_receipt["status"],
-                "reason": applied_receipt["reason"],
-                "receipt": applied_receipt,
-            }
+            assert applied_receipt["verification"] == "verified"
             canonical_receipt = applied_receipt
             assert canonical_receipt["verification"] == "verified"
             return HookAcknowledgement("scripted-model-run")
 
         bridge = SupervisorBridge(service, state, proof, SimpleNamespace(send=scripted_hook))
-        service_errors = []
-        call_service = bridge.call_service
-
-        def tracked_service_call(call, *arguments):
-            try:
-                return call_service(call, *arguments)
-            except Exception as error:
-                service_errors.append(f"{type(error).__name__}: {error}")
-                raise
-
-        bridge.call_service = tracked_service_call
-        maintenance_errors = []
-        maintenance = app.container.get(SupervisorMaintenance)
-        apply_maintenance = maintenance.apply_maintenance
-
-        def tracked_maintenance_apply(principal, request):
-            try:
-                return apply_maintenance(principal, request)
-            except Exception as error:
-                frames = [(frame.name, frame.filename.rsplit("/", 1)[-1], frame.lineno) for frame in extract_tb(error.__traceback__)]
-                maintenance_errors.append((type(error).__name__, str(error), frames))
-                raise
-
-        maintenance.apply_maintenance = tracked_maintenance_apply
         result = bridge.reconcile("timer")
         app.runtime().deferred.drain()
         status, answer = posted(app, "/hooks/codex", {
