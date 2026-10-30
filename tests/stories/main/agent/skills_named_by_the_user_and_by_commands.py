@@ -15,7 +15,9 @@ EVERYDAY_PROMPT = "send the footer to review, decide on the design options and c
 
 
 @story(SkillsFeature, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_prompt_that_names_a_skills_word_holds_the_writes_until_that_skill_is_read(story):
+def test_a_prompt_holds_the_writes_for_a_skill_it_names_by_its_subject_never_by_everyday_words(story):
+    result = story.agent_is_prompted(story.agents.subject, EVERYDAY_PROMPT)
+    result.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     result = story.agent_is_prompted(story.agents.subject, f"please {PINS_KEYWORD} the design for me")
     result.expect_agent_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     result = story.agent_writes(story.agents.subject, "footer.py")
@@ -66,15 +68,6 @@ def test_a_skills_word_of_two_words_in_a_prompt_is_matched_as_a_phrase(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     story.agent_reads_a_skill(story.agents.subject, FlowchartsFeature.skill.folder)
-    result = story.agent_writes(story.agents.subject, "footer.py")
-    result.expect_allowed()
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(SkillsFeature, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_prompt_of_everyday_words_that_name_no_subject_makes_no_skill_due(story):
-    result = story.agent_is_prompted(story.agents.subject, EVERYDAY_PROMPT)
-    result.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
