@@ -5,6 +5,7 @@ from journal.features.git.support.branch_holders import BranchHolders
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.team.support.start_rule import StartRule
+from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.launcher.launch import Launch
 from journal.launcher.menu import Menu
 from journal.launcher.support.foreign_hooks import ForeignHooks
@@ -106,4 +107,4 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
     story.expect_project_file_is(".plan-agent-start-check", f"{environment}|{environment}|.claude/worktrees/{environment}|worktree-{environment}")
     story.expect_project_file_is(".plan-agent-launch-status", "0")
     story.expect_project_file(".plan-agent-launch-arguments", "--worktree", environment)
-    story.expect_stack(story.agents.subject, CoordinatingPlans)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, OrchestratingPlan)
