@@ -122,10 +122,11 @@ test("the separate plan board keeps paging plans and scheduled next starts", asy
 });
 
 test("Chat mounts the main chat page in its own route", async () => {
-    mount("chat");
+    const {default: AppPages} = await import("../src/AppPages.vue");
+    mount(AppPages, {page: "chat"});
     await nextTick();
 
-    expect(host.querySelector("[data-existing-home]")).not.toBeNull();
+    expect(host.querySelector(".home")).not.toBeNull();
     expect(host.querySelector("[data-home-plan-board]")).toBeNull();
     expect(api.organization).not.toHaveBeenCalled();
 });
