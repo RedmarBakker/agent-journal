@@ -86,8 +86,12 @@ class StatesCatalogue:
     def is_mode_floor(self, state: BaseState) -> bool:
         return any(type(state) in modes.states.values() for modes in self.modes)
 
-    def floor(self, stack: Stack, settings: Settings) -> Stack:
-        return Stack((stack.bottom().floored(self.mode_state(settings)), *stack.states[1:]))
+    def floor(self, stack: Stack, settings: Settings, role: AgentRole) -> Stack:
+        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack)
+
+    @staticmethod
+    def helper_floor(stack: Stack) -> Stack:
+        return Stack((stack.bottom().floored(Void), *stack.states[1:]))
 
     def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
         state = self.mode_state(settings)

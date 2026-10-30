@@ -107,7 +107,7 @@ class StateMachine:
     def stack_reply(self, agent: Agent, event: AgentEvent | RowEvent) -> MachineReply:
         settings = self.top_state()
         stored_stack = self.states.stack(agent)
-        stack = self.states.floor(stored_stack, settings)
+        stack = self.states.floor(stored_stack, settings, agent.role)
         mode_change = self.mode_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
         if isinstance(event, ToolStarting):

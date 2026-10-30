@@ -1634,15 +1634,14 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
             return {}
 
     catalogue = StatesCatalogue(ModeRegistry())
-    assert isinstance(catalogue.floor(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
+    assert isinstance(catalogue.floor(Stack((PlansReady(),)), settings("orchestrator"), AgentRole.MAIN).states[0], Orchestrating), "the work mode's state is the main agent's floor"
     from journal.engine.states.void import Void
-    from journal.support.agent_role import AgentRole
     from journal.features.workers.states.working_task import WorkingTask
-    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator")).states for layers in ((Void(), WorkingTask(task_id=4)), (Void(),))]
+    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator"), AgentRole.WORKER).states for layers in ((Void(), WorkingTask(task_id=4)), (Void(),))]
     assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Void, WorkingTask], [Void]], "a helper's stack rests on Void, never on the main agent's mode, and keeps its work above it"
     planned = Orchestrating().respond(SessionStarted(agent=EVENT_AGENT, time=1.0).with_data(of(started)), settings("orchestrator"))
     assert isinstance(planned.pushed, OrchestratingPlan) and planned.pushed.plan_id == 2, "a started plan is pushed over the mode state as the orchestrator's plan state"
-    assert type(catalogue.floor(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
+    assert type(catalogue.floor(Stack((Orchestrating(),)), settings("builder"), AgentRole.MAIN).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
     stop = Orchestrating().respond(Stop(agent=EVENT_AGENT).with_data(of(None)), settings("orchestrator"))
     assert stop.refusal is not None and "next: 3, 4" in stop.refusal.rendered() and "dispatch a worker on each you can" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch, in its assigner's turn"
     from dataclasses import replace as replaced
@@ -1660,7 +1659,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     assert isinstance(Orchestrating().respond(TaskStarted(environment_id=1, time=2.0, task_id=7, title="x", plan_id=0).with_data(of(None)), settings("orchestrator")).pushed, Delegating), "a task started in the orchestrator's mode is delegating, not working"
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(agent=EVENT_AGENT, time=2.0).with_data(of(None)), settings("orchestrator"))
     assert delegating.refusal is not None and "give it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
-    assert isinstance(catalogue.floor(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
+    assert isinstance(catalogue.floor(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo"), AgentRole.MAIN).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
     assert Soloing().respond(ToolStarting(agent=EVENT_AGENT, call=shell("journal worker dispatch 'Mr. Smith' 'the job' --profile journal-medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
     assert Soloing().respond(ToolStarting(agent=EVENT_AGENT, call=shell("ls")).with_data(of(None)), settings("solo")).refusal is None
 
