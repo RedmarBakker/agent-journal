@@ -18,7 +18,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.caller import Caller
 
-FINISHED = ("completed", "cancelled")
+FINISHED = ("completed", "cancelled", "testing")
 
 
 class DefaultTaskAssigner:

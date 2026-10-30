@@ -1,3 +1,4 @@
+from journal.repositories.plans import PHASE_END_TESTS_TITLE
 from journal.models.template import TESTING, Template
 
 CRITIQUE = "critique"
@@ -69,7 +70,7 @@ PLAN_ZERO_TESTS = Template(
     brief="Run no tests while you follow this plan; write the tests that prove each task and leave them for the user to run.",
 )
 PLAN_PHASE_TESTS = Template(
-    title="Tests at each phase end",
+    title=PHASE_END_TESTS_TITLE,
     targets=("plan",),
     purpose=TESTING,
     brief="Write the tests each task needs, and run the tests only at the end of each phase.",

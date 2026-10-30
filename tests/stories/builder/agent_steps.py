@@ -412,14 +412,20 @@ class AgentSteps:
         return output.row_id
 
     def recorded_run_ends(self, output: int) -> StepResult:
+        return self.recorded_run_ends_with(output, 0)
+
+    def recorded_run_fails(self, output: int) -> StepResult:
+        return self.recorded_run_ends_with(output, 1)
+
+    def recorded_run_ends_with(self, output: int, status: int) -> StepResult:
         with self.app.container.get(Scope).environment(1):
             outputs = self.app.container.get(CommandOutputs)
             run = outputs.find(output)
             files = OutputFiles(Path(run.folder))
-            files.ended_with(0, 0)
-            files.finish(0)
-            outputs.save(run.ended_with(0, self.app.container.get(TimeSource).seconds()), Actor.system())
-        return self.observed("the background run ends", None, None)
+            files.ended_with(0, status)
+            files.finish(status)
+            outputs.save(run.ended_with(status, self.app.container.get(TimeSource).seconds()), Actor.system())
+        return self.observed(f"the background run ends {'passing' if status == 0 else 'failing'}", None, None)
 
     def is_output_ended(self, output: int) -> bool:
         with self.app.container.get(Scope).environment(1):

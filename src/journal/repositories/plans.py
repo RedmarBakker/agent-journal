@@ -16,8 +16,13 @@ from journal.repositories.phases import PHASE_TASK_LINK, Phases
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PLAN_LINK, WAIT_LINK, WORKERS, Tasks
+from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.models.phase_states import PhaseStates
+
+TESTING_LINK = "testing"
+# the title of the testing template that runs a plan's tests only at the end of each phase
+PHASE_END_TESTS_TITLE = "Tests at each phase end"
 from journal.models.support.ref import Ref
 from journal.support.time_source import TimeSource
 
@@ -32,9 +37,9 @@ class Plans(ScopedRepository[Plan]):
 
     model = Plan
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, tasks: Tasks, phases: Phases, workers: Workers, time_source: TimeSource) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, tasks: Tasks, phases: Phases, workers: Workers, templates: Templates, time_source: TimeSource) -> None:
         super().__init__(connection, bus, scope, time_source)
-        self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
+        self.links, self.tasks, self.phases, self.workers, self.templates = links, tasks, phases, workers, templates
 
     def user_approved(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
         return self.approval(plan, actor, lambda time: plan.user_approved(time, comment_id))
@@ -198,6 +203,10 @@ class Plans(ScopedRepository[Plan]):
     def loose_tasks(self, plan: Plan) -> list[Task]:
         phased = {task.id for phase in self.plan_phases(plan) for task in self.phase_tasks(phase)}
         return [task for task in self.plan_tasks(plan) if task.id not in phased]
+
+    def has_phase_end_tests(self, task: Task) -> bool:
+        templates = [ref.id for plan in self.working_plans(task) for ref in self.links.targets(plan, TESTING_LINK)]
+        return bool(templates) and self.templates.has_titled(templates, PHASE_END_TESTS_TITLE)
 
     def working_plans(self, task: Task) -> list[Plan]:
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED)]
