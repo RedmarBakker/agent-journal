@@ -25,7 +25,7 @@ class PlansNudges:
     PLAN_RETURN_QUESTION = Nudge("plans", "return_to_the_paused_plan", "plan {{n}} paused, task {{task}} in hand: back to the plan after it?", "`journal plan return {{n}} yes` or `no`", repeat=Timeout.seconds(0))
     PLAN_REOPENED = Nudge("plans", "plan_reopened", "plan {{n}} is open again: {{why|cap=53}}", "continue with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     UNAPPROVED_PLAN = Nudge("plans", "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat=Timeout.seconds(0))
-    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan", repeat=Timeout.seconds(0))
+    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan", "then `journal plan ready {{n}} --changed \"<what this round changed>\"`", repeat=Timeout.seconds(0), longest_characters=200, longest_reason="it lists the unread reports and the command that ends the review")
 
     @staticmethod
     def unread(reports: tuple[int, ...]) -> str:

@@ -199,6 +199,7 @@ describe("the tasks dialog's rules", () => {
             "Unblock",
         ]);
         expect(nextAct(task(5, "e", {state: "paused"})).label).toBe("Resume");
+        expect(nextAct(task(6, "f", {state: "testing"})).label, "a task waiting in testing offers to finish it, and draws without an error").toBe("Finish");
     });
 
     test("a plan wait names the plan in the task row", () => {

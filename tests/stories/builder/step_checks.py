@@ -15,6 +15,11 @@ class StepChecks:
         refusal = (self.verdict.body.get("error", "") if self.verdict else "") or (self.command.error if self.command else "")
         assert PROJECT_REFUSAL_PREFIX in refusal, f"not refused as another project's: {self.verdict or self.command}"
 
+    def expect_agent_told_words(self, agent: StoryAgent, nudge: Nudge, part: str) -> None:
+        session = self.story.session_of(agent)
+        lines = [nudge.create(**line.values).rendered() for line in self.said if line.key == nudge.key and line.session == session]
+        assert any(part in line for line in lines), f"{session} not told {part!r} in {nudge.key}: {lines}"
+
     def expect_command_lines_holding(self, part: str, count: int) -> None:
         holding = [line for line in self.command.text.splitlines() if part in line] if self.command else []
         assert len(holding) == count, f"{len(holding)} lines of the command hold {part!r}, not {count}: {holding}"

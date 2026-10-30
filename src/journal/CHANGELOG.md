@@ -2,6 +2,13 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.4
+
+- When every reviewer of a plan is back, the agent is told to put their findings in and then mark the plan ready with what the round changed; the plan no longer sits in review because nothing named that step.
+- "Ask for a critique" is a button of its own on the plan card again, beside Approve; the Approve menu keeps only the ways to approve.
+- A task waiting in testing no longer breaks the task list: it offers Finish.
+- A plan paused because another plan was started is never asked about returning to, so two paused plans no longer ask in turn without end.
+
 ## 4.68.3
 
 - The journal's hooks for Claude Code are written into this machine's own settings, .claude/settings.local.json, which the setup keeps out of git, and taken out of the shared .claude/settings.json. A settings file one machine committed named its own paths, so on every other machine the hooks did nothing and the journal never heard the agent: it could not wake a stopped agent with a message.

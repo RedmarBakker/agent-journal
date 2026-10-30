@@ -39,6 +39,7 @@ const act = (name, label) => ({name, label});
 const NEXT = {
     done: () => act("reopen", "Reopen"),
     started: (t) => (t.delegated ? null : act("finish", "Finish")),
+    testing: (t) => (t.delegated ? null : act("finish", "Finish")),
     paused: () => act("start", "Resume"),
     asked: (t) => act("answer", `Answer question ${questionAbout(t).id}`),
     blocked: (t) => {
