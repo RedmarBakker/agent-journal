@@ -200,12 +200,13 @@ def test_busy_driver_keeps_task_then_takes_eligible_diagnostic(app: App, normal_
     assert receipt["status"] == "applied" and first_holder == Ref.build(agent), "work notification leaves the current task in hand"
     assert diagnostic.state == TaskState.OPEN and diagnostic_holder is None, "a busy driver does not take another task early"
 
-    with context["scope"].environment(fixture.driver_environment.row_id):
+    with context["scope"].environment(fixture.owner_environment.row_id):
         current = context["maintenance"].tasks.find(first.row_id)
         context["maintenance"].tasks.save(current.completed(context["time_source"].moment(), "current work completed"), Actor.agent(agent.session))
 
-    with context["scope"].environment(fixture.driver_environment.row_id):
+    with context["scope"].environment(fixture.owner_environment.row_id):
         diagnostic = app.container.get(Tasks).find(diagnostic.row_id)
+    with context["scope"].environment(fixture.driver_environment.row_id):
         diagnostic_holder = app.container.get(Tasks).task_holder(diagnostic.row_id)
     agent = app.container.get(Agents).unended_agent(fixture.agent.row_id)
     assert diagnostic.state == TaskState.STARTED and diagnostic_holder == Ref.build(agent), "the ordinary task-close route takes the diagnostic at the next legitimate free moment"
@@ -230,7 +231,7 @@ def test_checkpoint_waits_for_owner_even_when_tasks_auto_is_on(app: App, normal_
     with scope.environment(fixture.driver_environment.row_id):
         assert tasks.task_holder(first.row_id) == Ref.build(agent), "the normal driver starts the current phase through its hook"
 
-    with scope.environment(fixture.driver_environment.row_id):
+    with scope.environment(fixture.owner_environment.row_id):
         current = tasks.find(first.row_id)
         tasks.save(current.completed(app.container.get(TimeSource).moment(), "checkpoint phase completed"), Actor.agent(agent.session))
 

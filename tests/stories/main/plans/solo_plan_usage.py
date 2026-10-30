@@ -3,6 +3,7 @@ import json
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.models.plan_state import PlanState
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.support.agent_role import AgentRole
@@ -30,8 +31,11 @@ def test_a_solo_plan_records_its_plan_agent_session_cost(story):
     story.user_pauses_plan(plan)
     story.user_starts_plan(plan)
     recorded_cost(story, session, 0.37)
-    story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.first} --how done")
-    story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
+    result = story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.first} --how done")
+    result.expect_command_passed()
+    result = story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
+    result.expect_command_passed()
+    story.expect_plan(plan, state=PlanState.FINISHED)
     result = story.user_opens(f"/journal/plans/{plan}/team")
     result.expect_viewer_passed()
     result.expect_viewer_shows("estimated_api_cost_usd", 0.37)

@@ -76,6 +76,8 @@ def test_a_forecast_cannot_approve_start_or_dispose_of_a_plan(story):
     started = story.user_presses(f"/journal/plans/{story.plans.first}/start", {})
     started.expect_viewer_refused("approved")
     story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    story.expect_task(story.tasks.first, state="open")
+    story.expect_task(story.tasks.second, state="open")
     story.expect_stack(story.agents.subject, Ready)
 
 

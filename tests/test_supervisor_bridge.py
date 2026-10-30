@@ -1046,7 +1046,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
         }, {"X-Journal-Env": fixture.driver_environment.name})
         assert status < 400, answer
         app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(fixture.driver_environment.row_id):
+        with app.container.get(Scope).environment(fixture.owner_environment.row_id):
             current_work = app.container.get(Tasks).find(current_work.row_id)
         assert current_work.state == TaskState.STARTED
 
