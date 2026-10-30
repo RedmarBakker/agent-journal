@@ -24,6 +24,9 @@ class PhaseStates:
     def open_count(self) -> int:
         return sum(count for state, count in self.state_counts.items() if not state.is_closed())
 
+    def has_active_work(self) -> bool:
+        return any(self.state_counts.get(state, 0) for state in (TaskState.STARTED, TaskState.TESTING))
+
     def has_work_completed(self) -> bool:
         return bool(self.state_counts.get(TaskState.COMPLETED, 0))
 
