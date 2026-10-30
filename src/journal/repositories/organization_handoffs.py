@@ -43,6 +43,14 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                 result.append((row, self.plans.find(plan_refs[0].id), self.tasks.find(task_refs[0].id)))
         return tuple(result)
 
+    def domain_handoff_exists(self, task: Task, plan: Plan, domain: str) -> bool:
+        target = f"domain:{domain}"
+        task_ref, plan_ref = Ref.build(task), Ref.build(plan)
+        rows = self.selected_globally(self.query().filter(target=target))
+        return any(task_ref in self.links.targets(row, TASK_HANDOFF) and
+                   plan_ref in self.links.targets(row, PLAN_HANDOFF)
+                   for row in rows)
+
     def in_plan(self, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], plan: Plan) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
         return tuple(row for row in rows if row[1].row_id == plan.row_id)
 

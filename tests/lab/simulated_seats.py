@@ -58,6 +58,9 @@ class SimulatedSeats:
             return self.result(arguments, "{}")
         return self.result(arguments, "", 2, f"unsupported simulated OpenRig call: {' '.join(arguments)}")
 
+    def execute(self, command: list[str], **kwargs) -> subprocess.CompletedProcess:
+        return self.run(*command[1:], check=False)
+
     def remember_spec(self, rig: str, path: Path) -> None:
         self.specs[rig] = json.loads(path.read_text())
 

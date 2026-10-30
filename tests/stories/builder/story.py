@@ -37,6 +37,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
         self.main_session_id = MAIN_SESSION
+        self.session_environments = {MAIN_SESSION: "main"}
         self.agent = Caller.agent("main", MAIN_SESSION, program.name)
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
@@ -94,8 +95,9 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
     def main_session(self) -> str:
         return self.main_session_id
 
-    def replace_main_session(self, session: str, provider: str) -> None:
+    def replace_main_session(self, session: str, provider: str, environment: str = "main") -> None:
         self.main_session_id, self.agent = session, Caller.agent("main", session, provider)
+        self.session_environments[session] = environment
 
     def headers_of(self, agent: StoryAgent) -> dict:
         return {AgentRole.MAIN: dict, AgentRole.WORKER: lambda: {"X-Journal-Actor": f"worker:{agent.number}"}, AgentRole.SUBAGENT: dict, AgentRole.REVIEWER: lambda: self.checker_headers(f"reviewer:{agent.number}"), AgentRole.VERIFIER: lambda: self.checker_headers(f"verifier:{agent.number}")}[agent.role]()

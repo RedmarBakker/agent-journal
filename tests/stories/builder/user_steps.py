@@ -144,8 +144,11 @@ class UserSteps:
     def user_creates_plan(self, title: str, brief: str) -> int:
         return self.user_posted("/journal/plans", {"title": title, "brief": brief})["id"]
 
-    def user_adds_plan_task(self, plan: int, title: str) -> int:
-        return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title, "brief": f"- {title} is done"})["id"]
+    def user_adds_plan_task(self, plan: int, title: str, domain: str = "") -> int:
+        body = {"title": title, "brief": f"- {title} is done"}
+        if domain:
+            body["domain"] = domain
+        return self.user_posted(f"/journal/plans/{plan}/tasks", body)["id"]
 
     def user_sets_plan_testing(self, plan: int, title: str) -> StepResult:
         return self.user_did(f"/journal/plans/{plan}/testing", {"title": title}, f"user sets the plan testing to {title}")

@@ -5,6 +5,7 @@ from journal.models.task import Task
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
@@ -14,9 +15,9 @@ class OrganizationHub:
     """Routes tasks from one generated organization seat to a permitted seat through the journal inbox."""
 
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
-                 tasks: Tasks, domains: DomainRows, plans: Plans) -> None:
+                 tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
-        self.tasks, self.domains, self.plans = tasks, domains, plans
+        self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -24,8 +25,16 @@ class OrganizationHub:
         refusal = self.routes.refusal_for(source, target)
         if refusal:
             raise Rejection(refusal)
+        if member.rig.startswith("plan-"):
+            plan = self.plan_for_rig(member.rig)
+            with self.scope.environment(plan.environment_id):
+                self.handoff_task(task_id, target, source, member, caller)
+            return
+        self.handoff_task(task_id, target, source, member, caller)
+
+    def handoff_task(self, task_id: int, target: str, source: str, member: SeatMember, caller: Caller) -> None:
         task = self.tasks.find(task_id)
-        plan = self.validate_task(source, task, caller.organization_rig)
+        plan = self.validate_task(source, task, member.rig)
         if domain := self.domain(target):
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
@@ -34,9 +43,14 @@ class OrganizationHub:
     def inbox(self, caller: Caller) -> None:
         seat = caller.organization_seat
         member = self.seat(caller)
-        rows = self.handoffs.pending(seat)
         if member.rig.startswith("plan-"):
-            rows = self.handoffs.in_plan(rows, self.plan_for_rig(member.rig))
+            plan = self.plan_for_rig(member.rig)
+            with self.scope.environment(plan.environment_id):
+                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan))
+            return
+        self.print_inbox(seat, self.handoffs.pending(seat))
+
+    def print_inbox(self, seat: str, rows: tuple[tuple[object, Plan, Task], ...]) -> None:
         if not rows:
             print(f"no tasks handed to {seat}")
         for handoff, plan, task in rows:
@@ -78,7 +92,10 @@ class OrganizationHub:
         prefix = "plan-"
         if not rig.startswith(prefix) or not rig.removeprefix(prefix).isdigit():
             raise Rejection(f"organization Plan seat is not in a plan rig: {rig}")
-        return self.plans.find(int(rig.removeprefix(prefix)))
+        matches = self.plans.global_matching(id=int(rig.removeprefix(prefix)))
+        if not matches:
+            raise Rejection(f"organization Plan seat has no plan {rig.removeprefix(prefix)}")
+        return matches[0]
 
     @staticmethod
     def domain(identity: str) -> str:

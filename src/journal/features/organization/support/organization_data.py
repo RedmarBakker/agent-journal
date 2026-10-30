@@ -6,11 +6,12 @@ from journal.features.organization.support.role_approvals import RoleApprovals
 
 @dataclass(frozen=True)
 class OrganizationData:
-    """The organization feature's reading: the domains and Roles the folder holds now, and every version read before, so a job asks for the version it began on."""
+    """The domains and Roles in the organization folder, its prior versions, and any plan task waiting for its Domain handoff."""
 
     contracts: Contracts
     history: dict[str, Contracts] = field(default_factory=dict)
     approvals: RoleApprovals | None = None
+    waiting_plan_handoff: tuple[int, str] | None = None
 
     def contracts_at(self, version: str) -> Contracts:
         return self.history.get(version, self.contracts)

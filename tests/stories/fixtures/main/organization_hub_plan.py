@@ -15,11 +15,12 @@ class OrganizationHubPlan(WorkingAgent):
     """A draft plan with one task and an organization with two Domains and three plan Roles."""
 
     settings = ((OrganizationOptions.FOLDER, str(Path(__file__).resolve().with_name("organization_hub"))),)
+    task_domain = ""
 
     def steps(self, story) -> None:
         super().steps(story)
         self.plans.first = story.user_creates_plan("p", "b")
-        self.tasks.first = story.user_adds_plan_task(self.plans.first, "first")
+        self.tasks.first = story.user_adds_plan_task(self.plans.first, "first", self.task_domain)
         rig = f"plan-{story.plans.first}"
         contracts = story.app.container.get(Organization).reload()
         domains = tuple(domain.id for domain in contracts.domains)

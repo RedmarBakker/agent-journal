@@ -311,14 +311,17 @@ class StoryChecks:
         return self.session_stack(self.scoped_session())
 
     def session_stack(self, session: str) -> list[str]:
-        agents = [row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == session]
-        return [state["name"] for state in reversed(self.api_row("agents", max(agents))["stack"])] if agents else []
+        environment = self.session_environments.get(session, "main")
+        headers = {**MAIN, "X-Journal-Env": environment}
+        agents = [row for row in get_answer(self.app, "/journal/agents", headers)[1]["rows"] if row.get("session") == session]
+        agent = max(agents, key=lambda row: row["id"]) if agents else None
+        return [state["name"] for state in reversed(self.api_row("agents", agent["id"], headers)["stack"])] if agent else []
 
     def newest(self, table: str) -> int:
         return max((row["id"] for row in get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]), default=0)
 
-    def api_row(self, table: str, n: int) -> dict:
-        rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]
+    def api_row(self, table: str, n: int, headers: dict = MAIN) -> dict:
+        rows = get_answer(self.app, f"/journal/{table}?ids={n}", headers)[1]["rows"]
         assert rows, f"no {table} row {n} through the API"
         return rows[0]
 

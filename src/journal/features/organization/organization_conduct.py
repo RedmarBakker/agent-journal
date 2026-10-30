@@ -1,7 +1,12 @@
 from journal.engine.conduct import Conduct
+from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.role_taken import RoleTaken
+from journal.events.agent.session_started import SessionStarted
+from journal.events.agent.stop import Stop
+from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.organization_part import OrganizationPart
 from journal.features.organization.states.role_work import RoleWork
 
@@ -13,3 +18,19 @@ class OrganizationConduct(Conduct):
         contracts = event.data.part(OrganizationPart).contracts
         work = RoleWork(role=event.role, version=contracts.version, task_id=event.task_id)
         return self.push(work, *work.guidance(contracts))
+
+    def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
+        nudge = OrganizationConduct.waiting_handoff(event)
+        return self.none(nudge) if nudge else self.none()
+
+    def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        nudge = OrganizationConduct.waiting_handoff(event)
+        return self.refuse(nudge) if nudge else self.none()
+
+    @staticmethod
+    def waiting_handoff(event: AgentEvent) -> Nudge | None:
+        waiting = event.data.part(OrganizationPart).waiting_plan_handoff
+        if waiting is None:
+            return None
+        task, domain = waiting
+        return OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF.create(task=task, domain=domain)

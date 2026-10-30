@@ -9,6 +9,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
@@ -108,7 +109,7 @@ class PlanTaskAssigner:
     def advancement_block(self, plan: Plan) -> str:
         if not plan.is_started():
             return "plan_not_started"
-        if self.orchestrator.delegates_work():
+        if plan.mode == PlanMode.ORGANIZATION or self.orchestrator.delegates_work():
             return "work_delegated"
         with self.scope.environment(plan.environment_id):
             if self.checkpoint_blocks(plan):
