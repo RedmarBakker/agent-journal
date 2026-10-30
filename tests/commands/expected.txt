@@ -1596,7 +1596,7 @@ created: setting 8
 
 $ agent: journal skill list
 exit 0
-journal              The journal, its commands and when each applies; read at the start of every session, with the etiquette skill
+journal              The map of the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill
 journal-memory       Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark
 journal-tasks        Declare, log and finish the current work; load it when you start or are asked to
 journal-messages     Read and answer the user's messages and ask the user questions; load it when there are unread messages, before replying or before offering the user choices

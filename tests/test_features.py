@@ -3151,6 +3151,19 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
+def test_the_journal_skill_is_a_short_map_naming_every_skill_and_listing_no_commands(app: App):
+    import re
+    from journal.features.registry import Registry
+    skills = app.container.get(Registry).skills()
+    journal = next(skill for skill in skills if skill.name == "journal")
+    table = "\n".join(line for line in journal.body.splitlines() if line.startswith("| "))
+    unnamed = [skill.name for skill in skills if skill.name != "journal" and not re.search(rf"(?<![\w-]){re.escape(skill.name)}(?![\w-])", table)]
+    commands = set(re.findall(r"`journal (\S+)", journal.body))
+    assert unnamed == [], f"the map's table names no row for {unnamed}"
+    assert commands <= {"<noun>", "environment", "search"}, f"the map lists commands: {commands}"
+    assert len(journal.body.strip().splitlines()) <= 35 and journal.body.count("[journal]") == 1, "the map is about 30 lines and says the line rule once"
+
+
 def test_the_work_modes_skill_holds_the_mode_and_fitness_paragraphs_and_the_workers_skill_stays_short(app: App):
     from journal.features.registry import Registry
     registry = app.container.get(Registry)
@@ -3159,7 +3172,7 @@ def test_the_work_modes_skill_holds_the_mode_and_fitness_paragraphs_and_the_work
     assert "The work mode is the bottom state" not in workers.body and "Your fitness is worked out" not in workers.body, "the workers skill no longer holds them"
     assert set(modes.keywords) == {"orchestrator", "builder", "solo", "fitness"} and set(modes.required_states) == {"orchestrating", "soloing"}
     assert len(workers.body.strip().splitlines()) < 70, f"the workers skill is {len(workers.body.strip().splitlines())} lines"
-    assert "the workers skill" in journal.body and "work-modes skill" in journal.body, "the journal map names both"
+    assert "workers, work-modes" in journal.body, "the journal map names both"
 
 
 def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_button_is_in_the_same_words(app: App):
