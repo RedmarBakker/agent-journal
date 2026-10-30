@@ -586,7 +586,7 @@
         "do not use this project's absolute path; your shell is already in the project",
         "do that step and log it on the dump",
         "does not apply to the whole project, delete it and record a fact or a reminder instead",
-        "done; review, then merge: `journal plan merge",
+        "done; clean work auto-merges",
         "edits since you logged",
         "eligible plan work is available; the journal will assign it when you are free",
         "end a turn that replied by command with the reply",
