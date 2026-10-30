@@ -34,7 +34,7 @@ from journal.support.caller import Caller
 from journal.support.time_source import TimeSource
 from journal.support.rejection import Rejection
 from journal.supervisor_link import SupervisorLink
-from journal.supervisor_authority import SupervisorAuthority
+from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
 from journal.features.plans.support.plan_agents import PlanAgents
 from tests.in_process import posted
 from tests.test_features import booted
@@ -200,7 +200,7 @@ def test_busy_driver_keeps_task_then_takes_eligible_diagnostic(app: App, normal_
 
 def test_checkpoint_waits_for_owner_even_when_tasks_auto_is_on(app: App, normal_driver: Fixture):
     fixture = normal_driver
-    user_set(app, TasksOptions.AUTO.key, True)
+    user_set(app, TasksOptions.AUTO.key, False)
     first = add_phase_task(app, fixture, "checkpoint work", "Finish before the owner checkpoint")
     scope = app.container.get(Scope)
     phases, links, tasks = app.container.get(Phases), app.container.get(Links), app.container.get(Tasks)
@@ -221,14 +221,30 @@ def test_checkpoint_waits_for_owner_even_when_tasks_auto_is_on(app: App, normal_
         current = tasks.find(first.row_id)
         tasks.save(current.completed(app.container.get(TimeSource).moment(), "checkpoint phase completed"), Actor.agent(agent.session))
 
+    user_set(app, TasksOptions.AUTO.key, True)
+    agent = app.container.get(Agents).unended_agent(fixture.agent.row_id)
+    event = PlanWorkAvailable(
+        environment_id=fixture.driver_environment.row_id,
+        time=app.container.get(TimeSource).seconds(),
+        row_id=next_task.row_id,
+        actor=Actor.plugin(SUPERVISOR_ACTOR).stamp,
+        target_agent_id=agent.row_id,
+        plan_id=fixture.plan.row_id,
+        phase_id=next_phase.row_id,
+        task_id=next_task.row_id,
+        receipt_id=1,
+    )
+    with scope.environment(fixture.driver_environment.row_id):
+        app.container.get(Announcer).announce(event)
+
     with scope.environment(fixture.owner_environment.row_id):
         first, next_task = tasks.find(first.row_id), tasks.find(next_task.row_id)
         current_plan = plans.find(fixture.plan.row_id)
     agent = app.container.get(Agents).unended_agent(fixture.agent.row_id)
     with scope.environment(fixture.driver_environment.row_id):
         next_holder = tasks.task_holder(next_task.row_id)
-    assert first.state == TaskState.COMPLETED and next_task.state == TaskState.OPEN and next_holder is None, "auto mode does not cross the owner checkpoint"
-    assert agent.stack[-1]["data"].get("checkpoint_pause") is True and current_plan.is_started(), "the plan remains at its owner checkpoint without starting later work"
+    assert first.state == TaskState.COMPLETED and next_task.state == TaskState.OPEN and next_holder is None, "a supervisor work signal does not start later-phase work across the owner checkpoint"
+    assert agent.stack[-1]["data"].get("checkpoint_pause") is True and current_plan.is_started(), "the plan remains at its owner checkpoint after auto mode is enabled"
 
 
 @pytest.mark.parametrize("gate", ("future_phase", "owner_pause", "checkpoint", "failed_phase_tests"))

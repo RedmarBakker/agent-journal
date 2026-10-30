@@ -22,7 +22,7 @@ FOLLOWING_PLAN = "following_plan"
 
 
 class PlanTaskAssigner:
-    """The task assigner a followed plan names: when the agent finishes a task of a started plan, stops with none in progress, or receives a trusted work signal, it starts the plan's next task in its order, a paused one first; blocked tasks, owner checkpoints, unpassed phase tests, orchestrator mode and work already in hand hold it. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
+    """The task assigner a followed plan names: ordinary task completion may pass an owner checkpoint in auto mode, while supervisor work signals stop there; blocked tasks, unpassed phase tests, orchestrator mode and work already in hand hold both paths."""
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource) -> None:
         self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source
@@ -42,6 +42,8 @@ class PlanTaskAssigner:
         if plan is None or plan.row_id != event.plan_id or not self.is_current_phase(plan, event.phase_id):
             return Assignment()
         if not self.eligible_signal_task(plan, event):
+            return Assignment()
+        if self.supervisor_checkpoint_blocks(plan):
             return Assignment()
         return self.next_plan_task(agent, event, quantity)
 
@@ -115,6 +117,9 @@ class PlanTaskAssigner:
 
     def checkpoint_blocks(self, plan: Plan) -> bool:
         return self.plans.checkpoint_plans(plan) is not None and not self.passes_checkpoints()
+
+    def supervisor_checkpoint_blocks(self, plan: Plan) -> bool:
+        return self.plans.checkpoint_plans(plan) is not None
 
     def following_task(self, plan: Plan) -> Task | None:
         if self.checkpoint_blocks(plan):
