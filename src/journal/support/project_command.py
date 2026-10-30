@@ -3,7 +3,11 @@ from pathlib import Path
 
 TEXT = """#!/bin/sh
 # This project's journal command: nothing is installed outside the project. The supervisor puts this folder on the agent's PATH.
-JOURNAL_ROOT={root} exec sh {shim} "$@"
+if [ -z "$JOURNAL_ROOT" ]; then
+    JOURNAL_ROOT={root}
+fi
+export JOURNAL_ROOT
+exec sh {shim} "$@"
 """
 
 

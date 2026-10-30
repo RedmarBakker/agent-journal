@@ -275,6 +275,36 @@ def test_generated_member_bash_environment_prefers_its_project_journal_command(a
     assert resolved.stdout.strip() == "project-journal:task show 117", "the member's noninteractive shell runs the generated project command over a global journal"
 
 
+def test_generated_seat_keeps_its_plan_journal_root_through_the_project_command(app, tmp_path, monkeypatch):
+    from journal.providers.support.helper_setup import HelperSetup
+    from journal.support.project_command import ProjectCommand
+
+    use_provider(app, monkeypatch, "claude")
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    main_root = tmp_path / "main checkout"
+    plan_root = tmp_path / "isolated plan"
+    shim = tmp_path / "journal shim.sh"
+    shim.write_text('#!/bin/sh\nprintf "%s\\n" "$JOURNAL_ROOT"\n')
+    command = ProjectCommand(main_root, shim).write()
+    monkeypatch.setattr(writer, "command", lambda: command)
+    monkeypatch.setattr(writer, "setup", HelperSetup(Config(plan_root, port=0), writer.providers))
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "plan-1")
+
+    spec_path = writer.write("plan-1", contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(spec_path.read_text())
+    planner = next(member for pod in spec["pods"] for member in pod["members"] if member["id"] == "planner")
+    environment = planner["env"]
+    seat_environment = {name: environment[name] for name in ("JOURNAL_ROOT", "PATH", "BASH_ENV")}
+
+    resolved = subprocess.run(["/bin/bash", "-c", "journal task show 117"], cwd=tmp_path, env=seat_environment,
+                              capture_output=True, text=True, check=True)
+
+    assert environment["JOURNAL_ENV"] == "plan-1"
+    assert environment["JOURNAL_ROOT"] == str(plan_root) and environment["JOURNAL_ROOT"] != str(main_root)
+    assert resolved.stdout.strip() == str(plan_root), "the generated seat's project command keeps its isolated plan journal root"
+
+
 def test_journal_organization_audit_finds_a_planted_cross_pod_queue_transition(app, tmp_path, monkeypatch):
     from journal.support.caller import Caller
 
