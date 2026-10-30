@@ -860,7 +860,8 @@
         "your journal was down for",
         "your load stayed at",
         "your memories, heaviest first",
-        "your sleep loop is a wait now"
+        "your sleep loop is a wait now",
+        "your turn ended and nothing has arrived since; the stop check, run again, answers"
     ],
     "event_and_hook_names": [
         "CommandEnded",
