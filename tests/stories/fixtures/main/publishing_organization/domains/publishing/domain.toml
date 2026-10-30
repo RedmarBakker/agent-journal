@@ -1,0 +1,14 @@
+id = "publishing"
+title = "Publishing"
+icon = "book"
+description = "Publishing work and its accepted output."
+outcome = "A released edition is available to its readers."
+responsible = ["publish accepted editions"]
+not_responsible = ["change another domain's criteria"]
+roles = []
+skills = []
+
+[definition_of_done]
+version = "publishing-v1"
+criterion = "The accepted edition is available to its readers."
+evidence = "owner-attestation"
