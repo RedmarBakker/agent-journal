@@ -18,7 +18,6 @@ import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
-import RequestsPage from "./pages/RequestsPage.vue";
 import Home from "./pages/Home.vue";
 import HomeDashboard from "./pages/HomeDashboard.vue";
 import HomePlanBoard from "./pages/HomePlanBoard.vue";
