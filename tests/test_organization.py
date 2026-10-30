@@ -2134,7 +2134,7 @@ def test_an_organization_plan_team_serves_its_rig_seats_states_costs_and_caps(ap
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     from journal.support.time_source import TimeSource
-    from tests.in_process import got
+    from tests.in_process import get_answer
 
     _fixture, organization = loaded(app, tmp_path)
     organization.reload()
@@ -2173,7 +2173,7 @@ def test_an_organization_plan_team_serves_its_rig_seats_states_costs_and_caps(ap
         seat = f"alpha-builder-{builder.id}@{rig.name}"
         app.container.get(UsageLedger).observe(plan.id, seat, "native-session", 3.25, now)
 
-    status, answer = got(app, f"/journal/plans/{plan.id}/team", {"X-Journal-Env": "main"})
+    status, answer = get_answer(app, f"/journal/plans/{plan.id}/team", {"X-Journal-Env": "main"})
     assert status == 200
     domains = {domain["id"]: {seat["role_id"]: seat for seat in domain["seats"]} for domain in answer["domains"]}
     builder_seat = domains["alpha"]["builder"]
