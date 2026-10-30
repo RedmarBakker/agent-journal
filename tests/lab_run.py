@@ -228,6 +228,22 @@ def lab_run_record(request):
     )
 
 
+def regression_run_record(request):
+    now = datetime.now(timezone.utc)
+    reason = "deterministic regression fixture"
+    reading = RunReading.missing(reason, request.metric_schema_version).with_measurement(
+        "goal_reached",
+        measurement(request.source_commit == "f" * 40),
+    )
+    return RunRecord(
+        request.run_id, request.attempt, request.scenario.name, request.scenario.version,
+        request.scenario.business_type, request.design.digest, request.design.settings_digest,
+        request.seed, request.source_commit, request.organization_commit, request.provider,
+        request.model, True, request.metric_schema_version, now, now, "completed",
+        measurement(1.0), reading, NetworkReading.missing(reason, request.metric_schema_version),
+    )
+
+
 def test_batch_runner_writes_five_hundred_records_once_and_names_missing_metrics(tmp_path, monkeypatch):
     batch = lab_batch(seeds=tuple(range(500)))
     lab_home = tmp_path / "journal-lab"
@@ -291,7 +307,7 @@ def test_lab_home_inside_a_checkout_is_refused_before_writing(tmp_path):
 def test_the_lab_cli_lists_future_verbs_but_refuses_unimplemented_real_actions(capsys):
     from tests.lab.__main__ import VERBS, main
 
-    assert VERBS == ("organizations", "simulate", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
+    assert VERBS == ("organizations", "simulate", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
     assert main(["run-real"]) == 2
     assert "no real run or other action was started" in capsys.readouterr().err
 
@@ -322,6 +338,68 @@ def test_simulate_command_reads_a_pinned_recipe_and_uses_its_runner(tmp_path, ca
 
     assert result == 0
     assert Path(capsys.readouterr().out.strip()).is_file()
+
+
+def test_scheduled_regression_runs_against_its_baseline_and_writes_an_exploratory_drift_report(tmp_path, capsys):
+    from tests.lab.__main__ import main
+
+    home = tmp_path / "lab-home"
+    baseline = lab_batch(batch_id="a" * 32)
+    BatchRunner(regression_run_record, home, Path(__file__).resolve().parents[1], workers=1).run(baseline)
+    current = replace(
+        baseline, batch_id="b" * 32, source_commit="f" * 40, organization_commit="e" * 40,
+        organization_version="organization-2", organization_checksum="f" * 64,
+    )
+    recipe = current.manifest(home)
+    for key in ("batch_id", "content_digest", "root_map", "runs"):
+        recipe.pop(key)
+    recipe_path = tmp_path / "regression-recipe.json"
+    recipe_path.write_text(json.dumps(recipe))
+
+    result = main([
+        "regression", "--recipe", str(recipe_path), "--baseline-batch", baseline.batch_id,
+        "--runner", "tests.lab_run:regression_run_record", "--lab-home", str(home), "--workers", "1",
+    ])
+
+    output = capsys.readouterr()
+    assert result == 0
+    report_path = Path(output.out.strip())
+    report = report_path.read_text()
+    assert report_path.name == "report.md"
+    assert report_path.parent.name != baseline.batch_id
+    assert stat.S_IMODE(report_path.stat().st_mode) == 0o600
+    assert f'"manifest_digest": "{json.loads((home / "batches" / baseline.batch_id / "manifest.json").read_text())["content_digest"]}"' in report
+    assert f'"source_commit": "{current.source_commit}"' in report
+    assert f'"organization_commit": "{current.organization_commit}"' in report
+    assert "drift_observed" in report
+    assert "inconclusive" in report
+    assert "exploratory" in report
+    assert "no automatic setting change or rollback" in report
+    assert '"cost_dollars"' in report
+    assert '"setup_failures"' in report
+
+
+def test_scheduled_regression_refuses_changed_seed_pins_before_running(tmp_path, capsys):
+    from tests.lab.__main__ import main
+
+    home = tmp_path / "lab-home"
+    baseline = lab_batch(batch_id="a" * 32)
+    BatchRunner(regression_run_record, home, Path(__file__).resolve().parents[1], workers=1).run(baseline)
+    current = replace(baseline, batch_id="b" * 32, source_commit="f" * 40, seeds=(12,))
+    recipe = current.manifest(home)
+    for key in ("batch_id", "content_digest", "root_map", "runs"):
+        recipe.pop(key)
+    recipe_path = tmp_path / "changed-regression-recipe.json"
+    recipe_path.write_text(json.dumps(recipe))
+
+    result = main([
+        "regression", "--recipe", str(recipe_path), "--baseline-batch", baseline.batch_id,
+        "--runner", "tests.lab_run:regression_run_record", "--lab-home", str(home), "--workers", "1",
+    ])
+
+    assert result == 2
+    assert "seeds" in capsys.readouterr().err
+    assert {path.name for path in (home / "batches").iterdir()} == {baseline.batch_id}
 
 
 def test_a_batch_deadline_before_start_records_aborted_work_and_no_setup_as_not_applicable(tmp_path, monkeypatch):

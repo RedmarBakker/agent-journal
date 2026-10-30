@@ -122,8 +122,12 @@ class Batch:
             "caps": asdict(self.caps),
             "approval_scope": [],
         }
-        digest = sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+        digest = self.content_digest(body)
         return {**body, "content_digest": digest}
+
+    @staticmethod
+    def content_digest(body: dict[str, object]) -> str:
+        return sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
     @staticmethod
     def canonical(manifest: dict[str, object]) -> str:
