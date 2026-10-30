@@ -180,4 +180,4 @@ export function unpeek() {
     opening(route.value.stack.slice(0, -1));
 }
 
-export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker", "organization", "role", "board"];
+export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "mcp", "file", "resources", "about", "team", "worker", "organization", "role", "board", "chat"];

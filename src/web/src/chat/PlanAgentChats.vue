@@ -49,7 +49,7 @@ function toggle(event) {
 function select(chat) {
     anchor.value = null;
     search.value = "";
-    if (chat.name !== route.value.env || route.value.page) goIn(chat.name);
+    if (chat.name !== route.value.env || route.value.page !== "chat") goIn(chat.name, "chat");
 }
 </script>
 

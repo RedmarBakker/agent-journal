@@ -46,7 +46,7 @@ export function useNavigation() {
     );
     const daily = (scope) => sidebar.value.filter((link) => link.scope === scope);
     const sections = computed(() => [
-        {key: "environment", label: "Environment", links: [pageLink(""), pageLink("board"), ...daily("environment")]},
+        {key: "environment", label: "Environment", links: [pageLink(""), pageLink("board"), pageLink("chat"), ...daily("environment")]},
         {
             key: "project",
             label: "Project",

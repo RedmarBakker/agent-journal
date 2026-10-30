@@ -56,6 +56,8 @@ test("the local Team page places each section in its column as drawn, the pool's
     expect(host.textContent).toContain("None of your workers runs on another machine.");
     expect(host.textContent).toContain("1 of 2 online");
     expect(host.textContent).toContain("ada-thinkpad");
+    expect(host.querySelector(".team-chat-row a").getAttribute("href")).toBe("#/chat");
+    expect(host.querySelector(".team-person-parts .team-mini a").getAttribute("href")).toBe("#/chat");
     expect([...host.querySelectorAll(".list-box-aside")].map((aside) => aside.textContent)).toEqual(["No workers offered", "Admin", "Admin"]);
     app.unmount();
     narrow.value = true;

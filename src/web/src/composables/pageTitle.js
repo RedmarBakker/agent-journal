@@ -17,6 +17,7 @@ const PAGES = {
     team: "Team",
     file: "File",
     resources: "Resources",
+    chat: "Chat",
 };
 
 export const pageTitle = computed(() =>

@@ -74,10 +74,11 @@ test("the chat dropdown searches open Plan agents, marks unread chats, links bac
     await nextTick();
     expect(environment.value).toBe("plan-4");
     expect(route.value.env).toBe("plan-4");
+    expect(route.value.page).toBe("chat");
     expect(remembered("journal.environment", "")).toBe("plan-4");
 });
 
-test("choosing the main chat returns from a plan page to its chat", async () => {
+test("choosing the main chat returns from a plan page to the Chat page", async () => {
     choose("main");
     location.hash = "#/plans/3";
     await new Promise((settle) => setTimeout(settle, 0));
@@ -90,5 +91,5 @@ test("choosing the main chat returns from a plan page to its chat", async () => 
     await nextTick();
 
     expect(route.value.env).toBe("main");
-    expect(route.value.page).toBe("");
+    expect(route.value.page).toBe("chat");
 });

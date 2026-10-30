@@ -50,7 +50,7 @@ onMounted(load);
                     <template v-else-if="!hosted && chat.claimable">
                         <Btn small :busy="busy" @click="act(() => api.claimTeamChat())">Claim</Btn>
                     </template>
-                    <Btn small :href="href.page()" @click="choose(TEAM_CHAT)">Open <Icon name="chevronRight" /></Btn>
+                    <Btn small :href="href.page('chat')" @click="choose(TEAM_CHAT)">Open <Icon name="chevronRight" /></Btn>
                 </div>
                 <template v-if="hosted">
                     <p class="team-fine">The Team chat is claimed or released from a member's own journal, not from here.</p>

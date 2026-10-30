@@ -83,7 +83,7 @@ async function reset(person) {
                                 </template>
                                 <template v-else>
                                     <span class="team-word" />
-                                    <Btn small kind="text" :href="href.page()" @click="choose(environment.name)">Open <Icon name="chevronRight" /></Btn>
+                                    <Btn small kind="text" :href="href.page('chat')" @click="choose(environment.name)">Open <Icon name="chevronRight" /></Btn>
                                 </template>
                             </div>
                         </template>

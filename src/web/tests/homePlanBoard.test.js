@@ -31,9 +31,9 @@ beforeEach(() => {
     vi.spyOn(api, "organization").mockResolvedValue({plans: [], scheduled_plans: [], domains: []});
 });
 
-function mount() {
+function mount(page = "home") {
     host = document.body.appendChild(document.createElement("div"));
-    app = createApp({render: () => h(AppPages, {page: "home"})});
+    app = createApp({render: () => h(AppPages, {page})});
     app.mount(host);
 }
 
@@ -42,16 +42,16 @@ async function until(done) {
     await nextTick();
 }
 
-test("with Plan agents off, Home keeps rendering its existing page", async () => {
+test("with Plan agents off, Home does not mount the main chat", async () => {
     mount();
     await nextTick();
 
-    expect(host.querySelector("[data-existing-home]")).not.toBeNull();
+    expect(host.querySelector("[data-existing-home]")).toBeNull();
     expect(host.querySelector("[data-home-plan-board]")).toBeNull();
     expect(api.organization).not.toHaveBeenCalled();
 });
 
-test("with Plan agents on, Home shows one paged board of every plan and scheduled next starts", async () => {
+test("with Plan agents on, Home keeps its plan dashboard without the main chat", async () => {
     const plans = Array.from({length: pageOf("plans") + 1}, (_, index) => ({
         id: index + 1,
         title: `Plan ${index + 1}`,
@@ -79,7 +79,7 @@ test("with Plan agents on, Home shows one paged board of every plan and schedule
 
     expect(api.organization).toHaveBeenCalledOnce();
     expect(host.querySelector("[data-home-plan-board] h1").textContent).toBe("Plans");
-    expect(host.querySelector("[data-existing-home]")).not.toBeNull();
+    expect(host.querySelector("[data-existing-home]")).toBeNull();
     expect(host.querySelectorAll("[data-domain]")).toHaveLength(0);
     expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(pageOf("plans"));
     expect(host.querySelector(".paged-cards-controls span").textContent).toContain(`1–${pageOf("plans")} of ${pageOf("plans") + 1} plans`);
@@ -92,6 +92,7 @@ test("with Plan agents on, Home shows one paged board of every plan and schedule
     expect(host.querySelector('[data-plan-id="1"]').textContent).toContain("1 of 2 done");
     expect(host.querySelector('[data-plan-id="1"]').textContent).toContain("Waits on: Role work");
     expect(host.querySelector('[data-plan-id="1"] a').textContent).toContain("Open its chat");
+    expect(host.querySelector('[data-plan-id="1"] a').getAttribute("href")).toContain("#/chat");
     expect(host.querySelector(".home-plan-board-scheduled").textContent).toContain("Starts on a schedule");
     expect(host.querySelector(".home-plan-board-scheduled").textContent).toContain("Nightly report");
     expect(host.querySelector(".home-plan-board-scheduled").textContent).toContain("Next start:");
@@ -126,4 +127,13 @@ test("with Plan agents on, Home shows one paged board of every plan and schedule
     await nextTick();
     expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(0);
     expect(host.querySelector(".home-plan-board-scheduled").textContent).toContain("Nightly report");
+});
+
+test("Chat mounts the main chat page in its own route", async () => {
+    mount("chat");
+    await nextTick();
+
+    expect(host.querySelector("[data-existing-home]")).not.toBeNull();
+    expect(host.querySelector("[data-home-plan-board]")).toBeNull();
+    expect(api.organization).not.toHaveBeenCalled();
 });

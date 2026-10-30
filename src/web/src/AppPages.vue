@@ -39,18 +39,13 @@ const open = (row) => peek(row.table, row.id);
 <template>
     <SwitchCase :value="page">
         <template #home>
-            <template v-if="planAgents">
-                <div class="home-plan-board-screen">
-                    <div class="home-plan-board-screen-board"><HomePlanBoard /></div>
-                    <div class="home-plan-board-screen-chat"><Home /></div>
-                </div>
-            </template>
+            <HomePlanBoard v-if="planAgents" />
             <template v-else-if="hosted">
                 <HubPage :environments="rows('environments')" :docs="rows('docs')" :plans="rows('plans')" :tasks="rows('tasks')" :messages="rows('messages')" @open="open" />
             </template>
-            <template v-else><Home /></template>
         </template>
         <template #board><HomePlanBoard /></template>
+        <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
@@ -80,24 +75,3 @@ const open = (row) => peek(row.table, row.id);
     </SwitchCase>
 </template>
 
-<style scoped>
-.home-plan-board-screen {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-}
-
-.home-plan-board-screen-board {
-    flex: 0 1 45%;
-    min-height: 180px;
-    overflow: auto;
-    border-bottom: 1px solid var(--line);
-}
-
-.home-plan-board-screen-chat {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow: hidden;
-}
-</style>

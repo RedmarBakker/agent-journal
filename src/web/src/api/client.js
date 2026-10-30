@@ -872,7 +872,7 @@ export class ApiClient {
         return this.post("/mcp/check", {}, LONG_WAIT_MS);
     }
 
-    page(env = "", page = "") {
+    page(env = "", page = "chat") {
         return `${this.base}/${env ? `?env=${encoded(env)}` : ""}${href.page(page)}`;
     }
 

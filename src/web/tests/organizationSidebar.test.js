@@ -109,7 +109,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     app.mount(host);
 
     const homeLinks = [...host.querySelector(".side .group").querySelectorAll("a.item")];
-    expect(homeLinks.slice(0, 2).map((link) => link.textContent.trim())).toEqual(["Home", "Board"]);
+    expect(homeLinks.slice(0, 3).map((link) => link.textContent.trim())).toEqual(["Home", "Board", "Chat"]);
 
     await until(() => host.querySelector('a[href="#/organization?domain=sales"]') && hasLoaded("domain_counts"));
     expect(api.organization).toHaveBeenCalledOnce();
@@ -131,6 +131,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     const domain = host.querySelector('a[href="#/organization?domain=sales"]');
     expect(domain.querySelector(".organization-domain-icon").textContent).toBe("📊");
     expect(domain.querySelector(".count").textContent).toBe("1");
+    expect([...host.querySelectorAll(".env-row > a.item:not(.hub-item)")].every((link) => link.getAttribute("href") === "#/chat")).toBe(true);
     expect(domain.querySelector(".count").title).toBe("1 active plans");
     expect(host.querySelector(".organization-role")).toBeNull();
 

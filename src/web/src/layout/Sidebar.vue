@@ -166,7 +166,7 @@ function point(e) {
                     </div>
                     <template v-for="e in t.sessions" :key="e.id">
                         <div class="env-row">
-                            <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
+                            <a :class="['item', {on: route.env === e.name}]" :href="href.page('chat')" @click="choose(e.name)">
                                 <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
                                 <span class="label">{{ environmentLabel(e, store.people) }}</span>
                             </a>
@@ -177,7 +177,7 @@ function point(e) {
             <FoldGroup class="group" label="Environments" :open="!folded.environments" @toggle="fold('environments')">
                 <template v-for="e in envs" :key="e.id">
                     <div class="env-row">
-                        <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
+                        <a :class="['item', {on: route.env === e.name}]" :href="href.page('chat')" @click="choose(e.name)">
                             <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
                             <span class="label">{{ environmentLabel(e, store.people) }}</span>
                             <template v-if="chatPlanLine(rows('plans'), e.name)">
