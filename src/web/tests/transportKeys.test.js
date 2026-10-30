@@ -34,3 +34,13 @@ test("reads of different keys go out side by side, and a read with no key is key
     transport.request("GET", "/journal/summary?a=2");
     expect(sent).toEqual(["/journal/messages?limit=25", "/journal/messages?limit=25&before=40", "/journal/summary?a=1"]);
 });
+
+test("two reads of a table's rows by different ids go out side by side, each answered with its own rows", async () => {
+    const {sent} = answering();
+    const {api} = await import("../src/api/client.js");
+    vi.spyOn(api, "env").mockReturnValue("main");
+    api.list("tasks", {ids: [4481, 4482]});
+    api.list("tasks", {ids: [4491, 4492]});
+    api.list("tasks", {ids: [4491, 4492]});
+    expect(sent.map((url) => url.split("/journal")[1])).toEqual(["/tasks?ids=4481%2C4482", "/tasks?ids=4491%2C4492"]);
+});

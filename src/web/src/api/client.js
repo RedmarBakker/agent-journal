@@ -13,9 +13,10 @@ function query(fields) {
 }
 
 // which part of a list a read asks for, which keys it apart from the other parts of the same list: its newest page, a page
-// before or after a row, its changes since a moment, rows by id, and each of those among its closed rows
+// before or after a row, its changes since a moment, the rows of these ids or of these tasks, and each of those among its closed
+// rows; two reads of different ids are two reads, so neither takes the other's answer
 const readKind = ({before, after, since, ids = [], tasks = [], closed = false, docked = false}) =>
-    [docked ? "docked" : "", closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
+    [docked ? "docked" : "", closed ? "closed" : "", tasks.length ? `tasks:${tasks.join(",")}` : ids.length ? `ids:${ids.join(",")}` : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
 
 const NO_ENV = "the page does not know its environment yet";
 
