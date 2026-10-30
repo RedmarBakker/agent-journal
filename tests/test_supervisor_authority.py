@@ -36,7 +36,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.links import Links
 from journal.repositories.phases import PHASE_TASK_LINK, Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
-from journal.repositories.scope import Scope
+from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.repositories.tasks import Tasks
