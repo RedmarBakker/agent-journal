@@ -412,7 +412,6 @@ class AgentSteps:
             folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
             folder.ended_with(len(folder.kinds()) - 1, status)
             self.app.container.get(ChainWorker).chain_ended(folder, status, self.seated_caller_of(agent))
-        self.app.runtime().deferred.drain()
         return self.observed(f"the background run ends {'failing' if status else 'passing'}", None, None)
 
     def seated_caller_of(self, agent: StoryAgent) -> Caller:
