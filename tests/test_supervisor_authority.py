@@ -448,10 +448,12 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
 
     server = app.container.call(Server)
     server.start()
+    caller_scope_headers = {"X-Journal-Env": fixture.owner_environment.name, "X-Journal-Tenant": "owner:untrusted"}
+    other_tenant = None
     try:
         status, admitted_body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
             "protocol_version": 1, "source": "timer", "observation_cursor": None,
-        }, token)
+        }, token, caller_scope_headers)
         assert status == 200 and admitted_body["status"] == "admitted", admitted_body
         run = admitted_body["run"]
         assert run["grant_id"] == grant["grant_id"] and run["grant_version"] == grant["grant_version"]
@@ -462,7 +464,7 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
             "installation_epoch": run["installation_epoch"],
             "fence": run["fence"],
             "cursor": None,
-        }, token)
+        }, token, caller_scope_headers)
         assert status == 200, observed_body
         snapshot = observed_body["snapshot"]
         evidence = observed_body["page"]["observations"][0]
@@ -495,18 +497,43 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
             "operations": [{"kind": "plan_priorities", "plan_id": grant["plan_id"], "text": "Investigate the failed check"}],
             "rationale": "Record a bounded diagnostic priority.",
         }
-        status, applied = _post_supervisor_http(server.port, "/_supervisor/v1/apply", action, token)
+        status, applied = _post_supervisor_http(server.port, "/_supervisor/v1/apply", action, token, caller_scope_headers)
         assert status == 200 and applied["status"] == "applied", applied
 
         status, receipt = _post_supervisor_http(server.port, "/_supervisor/v1/receipt", {
             "protocol_version": 1, "action_id": action["action_id"],
-        }, token)
+        }, token, caller_scope_headers)
         assert status == 200 and receipt["status"] == "applied", receipt
         assert receipt["receipt_id"] == applied["receipt_id"]
         assert receipt["data"]["action_id"] == action["action_id"]
         assert receipt["data"]["verification"] == "verified"
+
+        other_tenant = seeded(app, 2)
+        _, other_token, _ = admitted(other_tenant, "bounded_write")
+        before_wrong_tenant = app.container.get(Entries).global_last_id()
+        wrong_admit = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
+            "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        }, other_token, {**caller_scope_headers, "X-Journal-Env": fixture.driver_environment.name})
+        wrong_observe = _post_supervisor_http(server.port, "/_supervisor/v1/observe", {
+            "protocol_version": 1,
+            "run_id": run["run_id"],
+            "installation_epoch": run["installation_epoch"],
+            "fence": run["fence"],
+            "cursor": None,
+        }, other_token, {**caller_scope_headers, "X-Journal-Env": fixture.driver_environment.name})
+        wrong_apply = _post_supervisor_http(server.port, "/_supervisor/v1/apply", action, other_token,
+            {**caller_scope_headers, "X-Journal-Env": fixture.driver_environment.name})
+        wrong_receipt = _post_supervisor_http(server.port, "/_supervisor/v1/receipt", {
+            "protocol_version": 1, "action_id": action["action_id"],
+        }, other_token, {**caller_scope_headers, "X-Journal-Env": fixture.driver_environment.name})
+        assert wrong_admit == (200, {"status": "skipped", "reason": "empty"}), wrong_admit
+        for denied in (wrong_observe, wrong_apply, wrong_receipt):
+            assert denied[0] == 403 and set(denied[1]) == {"error"}, denied
+        assert app.container.get(Entries).global_last_id() == before_wrong_tenant, "a different tenant cannot read or append rows for this grant"
     finally:
         server.stop()
+        if other_tenant is not None:
+            other_tenant.authority.secrets_store.drop(other_tenant.credentials)
 
 
 def test_bad_bridge_credential_over_http_changes_nothing(app, authority_fixture, monkeypatch):
@@ -533,11 +560,14 @@ def test_bad_bridge_credential_over_http_changes_nothing(app, authority_fixture,
         assert app.container.get(Plans).find(fixture.plan.row_id).priorities == before_priorities
 
 
-def _post_supervisor_http(port: int, path: str, body: dict, token: str) -> tuple[int, dict]:
+def _post_supervisor_http(port: int, path: str, body: dict, token: str,
+                          caller_headers: dict[str, str] | None = None) -> tuple[int, dict]:
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    headers.update(caller_headers or {})
     request = HttpRequest(
         f"http://127.0.0.1:{port}{path}",
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        headers=headers,
         method="POST",
     )
     try:

@@ -1,17 +1,22 @@
+from typing import Any, Callable
+
+from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance
+from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.http.support.request import Request
+from journal.repositories.scope import Scope
 from journal.support.response import Response
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
-from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance
-from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+from journal.supervisor_principal import SupervisorPrincipal
 
 
 class SupervisorController:
     """Owner grant management and private supervisor bridge endpoints."""
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations,
-                 maintenance: SupervisorMaintenance) -> None:
+                 maintenance: SupervisorMaintenance, scope: Scope) -> None:
         self.authority, self.observations, self.maintenance = authority, observations, maintenance
+        self.scope = scope
 
     def enroll(self, request: Request) -> Response:
         try:
@@ -31,41 +36,31 @@ class SupervisorController:
         return Response(200, grant, headers)
 
     def observe(self, request: Request) -> Response:
-        if request.supervisor is None:
-            return Response(403, {"error": "a supervisor service credential is required"})
-        try:
-            answer = self.observations.observe(request.supervisor, request.body)
-        except SupervisorFailure as denied:
-            return Response(denied.status, {"error": str(denied)})
-        return Response(200, answer, {"Cache-Control": "no-store"})
+        return self._service(request, self.observations.observe)
 
     def admit(self, request: Request) -> Response:
-        if request.supervisor is None:
-            return Response(403, {"error": "a supervisor service credential is required"})
-        try:
-            answer = self.observations.admit(request.supervisor, request.body)
-        except SupervisorFailure as denied:
-            return Response(denied.status, {"error": str(denied)})
-        return Response(200, answer, {"Cache-Control": "no-store"})
+        return self._service(request, self.observations.admit)
 
     def apply(self, request: Request) -> Response:
-        if request.supervisor is None:
+        return self._service(request, self.maintenance.apply_maintenance)
+
+    def receipt(self, request: Request) -> Response:
+        return self._service(request, self._receipt)
+
+    def _service(self, request: Request, operation: Callable[[SupervisorPrincipal, object], dict[str, Any]]) -> Response:
+        principal = request.supervisor
+        if principal is None:
             return Response(403, {"error": "a supervisor service credential is required"})
         try:
-            answer = self.maintenance.apply_maintenance(request.supervisor, request.body)
+            with self.scope.environment(principal.scope["environment_id"]):
+                answer = operation(principal, request.body)
         except SupervisorFailure as denied:
             return Response(denied.status, {"error": str(denied)})
         return Response(200, answer, {"Cache-Control": "no-store"})
 
-    def receipt(self, request: Request) -> Response:
-        if request.supervisor is None:
-            return Response(403, {"error": "a supervisor service credential is required"})
-        try:
-            action_id = self._receipt_action_id(request.body)
-            answer = self.maintenance.receipt(request.supervisor, action_id)
-        except SupervisorFailure as denied:
-            return Response(denied.status, {"error": str(denied)})
-        return Response(200, answer, {"Cache-Control": "no-store"})
+    def _receipt(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
+        action_id = self._receipt_action_id(body)
+        return self.maintenance.receipt(principal, action_id)
 
     @staticmethod
     def _receipt_action_id(body: object) -> str:
