@@ -5183,6 +5183,7 @@ def test_dispatches_past_the_most_at_once_wait(app: App):
     hook(app, "SubagentStart", agent_id="a1", agent_type="Explore")
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the routes", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
     assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SUBAGENT_OVERFLOW, running=1), "a subagent past the most at once is held"
+    assert [row.session for row in app.container.get(Subagents).session_subagents("s1")] == ["a1"], "a refused dispatch releases its provisional slot"
     app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=2), Actor.user(1))
     second = {"description": "map the views", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input=second, tool_use_id="t-2")
@@ -15199,6 +15200,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
         app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
     app.container.get(IdBlocks).add("links", 800000, 800100)
+    app.container.get(IdBlocks).add("messages", 800000, 800100)
     assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 
