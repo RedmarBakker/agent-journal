@@ -72,6 +72,9 @@ def test_the_owner_reads_and_exports_one_scoped_auditable_plan_history(story):
     result.expect_viewer_part(("tasks", 0, "data_quality", "status"), "incomplete")
 
     other_environment = story.another_environment("other")
+    other_plans = story.user_opens_in(other_environment, "/journal/plans")
+    other_plans.expect_viewer_passed()
+    other_plans.expect_viewer_rows("rows", "id", [])
     result = story.user_opens_in(other_environment, f"/journal/plans/{plan}/outcomes")
     result.expect_viewer_not_found_without("release-52")
     result = story.user_sets(EstimatesOptions.MODE, "off")

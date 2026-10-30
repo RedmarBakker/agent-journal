@@ -18,7 +18,7 @@ def test_a_paused_task_keeps_its_wait_interval_and_execution_attempt(story):
     result = story.agent_runs(story.agents.subject, f"task complete {task} --how 'the accepted scope is complete'")
     result.expect_command_passed()
     story.expect_task_outcome_kinds(task, "task_started", "task_paused", "task_resumed", "task_completed")
-    story.expect_task_outcome_summary(task, waiting_seconds=5400, execution_status="completed", artifact_accepted=False, right_censored=False)
+    story.expect_task_outcome_summary(task, waiting_seconds=5400, execution_status="completed", artifact_accepted=False, right_censored=True)
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -30,7 +30,7 @@ def test_a_deployment_wait_ends_at_accepted_evidence_and_keeps_its_commitment(st
     result.expect_command_passed()
     result = story.agent_runs(story.agents.subject, f"worker merge {worker}")
     result.expect_command_passed()
-    story.time_travel(days=2)
+    story.time_travel(minutes=2 * 24 * 60)
     task, plan = story.tasks.first, story.plans.first
     evidence = {"action": "accept", "evidence": {"kind": "production_deployment", "source": "deployment pipeline", "reference": "release-52",
                 "artifact": "sha256:revision-52", "environment": "production", "result": "succeeded", "task_ids": [task],

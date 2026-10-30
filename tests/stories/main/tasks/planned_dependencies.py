@@ -1,11 +1,9 @@
-import pytest
-
 from journal.features.tasks.states.ready import Ready
-from journal.features.tasks.states.working import Working
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
+from journal.models.plan_state import PlanState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -13,9 +11,6 @@ from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.domain_development_delivered import DomainDevelopmentDelivered
 from tests.stories.fixtures.worker.plan_worker import PlanWorker
-
-pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 157 (G01: Write planned prerequisites with one cycle check).")
-
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_planned_prerequisite_stays_open_until_its_task_is_accepted(story):
@@ -39,7 +34,7 @@ def test_the_viewer_cannot_start_a_task_with_an_unaccepted_prerequisite(story):
     story.agent_runs(story.agents.subject, f"task depends {story.tasks.second} --on {story.tasks.first} --reason 'the second task uses the first task output'").expect_command_passed()
     story.user_approves_plan(story.plans.first)
     result = story.user_presses(f"/journal/tasks/{story.tasks.second}/start", {})
-    result.expect_viewer_refused("planned prerequisites")
+    result.expect_viewer_refused("planned prerequisite")
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -76,7 +71,7 @@ def test_a_started_task_keeps_its_planned_prerequisites(story):
     edges.expect_viewer_rows("edges", "prerequisite_id", [prerequisite])
     story.expect_task(prerequisite, state=TaskState.STARTED)
     story.expect_task(dependent, state=TaskState.OPEN)
-    story.expect_stack(story.agents.subject, Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -85,7 +80,8 @@ def test_a_finished_unmerged_worker_task_is_not_an_accepted_prerequisite(story):
     dependency = story.user_presses(f"/journal/plans/{story.plans.first}/dependencies", {"task_id": dependent, "prerequisites": [prerequisite], "reason": "the second task uses the first task output"})
     dependency.expect_viewer_passed()
     story.user_approves_plan(story.plans.first)
-    worker = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.plans.first)
+    worker_id = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.plans.first)
+    worker = story.agents.workers.get(worker_id)
     story.agent_starts_a_session(worker)
     story.agent_clocks_in(worker)
     story.agent_proves(worker, 1, "first.py:3, the prerequisite is implemented")
@@ -128,7 +124,7 @@ def test_phase_order_does_not_create_a_planned_dependency_by_itself(story):
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
-    story.expect_stack(story.agents.subject, Ready, Working)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -155,7 +151,9 @@ def test_a_plan_builder_can_set_prerequisites_while_composing_a_task(story):
     story.agent_runs(story.agents.subject, f"plan start {other}")
     story.expect_task(independent, state=TaskState.STARTED)
     story.expect_task(dependent_task, state=TaskState.OPEN)
-    story.expect_stack(story.agents.subject, Ready, Working)
+    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -165,6 +163,7 @@ def test_a_task_cannot_depend_on_itself(story):
     result.expect_command_text("cycle")
     edges = story.user_opens(f"/journal/plans/{story.plans.first}/dependencies")
     edges.expect_viewer_shows("edges", [])
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -174,6 +173,7 @@ def test_a_hidden_prerequisite_is_refused_without_writing_an_edge(story):
     result.expect_command_refused()
     edges = story.user_opens(f"/journal/plans/{story.plans.first}/dependencies")
     edges.expect_viewer_shows("edges", [])
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -205,7 +205,7 @@ def test_a_delivery_gate_waits_for_the_existing_accepted_domain_evidence(story):
     accepted = story.user_presses(f"/journal/plans/{story.plans.first}/delivery", {
         "evidence": {"kind": "production_deployment", "source": "deployment-42", "reference": "release-42",
                      "artifact": "revision-42", "environment": "production", "result": "succeeded",
-                     "task_ids": [story.tasks.first], "occurred_at": story.local_moment(0)},
+                     "task_ids": [story.tasks.first], "occurred_at": "2026-10-30T10:00:00+00:00"},
     })
     accepted.expect_viewer_passed()
     finished = story.user_presses(f"/journal/tasks/{gate}/finish", {"how": "the accepted deployment is ready for handoff"})

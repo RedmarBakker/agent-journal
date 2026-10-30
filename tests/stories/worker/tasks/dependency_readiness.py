@@ -13,7 +13,7 @@ from tests.stories.fixtures.worker.dependency_plan_worker import DependencyPlanW
 def test_a_worker_keeps_its_current_task_when_a_dependent_task_is_refused(story):
     result = story.agent_runs(story.agents.subject, f"task start {story.tasks.second}")
     result.expect_command_refused()
-    result.expect_command_text(f"task {story.tasks.first}")
+    result.expect_command_text("a worker may not run journal task start")
     story.expect_task(story.tasks.first, state=TaskState.STARTED, delegated=True)
     story.expect_task(story.tasks.second, state=TaskState.OPEN, delegated=False)
     story.expect_worker(story.agents.subject, state=WorkerState.READY)

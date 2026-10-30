@@ -52,8 +52,8 @@ class Tasks(Feature[TasksData]):
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (UnusedWaitChecks,)
-    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION), (ClearWaits, Blocking.NEXT_DECISION))
-    listeners = (TestingRunEnd, PausedDeclineClearing, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, TaskCycleCheck, DeliveryGateCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
+    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION), (ClearWaits, Blocking.NEXT_DECISION), (TaskCycleCheck, Blocking.ANSWER), (DeliveryGateCheck, Blocking.ANSWER))
+    listeners = (TestingRunEnd, PausedDeclineClearing, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)

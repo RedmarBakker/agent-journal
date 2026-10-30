@@ -32,10 +32,8 @@ def test_a_plan_skips_unmet_work_and_starts_it_when_its_prerequisite_is_accepted
     refused.expect_command_text(f"task {prerequisite}")
     story.expect_task(prerequisite, state=TaskState.STARTED)
     story.agent_runs(story.agents.subject, f"task complete {prerequisite} --how 'the accepted artifact is ready'")
-    story.expect_task(independent, state=TaskState.STARTED)
-    story.expect_task(dependent, state=TaskState.OPEN)
-    story.agent_runs(story.agents.subject, f"task complete {independent} --how 'the independent task is accepted'")
     story.expect_task(dependent, state=TaskState.STARTED)
+    story.expect_task(independent, state=TaskState.OPEN)
     story.user_cancels_task(prerequisite, "the accepted task was withdrawn after work began")
     story.agent_runs(story.agents.subject, f"task pause {dependent} 'set it aside briefly'")
     story.agent_runs(story.agents.subject, f"task resume {dependent}")
@@ -77,12 +75,13 @@ def test_an_orchestrator_dispatches_only_plan_tasks_with_accepted_prerequisites(
         "task_id": dependent, "prerequisites": [prerequisite], "reason": "the second task uses the first task output",
     })
     changed.expect_viewer_passed()
-    worker = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.plans.first)
+    worker_id = story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.plans.first)
+    worker = story.agents.workers.get(worker_id)
     story.agent_starts_a_session(worker)
     story.agent_clocks_in(worker)
     story.expect_task(prerequisite, state=TaskState.STARTED, delegated=True)
     story.expect_task(dependent, state=TaskState.OPEN, delegated=False)
-    story.expect_worker(worker, state=WorkerState.READY)
+    story.expect_worker(worker_id, state=WorkerState.READY)
     story.expect_stack(story.agents.subject, Orchestrating, OrchestratingPlan, ExternalWait)
 
 

@@ -18,8 +18,9 @@ class DependencyPlanWorker(StateFixture):
             "task_id": self.tasks.second, "prerequisites": [self.tasks.first], "reason": "the second task uses the first task output",
         }).expect_viewer_passed()
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
-        story.agent_starts_a_session(self.workers.first)
-        story.agent_clocks_in(self.workers.first)
+        worker = story.agents.workers.get(self.workers.first)
+        story.agent_starts_a_session(worker)
+        story.agent_clocks_in(worker)
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.DELEGATED)

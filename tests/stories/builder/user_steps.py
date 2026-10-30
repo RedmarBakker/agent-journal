@@ -279,5 +279,6 @@ class UserSteps:
     def user_posted(self, path: str, body: dict, action: str = "") -> dict:
         status, answer = posted(self.app, path, body, MAIN)
         assert status < 300, f"the viewer's request {path} was refused: {answer}"
+        self.viewer_status, self.viewer_answer = status, answer
         self.observed(action or f"user posts {re.sub(r'/\d+', '/{n}', path)}", None, None)
         return answer

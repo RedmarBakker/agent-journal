@@ -33,7 +33,12 @@ def test_the_team_page_route_lists_both_teams_with_the_role_people_devices_and_i
 def test_disconnecting_one_team_leaves_the_other_with_its_people_devices_invites_and_items(story):
     result = story.user_presses("/journal/team/disconnect", {"team": FIRST})
     result.expect_viewer_shows("connected", False)
+    remaining = story.user_opens(f"/journal/team?team={SECOND}")
+    remaining.expect_viewer_shows("connected", True)
+    remaining.expect_viewer_shows("team", SECOND)
+    remaining.expect_viewer_shows("address", story.team_addresses[SECOND])
     result = story.user_opens("/journal/teams")
+    result.expect_viewer_passed()
     result.expect_viewer_rows("teams", "team", [SECOND])
     result = story.user_opens(f"/journal/team/people?team={SECOND}")
     result.expect_viewer_rows("people", "name", ["Ada"])
@@ -50,6 +55,12 @@ def test_disconnecting_one_team_leaves_the_other_with_its_people_devices_invites
 def test_an_item_published_to_one_team_never_shows_under_the_other(story):
     story.user_types("sequence create 'Night Run' --steps go")
     sequence = story.created_number("sequence")
+    for team in (FIRST, SECOND):
+        connected = story.user_opens(f"/journal/team?team={team}")
+        connected.expect_viewer_shows("address", story.team_addresses[team])
+    teams = story.user_opens("/journal/teams")
+    teams.expect_viewer_passed()
+    teams.expect_viewer_rows("teams", "team", [FIRST, SECOND])
     result = story.user_types(f"library publish sequence {sequence} --team {FIRST}")
     result.expect_command_passed()
     result = story.user_opens(f"/journal/library/items?team={FIRST}")

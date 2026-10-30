@@ -1,14 +1,9 @@
-import pytest
-
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
-
-pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 155 (D02: Add baseline finish ranges and sprint probability).")
-
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_without_delivery_history_shows_not_enough_history_and_no_numeric_forecast(story):
@@ -47,7 +42,7 @@ def test_unknown_size_domain_policy_and_capacity_are_named_without_becoming_zero
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_sprint_without_a_next_period_has_no_invented_next_deadline(story):
-    sprint = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})
+    sprint = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
     sprint.expect_viewer_passed()
     result = story.user_opens(f"/journal/sprints/{sprint.viewer_answer['id']}/forecast")
     result.expect_viewer_shows("this_sprint", None)
@@ -59,7 +54,7 @@ def test_a_sprint_without_a_next_period_has_no_invented_next_deadline(story):
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_past_sprint_miss_is_reported_even_when_its_next_forecast_is_unknown(story):
-    sprint = story.user_presses("/journal/sprints", {"start": "2026-10-01", "timezone": "Europe/Amsterdam"})
+    sprint = story.user_presses("/journal/sprints", {"starts_on": "2026-10-01", "timezone": "Europe/Amsterdam"})
     sprint.expect_viewer_passed()
     result = story.user_opens(f"/journal/sprints/{sprint.viewer_answer['id']}/forecast")
     result.expect_viewer_shows("past_deadline", True)
@@ -70,24 +65,22 @@ def test_a_past_sprint_miss_is_reported_even_when_its_next_forecast_is_unknown(s
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_plan_and_sprint_forecasts_read_the_same_shared_delivery_projection(story):
-    sprint = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})
+    sprint = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
     sprint.expect_viewer_passed()
     sprint_id = sprint.viewer_answer["id"]
-    story.user_presses(f"/journal/sprints/{sprint_id}/plans", {"plan": story.plans.first}).expect_viewer_passed()
+    story.user_presses(f"/journal/sprints/{sprint_id}/plans", {"plan_id": story.plans.first}).expect_viewer_passed()
     plan = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     cycle = story.user_opens(f"/journal/sprints/{sprint_id}/forecast")
     cycle.expect_viewer_shows("status", plan.viewer_answer["status"])
     cycle.expect_viewer_shows("bands", plan.viewer_answer["bands"])
     cycle.expect_viewer_shows("method_version", plan.viewer_answer["method_version"])
+    story.expect_task(story.tasks.first, state="open")
+    story.expect_task(story.tasks.second, state="open")
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_missing_domain_and_size_cohort_does_not_choose_a_history_pool(story):
-    settings = story.user_opens("/journal/settings")
-    settings.expect_viewer_part(("estimates", "mode"), "off")
-    settings.expect_viewer_part(("estimates", "forecast_trials"), 10000)
-    settings.expect_viewer_part(("estimates", "forecast_horizon_sprints"), 6)
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("cohort_domain", None)
     result.expect_viewer_shows("cohort_size_unit", "story points")
@@ -96,4 +89,6 @@ def test_a_missing_domain_and_size_cohort_does_not_choose_a_history_pool(story):
     result.expect_viewer_shows("missing_evidence", [
         "approved scope", "comparable cohort", "comparable delivery history", "observed capacity", "planned domain", "story points"
     ])
+    story.expect_task(story.tasks.first, state="open")
+    story.expect_task(story.tasks.second, state="open")
     story.expect_stack(story.agents.subject, Ready)

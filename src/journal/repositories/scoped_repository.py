@@ -7,6 +7,7 @@ from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.models.scoped import Scoped
 from journal.repositories.repository import Repository
+from journal.support.missing_row import MissingRow
 from journal.repositories.scope import PROJECT, Scope
 from journal.support.time_source import TimeSource
 
@@ -22,6 +23,12 @@ class ScopedRepository(Repository[S]):
 
     def with_project(self, query: Query) -> list[S]:
         return self._selected(query.filter_listed("environment_id", (self.scope.id, PROJECT)))
+
+    def find(self, id: int) -> S:
+        rows = self.selected(self.query().filter(id=id))
+        if not rows:
+            raise MissingRow(self.table, id)
+        return rows[0]
 
     def global_matching(self, **fields) -> list[S]:
         return self.selected_globally(self.query().filter(**fields).order("id"))

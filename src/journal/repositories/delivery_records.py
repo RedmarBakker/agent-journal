@@ -93,15 +93,15 @@ class DeliveryRecords(ScopedRepository[DeliveryRecord]):
             raise Rejection("reopened delivery evidence cannot be replayed; record new evidence")
         current = [self.current_delivery(rows, task) for task in tasks]
         if action == "correct":
-            if not current or any(row.state != "accepted" for row in current):
+            if not current or any(row is None or row.state != "accepted" for row in current):
                 raise Rejection("only accepted delivery evidence can be corrected")
             generation = max(row.generation for row in current) + 1
-        elif action == "accept" and any(row.state == "accepted" for row in current):
+        elif action == "accept" and any(row is not None and row.state == "accepted" for row in current):
             raise Rejection("accepted delivery evidence must be reopened before it is replaced")
-        elif action == "accept" and any(row.state == "reopened" for row in current):
-            generation = max(row.generation for row in current)
+        elif action == "accept" and any(row is not None and row.state == "reopened" for row in current):
+            generation = max(row.generation for row in current if row is not None)
         else:
-            generation = max((row.generation for row in current), default=0) + 1
+            generation = max((row.generation for row in current if row is not None), default=0) + 1
         row = self.append(plan, tasks, state, generation, assurance, version, fingerprint, evidence, "", actor)
         return self.record_data(row)
 

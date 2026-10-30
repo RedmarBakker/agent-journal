@@ -75,9 +75,10 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
 
     def record_row_event(self, event: RowEvent) -> TaskOutcome | None:
         if isinstance(event, TaskStarted):
-            return self.record_fact(event.task_id, "task_started", event.time,
+            kind = "task_resumed" if event.prior_state == "paused" else "task_started"
+            return self.record_fact(event.task_id, kind, event.time,
                                     {"prior_state": event.prior_state, "source_actor": event.actor}, Actor.system(),
-                                    self.key("task_started", event.task_id, event.time, event.actor, event.prior_state), event.plan_id)
+                                    self.key(kind, event.task_id, event.time, event.actor, event.prior_state), event.plan_id)
         if isinstance(event, TaskClosed):
             kind = f"task_{event.outcome}"
             return self.record_fact(event.task_id, kind, event.time,
@@ -249,7 +250,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
                 "capacity_assumptions": capacity, "missing_measurements": self.missing_from(facts),
                 "delivery_generations": [row.delivery_generation for row in delivery if row.delivery_generation],
                 "credited_points": credits,
-                "active_seconds": sum(row["duration_seconds"] for row in active_intervals) if any(row.kind == "task_started" for row in facts) else None,
+                "active_seconds": sum(row["duration_seconds"] for row in active_intervals) if any(row.kind in ("task_started", "task_resumed") for row in facts) else None,
                 "active_time_right_censored": any(row["end"] is None for row in active_intervals),
                 "cost_dollars": sum(row.details.get("cost_delta", 0.0) for row in costs) if costs else None,
                 "worker_costs": [row.details for row in costs],
@@ -270,7 +271,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
             elif row.kind == "task_test_failed":
                 self.close_interval(active, "task_wait", "", row.occurred_at, intervals)
                 self.open_interval(active, "task_wait", "", row.occurred_at, None)
-            elif row.kind in ("task_started", "task_reopened", "task_wait_ended"):
+            elif row.kind in ("task_started", "task_resumed", "task_reopened", "task_wait_ended"):
                 self.close_interval(active, "task_wait", "", row.occurred_at, intervals)
             elif row.kind == "user_wait_started":
                 self.open_interval(active, "user_wait", row.agent_session, row.occurred_at, None)
@@ -294,7 +295,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         return sorted(intervals, key=lambda row: (row["start"], row["kind"]))
 
     def execution_status(self, facts: list[TaskOutcome]) -> str:
-        statuses = {"task_started": "in_progress", "task_paused": "paused", "task_blocked": "blocked", "task_testing": "testing",
+        statuses = {"task_started": "in_progress", "task_resumed": "in_progress", "task_paused": "paused", "task_blocked": "blocked", "task_testing": "testing",
                     "task_completed": "completed", "task_cancelled": "cancelled", "task_reopened": "open", "task_test_failed": "paused"}
         return next((statuses[row.kind] for row in reversed(facts) if row.kind in statuses), "open")
 
@@ -302,7 +303,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         intervals: list[dict] = []
         active_at: float | None = None
         for row in facts:
-            if row.kind == "task_started" and active_at is None:
+            if row.kind in ("task_started", "task_resumed") and active_at is None:
                 active_at = row.occurred_at
             elif row.kind in ("task_paused", "task_blocked", "task_testing", "task_completed", "task_cancelled") and active_at is not None:
                 intervals.append({"start": active_at, "end": row.occurred_at,

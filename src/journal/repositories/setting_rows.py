@@ -8,6 +8,7 @@ from journal.models.setting import Setting
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
+from journal.support.missing_row import MissingRow
 
 
 
@@ -25,6 +26,12 @@ class SettingRows(ScopedRepository[Setting]):
 
     def project(self, key: str, default: object = None) -> object:
         return self.project_values().get(key, default)
+
+    def find(self, id: int) -> Setting:
+        rows = self.selected_globally(self.query().filter(id=id))
+        if not rows:
+            raise MissingRow(self.table, id)
+        return rows[0]
 
     def option(self, option: Option) -> object:
         if option.main_switch is not None and not self.option(option.main_switch):
