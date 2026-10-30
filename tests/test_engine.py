@@ -374,8 +374,9 @@ def test_the_stack_is_seeded_from_the_state_and_its_pause_chain_unwound_with_idl
     stuck = agents.save(Agent(environment_id=1, session="s9", state="stuck", data={"resume": {"state": "working", "data": {"task_id": 3, "resume": {"state": "idle", "data": {}}}}}), Actor.system())
     missing = agents.save(Agent(environment_id=1, session="s8", state="gone", data={}), Actor.system())
     StackSeed().apply(connection)
-    assert agents.find(stuck.id).stack == ({"state": "idle", "data": {}}, {"state": "working", "data": {"task_id": 3}}, {"state": "stuck", "data": {}})
-    assert agents.find(missing.id).stack == ({"state": "idle", "data": {}}, {"state": "gone", "data": {}})
+    with scope.environment(1):
+        assert agents.find(stuck.id).stack == ({"state": "idle", "data": {}}, {"state": "working", "data": {"task_id": 3}}, {"state": "stuck", "data": {}})
+        assert agents.find(missing.id).stack == ({"state": "idle", "data": {}}, {"state": "gone", "data": {}})
 
 
 
@@ -1553,7 +1554,8 @@ def orchestrated(app: App) -> None:
     console.run(["plan", "todos", "1", "1", *[str(n) for n in range(1, 21)]], USER)
     assert console.run(["plan", "ready", "1"], AGENT).code == 0 and console.run(["plan", "approve", "1"], USER).code == 0 and console.run(["plan", "start", "1"], AGENT).code == 0
     stack = lambda: [s["state"] for s in agents.session_agent("s1").stack]
-    assert stack() == ["orchestrating", "orchestrating_plan"] and tasks.find(1).state == "open", "the orchestrator's mode state and its plan state, every piece left open for workers"
+    with app.container.get(Scope).environment(1):
+        assert stack() == ["orchestrating", "orchestrating_plan"] and tasks.find(1).state == "open", "the orchestrator's mode state and its plan state, every piece left open for workers"
     stop = lambda active=False: hook(app, "Stop", stop_hook_active=active)[1]
     first = stop()
     assert first.get("decision") == "block" and "20 tasks open" in first["reason"] and "dispatch a worker on each you can" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"

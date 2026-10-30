@@ -67,6 +67,9 @@ class ScopedRepository(Repository[S]):
     def _insert(self, row: S, actor: Actor, time: datetime) -> S:
         return super()._insert(self._placed(row), actor, time)
 
+    def _rewritable(self, row: S) -> list[Query]:
+        return [self._scoped(self.query().filter(id=row.id)), *super()._rewritable(row)]
+
     def _scoped(self, query: Query) -> Query:
         return query.filter(environment_id=self.scope.id)
 

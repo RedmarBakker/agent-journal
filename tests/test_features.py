@@ -1704,6 +1704,7 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     import sqlite3
     from journal.repositories.agents import Agents
     from journal.repositories.links import Links
+    from journal.repositories.scope import Scope
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
     first = main_journal(Config(tmp_path, port=0))
     first.runtime().start()
@@ -1719,7 +1720,8 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     second = main_journal(Config(tmp_path, port=0))
     second.runtime().start()
     try:
-        assert second.container.get(Agents).find(agent).skills_due == ("journal",), "the owed skill is a fact on the agent's row"
+        with second.container.get(Scope).environment(MAIN):
+            assert second.container.get(Agents).find(agent).skills_due == ("journal",), "the owed skill is a fact on the agent's row"
         assert not [link for link in second.container.get(Links).all() if link.link_type.startswith("owes:")], "and the one-ended link is gone"
     finally:
         second.runtime().stop()
@@ -3289,10 +3291,12 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     assert status == 200 and "stays" in answer["worktree"] and tree.is_dir(), "the viewer's Delete, which wipes the environment, keeps its worktree too"
     console.run(["environment", "create", "calm-river"], USER)
     environment = app.container.get(Environments).existing("calm-river")
-    working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
+        with app.container.get(Scope).environment(environment.row_id):
+            working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
     refused = console.run(["worktree", "remove", "calm-river"], USER)
     assert refused.code != 0 and "a session works in the worktree calm-river" in refused.error and tree.is_dir(), "removing is refused while a session works in it"
-    app.container.get(Agents).save(working.with_(state="ended"), Actor.system())
+        with app.container.get(Scope).environment(environment.row_id):
+            app.container.get(Agents).save(working.with_(state="ended"), Actor.system())
     (tree / "draft.txt").write_text("unsaved\n")
     refused = console.run(["worktree", "remove", "calm-river"], USER)
     assert refused.code != 0 and "1 uncommitted files (draft.txt)" in refused.error and tree.is_dir(), "and while it holds uncommitted work"
@@ -3357,16 +3361,27 @@ def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App)
     from datetime import datetime, timedelta, timezone
     from journal.features.sharing.support.tunnel import Tunnel
     from journal.features.phone.support.phone_connector import PhoneConnector
+    from journal.models.phone_code import PhoneCode
     from journal.repositories.messages import Messages
+    from journal.repositories.phone_codes import PhoneCodes
+    from journal.repositories.phones import Phones
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
     from journal.repositories.setting_rows import SettingRows
     from journal.support.rejection import Rejection
     user_set(app, "sharing.host", "tunler.example")
     pairing, time = app.container.get(PhoneConnector), datetime.now(timezone.utc)
+    scope = app.container.get(Scope)
+    other = app.container.get(Environments).made("other", Actor.user(1))
+    with scope.environment(other.row_id):
+        older = app.container.get(PhoneCodes).save(PhoneCode(environment_id=other.row_id, code="old-code", short="old-short", expires_at=time + timedelta(minutes=10)), Actor.system())
     with pytest.raises(Rejection, match="only the user pairs"):
         pairing.proposal(7, Actor.agent("s1"), time)
     with pytest.raises(Rejection, match="1, 7, 30 days"):
         pairing.proposal(3, Actor.user(1), time)
     first = pairing.proposal(7, Actor.user(1), time)
+    with scope.environment(other.row_id):
+        assert app.container.get(PhoneCodes).find(older.row_id).closed_at == time, "the older code in another environment is closed in its own scope"
     assert app.container.get(Tunnel).is_wanted(time), "a live code keeps the tunnel open, so the phone can reach the journal"
     assert first.link.startswith("https://") and ".tunler.example/p/#" in first.link and len(first.short) == 9, "a link through the tunnel and a short code in two halves"
     newer = pairing.proposal(7, Actor.user(1), time)
@@ -3385,7 +3400,12 @@ def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App)
     assert app.container.get(Tunnel).is_wanted(time), "a paired phone keeps the tunnel open, with no link shared"
     assert viewer(app, f"phones/{paired.phone.id}/disconnect")["disconnected"] == paired.phone.id
     assert not app.container.get(Tunnel).is_wanted(datetime.now(timezone.utc)), "with the phone disconnected and no code live, nothing keeps it open"
-    assert pairing.proposal(7, Actor.user(1), time).short, "once it is disconnected, another phone may pair"
+    with scope.environment(other.row_id):
+        remote = app.container.get(PhoneCodes).save(PhoneCode(environment_id=other.row_id, code=pairing.hashed("remote-code"), short=pairing.hashed("remote-short"), expires_at=time + timedelta(minutes=10)), Actor.system())
+    paired_remote = pairing.pair("remote-code", "Tablet", time)
+    with scope.environment(other.row_id):
+        assert app.container.get(PhoneCodes).find(remote.row_id).closed_at == time
+        assert app.container.get(Phones).find(paired_remote.phone.row_id) == paired_remote.phone, "a phone that pairs to a code in another environment is written there"
 
 
 def test_a_pairing_code_expires_and_is_voided_by_ten_wrong_tries(app: App):
@@ -6063,6 +6083,26 @@ def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopp
         app.container.get(StoppedOutputEnd).handle(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=clock.seconds(), silence_seconds=0.0))
         ended = outputs.find(output.id)
     assert ended.ended and ended.is_interrupted, "the next tick ends it as cut off"
+
+
+def test_unended_command_outputs_are_cut_off_in_their_own_environments_at_boot(app: App, tmp_path):
+    from journal.features.shell.seeds.cut_off_outputs import CutOffOutputs
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
+    other = app.container.get(Environments).made("other", Actor.user(1))
+    outputs, scope = app.container.get(CommandOutputs), app.container.get(Scope)
+    with scope.environment(MAIN):
+        main = outputs.save(CommandOutput(chain="main", command="sleep", folder=str(tmp_path / "main")), Actor.system())
+    with scope.environment(other.row_id):
+        outside = outputs.save(CommandOutput(chain="outside", command="sleep", folder=str(tmp_path / "outside")), Actor.system())
+
+    app.container.get(CutOffOutputs).run()
+
+    with scope.environment(MAIN):
+        assert outputs.find(main.row_id).is_interrupted
+    with scope.environment(other.row_id):
+        assert outputs.find(outside.row_id).is_interrupted
 
 
 def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: App):

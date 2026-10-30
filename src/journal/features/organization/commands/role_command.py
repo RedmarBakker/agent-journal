@@ -8,6 +8,7 @@ from journal.features.organization.support.role_queue import RoleQueue
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.tasks.active_task import ActiveTask
 from journal.models.plan_mode import PlanMode
+from journal.models.plan import Plan
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -49,18 +50,22 @@ class RoleCommand(Command):
         if role is None:
             raise Rejection(f"no Role {args.role} in the organization; its Roles are {', '.join(known.id for known in contracts.roles) or 'none'}")
         if role.waits_in_queue():
-            return self.queued(role, args, caller)
-        task = self.plans.started_task(plan) or self.plans.following_task(plan)
+            return self.queued(plan, role, args, caller)
+        with self.scope.environment(plan.environment_id):
+            task = self.plans.started_task(plan) or self.plans.following_task(plan)
         self.events.role_taken(role.id, task.row_id if task else 0, caller)
         print(f"you act as {role.title} for this step")
         return 0
 
-    def queued(self, role: Role, args: Namespace, caller: Caller) -> int:
+    def queued(self, plan: Plan, role: Role, args: Namespace, caller: Caller) -> int:
         holder = self.taking.holder(caller)
-        task = self.tasks.find(args.task) if args.task else (self.tasks.holder_task(holder) if holder else None)
-        if task is None:
-            raise Rejection(f"{role.title} is shared by every plan, so its step waits in its queue: name the step's task with --task")
-        instance = self.queue.queued(role, task, holder, caller.actor)
+        with self.scope.environment(plan.environment_id):
+            task = self.tasks.find(args.task) if args.task else (self.tasks.holder_task(holder) if holder else None)
+            if task is None:
+                raise Rejection(f"{role.title} is shared by every plan, so its step waits in its queue: name the step's task with --task")
+            if task.row_id not in self.plans.plan_task_ids(plan):
+                raise Rejection(f"task {task.id} is not in plan {plan.id}")
+            instance = self.queue.queued(role, task, holder, caller.actor)
         print(f"task {task.id} waits in the queue of {role.title}, worker {instance.id} {instance.name}")
         return 0
 

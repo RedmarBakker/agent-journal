@@ -20,6 +20,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
@@ -109,7 +110,7 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
         assert environment.generated_for == "plan" and environment.parent_key == main_key, "the generated Plan environment records its kind and source environment"
     assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "the main agent delegates, so starting the second plan pauses neither"
     with app.container.get(Scope).environment(plan_environment(app, first).row_id):
-        assert not plans.scoped() and not plans.plan_tasks(plans.find(first)), "the plan agent's environment keeps the plan and its tasks scoped to the person who owns them"
+        assert not plans.scoped() and not app.container.get(Tasks).scoped(), "the plan agent's environment keeps the plan and its tasks scoped to the person who owns them"
     status, answer = posted(app, "/journal/messages", {"text": "how are the floors?"}, {"X-Journal-Env": f"plan-{first}"})
     assert status < 400, answer
     chat = lambda environment_id: [message.text for message in app.container.get(Messages).global_matching(environment_id=environment_id)]
@@ -143,8 +144,10 @@ def test_a_plans_timeline_includes_handoffs_and_refusals_from_its_plan_agents_ch
     environment = plan_environment(app, plan)
     agents = app.container.get(Agents)
     route = "worker 12 works as the Role builder and worker 13 as scout: Roles do not send to each other. Send it to your Domain agent, domain:alpha, which passes it on"
+    with app.container.get(Scope).environment(MAIN):
+        agent_id = app.container.get(Plans).agent_id(app.container.get(Plans).find(plan))
     with app.container.get(Scope).environment(environment.row_id):
-        agent = agents.find(app.container.get(Plans).agent_id(app.container.get(Plans).find(plan)))
+        agent = agents.find(agent_id)
         agents.save(agent.with_session("plan-session", "claude"), Actor.system())
         messages = app.container.get(Messages)
         messages.recorded(Message.outgoing("domain:alpha", "please check the file", "plan-session", "domain:alpha"), Actor.agent("plan-session"))
@@ -260,7 +263,9 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     assert console.run(["role", "take", "keeper"], AGENT).code != 0, "only the Plan agent of a solo plan takes on a Role"
     taken = console.run(["role", "take", "keeper"], lead)
     assert taken.code == 0, taken.error
-    top = lambda: agents.find(agent_id).stack[-1]
+    def top():
+        with app.container.get(Scope).environment(plan_environment(app, plan).row_id):
+            return agents.find(agent_id).stack[-1]
     [step_task] = plans.plan_tasks(plans.find(plan))
     assert (top()["state"], top()["data"]["role"], top()["data"]["task_id"]) == (
         "role_work", "keeper", step_task.row_id
@@ -318,7 +323,11 @@ def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, sup
     queued = console.run(["role", "take", "releaser", "--task", str(step)], lead)
     assert queued.code == 0 and f"task {step} waits in the queue" in queued.text, queued.error
     assert [task.id for task in tasks.queue(Ref.build(instance))] == [step], "the step waits in the queue of the shared Role's one instance, made in the main environment"
-    assert app.container.get(Agents).find(plans.agent_id(plans.find(plan))).stack[-1]["state"] != "role_work", "a shared Role is never taken on as a state"
+    with app.container.get(Scope).environment(MAIN):
+        agent_id = plans.agent_id(plans.find(plan))
+    with app.container.get(Scope).environment(plan_environment(app, plan).row_id):
+        agent = app.container.get(Agents).find(agent_id)
+    assert agent.stack[-1]["state"] != "role_work", "a shared Role is never taken on as a state"
 
 
 def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing_code(app: App, supervisors: Supervisors, monkeypatch):
@@ -382,15 +391,19 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
     assert supervisors.launches[-1][0] == f"task-{task.id}", "the task gets an agent of its own in an environment of its own"
     environment = app.container.get(Environments).existing(f"task-{task.id}")
     agent_id = next(target.id for target in app.container.get(Links).targets(task, TASK_AGENT_LINK))
-    agent = agents.find(agent_id)
-    assert agent.environment_id == environment.row_id and agent.state == "leading_task" and tasks.holder(tasks.find(task.id)) == Ref.build(agent), "its agent holds it there"
+    with app.container.get(Scope).environment(environment.row_id):
+        agent = agents.find(agent_id)
+        assert agent.environment_id == environment.row_id and agent.state == "leading_task", "the task agent starts on its own floor"
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.holder(tasks.find(task.id)) == Ref.build(agent), "the task row names its agent"
     assert environment.generated_for == "task" and environment.parent_key == app.container.get(Environments).find(MAIN).key, "the generated task environment records its kind and source environment"
     assert len(plans.global_matching()) == planned, "no plan row is made for it"
     assert agents.session_agent("s1").stack[-1]["state"] == "coordinating_plans", "the main agent takes nothing in hand"
 
     status, session = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "task-session"}, {"X-Journal-Env": f"task-{task.id}"})
     assert status == 200 and nudge_reached(app, session["hookSpecificOutput"]["additionalContext"], PlansNudges.WORKING_TASK_ALONE, task=task.id), "its first session works the task alone"
-    stack = agents.find(agent.id).stack
+    with app.container.get(Scope).environment(environment.row_id):
+        stack = agents.find(agent.id).stack
     assert (stack[0]["state"], stack[-1]["data"].get("task_id")) == ("leading_task", task.id) and len(stack) == 2, "the task agent keeps its standalone floor and works the task"
 
     def task_hook(tool_name: str, tool_input: dict):

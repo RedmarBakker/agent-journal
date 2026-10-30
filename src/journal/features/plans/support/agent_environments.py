@@ -5,6 +5,7 @@ from journal.models.environment import Environment
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
+from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.supervisor_link import SupervisorLink
@@ -13,8 +14,8 @@ from journal.supervisor_link import SupervisorLink
 class AgentEnvironments:
     """An agent of its own in an environment of its own, for a plan or a task outside every plan: the environment records the kind of work and stable key of its source, and its agent is prepared on the work's floor, launched in its own worktree, and stopped."""
 
-    def __init__(self, agents: Agents, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, providers: Providers) -> None:
-        self.agents, self.environments, self.launcher, self.supervisor, self.providers = agents, environments, launcher, supervisor, providers
+    def __init__(self, agents: Agents, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, providers: Providers, scope: Scope) -> None:
+        self.agents, self.environments, self.launcher, self.supervisor, self.providers, self.scope = agents, environments, launcher, supervisor, providers, scope
 
     def made(self, name: str, source_environment_id: int, actor: Actor, generated_for: str | None = None) -> Environment:
         source = self.environments.find(source_environment_id)
@@ -31,7 +32,8 @@ class AgentEnvironments:
         return environment
 
     def prepared(self, environment: Environment, floor: BaseState, starter_environment_id: int, actor: Actor) -> Agent:
-        return self.agents.save(Agent(environment_id=environment.row_id, role=AgentRole.MAIN, provider=self.provider(starter_environment_id), state=floor.name, data=floor.serialized(), stack=({"state": floor.name, "data": floor.serialized()},)), actor)
+        with self.scope.environment(environment.row_id):
+            return self.agents.save(Agent(environment_id=environment.row_id, role=AgentRole.MAIN, provider=self.provider(starter_environment_id), state=floor.name, data=floor.serialized(), stack=({"state": floor.name, "data": floor.serialized()},)), actor)
 
     def provider(self, environment_id: int) -> str:
         starter = self.agents.environment_main_agent(environment_id)

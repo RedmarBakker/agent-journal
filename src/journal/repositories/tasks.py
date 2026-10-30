@@ -113,6 +113,12 @@ class Tasks(ScopedRepository[Task]):
     def unavailable_task_ids(self, tasks: Sequence[Task]) -> set[int]:
         return self.unmet_dependency_ids(tasks) | self.waiting_ids(list(tasks))
 
+    def unavailable_task_ids_for_ids(self, task_ids: list[int]) -> set[int]:
+        refs = [Ref(Task.table(), task_id) for task_id in task_ids]
+        if not self.links.ref_links("source", refs, DEPENDENCY_LINK) and not self.links.ref_links("source", refs, WAIT_LINK):
+            return set()
+        return self.unavailable_task_ids(self.numbered(task_ids))
+
     def require_prerequisites(self, task: Task) -> None:
         unmet = self.unmet_prerequisites(task)
         if unmet:

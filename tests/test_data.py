@@ -73,11 +73,12 @@ class SayNo(Listener[Creating]):
 
 def test_a_saved_task_gets_an_id_and_the_actor_stamp(connection, bus, scope):
     tasks = tasks_of(connection, bus, scope)
-    task = tasks.save(Task(environment_id=1, title="write the release notes"), actor=USER)
-    assert task.id == 1
-    assert task.creator == USER and task.updater == USER
-    assert task.created_at is not None
-    assert tasks.find(1) == task
+    with scope.environment(1):
+        task = tasks.save(Task(environment_id=1, title="write the release notes"), actor=USER)
+        assert task.id == 1
+        assert task.creator == USER and task.updater == USER
+        assert task.created_at is not None
+        assert tasks.find(1) == task
 
 
 def test_a_read_asking_more_than_a_page_is_cut_to_a_page_and_a_whole_read_past_a_page_is_recorded(connection, bus, scope):
@@ -98,13 +99,14 @@ def test_every_model_event_is_heard_in_order_with_its_actor(connection, bus, sco
     heard = Heard()
     bus.listen(ModelEvent, heard)
     tasks = tasks_of(connection, bus, scope)
-    task = tasks.save(Task(environment_id=1, title="t"), actor=USER)
-    tasks.save(task.with_(state=TaskState.STARTED), actor=AGENT)
-    tasks.delete(task, actor=USER)
+    with scope.environment(1):
+        task = tasks.save(Task(environment_id=1, title="t"), actor=USER)
+        tasks.save(task.with_(state=TaskState.STARTED), actor=AGENT)
+        tasks.delete(task, actor=USER)
     kinds = [type(e).__name__ for e in heard.events]
     assert kinds == ["Saving", "Creating", "Created", "Saved", "Saving", "Updating", "Updated", "Saved", "Deleting", "Deleted"]
     assert heard.events[5].actor == AGENT and heard.events[5].model.state == TaskState.STARTED
-    with pytest.raises(MissingRow):
+    with scope.environment(1), pytest.raises(MissingRow):
         tasks.find(task.id)
 
 
@@ -200,7 +202,8 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
     bus = Bus()
     links = Links(old, bus, TimeSource())
     scope = Scope(Environments(old, bus, TimeSource()), links)
-    message = Messages(old, bus, scope, Reactions(old, bus, scope, links, TimeSource()), links, TimeSource()).find(1)
+    with scope.environment(1):
+        message = Messages(old, bus, scope, Reactions(old, bus, scope, links, TimeSource()), links, TimeSource()).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
 
@@ -209,12 +212,13 @@ def test_a_title_is_one_line_of_eighty_characters_without_a_colon_and_an_old_one
     from journal.models.task import Task
     from journal.support.rejection import Rejection
     tasks = tasks_of(connection, bus, scope)
-    with pytest.raises(Rejection, match="at most 80 characters"):
-        tasks.save(Task(environment_id=1, title="x" * 81), Actor.system())
-    with pytest.raises(Rejection, match="no colon"):
-        tasks.save(Task(environment_id=1, title="Titles: the rule"), Actor.system())
-    short = tasks.save(Task(environment_id=1, title="The title rule", brief="x" * 500), Actor.system())
-    assert tasks.save(short.with_(brief="changed"), Actor.system()).brief == "changed", "a row saved again with the title it had is left alone"
+    with scope.environment(1):
+        with pytest.raises(Rejection, match="at most 80 characters"):
+            tasks.save(Task(environment_id=1, title="x" * 81), Actor.system())
+        with pytest.raises(Rejection, match="no colon"):
+            tasks.save(Task(environment_id=1, title="Titles: the rule"), Actor.system())
+        short = tasks.save(Task(environment_id=1, title="The title rule", brief="x" * 500), Actor.system())
+        assert tasks.save(short.with_(brief="changed"), Actor.system()).brief == "changed", "a row saved again with the title it had is left alone"
 
 
 def test_a_row_answers_its_heading_its_summary_and_its_dock_card():

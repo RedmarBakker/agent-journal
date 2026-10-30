@@ -1,8 +1,8 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
+from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -48,8 +48,11 @@ def test_a_solo_plan_agent_can_set_a_task_size_for_its_plan(story):
         f"task size {story.tasks.first} 3 --reason 'the work has one implementation path'",
     )
     result.expect_command_passed()
-    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_task(story.tasks.first, size=3, state=TaskState.OPEN)
+    result = story.user_opens(f"/journal/tasks/{story.tasks.first}/size")
+    result.expect_viewer_shows("current_size", 3)
+    result.expect_viewer_rows("history", "change_type", ["planning_baseline", "size_revision"])
+    result.expect_viewer_rows("history", "actor", ["user:1", f"agent:{PLAN_AGENT_SESSION}"])
     story.expect_stack(story.agents.subject, CoordinatingPlans, OrchestratingPlan)
 
 

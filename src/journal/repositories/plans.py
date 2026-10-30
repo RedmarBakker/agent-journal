@@ -263,7 +263,7 @@ class Plans(ScopedRepository[Plan]):
         return self.first_task(plan, TaskState.OPEN, self.startable_tasks(plan))
 
     def startable_tasks(self, plan: Plan) -> Query:
-        blocked = self.tasks.unavailable_task_ids(self.plan_tasks(plan))
+        blocked = self.tasks.unavailable_task_ids_for_ids(self.plan_task_ids(plan))
         return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def queued_tasks(self, plan: Plan) -> list[Task]:

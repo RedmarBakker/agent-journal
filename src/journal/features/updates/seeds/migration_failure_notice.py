@@ -26,4 +26,4 @@ class MigrationFailureNotice(Seed):
         for environment in self.environments.all():
             with self.scope.environment(environment.row_id):
                 for failure in self.failures.rows:
-                    self.notices.save(Notice(environment_id=environment.row_id, title=f"Migration {failure.number} failed and was rolled back; it will be tried again at the next start: {failure.error}", tone="warn"), Actor.system())
+                    self.notices.save(Notice(environment_id=environment.row_id, title=f"Migration {failure.number} failed; it will be tried again at the next start", tone="warn"), Actor.system())

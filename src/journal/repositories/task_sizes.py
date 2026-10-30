@@ -19,6 +19,7 @@ from journal.repositories.sprints import Sprints
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
+from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
@@ -59,16 +60,26 @@ class TaskSizes(ScopedRepository[TaskSizeEstimate]):
         return self.rewrite(task_id, value, reason, "scope_revision", actor)
 
     def rewrite(self, task_id: int, value: object, reason: str, change_type: str, actor: Actor) -> Task:
-        task = self.tasks.find(task_id)
-        plan = self.task_plan(task)
-        self.builder(plan, actor)
-        if not isinstance(reason, str) or not reason.strip():
-            raise Rejection("a size revision needs a reason")
-        size, version = self.scale.parse_with_version(value)
-        with self.writing():
-            saved = self.tasks.save(task.with_(size=size), actor)
-            self._append(saved, change_type, size, reason.strip(), version, actor)
-            return saved
+        try:
+            task = self.tasks.find(task_id)
+        except MissingRow:
+            plan = self.plan_agents.led_plan(self.scope.id)
+            if not plan or task_id not in self.plans.plan_task_ids(plan):
+                raise
+            task = next(iter(self.tasks.global_matching(id=task_id)), None)
+        if task is None:
+            raise MissingRow(self.tasks.table, task_id)
+        with self.scope.environment(task.environment_id):
+            task = self.tasks.find(task_id)
+            plan = self.task_plan(task)
+            self.builder(plan, actor)
+            if not isinstance(reason, str) or not reason.strip():
+                raise Rejection("a size revision needs a reason")
+            size, version = self.scale.parse_with_version(value)
+            with self.writing():
+                saved = self.tasks.save(task.with_(size=size), actor)
+                self._append(saved, change_type, size, reason.strip(), version, actor)
+                return saved
 
     def propose(self, task_id: int, value: object, reason: str, actor: Actor) -> TaskSizeEstimate:
         task = self.tasks.find(task_id)

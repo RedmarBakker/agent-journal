@@ -28,7 +28,7 @@ class TaskAgents:
 
     def agent(self, task: Task) -> Agent | None:
         agent_id = next((target.id for target in self.links.targets(task, TASK_AGENT_LINK)), 0)
-        return self.agents.find(agent_id) if agent_id else None
+        return next(iter(self.agents.global_matching(id=agent_id)), None) if agent_id else None
 
     def environment(self, task: Task) -> Environment | None:
         agent = self.agent(task)

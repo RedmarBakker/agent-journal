@@ -6,6 +6,7 @@ from journal.features.skills.support.skill_files import SkillFiles
 from journal.support.actor import Actor
 from journal.models.agent import Agent
 from journal.repositories.agents import Agents
+from journal.repositories.scope import Scope
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.support.keyword_match import KeywordMatch
 
@@ -13,8 +14,8 @@ from journal.support.keyword_match import KeywordMatch
 class Requirements:
     """What every moment of requiring a skill shares: which skills an agent still has to read, as a fact on its row, cleared of any whose skill is gone, and the line that says where each file is."""
 
-    def __init__(self, registry: Registry, files: SkillFiles, nudger: Nudger, agents: Agents) -> None:
-        self.registry, self.files, self.nudger, self.agents = registry, files, nudger, agents
+    def __init__(self, registry: Registry, files: SkillFiles, nudger: Nudger, agents: Agents, scope: Scope) -> None:
+        self.registry, self.files, self.nudger, self.agents, self.scope = registry, files, nudger, agents, scope
 
     def has_obligations(self, agent: Agent) -> bool:
         return not agent.is_overview_read or bool(agent.threshold_due) or bool(self.obligation_names(agent))
@@ -36,7 +37,8 @@ class Requirements:
     def discharge_missing(self) -> None:
         names = {skill.name for skill in self.files.catalogue()}
         for agent in self.agents.skill_debtors():
-            self.agents.touched(agent, Actor.system(), lambda time: {"skills_due": tuple(name for name in time.skills_due if name in names)})
+            with self.scope.environment(agent.environment_id):
+                self.agents.touched(agent, Actor.system(), lambda time: {"skills_due": tuple(name for name in time.skills_due if name in names)})
 
     def obligations(self, agent: Agent, skills: list[Skill]) -> list[Skill]:
         loaded = agent.skills_loaded
