@@ -1283,8 +1283,8 @@ options:
 
 $ agent: journal settings list
 exit 0
-skills.session_start = journal | etiquette
-skills.after_compaction = journal | etiquette
+skills.session_start = journal | etiquette | messages
+skills.after_compaction = journal | etiquette | messages
 briefing.look_commands = journal plan show current | journal task list | journal message unread | journal worker open | journal question list | journal reader list | journal task show current
 memory.stale_after = 7
 tasks.auto = True  (the user sets it)
