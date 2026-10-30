@@ -26,6 +26,9 @@ class RoleActor:
     def session_start(self) -> Observation:
         return self.session.session_start()
 
+    def clock_in(self) -> Observation:
+        return self.session.command(["clock-in"])
+
     def receive_handoff(self, inputs: Mapping[str, str]) -> dict[str, str]:
         received = dict(inputs)
         self.missed_inputs = ()
@@ -52,7 +55,8 @@ class RoleActor:
     def commit(self, subject: str) -> Observation:
         if not self.role.writes:
             raise RuntimeError(f"Role {self.role.id} does not commit writing work")
-        return self.session.commit(subject)
+        self.simulator.ledger.committed(subject, int(self.simulator.source.seconds()))
+        return self.simulator.observe()
 
     def prove(self, point: int, proof: str) -> Observation:
         if not self.role.writes:

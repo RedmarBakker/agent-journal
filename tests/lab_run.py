@@ -12,11 +12,19 @@ import pytest
 from journal.features.organization.support.hub_traffic_audit import HubTrafficFinding
 from journal.features.organization.support.organization import Organization
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.models.support.ref import Ref
 from journal.features.workers.organization_options import OrganizationOptions
+from journal.models.worker import Worker
 from journal.models.plan_mode import PlanMode
+from journal.repositories.proofs import Proofs
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
+from journal.repositories.workers import Workers
+from journal.support.actor import Actor
+from journal.support.caller import Caller
 from tests.lab.actors.domain_agent_actor import DomainAgentActor
 from tests.lab.batch import Batch
 from tests.lab.batch_runner import BatchRunner
@@ -27,6 +35,7 @@ from tests.lab.lab_scenario import LabScenario
 from tests.lab.measurement import Measurement
 from tests.lab.network_reading import NETWORK_METRICS, NetworkReading, nearest_rank
 from tests.lab.primary_role_route import PrimaryRoleRoute
+from tests.lab.actors.role_actor import RoleActor
 from tests.lab.run_reading import RUN_METRICS, SETUP_CHECKS, RunReading
 from tests.lab.run_record import RunRecord
 from tests.lab.run_request import RunRequest
@@ -110,6 +119,22 @@ def lab_behaviour_profile(agent_kind, model_tier, line_follow, escalation, hando
     }
     refs = {metric: (f"synthetic://lab-test/{agent_kind}/{model_tier}/{metric}",) for metric in samples}
     return BehaviourProfile.fit(agent_kind, model_tier, samples, refs)
+
+
+def lab_role_worker(lab, role, task, session):
+    actor = Actor.system()
+    worker = lab.app.container.get(Workers).save(Worker(
+        environment_id=task.environment_id,
+        name=role.title,
+        brief=task.brief,
+        role=role.id,
+        contract=lab.app.container.get(Organization).contracts().version,
+        plan_id=lab.scenario_rows["plan_id"],
+        session=session,
+        worktree=True,
+    ), actor)
+    lab.app.container.get(Tasks).handover(task, Ref.build(worker), actor)
+    return worker
 
 
 def test_a_lab_journal_loads_its_scenario_and_replaces_process_and_openrig_calls(tmp_path, monkeypatch):
@@ -305,22 +330,6 @@ def test_a_domain_agent_routes_by_contract_or_its_sampled_route_error(tmp_path, 
 
 
 def test_a_role_writer_records_work_commit_and_proof_while_a_reader_sends_a_report(tmp_path, monkeypatch):
-    from journal.features.organization.support.organization import Organization
-    from journal.models.support.ref import Ref
-    from journal.models.worker import Worker
-    from journal.repositories.environments import Environments
-    from journal.repositories.proofs import Proofs
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.support.actor import Actor
-    from journal.support.caller import Caller
-    from tests.lab.actors.role_actor import RoleActor
-    from tests.lab.behaviour_profile import BehaviourProfile
-    from tests.lab.business_type import BusinessType
-    from tests.lab.lab_journal import LabJournal
-    from tests.lab.lab_scenario import LabScenario
-
     scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
     business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
     run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
@@ -332,17 +341,7 @@ def test_a_role_writer_records_work_commit_and_proof_while_a_reader_sends_a_repo
         scope = lab.app.container.get(Scope)
         with scope.environment(environment_id):
             task = lab.app.container.get(Tasks).find(lab.scenario_rows["task_ids"]["restore_service_health"])
-            worker = lab.app.container.get(Workers).save(Worker(
-                environment_id=task.environment_id,
-                name="Software engineer",
-                brief=task.brief,
-                role=role.id,
-                contract=contracts.version,
-                plan_id=lab.scenario_rows["plan_id"],
-                session="lab-role-writer",
-                worktree=True,
-            ), Actor.system())
-            lab.app.container.get(Tasks).handover(task, Ref.build(worker), Actor.system())
+            worker = lab_role_worker(lab, role, task, "lab-role-writer")
             writer = RoleActor(
                 lab.simulator,
                 role,
@@ -351,6 +350,7 @@ def test_a_role_writer_records_work_commit_and_proof_while_a_reader_sends_a_repo
                 11,
             )
             assert not writer.session_start().is_refused()
+            assert writer.clock_in().answer[0] == 0
             assert not writer.write("src/recovery.py", "RECOVERED = True\n").is_refused()
             assert not writer.commit("record recovery").is_refused()
             assert writer.prove(1, "src/recovery.py:1").answer[0] == 0
@@ -370,23 +370,21 @@ def test_a_role_writer_records_work_commit_and_proof_while_a_reader_sends_a_repo
 
 
 def test_a_role_receives_a_handoff_with_the_profiled_error_and_worktree_behavior(tmp_path, monkeypatch):
-    from journal.support.caller import Caller
-    from journal.features.organization.support.organization import Organization
-    from tests.lab.actors.role_actor import RoleActor
-    from tests.lab.behaviour_profile import BehaviourProfile
-    from tests.lab.business_type import BusinessType
-    from tests.lab.lab_journal import LabJournal
-    from tests.lab.lab_scenario import LabScenario
-
     scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
     business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
     run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
 
     with LabJournal(run, scenario, business, monkeypatch) as lab:
         role = lab.app.container.get(Organization).contracts().role("software_engineer")
+        environment_id = lab.app.container.get(Environments).lookup("main").id
+        with lab.app.container.get(Scope).environment(environment_id):
+            task = lab.app.container.get(Tasks).find(lab.scenario_rows["task_ids"]["restore_service_health"])
+            worker = lab_role_worker(lab, role, task, "lab-role-careless")
         profile = lab_behaviour_profile("role", "sonnet", 0.0, 0.0, 1.0, 0.0, 1.0)
-        actor = RoleActor(lab.simulator, role, Caller.agent("main", "lab-role-careless", "claude"), profile, 5)
+        caller = Caller.worker("main", worker.id, worker.session, "claude")
+        actor = RoleActor(lab.simulator, role, caller, profile, 5)
         assert not actor.session_start().is_refused()
+        assert actor.clock_in().answer[0] == 0
         received = actor.receive_handoff({"health report": "stable", "logs": "empty"})
 
         assert len(received) == 1
@@ -426,16 +424,18 @@ def test_the_outside_world_answers_due_questions_and_the_user_can_be_away(tmp_pa
             questions = lab.app.container.get(Questions).open()
         profile = lab_behaviour_profile("outside_world", "external", 0.8, 0.0, 0.0, 0.0, 0.0)
         outside = OutsideWorldActor(lab.simulator, profile, 3)
+        parties = ("customer", "insurer", "court")
         due = [
             outside.answer_after(question.id, f"The {party} confirms recovery.", party)
-            for party, question in zip(("customer", "insurer", "court"), questions)
+            for party, question in zip(parties, questions)
         ]
         assert all(moment > lab.simulator.source.seconds() for moment in due)
         assert outside.release_due() == ()
         lab.simulator.advance(max(due) - lab.simulator.source.seconds())
         released = outside.release_due()
         assert len(released) == 3 and all(result.answer[0] == 0 for result in released)
-        assert [party for party, _, _ in outside.released] == ["customer", "insurer", "court"]
+        expected_release_order = [parties[index] for index in sorted(range(len(due)), key=due.__getitem__)]
+        assert [party for party, _, _ in outside.released] == expected_release_order
         with scope.environment(main.id):
             assert [lab.app.container.get(Questions).find(question.id).answer for question in questions] == [
                 "The customer confirms recovery.", "The insurer confirms recovery.", "The court confirms recovery.",
@@ -495,9 +495,11 @@ def test_a_planted_domain_route_fault_is_found_shrunk_and_replayed_from_its_file
 
     shrunk = Shrinker(replay, invariant).shrunk(["route", "route"])
     assert shrunk == ["route"]
+    shrunk_trace = replay(shrunk, seed)
+    assert invariant.violated(shrunk_trace)
 
     path = TraceFile(tmp_path / "traces").written(
-        scenario.id, seed, invariant.violated(planted), planted, shrunk,
+        scenario.id, seed, invariant.violated(planted), shrunk_trace, shrunk,
     )
     stored = json.loads(path.read_text(encoding="utf-8"))
     assert stored["scenario"] == scenario.id and stored["seed"] == seed and stored["actions"] == ["route"]

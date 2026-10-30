@@ -56,7 +56,7 @@ class PlanAgentActor:
         return tuple(
             (task_id, domain)
             for task_id, domain in self.task_domains
-            if set(self.task_prerequisites[task_id]) <= completed
+            if task_id not in completed and set(self.task_prerequisites[task_id]) <= completed
         )
 
     @staticmethod
