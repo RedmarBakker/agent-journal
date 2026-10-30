@@ -2,6 +2,16 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.6
+
+- Each hook waits its own time for the journal's answer instead of two seconds for all: a tool 5 seconds, your prompt 8, a stop 10, a session start 15, so a busy machine no longer lets hooks go through unchecked.
+- A worktree worker's repositories are stored before its run starts, so it can always clock out with its inner repositories.
+- The Home page has a Plans window, and the plan bars moved into it from the top bar.
+- A message can carry buttons that open an address or post a form.
+- Triggers can fire on a schedule: once, every so many minutes or on a cron line.
+- The developer settings are grouped under one switch, each group with its own.
+- Panning a flowchart never selects text, and a blocked task opens what its reason names.
+
 ## 4.68.5
 
 - In auto mode the agent may stop with tasks open only by waiting or by saying it is stuck, and a stuck agent now stops with its tasks left open. A stop held only for the closing words after a reply no longer counts towards the five in a row that stop a looping agent.
