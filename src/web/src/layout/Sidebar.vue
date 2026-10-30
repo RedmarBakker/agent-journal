@@ -20,7 +20,7 @@ import {chatPlanLine} from "../domain/plans.js";
 import {domainCounts} from "../domain/organizationCounts.js";
 import {planAgents} from "../domain/planAgents.js";
 
-const envs = computed(() => ownEnvironments(rows("environments"), store.people));
+const envs = computed(() => ownEnvironments(rows("environments")));
 const pages = computed(() => pluginPages(rows("plugins")));
 const domains = computed(() => store.organization?.domains || []);
 const liveDomainCounts = computed(domainCounts);

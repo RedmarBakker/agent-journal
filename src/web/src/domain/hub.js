@@ -1,32 +1,15 @@
-import {colleagueOwner, isSession, isShared, sidebarEnvironments} from "./people.js";
 import {updatedAt} from "./row.js";
 
 // A team's hub is an environment of kind hub, named for the team; what the team's colleagues share and the Team chat are its sessions.
 export const isHub = (row) => row.environment_type === "hub";
 
-const isTeamListed = (row, people) => !isHub(row) && (isSession(row) || (isShared(row) && colleagueOwner(row.id, people) > 0));
 const isGeneratedAgentEnvironment = (row) => row.generated_for === "plan" || row.generated_for === "task";
 
 // Generated plan/task environments and every child open through their plan or Role page.
 const topLevelEnvironments = (rows) => rows.filter((row) => !isGeneratedAgentEnvironment(row) && !row.parent_key);
 
-// Each team's hub with its sessions, a session joining the hub of its own team key and, with none, the first hub.
-export function teamGroups(rows, people) {
-    const topLevel = topLevelEnvironments(rows);
-    const hubs = topLevel.filter(isHub);
-    const sessions = sidebarEnvironments(topLevel, people).filter((row) => isTeamListed(row, people));
-    return hubs.map((hub, n) => ({
-        key: hub.team_key || String(hub.id),
-        team: hub.team_name || hub.name,
-        hub,
-        sessions: sessions.filter((row) => (row.team_key ? row.team_key === hub.team_key : n === 0)),
-    }));
-}
-
-// The environments the sidebar lists apart from every team: the person's own.
-// On a hosted journal only what is shared is listed: an environment that is not shared, not the hub and not a session never is.
-export const ownEnvironments = (rows, people) =>
-    sidebarEnvironments(topLevelEnvironments(rows), people).filter((row) => !isHub(row) && !isTeamListed(row, people) && (!people.hosted || isShared(row)));
+// The sidebar shows each top-level work environment apart from a hub.
+export const ownEnvironments = (rows) => topLevelEnvironments(rows).filter((row) => !isHub(row));
 
 export const inHub = (rows, hub) => rows.filter((row) => row.environment_id === hub.id);
 

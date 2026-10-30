@@ -10,7 +10,6 @@ import Index from "./pages/Index.vue";
 import IntegrationsPage from "./pages/IntegrationsPage.vue";
 import OrganizationPage from "./pages/OrganizationPage.vue";
 import RolePage from "./organization/RolePage.vue";
-import SharedRoles from "./organization/SharedRoles.vue";
 import LibraryPage from "./pages/LibraryPage.vue";
 import PluginsPage from "./pages/PluginsPage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
@@ -57,7 +56,6 @@ defineProps({page: {type: String, required: true}});
         <template #mcp><IntegrationsPage /></template>
         <template #organization>
             <PhoneDesktopNotice v-if="onPhone" message="The organization screen opens on the desktop." />
-            <SharedRoles v-else-if="route.shared" />
             <OrganizationPage v-else />
         </template>
         <template #role>
