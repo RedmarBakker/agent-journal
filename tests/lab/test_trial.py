@@ -34,7 +34,7 @@ def test_trial_setting_rejects_agent_controlled_switches():
 
 
 def test_trial_setting_rejects_a_switch_that_is_on_by_default():
-    with pytest.raises(ValueError, match="default to off"):
+    with pytest.raises(ValueError, match="default is off"):
         TrialSetting(trial_option(default=True), "Product owner")
 
 
@@ -73,7 +73,7 @@ def test_finding_task_command_carries_report_metric_scenarios_and_replay_traces(
     for reference in (
         "report 22", "handoff_traceability", "metric-schema-v3", "fleet_operator/tracker_outage",
         "law_firm/court_filing_deadline", "$LAB_HOME/batches/b1/runs/r1/trace.json",
-        "plans.trial_route", "Product owner", "default off", "doc 10 section 19", "both paths",
+        "plans.trial_route", "Product owner", "default off", "journal doc show 10 --section 19", "both paths",
         "keep_eligible", "switch removal", "inconclusive", "NOTES.md",
     ):
         assert reference in task.brief
