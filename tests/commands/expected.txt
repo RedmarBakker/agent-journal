@@ -1605,7 +1605,7 @@ journal-sequences    Follow a sequence of steps one at a time; load it when a se
 journal-workers      Send a worker to write a bounded job and wait for its report; load it before dispatching one
 journal-work-modes   The builder, the orchestrator and solo, and what each is told by its fitness measures; load it when the work mode or its fitness comes up
 journal-checks       Scripts that pass or fail about the project; load it when a check is created, run or fails
-journal-shell        How the journal runs your shell commands: in parts, timed, and in the background past the limit
+journal-shell        How the journal runs your shell commands: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias
 journal-secrets      Keys and logins the agent uses without seeing them; load it when a task needs a key, a login or a site you must be logged in to
 journal-templates    Load it when something is to be made from a template, or a template is written, or the user asks for a critique that names one
 journal-reports      Put what was just checked or researched in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up
