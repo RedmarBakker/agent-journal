@@ -15,11 +15,13 @@ from journal.models.environment import Environment
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
+from journal.models.task import Task
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.support.missing_row import MissingRow
 from journal.support.actor import Actor
 from journal.support.inner_repositories import InnerRepositories
 from journal.support.time_source import TimeSource
@@ -45,6 +47,16 @@ class PlanAgents:
 
     def led_plan(self, environment_id: int) -> Plan | None:
         return next((plan for plan in self.plans.global_matching(state=PlanState.STARTED) if (environment := self.environment(plan)) and environment.row_id == environment_id), None)
+
+    def planned_task(self, task_id: int, agent_environment_id: int) -> Task:
+        plan = self.led_plan(agent_environment_id)
+        if plan is None:
+            raise MissingRow(Task.table(), task_id)
+        with self.scope.environment(plan.environment_id):
+            task = next((task for task in self.plans.plan_tasks(plan) if task.row_id == task_id), None)
+        if task is None:
+            raise MissingRow(Task.table(), task_id)
+        return task
 
     def is_running(self, environment: Environment) -> bool:
         plan = self.led_plan(environment.row_id)

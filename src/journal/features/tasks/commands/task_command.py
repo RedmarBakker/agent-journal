@@ -32,6 +32,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.tasks import Tasks
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
+from journal.features.plans.support.plan_agents import PlanAgents
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.support.time_source import TimeSource
@@ -39,6 +40,7 @@ from journal.engine.support.assigner_resolution import AssignerResolution
 from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.next_tasks_request import NextTasksRequest
 from journal.repositories.scope import Scope
+from journal.support.missing_row import MissingRow
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
@@ -48,11 +50,11 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, plan_agents: PlanAgents, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
-        self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
+        self.tasks, self.logs, self.messages, self.links, self.plans, self.plan_agents, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, plan_agents, taking, questions, waits, briefing
         self.check, self.reports = check, reports
         self.task_sizes = task_sizes
         self.task_dependencies = task_dependencies
@@ -313,7 +315,7 @@ class TaskCommand(Command):
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
         holder = self.taking.holder(caller)
         held = self.tasks.holder_task(holder) if holder else None
-        task = held if held and held.row_id == args.n else self.tasks.find(args.n)
+        task = held if held and held.row_id == args.n else self.readable(args.n, caller)
         with self.scope.environment(task.environment_id):
             if self.plans.has_phase_end_tests(task):
                 return self.phase_tested(task, args.how, caller)
@@ -336,7 +338,10 @@ class TaskCommand(Command):
         return 0
 
     def readable(self, n: int, caller: Caller) -> Task:
-        return self.tasks.find(n)
+        try:
+            return self.tasks.find(n)
+        except MissingRow:
+            return self.plan_agents.planned_task(n, self.scope.id)
 
     def show(self, args: Namespace, caller: Caller) -> int:
         if args.n == CURRENT:

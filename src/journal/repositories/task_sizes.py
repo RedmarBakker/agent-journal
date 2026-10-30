@@ -64,12 +64,7 @@ class TaskSizes(ScopedRepository[TaskSizeEstimate]):
         try:
             task = self.tasks.find(task_id)
         except MissingRow:
-            plan = self.plan_agents.led_plan(self.scope.id)
-            if not plan or task_id not in self.plans.plan_task_ids(plan):
-                raise
-            task = next(iter(self.tasks.global_matching(id=task_id)), None)
-        if task is None:
-            raise MissingRow(self.tasks.table, task_id)
+            task = self.plan_agents.planned_task(task_id, self.scope.id)
         with self.scope.environment(task.environment_id):
             task = self.tasks.find(task_id)
             plan = self.task_plan(task)
