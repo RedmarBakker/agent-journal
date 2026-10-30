@@ -72,6 +72,7 @@ class TasksDataReader:
             "choosable_summary": lambda: ", ".join(f"task {task.id}" for task in self.assigner.choosable_work(agent)),
             "free_open": lambda: self.assigner.free_task() is not None,
             "paused_declined": lambda: agent.paused_declined,
+            "paused_line_said": lambda: self.paused_line_said(agent),
             "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
@@ -79,6 +80,10 @@ class TasksDataReader:
     def current_id(self, agent: Agent) -> int:
         current = self.tasks.current(agent)
         return current.row_id if current else 0
+
+    def paused_line_said(self, agent: Agent) -> bool:
+        current, last = self.tasks.current(agent), self.entries.last_key_moment(agent.session, TasksNudges.WAIT_PAUSED_TASK.key)
+        return current is not None and current.started_at is not None and last is not None and last.seconds >= current.started_at.timestamp()
 
     def current_log(self, agent: Agent) -> str:
         current = self.tasks.current(agent)
