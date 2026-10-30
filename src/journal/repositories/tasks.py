@@ -1,10 +1,12 @@
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
 from journal.events.rows.released_tasks import ReleasedTasks
+from journal.events.rows.task_started import TaskStarted
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.link import Link
@@ -22,6 +24,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
+from journal.repositories.agents import Agents
 from journal.repositories.rows import Rows
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
@@ -52,10 +55,10 @@ class Tasks(ScopedRepository[Task]):
 
     model = Task
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource, rows: Rows) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource, rows: Rows, agents: Agents) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.row_reader = rows
-        self.links, self.checks = links, checks
+        self.links, self.checks, self.agents = links, checks, agents
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 
     def open_waits(self, row: Task | Plan) -> list[Ref]:
@@ -212,7 +215,7 @@ class Tasks(ScopedRepository[Task]):
 
     def holder_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
-        tasks = self.selected(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
+        tasks = self.selected_globally(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
         return next((task for task in tasks if task.is_started()), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
@@ -248,6 +251,9 @@ class Tasks(ScopedRepository[Task]):
 
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
         self.assign_holder(started, holder, actor)
+        if holder is not None and holder.type == Agent.table():
+            agent = self.agents.find(holder.id)
+            started = started.with_events(tuple(replace(event, session=agent.session) if isinstance(event, TaskStarted) else event for event in started.events))
         return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
 
     def assign_holder(self, started: Task, holder: Ref | None, actor: Actor) -> None:

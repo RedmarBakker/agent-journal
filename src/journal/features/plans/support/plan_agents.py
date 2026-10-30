@@ -10,6 +10,7 @@ from journal.models.agent import Agent
 from journal.models.environment import Environment
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
+from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
@@ -37,7 +38,7 @@ class PlanAgents:
         return self.environments.find(agent.environment_id) if agent else None
 
     def led_plan(self, environment_id: int) -> Plan | None:
-        return next((plan for plan in self.plans.running_plans() if (environment := self.environment(plan)) and environment.row_id == environment_id), None)
+        return next((plan for plan in self.plans.global_matching(state=PlanState.STARTED) if (environment := self.environment(plan)) and environment.row_id == environment_id), None)
 
     def is_running(self, environment: Environment) -> bool:
         plan = self.led_plan(environment.row_id)

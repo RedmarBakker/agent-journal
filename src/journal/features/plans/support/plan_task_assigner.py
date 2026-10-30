@@ -13,6 +13,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
@@ -24,8 +25,8 @@ FOLLOWING_PLAN = "following_plan"
 class PlanTaskAssigner:
     """The task assigner a followed plan names: ordinary task completion may pass an owner checkpoint in auto mode, while supervisor work signals stop there; blocked tasks, unpassed phase tests, orchestrator mode and work already in hand hold both paths."""
 
-    def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource) -> None:
-        self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source
+    def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource, scope: Scope) -> None:
+        self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source, self.scope = default, plans, tasks, testing, orchestrator, settings, time_source, scope
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if isinstance(event, PlanWorkAvailable):
@@ -35,16 +36,19 @@ class PlanTaskAssigner:
         return self.next_plan_task(agent, event, quantity)
 
     def work_available(self, agent: Agent, event: PlanWorkAvailable, quantity: int) -> Assignment:
-        if (event.target_agent_id != agent.row_id or event.environment_id != agent.environment_id
-                or not agent.is_main() or self.default.is_working(agent) or not self.following_plan_idle(agent, event.plan_id)):
+        if (event.environment_id != agent.environment_id or not agent.is_main() or self.default.is_working(agent)
+                or not self.following_plan_idle(agent, event.plan_id)):
             return Assignment()
         plan = self.current_plan(agent, event)
-        if plan is None or plan.row_id != event.plan_id or not self.is_current_phase(plan, event.phase_id):
+        if plan is None:
             return Assignment()
-        if not self.eligible_signal_task(plan, event):
-            return Assignment()
-        if self.supervisor_checkpoint_blocks(plan):
-            return Assignment()
+        with self.scope.environment(plan.environment_id):
+            if plan.row_id != event.plan_id or not self.is_current_phase(plan, event.phase_id):
+                return Assignment()
+            if not self.eligible_signal_task(plan, event):
+                return Assignment()
+            if self.supervisor_checkpoint_blocks(plan):
+                return Assignment()
         return self.next_plan_task(agent, event, quantity)
 
     @staticmethod
@@ -69,17 +73,18 @@ class PlanTaskAssigner:
 
     def next_plan_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int) -> Assignment:
         plan = self.current_plan(agent, event)
-        if plan is not None and plan.is_blocked():
-            if isinstance(event, PlanWorkAvailable):
+        if plan is None:
+            return Assignment()
+        if not self.is_advancing(plan):
+            if plan.is_blocked() and not isinstance(event, PlanWorkAvailable):
+                return self.default.next_task(agent, event, quantity)
+            return Assignment()
+        with self.scope.environment(plan.environment_id):
+            task = self.following_task(plan)
+            if task is None:
                 return Assignment()
-            return self.default.next_task(agent, event, quantity)
-        if plan is None or not self.is_advancing(plan):
-            return Assignment()
-        task = self.following_task(plan)
-        if task is None:
-            return Assignment()
-        self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
-        return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
+            self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
+            return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
 
     def following_ids(self, plan: Plan, quantity: int) -> tuple[int, ...]:
         if quantity <= 1:
@@ -96,17 +101,18 @@ class PlanTaskAssigner:
             if started:
                 return started[0]
         plan_id = next((layer.get("data", {}).get("plan_id", 0) for layer in reversed(agent.stack) if layer.get("state") == FOLLOWING_PLAN), 0)
-        return self.plans.find(plan_id) if plan_id else None
+        return next(iter(self.plans.global_matching(id=plan_id)), None) if plan_id else None
 
     def advancement_block(self, plan: Plan) -> str:
         if not plan.is_started():
             return "plan_not_started"
         if self.orchestrator.delegates_work():
             return "work_delegated"
-        if self.checkpoint_blocks(plan):
-            return "owner_checkpoint"
-        if self.testing.unpassed(plan):
-            return "phase_tests_unpassed"
+        with self.scope.environment(plan.environment_id):
+            if self.checkpoint_blocks(plan):
+                return "owner_checkpoint"
+            if self.testing.unpassed(plan):
+                return "phase_tests_unpassed"
         return ""
 
     def is_advancing(self, plan: Plan) -> bool:

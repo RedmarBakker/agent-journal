@@ -62,7 +62,8 @@ class Heard(Listener[ModelEvent]):
 
 
 def tasks_of(connection, bus, scope) -> Tasks:
-    return Tasks(connection, bus, scope, Links(connection, bus, TimeSource()), Questions(connection, bus, scope, TimeSource()), Checks(connection, bus, TimeSource()), TimeSource(), Rows(connection))
+    time_source = TimeSource()
+    return Tasks(connection, bus, scope, Links(connection, bus, time_source), Questions(connection, bus, scope, time_source), Checks(connection, bus, time_source), time_source, Rows(connection), Agents(connection, bus, scope, time_source))
 
 
 class SayNo(Listener[Creating]):

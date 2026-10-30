@@ -57,7 +57,9 @@ class EnvironmentController(Controller[Environment]):
 
     def stop(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
-        self.supervisor.stop(environment.row_id)
+        reply = self.supervisor.stop(environment.row_id)
+        if not reply.success:
+            raise Rejection(reply.error)
         return Response.json(environment)
 
     def worktree_removal(self, request: Request) -> Response:

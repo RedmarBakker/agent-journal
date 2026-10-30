@@ -67,17 +67,18 @@ class SupervisorWorkAvailable:
         if self.agents.unended_agent(agent.row_id) != agent or bound_agent_id != agent.row_id:
             return self.record(principal, receipt, task_id, "needs_owner", "driver_binding_changed", key, grant)
         phase_id = context["current_phase"]["phase_id"]
-        with self.scope.environment(environment.row_id):
+        with self.scope.environment(plan.environment_id):
             current_plan = self.plans.find(plan.row_id)
             if not self.assigner.is_current_phase(current_plan, phase_id):
                 return self.record(principal, receipt, task_id, "needs_owner", "grant_context_changed", key, grant)
+        with self.scope.environment(environment.row_id):
             if reason := self.assigner.advancement_block(current_plan):
                 return self.record(principal, receipt, task_id, "needs_owner", reason, key, grant)
         if not self.current_diagnostic(plan, phase_id, task_id, agent):
             return self.record(principal, receipt, task_id, "needs_owner", "diagnostic_not_current", key, grant)
         event = PlanWorkAvailable(
             environment_id=environment.row_id, time=self.time_source.seconds(), row_id=task_id,
-            actor=Actor.plugin(SUPERVISOR_ACTOR).stamp, target_agent_id=agent.row_id,
+            actor=Actor.plugin(SUPERVISOR_ACTOR).stamp,
             plan_id=plan.row_id, phase_id=phase_id, task_id=task_id, receipt_id=receipt["receipt_id"],
         )
         self.announcer.announce(event)

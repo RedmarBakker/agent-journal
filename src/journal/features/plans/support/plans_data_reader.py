@@ -46,6 +46,9 @@ class PlansDataReader:
 
     def started(self) -> LazyFacts | None:
         started = next(iter(self.plans.running_plans()), None)
+        if started is None:
+            plan_ref = next((ref for ref in self.scope.bound() if ref.type == Plan.table()), None)
+            started = next(iter(self.plans.global_matching(id=plan_ref.id)), None) if plan_ref else None
         return self.started_plan(started) if started else None
 
     def review_reports(self) -> tuple[int, ...]:

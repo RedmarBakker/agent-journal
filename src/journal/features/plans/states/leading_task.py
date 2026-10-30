@@ -46,4 +46,4 @@ class LeadingTask(Soloing):
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         active = self.active(event.time)
-        return active.push(active.working_state(task_id=self.task_id, logged_at=event.time, task_noun=self.task_noun(event.data, event.environment_id)), PlansNudges.WORKING_TASK_ALONE.create(task=self.task_id))
+        return active.push(active.working_state(task_id=self.task_id, logged_at=event.time), PlansNudges.WORKING_TASK_ALONE.create(task=self.task_id))

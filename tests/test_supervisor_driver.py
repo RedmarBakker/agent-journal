@@ -7,6 +7,7 @@ from journal.engine.agent_launcher import AgentLauncher
 from journal.events.announcer import Announcer
 from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.features.plans.plans_options import PlansOptions
+from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
 from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
 from journal.features.tasks.tasks_options import TasksOptions
@@ -75,6 +76,7 @@ def driver_processes(app: App, monkeypatch) -> DriverProcesses:
 
 @pytest.fixture
 def normal_driver(app: App, driver_processes: DriverProcesses) -> Fixture:
+    user_set(app, OrganizationOptions.PLAN_MODE.key, "solo")
     user_set(app, PlansOptions.PLAN_AGENTS.key, True)
     status, answer = posted(app, "/hooks/codex", {"hook_event_name": "SessionStart", "session_id": "supervisor-main"}, {"X-Journal-Env": "main"})
     assert status < 400, answer
@@ -140,15 +142,14 @@ def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(
     diagnostic = add_phase_task(app, fixture, title, brief)
     context = action_context(app, monkeypatch, fixture)
     request = maintenance_request(context, [diagnostic_operation(context)])
-    announcer = app.container.get(Announcer)
     announced = []
-    original_announce = announcer.announce
+    original_announce = Announcer.announce
 
-    def capture(event):
+    def capture(announcer, event):
         announced.append(event)
-        return original_announce(event)
+        return original_announce(announcer, event)
 
-    monkeypatch.setattr(announcer, "announce", capture)
+    monkeypatch.setattr(Announcer, "announce", capture)
 
     receipt = context["maintenance"].apply_maintenance(context["principal"], request)
 
@@ -161,7 +162,7 @@ def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(
     assert fixture.agent.environment_id in driver_processes.running and agent.provider == "codex" and agent.session == f"plan-driver-{fixture.plan.id}", "the ordinary bound Plan agent is running through its Codex session"
     assert [(layer["state"], layer["data"].get("plan_id")) for layer in agent.stack] == [("leading_plan", fixture.plan.row_id), ("following_plan", fixture.plan.row_id)], "the driver is following its bound plan through the normal state machine"
     assert task.state == TaskState.STARTED and holder == Ref.build(agent), "the normal row-event assignment path starts the eligible current-phase diagnostic in the bound driver"
-    assert len(announced) == 1 and isinstance(announced[0], PlanWorkAvailable) and announced[0].target_agent_id == fixture.agent.row_id, "the committed receipt signals only its bound Plan driver"
+    assert len(announced) == 1 and isinstance(announced[0], PlanWorkAvailable) and announced[0].environment_id == fixture.agent.environment_id and announced[0].plan_id == fixture.plan.row_id, "the committed receipt signals work in its bound Plan environment"
     assert work_delivery(app, context["scope"], receipt["receipt_id"]).data["status"] == "notified", "the action receipt has a separate work-delivery record"
 
 
@@ -227,7 +228,6 @@ def test_checkpoint_waits_for_owner_even_when_tasks_auto_is_on(app: App, normal_
         time=app.container.get(TimeSource).seconds(),
         row_id=next_task.row_id,
         actor=Actor.plugin(SUPERVISOR_ACTOR).stamp,
-        target_agent_id=agent.row_id,
         plan_id=fixture.plan.row_id,
         phase_id=next_phase.row_id,
         task_id=next_task.row_id,
@@ -264,9 +264,10 @@ def test_future_phase_pause_checkpoint_and_failed_phase_gate_do_not_advance(app:
     request = maintenance_request(context, [diagnostic_operation(context)])
     authority = fixture.authority
     original = authority.action_context
+    authority_type = type(authority)
     count = 0
 
-    def recheck(principal):
+    def recheck(_authority, principal):
         nonlocal count
         count += 1
         if count == 2:
@@ -280,10 +281,10 @@ def test_future_phase_pause_checkpoint_and_failed_phase_gate_do_not_advance(app:
                         current = tasks.find(phase_task.row_id)
                         tasks.save(current.with_(state=TaskState.COMPLETED, completed_at=context["time_source"].moment(), outcome="fixture completed"), Actor.system())
             elif gate == "failed_phase_tests":
-                monkeypatch.setattr(authority.phase_testing, "unpassed", lambda _plan: ("pytest",))
+                monkeypatch.setattr(type(authority.phase_testing), "unpassed", lambda _testing, _plan: ("pytest",))
         return original(principal)
 
-    monkeypatch.setattr(authority, "action_context", recheck)
+    monkeypatch.setattr(authority_type, "action_context", recheck)
     receipt = context["maintenance"].apply_maintenance(context["principal"], request)
 
     delivery = work_delivery(app, scope, receipt["receipt_id"])
@@ -318,7 +319,7 @@ def test_unavailable_or_incompatible_driver_requires_owner_evidence(app: App, no
     authority, original = fixture.authority, fixture.authority.action_context
     count = 0
 
-    def recheck(principal):
+    def recheck(_authority, principal):
         nonlocal count
         count += 1
         if count == 2:
@@ -331,7 +332,7 @@ def test_unavailable_or_incompatible_driver_requires_owner_evidence(app: App, no
                     agents.save(agent.with_(provider="claude"), Actor.system())
         return original(principal)
 
-    monkeypatch.setattr(authority, "action_context", recheck)
+    monkeypatch.setattr(type(authority), "action_context", recheck)
     receipt = context["maintenance"].apply_maintenance(context["principal"], request)
     delivery = work_delivery(app, context["scope"], receipt["receipt_id"])
 
@@ -346,16 +347,15 @@ def test_replayed_work_signal_does_not_reassign_or_duplicate(app: App, normal_dr
     diagnostic = add_phase_task(app, fixture, title, brief)
     context = action_context(app, monkeypatch, fixture)
     request = maintenance_request(context, [diagnostic_operation(context)])
-    announcer = app.container.get(Announcer)
     announced = []
-    original_announce = announcer.announce
+    original_announce = Announcer.announce
 
-    def capture(event):
+    def capture(announcer, event):
         if isinstance(event, PlanWorkAvailable):
             announced.append(event)
-        return original_announce(event)
+        return original_announce(announcer, event)
 
-    monkeypatch.setattr(announcer, "announce", capture)
+    monkeypatch.setattr(Announcer, "announce", capture)
     receipt = context["maintenance"].apply_maintenance(context["principal"], request)
     tasks, agents = app.container.get(Tasks), app.container.get(Agents)
     agent = agents.unended_agent(fixture.agent.row_id)

@@ -378,7 +378,6 @@ $ agent: journal plan show 1
 exit 0
 plan 1 draft: The shop's checkout
 mode: solo
-owner: user 1
 phase 1: The cart (complete when the cart adds up)
    3  open     The cart sums its lines
 phase 2: Paying by card (complete when a card pays) [checkpoint]
@@ -1399,6 +1398,7 @@ workers.build_command = ''
 workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex journal-senior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex reviewer: gpt-5.6-sol, gpt-6.1-sol | codex verifier: gpt-5.6-sol, gpt-6.1-sol
 workers.organization_folder = ''  (the user sets it)
 workers.organization_version = ''  (the user sets it)
+workers.default_plan_mode = 'organization'  (the user sets it)
 workers.organization_plan_profile = 'organization-plan-review'  (the user sets it)
 workers.organization_plan_effort = 'xhigh'  (the user sets it)
 workers.openrig_version = ''  (the user sets it)
@@ -1745,6 +1745,7 @@ plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}
 plans.now_building  [plans]  you are now the builder. `journal mode show` prints what the mode asks
+plans.now_coordinating_plans  [plans]  you now coordinate the plans: each plan's own Plan agent does its work; write no code
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
 plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`
@@ -1949,7 +1950,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-292 nudges
+305 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1970,9 +1971,9 @@ $ agent: journal worker dispatch --help
 exit 0
 usage: journal worker dispatch [-h] [--provider {claude,codex}]
                                --changes CHANGES [--tests TESTS] [--role ROLE]
-                               [--profile PROFILE] [--model MODEL] [--worktree]
-                               [--libraries LIBRARIES] [--copies COPIES]
-                               [--no-libraries] [--fresh]
+                               [--profile PROFILE] [--model MODEL]
+                               [--worktree] [--libraries LIBRARIES]
+                               [--copies COPIES] [--no-libraries] [--fresh]
                                [--report REPORT [REPORT ...]] (--task TASK |
                                --plan PLAN) [--phase PHASE]
                                name [brief]

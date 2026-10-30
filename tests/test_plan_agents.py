@@ -5,6 +5,7 @@ import pytest
 from journal.app import App
 from journal.engine.agent_launcher import AgentLauncher
 from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.workers.workers_nudges import WorkersNudges
@@ -73,6 +74,7 @@ def supervisors(app: App, monkeypatch) -> Supervisors:
 
 @pytest.fixture
 def app(app: App):
+    user_set(app, OrganizationOptions.PLAN_MODE.key, "solo")
     with app.container.get(Scope).environment(MAIN):
         hook(app, "SessionStart")
         app.console().run(["environment", "overview"], AGENT)
@@ -107,7 +109,7 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
         assert environment.generated_for == "plan" and environment.parent_key == main_key, "the generated Plan environment records its kind and source environment"
     assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "the main agent delegates, so starting the second plan pauses neither"
     with app.container.get(Scope).environment(plan_environment(app, first).row_id):
-        assert [plan.id for plan in plans.scoped()] == [first] and len(plans.plan_tasks(plans.find(first))) == 1, "the first plan's environment reads its plan and its tasks, not the other plan"
+        assert not plans.scoped() and not plans.plan_tasks(plans.find(first)), "the plan agent's environment keeps the plan and its tasks scoped to the person who owns them"
     status, answer = posted(app, "/journal/messages", {"text": "how are the floors?"}, {"X-Journal-Env": f"plan-{first}"})
     assert status < 400, answer
     chat = lambda environment_id: [message.text for message in app.container.get(Messages).global_matching(environment_id=environment_id)]

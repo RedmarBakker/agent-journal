@@ -63,7 +63,7 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
         rules, supervisor = app.container.get(StartRule), app.container.get(SupervisorLink)
         return [
             EnvironmentRow(environment.name, working=supervisor.runs(environment.row_id), refusal=rules.refusal(environment))
-            for environment in environments.working()
+            for environment in supervisor.running(environments.rows())
         ]
 
     def running_environments(supervisor, candidates):
