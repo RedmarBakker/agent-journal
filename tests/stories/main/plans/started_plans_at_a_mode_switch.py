@@ -1,3 +1,4 @@
+from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
@@ -12,7 +13,7 @@ from tests.stories.fixtures.main.three_approved_plans import ThreeApprovedPlans
 
 
 @story(ThreeApprovedPlans, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_second_plan_the_user_starts_for_a_builder_pauses_the_first(story):
+def test_a_second_plan_the_user_starts_for_a_builder_pauses_the_first_and_the_builder_is_never_asked_about_returning_to_it(story):
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
     story.agent_runs(story.agents.subject, f"task pause {story.tasks.first} 'billing comes first'")
     story.user_starts_plan(story.plans.second)
@@ -20,6 +21,9 @@ def test_a_second_plan_the_user_starts_for_a_builder_pauses_the_first(story):
     story.expect_plan(story.plans.second, state=PlanState.STARTED)
     story.expect_plan(story.plans.third, state=PlanState.APPROVED)
     story.expect_task(story.tasks.invoice, state=TaskState.STARTED)
+    result = story.agent_writes(story.agents.subject, "invoice.py")
+    result.expect_allowed()
+    result.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan, Working)
 
 

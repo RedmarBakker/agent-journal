@@ -28,6 +28,8 @@ USER_PAUSER = "user"
 AGENT_PAUSER = "agent"
 # a plan the agent paused and said it does not return to once its outside task is done
 DECLINED_RETURN_PAUSER = "agent, no return"
+# a plan paused because another plan was started or kept, as a builder follows one plan at a time; no return is asked for it
+FOCUS_PAUSER = "another plan"
 
 @dataclass(frozen=True)
 class Plan(Scoped, Commentable):
@@ -111,6 +113,9 @@ class Plan(Scoped, Commentable):
 
     def agent_postponed(self, time: float) -> "Plan":
         return self.moved(PlanState.PAUSED).with_(pauser=AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
+
+    def focus_postponed(self, time: float) -> "Plan":
+        return self.moved(PlanState.PAUSED).with_(pauser=FOCUS_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=False))
 
     def with_return(self, time: float) -> "Plan":
         return self.with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=True))
