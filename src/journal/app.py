@@ -32,6 +32,7 @@ from journal.chat.process_card_poll import ProcessCardPoll
 from journal.chat.row_process_card import RowProcessCard
 from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
+from journal.sync.team_writes import TeamWrites
 from journal.http.router import Router
 from journal.http.routes.routes import Routes
 from journal.http.server import Server

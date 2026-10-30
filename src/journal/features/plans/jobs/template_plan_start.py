@@ -44,7 +44,7 @@ class TemplatePlanStart(Job):
             self.links.save(Link(source=Ref.build(plan), target=Ref.build(template), link_type=MADE_FROM_LINK), Actor.system())
             for part in template.parts or (f"{template.title}: {template.brief}",):
                 self.task(plan, part)
-            self.plans.approve(plan, Actor.system())
+            self.plans.agent_approved(plan, Actor.system())
             self.start.run()
 
     def task(self, plan: Plan, part: str) -> None:

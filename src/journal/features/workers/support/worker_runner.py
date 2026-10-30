@@ -26,6 +26,7 @@ from journal.support.actor import Actor
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.models.model_tier import ModelTier
+from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.scope import Scope

@@ -3180,6 +3180,17 @@ def test_a_command_runs_in_the_origin_of_its_caller(app: App):
     assert read and set(read) == {(USER.actor, USER.role)}, "every write a command makes runs in its caller's origin"
 
 
+def test_a_command_without_a_server_starts_team_writes_before_it_runs(app: App, monkeypatch):
+    from types import SimpleNamespace
+    from journal.console.support.outcome import Outcome
+
+    called = []
+    console = SimpleNamespace(run=lambda argv, caller: called.append((argv, caller)) or Outcome(0, "done"))
+    monkeypatch.setattr(app, "console", lambda: console)
+    assert app.run_without_server(["task", "list"], USER) == Outcome(0, "done")
+    assert called == [(["task", "list"], USER)], "the command runs after its team write listeners are ready"
+
+
 def test_a_stack_is_floored_and_reset_by_its_bottom_state():
     from journal.engine.states.void import Void
     from journal.features.tasks.states.ready import Ready
