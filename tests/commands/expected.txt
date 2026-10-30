@@ -116,6 +116,55 @@ exit 0
    1  completed Write the footer
    2  cancelled Fix the cart total
 
+$ agent: journal task size --help
+exit 0
+usage: journal task size [-h] --reason REASON n size
+
+positional arguments:
+  n
+  size  a value on the configured scale or unknown
+
+options:
+  -h, --help       show this help message and exit
+  --reason REASON  why the accepted size is revised
+
+$ agent: journal task scope-size --help
+exit 0
+usage: journal task scope-size [-h] --reason REASON n size
+
+positional arguments:
+  n
+  size  a value on the configured scale or unknown
+
+options:
+  -h, --help       show this help message and exit
+  --reason REASON  what scope changed
+
+$ agent: journal task propose-size --help
+exit 0
+usage: journal task propose-size [-h] --reason REASON n size
+
+positional arguments:
+  n
+  size  a value on the configured scale or unknown
+
+options:
+  -h, --help       show this help message and exit
+  --reason REASON  why the size should change
+
+$ agent: journal task depends --help
+exit 0
+usage: journal task depends [-h] (--on ON | --clear) --reason REASON n
+
+positional arguments:
+  n
+
+options:
+  -h, --help       show this help message and exit
+  --on ON          a task that must be accepted first; repeat for more
+  --clear          remove every planned task prerequisite
+  --reason REASON  why the task prerequisites changed
+
 $ agent: journal task priorities --help
 exit 0
 usage: journal task priorities [-h] {confirm}

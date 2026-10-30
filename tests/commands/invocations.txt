@@ -23,6 +23,10 @@ agent task complete 1 --how "the footer names the shop"
 agent task start 2
 agent task cancel 2 --why "the tax rates changed"
 agent task list --all
+agent task size --help
+agent task scope-size --help
+agent task propose-size --help
+agent task depends --help
 agent task priorities --help
 agent todo --help
 agent todo add --help
