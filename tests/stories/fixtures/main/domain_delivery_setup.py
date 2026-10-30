@@ -6,7 +6,8 @@ from tests.organization_fixture import OrganizationFixture
 def setup_domain(story, fixture, folder_name: str, domain: str, definition: dict | None) -> None:
     folder = story.app.config.root / folder_name
     organization = OrganizationFixture(folder).write()
-    organization.domain(domain, roles=[], **({"definition_of_done": definition} if definition else {}))
+    organization.domain(domain, roles=["delivery"], **({"definition_of_done": definition} if definition else {}))
+    organization.role(domain, "delivery", writes=True)
     story.user_sets(OrganizationOptions.FOLDER, str(folder))
     result = story.user_presses("/journal/organization/reload", {})
     result.expect_viewer_passed()

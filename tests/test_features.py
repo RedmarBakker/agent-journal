@@ -58,6 +58,7 @@ from tests.user_settings import user_set
 from tests.agent_hooks import woken_capture, pinned_clock, silent_tick, tick_at
 from tests.in_process import answered, get_answer, posted
 from tests.main_journal import main_journal
+from tests.journal_boot import booted
 from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.tasks_nudges import TasksNudges
@@ -132,17 +133,6 @@ def app(app: App):
 @pytest.fixture(scope="module")
 def boot():
     return booted
-
-
-def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """A journal started on a free port; no worker process starts, since a dispatched worker would run its provider headless and file what it printed, or that it could not start, beside the test's own report."""
-    patch.setattr(Config, "status_home", property(lambda self: root / "status"))
-    patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    app = main_journal(Config(root, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
-    app.runtime().start()
-    return app
 
 
 def fifo_line(fifo: Path) -> str:

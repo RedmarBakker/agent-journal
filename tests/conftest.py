@@ -31,6 +31,7 @@ from tests.behaviour_record import BehaviourRecord
 from tests.shard_deal import ShardDeal
 from tests.template_copy import copied
 from tests.shared_journal import SharedJournal
+from tests.journal_boot import booted
 from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
@@ -121,6 +122,11 @@ def journal(tmp_path_factory, template_journal: Path, boot) -> SharedJournal:
         app = boot(copied(template_journal, tmp_path_factory.mktemp("module")), patch)
         yield SharedJournal(app)
         app.runtime().stop()
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 @pytest.fixture

@@ -186,6 +186,7 @@ class Routes:
         sprints = get(SprintController)
         router.get(f"{API}/sprints", sprints.index)
         router.get(f"{API}/sprints/{{id}}", sprints.show)
+        router.get(f"{API}/sprints/{{id}}/metrics", sprints.metrics_report)
         router.post(f"{API}/sprints", sprints.store)
         router.post(f"{API}/sprints/{{id}}/calendar", sprints.calendar)
         router.post(f"{API}/sprints/{{id}}/plans", sprints.assign)
