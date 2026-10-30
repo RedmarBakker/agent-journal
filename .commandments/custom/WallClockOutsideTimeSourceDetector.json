@@ -5,7 +5,49 @@
         "select": "call",
         "where": [
             {
-                "textMatches": "^(datetime\\.now|time\\.time|timing\\.time)\\("
+                "any": [
+                    {
+                        "all": [
+                            {
+                                "name": "time"
+                            },
+                            {
+                                "of": "child:func",
+                                "all": [
+                                    {
+                                        "is": "member-access"
+                                    },
+                                    {
+                                        "of": "child:value",
+                                        "nameIn": [
+                                            "time",
+                                            "timing"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "all": [
+                            {
+                                "name": "now"
+                            },
+                            {
+                                "of": "child:func",
+                                "all": [
+                                    {
+                                        "is": "member-access"
+                                    },
+                                    {
+                                        "of": "child:value",
+                                        "name": "datetime"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             },
             {
                 "fileMatches": "(^|/)journal/"

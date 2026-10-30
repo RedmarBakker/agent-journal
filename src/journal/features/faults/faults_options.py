@@ -1,10 +1,8 @@
-from journal.support.option import USER, Option
-from journal.support.option_scope import OptionScope
+from journal.support.option import Option
 
 
 class FaultsOptions:
-    SENTRY_DSN = Option("faults.sentry_dsn", "Send faults to Sentry", "The DSN of a Sentry project the journal sends each fault it meets to, with its version, where it happened and its frames, never the values it held; empty sends nothing", "", option_type="text", scope=OptionScope.MACHINE, setter=USER)
-    DEVELOPER = Option("faults.developer", "Developer features", "Times every request and hook and lists the newest of them, and lets each developer switch below work; off, nothing is timed, listed or counted, whatever the switches below are set to", False, option_type="switch")
+    DEVELOPER = Option("features.faults", "Developer features", "The switch of the Slow requests feature, read where the developer tools ask whether they are on", False, option_type="switch")
     REPORT = Option("faults.report", "Report slow requests to the agent", "A request over its budget is marked in the chat and the agent is sent a line to fix it; off, the Developer tab still counts every request's time while the developer features are on", False, option_type="switch", main_switch=DEVELOPER)
     HOOK_LINE_COPY = Option("faults.terminal_hook_lines", "Show the agent's hook lines in the terminal", "Every line the journal gives the agent in a hook is also shown to you in the agent's terminal; the agent gets its lines either way", False, option_type="switch", main_switch=DEVELOPER)
     HOOK_TIME_COPY = Option("faults.terminal_hook_times", "Show each hook's duration in the terminal", "Each hook's answer shows you, in the agent's terminal, how long the journal took to answer it; the agent never receives the duration", False, option_type="switch")

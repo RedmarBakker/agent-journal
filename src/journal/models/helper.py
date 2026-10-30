@@ -5,7 +5,6 @@ from journal.models.scoped import Scoped
 
 HELPERS_TABLE = "sent_agents"
 # a verifier, kept on one machine, still numbers its rows from the workers' block, so its number never meets a worker's in the one table
-WORKER_POOL = "workers"
 
 
 @dataclass(frozen=True)
@@ -31,6 +30,3 @@ class Helper(Scoped):
     def type_filter(cls) -> dict[str, str]:
         return {"helper_type": next(field.default for field in fields(cls) if field.name == "helper_type")}
 
-    @classmethod
-    def number_pool(cls) -> str | None:
-        return WORKER_POOL

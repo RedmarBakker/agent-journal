@@ -16,7 +16,6 @@ describe("what a worker is doing now, in plain words", () => {
         expect(workerActivity(worker({state: "reported", queue: [{id: 7, title: "the parser"}, {id: 8, title: "the docs"}]}))).toBe("Idle, 2 tasks queued");
         expect(workerActivity(worker({state: "reported"}))).toBe("Idle, waiting for a job");
         expect(workerActivity(worker({state: "waiting for the usage limit"}))).toBe("Waiting for the usage limit");
-        expect(workerActivity(worker({state: "dispatched", pool_request: 12, device: ""}))).toBe("Waiting for a machine to take it");
     });
 
     test("says how a closed one ended", () => {

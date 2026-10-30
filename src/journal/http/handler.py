@@ -4,7 +4,6 @@ from journal.http.support.json_out import JsonOut
 from journal.http.support.file_response import FileResponse
 from journal.engine.lifecycle import Lifecycle
 from journal.http.support.identity import Identity
-from journal.http.support.login_gate import LoginGate
 from journal.http.support.pooled_handler import PooledHandler
 from journal.http.support.request import Request
 from journal.support.actor import Actor
@@ -20,8 +19,6 @@ from journal.http.support.stream_response import StreamResponse
 
 # the one question answered while the journal boots: which phase it is in
 UNHELD_PATHS = ("/journal/health",)
-# the sync service's doors answer busy while the journal boots, so the service waits and tries again, never held on a thread
-UNHELD_PREFIXES = ("/journal/sync/",)
 
 
 class Handler(PooledHandler):
@@ -30,7 +27,6 @@ class Handler(PooledHandler):
     router: Router
     identity: Identity
     static: StaticFiles
-    gate: LoginGate
     lifecycle: Lifecycle
     faults: RequestFaults
     fault_log: FaultLog
@@ -40,15 +36,13 @@ class Handler(PooledHandler):
         if urlsplit(self.path).path in UNHELD_PATHS:
             return self._answer(self._dispatched(self._unidentified_request()))
         request = self._counted_request()
-        if self.gate.is_refused(request):
-            return self._reply(self.gate.refusal(request))
         if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and self.router.matched(request) is None and (rows := self.static.serve(request.path)):
             return self._file(rows)
         self._answer(self._dispatched(request))
 
     def do_POST(self) -> None:
         request = self._counted_request()
-        self._answer(self.gate.refusal(request) if self.gate.is_refused(request) else self._dispatched(request))
+        self._answer(self._dispatched(request))
 
     def _unidentified_request(self) -> Request:
         head = RequestReading.head(self.command, self.path, dict(self.headers.items()))
@@ -86,7 +80,7 @@ class Handler(PooledHandler):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
         request = RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity, self.supervisor_auth)
-        if request.path in UNHELD_PATHS or request.path.startswith(UNHELD_PREFIXES):
+        if request.path in UNHELD_PATHS:
             return request
         boot_wait = self.lifecycle.boot_wait_seconds()
         return request.boot_delayed(boot_wait) if boot_wait else request

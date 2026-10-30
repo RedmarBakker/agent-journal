@@ -19,13 +19,13 @@ def test_an_answered_question_is_told_to_the_agent_and_ends_its_wait(story):
     story.expect_stack(story.agents.subject, Ready, Waiting)
     card = story.card_number(f"question:{question}")
     story.expect_card(card, card_type="process", process="question", active=True)
-    story.user_opens(f"/journal/cards/active?ids={card}")
-    story.expect_viewer_shows(str(card), {"answer": None, "active": True})
-    story.user_answers(question, "The agent writes the short one")
-    story.expect_agent_told(story.agents.subject, QuestionsNudges.QUESTION_ANSWERED, n=question)
+    result = story.user_opens(f"/journal/cards/active?ids={card}")
+    result.expect_viewer_shows(str(card), {"answer": None, "active": True})
+    result = story.user_answers(question, "The agent writes the short one")
+    result.expect_agent_told(story.agents.subject, QuestionsNudges.QUESTION_ANSWERED, n=question)
     story.expect_card(card, answer="The agent writes the short one", active=False)
-    story.user_opens(f"/journal/cards/active?ids={card}")
-    story.expect_viewer_shows(str(card), None)
+    result = story.user_opens(f"/journal/cards/active?ids={card}")
+    result.expect_viewer_shows(str(card), None)
     story.agent_reads(story.agents.subject)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -68,8 +68,8 @@ def test_a_journal_command_while_waiting_keeps_the_wait(story):
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_while_waiting_for_an_answer_goes_through(story):
     story.agent_asks(story.agents.subject, "which footer?", "The agent writes the short one", "The agent writes the long one")
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, Waiting)
 
 
@@ -82,21 +82,21 @@ def test_the_users_own_words_end_the_wait(story):
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_options_that_say_I_or_we_are_refused(story):
-    story.agent_runs(story.agents.subject, "question ask 'which footer?' --options 'I write the short one' 'we write the long one'")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, "question ask 'which footer?' --options 'I write the short one' 'we write the long one'")
+    result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_question_asked_from_outside_an_agents_session_is_refused(story):
-    story.user_types("question ask 'Which?'")
-    story.expect_command_refused()
-    story.expect_command_text("worker's report")
+    result = story.user_types("question ask 'Which?'")
+    result.expect_command_refused()
+    result.expect_command_text("worker's report")
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_providers_own_question_tool_is_refused_for_the_journals(story):
-    story.agent_uses_the_providers_tool(story.agents.subject, "AskUserQuestion", question="which?")
-    story.expect_refused(story.agents.subject, QuestionsNudges.JOURNAL_QUESTION_TOOL)
+    result = story.agent_uses_the_providers_tool(story.agents.subject, "AskUserQuestion", question="which?")
+    result.expect_refused(story.agents.subject, QuestionsNudges.JOURNAL_QUESTION_TOOL)
     story.expect_stack(story.agents.subject, Ready)

@@ -14,8 +14,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @provider(Claude)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_switched_off(story):
-    story.agent_reads(story.agents.subject)
-    story.expect_hook_duration_shown()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_hook_duration_shown()
     story.user_sets(FaultsOptions.HOOK_TIME_COPY, False)
     story.agent_reads(story.agents.subject)
     story.expect_no_hook_duration()
@@ -26,9 +26,9 @@ def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_swi
 @provider(Claude)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_refusal(story):
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
-    story.expect_hook_duration_shown()
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
+    result.expect_hook_duration_shown()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -36,6 +36,6 @@ def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_r
 @provider(Codex)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_codex_stop_shows_its_duration_to_the_user_alone(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_hook_duration_shown()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_hook_duration_shown()
     story.expect_stack(story.agents.subject, Ready)

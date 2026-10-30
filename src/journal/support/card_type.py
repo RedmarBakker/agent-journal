@@ -34,12 +34,8 @@ class CardType(StrEnum):
     TASK_MOVES = "task_moves"
     TASK_PAUSES = "task_pauses"
     FAULTS = "faults"
-    CONFLICTS = "conflicts"
     UPDATES = "updates"
-    REQUESTS = "requests"
     FITNESS = "fitness"
     PUSHES = "pushes"
     BRANCH_SWITCHES = "branch_switches"
 
-    def folds(self) -> bool:
-        return self in (CardType.CONFLICTS,)

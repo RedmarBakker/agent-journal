@@ -27,11 +27,18 @@
 
 @keyframes figure-land {
     0% {
-        transform: scale(calc(1 + var(--squash)), calc(1 - var(--squash)));
+        transform: none;
+        animation-timing-function: ease-out;
     }
 
-    45% {
+    16% {
+        transform: scale(calc(1 + var(--squash)), calc(1 - var(--squash)));
+        animation-timing-function: ease-out;
+    }
+
+    52% {
         transform: translateY(calc(-1 * var(--bounce)));
+        animation-timing-function: ease-in-out;
     }
 
     100% {

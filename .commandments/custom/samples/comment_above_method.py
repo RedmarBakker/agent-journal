@@ -19,7 +19,7 @@ class ForegroundLimit:
 
 # @sin CommentAboveMethodDetector
 # the limit read from a setting
-def limit_of(setting: int) -> int:
+def setting_limit(setting: int) -> int:
     return setting
 
 

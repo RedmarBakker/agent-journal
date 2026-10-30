@@ -203,7 +203,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     server = suite_server(app)
     try:
         developer = lambda: call(server, "GET", "/journal/developer")[1]
@@ -329,36 +329,6 @@ def test_a_taken_port_sends_the_next_journal_to_the_next_one(tmp_path: Path):
         two.server().stop()
 
 
-def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = suite_server(app)
-    try:
-        status, message = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "k1"})
-        assert status == 201
-        n = message["id"]
-        call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
-        assert [(r["emoji"], r["message_id"]) for r in whole_rows(server, "reactions")] == [("👍", n)]
-        call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
-        assert call(server, "GET", "/journal/reactions")[1]["rows"] == [], "the same face again takes it off"
-        hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-        for type_name, extra in (("SessionStart", {}), ("PreToolUse", {"tool_name": "Agent", "tool_input": {"description": "review the login", "prompt": "read the login flow and report", "subagent_type": "journal-plan-reviewer", "model": "sonnet"}}), ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": "fine"})):
-            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        thresholds = lambda: [m["data"] for m in call(server, "GET", "/journal/messages?limit=200")[1]["rows"] if m["data"].get("kind") == "subagent"]
-        for _ in range(50):
-            if any(c["state"] == "done" for c in thresholds()):
-                break
-            time.sleep(0.1)
-        assert [(c["detail"], c["agent_type"], c["state"]) for c in thresholds()] == [("review the login", "journal-plan-reviewer", "done"), ("review the login", "journal-plan-reviewer", "done")], "a subagent's dispatch is a mark in the chat that reads done once it ends, and its end a mark of its own after it"
-    finally:
-        app.runtime().stop()
-
-
-
-
 def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_sent_a_message(tmp_path: Path):
     """The entries are trimmed to the newest, so a subagent dispatched long ago has no dispatch entry left; a message to it still sets it running, and its stop settles it."""
     app = main_journal(Config(tmp_path, port=0))
@@ -444,121 +414,6 @@ def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entrie
         assert statements, "the hooks and the page read messages and entries"
         slow = {query.sql: steps for query in statements if (steps := QueryPlans.slow_steps(plans.steps(query)))}
         assert slow == {}, slow
-    finally:
-        app.runtime().stop()
-
-
-def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_kept(tmp_path: Path):
-    """The Terminal pane reads a Bash call as it was recorded: each part a line, with the output the journal's shell kept of the parts it ran, once the call has finished."""
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = suite_server(app)
-    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(type_name, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-    shell = {"command": "ls src && git status"}
-    try:
-        hook("SessionStart")
-        hook("PreToolUse", tool_name="Bash", tool_input=shell, tool_use_id="t-1")
-        ShellVerbs(app).ran("git status", "c1", 0, output="nothing to commit", seconds=1.5)
-        assert call(server, "GET", "/journal/agents/1/terminal")[1] == [], "a call still running shows nothing yet"
-        hook("PostToolUse", tool_name="Bash", tool_input=shell, tool_response={"stdout": "nothing to commit"}, tool_use_id="t-1")
-        lines = call(server, "GET", "/journal/agents/1/terminal")[1]
-        assert [(l["tool"], l["command"], l["output"], l["seconds"]) for l in lines] == [("Bash", "ls src", "", 0.0), ("Bash", "git status", "nothing to commit", 1.5)]
-        assert lines[0]["time"] < lines[1]["time"], "each part has its own time, so the pane keeps both"
-        assert call(server, "GET", f"/journal/agents/1/terminal?after={lines[1]['time']}")[1] == [], "the pane asks for what came after its last line"
-        hook("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t-2")
-        hook("PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "a"}, tool_use_id="t-2")
-        newer = call(server, "GET", f"/journal/agents/1/terminal?after={lines[1]['time']}")[1]
-        assert [l["command"] for l in newer] == ["ls"], "a poll with its cursor reads the calls that came after it, and only those"
-    finally:
-        app.runtime().stop()
-
-
-def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its_retry_the_one_run(tmp_path: Path):
-    """A journal command chained with another is refused before it runs: the terminal shows its parts as refused, with the reason, and the retry that runs as the one run."""
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = suite_server(app)
-    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(type_name, **extra):
-        request = HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            urlopen(request, timeout=5).read()
-            return 200
-        except HTTPError as refusal:
-            return refusal.code
-    chained = {"command": "journal task list && ls"}
-    try:
-        hook("SessionStart")
-        assert hook("PreToolUse", tool_name="Bash", tool_input=chained, tool_use_id="t-1") == 409, "the chained line is refused before it runs"
-        hook("PostToolUseFailure", tool_name="Bash", tool_input=chained, error="refused by a hook", tool_use_id="t-1")
-        assert hook("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t-2") == 200, "the retry on its own runs"
-        hook("PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "a"}, tool_use_id="t-2")
-        lines = call(server, "GET", "/journal/agents/1/terminal")[1]
-        assert [(l["command"], bool(l["refused"])) for l in lines] == [("journal task list", True), ("ls", True), ("ls", False)], lines
-        assert "journal command" in lines[0]["refused"], "the refused line carries the journal's reason"
-    finally:
-        app.runtime().stop()
-
-
-def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_hand(tmp_path: Path):
-    """The figure builds a parcel only for a test run or a build: the agent row's tool_work names the shell part in hand by its label when it is testing or building, and is the line's own work word otherwise."""
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = suite_server(app)
-    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(type_name, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-    work = lambda: whole_rows(server, "agents")[0]["tool_work"]
-    try:
-        hook("SessionStart")
-        for n, (command, said) in enumerate([("pytest -q", "testing"), ("npm --prefix src/web run build", "building"), ("git log -1", "reading"), ("python3 tools/seed.py", "running"), ("git log -1 && pytest -q", "running")]):
-            hook("PreToolUse", tool_name="Bash", tool_input={"command": command}, tool_use_id=f"t-{n}")
-            assert work() == said, f"{command} is {said} before its part starts"
-            hook("PostToolUse", tool_name="Bash", tool_input={"command": command}, tool_response={"stdout": ""}, tool_use_id=f"t-{n}")
-        hook("PreToolUse", tool_name="Bash", tool_input={"command": "git log -1 && pytest -q"}, tool_use_id="t-9")
-        ShellVerbs(app).started("git log -1", "c9")
-        ShellVerbs(app).ran("git log -1", "c9", 0)
-        ShellVerbs(app).started("pytest -q", "c9")
-        assert work() == "testing", "a chained call is a test run while its test part runs"
-    finally:
-        app.runtime().stop()
-
-
-def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: Path):
-    """While a chained shell call runs, the agent's doing is the text of the part running now, then the next; another tool is its verb; once nothing runs it is neither."""
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = suite_server(app)
-    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(type_name, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-    doing = lambda: whole_rows(server, "agents")[0]["doing"]
-    shell = {"command": "ls src && git status"}
-    try:
-        hook("SessionStart")
-        hook("PreToolUse", tool_name="Bash", tool_input=shell, tool_use_id="t-1")
-        assert doing() == "ls src", "a shell call names its first part before the journal's shell starts it"
-        ShellVerbs(app).started("ls src", "c1")
-        ShellVerbs(app).ran("ls src", "c1", 0)
-        ShellVerbs(app).started("git status", "c1")
-        assert doing() == "git status", "then each part as it runs"
-        ShellVerbs(app).ran("git status", "c1", 0, output="clean")
-        hook("PostToolUse", tool_name="Bash", tool_input=shell, tool_response={"stdout": "clean"}, tool_use_id="t-1")
-        assert doing() not in ("ls src", "git status"), "a finished call is no longer what the agent is doing"
-        hook("PreToolUse", tool_name="Read", tool_input={"file_path": str(tmp_path / "a.py")}, tool_use_id="t-2")
-        assert doing() == "reading a file", "another tool is its verb"
-        hook("PostToolUse", tool_name="Read", tool_input={"file_path": str(tmp_path / "a.py")}, tool_response="", tool_use_id="t-2")
-        hook("PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_use_id="t-3")
-        ShellVerbs(app).started("pytest -q", "c2")
-        hook("PostToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_response={"stdout": "moved to the background"}, tool_use_id="t-3")
-        row = whole_rows(server, "agents")[0]
-        assert row["doing"] == "pytest -q" and row["tool_running"], "a command moved to the background is what the agent is doing until its part ends"
     finally:
         app.runtime().stop()
 
@@ -890,6 +745,10 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
         assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "testing_suggestion_minutes", "testing_suggestion_tool_uses", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
         assert all(f in matched for f in ("messages", "shell", "voices")) and "kanban" not in matched, "version 3's leftovers are gone"
         assert "faults" in matched, "slow requests are a setting in every project, off by default and switched on where the journal develops itself"
+        faults = next(f for f in manifest["features"] if f["name"] == "faults")
+        assert not faults["fixed"] and faults["default"] is False and not any(o["key"] in ("faults.developer", "faults.sentry_dsn") for o in faults["options"]), "slow requests have the one switch, off by default, and no Sentry setting"
+        reports = next(f for f in manifest["features"] if f["name"] == "error_reports")
+        assert reports["fixed"] and [o["key"] for o in reports["options"]] == ["faults.sentry_dsn"], "the Sentry address is a setting of its own feature, always on"
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"
         assert {g["key"] for g in manifest["groups"]} == {*matched, "project"}, "one group per feature, and the System tab's own"
         status, tree = call(server, "POST", "/journal/settings", {"tasks": {"log_after": 60}})
@@ -1094,12 +953,12 @@ def test_the_settings_page_has_its_system_and_sharing_tabs(server):
     assert saved["sharing"]["host"] == "tunler.example"
 
 
-def test_the_reuse_rules_are_said_in_the_workers_skill_law_four_the_notes_and_the_settings_page(server):
+def test_the_reuse_rules_are_said_in_the_workers_skill_law_four_and_the_settings_page(server):
     from journal.features.workers.feature import Workers
     from journal.support.law_text import LawText
-    skill, notes = Workers.skill.body, (Path(__file__).resolve().parents[1] / "NOTES.md").read_text()
+    skill = Workers.skill.body
     assert all(words in skill for words in ("journal worker notify <n>", "reported, or was stopped", "--fresh", "workers.idle_kept", "--why", "journal worker peers", "journal subagent retire <n>")), "the skill says notify, send, the dispatch refusals, the reuse question, peers and subagent retire"
-    assert 'journal worker send <n> "<job>"' in LawText.BLOCK and "worker say" not in LawText.BLOCK and "journal worker send" in notes and "worker\nsay" not in notes
+    assert 'journal worker send <n> "<job>"' in LawText.BLOCK and "worker say" not in LawText.BLOCK
     workers = next(f for f in call(server, "GET", "/journal/manifest")[1]["features"] if f["name"] == "workers")
     assert {s["name"]: s["title"] for s in workers["options"]}["idle_kept"] == "Workers for reuse per profile", "the Settings page shows the cap in plain words"
 
@@ -1738,15 +1597,6 @@ def test_a_critique_asked_from_the_plan_page_puts_a_ready_plan_in_review(tmp_pat
         app.runtime().stop()
 
 
-def test_the_status_bar_reads_no_sync_line_in_a_journal_in_no_team(server):
-    assert call(server, "GET", "/journal/sync") == (200, {"line": "", "state": ""}), "a journal in no team has no sync to show, so the top bar shows no Team button"
-
-
-def test_the_viewer_learns_who_it_is_and_who_owns_each_environment(server):
-    status, people = call(server, "GET", "/journal/people")
-    assert status == 200 and people["me"] == 1 and people["device"] == "" and isinstance(people["people"], list) and isinstance(people["owners"], dict)
-
-
 def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_hook_command_and_page(journal_root: Path):
     import sys
     app = App(Config(journal_root, port=0))
@@ -1768,49 +1618,6 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
         app.runtime().stop()
 
 
-def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_without_the_service_secret_is_refused(tmp_path: Path, template_journal, boot, monkeypatch):
-    import threading
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from conftest import copied
-    from journal.sync.sync_secret import SECRET_FILE, SECRET_HEADER
-    from journal.sync.team_account import TeamAccount
-    from journal.repositories.id_blocks import IdBlocks
-
-    posted: list[dict] = []
-
-    class StandIn(BaseHTTPRequestHandler):
-        def do_POST(self):
-            posted.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"{}")
-
-        def log_message(self, *args):
-            return
-
-    service = HTTPServer(("127.0.0.1", 0), StandIn)
-    threading.Thread(target=service.serve_forever, daemon=True).start()
-    app = boot(copied(template_journal, tmp_path / "journal"), monkeypatch)
-    try:
-        server = suite_server(app)
-        address = f"http://127.0.0.1:{service.server_address[1]}/events"
-        registration = {"name": "stand-in", "address": address, "events": ["change_queued"]}
-        assert call(server, "POST", "/journal/services", registration)[0] == 403, "a registration without the service secret is refused"
-        secret = (app.config.home / "runtime" / SECRET_FILE).read_text()
-        request = HttpRequest(f"http://127.0.0.1:{server.port}/journal/services", data=json.dumps(registration).encode(), method="POST", headers={"Content-Type": "application/json", SECRET_HEADER: secret})
-        assert json.loads(urlopen(request, timeout=5).read()) == {"registered": "stand-in"}
-        app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 0})
-        app.container.get(IdBlocks).add("tasks", 900001, 900099)
-        app.container.get(IdBlocks).add("messages", 900001, 900099)
-        assert app.console().run(["task", "create", "queued for the team"], Caller.user("main")).code == 0
-        deadline = time.monotonic() + 10
-        while not posted and time.monotonic() < deadline:
-            time.sleep(0.05)
-        assert posted[:1] == [{"event": "change_queued"}], "a change queued for the team is posted to the service registered for it"
-    finally:
-        service.shutdown()
-        app.server().stop()
-        app.runtime().stop()
 
 
 def test_a_message_of_attachments_alone_is_accepted_without_words(tmp_path):
@@ -1859,20 +1666,19 @@ def test_the_health_url_answers_unwell_while_the_server_cannot_open_a_file(app: 
 def test_the_health_url_answers_unwell_once_five_requests_in_a_row_fail_and_well_once_one_is_answered(app: App, server):
     from journal.http.support.request_faults import FAILING_REQUEST_COUNT, RequestFaults
     from journal.repositories.environments import Environments
-    original = Environments.matching
+    original = Environments.name_row
 
-    def broken(self, **fields):
+    def broken(self, name):
         raise IndexError("No item with that key")
 
-    Environments.matching = broken
+    Environments.name_row = broken
     try:
         for _ in range(FAILING_REQUEST_COUNT):
-            with pytest.raises(OSError):
-                call(server, "GET", "/journal/tasks")
+            assert call(server, "GET", "/journal/tasks")[0] == 500
         status, health = call(server, "GET", "/journal/health")
         assert status == 503 and health["failing_requests"] >= FAILING_REQUEST_COUNT and "IndexError" in health["last_fault"], "a server whose every request fails, as one running old code on a migrated database, says it is unwell, so its supervisor starts it again"
     finally:
-        Environments.matching = original
+        Environments.name_row = original
     call(server, "GET", "/journal/tasks")
     assert call(server, "GET", "/journal/health")[0] == 200 and app.container.get(RequestFaults).streak == 0, "one request answered ends the streak"
 
@@ -1911,7 +1717,7 @@ def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between
 def test_a_fault_is_sent_to_the_sentry_the_setting_names_and_to_none_while_it_is_empty(app: App):
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
-    from journal.features.faults.jobs.sentry_sender import SentrySender
+    from journal.features.error_reports.jobs.sentry_sender import SentrySender
     from tests.user_settings import user_set
     received = []
 

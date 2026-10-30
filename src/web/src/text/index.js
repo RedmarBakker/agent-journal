@@ -4,6 +4,10 @@ const transformers = [];
 // the renders kept, newest last, each with the rows it read, so a text drawn again is scanned once until one of them changes
 const RENDERS_KEPT = 2000;
 const renders = new Map();
+// a web address written bare in a bubble, outside a link already made: its closing punctuation stays text
+const BARE_ADDRESS = /(^|[^"'>=\w/])(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g;
+// the code and the links a text already holds, kept as they are when bare addresses are linked
+const MADE_PARTS = /(<code>[\s\S]*?<\/code>|<a [\s\S]*?<\/a>)/;
 
 export function register(fn, {first = false} = {}) {
     if (first) transformers.unshift(fn);
@@ -52,7 +56,15 @@ function spans(text) {
         .replace(/(^|[\s(])\*(?!\s)([^*\n]*[^*\s])\*/g, "$1<em>$2</em>")
         .replace(/(^|[\s(])_(?!\s)([^_\n]*[^_\s])_(?!\w)/g, "$1<em>$2</em>")
         .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    return html.replace(/\u0000(\d+)\u0000/g, (whole, i) => codes[Number(i)]);
+    return addressesLinked(html).replace(/\u0000(\d+)\u0000/g, (whole, i) => codes[Number(i)]);
+}
+
+// bare web addresses linked in the text between the code and the links already made, which keep theirs as written
+function addressesLinked(html) {
+    return html
+        .split(MADE_PARTS)
+        .map((part, i) => (i % 2 ? part : part.replace(BARE_ADDRESS, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')))
+        .join("");
 }
 
 function cells(row) {

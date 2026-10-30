@@ -21,6 +21,7 @@ from journal.features.workers.listeners.researcher_start import ResearcherStart
 from journal.features.workers.listeners.researchers_closed import ResearchersClosed
 from journal.engine.row_assignment import RowAssignment
 from journal.events.rows.task_assignment_opportunity import TaskAssignmentOpportunity
+from journal.events.rows.task_closed import TaskClosed
 from journal.engine.state_machine import StateMachine
 from journal.console.creations import Creations
 from journal.features.listeners.record_changes import RecordChanges
@@ -45,24 +46,8 @@ from journal.support.instance_guard import InstanceGuard
 from journal.events.announcer import Announcer
 from journal.events.moments.server_replaced import ServerReplaced
 from journal.version import VERSION
+from journal.repositories.environments import Environments
 from journal.http.share_server import ShareServer
-from journal.sync.team_writes import TeamWrites
-from journal.events.models.synced import Synced
-from journal.events.models.synced_creation import SyncedCreation
-from journal.events.models.synced_deletion import SyncedDeletion
-from journal.events.models.synced_update import SyncedUpdate
-from journal.events.rows.environment_unshared import EnvironmentUnshared
-from journal.sync.pulled_file_removal import PulledFileRemoval
-from journal.sync.record_withdrawal import RecordWithdrawal
-from journal.sync.pulled_settings import PulledSettings
-from journal.sync.pulled_files import PulledFiles
-from journal.sync.record_purge import RecordPurge
-from journal.sync.host_desk import HostDesk
-from journal.http.agents.agent_view_sender import AgentViewSender
-from journal.http.agents.agent_bar_writes import AgentBarWrites
-from journal.support.host_writer import HostWriter
-from journal.sync.team_account import TeamAccount
-from journal.events.models.purged import Purged
 from journal.console.console import Console
 from journal.support.time_source import TimeSource
 
@@ -92,13 +77,6 @@ class Runtime:
             self.bus.add_answer_listener(researcher_listener.event_type(), self.container.get(researcher_listener), Blocking.NEXT_DECISION)
         self.bus.add_answer_listener(Created, Creations(), Blocking.ANSWER)
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
-        self.container.get(TeamWrites).listen()
-        self.bus.listen(Synced, self.container.get(PulledSettings))
-        self.bus.listen(SyncedCreation, self.container.get(PulledFiles))
-        self.bus.listen(SyncedUpdate, self.container.get(PulledFiles))
-        self.bus.listen(SyncedDeletion, self.container.get(PulledFileRemoval))
-        self.bus.listen(Purged, self.container.get(RecordPurge))
-        self.bus.listen(EnvironmentUnshared, self.container.get(RecordWithdrawal))
         self.bus.listen(Deleted, self.container.get(UnlinkDeleted))
         assigners = self.container.get(AssignerIndex)
         for feature in self.registry.features:
@@ -110,10 +88,11 @@ class Runtime:
                 self.bus.listen(listener.event_type(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
                 self.seeded(seed)
-            for host_writer in feature.host_writers:
-                self.registered(host_writer)
-        self.registered(AgentBarWrites)
         self.bus.add_answer_listener(TaskAssignmentOpportunity, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
+        self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
+        self.compactions_closed()
+
+    def compactions_closed(self) -> None:
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 
@@ -143,12 +122,12 @@ class Runtime:
     def started(self) -> None:
         self.deferred.start()
         self.jobs.start()
-        self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
         self.replacement_announced()
         notices = self.container.get(BootNotices)
         notices.write_boot_seconds(self.container.get(SettingRows).decimal(UpdatesOptions.BOOT_SECONDS))
         notices.announce()
+        self.container.get(Environments).name_index()
         gc.freeze()
 
     def replacement_announced(self) -> None:
@@ -172,12 +151,7 @@ class Runtime:
             self.server._thread.join(1.0)
         self.stop()
 
-    def registered(self, host_writer: type[HostWriter]) -> None:
-        for type_name, writer in self.container.get(host_writer).makers().items():
-            self.container.get(HostDesk).register(type_name, writer)
-
     def stop(self) -> None:
-        self.container.get(AgentViewSender).stop()
         self.server.stop()
         self.share_server.stop()
         self.jobs.stop()

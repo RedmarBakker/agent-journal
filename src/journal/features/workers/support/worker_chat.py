@@ -21,6 +21,13 @@ class WorkerChat:
     def instruction(self, worker: Worker, text: str, key: str, actor: Actor) -> Message:
         return self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, thread=MessageThread.WORKER, idempotency=key), actor)
 
+    def briefed(self, worker: Worker, key: str) -> Message:
+        return self.instruction(worker, worker.brief, key, Actor.agent(worker.dispatcher) if worker.dispatcher else Actor.system())
+
+    def briefed_once(self, worker: Worker) -> None:
+        if not self.messages.selected(self.messages.query().filter(session=worker.conversation(), thread=MessageThread.WORKER, text=worker.brief)):
+            self.briefed(worker, VoiceKey.create("brief", worker.mention().ref(), f"bound\n{worker.brief}"))
+
     def sent(self, worker: WorkerMention, text: str, key: str, actor: Actor) -> Message:
         roles = self.agents.session_roles(worker.dispatcher) if worker.dispatcher else []
         message = Message.outgoing(worker.title(), text, worker.dispatcher, worker.ref()).with_(idempotency=key)

@@ -59,15 +59,6 @@ class Devices:
     def token_hash(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
 
-    def record_pull(self, device: Device, sequence: int, pulled_at: float) -> None:
-        self.rows.record_pull(device.id, sequence, pulled_at)
-
-    def lowest_pull(self) -> int:
-        return self.rows.lowest_pull()
-
-    def pulled_sequence(self, device: Device) -> int:
-        return self.rows.pulled_sequence(device.id)
-
     def revoke_person(self, account_id: int, revoked_at: float) -> None:
         self.rows.revoke_account(account_id, revoked_at)
 
@@ -75,10 +66,4 @@ class Devices:
         person = self.person(token)
         if not person.is_admin():
             raise Refusal(f"{person.name} is no admin of the team: only an admin invites, removes people or revokes devices")
-        return person
-
-    def version_pinner(self, token: str) -> Account:
-        person = self.person(token)
-        if not person.may_pin_version():
-            raise Refusal(f"{person.name} is no admin of the team: only an admin, or the team server's own hosted journal, pins the team to a version")
         return person

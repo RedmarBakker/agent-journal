@@ -1,48 +1,29 @@
+from tests.stories.builder.step_checks import HOOK_DURATION
+from journal.features.shell.support.output_view import OutputView
 import json
 import re
 from enum import Enum
 
 from journal.engine.nudge import Nudge
+from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from tests.full_project import MAIN
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
-from tests.stories.builder.worker_steps import worker_session
 from journal.features.workers.feature import Workers
 from tests.stories.builder.mode_floor import ModeFloor
 
 
 # the duration a hook's answer shows the user, such as "PreToolUse: 12 ms"
-HOOK_DURATION = re.compile(r"\b[A-Za-z]+: \d+ ms\b")
 
 
 class StoryChecks:
     """The checks a story makes on what its last step brought: what the agent was told, by registry key and values, whether the hook let it through, whether the command passed, the stack and the rows, read through the API; a failing check says what was lines instead and the stack."""
 
-    def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
-        self.expect_told_to(self.session_of(agent), nudge, values)
-
-    def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
-        assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account()}"
-
-    def expect_agent_not_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
-        self.expect_not_told_to(self.session_of(agent), nudge, values)
-
     def told_number(self, nudge: Nudge, name: str) -> int:
         return int(next(line.values[name] for line in reversed(self.said) if line.key == nudge.key))
-
-    def expect_not_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
-        assert not any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} told {nudge.key} {values}; {self.account()}"
-
-    def expect_agent_told_nothing(self, agent: StoryAgent) -> None:
-        told = [line for line in self.said if line.session == self.session_of(agent)]
-        assert not told, f"told something; {self.account()}"
-
-    def expect_refused(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
-        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
-        self.expect_agent_told(agent, nudge, **values)
 
     def expect_one_entry_of_firing(self, firing: str) -> None:
         with self.app.container.get(Scope).environment(1):
@@ -50,32 +31,14 @@ class StoryChecks:
             count = entries.counted(entries.query().filter(idempotency=f"hook:{self.scoped_session()}:PreToolUse:{firing}"))
         assert count == 1, f"firing {firing} has {count} entries, not one"
 
-    def expect_refused_by_anything(self) -> None:
-        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
-
-    def expect_refusal_text(self, part: str) -> None:
-        said = str(self.verdict.body) if self.verdict else ""
-        assert part in said, f"the refusal does not say {part!r}: {said}"
-
-    def expect_refusal_without(self, part: str) -> None:
-        said = str(self.verdict.body) if self.verdict else ""
-        assert part not in said, f"the refusal says {part!r}: {said}"
-
     def expect_newest_message_text(self, text: str) -> None:
         newest = self.api_row("messages", self.newest("messages"))
         assert newest["text"] == text, f"the newest message reads {newest['text']!r}, not {text!r}"
 
-    def expect_allowed(self) -> None:
-        assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
-
-    def expect_shell_text(self, *parts: str) -> None:
-        assert all(part in self.shell_text for part in parts), f"the command showed {self.shell_text!r}, not {parts}"
-
-    def expect_shell_text_without(self, part: str) -> None:
-        assert part not in self.shell_text, f"the command showed {part!r}: {self.shell_text!r}"
-
-    def expect_shell_exit(self, code: int) -> None:
-        assert self.shell_exit == code, f"the command ended {self.shell_exit}, not {code}"
+    def expect_recent_message_text(self, text: str, within: int = 5) -> None:
+        newest = self.newest("messages")
+        reads = [self.api_row("messages", n)["text"] for n in range(newest, max(newest - within, 0), -1)]
+        assert text in reads, f"none of the newest {within} messages reads {text!r}: {reads}"
 
     def expect_no_new_output(self) -> None:
         assert not self.shell_outputs, f"the command kept output {self.newest_output()}"
@@ -86,72 +49,10 @@ class StoryChecks:
     def expect_output_count(self, count: int) -> None:
         assert self.output_count() == count, f"{self.output_count()} outputs are kept, not {count}"
 
-    def expect_command_passed(self) -> None:
-        assert self.command is not None and self.command.code == 0, f"the command was refused: {self.command.error or self.command.text if self.command else ''}"
-
-    def expect_command_text(self, part: str) -> None:
-        printed = f"{self.command.text}{self.command.error}" if self.command else ""
-        assert part in printed, f"the command printed {printed!r}, not {part!r}"
-
-    def expect_command_text_without(self, part: str) -> None:
-        printed = f"{self.command.text}{self.command.error}" if self.command else ""
-        assert part not in printed, f"the command printed {part!r}: {printed!r}"
-
-    def expect_command_lines_in_order(self, *parts: str) -> None:
-        lines = self.command.text.splitlines()
-        places = [next((k for k, line in enumerate(lines) if part in line), -1) for part in parts]
-        assert -1 not in places and places == sorted(places), f"the command printed {', '.join(parts)} out of this order: {self.command.text}"
-
-    def expect_command_line_count(self, count: int) -> None:
-        lines = self.command.text.strip().splitlines()
-        assert len(lines) == count, f"the command printed {len(lines)} lines, not {count}: {self.command.text}"
-
-    def expect_viewer_passed(self) -> None:
-        assert self.viewer_status < 300, f"the viewer's request was refused: {self.viewer_answer}"
-
-    def expect_viewer_refused(self, part: str) -> None:
-        assert self.viewer_status >= 300 and part in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, not a refusal saying {part!r}"
-
     def expect_chat_marks(self, shows: str, *texts: str) -> None:
         rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("shows") == shows]
         marks = sorted(row["text"] for row in rows)
         assert marks == sorted(texts), f"the chat's {shows} marks are {marks}, not {sorted(texts)}: {rows}"
-
-    def expect_viewer_shows(self, name: str, value: object) -> None:
-        assert self.viewer_answer.get(name) == value, f"the viewer was given {name} {self.viewer_answer.get(name)!r}, not {value!r}"
-
-    def expect_viewer_rows(self, key: str, field: str, values: list) -> None:
-        shown = [row.get(field) for row in self.viewer_answer.get(key, [])]
-        assert shown == values, f"the viewer was given {key} with {field} {shown}, not {values}"
-
-    def expect_viewer_part(self, path: tuple, value: object) -> None:
-        part = self.viewer_answer
-        for key in path:
-            part = part[key]
-        assert part == value, f"the viewer was given {part!r} at {'/'.join(map(str, path))}, not {value!r}"
-
-    def expect_viewer_count_at_most(self, key: str, count: int) -> None:
-        shown = self.viewer_answer.get(key, [])
-        assert len(shown) <= count, f"the viewer was given {len(shown)} {key}, more than {count}"
-
-    def expect_viewer_rows_newer(self, key: str, n: int) -> None:
-        older = [row["id"] for row in self.viewer_answer.get(key, []) if row["id"] <= n]
-        assert not older, f"the viewer was given {key} {older}, not newer than {n}"
-
-    def expect_viewer_rows_without(self, key: str, field: str) -> None:
-        holding = [row["id"] for row in self.viewer_answer.get(key, []) if field in row]
-        assert not holding, f"the viewer was given {key} {holding} with their {field}"
-
-    def expect_viewer_first_hit(self, n: int, part: str) -> None:
-        first = self.viewer_answer[0] if self.viewer_answer else {}
-        assert first.get("id") == n and part in first.get("text", ""), f"the viewer's first hit is {first}, not {n} holding {part!r}"
-
-    def expect_viewer_list_count(self, count: int) -> None:
-        assert len(self.viewer_answer) == count, f"the viewer was given {len(self.viewer_answer)} rows, not {count}: {self.viewer_answer}"
-
-    def expect_viewer_count(self, key: str, count: int) -> None:
-        shown = self.viewer_answer.get(key, [])
-        assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"
 
     def expect_docked_cards(self, *texts: str) -> None:
         docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("docked"))
@@ -171,10 +72,17 @@ class StoryChecks:
         fields = {name: shown.get(name) for name in data}
         assert fields == data, f"card {n} holds {fields}, not {data}"
 
-    def expect_tool_input_changed(self, **fields) -> None:
-        changed = (self.verdict.body.get("hookSpecificOutput") or {}).get("updatedInput") or {} if self.verdict else {}
-        shown = {name: changed.get(name) for name in fields}
-        assert shown == fields, f"the tool's input was changed to {changed}, not to hold {fields}"
+    def run_cards(self, output: int) -> list[dict]:
+        return [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == OutputView.key(output)]
+
+    def expect_run_card_titled(self, output: int, title: str) -> None:
+        titles = [row.get("text") for row in self.run_cards(output)]
+        assert titles[-1:] == [title], f"the card of output {output} is titled {titles}, not {title!r}"
+
+    def expect_run_card_saying(self, output: int, line: str) -> None:
+        cards = self.run_cards(output)
+        data = (cards[-1].get("data") or {}) if cards else {}
+        assert line in (data.get("detail"), *data.get("lines", ())), f"the card of output {output} holds {data}, not the line {line!r}"
 
     def expect_project_file(self, path: str, *parts: str) -> None:
         file = self.app.config.root / path
@@ -194,15 +102,27 @@ class StoryChecks:
     def expect_no_project_file(self, path: str) -> None:
         assert not (self.app.config.root / path).exists(), f"{path} is still in the project"
 
+    def expect_project_file_holds(self, path: str, data: bytes) -> None:
+        assert (self.app.config.root / path).read_bytes() == data, f"{path} does not hold the bytes it was published with"
+
     def expect_project_file_is(self, path: str, text: str) -> None:
         assert (self.app.config.root / path).read_text() == text, f"{path} changed"
+
+    def expect_typed(self, *nudges: Nudge) -> None:
+        typed = self.typed[self.typed_from:]
+        lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
+        assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
+
+    def expect_typed_nudge(self, nudge: Nudge, count: int = 1, **values) -> None:
+        self.expect_typed_text(nudge.cut(nudge.create(**values).rendered()) if values else nudge.title.partition("{{")[0], count)
+
+    def expect_typed_text(self, part: str, count: int = 1) -> None:
+        typed = " ".join(line.removeprefix(f"{JOURNAL_PREFIX} ") for line in self.typed[self.typed_from:])
+        assert typed.count(part) == count, f"the terminal was to be typed {part!r} {count} times since the story or its fixture began; typed {typed!r}"
 
     def expect_typed_last(self, line: str) -> None:
         last = self.typed[-1] if self.typed else ""
         assert last == line, f"the last line typed into the agent's terminal is {last!r}, not {line!r}"
-
-    def expect_command_refused(self) -> None:
-        assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 
     def expect_stack(self, agent: StoryAgent, *states: type) -> None:
         stack = self.session_stack(self.session_of(agent))
@@ -219,36 +139,23 @@ class StoryChecks:
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
 
-    def expect_hook_duration_shown(self) -> None:
-        line = self.user_line()
-        assert HOOK_DURATION.search(line), f"the hook's answer shows the user no duration: {self.verdict.body if self.verdict else None}"
-        assert not HOOK_DURATION.search(self.agent_text()), f"the hook's duration reached the agent: {self.agent_text()}"
-
     def expect_no_hook_duration(self) -> None:
-        assert not HOOK_DURATION.search(self.user_line()), f"the hook's answer shows a duration though the setting is off: {self.user_line()}"
+        assert not HOOK_DURATION.search(self.last_step.user_line()), f"the hook's answer shows a duration though the setting is off: {self.last_step.user_line()}"
 
     def expect_last_answer_carries(self, nudge: Nudge, **values) -> None:
         line = nudge.cut(nudge.create(**values).rendered())
-        assert line in self.agent_text(), f"the last hook's answer does not carry {nudge.key}: {self.agent_text()!r}"
+        assert line in self.last_step.agent_text(), f"the last hook's answer does not carry {nudge.key}: {self.last_step.agent_text()!r}"
+
+    def expect_answer_text(self, part: str) -> None:
+        assert part in self.last_step.agent_text(), f"the last hook's answer does not carry {part!r}: {self.last_step.agent_text()!r}"
 
     def expect_last_answer_lines_in_order(self, *nudges: Nudge) -> None:
-        places = [self.agent_text().find(nudge.cut(nudge.rendered())) for nudge in nudges]
-        assert -1 not in places and places == sorted(places), f"the last hook's answer does not carry {[nudge.key for nudge in nudges]} in that order: {self.agent_text()!r}"
+        places = [self.last_step.agent_text().find(nudge.cut(nudge.rendered())) for nudge in nudges]
+        assert -1 not in places and places == sorted(places), f"the last hook's answer does not carry {[nudge.key for nudge in nudges]} in that order: {self.last_step.agent_text()!r}"
 
     def expect_last_answer_without(self, nudge: Nudge, **values) -> None:
         line = nudge.cut(nudge.create(**values).rendered())
-        assert line not in self.agent_text(), f"the last hook's answer carries {nudge.key}: {self.agent_text()!r}"
-
-    def user_line(self) -> str:
-        body = self.verdict.body if self.verdict else {}
-        answer = body.get("answer", body) if isinstance(body, dict) else {}
-        return str(answer.get("systemMessage", ""))
-
-    def agent_text(self) -> str:
-        body = self.verdict.body if self.verdict else {}
-        answer = body.get("answer", body) if isinstance(body, dict) else {}
-        specific = answer.get("hookSpecificOutput", {})
-        return " ".join(str(part) for part in (specific.get("additionalContext", ""), specific.get("permissionDecisionReason", ""), answer.get("reason", ""), body.get("error", "")))
+        assert line not in self.last_step.agent_text(), f"the last hook's answer carries {nudge.key}: {self.last_step.agent_text()!r}"
 
     def expect_plugin_version(self, n: int, version: str) -> None:
         shown = self.api_row("plugins", n)["manifest"]["version"]
@@ -272,6 +179,19 @@ class StoryChecks:
         agent_rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
         newest = max(agent_rows, key=lambda row: row["id"]) if agent_rows else {}
         assert newest.get("text") == text, f"the agent's newest message is {newest.get('text')!r}, not {text!r}"
+
+    def expect_worker_chat_after_its_job(self, worker: StoryAgent, *turns: tuple[str, str]) -> None:
+        rows = sorted(get_answer(self.app, f"/journal/chats/{self.session_of(worker)}", MAIN)[1]["rows"], key=lambda row: row["id"])
+        chat, expected = [(row["author"], row["text"]) for row in rows], [("user", self.api_row("workers", worker.number)["brief"]), *turns]
+        assert chat == expected, f"the worker's chat holds {chat}, not {expected}"
+
+    def expect_plugin_given(self, plugin: str, variable: str, is_given: bool) -> None:
+        given = json.loads((self.app.config.home / "plugin-data" / plugin / "environment.json").read_text())
+        assert (variable in given) is is_given, f"plugin {plugin}'s program was {'not ' if is_given else ''}given {variable}"
+
+    def expect_chat_holds(self, text: str) -> None:
+        texts = [row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"]]
+        assert text in texts, f"the chat holds no message {text!r}: {texts}"
 
     def expect_agent_messages(self, count: int) -> None:
         agent_messages = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
@@ -300,6 +220,9 @@ class StoryChecks:
 
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
+
+    def expect_task_made_by(self, agent: StoryAgent, n: int) -> None:
+        self.expect_row("tasks", n, {"creator": f"agent:{self.session_of(agent)}"})
 
     def expect_task_logged(self, n: int, part: str) -> None:
         shown = self.app.console().run(["task", "show", str(n)], self.agent).text
@@ -347,7 +270,3 @@ class StoryChecks:
     def account(self) -> str:
         return f"told {[(lines.session, lines.key, lines.values) for lines in self.said]}; stack {self.stack()}"
 
-    def expect_command_line(self, *parts: str) -> str:
-        lines = [line for line in self.command.text.splitlines() if all(part in line for part in parts)]
-        assert lines, f"no line of the command says {', '.join(parts)}: {self.command.text}"
-        return lines[0]

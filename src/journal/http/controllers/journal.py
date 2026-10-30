@@ -26,7 +26,6 @@ from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.version import VERSION
-from journal.repositories.environment_owners import EnvironmentOwners
 
 COLOR = "#5e64c9"
 STARTED = timing.time()
@@ -40,8 +39,8 @@ class JournalController:
     """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now. Health fails when the journal cannot reach its database, as when it has run out of descriptors, so its supervisor starts it again."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
-                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals, text: CommandText, faults: RequestFaults) -> None:
-        self.numbers, self.owners, self.lifecycle, self.arrivals, self.text, self.faults = numbers, owners, lifecycle, arrivals, text, faults
+                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, lifecycle: Lifecycle, arrivals: HookArrivals, text: CommandText, faults: RequestFaults) -> None:
+        self.numbers, self.lifecycle, self.arrivals, self.text, self.faults = numbers, lifecycle, arrivals, text, faults
         self.config, self.boot, self.environments, self.agents, self.activity, self.current = config, manifest, environments, agents, activity, current
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
@@ -93,7 +92,7 @@ class JournalController:
             work = self.current.work(agent) if agent else None
             task = TaskBlock(work.task.row_id, work.task.title, work.wait_text) if work else None
             silent = activity is not None and activity["status"] in ("busy", "working") and Timeout.seconds(SILENCE_LIMIT_SECONDS).started(activity["heard_at"].timestamp()).is_exceeded(timing.time())
-            return EnvironmentData(environment, activity, task, self.questions.open_count(), self.messages.unread_count(), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
+            return EnvironmentData(environment, activity, task, self.questions.open_count(), self.messages.unread_count(), self.tasks.unfinished_count(), silent)
 
     def bar(self, request: Request) -> Response:
         agent = self.agents.current()

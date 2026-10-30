@@ -9,8 +9,8 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_rebase_of_a_worker_out_on_a_task_waits_for_its_next_clock_out(story):
-    story.agent_runs(story.agents.subject, f"worker rebase {story.agents.workers.first()}")
-    story.expect_command_passed()
-    story.expect_command_text("rebased at its next clock-out")
+    result = story.agent_runs(story.agents.subject, f"worker rebase {story.agents.workers.first()}")
+    result.expect_command_passed()
+    result.expect_command_text("rebased at its next clock-out")
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

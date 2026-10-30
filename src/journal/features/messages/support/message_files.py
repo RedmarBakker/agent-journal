@@ -4,7 +4,7 @@ from journal.models.message import Message
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
-from journal.sync.attachments import Attachments
+from journal.features.messages.support.attachments import Attachments
 
 
 class MessageFiles:

@@ -12,17 +12,17 @@ from tests.stories.fixtures.main.started_task import StartedTask
 
 @story(LoopedStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_stop_after_the_loop_is_named_goes_through(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
-    story.expect_agent_told_nothing(story.agents.subject)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
+    result.expect_agent_told_nothing(story.agents.subject)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, Panicking)
 
 
 @story(LoopedStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_tool_use_after_the_loop_brings_the_work_back(story):
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -35,8 +35,8 @@ def test_the_users_prompt_after_the_loop_brings_the_work_back(story):
 
 @story(LoopedStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_panic_report_goes_through_while_panicking(story):
-    story.agent_runs(story.agents.subject, "panic report")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "panic report")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready, Working, Panicking)
 
 

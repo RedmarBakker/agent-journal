@@ -47,10 +47,11 @@ export function planOf(task) {
     return task.plan_id ? rows("plans").find((p) => p.id === task.plan_id) || null : null;
 }
 
-export function planned(task) {
-    const plan = planOf(task);
-    return !!plan && UNSTARTED.includes(plan.state);
-}
+// an open task that belongs to a plan, which waits for its plan to reach it, whatever the plan's state and whether its row is loaded
+export const planned = (task) => task.state === "open" && Boolean(task.plan_id);
+
+// a plan not started yet, whose tasks wait for the user's approval
+export const unstartedPlan = (plan) => Boolean(plan) && UNSTARTED.includes(plan.state);
 
 export const paused = (task) => task.state === "paused";
 

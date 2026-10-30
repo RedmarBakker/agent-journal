@@ -15,8 +15,7 @@ export const person = computed(() => `${store.settings?.voices?.title}|${store.s
 
 export const avatarOn = computed(() => Boolean(store.settings) && store.settings.voices?.avatar !== false);
 
-// the voice whose figure stands on the chat, or none while the avatar is off: on the hosted journal the one the environment's owner chose
-// on their own journal, which comes with the agent's row, so everyone sees the owner's figure; else the one chosen here
+// the voice whose figure stands on the chat, or none while the avatar is off: the one the agent's row names, else the one chosen here
 export const figureVoice = computed(() => (avatarOn.value && (agent.value?.voice || voiceInUse.value?.name)) || "");
 
 export const voiceTitle = (voice) => voice.name.charAt(0).toUpperCase() + voice.name.slice(1);

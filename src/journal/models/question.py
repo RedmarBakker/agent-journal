@@ -1,7 +1,8 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import ClassVar
 
+from journal.support.rejection import Rejection
 from journal.events.rows.question_answered import QuestionAnswered
 from journal.events.rows.question_closed import QuestionClosed
 from journal.events.rows.question_posed import QuestionPosed
@@ -21,7 +22,16 @@ class Question(Scoped, Commentable):
 
     text: str = ""
     options: tuple[str, ...] = ()
+    recommended: str = ""
     answer: str | None = None
+
+    def option_label(self, option: str) -> str:
+        return f"{option} (recommended)" if option == self.recommended else option
+
+    def with_recommendation(self, choice: str) -> "Question":
+        if choice not in self.options:
+            raise Rejection(f"the recommendation is one of the choices, word for word: {' / '.join(self.options)}")
+        return replace(self, options=(choice, *(option for option in self.options if option != choice)), recommended=choice)
 
     def is_answered(self) -> bool:
         return self.answer is not None

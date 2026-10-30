@@ -45,9 +45,7 @@ class TestTurns:
         self.timed_out: set[int] = set()
 
     def run_batches(self, worker: Worker, ids: str, caller: Caller) -> str:
-        if worker.pool_request:
-            raise Rejection(f"worker {worker.id}, {worker.name}, runs on another team machine: its tests run there")
-        folder, runs = str(self.branch.place(worker)), []
+        folder, runs = str(self.branch.folder(worker)), []
         for batch in self.batches(ids):
             turn = self.open_turn(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):

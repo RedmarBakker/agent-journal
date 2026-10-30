@@ -9,13 +9,13 @@ from tests.stories.fixtures.verifier.verifier_judging_dismissal import VerifierJ
 
 @story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_verifier_is_refused_a_read_and_told_to_give_its_verdict(story):
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
     story.expect_stack(story.agents.subject, Void, Verifying)
 
 
 @story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_verifier_is_refused_a_journal_command_other_than_its_verdict(story):
-    story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
-    story.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
+    result.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
     story.expect_stack(story.agents.subject, Void, Verifying)

@@ -170,24 +170,6 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
         app.container.get(NudgeRegistry).lookup("nowhere.unregistered")
 
 
-def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_chat_and_cleared(app: App):
-    from journal.events.agent.agent_event import AgentEvent
-    from journal.features.health.listeners.bypass_notice import BypassNotice
-    from journal.repositories.messages import Messages
-    app.container.get(Bus).listen(AgentEvent, app.container.get(BypassNotice))
-    log = app.config.home / "runtime" / "bypass.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text("1761393836 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
-    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
-    app.container.get(ListenerQueue).drain()
-    marks = [m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal was too slow")]
-    assert len(marks) == 1 and marks[0].text == "The journal was too slow to check some of the agent's work", [m.text for m in marks]
-    assert marks[0].data["lines"][1].endswith("ran in the shell itself: git status") and marks[0].data["outcome"] == "warned", marks[0].data
-    assert not log.exists(), "what was named is cleared"
-    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
-    app.container.get(ListenerQueue).drain()
-    assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal was too slow")]) == 1, "named once: the next answer says nothing more"
-
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/cli", data=json.dumps({"argv": argv, "env": "main", "session": session, **(body or {})}).encode(), method="POST", headers={"Content-Type": "application/json", **(headers or {})})
     try:
@@ -195,15 +177,6 @@ def post_command(app, argv: list[str], headers: dict | None = None, session: str
             return json.loads(reply.read())
     except HTTPError as error:
         return json.loads(error.read())
-
-
-def test_a_claude_subagents_command_is_told_by_the_hook_that_announced_it(app: App):
-    status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "sub1", "tool_name": "Bash", "tool_input": {"command": "journal task create x"}})
-    assert status == 200 and body == {} and all(entry.data.get("session_id") == "s1:sub1" for entry in app.container.get(Entries).scoped()), "announced, and recorded as the subagent's own, never the main agent's"
-    assert post_command(app, ["task", "create", "x"], {"X-Journal-Env": "main"}, "s2")["code"] == 0, "another session's command is not the subagent's"
-    refused = post_command(app, ["task", "create", "x"], {"X-Journal-Env": "main"}, "s1")
-    assert refused["code"] == 1 and "a subagent may not run journal task create" in refused["error"]
-    assert post_command(app, ["task", "create", "x"], {"X-Journal-Env": "main"}, "s1")["code"] == 0, "the announcement is used up by its command"
 
 
 def test_a_command_or_a_shell_line_that_says_it_is_a_workers_must_carry_its_token(app: App):
@@ -265,31 +238,6 @@ def test_every_way_into_the_console_checks_a_workers_kind(app: App):
     assert console.run(["message", "send", "hi"], Caller.plugin("main", "linter")).code == 0 and console.run(["task", "dock", "1"], Caller.user("main")).code == 0, "a plugin and the user pass a verb a worker is refused"
 
 
-def test_a_command_under_the_sub_agent_actor_runs_only_the_journals_reads(app: App):
-    assert post_command(app, ["task", "create", "the parser"], {"X-Journal-Actor": "agent"})["code"] == 0
-    subagent = {"X-Journal-Actor": "sub-agent"}
-    assert post_command(app, ["task", "show", "1"], subagent)["code"] == 0 and post_command(app, ["task", "list"], subagent)["code"] == 0, "a subagent reads tasks"
-    assert "a subagent may not" not in post_command(app, ["doc", "show", "1"], subagent)["error"], "and documents"
-    assert post_command(app, ["doc", "create", "the parser's design", "--abstract", "how the parser reads", "--body", "## Reading\nline by line"], subagent)["code"] == 0, "a subagent files its own document"
-    assert post_command(app, ["report", "create", "what the parser misses", "--abstract", "two gaps", "--body", "## Gaps\nnone yet"], subagent)["code"] == 0, "and its own report"
-    assert post_command(app, ["plan", "create", "the parser", "--brief", "it reads the grammar"], subagent)["code"] == 0 and post_command(app, ["plan", "phase", "1", "reading", "--when", "it reads"], subagent)["code"] == 0, "and builds a plan"
-    for argv in (["task", "create", "x"], ["message", "send", "hello"], ["plan", "approve", "1"]):
-        refused = post_command(app, argv, subagent)
-        assert refused["code"] == 1 and refused["error"].startswith(f"a subagent may not run journal {argv[0]} {argv[1]}: ResearcherHelper names the verbs it runs, ") and "journal task show" in refused["error"] and "journal search find" in refused["error"], f"a subagent writes nothing: {argv}"
-    assert post_command(app, ["task", "list"], {"X-Journal-Actor": "agent"})["code"] == 0
-
-
-def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_subagents(app: App):
-    from journal.models.agent import Agent
-    from journal.support.actor import Actor
-    from journal.repositories.agents import Agents
-    app.container.get(Agents).save(Agent(session="thread-1", provider="codex"), Actor.system())
-    shell = {"agent": True, "provider": "codex"}
-    posted = post_command(app, ["task", "create", "x"], {"X-Journal-Thread": "thread-2"}, body=shell)
-    assert "a subagent may not run journal task create" in posted["error"], posted
-    assert post_command(app, ["task", "list"], {"X-Journal-Thread": "thread-1"}, body=shell)["code"] == 0
-
-
 def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App):
     import time
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 120)
@@ -301,7 +249,7 @@ def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App
 
 
 def test_the_developer_numbers_are_kept_in_memory_and_written_to_no_row(app: App):
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     import time
     from journal.db.connection import Connection
     connection = app.container.get(Connection)

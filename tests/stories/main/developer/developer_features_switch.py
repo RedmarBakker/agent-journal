@@ -11,9 +11,9 @@ TASKS_ROUTE = "/journal/tasks"
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_with_the_developer_features_off_nothing_is_timed(story):
     story.user_opens(TASKS_ROUTE)
-    story.agent_runs(story.agents.subject, "developer slowest")
-    story.expect_command_passed()
-    story.expect_command_text("nothing logged yet")
+    result = story.agent_runs(story.agents.subject, "developer slowest")
+    result.expect_command_passed()
+    result.expect_command_text("nothing logged yet")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -21,8 +21,8 @@ def test_with_the_developer_features_off_nothing_is_timed(story):
 @setting(FaultsOptions.DEVELOPER, True)
 def test_with_the_load_count_off_no_record_is_counted(story):
     story.user_opens(TASKS_ROUTE)
-    story.agent_runs(story.agents.subject, "developer loads")
-    story.expect_command_text("nothing counted")
+    result = story.agent_runs(story.agents.subject, "developer loads")
+    result.expect_command_text("nothing counted")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -30,10 +30,10 @@ def test_with_the_load_count_off_no_record_is_counted(story):
 @setting(FaultsOptions.DEVELOPER, True)
 def test_the_viewers_requests_are_listed_and_a_reset_clears_them(story):
     story.user_opens(TASKS_ROUTE)
-    story.agent_runs(story.agents.subject, "developer slowest")
-    story.expect_command_text(TASKS_ROUTE)
-    story.agent_runs(story.agents.subject, "developer reset")
-    story.expect_command_passed()
-    story.agent_runs(story.agents.subject, "developer slowest")
-    story.expect_command_text("nothing logged yet")
+    result = story.agent_runs(story.agents.subject, "developer slowest")
+    result.expect_command_text(TASKS_ROUTE)
+    result = story.agent_runs(story.agents.subject, "developer reset")
+    result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "developer slowest")
+    result.expect_command_text("nothing logged yet")
     story.expect_stack(story.agents.subject, Ready)

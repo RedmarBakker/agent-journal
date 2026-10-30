@@ -12,7 +12,6 @@ import DockLeave from "./DockLeave.vue";
 import RunStop from "./RunStop.vue";
 import {useScope} from "../composables/scope.js";
 import {holdDock, pinDock, releaseDock, undock, unpinDock} from "../actions/docking.js";
-import {useColleague} from "../composables/colleague.js";
 import {isLeaving} from "../domain/docks.js";
 import {createdAt} from "../domain/row.js";
 import {watchLines} from "../domain/watchStatus.js";
@@ -25,7 +24,6 @@ const SHOWN_LINES = 6;
 
 const props = defineProps({message: {type: Object, required: true}, folded: Boolean});
 const scope = useScope();
-const {colleague} = useColleague();
 const card = computed(() => props.message.data);
 const {stoppable, what, phase, title: stoppedTitle, stop} = useRunStop(() => card.value);
 const stopped = computed(() => phase.value === "stopped");
@@ -60,7 +58,7 @@ const askedRow = computed(() => (card.value.output ? `command_outputs:${card.val
 const askAbout = () => (store.quoting = {text: props.message.text, ref: "", refers: [askedRow.value], label: "Asking about"});
 
 async function read() {
-    if (!colleague.value && card.value.output) await pages.poll();
+    if (card.value.output) await pages.poll();
 }
 
 // a card leaves once its run ends unless the user pinned it; while it closes by itself, pointing at it holds it in place
@@ -148,10 +146,7 @@ watch(
         </template>
         <div :class="['watch-dock-more', {open: opened}]">
             <div class="watch-dock-more-inner">
-                <template v-if="shown && colleague">
-                    <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
-                </template>
-                <template v-else-if="shown && pages.loaded.value">
+                <template v-if="shown && pages.loaded.value">
                     <OutputLines class="watch-dock-output" :lines="pages.lines.value" @older="pages.older" />
                 </template>
                 <template v-else-if="shown">

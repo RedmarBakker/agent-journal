@@ -303,7 +303,7 @@ class Entries(ScopedRepository[Entry]):
 
     def refusal_run_count(self, session: str, upper_id: int, count_cap: int) -> int:
         turn_entries = self.turn_query(session).filter_less("id", upper_id) if upper_id else self.turn_query(session)
-        unrefused = turn_entries.filter_alternatives(self.query().filter_unequal("entry_type", events.STOP), self.query().filter_null("data->refused"))
+        unrefused = turn_entries.filter_alternatives(self.query().filter_unequal("entry_type", events.STOP), self.query().filter_null("data->refused"), self.query().filter_json("data->remarked", True))
         run_start = self.selected_ids(unrefused.order_descending("id").limit(1))
         refused = turn_entries.filter(entry_type=events.STOP).filter_present("data->refused")
         return min(self.counted(refused.filter_greater("id", run_start[0]) if run_start else refused), count_cap)
@@ -332,6 +332,9 @@ class Entries(ScopedRepository[Entry]):
 
     def nudge_count(self, session: str, keys: tuple[str, ...], tool_use: int) -> int:
         return self.counted(self.lines(session).filter_listed("data->key", keys).filter_greater_equal("data->tool_use", tool_use))
+
+    def task_line_count(self, session: str, key: str, task: int) -> int:
+        return self.counted(self.lines(session).filter_json("data->key", key).filter_json("data->values->task", str(task)))
 
     def last_kind_id(self, session: str, type_name: str) -> int:
         return self.maximum(self.query().filter(entry_type=type_name, actor=Actor.agent(session)), "id", 0)

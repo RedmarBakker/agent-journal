@@ -187,9 +187,11 @@ test("a trip up walks under the place and then jumps, one down falls and then wa
     expect(tripBetween({x: 100, y: 500}, {x: 100, y: 300}, 112, {random: () => 0, hangs: true})).toMatchObject({lands: false});
     expect(tripBetween({x: 100, y: 500}, {x: 100, y: 300}, 112, {random: () => 0, room: Infinity}).legs[1].clip).toBe("backflip");
     expect(STEADY).toBeGreaterThan(0);
-    // stepping out of the way it sprints, its stroll that much shorter
+    // stepping out of the way it runs at twice the cruise speed, with its own short acceleration and braking ramps
     const sprint = tripBetween({x: 100, y: 500}, {x: 400, y: 500}, 112, {pace: SPRINT});
-    expect(sprint.legs[1].ms * SPRINT).toBeCloseTo(tripBetween({x: 100, y: 500}, {x: 400, y: 500}, 112).legs[1].ms, 5);
+    const walking = tripBetween({x: 100, y: 500}, {x: 400, y: 500}, 112).legs[1];
+    expect((sprint.legs[1].ms - sprint.legs[1].ramp) * SPRINT).toBeCloseTo(walking.ms - walking.ramp, 5);
+    expect(sprint.legs[1].clip).toBe("run");
     expect(sprint.pace).toBe(SPRINT);
     // a few pixels across are no walk at all, so no leg walks the figure on the spot
     const above = tripBetween({x: 100, y: 500}, {x: 100 + STEADY - 1, y: 300}, 112, {random: () => 0.99});

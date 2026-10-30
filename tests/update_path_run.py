@@ -10,7 +10,7 @@ from pathlib import Path
 from journal.support.free_port import FreePort
 
 TREE = Path(__file__).resolve().parents[1]
-PARTS = ("src/journal", "src/supervisor", "src/sync_server", "src/sync_service", "src/journal.py", "src/journal.sh", "src/web/dist", "install.sh")
+PARTS = ("src/journal", "src/supervisor", "src/sync_server", "src/journal.py", "src/journal.sh", "src/web/dist", "install.sh")
 STEPS = {"4.97.0": {"step": True, "oldest": "4.97.0", "reason": "r"}, "4.98.0": {"step": True, "oldest": "4.97.0", "reason": "r"}, "4.99.0": {"step": True, "oldest": "4.98.0", "reason": "r"}}
 INSTALL_SECONDS = 300
 MIGRATION = """from typing import ClassVar

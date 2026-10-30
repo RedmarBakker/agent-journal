@@ -37,7 +37,8 @@ class Questions(Feature[QuestionsData]):
 
 A choice only the user can make is asked as a question, not written into a reply.
 
-- `journal question ask "<the question>" --options "a" "b" "c"`, each choice quoted on its own so a comma stays inside it; you are then waiting, and stopping is fine.
+- `journal question ask "<the question>" --options "a" "b" "c" --recommend "b"`, each choice quoted on its own so a comma stays inside it; you are then waiting, and stopping is fine.
+- Give your recommendation whenever you have one: `--recommend` names it word for word as one of the options, and it is put first and marked for the user.
 - Each option names who acts, the agent or the user, never I, we or you, which the reader cannot place.
 - The answer arrives as a line naming `journal question show <n>`: read it there, in full, with the messages linked to it,
   and act on it. A reply from the user in the chat answers it too.

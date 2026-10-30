@@ -50,7 +50,10 @@ SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"
 # program shows no hook error; any other refused tool is denied with the line
 SHELL_TOOL = "Bash"
 
+# the settings of this machine alone, never committed: the journal's hooks name this machine's paths, so they live here
 LOCAL_SETTINGS = "settings.local.json"
+# the settings a project commits for everyone: the journal's hooks are kept out, since another machine's paths do nothing here
+SHARED_SETTINGS = "settings.json"
 
 
 class Claude(Provider):
@@ -66,8 +69,8 @@ class Claude(Provider):
     program = "claude"
     prompt_flags = ("--dangerously-skip-permissions",)
     home = ".claude"
-    settings_file = "settings.json"
-    foreign_settings = (LOCAL_SETTINGS,)
+    settings_file = LOCAL_SETTINGS
+    foreign_settings = (SHARED_SETTINGS,)
     settings_extras = {"enableAllProjectMcpServers": True}
     capabilities = frozenset(Capability)
     session_variable = "CLAUDE_CODE_SESSION_ID"

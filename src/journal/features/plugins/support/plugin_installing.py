@@ -265,7 +265,7 @@ class PluginInstalling:
         home = self.config.home / "plugins"
         home.mkdir(parents=True, exist_ok=True)
         self.clear_stale_fetches(home)
-        temporary = Path(tempfile.mkdtemp(prefix="journal-plugin-fetch-"))
+        temporary = Path(tempfile.mkdtemp(prefix=".fetching-", dir=home))
         try:
             shallow = [] if ref is not None else ["--depth", "1"]
             fetched = subprocess.run(["git", "clone", "--quiet", *shallow, source, str(temporary / "plugin")], capture_output=True, text=True, timeout=DOWNLOAD_SECONDS)

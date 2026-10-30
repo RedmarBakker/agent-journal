@@ -1,4 +1,4 @@
-def test_a_hook_is_answered(app):
+def test_hook(app):
     # @sin BehaviourTestOutsideStoriesDetector
     hook(app, "SessionStart")
     # @sin BehaviourTestOutsideStoriesDetector
@@ -6,4 +6,4 @@ def test_a_hook_is_answered(app):
     # @righteous BehaviourTestOutsideStoriesDetector
     parsed = Chain.split("ls && pwd")
     # @righteous BehaviourTestOutsideStoriesDetector
-    assert task.started(at).state == "started"
+    assert task.started(moment).state == "started"

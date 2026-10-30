@@ -17,7 +17,7 @@ class TaskTakeover(StateFixture):
         story.second_session_starts()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, BriefingNudges.TAKEOVER)
+        story.last_step.expect_agent_told(story.agents.main, BriefingNudges.TAKEOVER)
         story.expect_agent_session(story.main_session())
         story.expect_task(self.tasks.started, state=TaskState.STARTED)
         story.expect_stack(story.agents.main, Ready, Working)

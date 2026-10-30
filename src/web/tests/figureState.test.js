@@ -211,8 +211,9 @@ test("on the move the figure walks on with what its body is doing, and simply wa
     expect(clipFor(scene({trip: {...moves, way: 1}}), canDraw)).toEqual({clip: "think", facing: 90, posture: "walk"});
     expect(clipFor(scene({trip: {...moves, way: -1}, doing: "idle"}), canDraw)).toEqual({clip: "walk", facing: 270});
     expect(clipFor(scene({trip: {...moves, way: 1}, doing: "type"}), canDraw)).toEqual({clip: "walk", facing: 90});
-    // on a sprint its steps come as much quicker
-    expect(clipFor(scene({trip: {...moves, way: 1, pace: 2}, doing: "idle"}), canDraw)).toEqual({clip: "walk", facing: 90, pace: 2});
+    // A sprint has its own running cycle, even while its held state has a walking gesture.
+    expect(clipFor(scene({trip: {...moves, way: 1, pace: 2}, doing: "idle"}), canDraw)).toEqual({clip: "run", facing: 90, pace: 2});
+    expect(clipFor(scene({trip: {...moves, way: -1, pressing: true}, doing: "think"}), canDraw)).toEqual({clip: "run", facing: 270});
 });
 
 test("the walk is never named before the figure stands ready to go, and the leg it names then sets off with it", () => {
@@ -231,7 +232,7 @@ test("the walk is never named before the figure stands ready to go, and the leg 
 
 test("the walk is cut short the moment there is nowhere to go, a fall, a hop up the bubbles or a parachute the moment it lands, a climb up a ladder the moment it is up, and every other clip plays out", () => {
     const named = Object.fromEntries(CLIPS.map((clip) => [clip.name, clip]));
-    expect(CLIPS.filter((clip) => clip.interruptible).map((clip) => clip.name)).toEqual(["walk", "ladder_climb", "fall", "hop_up", "chute"]);
+    expect(CLIPS.filter((clip) => clip.interruptible).map((clip) => clip.name)).toEqual(["walk", "run", "ladder_climb", "fall", "hop_up", "chute"]);
     // mid-step the walk gives way at once, and so does a fall whose feet have met the ground
     expect(canSwitch(named.walk, 5, 4)).toBe(true);
     expect(canSwitch(named.fall, 3, 2)).toBe(true);

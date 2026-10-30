@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from journal.support.masks import Masks
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 from journal.features.faults.support.test_run_files import TEST_RUN_KEY
+from journal.features.updates.support.release_check_memory import MACHINE_VARIABLE
 from journal.support.secret_values import SecretValues
 
 from journal.db.connection import Connection
@@ -29,6 +29,7 @@ from journal.models.setting import Setting
 from journal.support.actor import Actor
 from tests.behaviour_record import BehaviourRecord
 from tests.shard_deal import ShardDeal
+from tests.template_copy import copied
 from tests.shared_journal import SharedJournal
 from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
@@ -39,7 +40,7 @@ STORIES_FOLDER = "tests/stories/"
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
-os.environ["AGENT_JOURNAL_MACHINE"] = tempfile.mkdtemp(prefix="journal-test-machine-")
+os.environ[MACHINE_VARIABLE] = tempfile.mkdtemp(prefix="journal-test-machine-")
 """Every journal a test boots keeps what a machine shares, such as its last look at GitHub for releases, in a scratch folder, never the user's own."""
 """Every test, and every journal a test boots, keeps its secret values in a scratch folder, never the user's own."""
 
@@ -60,9 +61,6 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     out = os.environ.get(DURATIONS_OUT_VARIABLE, "")
     if out:
         Path(out).write_text(json.dumps(seconds_taken))
-    if os.environ.get(COVERAGE_OUT_VARIABLE):
-        shard = os.environ.get(SHARD_VARIABLE, "0/1").split("/")[0]
-        (Path(os.environ[COVERAGE_OUT_VARIABLE]) / f"shard-{shard}.coverage.json").write_text(json.dumps(source_files))
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -75,6 +73,12 @@ def stand_ins(request):
         patch.setenv("PATH", f"{STAND_INS}{os.pathsep}{os.environ['PATH']}")
         patch.setenv("CLAUDE_CONFIG_DIR", tempfile.mkdtemp(prefix="claude-config-"))
         yield
+
+
+@pytest.fixture(autouse=True)
+def machine_folder(tmp_path_factory, monkeypatch) -> None:
+    """Each test keeps what a machine shares in a folder of its own, so a release check one test stored never moves another test's next check."""
+    monkeypatch.setenv(MACHINE_VARIABLE, str(tmp_path_factory.mktemp("machine")))
 
 
 @pytest.fixture
@@ -132,15 +136,9 @@ def app(journal: SharedJournal):
     assert not cut, f"lines sent longer than their longest, cut to it (key, length): {cut}"
 
 
-def copied(template: Path, root: Path) -> Path:
-    shutil.copytree(template, root, dirs_exist_ok=True)
-    (root / ".journal" / "project-id").unlink(missing_ok=True)
-    return root
-
-
 @pytest.fixture
 def scope(connection: Connection, bus: Bus) -> Scope:
-    return Scope(Environments(connection, bus, TimeSource()), Links(connection, bus, TimeSource()))
+    return Scope(Environments(connection, bus, TimeSource()))
 
 
 # the shard of a parallel suite this run is, as index/count, set by scripts/suite.py
@@ -186,38 +184,6 @@ def pytest_collection_finish(session) -> None:
     if os.environ.get(SHARD_VARIABLE) or os.environ.get(TALLY_VARIABLE):
         sys.__stdout__.write(f"collected {len(session.items)} items\n")
         sys.__stdout__.flush()
-
-
-# set by scripts/suite.py --coverage-map: the folder each shard writes which source files its tests ran to
-COVERAGE_OUT_VARIABLE = "JOURNAL_COVERAGE_OUT"
-SOURCE_FOLDER = str(Path(__file__).resolve().parent.parent / "src") + os.sep
-source_files: dict[str, list[str]] = {}
-files_run: set[str] = set()
-
-
-def code_started(code, offset: int) -> object:
-    if code.co_filename.startswith(SOURCE_FOLDER):
-        files_run.add("src/" + code.co_filename[len(SOURCE_FOLDER):])
-    return sys.monitoring.DISABLE
-
-
-def pytest_configure(config) -> None:
-    if os.environ.get(COVERAGE_OUT_VARIABLE):
-        sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "journal coverage map")
-        sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, code_started)
-        sys.monitoring.set_events(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START)
-
-
-@pytest.hookimpl(wrapper=True)
-def pytest_runtest_protocol(item, nextitem):
-    """With the coverage map asked for, each test notes the source files whose code it ran."""
-    if not os.environ.get(COVERAGE_OUT_VARIABLE):
-        return (yield)
-    files_run.clear()
-    sys.monitoring.restart_events()
-    outcome = yield
-    source_files[item.nodeid] = sorted(files_run)
-    return outcome
 
 
 def pytest_runtest_logreport(report) -> None:

@@ -12,7 +12,6 @@ from journal.features.workers.support.merge_clash import MergeClash
 from journal.support.merger import Merger
 from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
-from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import JOB_MOVE, REJECTION_MOVE, Worker
 from journal.models.worker_state import WorkerState
@@ -28,14 +27,12 @@ from journal.features.workers.support.worker_task_assigner import WorkerTaskAssi
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
-from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.cardinality import Cardinality
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.worktree_failure import WorktreeFailure
-from journal.sync.team_account import TeamAccount
 from journal.repositories.setting_rows import SettingRows
 from journal.features.workers.workers_options import WorkersOptions
 
@@ -60,11 +57,10 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire. A check names the task the worker is on, or one of its queue it finished, which waits for the same merge; every point found short is saved at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out; one unchecked point of any task the merge would close refuses the whole merge, naming the task."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses, routes: HubRoutes, assigner: WorkerTaskAssigner) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses, assigner: WorkerTaskAssigner) -> None:
         self.assigner = assigner
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account, self.moves, self.failures, self.settings, self.merger, self.time_source, self.statuses = account, moves, failures, settings, merger, time_source, statuses
-        self.routes = routes
+        self.failures, self.settings, self.merger, self.time_source, self.statuses = failures, settings, merger, time_source, statuses
 
     def task_holdings(self, number: int, task: int | None) -> tuple[int, ...]:
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), number))
@@ -74,25 +70,21 @@ class WorkerActions:
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)
+            return self.relaunch(self.workers.find(n), brief, dispatcher, actor, JOB_MOVE)
 
     def queue_resumed(self, n: int, brief: str, actor: Actor) -> None:
         with self.runner.lock(n):
-            worker = self.local(n)
+            worker = self.workers.find(n)
             if worker.is_ended_mid_queue():
                 self.relaunch(worker, brief, None, actor, JOB_MOVE)
 
     def resend(self, n: int, brief: str, model: str, profile: str | None, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.relaunch(self.local(n).with_(model=model, profile=profile), brief, dispatcher, actor, JOB_MOVE)
+            return self.relaunch(self.workers.find(n).with_(model=model, profile=profile), brief, dispatcher, actor, JOB_MOVE)
 
     def redo(self, n: int, brief: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.local(n)
-            if self.moves.is_remote_run(worker):
-                self.moves.ask_runner(worker, REDO, {"brief": brief})
-                return worker
-            return self.relaunch(worker, brief, None, actor, REDO_MOVE)
+            return self.relaunch(self.workers.find(n), brief, None, actor, REDO_MOVE)
 
     def peer_send(self, n: int, brief: str, sender: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -107,15 +99,13 @@ class WorkerActions:
             return self.notified(worker, text, f"worker {writer.id}, {writer.name}", actor)
 
     def peer(self, n: int, sender: int) -> Worker:
-        worker, writer = self.local(n), self.workers.find(sender)
+        worker, writer = self.workers.find(n), self.workers.find(sender)
         if worker.id == writer.id:
             raise Rejection(f"worker {n} is you: a job of your own you do yourself")
         if worker.adopted or worker.state == WorkerState.STOPPED:
             raise Rejection(f"worker {worker.id}, {worker.name}, is retired: only the agent that dispatched you brings it back")
         if worker.dispatcher != writer.dispatcher:
             raise Rejection(f"worker {worker.id}, {worker.name}, is another agent's: `journal worker peers` lists yours")
-        if sideways := self.routes.refusal(writer, worker):
-            raise Rejection(sideways)
         if not self.tasks.holder_task_ids(Ref.build(worker)):
             raise Rejection(f"worker {worker.id}, {worker.name}, has no task: you message only a peer that works on one")
         return worker
@@ -151,8 +141,7 @@ class WorkerActions:
         prior_shortfalls = tuple(proof.shortfall for proof in self.proofs.short_proofs(task))
         for number, reason in first_shortfalls:
             self.proofs.save(self.open_proof(task, number).with_shortfall(reason), actor)
-        if not self.moves.is_remote_run(worker):
-            self.resumable(worker)
+        self.resumable(worker)
         shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
         self.proofs.save(proof.short(self.failures.with_output(worker, shortfall_lines), self.time_source.moment().timestamp(), task.id, worker.id, worker.dispatcher, prior_shortfalls, worker.model), actor)
         return task
@@ -171,8 +160,6 @@ class WorkerActions:
         worker = self.mergeable(n, "work to merge")
         *finished, task = self.merged_tasks(worker)
         latest = self.latest_proofs(task)
-        if worker.pool_request:
-            self.branch.fetch_pool(worker)
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
         with self.statuses.watched(worker.id, steps.status):
             self.merge_gate(self.branch.merging_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
@@ -193,7 +180,6 @@ class WorkerActions:
             self.release_rest(worker, actor)
             self.workers.save(worker.merged(task.id, self.time_source.moment().timestamp()), actor)
             self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
-            self.moves.cleared(worker)
             steps.started(4)
             worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
         steps.started(5)
@@ -249,7 +235,7 @@ class WorkerActions:
             return "", 0
         try:
             with self.runner.lock(n):
-                worker = self.relaunch(self.local(n), f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor, JOB_MOVE, reused)
+                worker = self.relaunch(self.workers.find(n), f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor, JOB_MOVE, reused)
         except Rejection as refused:
             return f"its next queued task {task.id} was not sent, since {refused}", 0
         self.assigner.handed(worker, task, actor)
@@ -300,21 +286,15 @@ class WorkerActions:
         return [task_id for task_id in self.tasks.holder_task_ids(Ref.build(worker)) if not self.latest_proofs(self.tasks.find(task_id))]
 
     def mergeable(self, n: int, purpose: str) -> Worker:
-        worker = self.local(n)
+        worker = self.workers.find(n)
         if worker.state not in MERGEABLE_STATES:
             raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that has ended has {purpose}")
         return worker
 
     def delivered(self, n: int, purpose: str) -> Worker:
-        worker = self.local(n)
+        worker = self.workers.find(n)
         if not worker.is_delivered():
             raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that clocked out has {purpose}")
-        return worker
-
-    def local(self, n: int) -> Worker:
-        worker = self.workers.find(n)
-        if self.account.is_joined() and not worker.is_device(self.account.device()) and not self.moves.is_local_dispatch(worker):
-            raise Rejection(f"worker {worker.id}, {worker.name}, runs on {worker.device}: only that machine can act on it")
         return worker
 
     def worker_task(self, worker: Worker) -> Task:
@@ -325,19 +305,17 @@ class WorkerActions:
         return self.workers.save(worker.with_(report_choice=choice), actor)
 
     def release(self, n: int, actor: Actor) -> Worker:
-        finished = self.tasks.finished_task_ids(Ref.build(self.local(n)))
+        finished = self.tasks.finished_task_ids(Ref.build(self.workers.find(n)))
         if finished:
             raise Rejection(f"worker {n} completed {', '.join(f'task {task_id}' for task_id in finished)}, waiting for the merge: merge them, or release with --drop")
         return self.release_dropping(n, actor)
 
     def release_dropping(self, n: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.local(n)
+            worker = self.workers.find(n)
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is still out: stop it first with journal worker stop {worker.id}")
-            self.tasks.release(Ref.build(worker), actor)
-            self.tasks.unqueued(Ref.build(worker), actor)
-            self.moves.cleared(worker)
+            self.tasks.release_all(Ref.build(worker), actor)
             return self.workers.save(worker.released(self.time_source.moment().timestamp()), actor)
 
     def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str, reused: type[WorkerReused] = WorkerReused) -> Worker:
@@ -385,18 +363,14 @@ class WorkerActions:
 
     def user_message(self, n: int, text: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.local(n)
+            worker = self.workers.find(n)
             if worker.is_running():
                 return self.notified(worker, text, "the user", actor)
             return self.relaunch(worker, text, None, actor, JOB_MOVE)
 
     def notify(self, n: int, text: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.local(n)
-            if self.moves.is_remote_run(worker):
-                self.moves.ask_runner(worker, NOTE, {"text": text, "sender": "the agent that dispatched you"})
-                return worker
-            return self.notified(worker, text, "the agent that dispatched you", actor)
+            return self.notified(self.workers.find(n), text, "the agent that dispatched you", actor)
 
     def notified(self, worker: Worker, text: str, sender: str, actor: Actor) -> Worker:
         refusal = self.notify_refusal(worker)
@@ -416,22 +390,12 @@ class WorkerActions:
 
     def stop(self, n: int, reason: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.local(n)
-            if self.moves.is_remote(worker):
-                return self.pool_stop(worker, reason, actor)
-            worker = self.workers.save(worker.stopped(self.time_source.moment().timestamp(), reason), actor)
+            worker = self.workers.save(self.workers.find(n).stopped(self.time_source.moment().timestamp(), reason), actor)
             self.runner.stop(worker)
-            self.moves.cleared(worker)
             return worker
 
-    def pool_stop(self, worker: Worker, reason: str, actor: Actor) -> Worker:
-        self.runner.stop(worker)
-        self.moves.ask(worker, STOPPED, {"reason": reason}, actor)
-        self.moves.ended(worker)
-        return worker
-
     def complete(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
-        unmerged = self.branch.unmerged_count(self.local(n))
+        unmerged = self.branch.unmerged_count(self.workers.find(n))
         if unmerged:
             raise Rejection(f"worker {n} has {unmerged} unmerged commits: merge them, or `journal worker discard {n}`")
         return self.retired(n, reason, actor)
@@ -441,8 +405,7 @@ class WorkerActions:
 
     def retired(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
         with self.runner.lock(n):
-            worker = self.workers.save(self.local(n).finished(self.time_source.moment().timestamp(), reason), actor)
+            worker = self.workers.save(self.workers.find(n).finished(self.time_source.moment().timestamp(), reason), actor)
             self.runner.stop(worker)
             self.tasks.release(Ref.build(worker), actor)
-            self.moves.cleared(worker)
         return worker, self.branch.dropped(worker)

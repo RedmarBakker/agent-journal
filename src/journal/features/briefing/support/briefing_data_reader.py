@@ -27,7 +27,6 @@ class BriefingDataReader:
             "memories": self.start.memories_weighed,
             "reminders": self.start.reminders_numbered,
             "waiting": self.start.waiting,
-            "team_history": lambda: self.start.team_history(facts.environment_row),
             "interrupted_runs": self.start.interrupted_runs,
             "launch_folder": lambda: self.launches.folder(facts.environment),
             "is_launch_folder_missing": lambda: bool(facts.launch_folder) and not Path(facts.launch_folder).is_dir(),

@@ -11,13 +11,13 @@ def test_deleting_an_environment_takes_everything_recorded_in_it_and_leaves_the_
     spike = story.another_environment("spike")
     story.user_creates_plan_in(spike, "a spike")
     kept = story.agent_creates_task(story.agents.subject, "kept")
-    story.agent_runs(story.agents.subject, f"environment delete {spike}")
-    story.expect_command_text("deleted environment")
-    story.agent_runs(story.agents.subject, "environment list")
-    story.expect_command_text_without(spike)
+    result = story.agent_runs(story.agents.subject, f"environment delete {spike}")
+    result.expect_command_text("deleted environment")
+    result = story.agent_runs(story.agents.subject, "environment list")
+    result.expect_command_text_without(spike)
     story.expect_task(kept, state=TaskState.OPEN)
-    story.agent_runs(story.agents.subject, f"environment delete {spike}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"environment delete {spike}")
+    result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -25,10 +25,10 @@ def test_deleting_an_environment_takes_everything_recorded_in_it_and_leaves_the_
 def test_an_environment_renamed_carries_its_rows_and_never_takes_a_name_in_use(story):
     spike = story.another_environment("spike")
     story.user_creates_plan_in(spike, "a spike")
-    story.agent_runs(story.agents.subject, f"environment rename {spike} main")
-    story.expect_command_text("exists already")
-    story.agent_runs(story.agents.subject, f"environment rename {spike} probe")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"environment rename {spike} main")
+    result.expect_command_text("exists already")
+    result = story.agent_runs(story.agents.subject, f"environment rename {spike} probe")
+    result.expect_command_passed()
     story.expect_plan_titles_in("probe", "a spike")
     story.expect_stack(story.agents.subject, Ready)
 
@@ -37,6 +37,6 @@ def test_an_environment_renamed_carries_its_rows_and_never_takes_a_name_in_use(s
 def test_an_environment_is_never_renamed_while_an_agent_works_there(story):
     spike = story.another_environment("spike")
     story.session_starts_in(spike, "s-spike")
-    story.agent_runs(story.agents.subject, f"environment rename {spike} probe")
-    story.expect_command_text(f"an agent works in {spike}")
+    result = story.agent_runs(story.agents.subject, f"environment rename {spike} probe")
+    result.expect_command_text(f"an agent works in {spike}")
     story.expect_stack(story.agents.subject, Ready)

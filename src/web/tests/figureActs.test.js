@@ -243,7 +243,8 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     const redrawn = (share, ended = "") => ({bar: {}, share, ended, began: 100});
     expect(eagerFor(redrawn(0.98), fumed, () => 0, 186)).toEqual({eager: fumed, moment: null});
     expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 187).moment).toBe(null);
-    expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
+    expect(reactionTo("bar_failed", new Map(), 0, () => 0).clip).toBe("fume");
+    expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("tantrum");
     expect(of("bar_done").map((each) => each.name)).toEqual(["joy"]);
     // only the bar going ends it with nothing to mark, cut all the same
     expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {run: 100, on: false}, moment: null, cut: true});

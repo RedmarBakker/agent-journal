@@ -13,8 +13,8 @@ FIRST_PHASE = 1
 
 @story(MidPhaseTestPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_test_run_mid_phase_is_refused_with_the_plan_testing_and_how_to_run_it_anyway(story):
-    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
-    story.expect_refused(story.agents.subject, PlansNudges.MID_PHASE_TESTS, n=story.plans.first, phase=FIRST_PHASE)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
+    result.expect_refused(story.agents.subject, PlansNudges.MID_PHASE_TESTS, n=story.plans.first, phase=FIRST_PHASE)
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.expect_task(story.tasks.third, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
@@ -23,11 +23,11 @@ def test_a_test_run_mid_phase_is_refused_with_the_plan_testing_and_how_to_run_it
 @story(MidPhaseTestPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_allowance_lets_one_test_run_through_and_the_next_is_refused_again(story):
     story.agent_runs(story.agents.subject, f"plan allow-tests {story.plans.first} --why 'one test of the parser'")
-    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
+    result.expect_allowed()
     story.expect_task_logged(story.tasks.second, "one test of the parser")
-    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
-    story.expect_refused(story.agents.subject, PlansNudges.MID_PHASE_TESTS, n=story.plans.first, phase=FIRST_PHASE)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
+    result.expect_refused(story.agents.subject, PlansNudges.MID_PHASE_TESTS, n=story.plans.first, phase=FIRST_PHASE)
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.expect_task(story.tasks.third, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
@@ -35,8 +35,8 @@ def test_an_allowance_lets_one_test_run_through_and_the_next_is_refused_again(st
 
 @story(MidPhaseTestPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_allowance_without_a_reason_is_refused(story):
-    story.agent_runs(story.agents.subject, f"plan allow-tests {story.plans.first}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan allow-tests {story.plans.first}")
+    result.expect_command_refused()
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.expect_task(story.tasks.third, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
@@ -45,16 +45,16 @@ def test_an_allowance_without_a_reason_is_refused(story):
 @story(MidPhaseTestPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_test_run_on_the_last_task_of_the_phase_goes_through_unasked(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.second} --how 'the about page stands'")
-    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.third, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_with_no_testing_set_never_refuses_a_test_run(story):
-    story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "pytest -q tests/test_parser.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

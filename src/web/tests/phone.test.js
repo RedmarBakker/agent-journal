@@ -42,7 +42,7 @@ test("the phone refuses a file at once, and the desk's Project menu keeps its or
     const {useNavigation} = await import("../src/composables/navigation.js");
     const navigationScope = effectScope();
     const project = navigationScope.run(() => useNavigation()).sections.value.find((section) => section.key === "project").links.map((link) => link.key);
-    expect(project.slice(-9)).toEqual(["files", "git", "plugins", "mcp", "profiles", "secrets", "resources", "team", "settings"]);
+    expect(project.slice(-9)).toEqual(["files", "git", "plugins", "mcp", "profiles", "secrets", "library", "resources", "settings"]);
     navigationScope.stop();
     document.documentElement.classList.add("phone");
     vi.resetModules();

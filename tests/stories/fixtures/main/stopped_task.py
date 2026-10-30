@@ -19,4 +19,4 @@ class StoppedTask(StateFixture):
         story.agent_stops(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.main, TasksNudges.TASK_CONTINUATION)
+        story.last_step.expect_refused(story.agents.main, TasksNudges.TASK_CONTINUATION)

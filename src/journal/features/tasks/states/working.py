@@ -17,6 +17,7 @@ from journal.support.permission import Permission
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.models.task import PAUSED_OUTCOME
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.briefing.briefing_nudges import BriefingNudges
@@ -40,7 +41,7 @@ class Working(BaseState):
     active_at: float = 0.0
     log_requested: bool = False
     reminder_edits: int = 0
-    task_noun: str = "task"
+    untested_edits: bool = False
 
     def activity_text(self) -> str:
         return self.focus
@@ -50,8 +51,8 @@ class Working(BaseState):
 
     def label(self) -> str:
         if self.task_id and self.focus:
-            return f"{self.task_noun} {self.task_id}, {self.focus}"
-        return f"{self.task_noun} {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
+            return f"task {self.task_id}, {self.focus}"
+        return f"task {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
 
     def logged(self, time: float) -> "Working":
         return replace(self, logged_at=time, edits=0, log_requested=False, reminder_edits=0)
@@ -75,7 +76,7 @@ class Working(BaseState):
         return TasksNudges.TASK_CONTINUATION.create(name=self.label())
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        active = replace(self, active_at=event.time)
+        active = replace(self, active_at=event.time, untested_edits=(self.untested_edits or event.call.writes) and not event.call.test_runs())
         if not event.call.writes:
             return self.log_request(active, event.time, settings)
         if Timeout.edits(settings.integer(TasksOptions.LOG_LIMIT)).is_elapsed(self.edits):
@@ -116,7 +117,9 @@ class Working(BaseState):
         return self.swap(self.logged(event.time)) if event.task_id == self.task_id else self.none()
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
-        return self.pop() if event.task_id == self.task_id else self.none()
+        if event.task_id != self.task_id:
+            return self.none()
+        return self.pop(TasksNudges.UNTESTED_TASK_EDITS.create(n=self.task_id)) if self.untested_edits and event.outcome == PAUSED_OUTCOME else self.pop()
 
     def on_task_transferred(self, event: TaskTransferred, settings: Settings) -> Transition:
         return self.pop() if event.task_id == self.task_id else self.none()

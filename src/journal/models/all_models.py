@@ -17,11 +17,7 @@ from journal.models.phase import Phase
 from journal.models.plugin import Plugin
 from journal.models.journal_version import JournalVersion
 from journal.models.release_message import ReleaseMessage
-from journal.models.outgoing_change import OutgoingChange
-from journal.models.id_block import IdBlock
-from journal.models.pool_job import PoolJob
 from journal.models.scheduled_job import ScheduledJob
-from journal.models.pending_upload import PendingUpload
 from journal.models.alias import Alias
 from journal.models.dashboard_row import DashboardRow
 from journal.models.state_transition import StateTransition
@@ -44,7 +40,6 @@ from journal.models.setting import Setting
 from journal.models.share import Share
 from journal.models.phone import Phone
 from journal.models.phone_code import PhoneCode
-from journal.models.browser_session import BrowserSession
 from journal.models.task import Task
 from journal.models.template import Template
 from journal.models.task_log import TaskLog
@@ -68,5 +63,5 @@ from journal.models.library_item import LibraryItem
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, StateTransition)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, StateTransition)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))

@@ -2,6 +2,49 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.5
+
+- In auto mode the agent may stop with tasks open only by waiting or by saying it is stuck, and a stuck agent now stops with its tasks left open. A stop held only for the closing words after a reply no longer counts towards the five in a row that stop a looping agent.
+- A task set aside with edits no test run has checked asks whether it only waits for its tests, and how to move it to testing.
+- A web address in a chat bubble is a link that opens it.
+- The chat keeps following the newest bubble unless you scroll up yourself; typing, clicking or scrolling inside a code block no longer stops it.
+- A question the agent asks can name its recommended choice, which comes first and is marked as the agent's recommendation.
+- `journal plan add --phase` files a task under its phase at once, and the plan building steps use it.
+- While the agent writes a plan itself, the plan building cannot be paused to edit files; `journal sequence delegate` hands the writing to subagents and lets edits through meanwhile.
+- In the task list, an open task of a plan shows under Planned, never under Open, whether or not the plan is started.
+- The viewer tests and the whole suite show their progress on their cards.
+
+## 4.68.4
+
+- When every reviewer of a plan is back, the agent is told to put their findings in and then mark the plan ready with what the round changed; the plan no longer sits in review because nothing named that step.
+- "Ask for a critique" is a button of its own on the plan card again, beside Approve; the Approve menu keeps only the ways to approve.
+- A task waiting in testing no longer breaks the task list: it offers Finish.
+- A plan paused because another plan was started is never asked about returning to, so two paused plans no longer ask in turn without end.
+
+## 4.68.3
+
+- The journal's hooks for Claude Code are written into this machine's own settings, .claude/settings.local.json, which the setup keeps out of git, and taken out of the shared .claude/settings.json. A settings file one machine committed named its own paths, so on every other machine the hooks did nothing and the journal never heard the agent: it could not wake a stopped agent with a message.
+- Every start brings the templates and sequences the journal ships to exactly the current set: one it ships no more is taken away, an older copy of a shipped one you never changed is taken away, and the current ones are written fresh. Your own are never touched.
+- The launch menu asks whether to set the project's other hooks aside every time, also when you carry on an earlier conversation.
+
+## 4.68.2
+
+- "Update, then start" in the launch menu asks once: the launcher waits until the running journal has installed the new version, saying it installs, before it starts again on it. It started again at once on the old code and offered the same update a second time.
+
+## 4.68.1
+
+- A launcher, a journal command, a shell line or a hook that finds another project's journal on its port no longer uses it: every request names its project, a journal refuses one that names another, and the launcher and the command treat that journal as none, so a launch never resumes another project's session.
+- The Attachments list on the Documents page shows every file attached to a message again; it only looked at the newest hundred messages.
+- An update waiting for running commands names them on the update cover, and the chat no longer logs errors while the cover is up.
+- The Slow requests section of the Developer tab has its own switch, off by default.
+- The sidebar's Plans item counts the open plans.
+- A stop with a started plan and a task in hand is held as it should be; it was let through.
+- A memory's weight may rise at a context mark, never fall, and the fade mark counts the memories it removed, one line each.
+- The paused task line during a wait comes once per task in hand instead of at every wait.
+- A mode change says the new mode and the command that shows what it asks.
+- A plugin's answer is read even when the journal holds more than a thousand open files.
+- A Codex worker's job is the first message of its chat, and a third await sent back is accepted with its reason.
+
 ## 4.68.0
 
 - The journal decides which of its work must come before a hook or a command answers: only what refuses, speaks or writes a row the agent's next step reads runs first; the rest, its measurements, logs and most marks, runs just after the answer, so hooks answer sooner.

@@ -5,14 +5,16 @@ import {ACTS, RUMMAGED, SMASH, flungAt, heldPhases, offSwing, partOf, pogoBounce
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {NEWEST_ASIDE, newestScootAt} from "./newest.js";
-import {GAIT} from "./gait.js";
-import {POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
+import {GAIT, RUN, gaitFoot} from "./gait.js";
+import {PROP_FADE_SECONDS, fadeProp, propOverlay, restorePropOpacity, transitionProps} from "./propTransition.js";
+import {CHANGE_SECONDS, POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {FRAMES_PER_SECOND, GRID, TICKER, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
 import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
 import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
+import {HEADPHONES, dressHomie, headphoneContacts, headphoneGrip, headphonesAt, headphonesOf, moveHeadphones} from "./homie.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 import {transport} from "../api/transport.js";
@@ -630,7 +632,7 @@ const thinkingClip = (act) => (pose, stance, t) => {
 };
 
 function celebrate(pose, stance, t) {
-    const jump = Math.max(Math.sin(2 * Math.PI * 2 * t), 0);
+    const jump = Math.max(Math.sin(2 * Math.PI * 2 * t), 0) ** 2;
     pose.lift("root", {z: 0.28 * jump});
     pose.turn("hips", {z: 6 * waveOf(t, 2)});
     trunk(pose, {lean: -5, turn: -6 * waveOf(t, 2)});
@@ -675,6 +677,28 @@ function walk(pose, stance, t) {
     strideLegs(pose);
 }
 
+// The running cycle is driven by page distance, as the walk is. Its planted soles move back at exactly the body's pace; the longer
+// recovery swings, bent pumping arms and forward lean belong to this clip alone, with a short flight between alternating supports.
+function run(pose, stance, t) {
+    pose.stride = t;
+    const phase = ((t % 1) + 1) % 1;
+    const half = phase % 0.5;
+    const flight = half > RUN.planted ? Math.sin(Math.PI * (half - RUN.planted) / (0.5 - RUN.planted)) ** 2 : 0;
+    const height = -0.2 + 0.055 * flight;
+    const pump = Math.sin(2 * Math.PI * phase);
+    pose.lift("root", {z: height});
+    breathe(pose, 0);
+    trunk(pose, {lean: 14, nod: -7, twist: -9 * pump, turn: 4 * pump});
+    const carried = stance.carried ?? stance.busy;
+    const pumping = Object.keys(SIDES).filter((side) => !carried.has(side) && !stance.level.has(side));
+    armsAtRest(pose, stance, pumping);
+    for (const side of pumping) hang(pose, side, SIDES[side] * 42 * pump, 72 - SIDES[side] * 10 * pump);
+    for (const [side, offset] of [["l", 0], ["r", 0.5]]) {
+        const [forward, lifted] = gaitFoot(phase + offset, RUN);
+        stepLeg(pose, side, forward, lifted, height, 18 * lifted / RUN.clearance);
+    }
+}
+
 // The walk's lower body at `pose.stride` of its cycle: the body bobbing before a clip poses the rest, and the legs stepping after it. Every
 // clip drawn on the move walks on these, so the figure goes on thinking or working as it goes; the hips' sway is the walk's own, as a
 // clip that reaches for the chin or the lap places its hands against an upper body that does not swing
@@ -686,7 +710,7 @@ function strideUnder(pose) {
 
 function strideLegs(pose, k = 1) {
     for (const [side, offset] of [["l", 0], ["r", 0.5]]) {
-        const [forward, lift] = strideFoot(pose.stride + offset, WALK_STRIDE[0], WALK_STRIDE[1], WALK_STRIDE[2]);
+        const [forward, lift] = gaitFoot(pose.stride + offset, GAIT);
         const foot = pose.rig.heads.get(`foot_${side}`);
         const turn = radians(pose.strideTurn ?? 0);
         const around = new THREE.Vector3(0, 0, 1);
@@ -1782,11 +1806,34 @@ function sip(pose, stance, t) {
 }
 
 function groove(pose, stance, t) {
-    const {u, ready} = gestureTime(t, ACTING.pastimeFrames);
+    const u = onceTime(t, HEADPHONES.frames);
+    const ready = rise(u, 0.35, 0.4) * (1 - rise(u, 0.6, 0.65));
+    const beat = span(u, 0.35, 0.65);
     breathe(pose, 0);
-    trunk(pose, {nod: ACTING.nod * waveOf(u, ACTING.beats) * ready, tilt: ACTING.rock * waveOf(u, ACTING.sways) * ready});
+    trunk(pose, {nod: ACTING.nod * waveOf(beat, ACTING.beats) * ready, tilt: ACTING.rock * waveOf(beat, ACTING.sways) * ready});
     armsAtRest(pose, stance);
-    pose.swing(waveOf(u, ACTING.sways) * ready);
+    const grip = headphoneGrip(u);
+    const contacts = headphoneContacts(headphonesAt(u, pose.moves(0)));
+    for (const [index, side] of Object.keys(SIDES).entries()) {
+        if (grip) pose.lift(`shoulder_${side}`, {x: SIDES[side] * 0.2 * grip, y: -0.18 * grip, z: 0.06 * grip});
+        const contact = toBlender(contacts[index].at);
+        const direction = toBlender(contacts[index].along).normalize();
+        const fingers = pose.grip(side, [0, 0, 0]).sub(pose.rig.heads.get(`hand_${side}`));
+        const wrist = contact.clone().addScaledVector(direction, -fingers.length());
+        if (grip) {
+            const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
+            const reach = wrist.clone().sub(shoulder);
+            const shift = reach.clone().setLength(reach.length() - Math.max(0.66, Math.min(0.94, reach.length()))).multiplyScalar(grip);
+            pose.lift(`shoulder_${side}`, {x: shift.x, y: shift.y, z: shift.z});
+        }
+        restingFaceArm(pose, side);
+        const rotation = new THREE.Quaternion().setFromUnitVectors(fingers.normalize(), direction);
+        armToward(pose, side, grip, wrist, rotation, [1, 1, -1]);
+        if (grip) pose.inUse.add(side);
+    }
+    pose.headphones = {u};
+    pose.headContact = grip;
+    pose.swing(waveOf(beat, ACTING.sways) * ready);
     pose.shutEyes(1 - ACTING.grooveEyes * ready);
 }
 
@@ -1996,7 +2043,7 @@ function inspect(pose, stance, t) {
     const nodded = swell(t, ...INSPECTING.pause);
     const up = new THREE.Vector3(0, 0, 1);
     const turned = radians(sign * INSPECTING.turn);
-    crouch(pose, INSPECTING.bend * ready);
+    crouch(pose, INSPECTING.bend * ready * ready);
     breathe(pose, 0);
     trunk(pose, {lean: INSPECTING.lean * ready, nod: (INSPECTING.nod + INSPECTING.nodded * nodded) * ready});
     armsAtRest(pose, stance, [side]);
@@ -2185,6 +2232,7 @@ function backflip(pose, stance, t) {
     fold(pose, 0.28 * crouch);
     tucked(pose, 1.2 * air);
     const centre = pose.head("chest", pose.matrix("chest")).lerp(pose.head("neck", pose.matrix("neck")), 0.75);
+    centre.z += 0.05;
     pose.turnAll({x: BACKFLIP_TURN * turn}, centre);
 }
 
@@ -2295,7 +2343,7 @@ function pointed(pose, stance, t) {
 // and ending at rest. The hand that gestures is the free one; what the other carries stays in it.
 export const REACTING = {
     frames: 36, fps: 12,
-    hatOn: 1.101, hatWrist: [1.05, -0.2, 2.6], hatRaised: [0.95, -0.5, 2.6], hatTip: 18, hatFingers: 0.25, hatBow: 22, hatNod: 14,
+    hatLift: 0.12, hatTip: 4, hatFingers: 0.37, hatShoulder: [0.15, -0.7, 0.15], hatBow: 24, hatNod: 18, hatGripAngle: 30,
     monocleWrist: [0.55, -0.8, 2.62], monocleWorn: [0.354, -0.95, 0.66], monoclePeer: 8, monocleTilt: 9,
     toastWrist: [0.78, -0.72, 2.55], toastClink: 0.12, sipWrist: [0.42, -0.78, 2.38], sipTip: 20,
     shakaWrist: [1.22, -0.25, 2.72], shakaWaggle: 28, shakaWaggles: 3,
@@ -2326,32 +2374,54 @@ function handUp(pose, side, k, target, turn = {}) {
 // straight up, at rest
 const UP = new THREE.Vector3(0, 0, 1);
 
-// The butler takes his top hat by the brim and tips it as he bows, keeping its tall crown inside the picture, then puts it back on.
+// The butler grips the front quarter of the curled brim, clear of his ear, lifts it, then tips about that contact during a shallow bow.
+// The hollow crown clears the head, and the fingers stay on the real brim as it lifts and returns.
 function hat_tip(pose, stance, t) {
-    const {u, ready} = reacting(t);
+    const {u} = reacting(t);
+    const ready = rise(u, 0, 0.2) * (1 - rise(u, 0.86, 1));
     const side = freeSide(stance);
-    const held = rise(u, 0.2, 0.3) * (1 - rise(u, 0.7, 0.8));
-    const raised = rise(u, 0.3, 0.4) * (1 - rise(u, 0.6, 0.7));
-    const bow = swell(u, 0.32, 0.72);
+    const lifted = rise(u, 0.22, 0.32) * (1 - rise(u, 0.74, 0.84));
+    const tipped = rise(u, 0.34, 0.46) * (1 - rise(u, 0.6, 0.72));
+    const bow = rise(u, 0.06, 0.2) * (1 - rise(u, 0.86, 1));
     breathe(pose, 0);
     trunk(pose, {lean: REACTING.hatBow * bow, nod: REACTING.hatNod * bow});
+    const [out, forward, raise] = REACTING.hatShoulder;
+    pose.lift(`shoulder_${side}`, {x: SIDES[side] * out * ready, y: (forward + 0.1 * (1 - lifted)) * ready, z: raise * ready * (0.45 + 0.55 * lifted)});
     armsAtRest(pose, stance, ready ? [side] : []);
-    handUp(pose, side, ready, REACTING.hatWrist.map((value, axis) => mix(value, REACTING.hatRaised[axis], raised)));
-    if (ready) pose.aim(`hand_${side}`, pose.rig.along.get(`hand_${side}`).clone().transformDirection(pose.matrix(`hand_${side}`)).lerp(UP, ready));
-    if (held) {
-        const turn = {y: SIDES[side] * REACTING.hatTip * held};
+    const {at, turn, grip} = hatHeld(pose, side, lifted, tipped);
+    if (ready) {
+        restingPropArm(pose, side);
+        const fingers = pose.grip(side, [REACTING.hatFingers, 0, 0]).sub(pose.rig.heads.get(`hand_${side}`));
+        const direction = new THREE.Vector3(-SIDES[side] * 0.2, 0.3, 1).transformDirection(pose.matrix("head"));
+        const wrist = grip.clone().addScaledVector(direction, -fingers.length());
+        const rotation = new THREE.Quaternion().setFromUnitVectors(fingers.normalize(), direction);
+        armToward(pose, side, ready, wrist, rotation, [1, -2, -0.4]);
+    }
+    pose.headContact = ready;
+    if (lifted || tipped) {
+        const head = pose.matrix("head").clone().invert();
+        at.add(handGrip(pose, side, [REACTING.hatFingers, 0, 0]).applyMatrix4(head)).sub(grip.clone().applyMatrix4(head));
         pose.putAway("butler_top_hat", "butler_top_hat_band");
-        pose.wearProp("top_hat", hatHeld(pose, side, held, turn).toArray(), turn);
+        pose.wearProp("top_hat", at.sub(pose.rig.heads.get("head")).toArray(), turn);
     }
     eyesAs(pose, "amused", bow);
 }
 
-// where the hat sits against the head at rest, `held` of the way from on the head to in the hand on `side`, its brim's edge at the fingers
-function hatHeld(pose, side, held, turn) {
-    const edge = new THREE.Vector3(SIDES[side] * (BUTLER.hat.crown + BUTLER.hat.brim), 0, 0).applyMatrix4(euler(0, turn.y, 0));
-    const grip = handGrip(pose, side, [REACTING.hatFingers, 0, 0]).applyMatrix4(pose.matrix("head").clone().invert());
-    const inHand = grip.sub(edge).sub(pose.rig.heads.get("head"));
-    return new THREE.Vector3(0, 0, REACTING.hatOn).lerp(inHand, held);
+// The front quarter of the actual curled rim, halfway through its thickness, in the hat's own space.
+function hatBrimContact(side) {
+    const angle = radians(REACTING.hatGripAngle);
+    const radius = BUTLER.hat.crown + BUTLER.hat.brim;
+    return new THREE.Vector3(SIDES[side] * radius * Math.cos(angle), -radius * Math.sin(angle), BUTLER.hat.curl * Math.cos(angle) ** 2 + BUTLER.hat.thick / 2);
+}
+
+// The hat's rigid transform about the gripped outer brim, in the head's rest space; its contact point carried into the posed body.
+function hatHeld(pose, side, lifted, tipped) {
+    const edge = hatBrimContact(side);
+    const turn = {y: SIDES[side] * REACTING.hatTip * tipped};
+    const base = new THREE.Vector3(0, 0, BUTLER.hat.base + REACTING.hatLift * lifted);
+    const at = base.clone().add(edge).sub(edge.clone().applyMatrix4(euler(0, turn.y, 0)));
+    const grip = base.add(edge).applyMatrix4(pose.matrix("head"));
+    return {at, turn, grip};
 }
 
 // the butler brings up a monocle, screws it into his eye, peers through it a moment, and lets it drop
@@ -2995,7 +3065,7 @@ function eager(pose, stance, t) {
     const tapping = frame < intro ? Math.sin((Math.PI * frame) / intro) : 0;
     const pointing = frame < intro ? rise(frame / intro, 0.7, 1) : 1 - rise((frame - intro - hold) / outro, 0, 1);
     const held = frame >= intro && frame < intro + hold ? (frame - intro) / hold : null;
-    const bob = held === null ? 0 : Math.abs(Math.sin(2 * Math.PI * held));
+    const bob = held === null ? 0 : Math.sin(2 * Math.PI * held) ** 2;
     const beat = waveOf(frame / intro, taps);
     pose.lift("root", {z: bounce * bob});
     breathe(pose, 0);
@@ -3009,6 +3079,142 @@ function eager(pose, stance, t) {
     if (pointing) emptyHand(pose);
     const glow = Math.min(frame / 4, 1) * (1 - span(frame, intro + hold, intro + hold + outro));
     pose.starEyes(glow * (1 + sparkle * Math.abs(waveOf(frame / 6))));
+}
+
+const TANTRUM_POSES = {butler: butler_tantrum, homie: homie_tantrum, coach: coach_tantrum, colleague: colleague_tantrum, squire: squire_tantrum};
+
+// The same failure has a different performance in each voice.
+function tantrum(pose, stance, t) {
+    (TANTRUM_POSES[stance.voice] ?? colleague_tantrum)(pose, stance, t);
+}
+
+const BUTLER_TANTRUM = {floor: [-1.38, -0.72, 0.04], lift: 0.42, aside: 0.65};
+
+// He throws the hat clear, hops beside it, then crouches to grasp the brim before lifting it back onto his head.
+function butlerTantrumBody(pose, u) {
+    const ready = rise(u, 0, 0.1) * (1 - rise(u, 0.94, 1));
+    const bow = rise(u, 0, 0.12) * (1 - rise(u, 0.26, 0.34)) + rise(u, 0.78, 0.84) * (1 - rise(u, 0.96, 1));
+    const pickup = rise(u, 0.6, 0.7) * (1 - rise(u, 0.72, 0.84));
+    const mad = rise(u, 0.31, 0.34) * (1 - rise(u, 0.6, 0.64));
+    const hop = Math.sin(Math.PI * ACTS.tantrum.hops * span(u, 0.34, 0.6)) ** 2;
+    const aside = rise(u, 0.22, 0.28) * (1 - rise(u, 0.78, 0.85));
+    const acrossHop = Math.sin(Math.PI * span(u, 0.22, 0.34)) ** 2 + Math.sin(Math.PI * span(u, 0.78, 0.85)) ** 2;
+    const depth = 0.42 * bow * bow + 0.04 * mad * (1 - hop) + 0.65 * pickup * pickup;
+    const lifted = 0.42 * hop + 0.12 * acrossHop;
+    pose.lift("root", {x: BUTLER_TANTRUM.aside * aside, z: lifted - depth});
+    breathe(pose, 0);
+    trunk(pose, {lean: 10 * bow + 7 * mad + 30 * pickup, nod: 8 * bow + 10 * mad + 12 * pickup, tilt: 2 * mad * waveOf(u, 18)});
+    stepLeg(pose, "l", 0, lifted + 0.05 * hop, lifted - depth);
+    stepLeg(pose, "r", 0, lifted + 0.05 * hop, lifted - depth);
+    return {ready, bow, pickup, mad, hop};
+}
+
+// An upright hat lands on its brim. Its free flight stays to the side of the face, with a small bounce on impact.
+function butlerTantrumHat(pose, u) {
+    const reference = new Posing(pose.rig, "stand", 0);
+    butlerTantrumBody(reference, 0.18);
+    const high = reference.matrix("head").clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, BUTLER.hat.base + BUTLER_TANTRUM.lift));
+    const outside = high.clone();
+    outside.elements[12] = BUTLER_TANTRUM.floor[0];
+    const floor = new THREE.Matrix4().makeTranslation(...BUTLER_TANTRUM.floor).multiply(euler(0, 0, 180));
+    if (u < 0.18) {
+        const lifted = REACTING.hatLift * rise(u, 0.12, 0.18);
+        return pose.matrix("head").clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, BUTLER.hat.base + lifted));
+    }
+    if (u < 0.22) {
+        const lifted = mix(REACTING.hatLift, BUTLER_TANTRUM.lift, rise(u, 0.18, 0.22));
+        return reference.matrix("head").clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, BUTLER.hat.base + lifted));
+    }
+    if (u < 0.26) return between(high, outside, rise(u, 0.22, 0.26));
+    if (u < 0.34) return between(outside, floor, rise(u, 0.26, 0.34));
+    if (u < 0.72) {
+        floor.elements[14] += 0.07 * Math.sin(Math.PI * span(u, 0.34, 0.39)) ** 2;
+        return floor;
+    }
+    const liftedFloor = floor.clone();
+    liftedFloor.elements[14] = 0.6;
+    if (u < 0.75) return between(floor, liftedFloor, rise(u, 0.72, 0.75));
+    const beside = new THREE.Matrix4().makeTranslation(-1.3, -0.6, 2.7).multiply(euler(0, -90, 0));
+    if (u < 0.81) {
+        const lifted = between(liftedFloor, beside, rise(u, 0.75, 0.81));
+        lifted.elements[12] += 0.09 * Math.sin(Math.PI * span(u, 0.75, 0.81)) ** 2;
+        return lifted;
+    }
+    const raised = beside.clone();
+    raised.elements[14] = 3.55;
+    if (u < 0.85) return between(beside, raised, rise(u, 0.81, 0.85));
+    if (u < 0.91) {
+        const placed = pose.matrix("head").clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, BUTLER.hat.base + BUTLER_TANTRUM.lift));
+        return between(raised, placed, rise(u, 0.85, 0.91));
+    }
+    const lifted = BUTLER_TANTRUM.lift * (1 - rise(u, 0.91, 0.96));
+    return pose.matrix("head").clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, BUTLER.hat.base + lifted));
+}
+
+function butler_tantrum(pose, stance, t) {
+    const u = onceTime(t, ACTS.tantrum.frames);
+    const {ready, mad, hop} = butlerTantrumBody(pose, u);
+    const side = freeSide(stance);
+    const retrieving = u >= 0.6;
+    const grip = rise(u, 0, 0.12) * (1 - rise(u, 0.18, 0.26)) + rise(u, 0.6, 0.7) * (1 - rise(u, 0.96, 1));
+    const lifted = u < 0.5 ? rise(u, 0.12, 0.18) : 1 - rise(u, 0.9, 0.96);
+    const hat = butlerTantrumHat(pose, u);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const hand of Object.keys(SIDES)) {
+        armTo(pose, hand, 0, {});
+        if (mad) armToward(pose, hand, mad, pose.carried(new THREE.Vector3(SIDES[hand] * 1.05, -0.6, 1.7 + 0.18 * hop)), {z: -SIDES[hand] * 30}, [1, 0.2, -1]);
+        pose.clench(hand, 1 - 0.32 * mad);
+    }
+    if (grip) {
+        const [out, forward, raise] = REACTING.hatShoulder;
+        const shoulder = grip * (retrieving ? rise(u, 0.76, 0.88) : 1);
+        const extraReach = rise(u, 0.83, 0.89) * (1 - rise(u, 0.91, 0.96));
+        pose.lift(`shoulder_${side}`, {x: SIDES[side] * out * shoulder, y: (forward + 0.1 * (1 - lifted)) * shoulder - 0.12 * extraReach, z: raise * shoulder * (0.45 + 0.55 * lifted) + 0.24 * extraReach});
+        const contact = retrieving ? hatBrimContact(side).applyMatrix4(hat) : hatHeld(pose, side, lifted, 0).grip;
+        if (!retrieving) restingPropArm(pose, side);
+        const fingers = pose.grip(side, [REACTING.hatFingers, 0, 0]).sub(pose.rig.heads.get(`hand_${side}`));
+        let direction = new THREE.Vector3(-SIDES[side] * 0.2, 0.3, 1).transformDirection(pose.matrix("head"));
+        if (retrieving) {
+            const toward = contact.clone().sub(pose.head(`upper_arm_${side}`, pose.matrix(`upper_arm_${side}`))).normalize();
+            const turn = new THREE.Quaternion().setFromUnitVectors(toward, direction);
+            direction = toward.applyQuaternion(new THREE.Quaternion().slerp(turn, rise(u, 0.87, 0.91)));
+        }
+        const wrist = contact.clone().addScaledVector(direction, -fingers.length());
+        if (retrieving) {
+            const shoulder = pose.head(`upper_arm_${side}`, pose.matrix(`upper_arm_${side}`));
+            const near = pose.foldedReach(side) + 0.02;
+            if (wrist.distanceTo(shoulder) < near) {
+                const along = contact.clone().sub(shoulder), distance = along.length();
+                along.normalize();
+                const reach = (near * near + distance * distance - fingers.lengthSq()) / (2 * distance);
+                const pole = new THREE.Vector3(0, -1, 0).addScaledVector(along, along.y).normalize();
+                wrist.copy(shoulder).addScaledVector(along, reach).addScaledVector(pole, Math.sqrt(Math.max(0, near * near - reach * reach)));
+                direction = contact.clone().sub(wrist).normalize();
+            }
+        }
+        const rotation = new THREE.Quaternion().setFromUnitVectors(fingers.normalize(), direction);
+        armToward(pose, side, grip, wrist, rotation, [1, -2, -0.4]);
+        if (retrieving && u >= 0.7 && u <= 0.96) {
+            const held = pose.grip(side, [REACTING.hatFingers, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`));
+            const correction = held.sub(contact);
+            hat.elements[12] += correction.x;
+            hat.elements[13] += correction.y;
+            hat.elements[14] += correction.z;
+        }
+    }
+    pose.headContact = ready;
+    if (u > 0.12 && u < 0.96) {
+        const held = u < 0.18 || u >= 0.91;
+        const frame = held ? "head" : u >= 0.7 ? `hand_${side}` : "root";
+        const local = pose.matrix(frame).clone().invert().multiply(hat);
+        const at = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3();
+        local.decompose(at, rotation, scale);
+        const turn = new THREE.Euler().setFromQuaternion(rotation, "ZYX");
+        const angles = {x: THREE.MathUtils.radToDeg(turn.x), y: THREE.MathUtils.radToDeg(turn.y), z: THREE.MathUtils.radToDeg(turn.z)};
+        pose.props.set("top_hat", {bone: frame, frame, at, turn: angles, ...(held ? {} : {returnMode: "toss"})});
+        pose.putAway("butler_top_hat", "butler_top_hat_band");
+    }
+    eyesAs(pose, "angry", ready);
 }
 
 // crushed by the bar it was eager for failing, slumped and looking down, then mad about it: stamping one foot and the other, fists
@@ -3037,6 +3243,110 @@ function fume(pose, stance, t) {
     }
     if (crushed > mad) eyesAs(pose, "worried", crushed);
     else eyesAs(pose, "angry", mad);
+}
+
+const tantrumBeat = (u, from, to) => swell(u, from, to) ** 2;
+
+// Each foot comes back flat to its own place. The small knee bend keeps the supporting sole planted through the stamping.
+function tantrumFeet(pose, ready, left, right, depth = 0.045, spread = 0) {
+    if (pose.posture !== "stand") {
+        pose.swing(0.5 * (left - right));
+        return;
+    }
+    const drop = depth * ready * ready;
+    pose.lift("root", {z: -drop});
+    for (const [side, height] of [["l", left], ["r", right]]) {
+        stepLeg(pose, side, 0, height, -drop);
+        if (spread) {
+            pose.turn(`thigh_${side}`, {y: SIDES[side] * spread * height});
+            pose.face(`foot_${side}`, {});
+        }
+    }
+}
+
+// An expansive palms-up protest, then four impatient stamps out to alternating sides.
+function homie_tantrum(pose, stance, t) {
+    const u = onceTime(t, ACTS.tantrum.frames);
+    const ready = rise(u, 0.02, 0.12) * (1 - rise(u, 0.86, 1));
+    const protest = rise(u, 0.06, 0.18) * (1 - rise(u, 0.36, 0.48));
+    const shake = waveOf(span(u, 0.12, 0.4), 3) * tantrumBeat(u, 0.12, 0.4);
+    const left = tantrumBeat(u, 0.43, 0.54) + tantrumBeat(u, 0.65, 0.76);
+    const right = tantrumBeat(u, 0.54, 0.65) + tantrumBeat(u, 0.76, 0.87);
+    tantrumFeet(pose, ready, 0.3 * left, 0.3 * right, 0.05, 24);
+    breathe(pose, 0);
+    trunk(pose, {lean: 5 * ready + 5 * protest, nod: 8 * ready, turn: 24 * shake, twist: 5 * (left - right), tilt: 4 * (left - right)});
+    armsAtRest(pose, stance);
+    if (ready) pose.putAway(...IN_HAND);
+    for (const [side, sign] of Object.entries(SIDES)) {
+        pose.lift(`shoulder_${side}`, {z: 0.08 * protest});
+        const at = new THREE.Vector3(sign * (1.05 + 0.3 * protest), -0.65, 1.75 + 0.4 * protest + 0.1 * (side === "l" ? left : right));
+        armToward(pose, side, ready, pose.carried(at), {x: 70 * protest, y: -sign * 10, z: -sign * 20}, [1, 0.2, -1]);
+        pose.clench(side, 1 - 0.22 * ready * (1 - protest));
+    }
+    eyesAs(pose, "angry", ready);
+}
+
+// A coach's pointed reprimand gives way to two sharp stamps, with the other fist held firmly at the waist.
+function coach_tantrum(pose, stance, t) {
+    const u = onceTime(t, ACTS.tantrum.frames);
+    const ready = rise(u, 0.02, 0.12) * (1 - rise(u, 0.86, 1));
+    const scold = rise(u, 0.08, 0.18) * (1 - rise(u, 0.5, 0.6));
+    const jab = tantrumBeat(u, 0.18, 0.29) + tantrumBeat(u, 0.33, 0.44);
+    const stamp = tantrumBeat(u, 0.58, 0.69) + tantrumBeat(u, 0.73, 0.84);
+    tantrumFeet(pose, ready, 0, 0.38 * stamp, 0.065);
+    breathe(pose, 0);
+    trunk(pose, {lean: 10 * ready + 4 * jab, nod: 10 * ready + 6 * jab, twist: -8 * scold, turn: 6 * scold});
+    armsAtRest(pose, stance);
+    if (ready) pose.putAway(...IN_HAND);
+    const pointAt = new THREE.Vector3(1.04 + 0.14 * jab, -0.55 - 0.3 * scold - 0.12 * jab, 1.75 + 0.45 * scold);
+    armToward(pose, "l", ready, pose.carried(pointAt), {x: 10, z: -75 * scold}, [1, 0.15, -1]);
+    armToward(pose, "r", ready, pose.carried(new THREE.Vector3(-0.95, -0.4, 1.6 + 0.1 * stamp)), {z: 25}, [1, 0.2, -1]);
+    pose.clench("l", 1 - 0.2 * ready * (1 - scold));
+    pose.clench("r", 1 - 0.3 * ready);
+    eyesAs(pose, "angry", ready);
+}
+
+// A colleague tries to contain the irritation: shoulders and fists tremble, one foot stamps, and the hands settle again.
+function colleague_tantrum(pose, stance, t) {
+    const u = onceTime(t, ACTS.tantrum.frames);
+    const ready = rise(u, 0.02, 0.14) * (1 - rise(u, 0.82, 1));
+    const tense = rise(u, 0.1, 0.24) * (1 - rise(u, 0.58, 0.73));
+    const shake = waveOf(span(u, 0.23, 0.59), 7) * tantrumBeat(u, 0.23, 0.59);
+    const stamp = tantrumBeat(u, 0.61, 0.78);
+    tantrumFeet(pose, ready, 0.3 * stamp, 0, 0.035);
+    breathe(pose, 0);
+    trunk(pose, {lean: 6 * ready + 3 * tense, nod: 12 * tense, turn: 3 * shake, twist: 2 * shake});
+    armsAtRest(pose, stance);
+    if (ready) pose.putAway(...IN_HAND);
+    for (const [side, sign] of Object.entries(SIDES)) {
+        pose.lift(`shoulder_${side}`, {z: 0.1 * tense + sign * 0.025 * shake});
+        const at = new THREE.Vector3(sign * (0.93 + 0.035 * shake), -0.58, 1.55 + 0.38 * tense + sign * 0.055 * shake);
+        armToward(pose, side, ready, pose.carried(at), {z: -sign * 35}, [1, 0.1, -1]);
+        pose.clench(side, 1 - 0.34 * ready);
+    }
+    eyesAs(pose, "angry", ready);
+}
+
+// A knight's affront: squared fists, an indignant look to either side, and two heavy armored stamps.
+function squire_tantrum(pose, stance, t) {
+    const u = onceTime(t, ACTS.tantrum.frames);
+    const ready = rise(u, 0.02, 0.14) * (1 - rise(u, 0.86, 1));
+    const affront = rise(u, 0.08, 0.2) * (1 - rise(u, 0.74, 0.86));
+    const left = tantrumBeat(u, 0.34, 0.51);
+    const right = tantrumBeat(u, 0.61, 0.8);
+    const look = tantrumBeat(u, 0.16, 0.4) - tantrumBeat(u, 0.48, 0.74);
+    tantrumFeet(pose, ready, 0.48 * left, 0.48 * right, 0.085, 12);
+    breathe(pose, 0);
+    trunk(pose, {lean: 4 * ready + 5 * (left + right), nod: 6 * ready, turn: 22 * look, twist: 8 * look});
+    armsAtRest(pose, stance);
+    if (ready) pose.putAway(...IN_HAND);
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const stamp = side === "l" ? left : right;
+        const at = new THREE.Vector3(sign * 1.12, -0.6, 1.65 + 0.5 * affront - 0.2 * stamp);
+        armToward(pose, side, ready, pose.carried(at), {z: -sign * 65}, [1, 0.25, -1]);
+        pose.clench(side, 1 - 0.32 * ready);
+    }
+    eyesAs(pose, "angry", ready);
 }
 
 // A glance from standing still, held a moment and back: to the page's left or right, the head turned up to `head` degrees and the
@@ -3519,7 +3829,9 @@ function halo(pose, stance, t) {
     trunk(pose, {nod: -2 * shown});
     pose.putAway(...IN_HAND);
     handsTo(pose, {...stance, free: new Set(Object.keys(SIDES))}, shown, HALO_RING.hands);
-    pose.wearProp("halo", [0, 0, HALO_RING.above]);
+    // The raised top hat needs a slightly flatter halo to leave room below the camera ceiling.
+    const butler = stance.voice === "butler";
+    pose.wearProp("halo", [0, 0, HALO_RING.above + (butler ? 0.07 : 0)], {x: butler ? -9 : 0});
     pose.props.get("halo").size = Math.max(shown, 0.01);
     eyesAs(pose, "serene", shown);
 }
@@ -3644,7 +3956,9 @@ function rope_swing(pose, stance, t) {
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
     breathe(pose, breath);
-    trunk(pose, {lean: -5 * pump, nod: -4 * (1 - pump * pump) + (ACTS.rope_swing.angle + 5) * pump});
+    const lean = stance.voice === "butler" ? -30 * pump + 35 * offSwing(t) * (t < 0.5 ? 1 : -1) : -5 * pump;
+    const nod = stance.voice === "butler" ? ACTS.rope_swing.angle * pump - lean : -4 * (1 - pump * pump) + (ACTS.rope_swing.angle + 5) * pump;
+    trunk(pose, {lean, nod});
     pose.putAway(...IN_HAND);
     const [x, y, z] = ROPE_GRIP;
     armsAtRest(pose, stance, Object.keys(SIDES));
@@ -3823,6 +4137,7 @@ export const CLIPS = [
     {name: "celebrate", head: HEAD.gestures, frames: 12, fps: 10, loops: true, postures: MOVE, pose: celebrate},
     {name: "sleep", head: HEAD.holds, frames: ACTING.yawnFrames + SLEEP_FRAMES, intro: ACTING.yawnFrames, leaves: SLEEP_FRAMES, fps: 6, loops: true, postures: GESTURE, marks: {mark: "Z", frames: [[ACTING.yawnFrames, ACTING.yawnFrames + SLEEP_FRAMES]]}, pose: sleep},
     {name: "walk", head: HEAD.free, frames: 12, fps: 12, loops: true, interruptible: true, postures: MOVE, pose: walk},
+    {name: "run", head: HEAD.free, frames: 16, fps: 16, loops: true, interruptible: true, postures: MOVE, pose: run},
     {name: "walk_in", head: HEAD.free, frames: 40, fps: 12, loops: false, postures: MOVE, pose: walk_in},
     {name: "run_in", head: HEAD.free, frames: 28, fps: 12, loops: false, postures: MOVE, pose: run_in},
     {name: "pull_ups", head: HEAD.holds, frames: 24, fps: 10, loops: true, postures: MOVE, pose: pull_ups},
@@ -3843,7 +4158,7 @@ export const CLIPS = [
     {name: "whistle", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["coach"], pose: whistle},
     {name: "phone_call", head: HEAD.alone, frames: ACTS.phone_call.frames, fps: ACTS.phone_call.fps, loops: false, postures: STANDING_OR_SEATED, pose: phone_call},
     {name: "sip", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["colleague"], pose: sip},
-    {name: "groove", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: groove},
+    {name: "groove", head: HEAD.gestures, frames: HEADPHONES.frames, fps: HEADPHONES.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: groove},
     {name: "shield_polish", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shieldPolish},
     {name: "bow", head: HEAD.gestures, frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: bow},
     {name: "salute", head: HEAD.gestures, frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: salute},
@@ -3910,6 +4225,7 @@ export const CLIPS = [
     {name: "type_ponder", head: HEAD.holds, frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", head: HEAD.gestures, frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
     {name: "wave_up", head: HEAD.gestures, frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
+    {name: "tantrum", head: HEAD.gestures, frames: ACTS.tantrum.frames, fps: ACTS.tantrum.fps, loops: false, cuts: true, postures: MOVE, pose: tantrum},
 ];
 
 // A part carried by the bones it is skinned to, its outline's hull pushed out along its own normals by `push`
@@ -3943,6 +4259,7 @@ const SKINNED = /* glsl */ `
 // bulb at `bulbAt`, weaker with the square of the distance by `bulbFalloff`
 const FLAT = /* glsl */ `
     uniform vec3 colour;
+    uniform float alpha;
     uniform vec3 light;
     uniform vec3 shade;
     uniform float litFrom;
@@ -3960,7 +4277,7 @@ const FLAT = /* glsl */ `
         float lit = step(litFrom, dot(normal, light));
         vec3 toBulb = bulbAt - worldPosition;
         float bulb = max(dot(normal, normalize(toBulb)), 0.0) / (1.0 + dot(toBulb, toBulb) * bulbFalloff);
-        gl_FragColor = vec4(colour * mix(shade, vec3(1.0), lit) + bulbGlow * bulb * mix(colour, vec3(1.0), 0.35), 1.0);
+        gl_FragColor = vec4(colour * mix(shade, vec3(1.0), lit) + bulbGlow * bulb * mix(colour, vec3(1.0), 0.35), alpha);
         #include <colorspace_fragment>
     }
 `;
@@ -3973,7 +4290,6 @@ const FLAT = /* glsl */ `
 // and lit pixels are `dark` as bright there under a dance's band. It is drawn on its own, supersampled and never softened (Stage.drawScreen). It is
 // lit whole by a dance (visor.js discoScreen): a band about its middle reaching `across` and `open` of the way to its sides and its top
 // and bottom, white with `flash` and else `glow`, as strong as `lit`.
-// parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
 // `source`'s part at (x, y), `width` by `height`, drawn over the whole of `canvas`, cleared first, smoothed and never blurred
 const drawSmoothed = (canvas, source, x, y, width, height) => {
     const context = canvas.getContext("2d");
@@ -4163,9 +4479,10 @@ export function showPixels(texture, lit) {
 
 const LINE = /* glsl */ `
     uniform vec3 colour;
+    uniform float alpha;
 
     void main() {
-        gl_FragColor = vec4(colour, 1.0);
+        gl_FragColor = vec4(colour, alpha);
         #include <colorspace_fragment>
     }
 `;
@@ -4182,6 +4499,7 @@ function flatMaterial(mesh) {
         uniforms: {
             ...vertexUniforms(mesh, 0),
             colour: {value: new THREE.Vector3(r, g, b)},
+            alpha: {value: 1},
             light: {value: LIGHT_FROM.clone().normalize().applyMatrix4(TO_GLB)},
             shade: {value: SHADE},
             litFrom: {value: LIT_FROM},
@@ -4198,7 +4516,7 @@ function outlineMaterial(mesh) {
         fragmentShader: LINE,
         side: THREE.BackSide,
         defines: {HULL: ""},
-        uniforms: {...vertexUniforms(mesh, OUTLINE_WIDTH), colour: {value: OUTLINE_COLOUR}},
+        uniforms: {...vertexUniforms(mesh, OUTLINE_WIDTH), colour: {value: OUTLINE_COLOUR}, alpha: {value: 1}},
     });
 }
 
@@ -4270,8 +4588,8 @@ export async function loadFigure(url, wardrobe, voice) {
     return figureOf(bytes, voice, DECODER, (mesh) => !covered.has(mesh.name) && !(bare && mesh.userData.item));
 }
 
-// the voices dressed over their glb, each by what dresses it (butler.js)
-const DRESSES = {butler: dressButler};
+// the voices dressed over their glb, including replacement accessories with rigid supports
+const DRESSES = {butler: dressButler, homie: dressHomie};
 
 // The figure in a glb's bytes, posed by the clips: every mesh `shows` keeps is drawn, shaded and outlined; `decoder` is where Draco's decoder is served
 export async function figureOf(bytes, voice, decoder, shows = () => true) {
@@ -4319,13 +4637,17 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const laptop = laptopOf();
     const book = bookOf();
     const propByName = propsOf();
+    const wornHat = meshes.find((mesh) => mesh.name === "butler_top_hat");
+    if (wornHat) propByName.get("top_hat").getObjectByName("top_hat_crown").material.uniforms.colour.value.copy(wornHat.material.uniforms.colour.value);
     scene.add(laptop, book, ...propByName.values());
+    const headphones = voice === "homie" ? headphonesOf(shadedPart, meshes) : null;
+    if (headphones) scene.add(headphones.root);
     const bulbLight = {bulbAt: {value: new THREE.Vector3()}, bulbGlow: {value: new THREE.Vector3()}};
     scene.traverse((node) => node.material?.uniforms?.bulbGlow && Object.assign(node.material.uniforms, bulbLight));
     const hulls = (shown) => shown.flatMap((mesh) => [mesh, mesh.userData.hull]);
     const inHand = carried.filter((mesh) => IN_HAND.has(mesh.userData.item));
     const stowable = hulls(carried.filter((mesh) => mesh.userData.item));
-    return {scene, rig: rigOf(scene), stance, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), inHand: hulls(inHand), bulbLight};
+    return {scene, rig: rigOf(scene), stance, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), inHand: hulls(inHand), bulbLight, headphones};
 }
 
 // A laptop drawn in the flat colours of the chat's own: its hinge at the origin, its keyboard toward the body (-z), its lid opened a little
@@ -5197,8 +5519,8 @@ function reactionPropsOf(group, part) {
     const {monocle, flute, shades, flame, finger, popper, confetti, trophy, sword, castle, colours} = REACTION_PROPS;
     const ink = TOOLS.colours.ink, silver = TOOLS.colours.silver, accent = TOOLS.colours.accent;
     const topHat = group("top_hat");
-    part(topHat, "crown", topHatGeometry(), colours.hat);
-    part(topHat, "band", topHatBandGeometry(), new THREE.Color(...BUTLER.satin).getHex());
+    shadedPart(topHat, "crown", topHatGeometry(), colours.hat);
+    shadedPart(topHat, "band", topHatBandGeometry(), new THREE.Color(...BUTLER.satin).getHex());
     const glass = group("monocle");
     part(glass, "ring", new THREE.TorusGeometry(monocle.radius, monocle.tube, 8, 24), colours.gold);
     part(glass, "lens", new THREE.CircleGeometry(monocle.radius, 24), colours.glass);
@@ -5284,22 +5606,97 @@ function heldPropOf(moves, {bone, frame, at, turn}) {
 }
 
 // the light bulb's light on the figure, where the bulb is and as warm as it is lit, none while it is out
-export function lightFromBulb(figure, pose) {
+export function lightFromBulb(figure, pose, lit = pose.bulbLit) {
     const {bulbAt, bulbGlow} = figure.bulbLight;
-    bulbGlow.value.set(...LIGHT_BULB.colours.warm).multiplyScalar(LIGHT_BULB.strength * pose.bulbLit);
-    if (pose.bulbLit) bulbAt.value.setFromMatrixPosition(figure.propByName.get("light_bulb").matrix).add(new THREE.Vector3(0, LIGHT_BULB.globe, 0));
+    bulbGlow.value.set(...LIGHT_BULB.colours.warm).multiplyScalar(LIGHT_BULB.strength * lit);
+    if (lit) bulbAt.value.setFromMatrixPosition(figure.propByName.get("light_bulb").matrix).add(new THREE.Vector3(0, LIGHT_BULB.globe, 0));
 }
 
 // every prop placed where the pose holds it, and one whose shape moves, as the papers squared or the confetti flying, shaped as it says
-export function moveProps(figure, pose, moves) {
+export function moveProps(figure, pose, moves, transitions = null) {
     for (const [name, prop] of figure.propByName) {
-        const held = pose.props.get(name);
+        restorePropOpacity(prop);
+        const entry = name === "top_hat" ? null : transitions?.entries.get(`prop:${name}`);
+        const held = entry?.value ?? pose.props.get(name);
         prop.visible = Boolean(held);
         if (!held) continue;
-        prop.matrix.copy(heldPropOf(moves, held));
+        prop.matrix.copy(entry?.to === 0 && name === "binoculars" ? retainedProp(figure, `prop:${name}`, moves) ?? heldPropOf(moves, held) : heldPropOf(moves, held));
         prop.matrixWorldNeedsUpdate = true;
         prop.userData.shape?.(held);
+        if (entry) fadeProp(prop, entry.alpha);
+        if (name === "binoculars" && entry?.to !== 0) rememberProp(figure, `prop:${name}`, prop, "hand_l", moves);
     }
+}
+
+// A retiring book, laptop or pair of binoculars follows one of its last supports as a rigid object. Its shape and scale stay as drawn
+// while the hands separate for the next pose, rather than stretching the outgoing prop between them.
+const propSupport = (moves, bone) => TO_GLB.clone().multiply(moves.get(bone)).multiply(FROM_GLB);
+
+function rememberProp(figure, name, prop, bone, moves) {
+    (figure.propAnchors ??= new Map()).set(name, {bone, local: propSupport(moves, bone).invert().multiply(prop.matrix)});
+}
+
+function retainedProp(figure, name, moves) {
+    const anchor = figure.propAnchors?.get(name);
+    return anchor && propSupport(moves, anchor.bone).multiply(anchor.local);
+}
+
+// An interrupted tip keeps one opaque hat in the head's frame. It straightens about the same curled brim contact, then lowers into
+// the identical worn mesh; that mesh replaces it only when they meet. Static samples take their requested placement immediately.
+const HAT_RETURN_SECONDS = 0.12;
+const HAT_STRAIGHTEN_SECONDS = 0.02;
+
+function returnHat(figure, pose, moves, time) {
+    if (!pose.props.has("top_hat") && !figure.hatReturn) return false;
+    const hat = figure.propByName.get("top_hat");
+    const support = propSupport(moves, "head");
+    if (pose.props.has("top_hat")) {
+        const brim = hatBrimContact(freeSide(figure.stance)).applyMatrix4(TO_GLB);
+        figure.hatReturn = {world: hat.matrix.clone(), local: support.clone().invert().multiply(hat.matrix), brim, posture: pose.posture, frame: pose.props.get("top_hat").frame, returnMode: pose.props.get("top_hat").returnMode, began: null, time: Number.isFinite(time) ? time : null};
+    } else if (!Number.isFinite(time)) {
+        figure.hatReturn = null;
+    } else if (figure.hatReturn) {
+        const returning = figure.hatReturn;
+        const now = Math.max(time, returning.time ?? time);
+        returning.began ??= now;
+        returning.time = now;
+        const elapsed = now - returning.began;
+        // A cancelled tantrum retires the free hat at its last spot, then restores the worn hat with the usual prop fade.
+        if (returning.returnMode === "toss") {
+            const away = elapsed < PROP_FADE_SECONDS;
+            hat.matrix.copy(away ? returning.world : support.multiply(new THREE.Matrix4().makeTranslation(0, BUTLER.hat.base, 0)));
+            hat.matrixWorldNeedsUpdate = true;
+            fadeProp(hat, away ? 1 - partOf(elapsed, [0, PROP_FADE_SECONDS]) : partOf(elapsed, [PROP_FADE_SECONDS, 2 * PROP_FADE_SECONDS]));
+            if (elapsed < 2 * PROP_FADE_SECONDS) {
+                for (const part of figure.stowable) if (["butler_top_hat", "butler_top_hat_band"].includes(part.userData.item)) part.visible = false;
+                return true;
+            }
+            hat.visible = false;
+            figure.hatReturn = null;
+            return false;
+        }
+        const at = new THREE.Vector3(), turn = new THREE.Quaternion(), scale = new THREE.Vector3();
+        returning.local.decompose(at, turn, scale);
+        // A smaller tip needs less straightening; an upright lifted hat lowers at once, before the seated body unbows beneath it.
+        const angle = turn.angleTo(new THREE.Quaternion());
+        const returningSeated = returning.posture === "sit" && returning.frame === "head" && returning.returnMode !== "toss";
+        const seconds = returningSeated ? 0.06 : HAT_RETURN_SECONDS;
+        const straightened = (returningSeated ? 0.01 : HAT_STRAIGHTEN_SECONDS) * Math.min(angle / radians(REACTING.hatTip), 1);
+        const straighten = straightened > 1e-8 ? partOf(elapsed, [0, straightened]) : 1;
+        const lower = partOf(elapsed, [straightened, seconds]);
+        turn.slerp(new THREE.Quaternion(), straighten);
+        scale.lerp(new THREE.Vector3(1, 1, 1), straighten);
+        at.copy(returning.brim).applyMatrix4(returning.local).sub(returning.brim.clone().multiply(scale).applyQuaternion(turn));
+        at.lerp(new THREE.Vector3(0, BUTLER.hat.base, 0), lower);
+        hat.matrix.copy(support.multiply(elapsed ? new THREE.Matrix4().compose(at, turn, scale) : returning.local));
+        hat.matrixWorldNeedsUpdate = true;
+        hat.visible = elapsed < seconds;
+        if (!hat.visible) figure.hatReturn = null;
+    }
+    if (hat.visible) {
+        for (const part of figure.stowable) if (["butler_top_hat", "butler_top_hat_band"].includes(part.userData.item)) part.visible = false;
+    }
+    return Number.isFinite(figure.hatReturn?.began);
 }
 
 
@@ -5417,19 +5814,65 @@ function gripsOf(pose, moves) {
 // placed are returned, so the next change can ease from them
 // The moves drawn for `pose` turned `facing` degrees, eased from those before a change as `blend` says, and whether they have settled;
 // getting up off a seat (`blend.plant`, places.js leavesSeat) the lower sole is kept where the act puts it, so the body unfolds on its feet
-// on the floor line from the first frame
+// on the floor line from the first frame. A grounded walk/run change only lifts feet that would penetrate the floor; its flight phase
+// keeps its existing height, and airborne grabs use neither constraint.
 export function blendedMoves(rig, pose, facing, blend) {
     const target = pose.moves(facing);
     if (!blend) return {moves: target, settled: true};
     const result = blendMoves(rig, blend.from, target, blend.k, blend.previous);
-    if (!blend.plant) return result;
+    if (!blend.plant && !blend.floor) return result;
     const sole = (moves) => Math.min(...Object.keys(SIDES).map((side) => pose.head(`foot_${side}`, moves.get(`foot_${side}`)).z));
-    const lift = new THREE.Matrix4().makeTranslation(0, 0, sole(target) - sole(result.moves));
+    const floor = Math.min(...Object.keys(SIDES).map((side) => rig.heads.get(`foot_${side}`).z));
+    const lift = new THREE.Matrix4().makeTranslation(0, 0, blend.plant ? sole(target) - sole(result.moves) : Math.max(0, floor - sole(result.moves)));
     return {moves: new Map([...result.moves].map(([name, move]) => [name, lift.clone().multiply(move)])), settled: result.settled};
 }
 
-function place(figure, pose, facing, blend) {
-    const result = blendedMoves(figure.rig, pose, facing, blend);
+// The hand leaves the brim before the head turns. Seated, the head and torso then rise in sequence, with the hips on the seat.
+function returnedHatMoves(figure, pose, facing, blend, time) {
+    if (!blend || !Number.isFinite(time) || pose.props.has("top_hat") || figure.hatRecovery?.from !== blend.from) figure.hatRecovery = null;
+    if (blend && Number.isFinite(time) && !pose.props.has("top_hat") && figure.hatReturn?.frame === "head" && figure.hatReturn.returnMode !== "toss" && !figure.hatRecovery) {
+        figure.hatRecovery = {from: blend.from, previous: blend.from, armPrevious: blend.from, posture: figure.hatReturn.posture, side: freeSide(figure.stance), began: time, time};
+    }
+    const recovery = figure.hatRecovery;
+    if (!recovery) return blendedMoves(figure.rig, pose, facing, blend);
+    const elapsed = Math.max(time, recovery.time) - recovery.began;
+    recovery.time = Math.max(time, recovery.time);
+    const seated = recovery.posture === "sit";
+    const result = blendedMoves(figure.rig, pose, facing, {...blend, k: seated ? partOf(elapsed, [0.08, CHANGE_SECONDS]) : blend.k, previous: recovery.previous});
+    recovery.previous = result.moves;
+    const moves = new Map(result.moves);
+    const above = (bone, ancestor) => bone === ancestor || (Boolean(figure.rig.parents.get(bone)) && above(figure.rig.parents.get(bone), ancestor));
+    if (seated) {
+        const k = partOf(elapsed, [0, CHANGE_SECONDS]);
+        const pivot = figure.rig.heads.get("spine").clone().applyMatrix4(moves.get("spine"));
+        const axis = new THREE.Vector3(1, 0, 0).transformDirection(moves.get("spine"));
+        const bend = aboutPoint(pivot, new THREE.Matrix4().makeRotationAxis(axis, radians(12) * Math.sin(Math.PI * k) ** 2));
+        for (const [bone, move] of moves) if (above(bone, "spine")) moves.set(bone, bend.clone().multiply(move));
+        const from = new THREE.Euler().setFromRotationMatrix(recovery.from.get("head"), "ZYX");
+        const target = new THREE.Euler().setFromRotationMatrix(pose.moves(facing).get("head"), "ZYX");
+        const angles = new THREE.Euler().setFromRotationMatrix(result.moves.get("head"), "ZYX");
+        const upright = partOf(elapsed, [0.04, 0.16]);
+        angles.x = mix(from.x, target.x, upright);
+        angles.y = mix(from.y, target.y, upright);
+        const head = moves.get("head");
+        const at = figure.rig.heads.get("head").clone().applyMatrix4(head);
+        const scale = new THREE.Vector3().setFromMatrixScale(head);
+        const placed = new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromEuler(angles), scale)
+            .multiply(translation(figure.rig.heads.get("head").clone().negate()));
+        const adjusted = placed.clone().multiply(head.clone().invert());
+        for (const [bone, move] of moves) if (above(bone, "head")) moves.set(bone, adjusted.clone().multiply(move));
+    }
+    // Reparent the quicker arm pose onto the current chest so its shoulder, elbow and wrist keep their normal spacing.
+    const arm = blendedMoves(figure.rig, pose, facing, {...blend, k: partOf(elapsed, [0, 0.12]), previous: recovery.armPrevious}).moves;
+    recovery.armPrevious = arm;
+    const support = moves.get("chest").clone().multiply(arm.get("chest").clone().invert());
+    for (const [bone, move] of arm) if (above(bone, `shoulder_${recovery.side}`)) moves.set(bone, support.clone().multiply(move));
+    if (elapsed >= CHANGE_SECONDS && result.settled) figure.hatRecovery = null;
+    return {moves, settled: elapsed >= CHANGE_SECONDS && result.settled};
+}
+
+function place(figure, pose, facing, blend, time = null) {
+    const result = returnedHatMoves(figure, pose, facing, blend, time);
     if (blend) blend.settled = result.settled;
     const moves = result.moves;
     const world = new Map();
@@ -5439,23 +5882,54 @@ function place(figure, pose, facing, blend) {
         const parentWorld = bone.parent.isBone ? world.get(bone.parent.name) : bone.parent.matrixWorld;
         parentWorld.clone().invert().multiply(placed).decompose(bone.position, bone.quaternion, bone.scale);
     }
-    figure.laptop.visible = pose.laptop;
-    figure.book.visible = Boolean(pose.book?.visible);
-    if (figure.book.visible) {
-        openBook(figure.book, pose.book.open, pose.book.page);
-        figure.book.matrix.copy(heldBookOf(gripsOf(pose, moves), pose.book.open));
+    const wanted = new Map([...pose.props].filter(([name]) => name !== "top_hat").map(([name, held]) => [`prop:${name}`, held]));
+    if (pose.laptop) wanted.set("laptop", true);
+    if (pose.book?.visible) wanted.set("book", pose.book);
+    if (pose.tablet) wanted.set("tablet", true);
+    const props = transitionProps(figure.propTransitions?.props, wanted, time);
+    const occupied = pose.laptop || pose.book || pose.props.size > 0 || props.present;
+    const carried = new Map(figure.inHand.filter((part) => !pose.stowed.has(part.userData.item) && (!occupied || pose.keep.has(part.userData.item))).map((part) => [part.userData.item, true]));
+    const carrying = transitionProps(figure.propTransitions?.carrying, carried, time);
+    const clearingHands = [...carrying.entries.values()].some((entry) => !entry.to && entry.alpha > 1e-9);
+    for (const [name, entry] of props.entries) {
+        const before = figure.propTransitions?.props.entries.get(name);
+        if (Number.isFinite(time) && entry.to && clearingHands && (!before || before.waiting)) {
+            Object.assign(entry, {alpha: 0, from: 0, began: props.time, waiting: true});
+        } else delete entry.waiting;
+    }
+    props.active = [...props.entries.values()].some((entry) => Math.abs(entry.alpha - entry.to) > 1e-9);
+    restorePropOpacity(figure.laptop);
+    restorePropOpacity(figure.book);
+    const laptop = props.entries.get("laptop"), book = props.entries.get("book"), tablet = props.entries.get("tablet");
+    fadeProp(figure.laptop, laptop?.alpha ?? 0);
+    if (book) {
+        openBook(figure.book, book.value.open, book.value.page);
+        figure.book.matrix.copy(book.to ? heldBookOf(gripsOf(pose, moves), book.value.open) : retainedProp(figure, "book", moves) ?? heldBookOf(gripsOf(pose, moves), book.value.open));
         figure.book.matrixWorldNeedsUpdate = true;
+        if (book.to) rememberProp(figure, "book", figure.book, "hand_l", moves);
     }
-    for (const part of figure.tablet) part.visible = pose.tablet;
-    const occupied = pose.laptop || pose.book || pose.props.size > 0;
+    fadeProp(figure.book, book?.alpha ?? 0);
+    for (const part of figure.tablet) {
+        restorePropOpacity(part);
+        fadeProp(part, tablet?.alpha ?? 0);
+    }
     for (const part of figure.stowable) part.visible = !pose.stowed.has(part.userData.item);
-    for (const part of figure.inHand) part.visible = !pose.stowed.has(part.userData.item) && (!occupied || pose.keep.has(part.userData.item));
-    moveProps(figure, pose, moves);
-    lightFromBulb(figure, pose);
-    if (pose.laptop) {
-        figure.laptop.matrix.copy(lapOf(world));
-        figure.laptop.matrixWorldNeedsUpdate = true;
+    for (const part of figure.inHand) {
+        restorePropOpacity(part);
+        fadeProp(part, carrying.entries.get(part.userData.item)?.alpha ?? 0);
     }
+    moveProps(figure, pose, moves, props);
+    const returningHat = returnHat(figure, pose, moves, time);
+    const returningHeadphones = moveHeadphones(figure.headphones, pose.headphones, moves, time);
+    figure.propTransitions = {props, carrying, active: props.active || carrying.active || returningHat || returningHeadphones, present: props.present || figure.propByName.get("top_hat").visible || Boolean(pose.headphones)};
+    const bulb = props.entries.get("prop:light_bulb");
+    lightFromBulb(figure, pose, bulb ? (bulb.value.lit ?? 0) * bulb.alpha : 0);
+    if (laptop) {
+        figure.laptop.matrix.copy(laptop.to ? lapOf(world) : retainedProp(figure, "laptop", moves) ?? lapOf(world));
+        figure.laptop.matrixWorldNeedsUpdate = true;
+        if (laptop.to) rememberProp(figure, "laptop", figure.laptop, "hips", moves);
+    }
+    for (const name of figure.propAnchors?.keys() ?? []) if (!props.entries.has(name)) figure.propAnchors.delete(name);
     const crt = pose.screen ?? DARK_SCREEN;
     // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
     // and as bright as it is lit
@@ -5641,21 +6115,29 @@ export class Stage {
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), `phoneWay` the side of the page a seated call's telephone stands on
     // (seatedCall), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {blend = null, ...options} = {}) {
+    draw(figure, clip, frame, facing, canvas, {blend = null, time = null, ...options} = {}) {
         const {pose, turned} = drawnPose(figure.rig, figure.stance, clip, frame, facing, options);
-        const moves = place(figure, pose, turned, blend);
+        const moves = place(figure, pose, turned, blend, time);
         this.drawBody(figure, canvas);
         this.drawScreen(figure, canvas);
         return moves;
     }
 
-    // The figure but its screen, drawn softened onto `canvas`, as Blender draws it
+    // The opaque figure but its screen, drawn softened onto `canvas`. Translucent props share the screen's final colour pass so their
+    // fading silhouettes and clear lenses composite on top of whichever body or visor surface is behind them.
     drawBody(figure, canvas) {
         const size = canvas.width * BODY_SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) this.renderer.setSize(size, size, false);
-        for (const material of figure.screens) material.visible = false;
-        this.renderer.render(figure.scene, this.camera);
-        for (const material of figure.screens) material.visible = true;
+        const hidden = new Map(figure.screens.map((material) => [material, material.visible]));
+        figure.scene.traverse((node) => {
+            for (const material of [node.material ?? []].flat()) if (propOverlay(material)) hidden.set(material, material.visible);
+        });
+        try {
+            for (const material of hidden.keys()) material.visible = false;
+            this.renderer.render(figure.scene, this.camera);
+        } finally {
+            for (const [material, visible] of hidden) material.visible = visible;
+        }
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.imageSmoothingEnabled = true;
@@ -5665,30 +6147,38 @@ export class Stage {
         context.filter = "none";
     }
 
-    // The screen laid over the body supersampled and never softened. First fill depth with the whole scene, then draw only the screen's
-    // visible pixels against that depth. A colourless occluder drawn after the screen cannot erase colour already written, so these must
-    // be separate passes. The screen's own outline, which pokes through its curved middle, is left to the body.
+    // The screen and translucent props laid over the body supersampled and never softened. First fill depth with opaque geometry,
+    // then draw their colour against that depth; a retiring prop in front of the visor blends over its pixels without hiding them
+    // prematurely. The screen's own outline, which pokes through its curved middle, is left to the body.
     drawScreen(figure, canvas) {
         const size = canvas.width * SUPERSAMPLE;
         if (this.screenRenderer.domElement.width !== size) this.screenRenderer.setSize(size, size, false);
         const colours = new Map();
+        const depths = new Map();
+        const overlays = new Set(figure.screens);
         figure.scene.traverse((node) => {
-            for (const material of [node.material ?? []].flat()) colours.set(material, material.colorWrite);
+            for (const material of [node.material ?? []].flat()) {
+                colours.set(material, material.colorWrite);
+                depths.set(material, material.depthWrite);
+                if (propOverlay(material)) overlays.add(material);
+            }
         });
         const outlined = figure.visorHulls.map((hull) => hull.visible);
         const autoClear = this.screenRenderer.autoClear;
         try {
             for (const material of colours.keys()) material.colorWrite = false;
+            for (const material of overlays) if (propOverlay(material)) material.depthWrite = false;
             for (const hull of figure.visorHulls) hull.visible = false;
             this.screenRenderer.autoClear = false;
             this.screenRenderer.clear(true, true, true);
             this.screenRenderer.render(figure.scene, this.camera);
-            for (const material of figure.screens) material.colorWrite = colours.get(material) ?? true;
+            for (const material of overlays) material.colorWrite = colours.get(material) ?? true;
             this.screenRenderer.render(figure.scene, this.camera);
         } finally {
             this.screenRenderer.autoClear = autoClear;
             figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
             for (const [material, colorWrite] of colours) material.colorWrite = colorWrite;
+            for (const [material, depthWrite] of depths) material.depthWrite = depthWrite;
         }
         this.screenCanvas ??= document.createElement("canvas");
         this.screenCanvas.width = canvas.width;

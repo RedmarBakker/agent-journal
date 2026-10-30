@@ -158,10 +158,6 @@ test("the worker page shows its points, its readable transcript and its tasks si
     const facts = [...branched.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim());
     expect(facts).toContain("Own worktree, branch worker/3-Lady-Lovelace");
     expect(facts).toContain("Reused once, on task 1402");
-    app.unmount();
-    const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, device: "2"}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
-    await flush();
-    expect(pooled.querySelector(".quiet").textContent).toContain("Runs on machine 2, from request 7");
 });
 
 test("the facts are one plain line ending in Brief and Report, each opening its panel that Esc closes, and History lists the moves", async () => {
@@ -238,7 +234,7 @@ test("a worker with three queued tasks shows its report choice and its place in 
     expect([...single.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Reports after each task");
 });
 
-test("the user changes when a worker reports from its page, and a pool worker is offered no choice", async () => {
+test("the user changes when a worker reports from its page", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
     const scope = {scope: {env: "", api, rows: () => [], holding: async () => {}}};
     const host = mount(WorkerPage, {resource: {...worker("clocked in"), report_choice: {tasks: 1}}}, scope);
@@ -248,10 +244,6 @@ test("the user changes when a worker reports from its page, and a pool worker is
     expect(host.querySelector(".report-choice .segmented-option.on").textContent.trim()).toBe("Each task");
     options[3].click();
     expect(api.act).toHaveBeenCalledWith("workers", 3, "report_choice", {choice: "queue"});
-    app.unmount();
-    const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, report_choice: {tasks: 1}}}, scope);
-    await flush();
-    expect(pooled.querySelector(".report-choice")).toBeNull();
 });
 
 test("the worker's Tasks section lists every task it held with its state, and counts the finished ones", () => {

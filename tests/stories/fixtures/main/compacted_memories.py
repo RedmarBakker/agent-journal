@@ -19,7 +19,7 @@ class CompactedMemories(StateFixture):
         story.context_is_compacted()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, BriefingNudges.ENVIRONMENT_MEMORIES)
-        story.expect_agent_not_told(story.agents.main, BriefingNudges.TAKEOVER)
+        story.last_step.expect_agent_told(story.agents.main, BriefingNudges.ENVIRONMENT_MEMORIES)
+        story.last_step.expect_agent_not_told(story.agents.main, BriefingNudges.TAKEOVER)
         story.expect_row("memories", self.memories.heavy, {"weight": HEAVIEST - 1})
         story.expect_row_absent("memories", self.memories.light)

@@ -209,6 +209,12 @@ describe("the tasks dialog's rules", () => {
             "Unblock",
         ]);
         expect(nextAct(task(5, "e", {state: "paused"})).label).toBe("Resume");
+        expect(nextAct(task(6, "f", {state: "testing"})).label, "a task waiting in testing offers to finish it, and draws without an error").toBe("Finish");
+    });
+
+    test("a plan wait names the plan in the task row", () => {
+        const onPlan = blocked(6, "after the plan", ["plans:9"]);
+        expect(waitLine(onPlan)).toBe("Blocked by plan 9");
     });
 
     test("a started task can be paused, blocked or finished, and says why it cannot go back to open", () => {
@@ -222,7 +228,7 @@ describe("the tasks dialog's rules", () => {
         store.rows = {tasks: board(), plans: [plan], questions: []};
         const shown = shownTasks(board(), {statuses: [], display: {showDone: true}, words: ""});
         const lines = boardLines("status", {shown, all: board(), plans: [plan], folded: {sopen: true}});
-        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Completed", 3]);
+        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id)), "the plan's open task 1 waits under Planned, the loose task 4 under the folded Open").toEqual(["Blocked", 2, "Open", "Planned", 1, "Completed", 3]);
     });
 
     test("grouped by status, a task with a worker sits under its own state, in progress or open, never under a status of its own", () => {

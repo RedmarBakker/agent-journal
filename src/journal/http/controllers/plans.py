@@ -6,6 +6,7 @@ from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
 from journal.http.controllers.controller import Controller
+from journal.http.counts import Counts
 from journal.http.plans.plan_outline import PlanOutline
 from journal.http.plans.plan_timeline import PlanTimeline
 from journal.http.plans.plan_team import PlanTeam
@@ -25,6 +26,7 @@ from journal.repositories.tasks import Tasks
 from journal.support.time_source import TimeSource
 
 CLOSED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed())
+UNWORKED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed() or state in (PlanState.DRAFT, PlanState.REVIEWING))
 
 
 class PlanController(Controller[Plan]):
@@ -43,6 +45,9 @@ class PlanController(Controller[Plan]):
 
     def closed_rows(self, query: Query) -> Query:
         return query.filter_listed("state", CLOSED_PLAN_STATES)
+
+    def counts(self, query: Query) -> Counts:
+        return Counts(all=self.repository.counted(query), open=self.repository.counted(self.open_rows(query)), unread=self.repository.counted(query.filter_unlisted("state", UNWORKED_PLAN_STATES)))
 
     def shown_page(self, rows: list[Plan]) -> list[dict]:
         return [self.outline.build(plan) for plan in rows]

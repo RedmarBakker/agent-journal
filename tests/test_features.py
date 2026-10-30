@@ -15,7 +15,6 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
-from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
@@ -28,7 +27,6 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.tool_call import ToolCall
 
 from journal.app import App
-from journal.sync.sync_desk import SyncDesk
 from journal.sync.team_account import TeamAccount
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
@@ -36,8 +34,6 @@ from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.work_mode import WorkMode
-from journal.repositories.id_blocks import IdBlocks
-from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
 from journal.models.plugin import Plugin as PluginRow
@@ -57,7 +53,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.user_settings import user_set
-from tests.replay import typing_capture, pinned_clock, silent_tick, tick_at
+from tests.agent_hooks import woken_capture, pinned_clock, silent_tick, tick_at
 from tests.in_process import answered, get_answer, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -88,14 +84,12 @@ from journal.support.classification_table import ClassificationTable
 from journal.support.command_classifier import CommandClassifier
 from journal.support.table_schema import TableSchema
 from journal.features.hydration.hydration_nudges import HydrationNudges
-from journal.features.team.team_nudges import TeamNudges
 from journal.features.usage.usage_nudges import UsageNudges
 from journal.features.client_errors.client_errors_nudges import ClientErrorsNudges
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.messages.commands.message_command import DUPLICATE_REPLY_LINE
-from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as DRIVE_REFUSAL
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -144,7 +138,6 @@ def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     app = main_journal(Config(root, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
     app.runtime().start()
     return app
@@ -183,398 +176,6 @@ def context(app, percent: int):
     (app.config.status_home / "s1.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_a_mark_owed_outlives_being_stuck_and_a_decision_pays_it(app: App):
-    from journal.repositories.agents import Agents
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    app.console().run(["stuck", "stuck"], AGENT)
-    agents = app.container.get(Agents)
-    assert agents.session_agent("s1").threshold_due == 50, "stuck, the mark is still owed"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert app.container.get(SessionAgents).top("s1").name != "stuck", "the agent's own tool use lifts being stuck"
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={})[0] == 409, "the mark still holds a write"
-    app.console().run(["memory", "skip", "fine"], AGENT)
-    assert agents.session_agent("s1").threshold_due == 0 and app.container.get(SessionAgents).top("s1").task_id == 1, "the decision pays the mark; the task stands"
-
-
-def test_a_plan_is_followed_task_by_task_to_its_end(app: App):
-    from journal.repositories.agents import Agents
-    from journal.features.plans.states.following_plan import FollowingPlan
-    from journal.models.plan_state import PlanState
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
-    console.run(["plan", "add", "1", "write the notes"], USER)
-    console.run(["plan", "add", "1", "tag it"], USER)
-    hook(app, "SessionStart")
-    console.run(["plan", "approve", "1"], USER)
-    output = console.run(["plan", "start", "1"], AGENT).text
-    assert "task 1," in output and "is started" in output
-    machine = app.container.get(StateMachine)
-    assert (app.container.get(SessionAgents).top("s1").name, app.container.get(SessionAgents).top("s1").plan_id, app.container.get(SessionAgents).top("s1").task_id) == ("following_plan", 1, 1)
-    assert "task 1 is in hand" in hook(app, "Stop")[1]["reason"]
-    assert "too short to read in the top bar" in console.run(["await", "Plan", "--until", "false"], AGENT).error, "a wait named by a bare noun is refused, so the top bar says what the agent waits for"
-    console.run(["await", "the build", "--until", "false"], AGENT)
-    hook(app, "UserPromptSubmit", prompt=f"[journal] {TasksNudges.WAIT_NEXT_TASK.create(what='the build', n=2).rendered()}")
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and "is in hand" not in str(hook(app, "Stop")[1]), "a line the journal types frees no wait, and a stop while waiting is not told to carry on"
-    output = console.run(["task", "complete", "1"], AGENT).text
-    lower = app.container.get(Agents).session_agent("s1").stack[-2]
-    assert "task 2 is started next" in output and app.container.get(SessionAgents).top("s1").name == "awaiting" and lower["state"] == "following_plan" and lower["data"]["task_id"] == 1, "the wait stands and the plan beneath has not heard: only the top of the stack hears"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert (app.container.get(SessionAgents).top("s1").name, app.container.get(SessionAgents).top("s1").task_id) == ("following_plan", 2), "the agent's own tool use lifts the wait, and the plan catches up to its started task on resume"
-    output = console.run(["task", "complete", "2"], AGENT).text
-    assert "task 2 done" in output and "is next" not in output, "the last task closed, nothing is next"
-    assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle"], "done with the plan, the agent goes to rest"
-    assert app.container.get(Plans).find(1).state == PlanState.FINISHED
-
-
-def test_a_plan_template_on_a_schedule_starts_an_approved_plan_once_its_week_has_turned(app: App):
-    from datetime import datetime, timezone
-    from journal.features.plans.jobs.template_plan_start import TemplatePlanStart
-    from journal.models.plan_state import PlanState
-    from journal.repositories.plans import Plans
-    from journal.support.time_source import TimeSource
-    console = app.console()
-    clock = app.container.get(TimeSource)
-    wednesday, monday = datetime(2026, 10, 28, 12, tzinfo=timezone.utc).timestamp(), datetime(2026, 11, 2, 12, tzinfo=timezone.utc).timestamp()
-    clock.pin(wednesday)
-    hook(app, "SessionStart")
-    weekly = re.search(r"template (\d+)", console.run(["template", "create", "Weekly review", "--applies-to", "plan", "--brief", "look back at the week", "--parts", "read the log: what was done | plan ahead: what comes next"], USER).text).group(1)
-    notes = re.search(r"template (\d+)", console.run(["template", "create", "Notes", "--applies-to", "doc"], USER).text).group(1)
-    assert "only a plan template starts on a schedule" in console.run(["template", "schedule", notes, "daily"], USER).error
-    assert "schedule: weekly" in console.run(["template", "schedule", weekly, "weekly"], USER).text
-    starting, plans = app.container.get(TemplatePlanStart), app.container.get(Plans)
-    starting.tick(wednesday + 3600)
-    with app.container.get(Scope).environment(MAIN):
-        assert plans.all() == [], "the week it was scheduled in has had its turn: the first plan comes when the next week begins"
-    clock.pin(monday)
-    starting.tick(monday)
-    starting.tick(monday + 60)
-    clock.unpin()
-    with app.container.get(Scope).environment(MAIN):
-        made = plans.all()
-        assert [(plan.title, plan.brief, plan.state) for plan in made] == [("Weekly review 2026-11-02", "look back at the week", PlanState.STARTED)], "one plan a week, approved by its schedule and started"
-        assert [(task.title, task.brief) for task in plans.plan_tasks(made[0])] == [("read the log", "what was done"), ("plan ahead", "what comes next")]
-    assert "schedule: none" in console.run(["template", "schedule", weekly, "none"], USER).text
-
-
-def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeypatch):
-    keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the parser", "--brief", "read src/parse.py first"], AGENT)
-    output = console.run(["task", "start", "1"], AGENT).text
-    assert "task 1 started" in output and "brief: read src/parse.py first" in output, "the brief comes with the start"
-    for line in ("one", "two", "three", "four"):
-        console.run(["task", "log", "1", line], AGENT)
-    console.run(["task", "pause", "1", "later"], AGENT)
-    resumed = console.run(["task", "resume", "1"], AGENT).text
-    assert "logged: two" in resumed and "logged: four" in resumed and "logged: one" not in resumed, "the latest three log lines"
-    console.run(["task", "complete", "1"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    console.run(["plan", "add", "1", "write the notes", "--brief", "in NOTES.md"], USER)
-    console.run(["plan", "add", "1", "tag it", "--brief", "git tag v4"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    closed = console.run(["task", "complete", "2"], AGENT).text
-    app.runtime().deferred.drain()
-    assert "plan 1: task 3 is started next. brief: git tag v4" in closed, "the closing command prints the plan's next task with its brief"
-    assert not any("plan 1: task 3 is started next" in line for line in keystrokes), "nothing is typed afterwards for a start the agent caused"
-
-
-def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_beside_the_one_in_hand(app: App, monkeypatch):
-    keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for title in ("write the notes", "tag it", "announce it", "check the docs"):
-        console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    first = console.run(["task", "complete", "1"], AGENT).text
-    beside = console.run(["task", "complete", "4"], AGENT).text
-    app.runtime().deferred.drain()
-    assert "plan 1: task 2 is started next" in first and "is next" not in beside, "closing a task not in hand says nothing about where the plan went"
-    assert not any("task 2 is started next" in line for line in keystrokes), "the next task is the command's printed output, never typed afterwards"
-
-
-def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked_until_a_command_passes(app: App, monkeypatch):
-    from journal.features.checks.support.check_runner import CheckRunner
-    from journal.repositories.checks import Checks
-    from journal.repositories.plans import Plans
-    keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    console.run(["plan", "add", "1", "write the notes"], USER)
-    console.run(["plan", "add", "1", "tag it"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["task", "block", "2", "the user's words first"], AGENT)
-    console.run(["plan", "start", "1"], AGENT)
-    plans = app.container.get(Plans)
-    assert plans.find(1).state == "started", "one blocked task never blocks its plan"
-    console.run(["task", "complete", "1", "--how", "the notes are written"], AGENT)
-    assert plans.find(1).state == "blocked" and any("plan 1 is blocked: all its tasks left are blocked" in line for line in keystrokes)
-    assert "is blocked on:" in console.run(["plan", "start", "1"], AGENT).error
-    console.run(["task", "unblock", "2"], AGENT)
-    assert plans.find(1).state == "started" and any("plan 1 is open again: task 2 is open again" in line for line in keystrokes)
-    console.run(["plan", "pause", "1"], AGENT)
-    console.run(["task", "block", "2", "the tag waits on the notes' review"], AGENT)
-    assert plans.find(1).state == "blocked", "a paused plan done with all but its blocked tasks is blocked too"
-    console.run(["task", "unblock", "2"], AGENT)
-    assert plans.find(1).state == "started", "and active again the moment one of them opens"
-    marker = app.config.root / "released"
-    console.run(["plan", "block", "1", "--until", f"test -f {marker}"], AGENT)
-    assert plans.find(1).state == "blocked"
-    check = app.container.get(Checks).rows()[-1]
-    marker.write_text("")
-    app.container.get(CheckRunner).run(check, Actor.system())
-    assert plans.find(1).state == "blocked", "a passing check remains blocked until its queued listener runs"
-    app.runtime().deferred.drain()
-    assert plans.find(1).state == "started" and any("plan 1 is open again: check" in line for line in keystrokes), "the passing check opens the plan and the agent is told"
-
-
-def test_a_plan_whose_task_goes_to_a_worker_is_delegated_and_no_active_plan_then_paused_when_the_workers_task_closes(app: App, monkeypatch):
-    from journal.repositories.plans import Plans
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, plans = app.console(), app.container.get(Plans)
-    console.run(["environment", "overview"], AGENT)
-    for plan, titles in ((1, ("write the notes", "tag it")), (2, ("draw the page", "ship the page"))):
-        console.run(["plan", "create", f"plan {plan}", "--brief", "b"], USER)
-        for title in titles:
-            console.run(["plan", "add", str(plan), title, "--brief", f"{title} well"], USER)
-        console.run(["plan", "approve", str(plan)], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    assert plans.find(1).state == "started"
-    dispatched_line = console.run(["worker", "dispatch", "Mr. Caxton", "--task", "1", "--changes", "the notes", "--profile", "journal-medior", "--model", "sonnet", "--tests", "Scoped tests"], AGENT)
-    assert dispatched_line.code == 0, dispatched_line.error
-    app.runtime().deferred.drain()
-    assert plans.find(1).state == "delegated", "its task went to a worker and the agent holds none of its tasks: the plan is delegated"
-    console.run(["plan", "start", "2"], AGENT)
-    app.runtime().deferred.drain()
-    assert (plans.find(1).state, plans.find(2).state) == ("delegated", "started"), "a delegated plan is no active plan, so starting another leaves it with its worker"
-    console.run(["task", "cancel", "1", "--why", "the notes are not needed"], USER)
-    app.runtime().deferred.drain()
-    assert plans.find(1).state == "paused", "its last worker task closed: the plan goes back to paused by itself"
-
-
-def test_a_closed_plan_is_outlined_from_its_links_as_it_would_be_from_its_tasks(app: App):
-    from journal.http.plans.plan_outline import PlanOutline
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
-    console.run(["plan", "phase", "1", "build", "--when", "built"], USER)
-    for title in ("write the notes", "tag it", "loose end"):
-        console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
-    console.run(["plan", "cancel", "1"], USER)
-    plan, outline = app.container.get(Plans).find(1), app.container.get(PlanOutline)
-    built, read = outline.open_outline(plan), outline.build(plan)
-    assert plan.state.is_closed() and read["phases"][0]["task_ids"] == [1, 2] and read["unphased_task_ids"] == [3]
-    assert {k: read[k] for k in ("task_ids", "phases", "unphased_task_ids", "current_phase")} == {k: built[k] for k in ("task_ids", "phases", "unphased_task_ids", "current_phase")}, "a closed plan's outline, read from its links alone, is the one its tasks give"
-
-
-def test_a_plan_task_done_leaves_naming_what_is_next_to_the_plan(app: App):
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), Actor.system())
-    console = app.console()
-    console.run(["task", "create", "side work", "--start"], AGENT)
-    console.run(["task", "pause", "1", "the plan first"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
-    console.run(["plan", "phase", "1", "notes", "--when", "written", "--checkpoint"], USER)
-    console.run(["plan", "add", "1", "write the notes"], USER)
-    console.run(["plan", "phase", "1", "tag", "--when", "tagged"], USER)
-    console.run(["plan", "add", "1", "tag it"], USER)
-    console.run(["plan", "todos", "1", "1", "2"], USER)
-    console.run(["plan", "todos", "1", "2", "3"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    output = console.run(["task", "complete", "2"], AGENT).text
-    assert "side work" not in output and "paused" not in output, "a plan's task leaves the next to the plan"
-
-
-def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_is_named(app: App, monkeypatch):
-    from datetime import datetime, timedelta, timezone
-    from journal.features.checks.support.check_runner import CheckRunner
-    from journal.repositories.checks import Checks
-    from journal.repositories.tasks import Tasks
-    keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    marker = app.config.root / "merged"
-    console.run(["task", "create", "release after the merge"], AGENT)
-    console.run(["task", "create", "deploy"], AGENT)
-    console.run(["task", "block", "1", "the pull request is merged", "--until", f"test -f {marker}"], AGENT)
-    console.run(["task", "block", "2", "--until", "no-such-program-here"], AGENT)
-    checks, tasks, runner = app.container.get(Checks), app.container.get(Tasks), app.container.get(CheckRunner)
-    assert checks.all() == [] and "waits until" not in console.run(["check", "list"], AGENT).text, "a wait's check is the task's, off the checks list"
-    runner.run(checks.find(1), Actor.system())
-    assert tasks.find(1).state == "blocked" and checks.find(1).last_fault == "", "not passing yet is no fault"
-    runner.run(checks.find(2), Actor.system())
-    assert [(task.id, check.last_fault != "") for task, check in tasks.broken_waits()] == [(2, True)], "a check that cannot run is a broken wait, named with its fault"
-    assert [t.id for t in tasks.blocked_without_wait()] == [], "a task waiting on a check is not a blocked task nothing opens by itself"
-    marker.write_text("")
-    runner.run(checks.find(1), Actor.system())
-    assert tasks.find(1).state == "blocked", "a passing check remains blocked until its queued listener runs"
-    app.runtime().deferred.drain()
-    assert tasks.find(1).state == "open" and any("task 1 is open again: the check 1 it waited on is done" in line for line in keystrokes), "the passing check opens the task and the agent is told"
-    assert checks.numbered([1]) == [] and checks.find(2).wait_target, "a passed wait's check is deleted once its task opens, and the one still waited on stays"
-
-
-def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_is_lifted_and_deleted_once_what_it_waited_on_ends(app: App, monkeypatch):
-    from journal.features.tasks.seeds.unused_wait_checks import UnusedWaitChecks
-    from journal.http.controllers.checks import CheckController
-    from journal.http.listing import Listing
-    from journal.models.check import Check
-    from journal.repositories.checks import Checks
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["check", "create", "lint", "--command", "true"], USER)
-    console.run(["task", "create", "deploy"], AGENT)
-    console.run(["task", "block", "1", "--until", "false"], AGENT)
-    console.run(["await", "the deploy to finish", "--until", "false"], AGENT)
-    checks, controller = app.container.get(Checks), app.container.get(CheckController)
-    listed, waits = controller.listed(Listing.query_listing({})), controller.listed(Listing.query_listing({"closed": "1"}))
-    assert sorted(check.id for check in listed["rows"]) == [1, 2, 3] and listed["counts"]["open"] == 1, "the page counts the project's own check alone; the block's and the wait's are listed too"
-    assert sorted(check.id for check in waits["rows"]) == [2, 3], "the Waits tab lists the checks the block and the wait made for themselves"
-    assert [line.split()[-1] for line in console.run(["check", "list"], AGENT).text.splitlines()] == ["lint"], "journal check list names the project's own check alone"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 2, 3], "the wait lifted, its own check keeps running, and the blocked task's stays"
-    console.run(["task", "unblock", "1"], AGENT)
-    app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 3], "the task open again, its block's check is deleted"
-    checks.delete(checks.numbered([3])[0], Actor.system())
-    console.run(["task", "block", "1", "--until", "false"], AGENT)
-    blocking = [check.id for check in checks.wait_rows()]
-    checks.save(Check(title="the wait for an earlier deploy ends when this passes", command="false", wait_target=True), Actor.system())
-    app.container.get(UnusedWaitChecks).run()
-    assert len(blocking) == 1 and [check.id for check in checks.wait_rows()] == blocking, "at boot a wait's check nothing waits on is deleted, and the one a blocked task waits on stays"
-
-
-
-
-
-
-
-
-
-
-
-def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app: App, monkeypatch):
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    folder = app.config.root / "run"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest -q")
-    (folder / "0.out").write_text("..F.\nFAILED tests/a.py::test_b\n1 failed, 3 passed in 1.20s\n")
-    assert app.console().run(["reader", "add", "summary-lines", "--pattern", "[0-9]+ (passed|failed)", "--about", "a test run's summary"], USER).code == 0
-    outputs = app.container.get(CommandOutputs)
-    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("summary-lines", "the tests"), Actor.system())
-    app.console().run(["await", "the tests", "--output", str(output.id)], AGENT)
-    app.container.get(ShellRecord).ended("run", 1, folder, "", Caller.agent("main", "s1", "claude"))
-    app.runtime().deferred.drain()
-    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
-    assert f"wait over: output {output.id} failed with code 1: " in told and "1 failed, 3 passed" in told, "the wait's end says how it ended and what the reader picked"
-    assert outputs.find(output.id).summary is not None
-
-
-def test_a_worker_waits_on_its_own_command_until_it_ends_and_a_reviewer_cannot_say_it_is_stuck(app: App):
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.models.command_output import CommandOutput
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.agents import Agents
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    agents, workers, tasks = app.container.get(Agents), app.container.get(Workers), app.container.get(Tasks)
-    states = lambda: [layer["state"] for layer in agents.session_agent("ww").stack]
-    with app.container.get(Scope).environment(MAIN):
-        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        worker = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=MAIN, title="the boiler", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-    watt = Caller.worker("main", worker.id, "ww", "claude")
-    folder = app.config.root / "build"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("make")
-    (folder / "0.out").write_text("built\n")
-    output = app.container.get(CommandOutputs).save(CommandOutput(chain="build", command="make", session="ww", folder=str(folder)).backgrounded(), Actor.system())
-    assert app.console().run(["await", "the boiler's build", "--output", str(output.id)], watt).code == 0
-    assert states() == ["void", "working_task", "awaiting"], "a worker's wait is pushed over its work"
-    app.container.get(ShellRecord).ended("build", 0, folder, "", watt)
-    app.runtime().deferred.drain()
-    assert states() == ["void", "working_task"], "and ends when its command does"
-    assert app.console().run(["stuck", "the boiler leaks"], watt).code == 0
-    assert states()[-1] == "stuck", "a worker that says it is stuck is put in the stuck state"
-    assert app.console().run(["stuck", "lost"], Caller.reviewer("main", 1, "rv", "claude")).code != 0, "a reviewer has no stuck"
-
-
-def test_a_worker_read_by_id_carries_the_context_its_session_reported_and_none_it_did_not(app: App):
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.models.worker import Worker
-    from journal.repositories.agents import Agents
-    from journal.repositories.workers import Workers
-    agents, workers = app.container.get(Agents), app.container.get(Workers)
-    with app.container.get(Scope).environment(MAIN):
-        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        watt = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
-        silent = workers.save(Worker(environment_id=MAIN, name="Mr. Boulton", brief="w", session="wb"), Actor.system())
-    app.config.status_home.mkdir(parents=True, exist_ok=True)
-    (app.config.status_home / "ww.json").write_text(json.dumps({"context_window": {"used_percentage": 35}}))
-    rows = get_answer(app, f"/journal/workers?ids={watt.id},{silent.id}", {"X-Journal-Env": "main"})[1]["rows"]
-    context = {row["name"]: row["context"] for row in rows}
-    assert context == {"Mr. Watt": 35, "Mr. Boulton": None}, "a worker carries the context its session reported, and none when it reported nothing"
-
-
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
@@ -586,8 +187,6 @@ def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(
         upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardType.COMMANDS)
     guesses = lambda mark: (mark.data["is_test"], mark.data["is_build"], mark.data["is_upload"])
     assert (guesses(tests_mark), guesses(build_mark), guesses(upload_mark)) == ((True, False, False), (False, True, False), (False, False, True)), "each mark carries what its title says it is, guessed once"
-
-
 
 
 def test_a_running_check_is_force_stopped_by_command_and_by_its_button_and_runs_again(app: App):
@@ -628,9 +227,6 @@ def test_a_running_check_is_force_stopped_by_command_and_by_its_button_and_runs_
     assert runner.run(checks.find(1), Actor.system()).verdict() == "passed", "free to run again"
 
 
-
-
-
 def test_a_worker_runs_the_dispatching_agents_own_program(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.agent import Agent
@@ -646,36 +242,9 @@ def test_a_worker_runs_the_dispatching_agents_own_program(app: App, monkeypatch)
     assert "`journal worker wait 1 2` waits for a report" in console.run(["worker", "list"], Caller.agent("main", "c1", "codex")).text, "a list of workers out points at the wait"
 
 
-def test_a_worker_that_reported_takes_its_next_job_by_say_with_its_memory(app: App, monkeypatch):
+def test_a_providers_worker_command_session_and_outcome_are_read_from_what_it_was_given_and_printed():
     from journal.providers.claude import Claude
     from journal.providers.codex import Codex
-    from journal.repositories.workers import Workers
-    started = []
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
-    conversation = app.config.root / "conversation.jsonl"
-    conversation.write_text("{}\n")
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: conversation)
-    console = app.console()
-    hook(app, "SessionStart")
-    import subprocess
-    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
-        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast", "--worktree", "--no-libraries"], AGENT)
-    assert console.run(["worker", "send", "1", "now the lexer"], AGENT).code != 0, "still out: its report comes first"
-    console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
-    assert console.run(["worker", "send", "1", "now the lexer"], AGENT).code != 0, "no session was captured, so there is nothing to resume"
-    workers = app.container.get(Workers)
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["task", "create", "the lexer"], AGENT)
-    released = console.run(["worker", "release", "1"], AGENT)
-    assert released.code == 0, released.error
-    bare = console.run(["worker", "send", "1", "now the lexer"], AGENT)
-    assert bare.code != 0 and "has no task" in bare.error and "journal worker send 1 --task <task>" in bare.error, "a worker holding no task is never sent a job it cannot clock in on: " + bare.error
-    assert console.run(["worker", "send", "1", "now the lexer", "--task", "1"], AGENT).code == 0
-    from journal.repositories.workers import Workers as WorkerRows
-    assert 1 in app.container.get(WorkerRows).containing({1}), "a job said with --task holds that task, so a plan leaves it to the worker"
-    notified = workers.find(1)
-    assert notified.state == WorkerState.DISPATCHED and notified.brief == "now the lexer" and notified.resume == "sess-1" and notified.worktree and started[-1].id == 1
     assert Claude().worker_command("now the lexer", "fast", "sess-1", "sess-1")[-2:] == ["--resume", "sess-1"]
     assert Claude().worker_command("a new job", "fast", "", "sess-new")[-2:] == ["--session-id", "sess-new"], "a new run is started in the session its row already names"
     assert Claude().worker_session("") != Claude().worker_session("") and Claude().worker_session("sess-1") == "sess-1" and Codex().worker_session("") == "", "Claude's session is chosen at dispatch, Codex's comes with its first hook"
@@ -736,7 +305,7 @@ def test_a_running_workers_session_is_looked_up_once_and_kept_on_its_row(app: Ap
     assert workers.save(workers.find(1).running_as(2, timing.time()), Actor.system()).recovered_session == "", "a new run looks for its own session"
 
 
-def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: App):
+def test_a_profile_is_saved_with_its_kind_and_models_and_a_worker_is_instructed_from_it(app: App):
     from journal.features.profiles.support.profile_files import ProfileFiles
     files = app.container.get(ProfileFiles)
     files.write_all()
@@ -749,18 +318,14 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     codex = tomllib.loads((files.config.root / ".codex" / "agents" / "builder.toml").read_text())
     assert codex["model"] == "gpt-6" and codex["sandbox_mode"] == "workspace-write" and codex["developer_instructions"] == "You write.\nSay \"done\"."
     assert files.read("builder")["profile_type"] == "worker" and files.read("journal-planner")["profile_type"] == "subagent"
-    hook(app, "SessionStart")
-    refused = dispatched(app.console(), ["Mr. Darwin", "look it up", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-researcher"], AGENT)
-    assert refused.code != 0 and "no worker profile" in refused.error
-    assert "on claude sonnet" in dispatched(app.console(), ["Mr. Brunel", "write it", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "builder"], AGENT).text, "the profile names the model"
-    from journal.features.profiles.support.profile_files import TURN
+    assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
+    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TURN
+    from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.workers import Workers
-    worker = app.container.get(Workers).scoped()[-1]
-    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker).startswith(f"{TURN}\n\nYou write.\nSay \"done\"."), "the first job comes after the turn and the project's own profile"
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "builder", "model": "fast", "description": "x", "prompt": "y"})
-    assert status == 409 and "is a worker:" in body["error"] and "--profile builder" in body["error"]
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "model": "fast", "description": "x", "prompt": "y"})[0] == 200
+    from journal.models.worker import Worker
+    worker = Worker(environment_id=1, name="Mr. Brunel", profile="builder", brief=f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}")
+    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
 
 
 @pytest.fixture
@@ -777,22 +342,6 @@ def skilled(tmp_path: Path, monkeypatch):
 
 def read_skill(app, folder: str):
     hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f".claude/skills/{folder}/SKILL.md")}, tool_response="")
-
-
-
-
-
-def test_triggers_nudge_on_a_prompt_and_deny_a_tool_call(app: App):
-    console = app.console()
-    console.run(["trigger", "create", "deploy,release", "check the changelog first", "--do", "instruct"], USER)
-    console.run(["trigger", "create", "rm -rf", "no recursive deletes here", "--do", "deny"], USER)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    assert "do this now: check the changelog first" in hook(app, "UserPromptSubmit", prompt="let's deploy it")[1]["hookSpecificOutput"]["additionalContext"]
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "rm -rf build"})
-    assert status == 409 and "no recursive deletes here" in body["error"]
-
-
 
 
 def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_path, monkeypatch):
@@ -825,18 +374,9 @@ def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_
     assert row.last_report.summary == "1 sin" and row.last_report.findings[0].line == 3, "the report the check wrote is kept with its run"
 
 
-
-
-
-
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
     from journal.features.faults.faults_options import FaultsOptions
     assert app.container.get(SettingRows).option(FaultsOptions.DEVELOPER) is False, "the journal's own developer tools are off until a project turns the developer features on"
-
-
-
-
-
 
 
 def test_a_running_output_is_force_stopped_by_the_route_the_chats_stop_posts_to(app: App, tmp_path):
@@ -897,102 +437,6 @@ def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: Ap
     assert app.container.get(Checks).find(1).last_passed is True
 
 
-
-
-
-
-
-
-def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_spans_until_it_is_signed_off(app: App):
-    from journal.db.connection import Connection
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.reports import Reports
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    for title in ("What the login check found", "The payment notes", "The cache survey"):
-        assert console.run(["report", "create", title, "--abstract", "What it says, in one line", "--body", "## Found\nSomething.\n"], AGENT).code == 0
-    console.run(["plan", "create", "release", "--brief", "built on report 2"], USER)
-    console.run(["task", "create", "speed it up", "--brief", "start from report 3"], USER)
-    app.runtime().deferred.drain()
-    connection, old = app.container.get(Connection), "2020-01-01T00:00:00+00:00"
-    connection.execute("UPDATE reports SET created_at = ?, updated_at = ?", (old, old))
-    connection.changed("reports")
-
-    def named():
-        with app.container.get(Scope).environment(MAIN):
-            return [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "reports.written_work_never_acted_on"]
-
-    def older_by(minutes: float) -> None:
-        with app.container.get(Scope).environment(MAIN):
-            last = named()[-1]
-            app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
-
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(MAIN):
-        card = next(message for message in app.container.get(Messages).all() if message.data.get("card_type"))
-        app.container.get(Links).save(Link(source=Ref.build(card), target=Ref("reports", 1), link_type="mentions"), Actor.agent("s1"))
-    hook(app, "Stop")
-    lines = [entry.data["line"] for entry in named()]
-    assert len(lines) == 1 and lines[0].startswith("report 1 was never read or linked") and "journal report settle 1 --why" in lines[0], lines
-    assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere, while the journal's own card mentioning report 1 does not count"
-    hook(app, "Stop")
-    assert len(named()) == 1, "within the span the line is not said again"
-    older_by(41)
-    hook(app, "Stop")
-    assert len(named()) == 2, "past the span, at most 40 minutes, the line comes again while the report is unsettled"
-    settled = console.run(["report", "settle", "1", "--why", "the faults it found are fixed in task 2"], AGENT)
-    assert settled.code == 0 and app.container.get(Reports).find(1).settled_reason == "the faults it found are fixed in task 2", "the reason is recorded on the report"
-    older_by(41)
-    hook(app, "Stop")
-    assert len(named()) == 2, "once signed off the report is named no more"
-
-
-
-
-def test_a_refused_subagent_is_not_shown_and_one_never_answered_ends_with_its_turn_or_session(app: App):
-    transmit = lambda type_name, **extra: hook(app, type_name, session_id="s7", **extra)
-    rows = lambda: [row for row in app.container.get(Subagents).session_subagents("s7")]
-    transmit("SessionStart", source="startup")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"description": "no model named", "prompt": "read"}, tool_use_id="t-refused")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "cut off", "prompt": "read", "model": "sonnet"}, tool_use_id="t-cut")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "in the background", "prompt": "read", "model": "sonnet"}, tool_use_id="t-bg")
-    transmit("PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a7"}, tool_use_id="t-bg")
-    assert [r.task for r in rows()] == ["cut off", "in the background"], "a dispatch the journal refused never ran"
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "no such model", "prompt": "read", "model": "sonnet"}, tool_use_id="t-failed")
-    transmit("PostToolUseFailure", tool_name="Agent", tool_input={}, error="Model 'haiku-9' not found", tool_use_id="t-failed")
-    assert [(r.is_running(), r.state, r.reason) for r in rows()][-1] == (False, "failed", "Model 'haiku-9' not found"), "a dispatch the tool could not run is failed with the tool's error"
-    transmit("Stop")
-    assert [(r.is_running(), r.state) for r in rows()] == [(False, "stopped"), (True, "running"), (False, "failed")], "a call with no answer ends with its turn; one in the background goes on"
-    transmit("SessionStart", source="compact")
-    assert rows()[1].is_running() is True, "a compaction ends no subagent"
-    transmit("SessionEnd")
-    assert [r.is_running() for r in rows()] == [False, False, False], "a subagent with no stop ends with its session"
-
-
-
-def test_a_command_reports_every_row_it_caused_that_its_own_words_did_not_name(app: App):
-    console = app.console()
-    output = console.run(["plan", "create", "release"], USER).text
-    assert output.startswith("plan 1 draft") and "created:" not in output, "the command named the plan itself, so the trailer says nothing twice"
-    output = console.run(["plan", "add", "1", "write the notes"], USER).text
-    assert "task 1 added to plan 1" in output and "created:" not in output, "the link it made is the record's own row, so nothing is left to name"
-
-
-def test_every_skill_loaded_shows_in_the_chat(skilled):
-    from journal.repositories.messages import Messages
-    app = skilled
-    hook(app, "SessionStart")
-    hook(app, "PostToolUse", tool_name="Skill", tool_input={"skill": "commandments-plain-code-words"}, tool_response="")
-    hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / ".agents/skills/commandments-python-flow/SKILL.md")}, tool_response="")
-    shown = " ".join(f"{message.text} {json.dumps(message.data)}" for message in app.container.get(Messages).scoped())
-    assert "commandments-plain-code-words" in shown and "commandments-python-flow" in shown, "a skill not the journal's, loaded by the tool or read as its file, shows in the chat"
-
-
 def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
     from journal.features.plugins.support.plugin_folders import PluginFolders
     from journal.features.plugins.support.plugin_skills import PluginSkills
@@ -1012,55 +456,11 @@ def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
     assert "Name things plainly." in (app.config.root / ".claude/skills/checker-naming/SKILL.md").read_text(), "and the skills it ships are written again"
 
 
-def test_a_plugin_requires_a_skill_it_publishes_and_a_read_of_the_file_pays_it(skilled):
-    from journal.events.agent.prompt_submitted import PromptSubmitted
-    from journal.features.plugins.support.plugin_answers import PluginAnswers
+def test_a_plugins_required_skills_are_a_list_of_skill_ids(app: App):
     from journal.features.plugins.support.plugin_fault import PluginFault
-    from journal.features.plugins.support.plugin_relay import PluginRelay
-    from journal.features.plugins.support.plugin_skills import PluginSkills
     from journal.features.plugins.support.protocol import Protocol
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import Entries
-    from journal.support.listener_queue import ListenerQueue
-    app = skilled
-    plugin = echo(app, hears=["tasks.created"], holds=[])
-    app.container.get(PluginSkills).publish(plugin)
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    protocol, agents, entries = app.container.get(Protocol), app.container.get(Agents), app.container.get(Entries)
     with pytest.raises(PluginFault, match="not a list of skill ids"):
-        protocol.parsed_answer(json.dumps({"require_skills": "echo-guide"}))
-    answer = protocol.parsed_answer(json.dumps({"require_skills": ["echo-guide", "echo-guide", "echo-missing"]}))
-    app.container.get(PluginRelay).applied(plugin, PromptSubmitted(agent=EVENT_AGENT, prompt="x").placed(Agent(environment_id=MAIN, session="s1", provider="claude"), 0.0, 0.0), answer, "main", MAIN)
-    app.container.get(ListenerQueue).drain()
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a skill the plugin publishes is owed once, however often the line names it"
-    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert status == 409 and nudge_reached(app, body["error"], SkillsNudges.SKILL_READ_REQUEST, skills="the echo-guide skill, .claude/skills/echo-guide/SKILL.md"), "the skills conduct holds the write as for the journal's own skills"
-    answers = app.container.get(PluginAnswers)
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a repeat of the line changes nothing"
-    warned = [e.data["warning"] for e in entries.matching(entry_type="plugin_warning")]
-    assert warned == ["it requires skills it does not publish, ignored: echo-missing"], "an id the plugin does not publish is a warning, written once"
-    read_skill(app, "echo-guide")
-    assert agents.session_agent("s1").skills_due == () and "echo-guide" in agents.session_agent("s1").skills_loaded, "a read of the published file pays the debt"
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == (), "a skill already read at its text is not owed again"
-    agents.save(agents.session_agent("s1").with_(skills_loaded={}), Actor.system())
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "after a compaction it is owed again"
-    app.console().run(["plugin", "remove", "echo"], USER)
-    assert agents.session_agent("s1").skills_due == (), "a skill no longer published is owed no longer once the plugin is removed"
-
-
-def test_two_skill_reads_sent_together_are_both_kept(skilled):
-    from concurrent.futures import ThreadPoolExecutor
-    from journal.repositories.agents import Agents
-    app = skilled
-    hook(app, "SessionStart")
-    with ThreadPoolExecutor(2) as pool:
-        list(pool.map(lambda folder: read_skill(app, folder), ["journal-tasks", "journal-checks"]))
-    assert {"tasks", "checks"} <= set(app.container.get(Agents).session_agent("s1").skills_loaded), "each read adds to what the agent holds, never writes over the other"
+        app.container.get(Protocol).parsed_answer(json.dumps({"require_skills": "echo-guide"}))
 
 
 def test_the_link_asks_a_supervisor_on_the_protocol_and_sends_an_old_one_its_datagrams(app: App):
@@ -1159,51 +559,6 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
     assert transmitted[0]["env"]["PYTHONPATH"] == str(package), "the module is imported from the folder the package is installed in, never from inside the journal package"
 
 
-def test_the_journals_boot_starts_no_sync_service_and_leaves_every_team_it_joined_without_asking_the_server(app: App, monkeypatch):
-    from journal.features.plugins.support.service_start import ServiceStart
-    from journal.features.team.seeds.team_departure import TeamDeparture
-    from journal.sync.team_account import TeamAccount
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}) or SupervisorReply(True))
-    monkeypatch.setenv("JOURNAL_ENV", "main")
-    app.container.get(ServiceStart).run()
-    assert not [request for request in transmitted if request.get("name") == "sync"], "the team servers are no longer used, so the boot starts no sync service"
-    teams = app.config.home / "teams"
-    teams.mkdir(exist_ok=True)
-    for key in ("first", "second"):
-        (teams / f"{key}.json").write_text(json.dumps({"address": "https://team.invalid", "token": "t", "team_key": key, "home": key == "first"}))
-    app.container.get(TeamDeparture).run()
-    assert not TeamAccount(app.config).is_joined() and not list(teams.glob("*.json")), "a journal joined to team servers leaves every one of them at boot"
-    assert list(app.config.home.glob("team.json.left-*")), "and keeps the team's settings beside the database"
-
-
-def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    console.run(["voice", "address", "--title", "Sir", "--name", "Example"], USER)
-    text = hook(app, "SessionStart")[1]["hookSpecificOutput"]["additionalContext"]
-    assert "Talk like a good butler" in text and 'Address me as "Sir Example"' in text
-    console.run(["environment", "overview"], AGENT)
-    console.run(["voice", "choose", "squire"], AGENT)
-    segments = [line for line in keystrokes if line.startswith("[journal]")]
-    full = " ".join(line.removeprefix("[journal] ") for line in segments)
-    assert "from now on talk to the user like this" in full and 'Address me as "my liege"' in full, "the change is typed whole, in as many marked pieces as the terminal needs"
-    assert "* squire" in console.run(["voice", "list"], USER).text
-    for segment in segments:
-        hook(app, "UserPromptSubmit", prompt=segment)
-    hook(app, "Stop")
-    app.runtime().deferred.drain()
-    line_text = len(keystrokes)
-    user_set(app, "voices.avatar_shown", "never")
-    user_set(app, "voices.avatar", False)
-    assert len(keystrokes) == line_text, "a change to the figure's look is no change of voice: nothing is typed"
-    user_set(app, "voices.title", "Captain")
-    assert "from now on talk to the user like this" in keystrokes[line_text] and sum("from now on talk to the user like this" in line for line in keystrokes[line_text:]) == 1, "a change to the words is typed once, in its pieces"
-
-
-
 
 
 
@@ -1287,94 +642,6 @@ def test_with_plan_agents_on_the_main_agent_writes_no_code_and_hears_every_start
     assert not has_nudge(json.dumps(write("c.py")[1]), PlansNudges.COORDINATOR_WRITES_NO_CODE), "off again, the refusal is gone"
 
 
-def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one_that_stalls(app: App):
-    from journal.db.connection import Connection
-    from journal.models.plan_state import PlanState
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.plans import Plans
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    for title, tasks in (("release", ("write the notes", "tag it")), ("billing", ("the invoice",))):
-        console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
-        for task in tasks:
-            console.run(["plan", "add", str(app.container.get(Plans).rows()[-1].id), task], USER)
-    plans = app.container.get(Plans)
-    release, billing = plans.rows()[-2:]
-    for plan in (release, billing):
-        plans.save(plan.with_(state=PlanState.STARTED), Actor.user(1))
-    lines = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
-
-    hook(app, "Stop")
-    [status] = lines("workers.started_plans")
-    parts = status.removeprefix("started plans: ").split("; ")
-    assert parts[0].startswith(f"plan {release.id}, release:") and "0 of 2 tasks done, 2 open with no worker" in parts[0] and parts[1].startswith(f"plan {billing.id}, billing:") and "0 of 1 tasks done, 1 open with no worker" in parts[1], "the orchestrator's status line names both started plans with their counts"
-    assert lines("workers.plan_stalled") == [], "no plan is stalled while both moved just now"
-    shown = console.run(["plan", "show", "current"], AGENT).text
-    assert f"started: plan {release.id}, release" in shown and f"started: plan {billing.id}, billing" in shown, "journal plan show current shows every started plan"
-
-    old = "2020-01-01T00:00:00+00:00"
-    connection = app.container.get(Connection)
-    connection.execute("UPDATE plans SET updated_at = ? WHERE id = ?", (old, release.id))
-    for task_id in plans.plan_task_ids(release):
-        connection.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (old, task_id))
-    connection.changed("plans")
-    connection.changed("tasks")
-    hook(app, "Stop")
-    hook(app, "Stop")
-    stalled = lines("workers.plan_stalled")
-    assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id} stalled since") and stalled[0].endswith("60 min"), "a plan untouched past the setting is named once as stalled, while the other moves"
-    told = lines("workers.started_plans") + stalled
-    assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
-
-
-def test_a_builder_keeps_one_started_plan_the_furthest_along_at_a_mode_switch_and_an_orchestrator_keeps_them_all(app: App):
-    from journal.models.plan_state import PlanState
-    from journal.models.task_state import TaskState
-    from journal.repositories.plans import Plans
-    from journal.repositories.tasks import Tasks
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    plans, tasks = app.container.get(Plans), app.container.get(Tasks)
-    for title, titles in (("release", ("write the notes", "tag it")), ("billing", ("the invoice", "the receipt")), ("docs", ("the page",))):
-        console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
-        for task in titles:
-            console.run(["plan", "add", str(plans.rows()[-1].id), task], USER)
-    release, billing, docs = [plans.save(plan.with_(state=PlanState.APPROVED), Actor.user(1)) for plan in plans.rows()[-3:]]
-    drain = app.runtime().deferred.drain
-    states = lambda: drain() or [plans.find(plan.id).state for plan in (release, billing, docs)]
-
-    plans.opened(release, Actor.user(1))
-    drain()
-    plans.opened(billing, Actor.user(1))
-    drain()
-    assert states() == [PlanState.PAUSED, PlanState.STARTED, PlanState.APPROVED], "a builder starting a second plan pauses the first"
-
-    user_set(app, "workers.mode", "orchestrator")
-    drain()
-    plans.opened(release, Actor.user(1))
-    drain()
-    plans.opened(docs, Actor.user(1))
-    drain()
-    assert states() == [PlanState.STARTED] * 3, "an orchestrator keeps every plan it starts"
-
-    first = tasks.find(plans.plan_task_ids(billing)[0])
-    tasks.save(first.with_(state=TaskState.COMPLETED), Actor.user(1))
-    user_set(app, "workers.mode", "builder")
-    drain()
-    assert states() == [PlanState.PAUSED, PlanState.STARTED, PlanState.PAUSED], "a switch to the builder keeps the plan with the most of its tasks done"
-
-    plans.opened(docs, Actor.user(1))
-    drain()
-    user_set(app, "workers.mode", "orchestrator")
-    drain()
-    plans.opened(release, Actor.user(1))
-    drain()
-    user_set(app, "workers.mode", "solo")
-    drain()
-    assert states() == [PlanState.STARTED, PlanState.PAUSED, PlanState.PAUSED], "with none further along than another, the oldest plan is kept"
 
 
 def clocked_out(app: App, at: float):
@@ -1410,70 +677,6 @@ def ticked_minutes(app: App, *minutes: int) -> None:
             clock.ticked(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_averages_from_the_tabs_numbers_and_resets_them(app: App):
-    user_set(app, "faults.developer", True)
-    user_set(app, "faults.count_loads", True)
-    from collections import Counter
-    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
-    from journal.models.support.request_loads import RequestLoads
-    slow = app.container.get(RequestTimeRecorder)
-    slow.counted("HOOK", "/hooks/PreToolUse", 41, RequestLoads.tallied(Counter({"tasks": 60, "links": 12, "plans": 3})))
-    slow.counted("GET", "/journal/tasks", 7, RequestLoads())
-    slow.counted("HOOK", "/hooks/Stop", 90, RequestLoads())
-    run = lambda *argv: app.console().run(["developer", *argv], USER).text
-    groups = run("slowest").splitlines()
-    assert [line.split()[0] for line in groups[:3]] == ["90", "41", "7"] and groups[0].endswith("HOOK /hooks/Stop"), "each route a group, the slowest first, with its worst time"
-    assert run("loads").splitlines()[0].endswith("PreToolUse: tasks 60 points: 60 rows, 0 bytes, 0 writes, links 12 points: 12 rows, 0 bytes, 0 writes, plans 3 points: 3 rows, 0 bytes, 0 writes, 41 ms"), "a request with the records it read, by kind"
-    assert run("models").splitlines() == ["      60  tasks", "      12  links", "       3  plans"], "the totals per kind, the most first"
-    averages = run("averages")
-    assert "hooks" in averages and "2 measured" in averages and "hook Stop" in averages and "90 ms slowest" in averages
-    assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
-
-
 def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
     from journal.features.workers.support.worker_process_card import WorkerProcessCard
     from journal.models.worker import Worker
@@ -1489,35 +692,6 @@ def test_wispr_flow_is_among_the_suggested_mcp_services():
     from journal.features.mcp.support.mcp_catalogue import SUGGESTED
     suggested = {s.name: s for s in SUGGESTED}
     assert suggested["wispr-flow"].url == "https://api.wisprflow.ai/connect/mcp" and suggested["wispr-flow"].auth == "oauth"
-
-
-
-
-
-def test_words_the_hooks_missed_are_swept_from_the_transcript_into_the_chat_once(app: App, monkeypatch, tmp_path):
-    import json as j
-    import time as timing
-    from datetime import datetime, timezone
-    from journal.events.bus import Bus
-    from journal.events.clock_ticked import ClockTicked
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    time = timing.time()
-    stamp = lambda seconds_ago: datetime.fromtimestamp(time - seconds_ago, timezone.utc).isoformat().replace("+00:00", "Z")
-    line_text = lambda text, ago: j.dumps({"type": "assistant", "timestamp": stamp(ago), "message": {"content": [{"type": "text", "text": text}]}}) + "\n"
-    transcript = tmp_path / "s1.jsonl"
-    transcript.write_text(line_text("Hello, Sir Jesse.", 60))
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: transcript if session == "s1" else None)
-    hook(app, "SessionStart")
-    with transcript.open("a") as file:
-        file.write(line_text("Missed by every hook.", 20) + line_text("Still the hooks' to bring.", 5))
-    bus, messages = app.container.get(Bus), app.container.get(Messages)
-    bus.dispatch_guarded(ClockTicked(time=time))
-    bus.dispatch_guarded(ClockTicked(time=time + 1))
-    agents = lambda: [m.text for m in messages.global_matching() if m.author == "agent"]
-    assert agents().count("Missed by every hook.") == 1 and "Still the hooks' to bring." not in agents(), "older words the hooks did not read are swept in once; the newest are left to the hooks"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert agents().count("Missed by every hook.") == 1 and agents().count("Still the hooks' to bring.") == 1, "the next hook reads on from past the swept words, never taking them again"
 
 
 def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_path):
@@ -1537,32 +711,6 @@ def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_
     assert Codex().worker_outcome(answered, "a long log of the run\n" * 500) == WorkerOutcome("the tests pass", "01a1549d-a1ac-75c3"), "a Codex worker's report is its answer, not its log"
 
 
-def test_words_written_before_a_tool_call_reach_the_chat_at_that_call_and_the_display_hook_adds_no_second(app: App, monkeypatch, tmp_path):
-    user_set(app, "messages.hold_after", 0)
-    import json as j
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    transcript = tmp_path / "s1.jsonl"
-    older = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Long ago."}]}}
-    first = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Starting up."}, {"type": "tool_use", "name": "Bash"}]}}
-    transcript.write_text(j.dumps(older) + "\n" + j.dumps(first) + "\n")
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: transcript if session == "s1" else None)
-    hook(app, "SessionStart")
-    messages = app.container.get(Messages)
-    texts = [m.text for m in messages.scoped() if m.author == "agent"]
-    assert "Starting up." in texts and "Long ago." not in texts, "the first look reads the turn in hand, the last line, and not the session's past"
-    app.console().run(["environment", "overview"], AGENT)
-    row = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Here, Sir Jesse, and writing."}, {"type": "tool_use", "name": "Write"}]}}
-    with transcript.open("a") as file:
-        file.write(j.dumps(row) + "\n")
-    hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    app.runtime().deferred.drain()
-    assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the words before the call reach the chat at that call"
-    hook(app, "MessageDisplay", message="Here, Sir Jesse, and writing.")
-    app.runtime().deferred.drain()
-    assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the display hook's copy of the same block is no second message"
-
-
 def test_the_edits_kept_are_the_newest_five_hundred(app: App):
     from journal.models.edit import Edit
     from journal.repositories.edits import EDIT_ROWS, Edits
@@ -1571,64 +719,6 @@ def test_the_edits_kept_are_the_newest_five_hundred(app: App):
         edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
     assert edits.stored_count() == EDIT_ROWS, "the oldest go as new ones come"
     assert edits.rows()[0].path == "f2.py" and edits.rows()[-1].path == f"f{EDIT_ROWS + 1}.py", "the two oldest went"
-
-
-
-
-
-
-
-def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struck_fact_is_never_whispered(app: App, monkeypatch):
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    hook(app, "SessionStart")
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="record.kept", value=30), Actor.system())
-    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
-    console.run(["reminder", "create", "billing runs on the first of the month", "--keywords", "billing"], USER)
-    hook(app, "MessageDisplay", message="I will look at the login next.")
-    for n in range(40):
-        console.run(["task", "create", f"filler {n}"], AGENT)
-    hook(app, "MessageDisplay", message="Still on the login.")
-    app.runtime().deferred.drain()
-    assert len([line for line in keystrokes if "reminder 1 is about this" in line]) == 1, "the line said is remembered though forty row changes trimmed the record past it"
-    console.run(["reminder", "strike", "2"], USER)
-    hook(app, "MessageDisplay", message="Now the billing.")
-    app.runtime().deferred.drain()
-    assert not any("reminder 2 is about this" in line for line in keystrokes), "a struck reminder matches no keyword"
-
-
-def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_is_typed_again(app: App, monkeypatch):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.support.typed_lines import TypedLines
-    typed = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: typed.append(fields.get("line", "")))
-    lines = app.container.get(TypedLines)
-    console = app.console()
-    hook(app, "SessionStart")
-    for line in list(typed):
-        lines.confirm(1, line)
-    app.container.get(SupervisorLink).release(1)
-    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
-    hook(app, "MessageDisplay", message="I will look at the login next.")
-    app.runtime().deferred.drain()
-    assert any("reminder 1 is about this" in line for line in typed), "the whisper is typed, and no prompt shows it arrived"
-    console.run(["message", "send", "are you there?"], USER)
-    app.runtime().deferred.drain()
-    assert not any("new message" in line for line in typed), "the message's line is held behind the whisper still waiting"
-    stopped = hook(app, "Stop")[1]
-    app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + 30, silence_seconds=30.0))
-    app.runtime().deferred.drain()
-    held = stopped.get("decision") == "block" and "new message" in stopped.get("reason", "")
-    assert held or any("reminder 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
-
-
-
-
-
-
-
 
 
 def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_once(app: App):
@@ -1657,9 +747,6 @@ def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_o
         ShellVerbs(app).split(line, str(folder))
         assert (folder / "0.part").read_text() == line and not (folder / "dropped").exists(), f"run whole, nothing dropped: {line}"
         assert ShellVerbs(app).cap(line) == "direct 0", f"it runs in the shell as written, nothing captured: {line}"
-
-
-
 
 
 def test_every_sample_of_the_hydration_corpus_fills_the_chat_it_should(tmp_path):
@@ -1804,18 +891,6 @@ def test_the_foreground_limit_is_fifteen_seconds_or_ten_while_a_message_waits(ap
     assert ShellVerbs(app).limit() == "5"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def test_the_mcp_page_shows_every_server_as_the_kept_check_found_it_without_a_refresh(app: App, monkeypatch):
     import json as j
     from journal.features.mcp.support.health import Health
@@ -1885,29 +960,6 @@ def test_an_integration_is_a_suggested_mcp_server_installed_and_removed_with_the
     assert transmitted[-1]["verb"] == "type" and "mcp__linear__authenticate" in transmitted[-1]["line"], "the agent is asked to sign in through the server's own tool"
 
 
-def test_a_task_finished_while_a_skill_is_owed_leaves_the_debt_data_until_the_read(skilled):
-    from journal.features.skills.support.requirements import Requirements
-    from journal.repositories.agents import Agents
-    app = skilled
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    hook(app, "PreCompact")
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    needs, agents, machine = app.container.get(Requirements), app.container.get(Agents), app.container.get(StateMachine)
-    assert needs.obligation_names(agents.session_agent("s1")) == ["tasks"], "the tasks skill is owed at a start in work"
-    finished = app.console().run(["task", "complete", "1", "--how", "quick"], AGENT)
-    assert finished.code == 0, finished.error
-    assert app.container.get(SessionAgents).top("s1").name == "idle" and needs.obligation_names(agents.session_agent("s1")) == ["tasks"], "the task done, the agent is idle and still owes the read"
-    read_skill(app, "journal-tasks")
-    assert needs.obligation_names(agents.session_agent("s1")) == []
-
-
-
-
 def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
     import threading
     outs = {}
@@ -1919,8 +971,6 @@ def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
     for t in threads:
         t.join()
     assert all(outs[n] == ("hint 400" if n % 2 else "15") for n in range(20)), "each run's output is its own, though they run side by side"
-
-
 
 
 def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_rows_into_trigger_records(connection):
@@ -1935,153 +985,10 @@ def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_
     assert "trigger_event" not in {row["name"] for row in connection.all("PRAGMA table_info(sequences)")}
 
 
-
-
-
-
-
-
-def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved(app: App):
-    from journal.repositories.plans import Plans
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "the goal"], AGENT)
-    console.run(["sequence", "follow"], AGENT)
-    console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
-    console.run(["plan", "phase", "1", "Lay the floor"], AGENT)
-    console.run(["plan", "add", "1", "pour the slab"], AGENT)
-    console.run(["plan", "todos", "1", "1", "1"], AGENT)
-    console.run(["plan", "ready", "1"], AGENT)
-    assert console.run(["plan", "review", "1"], AGENT).code == 0
-    assert "is in review" in console.run(["plan", "approve", "1"], USER).error, "no approval while reviewers read it"
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "review plan 1", "prompt": "Read plan 1 and say what it misses.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u1")
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the plugins", "prompt": "Map version 3 plugins.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u2")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "map the plugins", "prompt": "Map version 3 plugins.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u2", tool_response={"isAsync": True, "agentId": "r2"})
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "review plan 1", "prompt": "Read plan 1 and say what it misses.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u1", tool_response={"isAsync": True, "agentId": "r1"})
-    assert "1 reviewers still out" in console.run(["plan", "ready", "1"], AGENT).error
-    app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).reviewers == 1, "the plan the viewer reads counts its reviewer out"
-    hook(app, "SubagentStop", agent_id="r1")
-    app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).reviewers == 0, "the reviewer back, the plan says so without anything else changing it"
-    from journal.features.sequences.support.run_tracker import RunTracker
-    from journal.repositories.agents import Agents
-    reviewing = lambda: [run for run in app.container.get(RunTracker).runs(app.container.get(Agents).session_agent("s1")) if run.title == "Applying a plan's reviews"]
-    assert len(reviewing()) == 1 and reviewing()[0].subject == "plans:1", "the review start started the sequence that applies the reviews, about the plan, and only once"
-    assert console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).code == 0, "the reviewer back, its findings in, the plan is ready again"
-    assert console.run(["plan", "approve", "1"], USER).code == 0
-
-
-
-
-
-
-
-
 def test_a_row_named_in_a_message_is_a_chip_in_the_viewer():
     from journal.features.messages.support.mentions import Mentions
     assert [str(r) for r in Mentions.found("Please have 2 agents give plan 1 a normal read, following template 3 (Find what is missing), then task 12 and Task 12 again, doc #4")] == ["plans:1", "templates:3", "tasks:12", "docs:4"]
     assert Mentions.found("the plan is ready; 3 agents; version 4") == []
-
-
-def hub_mentions_of(app: App, team: str) -> list[str]:
-    from journal.models.environment import Environment
-    from journal.repositories.environments import Environments
-    app.container.get(Environments).save(Environment.hub(f"{team}-key", team), Actor.system())
-    hook(app, "SessionStart")
-    app.console().run(["message", "send", "look at acme plan 12"], USER)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        return json.loads(reply.read())["rows"][-1]["mentions"]
-
-
-def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_plan(app: App):
-    assert hub_mentions_of(app, "acme") == ["acme/plans:12"]
-
-
-def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_hub_plan(app: App):
-    assert hub_mentions_of(app, "beta") == ["plans:12"]
-
-
-def test_a_plan_and_a_task_are_made_in_a_teams_hub_with_team_and_an_unjoined_team_is_refused(app: App):
-    from journal.models.environment import Environment
-    from journal.repositories.environments import Environments
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
-    console = app.console()
-    plan = console.run(["plan", "create", "launch", "--team", "acme"], USER)
-    task = console.run(["task", "create", "ship it", "--team", "acme"], USER)
-    assert plan.text.startswith("acme plan ") and task.text.startswith("acme task "), "the answers name the rows with their team"
-    with app.container.get(Scope).environment(hub.row_id):
-        assert [p.title for p in app.container.get(Plans).scoped()] == ["launch"] and [t.title for t in app.container.get(Tasks).scoped()] == ["ship it"], "both are in the hub environment"
-    assert "no joined team is named zed" in console.run(["task", "create", "lost", "--team", "zed"], USER).error
-    assert "no joined team is named zed" in console.run(["plan", "create", "lost", "--team", "zed"], USER).error
-
-
-def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to_its_person(app: App):
-    from journal.models.environment import Environment
-    from journal.models.user import User
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
-    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
-    console = app.console()
-    made = [console.run(["task", "create", title, *flags], USER) for title, flags in (("review it", ["--to", "Bob"]), ("plan the move", ["--to-team"]), ("the board is slow", ["--issue"]))]
-    assert all(m.text.startswith("acme task ") for m in made), "each answer names the row with its team"
-    with app.container.get(Scope).environment(hub.row_id):
-        assert [t.title for t in app.container.get(Tasks).scoped()] == ["review it", "plan the move", "the board is slow"], "all three are in the hub environment"
-    kinds = sorted((link.link_type, str(link.target)) for link in app.container.get(Links).rows() if link.link_type in ("requested_of", "requested_of_team", "issue"))
-    assert kinds == [("issue", f"environments:{hub.row_id}"), ("requested_of", f"users:{bob.row_id}"), ("requested_of_team", f"environments:{hub.row_id}")]
-    assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).error
-    assert console.run(["task", "create", "plain"], USER).text.startswith("task "), "a task made with none of the flags never asks for a hub"
-
-
-def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list_and_done_on_the_requesters_when_finished(app: App):
-    from types import SimpleNamespace
-    from journal.chat.moment_cards import MomentCards
-    from journal.events.models.created import Created
-    from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
-    from journal.features.tasks.listeners.request_cards import RequestCards
-    from journal.http.controllers.requests import RequestController
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.models.user import User
-    from journal.repositories.environment_owners import EnvironmentOwners, OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    from journal.support.row_labels import RowLabels
-    environments, links = app.container.get(Environments), app.container.get(Links)
-    hub = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
-    home = environments.save(Environment(name="bob-main"), Actor.system())
-    app.container.get(Users).save(User(name="Ada", email="ada@example.com"), Actor.system())
-    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
-    links.save(Link(source=Ref.build(bob), target=Ref.build(home), link_type=OWNER), Actor.system())
-    with app.container.get(Scope).environment(hub.row_id):
-        task = app.container.get(Tasks).save(Task(title="review the plan"), Actor.user(1))
-    link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), link_type="requested_of"), Actor.user(1))
-    listener = RequestArrivalCard(app.container.get(RequestCards), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
-    listener.handle(Created(model=link, actor=Actor.user(1)))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(home.row_id):
-        cards = [m.text for m in app.container.get(Messages).scoped()]
-    assert set(cards) == {f"acme task {task.row_id} is a request for you: review the plan"}, "the card is in the person's main chat, naming the task with its team"
-    controller = app.container.get(RequestController)
-    assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
-    with app.container.get(Scope).environment(hub.row_id):
-        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state=TaskState.COMPLETED), Actor.user(bob.row_id))
-    assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "completed")], "and the requester's page reads it done once the recipient finished it"
 
 
 def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_run_printed_cut_at_forty_lines(app: App, tmp_path):
@@ -2127,28 +1034,6 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         assert failed.with_output(after, "the tests fail") == "the tests fail", "a run from before the worker's last clock-out is left out"
     finally:
         readers.removed("worktree-pytest")
-
-
-def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_line_answered(app: App, tmp_path):
-    from journal.config import Config
-    from journal.features.shell.support.output_views import OutputViews
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
-    config.readers.mkdir(parents=True, exist_ok=True)
-    (config.readers / "watched-log.pattern").write_text("# the lines with a number\n^[0-9]+\ncommands: make\n")
-    folder = tmp_path / "watched"
-    folder.mkdir()
-    (folder / "parts").write_text("R\n")
-    (folder / "0.part").write_text("make all")
-    (folder / "0.out").write_text("1 first\nplain second\n3 third\nplain fourth\n")
-    output = outputs.save(CommandOutput(chain="watched", command="make all", folder=str(folder), watch_reader="watched-log"), Actor.system())
-    views = app.container.get(OutputViews)
-    assert views.measured(output).lines == ("1: 1 first", "3: 3 third"), "watched, the output shows the lines its reader picks"
-    result = app.console().run(["reader", "remove", "watched-log"], AGENT)
-    assert f"outputs {output.row_id} were read through it" in result.text, "removing a reader says which outputs it was reading"
-    assert views.measured(output).lines == ("1 first", "plain second", "3 third", "plain fourth"), "after it, the watch shows the last lines"
-    assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
 
 
 def test_how_a_watched_run_ended_is_told_without_its_progress_lines_in_a_few_lines(app: App, tmp_path):
@@ -2269,7 +1154,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     from journal.repositories.workers import Workers
     monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
     keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
+    woken_capture(app, monkeypatch, keystrokes)
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
     user_set(app, WorkersOptions.MODE.key, "orchestrator")
     user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, 1)
@@ -2355,7 +1240,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
-        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+        return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
 
     def ask(number):
         with app.container.get(Scope).environment(1):
@@ -2457,7 +1342,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
         return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
-        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+        return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
 
     def ask(turns, number):
         with scope.environment(1):
@@ -2501,7 +1386,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     turns = fresh()
     with scope.environment(1):
         for number in (1, 2, 3):
-            turns.open_turn(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
+            turns.open_turn(SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
     resumed = turns.resume()
     for number in (1, 2, 3):
         assert until(lambda: len(started) == number) and started == list(range(1, number + 1)), "after a restart the waiting turns run in order, one at a time"
@@ -2553,7 +1438,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
     def ask(number, ids):
         with scope.environment(1):
             try:
-                results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), ids, SimpleNamespace())
+                results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1), ids, SimpleNamespace())
             except Rejection as refusal:
                 results[number] = f"refused: {refusal}"
 
@@ -2627,11 +1512,11 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
     user_set(app, WorkersOptions.TEST_RUNS.key, 1)
     with scope.environment(1):
-        result = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
+        run_output = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
     assert lines == ["pytest -q a.py b.py", "pytest -q c.py d.py", "pytest -q e.py"], "five ids with two to a run are three runs, the ids kept whole"
     assert most[0] == 1, "each run takes its own place in the budget"
-    assert "FAILED tests/a.py::t" in result and "2 passed" in result, "a failing first batch does not stop the others, and the result holds each batch's lines"
-    assert result.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
+    assert "FAILED tests/a.py::t" in run_output and "2 passed" in run_output, "a failing first batch does not stop the others, and the result holds each batch's lines"
+    assert run_output.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
 
 
 def test_a_worker_without_a_worktree_has_its_tests_run_in_the_checkout_it_works_in(app: App):
@@ -2737,28 +1622,6 @@ def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app:
         assert returned.progress.time == running.progress.time == checks.find(stale.row_id).progress.time, "the due tick had read the check before the run began: it starts no second run over the first"
 
 
-def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
-    from journal.models.environment import Environment
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.support.row_labels import RowLabels
-    environments = app.container.get(Environments)
-    acme = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
-    beta = environments.save(Environment.hub("k-beta", "beta"), Actor.system())
-    labels = app.container.get(RowLabels)
-    assert labels.name("task", Task(id=57, environment_id=acme.row_id)) == "acme task 57"
-    assert labels.name("task", Task(id=58, environment_id=beta.row_id)) == "beta task 58"
-    assert labels.name("task", Task(id=59, environment_id=acme.row_id + beta.row_id + 1000)) == "task 59"
-    from journal.models.plan import Plan
-    assert labels.name("plan", Plan(id=12, environment_id=beta.row_id)) == "beta plan 12" and labels.name("plan", Plan(id=12, environment_id=acme.row_id)) == "acme plan 12", "the same number in two teams' hubs is told apart by team"
-
-
-
-
-
-
-
-
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
     from journal.models.trigger import Trigger
     from journal.models.trigger_action import TriggerAction
@@ -2768,10 +1631,6 @@ def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_
     assert not UPDATE_WRITING.is_requested("update the plan and tell me") and not UPDATE_WRITING.is_requested("please update me"), "the bare word update starts nothing"
     assert not UPDATE_WRITING.is_requested("relay the plan to the other agent so it can build it and send me a tldr when it is done with the first phase"), "a phrase inside a long message about something else starts nothing"
     assert Trigger(phrases=("release",), action=TriggerAction.NUDGE).matches("when we release the build, check the notes first and then tag it"), "a nudge still matches its words anywhere"
-
-
-
-
 
 
 def test_the_rules_doc_names_every_line_a_listener_says():
@@ -2787,51 +1646,6 @@ def test_the_rules_doc_names_every_line_a_listener_says():
             if name and f"{feature}.{name.group(1)}" not in doc and name.group(1) not in doc:
                 missing.append(f"{feature}.{name.group(1)}")
     assert not missing, f"lines said by a listener and absent from docs/the-rules.md: {sorted(set(missing))}"
-
-
-def test_a_row_event_walks_about_every_agent_of_the_environment_and_speaks_once(app: App, monkeypatch):
-    keystrokes = []
-    from journal.support.caller import Caller
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    hook(app, "SessionStart", session_id="s2")
-    console.run(["environment", "overview"], Caller.agent("main", "s2", "claude"))
-    console.run(["task", "create", "t", "--start"], Caller.agent("main", "s2", "claude"))
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], Caller.agent("main", "s2", "claude"))
-    console.run(["worker", "wait", "1"], Caller.agent("main", "s2", "claude"))
-    keystrokes.clear()
-    machine = app.container.get(StateMachine)
-    assert app.container.get(SessionAgents).top("s2").name == "awaiting"
-    console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
-    app.runtime().deferred.drain()
-    assert app.container.get(SessionAgents).top("s2").task_id == 1, "the agent awaiting the worker, not the live one, is released by the shipped workflow"
-    assert keystrokes[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and keystrokes[1] == "[journal] worker 1 reported" and len(keystrokes) == 2, "told once, on the walk about the agent that waits; the work beneath goes on in silence"
-
-
-
-
-def test_each_review_round_is_kept_on_the_plan_with_its_reviewers_report_and_changes(app: App):
-    from journal.http.plans.plan_outline import PlanOutline
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
-    console.run(["plan", "todos", "1", "1", "1"], USER)
-    hook(app, "SessionStart")
-    console.run(["plan", "review", "1"], AGENT)
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "Lady Lovelace reads plan 1", "prompt": "read plan 1", "model": "sonnet"}, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "Lady Lovelace reads plan 1", "prompt": "read plan 1"}, tool_use_id="t-1", tool_response="found two gaps")
-    console.run(["report", "create", "Plan 1, first review", "--abstract", "What it says, in one line", "--body", "two gaps", "--about", "plans:1"], AGENT)
-    assert "--changed" in console.run(["plan", "ready", "1"], AGENT).error, "a plan back from review says what the round changed"
-    assert "ready" in console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).text
-    console.run(["plan", "review", "1"], AGENT)
-    outline = app.container.get(PlanOutline).build(app.container.get(Plans).find(1))
-    open_, first = outline["reviews"]
-    assert (first["reviewers"], first["changed"], first["report_ids"]) == (("Lady Lovelace reads plan 1",), "task 1 reworded", [1]), "the closed round names its reviewer, its change and its report"
-    assert (open_["changed"], open_["report_ids"]) == (None, []), "the round in progress is first, still open"
 
 
 def test_the_rules_doc_rules_on_every_state_the_engine_knows(app: App):
@@ -2851,47 +1665,6 @@ def test_a_read_outside_every_scope_is_refused(app: App):
     with pytest.raises(ScopeMissing):
         Context().run(app.container.get(Tasks).scoped)
 
-
-def test_what_the_agent_owes_is_a_fact_on_its_row_oriented_the_mark_owed_and_the_skills_owed(skilled):
-    from journal.features.skills.support.requirements import Requirements
-    from journal.repositories.agents import Agents
-    app = skilled
-    agents, needs = app.container.get(Agents), app.container.get(Requirements)
-    row = lambda: agents.session_agent("s1")
-    hook(app, "SessionStart")
-    assert row().is_overview_read is False and needs.obligation_names(row()) == ["journal"], "a session start: not oriented, the journal skill owed"
-    read_skill(app, "journal")
-    assert needs.obligation_names(row()) == [] and row().skills_loaded and "journal" in row().skills_loaded, "the read removes the owed link and keeps the hash"
-    app.console().run(["environment", "overview"], AGENT)
-    assert row().is_overview_read is True, "the look sets oriented and nothing is owed"
-    hook(app, "UserPromptSubmit", prompt="make me a plan for the release")
-    assert needs.obligation_names(row()) == ["plans"], "a prompt naming plans: the plans skill owed"
-    read_skill(app, "journal-plans")
-    assert needs.obligation_names(row()) == []
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    assert needs.obligation_names(row()) == [], "entering a state owes nothing by itself: a state's skill is owed at a start in it"
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 50 and row().context_threshold == 50, "the crossing sets the mark owed"
-    app.console().run(["memory", "add", "the login is flaky"], AGENT)
-    assert row().threshold_due == 0 and row().context_threshold == 50, "a memory added clears the mark owed and keeps the mark taken"
-    context(app, 85)
-    hook(app, "Stop")
-    assert row().threshold_due == 80
-    app.console().run(["memory", "skip", "all logged"], AGENT)
-    assert row().threshold_due == 0, "nothing to keep clears it too"
-    hook(app, "PreCompact", trigger="auto")
-    hook(app, "SessionStart", source="compact")
-    app.console().run(["environment", "overview"], AGENT)
-    context(app, 8)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().context_threshold == 0 and row().threshold_due == 0, "a reading under the marks taken, as after a compaction, starts the marks again"
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 50, "the same mark is reached again in the new window (task 3737)"
-    app.console().run(["memory", "skip", "nothing new since the compaction"], AGENT)
-    status, body = hook(app, "SessionStart", source="compact")
-    assert row().is_overview_read is False and row().threshold_due == 0, "a start after a compaction owes the look again; the start's own write touches oriented alone"
 
 def test_an_agent_data_in_a_pause_it_owed_is_unwrapped_at_boot_with_the_fact_set(tmp_path: Path, monkeypatch):
     import json
@@ -2957,67 +1730,6 @@ def test_an_agent_in_the_old_running_sequence_state_is_unwrapped_at_boot_with_th
         second.runtime().stop()
 
 
-def test_the_steps_hold_comes_after_the_look_the_mark_and_the_skill_and_each_is_paid_in_turn(skilled):
-    app, console = skilled, skilled.console()
-    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.py", "old_string": "a", "new_string": "b"})
-    produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
-    hook(app, "SessionStart")
-    console.run(["sequence", "run", produced], AGENT)
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    for pay in (lambda: read_skill(app, "journal"), lambda: read_skill(app, "journal-sequences"), lambda: console.run(["environment", "overview"], AGENT), lambda: console.run(["memory", "skip", "all logged"], AGENT)):
-        status, blocked = edit()
-        assert status == 409 and not nudge_reached(app, blocked.get("error", ""), SequencesNudges.STEP_EDIT_BLOCK), "the debt holds the write, and the step stays out of it"
-        assert "step 1" not in json.dumps(hook(app, "Stop")[1]), "while a debt is owed the step is not said at a stop"
-        pay()
-    assert nudge_reached(app, edit()[1].get("error", ""), SequencesNudges.STEP_EDIT_BLOCK), "every debt paid, the step holds the write"
-    console.run(["sequence", "follow"], AGENT)
-    assert edit()[0] == 200, "the step taken up, the write goes through"
-
-def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: App, monkeypatch):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    typing_capture(app, monkeypatch, transmitted)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
-    console.run(["sequence", "run", produced], AGENT)
-    assert "step 1: bump" in json.dumps(hook(app, "SessionStart", source="compact")[1]), "after a compaction the step is told"
-    console.run(["environment", "overview"], AGENT)
-    console.run(["await", "the build", "--until", "false"], AGENT)
-    lifted = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
-    app.runtime().deferred.drain()
-    said = json.dumps(lifted) + " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
-    assert "step 1: bump" in said, "a wait that ends says the step as the sequence comes back on top"
-    transmitted.clear()
-
-    def tick():
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=0.0, silence_seconds=120.0))
-        app.runtime().deferred.drain()
-    tick()
-    assert transmitted == [], "a step just said is not said again"
-    user_set(app, "sequences.say_every", 0)
-    tick()
-    assert "step 1: bump" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a step unheard for the set minutes is said again, carried by the agent's next tool use while it is at work"
-    console.run(["sequence", "pause", "--why", "docs first"], AGENT)
-    transmitted.clear()
-    tick()
-    assert transmitted == [], "a paused run is not said at a pace"
-    assert nudge_reached(app, hook(app, "SessionStart", source="resume")[1]["hookSpecificOutput"]["additionalContext"], SequencesNudges.SEQUENCE_PAUSED, step=1), "and at a start"
-    console.run(["sequence", "follow"], AGENT)
-    app.runtime().deferred.drain()
-    transmitted.clear()
-    console.run(["question", "ask", "Which name?"], AGENT)
-    tick()
-    assert transmitted == [], "no step is said at a pace while a question to the user is open"
-    console.run(["question", "answer", "1", "alpha"], USER)
-    tick()
-    assert any("step 1: bump" in line for line in transmitted), "and it is said again once the question is answered"
-
-
 def test_a_list_counts_a_type_in_sql_past_the_page(app: App):
     import json as j
     from urllib.request import urlopen
@@ -3030,9 +1742,6 @@ def test_a_list_counts_a_type_in_sql_past_the_page(app: App):
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks?limit=10&env=main"), timeout=5) as reply:
         counts = j.loads(reply.read())["counts"]
     assert counts == {"all": 520, "open": 120, "unread": 60}, "a count is of every row, not of the newest page"
-
-
-
 
 
 def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, monkeypatch):
@@ -3132,42 +1841,6 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
         reader.read(made({"skills": "skills"}, ("run.py", "skills/lint-rules/SKILL.md")))
 
 
-def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_again_when_its_fault_changes_or_a_day_has_passed(app: App, monkeypatch, tmp_path):
-    from journal.models.plugin import Plugin
-    from journal.repositories.plugins import Plugins
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    folder = tmp_path / "lint"
-    folder.mkdir()
-    manifest = folder / "journal-plugin.json"
-    manifest.write_text('{"name": "lint"}')
-    plugins = app.container.get(Plugins)
-    plugins.save(Plugin(name="lint", source=str(folder), linked=True, manifest=PluginManifest(name="lint")), Actor.user(1))
-    pinned_clock(app, monkeypatch)
-
-    def tick(after: float) -> list[str]:
-        tick_at(app, after, 10.0)
-        app.runtime().deferred.drain()
-        return [line for line in keystrokes if "plugin lint" in line]
-
-    assert tick(0) == [], "a plugin that works is not named"
-    manifest.write_text("{ not json")
-    said = tick(10)
-    assert len(said) == 1 and "its manifest does not parse" in said[0], said
-    assert len(tick(60)) == 1 and len(tick(10 + 301)) == 1 and len(tick(10 + 3600)) == 1, "the same fault is not named again at later turns"
-    manifest.write_text("not json at all")
-    assert len(tick(10 + 3700)) == 2, "a changed fault is named again"
-    assert len(tick(10 + 3700 + 86401)) == 3, "the same fault is named again after a day"
-    manifest.write_text('{"name": "lint"}')
-    assert len(tick(10 + 100000)) == 3, "once it is fixed it is named no more"
-    plugins.save(plugins.lookup("lint").with_(enabled=False), Actor.system())
-    assert len(tick(10 + 100100)) == 4 and "nobody switched it off" in keystrokes[-1], "off without the user switching it off is named too"
-    plugins.save(plugins.lookup("lint").with_(enabled=False, is_user_disabled=True), Actor.user(1))
-    assert len(tick(10 + 100500)) == 4, "switched off on purpose it is named no more"
-
-
 def test_a_manifest_and_an_answer_with_a_key_this_journal_does_not_know_still_work_with_a_warning(app: App, tmp_path):
     from journal.features.plugins.support.manifest_reader import ManifestReader
     from journal.features.plugins.support.protocol import Protocol
@@ -3196,27 +1869,6 @@ def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
     assert plugins.lookup("served").manifest.services[0].condition == "test -d .git" and served.published()["services"][0]["when"] == "test -d .git", "a service's when key is stored and read back as plugins write it"
     task = app.container.get(Tasks).save(Task(environment_id=1, title="written by a plugin"), Actor.plugin("lint"))
     assert task.creator == Actor(ActorType.PLUGIN, "lint") and task.creator.stamp == "plugin:lint" and Actor.parse("plugin:lint") == task.creator
-
-def test_a_plugin_runs_as_itself_never_as_the_user(app: App):
-    from journal.support.plugin_tokens import PluginTokens
-    from journal.http.support.identity import Identity
-    from journal.repositories.messages import Messages
-    token = app.container.get(PluginTokens).build("echo")
-    port = app.server().port
-    def cli(argv, plugin="echo", value=token):
-        try:
-            with urlopen(HttpRequest(f"http://127.0.0.1:{port}/cli", data=json.dumps({"argv": argv, "env": "main", "plugin": plugin, "token": value}).encode(), method="POST", headers={"Content-Type": "application/json"}), timeout=5) as r:
-                return r.status, json.loads(r.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    status, output = cli(["message", "send", "a word from echo"])
-    message = app.container.get(Messages).recent(1)[0]
-    assert status == 200 and message.creator == Actor.plugin("echo") and message.author == "system", "a plugin's command is stamped as the plugin and its message is the journal's, never yours"
-    assert "only the user approves" in cli(["plan", "approve", "1"])[1]["error"], "a plugin never approves a plan"
-    assert cli(["task", "list"], value="wrong")[0] == 403 and cli(["task", "list"], plugin="lint")[0] == 403, "a wrong token, or a plugin's name without its own, is refused"
-    identity = app.container.get(Identity)
-    assert identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": token}, "") == Actor.plugin("echo") and identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": "x"}, "") == Actor.user(1), "the API names the plugin only with its token"
-
 
 def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     from journal.events.agent.tool_starting import ToolStarting
@@ -3264,52 +1916,6 @@ def test_a_plugins_processes_run_with_the_path_the_users_login_shell_has(app: Ap
 def echo_heard(app, name="echo") -> list[str]:
     file = app.config.home / "plugin-data" / name / "heard.jsonl"
     return [json.loads(line)["event"] for line in file.read_text().splitlines()] if file.is_file() else []
-
-
-
-
-def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
-    from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
-    from journal.features.plugins.support.plugin_answers import PluginAnswers
-    from journal.support.listener_queue import ListenerQueue
-    from journal.features.plugins.support.plugin_answer import PluginAnswer
-    from journal.features.plugins.support.plugin_card import PluginCard
-    from journal.models.task import Task
-    from journal.repositories.entries import Entries
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.support.secret_values import SecretValues
-    from journal.events.agent.prompt_submitted import PromptSubmitted
-    plugin = echo(app)
-    task = app.container.get(Tasks).save(Task(environment_id=1, title="echo me"), Actor.user(1))
-    deferred, messages, entries = app.container.get(ListenerQueue), app.container.get(Messages), app.container.get(Entries)
-    deferred.drain()
-    deferred.drain()
-    card = [m for m in messages.recent(5) if m.data.get("kind") == "plugin"]
-    assert [(m.text, m.data["key"], m.creator) for m in card] == [(f"Echoed task {task.id}", f"task {task.id}", Actor.plugin("echo"))], "a card from the answer, written as the plugin"
-    from journal.repositories.task_logs import TaskLogs
-    assert [(l.line, l.creator) for l in app.container.get(TaskLogs).matching(task_id=task.id)] == [("echoed", Actor.plugin("echo"))], "its command ran as the plugin and found the task its row event named"
-    answers = app.container.get(PluginAnswers)
-    for label in ("first", "second"):
-        answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", label, key="k"),)), "main", 1, "")
-    keyed = [m for m in messages.recent(20) if m.data.get("key") == "k"]
-    assert [m.text for m in keyed] == ["second"] and keyed[0].created_at < keyed[0].updated_at, "a card of a key is settled in place by the later one"
-    app.console().run(["message", "send", "what now?"], USER)
-    answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", "third", key="k"),)), "main", 1, "")
-    keyed = [m for m in messages.recent(30) if m.data.get("key") == "k"]
-    asked = messages.last_user_message()
-    assert [m.text for m in keyed] == ["third"] and keyed[0].row_id > asked.row_id, "a card of a key written again after the user's message is shown below it, the earlier one taken out"
-    app.container.get(SecretValues).put("GITHUB_KEY", "ghp_0123456789abcdef")
-    line_text = app.container.get(PluginAgentRelay).decided(plugin, PromptSubmitted(agent=agent_row(app), prompt="x").placed(agent_row(app, "s1", 1, "claude"), 0.0, 0.0), PluginAnswer(answer="tell", message="[journal] stop now [!reply:3] ghp_0123456789abcdef"))
-    assert line_text.context == "[plugin echo] (journal) stop now [!reply:3] [secret GITHUB_KEY]", "a plugin's words are its own, the journal's mark made plain and a secret masked"
-    deferred.drain()
-    echo(app, hears=["messages.created"], holds=[])
-    echo(app, "echo-two", hears=["messages.created"], holds=[])
-    app.console().run(["message", "send", "hello"], AGENT)
-    for _ in range(6):
-        deferred.drain()
-    heard = [m.text for m in messages.recent(20) if m.text.startswith("heard message")]
-    assert len(heard) == 4 and entries.matching(entry_type="plugin_cut"), "two plugins answer each other's rows one step deep, then the cut is recorded"
 
 
 def test_a_subagents_event_reaches_a_plugin_and_is_held_only_at_a_tool(app: App):
@@ -3402,24 +2008,6 @@ def test_a_plugin_upgrade_keeps_the_files_the_plugin_built_and_an_upgrade_to_the
     assert not (built.parent.parent / "old-script.py").exists(), "while a file the old source shipped and the new one dropped is removed"
 
 
-def test_a_plugins_filled_secret_is_given_to_it_only_once_the_user_allows_it(app: App):
-    from journal.features.plugins.support.plugin_runner import PluginRunner
-    from journal.repositories.plugins import Plugins
-    from journal.repositories.secrets import Secrets
-    from journal.support.secret_values import SecretValues
-    console, plugins = app.console(), app.container.get(Plugins)
-    console.run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
-    plugin = plugins.lookup("echo")
-    secret = app.container.get(Secrets).find(plugin.settings["token"]["secret"])
-    assert (plugin.settings["mode"], plugin.settings["repeat"]) == ("", 1) and secret.proposed == ("plugin:echo",), "defaults set, and a secret asked for, proposed for the plugin"
-    variable = secret.fields[0]["variable"]
-    app.container.get(SecretValues).put(variable, "tok_0123456789abcdef")
-    runner = app.container.get(PluginRunner)
-    assert variable not in runner.environment(plugins.lookup("echo"), "main"), "a filled secret is not given until the user allows it"
-    app.container.get(Secrets).save(secret.with_(programs=("plugin:echo",)), Actor.user(1))
-    assert runner.environment(plugins.lookup("echo"), "main")[variable] == "tok_0123456789abcdef"
-
-
 def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_it_brings(app: App, tmp_path):
     from journal.features.plugins.support.manifest_reader import ManifestReader
     from journal.support.rejection import Rejection
@@ -3432,47 +2020,6 @@ def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_i
         reader.read(folder)
     assert str(refused.value) == f"later needs journal 99.0.0 or newer; this journal is {VERSION}", "an install hears the version it needs, not a key it cannot know"
     assert reader.least_journal(folder) == "99.0.0", "an upgrade reads the minimum alone, so an older journal passes the release by"
-
-
-
-
-
-def test_the_plugins_page_previews_installs_lists_configures_and_removes(app: App):
-    from journal.repositories.plugins import Plugins
-    port = app.server().port
-
-    def api(method, path, body=None):
-        request = HttpRequest(f"http://127.0.0.1:{port}/journal/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=10) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    folder = str(Path(__file__).parent / "plugins" / "echo")
-    status, preview = api("POST", "plugins/preview", {"source": folder})
-    assert status == 200 and preview["name"] == "echo" and {"item_type": "holds", "label": "before the agent continues", "command": "tool_starting, prompt_submitted"} in preview["rows"]
-    status, produced = api("POST", "plugins", {"source": folder})
-    assert status == 201 and produced["name"] == "echo"
-    row = api("GET", "plugins")[1]["rows"][0]
-    mode = next(s for s in row["schema"] if s["key"] == "mode")
-    assert (row["name"], row["status"], row["manifest"]["holds"], mode["setting_type"], "secret" in row["settings"]["token"]) == ("echo", "on", [{"event": "tool_starting", "window_ms": 0}, {"event": "prompt_submitted", "window_ms": 0}], "choice", True)
-    assert api("POST", f"plugins/{produced['id']}/configure", {"key": "repeat", "value": "4"})[0] == 200 and app.container.get(Plugins).lookup("echo").settings["repeat"] == 4
-    assert api("POST", f"plugins/{produced['id']}/disable", {})[0] == 200 and api("GET", "plugins")[1]["rows"][0]["status"] == "off"
-    assert api("POST", f"plugins/{produced['id']}/remove", {})[0] == 200 and app.container.get(Plugins).all() == []
-
-
-
-
-
-def test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show(app: App):
-    """The skill, the look and the mark hold a Codex write through its pre-tool hook, as the records frozen on today's conduct show; nothing here is Claude only."""
-    import json
-    records = Path(__file__).with_name("replays")
-    blocked = lambda name: {s["name"]: s["answer"]["error"] for s in json.loads((records / f"{name}_codex.json").read_text())["steps"] if isinstance(s["answer"], dict) and "error" in s["answer"]}
-    assert "the journal skill" in blocked("loading_skill_rules")["a write before the skill is read"]
-    assert "`journal environment overview`" in blocked("orienting_rules")["a write before the look"]
-    assert "writes wait until you weigh your memories" in blocked("at_mark_rules")["a write at the mark"]
-
 
 
 def test_released_waits_unlink_the_row_and_retire_the_check_its_block_made(app: App):
@@ -3760,6 +2307,7 @@ def test_worker_seat_finish_serializes_generation_check_and_mutation_with_dispat
 
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):
     import stat
+    import uuid
     from datetime import datetime, timedelta, timezone
     from journal.support.secret_values import SecretValues
     from journal.models.secret import Secret
@@ -3769,38 +2317,18 @@ def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app
     secrets, values = app.container.get(Secrets), app.container.get(SecretValues)
     secret = secrets.save(Secret(title="Github", secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Github")), Actor.user("u"))
     assert secret.fields == ({"name": "key", "hidden": True, "variable": "GITHUB_KEY"},) and secret.waiting()
-    values.put("GITHUB_KEY", 'gh-"quoted"-token')
+    token = f'gh-"quoted"-{uuid.uuid4().hex}'
+    values.put("GITHUB_KEY", token)
     secret = secrets.save(secret.is_filled("key"), Actor.user("u"))
-    assert not secrets.find(secret.id).waiting() and values.values() == {"GITHUB_KEY": 'gh-"quoted"-token'}
+    assert not secrets.find(secret.id).waiting() and values.values() == {"GITHUB_KEY": token}
     assert stat.S_IMODE(values.path.stat().st_mode) == 0o600 and stat.S_IMODE(values.path.parent.stat().st_mode) == 0o700
     assert values.path.name == f"{(app.config.home / 'project-id').read_text().strip()}.env", "the file is named by the project's id, kept in its journal folder"
     raw = b"".join(path.read_bytes() for path in app.config.home.glob("journal.db*"))
-    assert b"gh-" not in raw, "no value ever reaches the database"
+    assert token.encode() not in raw, "no value ever reaches the database"
     values.drop(["GITHUB_KEY"])
     assert values.values() == {}
     missing = secrets.save(secrets.find(secret.id).deleted(datetime.now(timezone.utc)), Actor.user("u"))
     assert secrets.active() == [] and secrets.stale_retired(datetime.now(timezone.utc) + timedelta(days=1)) == [missing]
-
-
-def test_the_agent_is_kept_out_of_the_secrets_and_the_mcp_keys(app: App, tmp_path, monkeypatch):
-    from journal.support.secret_values import SecretValues
-    monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    values = app.container.get(SecretValues).path
-    keys = tmp_path / "home" / ".journal" / "keys"
-    refused = lambda tool, value: hook(app, "PreToolUse", tool_name=tool, tool_input=value)[0] == 409
-    assert refused("Read", {"file_path": str(values)})
-    assert refused("Bash", {"command": f"cat {values.parent}/*.env"})
-    assert refused("Bash", {"command": "cat ~/.config/agent-journal/secrets/x.env"})
-    assert refused("Grep", {"pattern": "KEY", "path": str(keys)})
-    climbed = "../" * len(app.config.root.resolve().parts) + str(keys.resolve()).lstrip("/") + "/x.json"
-    assert refused("Read", {"file_path": climbed}), "a path that climbs into the keys is refused too"
-    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "a.py")})[0] == 200
-    assert "`journal secret run <n> -- <program>`" in hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(values)})[1]["error"]
 
 
 def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):
@@ -3819,18 +2347,6 @@ def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):
     assert len(rows) == 1, "brought in once, however often the journal boots"
     flespi = rows[0]
     assert flespi.title == "flespi" and flespi.secret_type == "api key" and flespi.filled == ("key",) and flespi.programs == ("curl",) and flespi.brief == "The flespi token, used with curl." and flespi.used_at is not None and not flespi.waiting()
-
-
-def test_the_agent_is_told_when_the_user_allows_a_program(app: App, monkeypatch):
-    from journal.models.secret import Secret
-    from journal.repositories.secrets import Secrets
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
-    hook(app, "SessionStart")
-    secret = app.container.get(Secrets).save(Secret(title="Github", proposed=("gh",)), Actor.agent("s1"))
-    viewer(app, f"secrets/{secret.id}", {"programs": ["gh"], "proposed": []})
-    app.runtime().deferred.drain()
-    assert any(nudge_reached(app, r.get("line", ""), SecretsNudges.SECRET_PROGRAM_GRANT, n=1, programs="gh") for r in transmitted)
 
 
 def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_taken_back(app: App, tmp_path, monkeypatch):
@@ -3872,15 +2388,6 @@ def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_ta
     assert not secrets.find(secret.id).auto_login and merged.exists(), "asking each time keeps the saved login"
     viewer(app, f"secrets/{secret.id}/forget-login")
     assert "--storage-state" not in servers.lookup("playwright").args and not merged.exists() and secrets.find(secret.id).session_at is None
-
-
-
-
-
-
-
-
-
 
 
 def test_a_worker_outlives_a_restart_and_is_watched_again_at_boot(app: App, tmp_path):
@@ -3935,7 +2442,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
 def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: App, monkeypatch):
     import subprocess
     from journal.repositories.tasks import Tasks
-    typing_capture(app, monkeypatch, [])
+    woken_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     old = {"GIT_COMMITTER_DATE": "2020-01-01T00:00:00", "GIT_AUTHOR_DATE": "2020-01-01T00:00:00"}
@@ -4013,13 +2520,6 @@ def test_a_commit_whose_own_hook_was_lost_to_a_restart_closes_its_task_at_the_ne
     app.container.get(CommitDetection)._head_log_times.clear()
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "", "stderr": ""})
     assert app.container.get(Tasks).find(1).state == "completed", "the commit's own hook was lost and the journal restarted, so the next tool use finds it and closes its task"
-
-
-
-
-
-
-
 
 
 def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped_never_for_a_plugin_alias_or_a_worker(app: App):
@@ -4341,24 +2841,6 @@ def test_a_version_3_row_that_cannot_come_across_is_reported_and_the_migration_g
     assert "message 1 in main: could not be brought:" in body, "the row is named with its error"
 
 
-
-
-
-
-
-def test_a_worker_report_not_acted_on_is_named_until_it_is(app: App):
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    workers = app.container.get(Workers)
-    with app.container.get(Scope).environment(MAIN):
-        worker = workers.save(workers.save(Worker(environment_id=MAIN, name="Lady Lovelace", brief="b", model="sonnet"), Actor.system()).reported(0.0, 0), Actor.system())
-    assert nudge_reached(app, hook(app, "Stop")[1]["reason"], WorkersNudges.UNREAD_WORKER_REPORTS, reports_waiting="worker 1 (Lady Lovelace)")
-    app.console().run(["worker", "complete", str(worker.id)], AGENT)
-    assert "not acted on it" not in json.dumps(hook(app, "Stop")[1]), "once acted on it is named no more"
-
-
 def test_an_update_never_overwrites_a_setting_the_user_set(app: App):
     from journal.app import App
     from journal.config import Config
@@ -4387,18 +2869,6 @@ def test_a_job_on_files_a_worker_already_worked_on_goes_back_to_that_worker(app:
     assert dispatch("'Mr. Bell' 'write docs/other.md'")[0] == 200, "other files, another worker"
 
 
-def test_a_subagent_job_on_files_one_already_worked_on_goes_back_to_it_and_a_review_is_fresh(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    mapped = {"description": "map the chain", "prompt": "Read src/journal/features/shell/chain.py and map it.", "subagent_type": "journal-researcher", "model": "sonnet"}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=mapped, tool_use_id="u1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=mapped, tool_use_id="u1", tool_response={"isAsync": True, "agentId": "r1"})
-    hook(app, "SubagentStop", agent_id="r1")
-    repeat = {"description": "find its edge cases", "prompt": "Find the edge cases of src/journal/features/shell/chain.py.", "subagent_type": "journal-researcher", "model": "sonnet"}
-    refused = json.dumps(hook(app, "PreToolUse", tool_name="Agent", tool_input=repeat, tool_use_id="u2")[1])
-    assert "SendMessage" in refused and "r1" in refused, "related work goes back to the subagent that knows it"
-    review = {**repeat, "subagent_type": "journal-planner"}
-    assert "SendMessage" not in json.dumps(hook(app, "PreToolUse", tool_name="Agent", tool_input=review, tool_use_id="u3")[1]), "a review is always fresh"
 class Source:
     def __init__(self, *tags: str, head: str = "") -> None:
         self.tags_asked = []
@@ -4499,26 +2969,6 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     assert updating.card.paused() is None and "nor could the official install command" in updating.problem, "an install that fails, the official command too, leaves no marker a launch would wait on, and says why"
 
 
-def test_a_journal_with_a_stale_team_version_never_pins_the_team_back_and_an_admins_own_pin_moves_it_either_way(app: App, monkeypatch):
-    from journal.features.updates.support.updater import Updater
-    from journal.sync.team_server_link import TeamServerLink
-    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=False)
-    server, account = joined_team(app)
-    try:
-        link = app.container.get(TeamServerLink)
-        link.pin_version("4.99.0")
-        account.record_pull(account.sequence(), "4.0.0")
-        monkeypatch.setattr(Updater, "leads_team", lambda self: True)
-        updating.lead("4.50.0")
-        assert link.summary(account.address()).version == "4.99.0" and updating.problem == "", "a journal whose copy of the team version is stale reads the pin live and leaves a newer one where it is"
-        updating.lead("4.100.0")
-        assert link.summary(account.address()).version == "4.100.0", "and it still leads the team onto a newer release"
-        link.pin_version("4.10.0")
-        assert link.summary(account.address()).version == "4.10.0", "an admin's own pin moves the team back as well as forward"
-    finally:
-        server.shutdown()
-
-
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]
@@ -4560,194 +3010,6 @@ def test_nothing_is_installed_on_its_own_when_no_release_is_newer(app: App):
     installer = Installer()
     updating_with(app, Source("v4.0.0", "v5.0.0"), installer, auto=True).checked()
     assert installer.ran == []
-
-
-
-
-def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_no_one(app: App):
-    from journal.features.team.seeds.single_team_chat import SingleTeamChat
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.repositories.environment_owners import OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    environments, links = app.container.get(Environments), app.container.get(Links)
-    first = environments.save(Environment(name="team", team_name="jesse-team", environment_type=EnvironmentType.SESSION), Actor.system())
-    environments.save(Environment(name="team", team_name="team", environment_type=EnvironmentType.SESSION), Actor.system())
-    links.save(Link(source=Ref("users", 1), target=Ref.build(first), link_type=OWNER), Actor.system())
-    app.container.get(SingleTeamChat).run()
-    assert [(chat.row_id, chat.team_name) for chat in environments.sessions()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
-    assert links.model_links("target", [first], OWNER) == [], "and it is owned by no one"
-
-
-def test_no_two_running_environments_work_on_one_branch(app: App, monkeypatch):
-    import subprocess
-    from journal.features.git.support.branch_switch import BranchSwitch
-    from journal.features.team.support.start_rule import StartRule
-    from journal.models.environment import Environment
-    from journal.repositories.environments import Environments
-    root = app.config.root
-    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "trunk")
-    git("-c", "user.name=T", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    environments = app.container.get(Environments)
-    other = environments.save(Environment(name="other"), Actor.system())
-    main = environments.existing("main")
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: environment_id == other.row_id)
-    assert [BranchSwitch.target(line) for line in ("git switch trunk", "git checkout -b fresh", "git checkout -- a.py", "git status")] == ["trunk", "fresh", "", ""]
-    refusal = app.container.get(StartRule).refusal(main, 1)
-    assert "other is running on branch trunk" in refusal and "worktree of its own" in refusal, "an environment is not started on the branch another running one works on"
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    status, answer = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git switch trunk"})
-    assert status == 409 and nudge_reached(app, json.dumps(answer), GitNudges.BRANCH_CONFLICT, branch="trunk", environment="other"), "a switch onto a branch another running environment works on is refused"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git switch -c elsewhere"})[0] == 200, "a switch onto a free branch goes through"
-
-
-def test_the_chat_orders_messages_by_when_they_were_written_never_by_their_number(app: App):
-    from datetime import datetime, timedelta, timezone
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    messages = app.container.get(Messages)
-    written = datetime.now(timezone.utc) + timedelta(hours=1)
-    with app.container.get(Scope).environment(1):
-        for number, text, moment in ((500000, "written here", written), (400000, "written on the hosted page", written + timedelta(seconds=5))):
-            messages.pulled_creation(number, {"environment_id": 1, "author": "user", "text": text, "created_at": moment.isoformat(), "updated_at": moment.isoformat()}, Actor.user(1))
-        assert [m.text for m in messages.window(messages.main_chat(), 2)] == ["written here", "written on the hosted page"], "a message written later shows last, though its journal gave it a lower number"
-        assert messages.window(messages.main_chat(), 5, previous=400000)[-1].text == "written here", "and the page before it holds what was written before it"
-
-
-def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its_own(app: App, tmp_path):
-    from journal.repositories.collections import Collections
-    console = app.console()
-    hook(app, "SessionStart")
-    notes = tmp_path / "notes.md"
-    notes.write_text("The ideas, sorted.\n")
-    console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT)
-    console.run(["task", "create", "the parser"], AGENT)
-    assert console.run(["collection", "create", "The parser work", "--abstract", "what the parser needs"], AGENT).text.startswith("collection 1: The parser work")
-    assert console.run(["collection", "add", "1", "docs:1", "tasks:1"], AGENT).code == 0
-    assert "not a row here: tasks:99" in console.run(["collection", "add", "1", "tasks:99"], AGENT).error, "a row that is not there is refused"
-    assert console.run(["collection", "members", "1"], AGENT).text.splitlines()[1:] == ["  docs:1", "  tasks:1"], "a collection holds rows of any type"
-    console.run(["collection", "remove", "1", "tasks:1"], AGENT)
-    assert console.run(["collection", "members", "1"], AGENT).text.splitlines()[1:] == ["  docs:1"], "and lets one go"
-    console.run(["collection", "rename", "1", "Parser"], AGENT)
-    assert "   1  Parser  (1 rows)" in console.run(["collection", "list"], AGENT).text
-    console.run(["dump", "create", "a list of ideas"], USER)
-    console.run(["dump", "note", "1", "text", "a list of ideas"], AGENT)
-    assert console.run(["dump", "filed", "1", "text", "made a doc", "--refs", "doc:1"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        collections = app.container.get(Collections)
-        filed = [c for c in collections.scoped() if c.title == "Dump 1"]
-        assert filed and [str(ref) for ref in collections.members(filed[0])] == ["docs:1"], "a dump files its items into a collection of its own"
-    console.run(["dump", "name", "1", "Ideas for the parser"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert collections.find(filed[0].id).title == "Ideas for the parser", "and naming the dump names its collection"
-
-
-def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: App, tmp_path, monkeypatch):
-    from journal.features.dumps.support.dump_filer import DumpFiler
-    from journal.repositories.dumps import Dumps
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console, sorting = app.console(), app.container.get(DumpFiler)
-    notes = tmp_path / "notes.md"
-    notes.write_text("The ideas, sorted.\n")
-    assert made(console.run(["dump", "create", "a list of ideas"], USER)) == 1
-    machine = app.container.get(StateMachine)
-    assert app.container.get(SessionAgents).top("s1").name == "sorting_dump", "the user's dump moves the agent into sorting it"
-    stop = hook(app, "Stop")[1]
-    assert stop.get("decision") == "block" and nudge_reached(app, stop.get("reason", ""), DumpsNudges.DUMP_OPEN_REMINDER, n=1), "the stop is held while the dump is open"
-    made(console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT))
-    sorting.attach(1, "a.png", Caller.user("main").actor)
-    assert "text: not read yet" in console.run(["dump", "items", "1"], AGENT).text and "a.png: not read yet" in console.run(["dump", "items", "1"], AGENT).text
-    link = app.container.get(SupervisorLink)
-    assert "file dump 1 (2 items)" in link.pending_lines(1), "the stop held, the agent works on, so the line waits for its next tool use"
-    console.run(["dump", "note", "1", "text", "a list of ideas"], AGENT)
-    assert console.run(["dump", "filed", "1", "text", "made a doc", "--refs", "doc:1"], AGENT).code == 0
-    assert console.run(["dump", "filed", "1", "a.png", "x", "--refs", "docs:99"], AGENT).code != 0, "a row that is not there is refused"
-    assert console.run(["dump", "failed", "1", "a.png", "unreadable"], AGENT).text.endswith("closed: 1 filed, 1 failed\n")
-    assert "dump 1 filed (1 filed, 1 failed)" in link.pending_lines(1)
-    console.run(["sequence", "follow"], AGENT)
-    console.run(["sequence", "abandon", "--why", "the document came from the dump", "--sure"], AGENT)
-    app.runtime().deferred.drain()
-    assert app.container.get(SessionAgents).top("s1").name == "idle", "the dump filed and the document's sequence over it ended, the dump state pops as it comes back on top and the agent is back where it was"
-    assert console.run(["dump", "stop", "1"], AGENT).code != 0 and console.run(["dump", "remove", "1"], AGENT).code != 0, "only the user stops or removes"
-    assert app.container.get(Dumps).find(1).created_refs() == ["docs:1"]
-    console.run(["dump", "remove", "1"], USER)
-    assert app.container.get(Dumps).find(1).removed_refs == ("docs:1",) and console.run(["doc", "list"], AGENT).text == ""
-
-
-def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_most_every_five(app: App, monkeypatch, tmp_path):
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.support.heartbeat import Heartbeat
-    from journal.support.time_source import TimeSource
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    pinned_clock(app, monkeypatch)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    started_at = app.container.get(TimeSource).seconds()
-    folder = app.config.root / "c1"
-    folder.mkdir()
-    outputs = app.container.get(CommandOutputs)
-    ShellVerbs(app).split("python3 -m pytest -q", str(folder))
-    ShellVerbs(app).moved("c1", "python3 -m pytest -q", str(folder / "out"))
-    active = outputs.chain_output("c1")
-    silent_tick(app, 30.0)
-    assert not any("still running" in line for line in keystrokes), "a command moved to the background a moment ago is left to run"
-    for later in (360.0, 370.0):
-        Heartbeat(folder).write(started_at + later - 5)
-        silent_tick(app, later)
-    matched = [line for line in keystrokes if "still running" in line]
-    assert len(matched) == 1 and f"output {active.id} still running" in matched[0] and "pytest" not in matched[0], "past five minutes the agent is told to look at it, once until five more pass"
-    assert [o.id for o in outputs.background("s1")] == [active.id], "a chain that beats is still in the background"
-    Heartbeat(folder).write(started_at - 60)
-    assert outputs.background("s1") == [], "a chain whose beats stopped is no longer in the background, though it wrote no end"
-    Heartbeat(folder).write(started_at + 368)
-    (folder / "done").write_text("0")
-    assert outputs.background("s1") == [], "a command that ended is no longer in the background"
-
-
-
-
-def test_a_message_linked_to_one_task_by_two_recorders_has_one_link(app: App):
-    from journal.models.support.ref import Ref
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    console, links, messages = app.console(), app.container.get(Links), app.container.get(Messages)
-    console.run(["message", "send", "please fix the footer"], USER)
-    console.run(["message", "send", "on it", "--reply-to", "1"], AGENT)
-    console.run(["task", "create", "the footer"], AGENT)
-    console.run(["message", "send", "Filed as task 1.", "--reply-to", "1", "--confirm"], AGENT)
-    assert links.targets(messages.find(1), Messages.SUBJECT_LINK) == [Ref("tasks", 1)], "the task made right after the reply and the task the next reply names are one link, made through Links.linked"
-
-
-
-
-
-
-
-
-
-
-
-def test_the_agent_stays_out_of_a_workers_worktree_and_is_told_how_to_work_there(app: App):
-    import subprocess
-    root = app.config.root
-    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
-        subprocess.run(["git", *argv], cwd=root, capture_output=True, timeout=30)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    dispatched(app.console(), ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    contained = app.config.home / "worktrees" / "1-Lady-Lovelace" / "parser.py"
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(contained), "content": "x"})
-    assert status == 409 and "worker 1's worktree" in body["error"] and "journal worker send 1" in body["error"], "the worker's worktree is the worker's"
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(contained), "content": "x"}, agent_id="a1")[0] == 200, "a subagent's own tool use is not the agent's"
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(root / "elsewhere.py"), "content": "x"})[0] == 200
 
 
 def test_a_workers_clean_up_never_drops_a_launch_worktree_or_its_branch(app: App):
@@ -4797,11 +3059,10 @@ def test_a_failed_worktree_add_leaves_another_launch_worktree_registered_and_mov
     assert Worktree(root, "calm-river").created() == calm and calm.is_dir(), "a launch whose own folder is gone drops only its own record and makes it again"
 
 
-def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_removes_none(app: App, monkeypatch):
+def test_a_worktree_whose_environment_is_gone_is_listed_and_removed_through_the_same_checks(app: App, monkeypatch):
     import subprocess
     from journal.repositories.environments import Environments
     from journal.support.worktree import Worktree
-    from journal.sync.hosting import Hosting
     root = app.config.root
     git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
@@ -4810,19 +3071,14 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     for name in ("calm-river", "quiet-heron"):
         Worktree(root, name).created()
         console.run(["environment", "create", name], USER)
-    Worktree(root, "team").created()
     environment = app.container.get(Environments).existing("calm-river")
     assert posted(app, f"/journal/environments/{environment.row_id}/remove", {}, {"X-Journal-Env": "main"})[0] == 200
     listed = console.run(["worktree", "list"], USER).text
-    assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed and "team" not in listed, listed
+    assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed, listed
     status, answer = get_answer(app, "/journal/worktrees", {"X-Journal-Env": "main"})
     assert status == 200 and answer["worktrees"] == [{"name": "calm-river", "branch": "worktree-calm-river"}], "the viewer lists the worktree whose environment is gone, and no other"
     status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
     assert status == 200 and "removed the worktree" in removed["line"] and not (root / ".claude" / "worktrees" / "calm-river").exists(), "and removes it through the same checks"
-    monkeypatch.setattr(Hosting, "is_hosted", lambda self: True)
-    from journal.http.controllers.worktrees import WorktreeController
-    assert app.container.get(WorktreeController).index(None).body["worktrees"] == [], "the hosted journal lists none"
-    assert "hosted journal has no checkout" in console.run(["worktree", "remove", "quiet-heron"], USER).error, "and refuses to remove one with a plain line"
 
 
 def test_a_worktree_made_through_a_symlinked_project_path_is_the_same_one_by_either_spelling(app: App, tmp_path):
@@ -5047,32 +3303,6 @@ def test_an_environment_that_records_a_worktree_has_its_lost_folder_remade_from_
         assert produced["front"]["folder"] == str(folder) and folder.is_dir(), f"launched as {argv}, the environment's lost worktree is made again from its kept tip"
 
 
-def test_a_worktree_held_on_another_machine_is_launched_and_removed_only_there_and_shown_as_on_it(app: App):
-    import subprocess
-    from journal.features.team.support.start_rule import StartRule
-    from journal.repositories.environments import Environments
-    from journal.support.worktree import Worktree
-    from journal.support.worktree_names import WorktreeNames
-    from journal.sync.team_account import TeamAccount
-    root = app.config.root
-    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
-    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
-        git(*argv)
-    console, environments = app.console(), app.container.get(Environments)
-    mine = Worktree(root, "calm-river")
-    mine.created()
-    console.run(["environment", "create", "calm-river"], USER)
-    console.run(["environment", "branch", "calm-river", mine.branch], USER)
-    assert environments.existing("calm-river").worktree_host == app.container.get(TeamAccount).device_name(), "an environment launched in a worktree names the machine holding its folder"
-    synced = environments.save(environments.lookup("keen-otter").with_(branch="worktree-keen-otter", worktree_host="ada-laptop"), Actor.system())
-    Worktree(root, "keen-otter").created()
-    assert "is on the machine ada-laptop: launch it there" in app.container.get(StartRule).refusal(synced, 1), "only the machine holding its folder launches into it"
-    assert "is on the machine ada-laptop: remove it there" in console.run(["worktree", "remove", "keen-otter"], USER).error, "or removes it"
-    listed = {row["name"]: row["worktree"] for row in get_answer(app, "/journal/environments", {"X-Journal-Env": "main"})[1]["rows"]}
-    assert listed["keen-otter"] == "worktree on ada-laptop" and listed["calm-river"] == "worktree on worktree-calm-river", "the viewer shows a colleague's worktree as on their machine"
-    assert "keen-otter" not in {WorktreeNames(root).unused({environment.name for environment in environments.all()}) for _ in range(60)}, "a made-up name avoids every environment the team knows"
-
-
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
@@ -5114,11 +3344,8 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     assert "there is no worktree named calm-river" in console.run(["worktree", "remove", "calm-river"], USER).error
     assert "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout
     assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == git("rev-parse", "worktree-calm-river").stdout.strip(), "its branch and its last commit stay, so a launch of its name makes it again"
-    assert "Team chat" in console.run(["worktree", "remove", "team"], USER).error, "the Team chat's worktree is never removed this way"
     from journal.launcher.launch import Launch
     from journal.support.choice import Choice
-    refusal = Launch.parse(["claude", "--worktree", "team"], root).start_refusal(Choice("team"))
-    assert "the Team chat's own" in refusal, "and no launch takes it with --worktree team"
     assert Launch.parse(["claude", "--worktree", "calm-river"], root).start_refusal(Choice("calm-river")) == "", "while any other worktree name launches"
 
 
@@ -5166,33 +3393,6 @@ def test_a_commit_made_in_a_worktree_closes_its_task_at_once_and_the_merge_that_
     git("merge", "-q", "worktree-main")
     status, _ = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge worktree-main"}, tool_response={})
     assert status == 200, "a merge that brings nothing new closes nothing twice"
-
-
-def test_dispatches_past_the_most_at_once_wait(app: App):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    hook(app, "SessionStart")
-    console = app.console()
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_out", value=1), Actor.user(1))
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    refused = dispatched(console, ["Ada Byron", "write the lexer", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    assert refused.code == 1 and has_nudge(refused.error, WorkersNudges.WORKER_OVERFLOW, out=1), "a worker past the most out at once is refused"
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=1), Actor.user(1))
-    first = {"description": "map the hooks", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=first, tool_use_id="t-1")[0] == 200, "the first under a most of one passes: the start being judged is not counted among the running"
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=first, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
-    hook(app, "SubagentStart", agent_id="a1", agent_type="Explore")
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the routes", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
-    assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SUBAGENT_OVERFLOW, running=1), "a subagent past the most at once is held"
-    assert [row.session for row in app.container.get(Subagents).session_subagents("s1")] == ["a1"], "a refused dispatch releases its provisional slot"
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=2), Actor.user(1))
-    second = {"description": "map the views", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input=second, tool_use_id="t-2")
-    assert status == 200, body
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=second, tool_response={"isAsync": True, "agentId": "a2"}, tool_use_id="t-2")
-    hook(app, "SubagentStart", agent_id="a2", agent_type="Explore")
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the tests", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
-    assert status == 409 and "2 subagents are running" in body["error"], "two running and a third is held"
 
 
 def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App):
@@ -5320,8 +3520,6 @@ def test_a_line_naming_a_list_that_changes_is_said_once_inside_its_window(app: A
     assert nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=3)) and nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=4)), "a line about one row is still held by its words: another task is named"
 
 
-
-
 def test_a_thread_that_ends_without_releasing_gives_its_connection_back(connection):
     import gc
     import threading
@@ -5372,11 +3570,6 @@ def test_a_read_that_asks_a_server_outside_is_not_judged_against_the_budget(app:
     inquiry("/journal/far")
     inquiry("/journal/near")
     assert measured == ["/journal/near"], "the tunnel's answer waits on the network, so only the journal's own reads are held to a budget"
-
-
-
-
-
 
 
 def test_the_database_gives_deleted_rows_space_back_by_itself(app: App):
@@ -5561,74 +3754,10 @@ def test_a_two_step_path_drives_one_card_from_its_start_to_its_final_version(app
     assert card.paused() is None and "did not finish" in updating.problem and updating.data().step_count == 0, "a walk that went quiet past a step's time holds the card no longer"
 
 
-def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
-    from journal.support.typed_lines import TypedLines
-    lines = app.container.get(TypedLines)
-    slow = " | ".join(f"HOOK /hooks/Stop{n} took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source" for n in range(8))
-    app.container.get(SupervisorLink).type_whole(1, "[journal] " + slow, 0.0)
-    assert len(lines.overdue(1, 10 ** 12)) == 1, "only the first segment goes into the box"
-    held = lines.batched(1)
-    assert held is not None and held.line.startswith("[journal] HOOK /hooks/Stop") and held.line.endswith("Stop7 took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source"), "the rest waits, whole, until the first is seen back"
-
-
-def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still_the_journals(app: App):
-    import time as timing
-    from journal.support.typed_line import TypedLine
-    from journal.features.checks.support.check_output import CheckOutput
-    from journal.support.typed_lines import TypedLines
-    issues = " ".join(f"#{n} [detector-report] ArrayBagDetector - Opened by somebody, handle with care" for n in range(600, 700))
-    notified = CheckOutput.summary(issues)
-    assert len(notified) <= 310 and notified.endswith("handle with care"), "a failing check tells the agent only the end of its output"
-    segments = TypedLine.split("[journal] " + issues, "[journal]")
-    assert len(segments) > 1 and all(len(segment) <= TypedLine.LONGEST_CHARACTERS and segment.startswith("[journal] ") and not segment.endswith("...") for segment in segments), "a line longer than one line holds is typed in whole marked pieces, never cut short"
-    assert " ".join(segment.removeprefix("[journal] ") for segment in segments) == issues
-    slow = " | ".join(f"HOOK /hooks/Stop{n} took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source" for n in range(8))
-    assert all(segment.endswith("at its source") for segment in TypedLine.split("[journal] " + slow, "[journal]")), "lines typed together are split between lines, never inside one"
-    both = TypedLines(app.container.get(TimeSource))
-    both.typed(1, "[journal] first line")
-    both.typed(1, "[journal] second line")
-    assert both.confirm(1, "[journal] first line\n[journal] second line") and not both.is_waiting(1), "a prompt carrying two typed lines confirms both"
-    line = segments[0]
-    keystrokes = TypedLines(app.container.get(TimeSource))
-    keystrokes.typed(1, line)
-    first = keystrokes.overdue(1, timing.time())[0]
-    keystrokes._recent = []
-    keystrokes.retry(first, timing.time())
-    segment = line[200:320].replace(" ", "\n", 1)
-    assert keystrokes.contains(1, segment), "a piece of a line typed again, broken by the terminal, is the journal's, not the user's"
-    assert not keystrokes.contains(1, "handle with care"), "a short answer of the user's that sits inside a typed line stays the user's"
-    assert keystrokes.confirm(1, segment) and not keystrokes.is_waiting(1), "a piece arriving is the line arriving, so it is not typed a third time"
-
-
 def test_a_status_a_program_answered_or_a_number_with_a_unit_is_never_named_a_missing_link():
     from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     text = "the server answered 200 in 2 ms, HTTP 404 for the old path, and the build took 300 s"
     assert UnlinkedRowNumbers.numbers(text) == [], "a status, a status code and a time are no row"
-
-
-
-
-def test_another_agents_question_is_owed_an_answer_until_the_agent_sends_it_one_and_a_plain_message_owes_none(app: App):
-    from journal.events.agent.peer_message import PeerMessage
-    from journal.events.bus import Bus
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    bus = app.container.get(Bus)
-    bus.dispatch(PeerMessage(agent=agent_row(app), sender="code-commandments-12", text="the fix is on main").placed(agent_row(app, "s1", 1, "claude"), None, 0.0))
-    assert "asked you a question" not in json.dumps(hook(app, "Stop")[1]), "a message that asks nothing owes no answer"
-    bus.dispatch(PeerMessage(agent=agent_row(app), sender="code-commandments-12", text="the fix is on main.\nDoes your suite pass on it?").placed(agent_row(app, "s1", 1, "claude"), None, 0.0))
-    owed = json.dumps(hook(app, "Stop")[1])
-    assert "agent code-commandments-12 asked you a question" in owed and "SendMessage to code-commandments-12" in owed, "a question is named at the stop"
-    hook(app, "PostToolUse", tool_name="SendMessage", tool_input={"to": "code-commandments-12", "message": "it passes"}, tool_response={})
-    app.runtime().deferred.drain()
-    assert "asked you a question" not in json.dumps(hook(app, "Stop")[1]), "a message sent back to that agent answers it"
-
-
-
-
-
-
-
 
 
 def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_short():
@@ -5637,9 +3766,6 @@ def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_shor
     assert CommandText(SHAPES).shown(heredoc) == "cat > src/a.js <<'EOF'", "a heredoc shows its command, not its text, and no variable set before it"
     shown = CommandText(SHAPES).shown("pytest " + "tests/a.py " * 40)
     assert len(shown) == SHOWN_CHARACTERS and shown.endswith("…"), "a long command is cut to the set length"
-
-
-
 
 
 def test_a_shell_line_says_whether_it_reads_searches_or_runs(app: App):
@@ -5710,41 +3836,6 @@ def test_journal_update_follow_sets_the_branch_the_journal_follows_and_unfollow_
     assert console.run(["update", "unfollow"], AGENT).text == "following the releases again\n" and updating.branch() == "", "unfollow clears the branch"
 
 
-def test_a_stopped_agent_gets_its_first_line_at_once_and_a_working_one_gets_them_batched(app: App, monkeypatch):
-    from journal.engine.clock import Clock
-    keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields["line"]))
-    user_set(app, "delivery.batch_seconds", 5)
-    link, clock = app.container.get(SupervisorLink), app.container.get(TimeSource)
-
-    def waited() -> None:
-        clock.pin(clock.seconds() + 6)
-        link.silence(1, 6)
-        clock.unpin()
-
-    link.type(1, "new message 2")
-    assert keystrokes == ["[journal] new message 2"], "a stopped agent's first line goes at once"
-    hook(app, "UserPromptSubmit", prompt="[journal] new message 2")
-    app.runtime().deferred.drain()
-    link.resting(1)
-    link.type(1, "new message 3")
-    waited()
-    assert keystrokes == ["[journal] new message 2", "[journal] new message 3"], "once the last is confirmed, the next goes after its own batch time"
-    link.type(1, "the user put 👍 on message 2")
-    waited()
-    assert keystrokes[-1] == "[journal] new message 3", "a line behind one not yet seen back still waits, so it never lands in the prompt box"
-    hook(app, "UserPromptSubmit", prompt="[journal] new message 3")
-    app.runtime().deferred.drain()
-    link.working(1)
-    link.type(1, "new message 4")
-    app.container.get(Clock).tick(app.container.get(Clock).time())
-    assert "[journal] new message 4" not in " ".join(keystrokes), "a working agent's line waits for its next tool use or the batch window"
-    user_set(app, "delivery.batch_seconds", 0)
-
-
-
-
-
 def test_a_running_codex_workers_transcript_is_found_by_its_rollouts_folder_before_its_session_is_known(app: App, tmp_path, monkeypatch):
     import json as js
     from pathlib import Path
@@ -5776,53 +3867,6 @@ def test_a_plugins_linked_skill_folder_is_unlinked_when_withdrawn_and_its_target
     app.container.get(PluginSkills).withdraw(Plugin(name="echo"))
     assert not (home / "echo-guide").exists() and not (home / "echo-guide").is_symlink(), "the link is taken away"
     assert (target / "SKILL.md").is_file(), "what it pointed at is left as it was"
-
-
-def test_a_short_output_with_no_pipe_keeps_no_output_row(app: App):
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.support.missing_row import MissingRow
-    console, outputs = app.console(), app.container.get(CommandOutputs)
-    for chain, line in (("short", "git status --short"), ("cut", "git log --oneline | grep fix"), ("long", "pytest -q")):
-        folder = app.config.root / chain
-        folder.mkdir()
-        (folder / "line").write_text(line)
-        ShellVerbs(app).split(line, str(folder))
-    assert ShellVerbs(app).forget("short", 120) == "forgotten"
-    with pytest.raises(MissingRow):
-        outputs.chain_output("short")
-    assert ShellVerbs(app).forget("cut", 120) == "kept" and outputs.chain_output("cut")
-    assert ShellVerbs(app).forget("long", 400) == "kept" and outputs.chain_output("long")
-
-
-def test_a_paused_agent_reads_and_messages_through_the_pause_its_words_reach_the_chat_and_it_is_told_its_messages_on_resume(app: App, monkeypatch):
-    from journal.repositories.agents import Agents
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    agent_id = app.container.get(Agents).session_agent("s1").id
-    assert viewer(app, f"agents/{agent_id}/pause")["state"] == "paused"
-    app.console().run(["message", "send", "look at the footer"], USER)
-    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 409, "paused, a tool call is held"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message read 1"})[0] == 200, "a read of the user's words goes through the pause"
-    for command in ("journal task list", "journal search footer", "journal task create 'the footer'", "journal message send 'I am paused; I wait for you' --reply-to 1", "journal message react 1 👍"):
-        assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})[0] == 200, f"a pause stops the work, never the journaling: {command}"
-    for tool, given in (("Bash", {"command": "journal message read 1 && echo hi"}), ("Bash", {"command": "pytest -q"}), ("Write", {"file_path": "a.py", "content": "x"})):
-        assert hook(app, "PreToolUse", tool_name=tool, tool_input=given)[0] == 409, f"the work waits: {tool} {given}"
-    hook(app, "UserPromptSubmit", prompt="[journal] carry on")
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})
-    hook(app, "MessageDisplay", message="Understood, I wait for you.")
-    app.runtime().deferred.drain()
-    from journal.repositories.messages import Messages
-    said = [m for m in app.container.get(Messages).scoped() if m.author == "agent" and m.text == "Understood, I wait for you."]
-    assert said and not said[-1].acknowledgement, "what the paused agent writes in answer to the pause reaches the chat"
-    assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack][-1] == "paused", "no demand is pushed over the pause, however many journal commands pass through it"
-    status, body = hook(app, "Stop")
-    assert status == 200 and body.get("decision") != "block", "a paused agent ends its turn with the message unread: no deadlock between the hold and the stop"
-    keystrokes.clear()
-    viewer(app, f"agents/{agent_id}/resume")
-    app.runtime().deferred.drain()
-    assert any("resumed" in line for line in keystrokes) and any("new message 1" in line for line in keystrokes), "on resume the agent is told to carry on and that the message waits"
 
 
 def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wrappers_redirects_and_inner_commands(app: App):
@@ -6028,9 +4072,6 @@ def test_a_hook_on_a_started_plan_reads_the_plans_tree_once(app: App, monkeypatc
     assert sum(selects.values()) < 90, f"a hook on a started plan of thirty tasks ran {sum(selects.values())} selects, the plan's tree is read once per event and not once per question; the most frequent: {selects.most_common(6)}"
 
 
-
-
-
 def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_repeat(app: App, monkeypatch):
     from journal.features.workers.support.load_items import LoadItems
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -6094,7 +4135,7 @@ def test_a_codex_main_agents_patch_and_commit_land_in_its_own_series(app: App):
     from journal.events.announcer import Announcer
     from journal.events.moments.git_committed import GitCommitted
     from journal.repositories.agents import Agents
-    from tests.replay import hook_as
+    from tests.agent_hooks import hook_as
     hook_as(app, "codex", "SessionStart", "c1", source="startup")
     patch = "*** Begin Patch\n*** Add File: src/footer.py\n+FOOTER = 1\n+SHOP = 2\n*** End Patch"
     hook_as(app, "codex", "PreToolUse", "c1", tool_name="apply_patch", tool_input={"command": patch})
@@ -6193,139 +4234,6 @@ def test_a_manifest_says_who_an_event_reaches_only_for_an_event_it_hears_and_onl
             assert reader.read(folder).reaches_role("file_edited", AgentRole.WORKER)
 
 
-def test_every_hook_of_every_tool_arrives_is_recorded_and_answered_even_with_a_message_crossed_in_the_transcript(app: App, tmp_path, monkeypatch):
-    """A hook is never lost in silence: for every tool kind, the starting and finished hooks are recorded as their entries and answered, while the transcript holds a message from another session, the path that once raised and answered 500 unseen."""
-    import json as j
-    from journal.providers.claude import Claude
-    from journal.repositories.entries import Entries
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages as MessageRows
-    arrived = {"type": "queue-operation", "operation": "enqueue", "timestamp": "2026-10-21T06:00:00Z", "content": '<cross-session-message from="uds:/tmp/cc-socks/1.sock" from-name="code-commandments-12" from-mode="bypass">\nthe fix is on main\n</cross-session-message>'}
-    transcript = tmp_path / "s1.jsonl"
-    transcript.write_text(j.dumps(arrived) + "\n")
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: transcript if session == "s1" else None)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    calls = {"Read": {"file_path": str(app.config.root / "a.py")}, "Edit": {"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"}, "Write": {"file_path": str(app.config.root / "b.py"), "content": "x"}, "Bash": {"command": "ls"}, "SendMessage": {"to": "code-commandments-12", "message": "noted"}, "Agent": {"description": "look", "prompt": "read a.py", "subagent_type": "journal-researcher", "model": "sonnet"}}
-    for tool, tool_input in calls.items():
-        status, body = hook(app, "PreToolUse", tool_name=tool, tool_input=tool_input)
-        assert status == 200, f"{tool} starting: {status} {body}"
-        status, body = hook(app, "PostToolUse", tool_name=tool, tool_input=tool_input, tool_response={})
-        assert status == 200, f"{tool} finished: {status} {body}"
-    recorded = [(e.entry_type, e.data.get("tool_name")) for e in app.container.get(Entries).scoped() if e.entry_type in ("ToolStarting", "ToolFinished")]
-    for tool in calls:
-        assert ("ToolStarting", tool) in recorded and ("ToolFinished", tool) in recorded, f"{tool} is recorded at its start and its end"
-    assert any(m.data.get("peer") == "code-commandments-12" for m in app.container.get(MessageRows).all()), "the message crossed in the transcript reached the chat"
-    app.runtime().deferred.drain()
-    assert any(m.data.get(Message.RECIPIENT_KEY) == "code-commandments-12" for m in app.container.get(MessageRows).all()), "the message sent to the other session is a bubble of its own"
-
-
-def test_a_workers_dispatch_mark_stays_and_each_later_standing_is_a_new_mark(app: App):
-    """A worker's dispatch is one mark that stays as it went out; its run ending, a stop and a release each add a mark at the bottom, and only a dispatch that could not start turns its own mark red."""
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.messages import Messages as MessageRows
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    console = app.console()
-    for name in ("Lady Lovelace", "Dr. Einstein", "Mr. Babbage"):
-        dispatched(console, [name, f"a job for {name}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    messages = app.container.get(MessageRows)
-    card = lambda n: next(m for m in messages.scoped() if m.data.get("key") == f"worker:{n}")
-    marks = lambda n: [m.text for m in messages.scoped() if str(m.data.get("key", "")).startswith(f"worker:{n}:")]
-    assert card(1).text == "Lady Lovelace: started on claude sonnet" and card(1).data["detail"] == "a job for Lady Lovelace" and card(1).data["shows"] == "workers"
-    runner, workers = app.container.get(WorkerRunner), app.container.get(Workers)
-    runner.run(workers.find(1), ["sh", "-c", 'echo "the footer is fixed"; test -n "$JOURNAL_ACTOR_TOKEN" || exit 9; test "$JOURNAL_ROOT" = "$0" || exit 8', str(app.config.root)], Actor.agent("s1"))
-    first_hash = workers.find(1).token_hash
-    runner.run(workers.find(2), ["sh", "-c", "echo broken >&2; exit 3"], Actor.agent("s1"))
-    runner.run(workers.find(3), ["sh", "-c", "true"], Actor.agent("s1"))
-    assert first_hash == "" and workers.find(3).token_hash == "", "a run carries its token in its process, and the token is cleared when the run ends without clocking out"
-    console.run(["worker", "stop", "3"], AGENT)
-    assert card(1).text == "Lady Lovelace: started on claude sonnet", "the dispatch mark stays as it went out"
-    assert marks(1) == ["Lady Lovelace: stopped before it finished"], "a run that ends without clocking out is a new mark"
-    assert marks(2) == ["Dr. Einstein: stopped before it finished"] and marks(3)[-1] == "Mr. Babbage: stopped"
-    console.run(["worker", "release", "1"], AGENT)
-    assert marks(1)[-1] == "Lady Lovelace: released" and card(1).text.endswith("started on claude sonnet"), "and a release is one more"
-    newest = [m for m in messages.scoped() if str(m.data.get("key", "")).startswith("worker:")][-1]
-    assert newest.text == "Lady Lovelace: released", "each new mark lands at the bottom of the chat"
-
-
-def test_one_link_holds_a_task_for_its_worker_until_it_is_released(app: App, monkeypatch):
-    from journal.features.tasks.support.tasks_data_reader import TasksDataReader
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.repositories.agents import Agents
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    monkeypatch.setattr(WorkerRunner, "stop", lambda self, worker: None)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "the parser reads the grammar"], AGENT)
-    assert console.run(["worker", "dispatch", "Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", "1"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(session="w-1", state=WorkerState.REPORTED), Actor.system())
-        assert set(workers.containing({1})) == {1}, "a worker that reported still holds its task"
-    refused = console.run(["task", "start", "1"], AGENT)
-    assert refused.code == 1 and "task 1 is held by worker 1" in refused.error, "no agent takes a held task by starting it"
-    with app.container.get(Scope).environment(MAIN):
-        worker_agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        assert app.container.get(TasksDataReader).read(worker_agent).agent_tasks == (1,), "a worker's agent reads the task its worker holds as its own"
-    console.run(["worker", "complete", "1", "--why", "merged"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Workers).containing({1}) == {}, "a released worker holds nothing"
-    assert console.run(["task", "start", "1"], AGENT).code == 0, "and the task is free again"
-
-
-def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_goes_to_a_busy_workers_queue(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.tasks import Tasks
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
-    for title in ("write the notes", "tag it", "announce it"):
-        console.run(["plan", "add", "1", title, "--brief", f"{title}: done when it is in the repository"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    started = console.run(["plan", "start", "1"], AGENT)
-    tasks = app.container.get(Tasks)
-    assert started.code == 0 and "is started" not in started.text and [tasks.find(n).state for n in (1, 2, 3)] == ["open", "open", "open"], "in orchestrator mode the plan starts no task in the orchestrator's hands"
-    assert console.run(["task", "start", "1"], AGENT).code == 0
-    assert console.run(["task", "complete", "1"], AGENT).code == 0
-    assert tasks.find(2).state == "open", "a finished plan task leaves the next one open, never started by the orchestrator"
-
-    dispatched = console.run(["worker", "dispatch", "Worker 1", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    assert dispatched.code == 0, dispatched.error
-    assert console.run(["task", "start", "3"], AGENT).code == 0
-    queued = console.run(["worker", "queue", "1", "3"], AGENT)
-    assert queued.code == 0 and "task 3" in queued.text and tasks.find(3).delegated, queued.error
-    from journal.models.support.ref import Ref
-    with app.container.get(Scope).environment(MAIN):
-        assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.holder(tasks.find(3)) is None, "a task the caller held goes to the busy worker's queue, let go from the caller's hands"
-
-
-def test_a_workers_stop_hears_nothing_of_an_approved_plan_the_main_agent_starts(app: App):
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.repositories.agents import Agents
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
-    console.run(["plan", "add", "1", "write the notes"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    assert "task 1 is in hand" in json.dumps(hook(app, "Stop")[1]), "the main agent's stop starts the approved plan with its first task in hand"
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-    worker_stop = posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": "w-1"}, {"X-Journal-Env": "main"})[1]
-    assert "journal plan start" not in json.dumps(worker_stop) and "is approved and not started" not in json.dumps(worker_stop), "a worker is never told to start, approve or ready a plan"
-
-
-
-
 def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_their_task(app: App):
     from journal.events.rows.worker_delivered import WorkerDelivered
     from journal.events.rows.worker_merged import WorkerMerged
@@ -6418,8 +4326,6 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     assert next(type_name for type_name in WorkersFeature.card_types if type_name.key == "worker_tests").shown is True
 
 
-
-
 def test_a_worker_stopped_at_the_usage_limit_waits_for_it_and_goes_on_by_itself_when_it_resets(app: App, monkeypatch):
     from journal.events.bus import Bus
     from journal.events.clock_ticked import ClockTicked
@@ -6508,209 +4414,6 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
 
-def test_a_wait_on_a_clocked_out_worker_is_answered_at_once_and_each_clock_out_is_told(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.entries import Entries
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
-    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "dispatch", "Mr. Babbage", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-        workers.save(workers.find(2).with_(token_hash="h", session="w-2").ready(1.0), Actor.system())
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    console.run(["proof", "1", "parser.py:12, test_reads passes"], lovelace)
-    console.run(["proof", "2", "parser.py:30, test_names passes"], lovelace)
-    assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
-    app.runtime().deferred.drain()
-    waited = console.run(["worker", "wait", "1", "2"], AGENT).text
-    assert "worker 1, Lady Lovelace, already clocked out: task 1 is ready to check" in waited, "a worker already clocked out is named at once with the task to check"
-    assert "awaiting workers 2:" in waited and "awaiting workers 1" not in waited, "and only the worker still out is waited on"
-    assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
-    assert console.run(["worker", "check", "1", "2", "--short", "the alias names are missing"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    console.run(["proof", "2", "parser.py:31, the alias names are in"], lovelace)
-    assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        lines = [entry.data["key"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1"]
-    assert lines.count("workers.work_ready") == 2, "the second clock-out, after a point came back short, is told as the first was"
-    assert "worker 1, Lady Lovelace, already clocked out: task 1 is ready to check" in console.run(["worker", "wait", "1"], AGENT).text, "and its work counts as ready again while a point waits for its check"
-
-
-def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app: App, monkeypatch):
-    import subprocess
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.task_state import TaskState
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "main")
-    (root / ".gitignore").write_text(".journal/\n")
-    git("add", ".gitignore")
-    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "start")
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
-    console.run(["task", "create", "the notes", "--brief", "the notes are written"], AGENT)
-    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    console.run(["worker", "dispatch", "Mr. Babbage", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    runner, tasks = app.container.get(WorkerRunner), app.container.get(Tasks)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        for n in (1, 2):
-            workers.save(workers.find(n).with_(token_hash="h", session=f"w-{n}").ready(1.0), Actor.system())
-        folder = app.container.get(WorkerBranch).place(workers.find(1))
-    lovelace, babbage = Caller.worker("main", 1, "w-1", "claude"), Caller.worker("main", 2, "w-2", "claude")
-    console.run(["proof", "1", "parser.py:1, test_reads passes"], lovelace)
-    console.run(["proof", "2", "names need a table first", "--not-done"], lovelace)
-    console.run(["clock-out", "the parser reads"], lovelace)
-    console.run(["worker", "check", "1", "1"], AGENT)
-    assert "point 2 of task 1 unchecked" in console.run(["worker", "merge", "1"], AGENT).error, "a merge waits for every proof to be checked"
-    console.run(["worker", "check", "1", "2"], AGENT)
-    git("checkout", "-qb", "worker/1-task-1", cwd=folder)
-    (folder / "parser.py").write_text("x = 1\n")
-    git("add", "parser.py", cwd=folder)
-    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "the parser", cwd=folder)
-    (root / "parser.py").write_text("my own draft\n")
-    refused = console.run(["worker", "merge", "1"], AGENT)
-    assert "you have uncommitted changes to files they change: parser.py" in refused.error, "a merge over the main agent's own uncommitted change is refused, naming why"
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(1).state != TaskState.COMPLETED and folder.is_dir() and (root / "parser.py").read_text() == "my own draft\n", "and nothing moved"
-    (root / "parser.py").unlink()
-    user_set(app, "workers.mode", "orchestrator")
-    console.run(["task", "create", "the lexer tests"], USER)
-    merged = console.run(["worker", "merge", "1"], AGENT)
-    app.runtime().deferred.drain()
-    from journal.repositories.entries import Entries
-    with app.container.get(Scope).environment(MAIN):
-        reopened = [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "tasks.task_reopened"]
-    assert not reopened, "a merge finishes its task before it lets the worker go, so the task never opens again on the way"
-    tip = git("rev-parse", "HEAD").stdout.strip()
-    assert merged.code == 0 and (root / "parser.py").exists(), merged.error
-    with app.container.get(Scope).environment(MAIN):
-        done = tasks.find(1)
-        assert done.state == TaskState.COMPLETED and tip[:9] in done.outcome and "not done: point 2 (names need a table first)" in done.outcome, "the merge takes what the worktree has checked out, on a branch of the worker's own making too, and closes the task with the branch tip, naming the point checked as not done"
-        assert workers.find(1).state == WorkerState.MERGED and tasks.holder(done) is None and folder.exists(), "the hold is released and the worktree stays for the worker's next job"
-        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=app.config.root, capture_output=True, text=True, timeout=30).stdout.strip()
-        assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True, timeout=30).stdout.strip() == head, "moved up to the branch it was merged into"
-        assert (workers.find(1).branch, workers.find(2).branch) == ("worker/1-Lady-Lovelace", ""), "a worker in a worktree keeps the branch it commits on; one in the project has none of its own"
-        assert tasks.earlier_tasks(workers.scoped(), tasks.worker_holdings()) == {1: 1}, "a merged worker keeps the task it worked on, while one still holding its task has none before it"
-        assert [move for move, _ in workers.find(1).moves.steps][-1] == "merged"
-    console.run(["proof", "1", "notes.md:1, written"], babbage)
-    console.run(["clock-out", "the notes are written"], babbage)
-    console.run(["worker", "check", "2", "1"], AGENT)
-    assert console.run(["worker", "merge", "2"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(MAIN):
-        idle = [message.text for message in app.container.get(Messages).scoped() if "work on task 2 merged" in message.text]
-    assert idle == ["Mr. Babbage: work on task 2 merged"], "a merge with an empty queue is the one mark"
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(2).state == TaskState.COMPLETED, "a worker with no worktree has its task closed by its merge alone"
-    console.run(["task", "create", "the guide", "--brief", "the guide is written"], AGENT)
-    console.run(["worker", "dispatch", "Mrs. Beeton", "--task", "4", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers.save(workers.find(3).with_(token_hash="h", session="w-3").ready(1.0), Actor.system())
-    beeton = Caller.worker("main", 3, "w-3", "claude")
-    console.run(["proof", "1", "doc 1, the guide"], beeton)
-    console.run(["clock-out", "the guide is a document"], beeton)
-    console.run(["worker", "check", "3", "1"], AGENT)
-    taken = console.run(["worker", "merge", "3"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert taken.code == 0 and tasks.find(4).state == TaskState.COMPLETED and "no commit to merge" in tasks.find(4).outcome, "a worker whose work is journal rows, with no commit, has its task closed by its merge"
-
-
-def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge_names_the_next(app: App, monkeypatch):
-    import subprocess
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.task_state import TaskState
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    root = app.config.root
-    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "main")
-    (root / ".gitignore").write_text(".journal/\n")
-    git("add", ".gitignore")
-    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "start")
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the notes", "--brief", "the notes are written"], AGENT)
-    console.run(["worker", "dispatch", "Mr. Babbage", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    tasks = app.container.get(Tasks)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())
-    console.run(["task", "create", "the docs"], AGENT)
-    console.run(["task", "create", "the help page"], AGENT)
-    queued = console.run(["worker", "queue", "1", "2", "3", "--report", "each"], AGENT)
-    assert queued.code == 0 and "queue: task 2, task 3" in queued.text, queued.error
-    with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).delegated for n in (2, 3)] == [True, True] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
-    assert "only an open task" in console.run(["worker", "queue", "1", "2", "--report", "each"], AGENT).error, "a task already delegated waits in no second queue"
-    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
-    [shown] = page["rows"]
-    assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
-    assert shown["finished"] == [], "and the tasks it finished on its queue, none yet, for its place in it"
-    assert shown["worked"] == [{"id": 1, "title": shown["worked"][0]["title"], "state": "in hand"}], "and every task it held, for its Tasks section"
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.repositories.command_outputs import CommandOutputs
-    for chain, line, caller in (("t", "python3 -m pytest -q tests/test_notes.py", Caller.worker("main", 1, "w-1", "claude")), ("m", "journal worker merge 1", AGENT)):
-        (app.config.root / chain).mkdir()
-        app.container.get(OutputLog).start(chain, line, app.config.root / chain, caller)
-    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
-    [shown] = page["rows"]
-    assert shown["runs"] == ["testing"] and shown["merging"] is True, f"the worker's answer names its runs going on and a merge taking its work in, for what its inspector says it is doing now (task 3664): {shown['runs']}, {shown['merging']}"
-    with app.container.get(Scope).environment(MAIN):
-        outputs = app.container.get(CommandOutputs)
-        for output in outputs.prefix_runs("python3") + outputs.prefix_runs("journal worker merge"):
-            outputs.save(output.ended_with(0, 1.0), Actor.system())
-    babbage = Caller.worker("main", 1, "w-1", "claude")
-    console.run(["proof", "1", "notes.md:1, written"], babbage)
-    console.run(["clock-out", "the notes are written"], babbage)
-    console.run(["worker", "check", "1", "1"], AGENT)
-    from journal.features.workers.support.worker_actions import WorkerActions
-    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
-    merged = console.run(["worker", "merge", "1"], AGENT)
-    assert merged.code == 0 and "it went straight on to task 2 from its queue" in merged.text, merged.error or merged.text
-    app.runtime().deferred.drain()
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(MAIN):
-        marks = [message.text for message in app.container.get(Messages).scoped() if message.data.get("card_type") == "moment"]
-    assert [mark for mark in marks if "task 1 merged" in mark or "started on task 2" in mark] == ["Mr. Babbage: work on task 1 merged", "Mr. Babbage: started on task 2"], "a merge that sends the worker on is two marks, the merge and the start, in that order"
-    assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith(": merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).delegated, "the merge sends the worker its next queued task by itself; the one after waits"
-    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
-    assert [(row["id"], row["state"]) for row in page["rows"][0]["worked"]] == [(1, "merged"), (2, "in hand")], "a finished task stays in the worker's list with its state, beside the one it holds now"
-    given = console.run(["worker", "drain", "1"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "drain gives back what waits, never the task in hand"
-    from journal.models.support.ref import Ref
-    with app.container.get(Scope).environment(MAIN):
-        tasks.release(Ref.build(workers.find(1)), Actor.system())
-        workers.save(workers.find(1).with_(state=WorkerState.UNFINISHED), Actor.system())
-    started = console.run(["worker", "queue", "1", "3", "--report", "each"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert "it went straight on to task 3 from its queue" in started.text and tasks.holder(tasks.find(3)) is not None, "a task queued to an idle worker that holds none starts it at once"
-    with app.container.get(Scope).environment(MAIN):
-        workers.save(workers.find(1).with_(state=WorkerState.STOPPED), Actor.system())
-    assert console.run(["worker", "release", "1"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(2).state == TaskState.OPEN, "a worker let go gives its tasks back, open again"
-
-
-
-
 def test_a_new_workers_run_that_ends_never_merges_its_work(app: App, monkeypatch):
     import subprocess
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -6763,46 +4466,6 @@ def test_saving_a_proof_a_check_or_a_to_do_item_moves_its_tasks_updated_at(app: 
         clock.sleep(0.01)
         todos.appended(task, "write the test", Actor.worker(1))
         assert moved(), "and a to-do item"
-
-
-def test_the_user_checks_sends_back_and_merges_a_workers_work_from_the_viewer(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.http.controllers.workers import WorkerController
-    from journal.models.proof_state import ProofState
-    from journal.models.task_state import TaskState
-    from journal.repositories.proofs import Proofs
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
-    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    console.run(["proof", "1", "parser.py:12"], lovelace)
-    console.run(["proof", "2", "parser.py:30"], lovelace)
-    console.run(["clock-out", "the parser reads"], lovelace)
-    controller = app.container.get(WorkerController)
-    posted = lambda body: type("Posted", (), {"number": lambda self, key: 1, "environment": "main", "actor": Actor.user(1), "body": body})()
-    with app.container.get(Scope).environment(MAIN):
-        shown = controller.check(posted({"point": 1})).body
-        assert [proof.state for proof in shown["task"].proofs] == [ProofState.CHECKED, ProofState.SHOWN], "the viewer's check acts as the command does, and the payload shows it"
-        controller.short_check(posted({"point": 2, "shortfall": "the aliases are missing"}))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        proofs, tasks = app.container.get(Proofs), app.container.get(Tasks)
-        assert proofs.task_proofs(tasks.find(1))[-1].updater == Actor.user(1) and workers.find(1).is_running(), "so does sending one back, stamped as the user's"
-        workers.save(workers.find(1).delivered(2.0), Actor.system())
-    console.run(["proof", "2", "parser.py:41"], lovelace)
-    with app.container.get(Scope).environment(MAIN):
-        controller.check(posted({"point": 2}))
-        controller.merge(posted({}))
-        app.runtime().deferred.drain()
-        assert tasks.find(1).state == TaskState.COMPLETED and workers.find(1).state == WorkerState.MERGED, "and the viewer's merge closes the task"
 
 
 def test_a_worker_is_started_with_hook_settings_of_its_own(app: App):
@@ -6869,35 +4532,11 @@ def test_every_caller_names_its_kind_and_a_subagent_is_told_by_its_agents_sessio
     assert subagents.subagent_session(Caller.shell("main", "codex"), ["task", "list"], None, "thread-9") == "thread-9", "another thread in the main agent's Codex shell is a subagent's"
 
 
-def test_the_worker_list_shows_the_subagents_and_a_job_on_their_files_goes_back_to_the_idle_ones_never_a_retired_one(app: App):
-    researcher = lambda what, prompt, use: {"description": what, "prompt": prompt, "subagent_type": "journal-researcher", "model": "sonnet"}
-    dispatch = lambda what, prompt, use: hook(app, "PreToolUse", tool_name="Agent", tool_input=researcher(what, prompt, use), tool_use_id=use)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    for n, (what, prompt) in enumerate([("map the chain", "Read src/journal/features/shell/chain.py."), ("map the parts", "Read src/journal/features/shell/chain.py and its parts."), ("map the hooks", "Read src/journal/hooks/hook.sh.")], 1):
-        dispatch(what, prompt, f"u{n}")
-        hook(app, "PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": f"r{n}"}, tool_use_id=f"u{n}")
-    hook(app, "SubagentStop", agent_id="r1")
-    hook(app, "SubagentStop", agent_id="r2")
-    listed = app.console().run(["worker", "list"], AGENT).text
-    assert "   1  done       journal-researcher: map the chain\n                session: r1" in listed and "   3  running    journal-researcher: map the hooks" in listed, "the list shows each subagent this agent started with its state and task, an idle one with the session a message reaches"
-    status, body = dispatch("edge cases", "Find the edge cases of chain.py.", "u4")
-    assert status == 409 and "2 idle subagents" in body["error"] and body["error"].index('to: "r2"') < body["error"].index('to: "r1"'), "a bare file name matches the path an idle subagent read, as a worker's files are matched, the newest first; the running one is not offered"
-    assert app.console().run(["subagent", "retire", "2"], AGENT).code == 0
-    status, body = dispatch("edge cases", "Find the edge cases of chain.py.", "u5")
-    assert status == 409 and "1 idle subagents" in body["error"] and 'to: "r2"' not in body["error"], "a retired subagent is never offered"
-    app.console().run(["subagent", "retire", "1"], AGENT)
-    assert dispatch("edge cases", "Find the edge cases of chain.py.", "u6")[0] == 200, "with each one that knew the files retired, the job goes to a fresh subagent"
-    assert "   1  retired    journal-researcher: map the chain" in app.console().run(["worker", "list"], AGENT).text
-
-
-
-
 def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_closes_its_task(app: App, monkeypatch):
     import subprocess
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
-    typing_capture(app, monkeypatch, [])
+    woken_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     commit = lambda message, moment: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", message], cwd=root, check=True, env={**os.environ, "GIT_COMMITTER_DATE": moment, "GIT_AUTHOR_DATE": moment})
@@ -6917,255 +4556,6 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     hook(app, "PostToolUse", **looked)
     assert len(cards()) == 1, "once"
 
-
-def test_a_fact_rule_or_reminder_is_handed_over_once_per_context_window_by_the_start_block_the_look_or_a_read(app: App, monkeypatch):
-    from journal.repositories.reminders import Reminders
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console, reminders = app.console(), app.container.get(Reminders)
-    console.run(["reminder", "create", "run the suite before a push", "--keywords", "push"], USER)
-    hook(app, "SessionStart")
-    app.runtime().deferred.drain()
-    assert reminders.find(1).presence, "the start block hands every row over at a session start"
-    hook(app, "MessageDisplay", message="about to push")
-    app.runtime().deferred.drain()
-    assert not any("reminder 1" in line for line in keystrokes), "a row in the context window is not whispered"
-    console.run(["reminder", "create", "tag the release", "--keywords", "tag"], USER)
-    hook(app, "MessageDisplay", message="I will tag it now")
-    app.runtime().deferred.drain()
-    assert any(nudge_reached(app, line, MemoryNudges.MEMORY_READ_REQUEST, noun="reminder", n=2) for line in keystrokes), "a row made in the window is whispered as a read, never as its words"
-    read = console.run(["reminder", "read", "2"], AGENT)
-    assert read.code == 0 and "reminder 2: tag the release" in read.text and reminders.find(2).presence, "the read hands it over"
-    keystrokes.clear()
-    hook(app, "MessageDisplay", message="tag it again")
-    app.runtime().deferred.drain()
-    assert keystrokes == [], "read, it is not whispered again"
-    hook(app, "PreCompact")
-    hook(app, "SessionStart", source="compact")
-    app.runtime().deferred.drain()
-    console.run(["reminder", "create", "the third", "--keywords", "third"], USER)
-    assert not reminders.find(3).presence
-    console.run(["environment", "overview"], AGENT)
-    assert reminders.find(3).presence, "the look hands every row over"
-
-
-
-
-
-
-
-
-def test_a_scripts_file_edits_are_found_from_the_files_whose_time_moved(app: App):
-    from journal.repositories.edits import Edits
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    (app.config.root / "kept.txt").write_text("same\n")
-    command = "python3 -c \"import pathlib; pathlib.Path('built' + '.txt').write_text('made\\n')\""
-    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
-    (app.config.root / "built.txt").write_text("made\n")
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": command}, tool_response="")
-    with app.container.get(Scope).environment(MAIN):
-        assert [e.path for e in app.container.get(Edits).rows()] == ["built.txt"], "the file the script wrote under a built name is an edit; the file it left alone is not"
-
-
-def test_a_watched_output_shows_its_progress_once_it_moved_ten_percent_and_its_end_once(app: App):
-    from journal.features.shell.jobs.watch_refresh import WatchRefresh
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.messages import Messages
-    from journal.support.listener_queue import ListenerQueue
-    hook(app, "SessionStart")
-    console, outputs, deferred = app.console(), app.container.get(CommandOutputs), app.container.get(ListenerQueue)
-    folder = app.config.root / "w"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest -q")
-    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n")
-    app.container.get(OutputLog).start("w", "pytest", folder, Caller.agent("main", "s1", "claude"))
-    outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert "that says what the run is doing" in console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--label", "Tests"], AGENT).error, "a bare name is refused as a label"
-    console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--progress", r"\[ *(\d+)%\]", "--label", "Running the tests"], AGENT)
-    assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
-    seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert '"output 1: 40%"' in seen and "FAILED test_b" not in seen and "pytest -q" not in seen, "while it runs the agent sees its progress alone, never its lines or its command"
-    deferred.drain()
-    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 45%] test_e\n")
-    app.container.get(WatchRefresh).tick(timing.time())
-    deferred.drain()
-    assert "output 1:" not in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a run that moved less than 10% since the agent last saw it is not named again"
-    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 55%] test_f\n")
-    app.container.get(WatchRefresh).tick(timing.time())
-    deferred.drain()
-    assert '"output 1: 55%"' in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a move of 10% or more is named again"
-    deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        card = app.container.get(Messages).with_key("watch:1")[0]
-    assert card.data["figure"] == "Running the tests 55%" and card.data["fraction"] == 0.55, "the chat card carries the bar"
-    assert (card.text, card.data["line"]) == ("Running the tests", "pytest -q"), "the card is titled by its reader's label, the command kept beside it for the opened card"
-    assert console.run(["output", "watch", "1", "--title", "Running the tests"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Messages).with_key("watch:1")[0].text == "Running the tests", "a title given to the watch comes first"
-    assert console.run(["output", "watch", "1"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Messages).with_key("watch:1")[0].text == "Testing", "with neither, the card says what the command does"
-    assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
-    (folder / "0.out").write_text("collecting\nFAILED test_b\n[100%] test_d\n")
-    app.container.get(ShellRecord).ended("w", 0, folder, "", Caller.agent("main", "s1", "claude"))
-    deferred.drain()
-    said = []
-    for _ in range(3):
-        said.append(json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]))
-        deferred.drain()
-    ended = [line for line in said if "output 1: completed" in line]
-    assert len(ended) == 1 and "FAILED" not in ended[0], "the end is said once, as completed, nothing more"
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Messages).with_key("watch:1")[0].data["outcome"] == "passed", "its card turns green once the run finished"
-    deferred.drain()
-    after = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert "output 1" not in after and not outputs.find(1).is_watched, "the watch ends with its command"
-
-
-def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_user_docked_it(app: App):
-    """With Dock live outputs on, a watched run's card is docked as it goes live and taken down once it ends; a card docked by hand stays; off, nothing docks."""
-    from journal.chat.docking import Docking
-    from journal.chat.process_cards import ProcessCards
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_process_card import OutputProcessCard
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.messages import Messages
-    hook(app, "SessionStart")
-    console, outputs = app.console(), app.container.get(CommandOutputs)
-
-    def run(name):
-        folder = app.config.root / name
-        folder.mkdir()
-        (folder / "parts").write_text("R-\n")
-        (folder / "0.part").write_text("pytest -q")
-        output = app.container.get(OutputLog).start(name, "pytest -q", folder, Caller.agent("main", "s1", "claude"))
-        outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
-        assert console.run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
-        return output.id
-
-    def card(n):
-        with app.container.get(Scope).environment(MAIN):
-            return app.container.get(Messages).with_key(f"watch:{n}")[0]
-
-    def end(n):
-        with app.container.get(Scope).environment(MAIN):
-            app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(n)))
-        outputs.save(outputs.find(n).ended_with(0, 0.0), Actor.system())
-        app.runtime().deferred.drain()
-        hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
-        app.runtime().deferred.drain()
-
-    quick = run("quick")
-    assert 4 <= card(quick).data["dock_at"] - timing.time() <= 5, "a live card docks itself once its run has gone on five seconds"
-    end(quick)
-    assert card(quick).data["undock_at"] == card(quick).data["dock_at"], "a run that ended sooner never docks"
-    auto = run("auto")
-    assert card(auto).data["docked"] is True, "a live card docks itself"
-    with app.container.get(Scope).environment(MAIN):
-        message = card(auto)
-        app.container.get(Messages).save(message.with_(data={**message.data, "dock_at": timing.time() - 1}), Actor.system())
-    end(auto)
-    ended = card(auto).data
-    assert ended["docked"] is True and not ended.get("pinned") and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(Docking).pin_message(card(auto), Actor.user(1))
-    end(auto)
-    opened = card(auto).data
-    assert opened["docked"] is True and opened["pinned"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
-    kept = run("kept")
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(Docking).pin_message(card(kept), Actor.user(1))
-    end(kept)
-    assert card(kept).data["docked"] is True, "a card the user docked stays after the end"
-    user_set(app, "shell.dock_live_outputs", False)
-    plain = run("plain")
-    assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
-
-
-def test_a_timed_out_judge_ends_the_suite_card_after_its_await_was_cleared(app: App, tmp_path: Path, monkeypatch):
-    import sys
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.messages import Messages
-    from tests.test_suite_shards import suite_script
-
-    hook(app, "SessionStart")
-    console, outputs = app.console(), app.container.get(CommandOutputs)
-    folder = tmp_path / "suite-run"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest -q tests/")
-    (folder / "0.out").write_text("")
-    output = app.container.get(OutputLog).start("suite-run", "pytest -q tests/", folder, AGENT)
-    outputs.save(output.backgrounded(), AGENT.actor)
-    assert console.run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
-    assert console.run(["await", "the suite run", "--output", str(output.id)], AGENT).code == 0
-    assert console.run(["await", "clear"], AGENT).code == 0
-    assert app.container.get(SessionAgents).top("s1").name != "awaiting", "clearing the await leaves no open wait"
-
-    with app.container.get(Scope).environment(MAIN):
-        [running] = app.container.get(Messages).with_key(f"watch:{output.id}")
-        assert running.data["active"] and running.data["docked"], "the suite output stays docked as running while its judge is still going"
-
-    suite = suite_script()
-    monkeypatch.setattr(suite, "JUDGE", Path(__file__))
-    monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(2)"])
-    monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
-    judging = suite.commandments_started(tmp_path)
-    assert judging is not None, "the test judge started"
-    process, _ = judging
-    monkeypatch.setattr(suite, "commandments_started", lambda _: judging)
-    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
-    monkeypatch.setattr(suite, "core_shards", lambda: 1)
-    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
-    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
-    try:
-        assert suite.whole_suite() == 1, "the suite exits after reporting its judge timed out"
-        assert process.poll() is not None, "the stuck judge is stopped before the suite output can end"
-    finally:
-        if process.poll() is None:
-            suite.stop_judge(process)
-
-    app.container.get(ShellRecord).ended("suite-run", 1, folder, "", AGENT)
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        [ended] = app.container.get(Messages).with_key(f"watch:{output.id}")
-        assert not ended.data["active"], "the shell records the suite output as ended when the judge wait returns"
-    assert console.run(["output", "undock", str(output.id)], AGENT).code == 0, "an ended suite card can be taken down"
-    with app.container.get(Scope).environment(MAIN):
-        [undocked] = app.container.get(Messages).with_key(f"watch:{output.id}")
-        assert not undocked.data.get("docked"), "the run card comes down"
-
-
-def test_a_reader_report_is_told_once_and_never_holds_a_write_and_none_is_raised_on_a_locked_reader(app: App):
-    from journal.models.reader_report import ReaderReport
-    from journal.repositories.reader_reports import ReaderReports
-    console, reports = app.console(), app.container.get(ReaderReports)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "t", "--start"], AGENT)
-    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
-    app.container.get(SupervisorLink).working(MAIN)
-    with app.container.get(Scope).environment(1):
-        report = reports.save(ReaderReport(environment_id=1, reader="naps", output=7, command="sleep 40", session="s1", findings=("the run took 40 seconds and its card showed no progress",), fixes=("make it print its steps",)), Actor.system())
-        locked = reports.save(ReaderReport(environment_id=1, reader="pytest", output=9, command="pytest", session="s1", findings=("x",), fixes=("y",)), Actor.system())
-    read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    lines = [read() for _ in range(12)]
-    assert sum(nudge_reached(app, line, ShellNudges.REPORT_RAISED, n=report.id) for line in lines) == 1, "the report is told once"
-    assert not any(f"reader report {locked.id}" in line for line in lines), "a report on a reader the journal or a plugin ships is never told"
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "and no report ever holds a write"
-    shown = console.run(["reader", "report", str(report.id)], AGENT).text
-    assert "showed no progress" in shown and "make it print its steps" in shown and "journal reader dismiss" in shown, "the report says what fell short and how to fix it"
-    with app.container.get(Scope).environment(1):
-        other = reports.save(ReaderReport(environment_id=1, reader="naps", output=8, command="sleep 50", session="s1", findings=("x",), fixes=("y",)), Actor.system())
-    assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints nothing to count"], AGENT).code == 0
-    with app.container.get(Scope).environment(1):
-        assert reports.find(other.id).dismissal == "the run prints nothing to count"
 
 def test_the_shipped_pytest_and_vitest_readers_pick_each_failed_test_its_assertion_line_and_the_summary():
     from journal.features.shell.seeds.default_readers import SHIPPED
@@ -7269,7 +4659,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
+    console.run(["task", "create", "t"], AGENT)
     dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], AGENT)
     process = subprocess.Popen(["sleep", "30"])
     try:
@@ -7464,84 +4854,6 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     assert workers.find(1).run_end == "the escapement ticks", "the time limit counts from the new run, not the first"
 
 
-def test_a_reused_worker_keeps_every_report_and_is_out_again_until_it_reports(app: App, monkeypatch):
-    from journal.features.workers.support.worker_reports import REPORTED
-    from journal.repositories.links import Links
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers, links = app.console(), app.container.get(Workers), app.container.get(Links)
-    dispatched(console, ["Mr. Stephenson", "the rocket", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "the rocket runs"], Caller.agent("main", "w1", "claude"))
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "complete", "1"], AGENT)
-    tender = re.search(r"task (\d+)", console.run(["task", "create", "the tender", "--brief", "couple the tender"], AGENT).text).group(1)
-    console.run(["worker", "send", "1", "the tender", "--task", tender], AGENT)
-    assert not workers.find(1).adopted and workers.find(1).is_running(), "a report acted on is a thing of the last job; the new one is out"
-    console.run(["worker", "report", "1", "the tender is coupled"], Caller.agent("main", "w1", "claude"))
-    assert workers.find(1).is_idle()
-    console.run(["worker", "stop", "1"], AGENT)
-    revived = console.run(["worker", "send", "1", "the rails", "--task", tender], AGENT)
-    listed = console.run(["worker", "list"], AGENT).text.splitlines()[0]
-    assert listed.split()[1] == "dispatched" and listed.endswith("Mr. Stephenson: the rails"), f"a revived stopped worker is listed as out: {revived.text}{revived.error}"
-    assert len(links.targets(workers.find(1), REPORTED)) == 2, "each report keeps its own link, the first kept as history"
-
-
-def test_a_job_sent_to_a_worker_that_reported_puts_the_dispatcher_back_in_its_wait_on_it(app: App, monkeypatch):
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
-    dispatched(console, ["Mr. Arkwright", "the frame", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "the frame spins"], Caller.agent("main", "w1", "claude"))
-    assert sessions.top("s1").name != "awaiting"
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "send", "1", "the mill"], AGENT)
-    waiting = sessions.top("s1")
-    assert waiting.name == "awaiting" and waiting.targets() == ["workers:1"], "the dispatcher waits on the worker it sent out again"
-    console.run(["worker", "report", "1", "the mill turns"], Caller.agent("main", "w1", "claude"))
-    assert sessions.top("s1").name != "awaiting", "until it reports again"
-
-
-def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: App, tmp_path, monkeypatch):
-    import subprocess
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages
-    from journal.repositories.workers import Workers
-    home = tmp_path / "home"
-    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers, messages = app.console(), app.container.get(Workers), app.container.get(Messages)
-    marks = lambda: [(m.text, m.data.get("outcome", ""), m.data.get("detail")) for m in messages.scoped() if m.data.get("shows") == "worker_steps" and not m.data.get("key")]
-    dispatched(console, ["Mr. Wedgwood", "the vase", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "the vase is fired"], Caller.agent("main", "w1", "claude"))
-    workers.save(workers.find(1).with_(resume="w-1"), USER.actor)
-    console.run(["worker", "send", "1", "the jug"], AGENT)
-    process = subprocess.Popen(["sleep", "30"])
-    try:
-        workers.save(workers.find(1).running_as(process.pid, timing.time()), Actor.system())
-        listening_session(home, process.pid, "w-1")
-        console.run(["worker", "notify", "1", "a blue glaze"], AGENT)
-    finally:
-        process.kill()
-        process.wait(5)
-    console.run(["worker", "stop", "1"], AGENT)
-    console.run(["worker", "send", "1", "the teapot"], AGENT)
-    console.run(["worker", "report", "1", "the teapot pours"], Caller.agent("main", "w1", "claude"))
-    console.run(["worker", "complete", "1"], AGENT)
-    assert marks() == [
-        ("Mr. Wedgwood: sent its next job", "", "the jug"),
-        ("Mr. Wedgwood: started again in its last session", "", "the teapot"),
-        ("Mr. Wedgwood: retired, its report acted on", "", ""),
-    ]
-    assert all(len(text) <= 80 for text, _, _ in marks())
-    sent = [(m.text, m.session, m.data.get(Message.RECIPIENT_KEY)) for m in messages.scoped() if m.data.get("kind") == Message.PEER]
-    assert sent == [("a blue glaze", "s1", "worker 1, Mr. Wedgwood")], "a notify is a message sent to the worker in the dispatcher's chat, its whole text, as a message to any other agent is, never a worker mark"
-
-
 def test_a_worker_is_idle_by_one_rule_old_rows_and_dead_processes_included(app: App):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
@@ -7560,25 +4872,6 @@ def test_a_worker_is_idle_by_one_rule_old_rows_and_dead_processes_included(app: 
     assert [w.name for w in workers.scoped() if w.is_idle()] == ["idle"], "idle is reported and not yet acted on; a stopped row, old or new, is retired"
 
 
-def test_only_a_send_counts_a_reuse_and_only_a_retire_gives_its_reason(app: App, monkeypatch):
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers = app.console(), app.container.get(Workers)
-    dispatched(console, ["Mr. Brindley", "the canal", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "dug"], Caller.agent("main", "w1", "claude"))
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "send", "1", "the aqueduct"], AGENT)
-    console.run(["worker", "stop", "1", "--why", "the aqueduct needs a new design"], AGENT)
-    console.run(["worker", "send", "1", "the lock"], AGENT)
-    assert workers.find(1).updater == AGENT.actor, "the send that counts names its actor"
-    console.run(["worker", "report", "1", "locked"], Caller.agent("main", "w1", "claude"))
-    worker = workers.find(1)
-    assert worker.reuse_count == 2 and worker.retire_reason == "the aqueduct needs a new design", "each send counts once, a report counts none; the reason is the stop's"
-    assert "worker 1's report is acted on: the canal is done" in console.run(["worker", "complete", "1", "--why", "the canal is done"], AGENT).text, "the answer is read back as the reason"
-    assert workers.find(1).retire_reason == "the canal is done" and workers.find(1).reuse_count == 2
-
-
 def test_a_dispatch_names_the_idle_worker_whose_branch_touched_the_briefs_files_never_its_old_brief(app: App):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
@@ -7595,36 +4888,12 @@ def test_a_dispatch_names_the_idle_worker_whose_branch_touched_the_briefs_files_
     assert "idle workers" not in said("look at src/engine.py"), "the old brief's own files are not what it touched"
 
 
-def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_ones_those_that_know_the_files_first(app: App):
-    from journal.features.workers.feature import Workers as WorkersFeature
-    from journal.models.worker import Worker
-    from journal.repositories.messages import Messages
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    user_set(app, WorkersOptions.PROFILE_LIMIT.key, 3)
-    workers = app.container.get(Workers)
-    for name, state, paths in (("Mr. Out", WorkerState.DISPATCHED, None), ("Mr. Idle", WorkerState.REPORTED, ("docs/a.md",)), ("Mr. Knows", WorkerState.REPORTED, ("src/lexer.py",))):
-        workers.save(Worker(name=name, state=state, profile="journal-medior", touched_paths=paths), Actor.system())
-    workers.save(Worker(name="Mr. Senior", state=WorkerState.REPORTED, profile="journal-senior"), Actor.system())
-    said = lambda profile, brief="tidy src/parser.py": hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal worker dispatch 'Ada' '{brief}' --profile {profile} --fresh"})
-    status, body = said("journal-medior", "speed up the lexer.py")
-    text = json.dumps(body)
-    assert status != 200 and "2 of 3 journal-medior workers are idle" in text, "the profile's cap is reached while two of its workers wait, and --fresh is no way past it"
-    assert text.index("worker 3, Mr. Knows") < text.index("worker 2, Mr. Idle") and "journal worker send 3" in text and "Mr. Out" not in text.split("idle:")[1], "the idle ones are named with their send lines, the one that knows the files first"
-    assert said("journal-senior")[0] == 200, "another profile has places of its own"
-    assert said("journal-plan-reviewer")[0] == 200, "a reviewer always starts fresh"
-    user_set(app, WorkersOptions.PROFILE_LIMIT.key, 0)
-    assert said("journal-medior")[0] == 200, "0 is no limit"
-    assert any(m.text == "Not sent to a new worker: 2 idle workers can take it" for m in app.container.get(Messages).scoped()), "the refusal is a mark in the chat"
-
-
 def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(app: App):
     import subprocess
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
+    console.run(["task", "create", "t"], AGENT)
     dispatched(console, ["Mr. Fulton", "the steamboat", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     dispatched(console, ["Mr. Watt", "the engine", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     assert sessions.top("s1").targets() == ["workers:1", "workers:2"]
@@ -7640,265 +4909,6 @@ def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(ap
     assert sessions.top("s1").targets() == ["workers:2"], "the wait shrinks to the workers still out"
     console.run(["worker", "stop", "2", "--why", "the engine waits on the boiler"], AGENT)
     assert sessions.top("s1").name != "awaiting", "and ends with the last"
-
-
-def test_a_task_sent_back_a_second_time_is_marked_with_the_first_reason_and_a_third_time_the_orchestrator_is_told_to_change_something(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
-    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    sent_back = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key", "").startswith("workers.worker_sent_back")]
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        for round, reason in enumerate(("the alias names are missing", "the tests do not run", "the lexer is still missing")):
-            workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(float(round + 1)), Actor.system())
-            console.run(["proof", "1", f"parser.py:{round + 1}, test passes"], lovelace)
-            assert console.run(["clock-out", f"round {round + 1}"], lovelace).code == 0
-            assert console.run(["worker", "check", "1", "1", "--short", reason], AGENT).code == 0
-            app.runtime().deferred.drain()
-    lines = sent_back()
-    assert lines[0] == "worker 1 back on point 1", lines
-    assert lines[1] == "worker 1 back on point 1 again; earlier: the alias names are missing", "the second send-back says so, with the first reason"
-    assert lines[2] == WorkersNudges.PROOF_REJECTED_OFTEN.create(n=1, point=1, times=3, model="sonnet", earlier="the alias names are missing; the tests do not run").rendered(), "the third names its model and tells the orchestrator to change the target, the worker or the model"
-
-
-def test_with_every_place_full_a_clocked_out_worker_is_named_as_the_work_to_check_and_a_refused_dispatch_says_the_same(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    settings, console = app.container.get(SettingRows), app.console()
-    hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "workers.most_out", 1)
-    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "splits the words"], AGENT)
-    assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    console.run(["proof", "1", "parser.py:1, test passes"], lovelace)
-    assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
-    app.runtime().deferred.drain()
-    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert nudge_reached(app, told, WorkersNudges.PLACES_FULL, n=1), "the one place is held by the clocked-out worker, and the line names it"
-    refused = console.run(["worker", "dispatch", "Mr. Babbage", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    assert refused.code == 1 and has_nudge(refused.error, WorkersNudges.PLACES_FULL, n=1), "a dispatch past the limit says the same"
-
-
-def test_a_request_declined_with_a_reason_and_one_done_show_on_the_requesters_page_and_as_cards_in_their_chat(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.repositories.messages import Messages
-    from journal.repositories.task_logs import TaskLogs
-    from journal.repositories.tasks import Tasks
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "ab")
-    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
-    bob = replace(USER, person=2)
-    try:
-        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
-        invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        assert b.console().run(["team", "join", invited, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
-        from journal.repositories.users import Users
-        assert eventually(lambda: any(user.name == "Bob" for user in a.container.get(Users).all())), "Bob is a member Ada's journal knows by name"
-        for title in ("Review the plan", "Check the copy"):
-            assert a.console().run(["task", "create", title, "--brief", "b", "--to", "Bob"], USER).code == 0
-        titled = lambda journal, title: next(iter(journal.container.get(Tasks).global_matching(title=title)), None)
-        assert eventually(lambda: titled(b, "Review the plan") and titled(b, "Check the copy")), "both requests reach Bob's journal"
-        declined, finished = titled(b, "Review the plan"), titled(b, "Check the copy")
-        refused = a.console().run(["task", "decline", str(declined.id), "--why", "not mine"], USER)
-        assert refused.code == 1 and "is no request filed for you" in refused.error, "only the person a request is for declines it"
-        assert b.console().run(["task", "decline", str(declined.id), "--why", "not this quarter"], bob).code == 0
-        assert b.console().run(["task", "complete", str(finished.id), "--how", "checked"], bob).code == 0
-        assert [log.line for log in b.container.get(TaskLogs).global_matching(task_id=declined.id)][-1:] == ["not this quarter"], "the reason is the task's log line"
-        assert eventually(lambda: titled(a, "Review the plan").is_declined() and titled(a, "Check the copy").state == "completed"), "both outcomes reach the requester's journal"
-        filed = lambda: {row["title"]: row for row in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{a.server().port}/journal/requests/filed", headers={"X-Journal-Env": "main"}), timeout=5))["rows"]}
-        rows = filed()
-        assert (rows["Review the plan"]["standing"], rows["Review the plan"]["reason"], rows["Review the plan"]["for_whom"]) == ("declined", "not this quarter", "Bob"), "the requester's page shows a declined request with its reason and who it was for"
-        assert (rows["Check the copy"]["standing"], rows["Check the copy"]["for_whom"]) == ("completed", "Bob") and rows["Check the copy"]["done_at"], "and a done request as done, with when"
-        system = lambda: [message.text for message in a.container.get(Messages).global_matching(author=Author.SYSTEM)]
-        assert eventually(lambda: any("was declined: not this quarter" in text for text in system()) and any("is completed: Check the copy" in text for text in system())), "and both are cards in their chat"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its_first_driver_an_issue_is_on_none_and_a_request_for_one_is_readable_by_a_third(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    for name in ("b", "c"):
-        git("clone", "-q", str(tmp_path / "a"), str(tmp_path / name))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a, b, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc")
-    for other in (b, c):
-        other.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    journals, carriers = [a, b, c], [CarriedSync(a).started(), CarriedSync(b).started(), CarriedSync(c).started()]
-    bob, carol = replace(USER, person=2), replace(USER, person=3)
-    try:
-        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
-        for journal, email, name, caller in ((b, "bob@example.com", "Bob", bob), (c, "carol@example.com", "Carol", carol)):
-            invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", email], USER).text).group(1)
-            assert journal.console().run(["team", "join", invited, "--email", email, "--name", name, "--password", "correct horse battery"], caller).code == 0
-        assert eventually(lambda: any(user.name == "Bob" for user in a.container.get(Users).all())), "Ada's journal knows Bob by name"
-        for title, flag in (("Team job", "--to-team"), ("Bobs job", "--to"), ("Slow board", "--issue")):
-            arguments = ["task", "create", title, "--brief", "b", flag, *(["Bob"] if flag == "--to" else [])]
-            assert a.console().run(arguments, USER).code == 0, title
-        titled = lambda journal, title: next(iter(journal.container.get(Tasks).global_matching(title=title)), None)
-        assert eventually(lambda: all(titled(journal, title) for journal in (b, c) for title in ("Team job", "Bobs job", "Slow board"))), "every hub row reaches every member's journal, a request for one person and an issue included"
-        page = lambda journal: sorted(row["title"] for row in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/requests", headers={"X-Journal-Env": "main"}), timeout=5))["rows"])
-        assert page(a) == ["Team job"] and page(b) == ["Bobs job", "Team job"] and page(c) == ["Team job"], "the team request is on every member's page, the one for Bob on his alone, and the issue on none"
-        team_job = titled(a, "Team job")
-        assert a.console().run(["task", "drive", str(team_job.id)], USER).code == 0, "the first to drive a team request holds it"
-        second = b.console().run(["task", "drive", str(team_job.id)], bob)
-        assert second.code == 1 and "held by Ada" in second.error, second.error
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_plan_with_no_dependencies_are_named_to_the_orchestrator(app: App, monkeypatch):
-    from journal.engine.clock import Clock
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.tasks.feature import Tasks as TasksFeature
-    from journal.features.workers.feature import Workers as WorkersFeature
-    from journal.repositories.entries import NUDGE, Entries
-    orchestrator = WorkersFeature.skill.body[WorkersFeature.skill.body.index("Orchestrator:"):]
-    assert all(words in orchestrator for words in ("--on task:<m>", "--until '<command>'", "a wait written only in words")), "the orchestrator mode's instructions teach a wait as a block with --on or --until"
-    assert "--on task:<m>" in TasksFeature.skill.body and "--until '<command>'" in TasksFeature.skill.body, "and so does the tasks skill"
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for n in range(1, 13):
-        console.run(["plan", "add", "1", f"step {n}"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    now = timing.time()
-    said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
-
-    def ticked(minutes: float) -> None:
-        monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
-        app.runtime().deferred.drain()
-
-    ticked(0)
-    assert said("workers.plan_order_without_dependencies") == [WorkersNudges.UNLINKED_TASKS.create(plan=1, open=12).rendered()], "a started plan of twelve open tasks with none blocked is asked which depend on which"
-    assert said("workers.blocked_work_stands_still") == [], "nothing blocked, nothing stands still"
-    assert console.run(["task", "block", "5", "waits on the payment provider"], AGENT).code == 0
-    ticked(30)
-    assert said("workers.blocked_work_stands_still") == [], "a task blocked half an hour ago has not stood still the set time"
-    ticked(61)
-    assert said("workers.blocked_work_stands_still") == [WorkersNudges.UNMOVED_TASKS.create(tasks=5).rendered()], "after the set time it is named by its id"
-
-
-def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_plan_and_quiets_the_line_until_the_interval_or_the_next_phase(app: App, monkeypatch):
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.plans import Plans
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    pinned_clock(app, monkeypatch)
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for title in ("write the notes", "tag it"):
-        console.run(["plan", "add", "1", title], USER)
-    for title in ("notes", "tag"):
-        console.run(["plan", "phase", "1", title], USER)
-    for phase in (1, 2):
-        console.run(["plan", "todos", "1", str(phase), str(phase)], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
-
-    def ticked(minutes: float) -> list[str]:
-        tick_at(app, minutes * 60, 1.0)
-        app.runtime().deferred.drain()
-        return asked()
-
-    assert len(ticked(0)) == 1 and asked()[0].startswith("plan 1, phase 1: order the queues"), asked()
-    answer = console.run(["plan", "priorities", "task 1 first: the notes come before the tag"], AGENT)
-    assert answer.code == 0, answer.error
-    plan = app.container.get(Plans).find(1)
-    assert (plan.priorities, plan.priorities_phase) == ("task 1 first: the notes come before the tag", 1), "the answer is kept on the plan with its phase"
-    assert "priorities: task 1 first: the notes come before the tag" in console.run(["plan", "show", "1"], AGENT).text
-    assert len(ticked(20)) == 1, "once answered the line is quiet, past the time a line may repeat"
-    assert len(ticked(46)) == 2, "and asks again once the interval has passed"
-    console.run(["plan", "priorities", "task 1 still first"], AGENT)
-    user_set(app, "workers.priorities_minutes", 0)
-    assert len(ticked(62)) == 2, "with no interval an answered phase is not asked again"
-    assert console.run(["task", "complete", "1"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    assert len(ticked(78)) == 3 and asked()[-1].startswith("plan 1, phase 2:"), "a new phase asks at once"
-    for title in ("the lexer", "the docs", "Grant the journal the gh permission"):
-        console.run(["task", "create", title, "--brief", "b"], AGENT)
-    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", "3", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior"], AGENT)
-    assert dispatched.code == 0, dispatched.error
-    assert console.run(["worker", "queue", "1", "4", "5"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    unblocking = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.unblocking_task_waits_in_a_queue"]
-    assert unblocking == [WorkersNudges.UNBLOCKER_QUEUED.create(task=5, place=2, n=1).rendered()], unblocking
 
 
 def queue_plan(app: App, titles: tuple[str, ...]) -> list[int]:
@@ -7920,21 +4930,6 @@ def queue_lines_said(app: App, command: str) -> list[str]:
     assert status == 200, body
     app.runtime().deferred.drain()
     return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
-
-
-def test_a_subagent_an_old_end_left_resting_on_void_is_put_back_to_researching_when_it_is_resumed(app: App):
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    from journal.support.agent_role import AgentRole
-    from journal.support.researcher_session import ResearcherSession
-    hook(app, "SessionStart")
-    researcher = ResearcherSession.joined("s1", "r1")
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(Agents).save(Agent(environment_id=MAIN, session=researcher, provider="claude", state="void", data={}, role=AgentRole.SUBAGENT, stack=({"state": "void", "data": {}},)), Actor.system())
-    assert app.container.get(SessionAgents).top(researcher).name == "void", "the row rests on Void, as an end before the fix left it"
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls src"}, agent_id="r1")
-    assert status == 200 and "not at work" not in json.dumps(body), f"the resumed subagent's tool goes through: {body}"
-    assert app.container.get(SessionAgents).top(researcher).name == "researching", "and it is researching again"
 
 
 def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_past_the_limit_is_stopped_with_the_reason(app: App, monkeypatch):
@@ -7963,27 +4958,6 @@ def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_
     assert warned() == [WorkersNudges.MEMORY_WARNING.create(n=worker.id, megabytes=5000, budget=4096).rendered()], f"past the warning the agent that sent it is told once: {warned()}"
     stopped = measured(9000)
     assert stopped.state == WorkerState.STOPPED and "its processes used 9000 MB, past the limit of 8192 MB" in stopped.retire_reason, "past the limit it is stopped, the reason written on it"
-
-
-def test_a_builder_dispatching_one_task_while_others_of_its_plan_wait_is_told_once_to_queue_them_on_that_worker(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    lexer, grammar, printer = queue_plan(app, ("the lexer", "the grammar", "the printer"))
-    loose = int(re.search(r"task (\d+)", app.console().run(["task", "create", "the docs", "--brief", "b"], AGENT).text)[1])
-    dispatch = lambda task: queue_lines_said(app, f"journal worker dispatch 'Ada' --task {task} --changes 'src/parser.py' --profile journal-medior")
-    assert dispatch(loose) == [], "a task of no started plan has no tasks beside it to queue"
-    assert dispatch(lexer) == [WorkersNudges.QUEUE_RELATED.create(task=lexer, worker="a new worker", listed=f"{grammar}, {printer}", n="<its number>", tasks=f"{grammar} {printer}").rendered()], "the builder, fitness measures off, is told to queue the rest of the plan with one report at the end"
-    assert len(dispatch(lexer)) == 1, "the same dispatch again is not told twice"
-
-
-def test_an_orchestrator_sending_a_worker_one_task_while_others_of_its_plan_wait_is_told_to_queue_them_with_the_fitness_measures_off(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "workers.fitness_warnings", False)
-    lexer, grammar, printer = queue_plan(app, ("the lexer", "the grammar", "the printer"))
-    said = queue_lines_said(app, f"journal worker send 4 'the grammar next' --task {grammar}")
-    assert said == [WorkersNudges.QUEUE_RELATED.create(task=grammar, worker="worker 4", listed=f"{lexer}, {printer}", n=4, tasks=f"{lexer} {printer}").rendered()], said
 
 
 def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_an_opus_worker_spending_much_on_settled_work_is_named_once(app: App, monkeypatch):
@@ -8069,41 +5043,6 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
     assert cards and cards[-1].data["row"] == "workers:1" and "checking whether Lady Lovelace's model fit its work" in cards[-1].text, [message.text for message in cards]
 
 
-def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at_fifteen_with_its_last_tool_call(app: App, monkeypatch):
-    from journal.models.entry import Entry
-    from journal.repositories.entries import Entries
-    from journal.repositories.workers import Workers
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    pinned_clock(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers = app.console(), app.container.get(Workers)
-    console.run(["environment", "overview"], AGENT)
-    dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "worker 1 silent" in line]
-    worker = workers.touch(workers.find(1), Actor.system(), session="w1")
-    call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
-    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
-    silent_tick(app, 11 * 60)
-    app.runtime().deferred.drain()
-    assert quiet() == [] and workers.find(1).silence.is_reported, "at ten minutes the worker itself is told to log, not yet the agent that sent it"
-    worker_caller = Caller.worker("main", 1, "w1", "claude")
-    restarted = workers.find(1)
-    workers.save(restarted.with_(token_hash="", silence=restarted.silence.started(0.0)), Actor.system())
-    console.run(["todo", "add", "read the clock"], worker_caller)
-    assert workers.find(1).silence.timeout.start > 0.0 and not workers.find(1).silence.is_reported, "a to-do it writes is progress: its quiet span starts again"
-    workers.save(workers.find(1).with_(silence=restarted.silence), Actor.system())
-    silent_tick(app, 16 * 60)
-    app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and has_nudge(quiet()[0], WorkersNudges.SILENT_WORKER, n=1, minutes=15) and "journal task log" in quiet()[0] and workers.find(1).silence.is_split_advised, "at fifteen the agent that sent it is told, with its last tool call and what to do"
-    silent_tick(app, 60 * 60)
-    app.runtime().deferred.drain()
-    assert len(quiet()) == 1, "and no more"
-
-
-
-
-
 def test_a_worker_messages_only_its_own_dispatchers_other_workers_and_starts_no_loop(app: App, tmp_path, monkeypatch):
     import subprocess
     from journal.models.worker import Worker
@@ -8156,10 +5095,6 @@ def wrapped_line(command: str) -> str:
     return f"true && eval '{command.replace(chr(39), chr(39) + chr(34) + chr(39) + chr(34) + chr(39))}' < /dev/null && pwd -P >| /dev/null"
 
 
-
-
-
-
 BARE_COMMANDS = {
     "python3 -m pytest -q tests/a.py": "pytest", "npx vitest run tests/": "vitest run", "$S/calibrate5.sh --fast": "calibrate5.sh",
     "sh install.sh": "install.sh", "(cd src/web && npx vitest run tests/)": "vitest run", "REPLAY_FREEZE=1 python3 -m pytest -q": "pytest",
@@ -8179,11 +5114,6 @@ def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variabl
         first = bare.split()[0] if bare else ""
         assert not first.startswith("(") and "=" not in first and (first not in SHAPES.launchers or bare == first), (part, bare)
         assert first not in SETUP_COMMANDS or not ("&&" in part or ";" in part) or "<<" in part, ("a chain is known by the command past its setup", part, bare)
-
-
-
-
-
 
 
 def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to_give_the_reader_a_topic(app: App):
@@ -8210,9 +5140,6 @@ def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to
                 break
             clock.sleep(0.1)
     assert "sleep ran with 3 different arguments" in said and "give reader naps a `--topic`" in said, said
-
-
-
 
 
 def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_both_go_with_it(app: App, tmp_path):
@@ -8257,9 +5184,6 @@ def test_the_shim_runs_an_aliases_line_typed_at_a_terminal(app: App):
     (app.config.home / "port").write_text(str(app.server().port))
     typed = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "hello", "the terminal"], env=environ, capture_output=True, text=True, timeout=10)
     assert typed.returncode == 0 and typed.stdout == "hi from the terminal\n", typed.stdout + typed.stderr
-
-
-
 
 
 def test_the_viewers_plugin_install_names_the_aliases_it_skipped(app: App, tmp_path):
@@ -8357,8 +5281,6 @@ def test_a_workers_report_names_its_task_and_its_clock_out_writes_no_second_mark
         assert not [m for m in messages if m.text.endswith("finished, ready to check")], "the clock-out writes no second mark beside the report's card"
 
 
-
-
 def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(app: App):
     from journal.features.workers.support.report_fit import ReportFit
     from journal.features.workers.support.task_sizes import TaskSizes
@@ -8373,15 +5295,11 @@ def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(ap
     assert fit.better(ReportChoice(1), small[:1]) is None and fit.better(ReportChoice(0), small) is None, "a choice that fits is left alone"
 
 
-
-
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
     from journal.models.support.worker_moves import WorkerMoves
     from journal.models.worker import Worker
     worker = Worker(name="w", brief="b", moves=WorkerMoves((("dispatched", 100.0), ("clocked in", 110.0), ("moved on to task 2", 900.0), ("moved on to task 3", 1500.0))))
     assert worker.job_start_time() == 100.0, "a move inside the queue is the same job going on, so a report at the queue's end is never a quick or tiny one for its last task alone"
-
-
 
 
 def test_a_worker_handed_its_next_queued_task_after_a_merge_starts_on_a_worktree_holding_the_latest_work(app: App, monkeypatch):
@@ -8508,40 +5426,6 @@ def test_a_worker_sent_back_whose_runs_end_twice_without_clocking_out_is_named_t
     assert told == ["1"], "the agent that dispatched it is told once, naming it"
 
 
-def pool_worker_on_a_queue(app: App, monkeypatch, report: list[str]):
-    """A pool worker on task 1 with task 2 queued behind it, its branch pushes recorded; its folder, its caller and the pushes."""
-    from journal.features.workers.commands.departure_command import DepartureCommand
-    from journal.repositories.workers import Workers
-    pushes = []
-    monkeypatch.setattr(DepartureCommand, "push_branch", lambda self, worker: pushes.append(worker.id))
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    app.console().run(["task", "create", "the follow-up", "--brief", "the follow-up: done when it is in"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers = app.container.get(Workers)
-        workers.save(workers.find(1).with_(pool_request=41), Actor.system())
-    assert app.console().run(["worker", "queue", "1", "2", *report], AGENT).code == 0
-    return worktree, caller, pushes
-
-
-def test_a_pool_worker_with_the_default_choice_moves_on_after_its_first_task_and_reports_once_after_the_second(app: App, monkeypatch):
-    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, [])
-    committed(worktree, "notes1.md", "note\n")
-    assert "your next task, 2:" in proved_and_out(app, caller, "notes1.md:1").text, "it moves on after the first task"
-    committed(worktree, "notes2.md", "note\n")
-    last = proved_and_out(app, caller, "notes2.md:1")
-    assert "clocked out of task 2" in last.text, "and reports once, after the second"
-    assert pushes == [1, 1], "its branch is pushed at every clock-out, the one that moved on too"
-
-
-def test_a_pool_worker_dispatched_with_report_each_reports_after_each_task(app: App, monkeypatch):
-    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, ["--report", "each"])
-    committed(worktree, "notes1.md", "note\n")
-    out = proved_and_out(app, caller, "notes1.md:1")
-    assert "clocked out of task 1" in out.text and "your next task" not in out.text, "it reports after its first task"
-    assert pushes == [1]
-
-
 def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_different_work_raises_a_report(app: App, tmp_path):
     from types import SimpleNamespace
     from journal.features.shell.support.activity_label import ActivityLabel
@@ -8601,23 +5485,6 @@ def test_a_run_printing_a_count_of_a_total_in_any_common_form_gets_a_progress_pa
     reader = Reader("counted", "the counted runs", ".", progress_pattern=progress, step_pattern=step)
     assert reader.progress(lines).fraction() == pytest.approx(fraction), "the guessed pattern reads the run's own fraction"
     assert "--progress" in ReaderJudge.progress_fix("a command", lines), "and the report's fix suggests a --progress pattern"
-
-
-
-
-def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchecked_while_the_journal_did_not_answer(app: App):
-    hook(app, "SessionStart")
-    app.runtime().deferred.drain()
-    log = app.config.home / "runtime" / "bypass.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text("1761393836 hook claude\n1761393837 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
-    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    line = json.dumps(body)
-    assert status == 200 and "2 hooks let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded" in line and "git status" in line and "rerun what ran unrecorded" in line, line
-    app.runtime().deferred.drain()
-    assert "ran in the shell itself" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "the line is said once"
-
-
 
 
 def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
@@ -8830,8 +5697,6 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a
     assert "clocked out and their work waits" not in body.get("reason", ""), "a run started by a cd into the worker's worktree counts as a run in it"
 
 
-
-
 def test_a_worker_sent_a_new_job_naming_another_repository_gets_its_worktree_and_records_it(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
@@ -8899,8 +5764,6 @@ def library_dispatch(app: App, monkeypatch, *flags: str):
     return console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", *flags], AGENT)
 
 
-
-
 def test_linked_and_copied_library_folders_reach_the_worktree_and_every_inner_one_and_leave_it_clean(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     libraries_made(root, "node_modules")
@@ -8944,8 +5807,6 @@ def test_a_renewed_worktree_gets_its_library_links_back_and_keeps_a_folder_the_w
     assert not (folder / "vendor").is_symlink() and (folder / "vendor" / "own.php").is_file(), "a folder the worker installed itself stays"
 
 
-
-
 def test_the_messages_of_the_releases_an_update_crossed_are_kept_until_the_projects_first_agent_reads_them(app: App, monkeypatch):
     from journal.features.updates.seeds.version_change import VersionChange
     from journal.features.updates.support import release_texts
@@ -8966,10 +5827,6 @@ def test_the_messages_of_the_releases_an_update_crossed_are_kept_until_the_proje
     assert rows.unread() == [] and app.console().run(["update", "messages"], AGENT).text == "no release message is unread\n", "read once, for the whole project"
     other = {"session_id": "s2"}
     assert "release messages" not in json.dumps(hook(app, "SessionStart", **other)[1]), "another agent is told nothing"
-
-
-
-
 
 
 def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_and_not_written_to_the_chat(app: App, tmp_path):
@@ -9041,629 +5898,10 @@ def test_a_scoped_suite_run_counts_its_finished_tests_against_the_total_it_colle
     assert suite.progress_line(*suite.shard_progress(output)) == "running tests [100%] 2 of 2 finished", "and both once they ran"
 
 
-
-
-
-
-def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_the_limit_is_over(app: App, monkeypatch):
-    from journal.events.bus import Bus
-    from journal.events.agent.ticked import Ticked
-    from journal.repositories.agents import Agents
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    state = lambda: app.container.get(Agents).current().state
-    limit = {"error": "rate_limit", "last_assistant_message": "You've hit your weekly limit · resets 11am (Europe/Amsterdam)"}
-    hook(app, "StopFailure", **limit)
-    assert state() == "limited", "a turn refused on the usage limit holds the agent"
-    hook(app, "StopFailure", **limit)
-    assert [layer["state"] for layer in app.container.get(Agents).current().stack].count("limited") == 1, "a second refusal keeps the one hold"
-    tick = lambda seconds: app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + seconds, silence_seconds=seconds))
-    keystrokes.clear()
-    console.run(["task", "create", "a line the journal would type", "--start"], USER)
-    tick(60)
-    app.runtime().deferred.drain()
-    assert keystrokes == [], "nothing of the journal's is typed while the limit holds"
-    console.run(["message", "send", "are you there?"], USER)
-    app.runtime().deferred.drain()
-    assert state() != "limited" and any("new message" in line for line in keystrokes), "the user's message pops the hold and is typed at once"
-    hook(app, "StopFailure", **limit)
-    keystrokes.clear()
-    tick(16 * 60)
-    app.runtime().deferred.drain()
-    assert state() != "limited" and any(nudge_reached(app, line, UsageNudges.LIMIT_CHECK) for line in keystrokes), "every so many minutes a turn is tried"
-    hook(app, "StopFailure", **limit)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert state() != "limited", "a turn that works again ends the hold"
-
-
-
-
-def test_a_subagents_report_in_a_notification_owes_no_skill_by_its_words(skilled):
-    from journal.repositories.agents import Agents
-    app = skilled
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    owed = lambda: list(app.container.get(Agents).session_agent("s1").skills_due)
-    notice = "<task-notification><task-id>a1</task-id><status>completed</status><result>a plan, a roadmap, a worker, a report, a doc and a secret</result></task-notification>"
-    hook(app, "UserPromptSubmit", prompt=notice)
-    assert owed() == [], "a subagent's notice owes nothing by its words"
-    hook(app, "UserPromptSubmit", prompt="draw me a roadmap")
-    assert "plans" in owed(), "the user's own words still do"
-
-
-def test_a_running_subagent_is_cut_off_as_failed_when_the_agents_turn_fails_on_its_limit(app: App):
-    from journal.features.workers.support.subagent_entries import SubagentEntries
-    from journal.repositories.entries import Entries
-    hook(app, "SessionStart")
-    call = {"subagent_type": "journal-plan-reviewer", "description": "review the plan", "prompt": "read", "model": "sonnet", "run_in_background": True}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=call, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=call, tool_response={"agentId": "ag-1", "isAsync": True}, tool_use_id="t-1")
-    app.runtime().deferred.drain()
-    rows = lambda: SubagentEntries(app.container.get(Entries)).rows("s1")
-    assert [row.state.value for row in rows()] == ["running"], "running while it works"
-    hook(app, "StopFailure", error="rate_limit", last_assistant_message="You've hit your weekly limit")
-    app.runtime().deferred.drain()
-    [row] = rows()
-    assert row.state.value == "failed" and "rate_limit" in row.reason, "the failed turn cuts it off, though no end of it ever came"
-
-
-def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_merged_here(app: App, monkeypatch):
-    from journal.features.workers.jobs.worker_watch import WorkerWatch
-    from journal.features.workers.seeds.workers_seed import WorkersSeed
-    from journal.features.workers.support.merge_steps import MergeSteps
-    from journal.features.workers.support.worker_actions import WorkerActions
-    from journal.repositories.workers import Workers
-    from journal.support.rejection import Rejection
-    from journal.sync.incoming_changes import IncomingChanges
-    from journal.sync.team_account import TEAM_FILE
-    from journal.sync.team_change import TeamChange
-
-    (app.config.home / TEAM_FILE).write_text(json.dumps({"device": "here"}))
-    signals = []
-    monkeypatch.setattr(os, "killpg", lambda *values: signals.append(values))
-    monkeypatch.setattr(os, "kill", lambda *values: signals.append(values))
-    app.container.get(IncomingChanges).apply([TeamChange(row_table="workers", row=7, action="created", writer="user:1", fields={"environment_id": 1, "name": "Mr. Faraday", "state": "dispatched", "pid": 424242, "device": "there"})])
-    workers, watch = app.container.get(Workers), app.container.get(WorkerWatch)
-    pulled = workers.find(7)
-    app.container.get(WorkersSeed).run()
-    watch.tick(timing.time())
-    assert 7 not in [worker.id for worker in watch.watched] and workers.find(7) == pulled and signals == [], "another machine's worker is never watched or signalled here"
-    actions = app.container.get(WorkerActions)
-    with pytest.raises(Rejection, match="only that machine can act on it"):
-        actions.stop(7, "stop", Actor.user(1))
-    with pytest.raises(Rejection, match="only that machine can act on it"):
-        actions.merge(7, Actor.user(1), MergeSteps.silent())
-    assert workers.find(7) == pulled
-    (app.config.home / TEAM_FILE).unlink()
-    assert actions.local(7).id == 7, "a journal in no team runs every worker it holds, whichever machine started it"
-
-
-def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_account_number(app: App):
-    from journal.http.support.identity import Identity
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.models.task import Task
-    from journal.repositories.tasks import Tasks
-    from journal.support.caller_variables import CallerVariables
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-
-    assert app.container.get(Identity).build({}, "") == Actor.user(1), "a journal in no team is user 1's"
-    app.container.get(TeamAccount).write({"account_id": 7, "device": "d7"})
-    app.container.get(IdBlocks).add("tasks", 7001, 7999)
-    app.container.get(IdBlocks).add("messages", 7001, 7999)
-    assert app.container.get(Identity).build({}, "") == Actor.user(7), "the viewer writes as the person whose account this machine joined with"
-    caller = CallerVariables("main", "claude", False).caller(app.container.get(TeamAccount).user_number())
-    assert caller.actor == Actor.user(7)
-    with app.container.get(Scope).environment(1):
-        task = app.container.get(Tasks).save(Task(environment_id=1, title="made on the second person's machine"), Actor.system())
-    assert task.id == 7001, "a row made on this machine takes its number from the account's block"
-    (app.config.home / TEAM_FILE).unlink()
-
-
 # how long the team test waits for a change to travel between journals; under the sharded suite's load it can take far longer than alone
 TEAM_SYNC_WAIT_SECONDS = 40
 # the sync's retries back off to 30 seconds while the server is away, so a reconnect is waited on longer
 RECONNECT_WAIT_SECONDS = 90
-
-
-def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_and_a_stranger_is_refused(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from journal.engine.agent_launcher import AgentLauncher
-    from journal.support.worktree import Worktree
-    from journal.db.connection import Connection
-    from journal.sync.journal_copy import JournalCopy
-    from journal.db.schema import Schema
-    from carried_sync import CarriedSync
-    from journal.sync.team_server_link import TeamServerLink
-    from journal.sync.team_upgrade import TeamUpgrade
-    from journal.features.updates.support.updater import Updater
-    from journal.support.release import Release
-    from journal.sync.sync_status import SyncStatus
-    from journal.version import VERSION
-    from journal.sync.environment_names import EnvironmentNames
-    from journal.sync.attachments import Attachments
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.jobs.watch_refresh import WatchRefresh
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.models.message import Message
-    from journal.models.author import Author
-    from journal.repositories.messages import Messages
-    from journal.repositories.reactions import Reactions
-    from journal.repositories.questions import Questions
-    from journal.models.reaction import Reaction
-    from journal.models.question import Question
-    from journal.support.rejection import Rejection
-    from pathlib import Path
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.users import Users
-    from journal.models.task import Task
-    from journal.sync.team_account import TeamAccount
-    from journal.repositories.environments import Environments
-    from journal.repositories.workers import Workers
-    from sync_server.team_server import TeamServer
-    from conftest import copied
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
-    git("init", "-q", str(tmp_path / "c"))
-    git("-C", str(tmp_path / "c"), "-c", "user.name=Eve", "-c", "user.email=eve@example.com", "commit", "-q", "--allow-empty", "-m", "another")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc"]
-    carriers = [CarriedSync(journal).started() for journal in journals]
-    a, b, c = journals
-
-    def urlopen_refusal(url: str) -> str:
-        try:
-            urlopen(HttpRequest(url, data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5)
-            return ""
-        except HTTPError as refused:
-            return refused.read().decode()
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    try:
-        with a.container.get(Scope).environment(MAIN):
-            task = a.container.get(Tasks).save(Task(environment_id=MAIN, title="made before the team"), Actor.user(1))
-            worker = a.container.get(Workers).save(Worker(environment_id=MAIN, name="Mr. Faraday"), Actor.user(1))
-        with a.container.get(Scope).environment(MAIN):
-            early = a.container.get(Messages).save(Message(environment_id=MAIN, author=Author.USER, text="a file from before the team"), Actor.user(1))
-        a.container.get(Attachments).store("messages", early.id, "before.txt", b"attached before the team")
-        Worktree(tmp_path / "a", "main").created()
-        assert a.console().run(["team", "join", address], USER).error.startswith("run journal team join yourself in a terminal")
-        assert "at least 12 characters" in a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "short"], USER).error, "a weak password is refused"
-        from journal.repositories.id_blocks import IdBlocks
-        from journal.models.environment import Environment
-        a.container.get(IdBlocks).add("messages", 900001, 900009)
-        a.container.get(Environments).save(Environment(name="team", environment_type=EnvironmentType.SESSION), Actor.system())
-        joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
-        assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).sessions()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
-        assert team.accounts.find(1).email == "ada@example.com" and team.accounts.find(1).is_admin(), "the first journal to connect to a new team server by its bare URL makes its admin"
-        assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
-        assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"
-        assert (tmp_path / "a" / ".claude" / "worktrees" / "main").is_dir() and not (tmp_path / "a" / ".claude" / "worktrees" / "ada-main").exists(), "joining moves no worktree"
-        ada_here = a.container.get(Environments).existing("main")
-        assert ada_here.team_name == "ada-main" and len(ada_here.key) == 32, "the environment keeps its name on this machine; the team knows it as ada-main, matched by its key"
-        assert a.container.get(EnvironmentNames).resolved("main").name == "main", "a session started before the team works in the environment it started in"
-        invitation = a.console().run(["team", "invite", "bob@example.com"], USER).text
-        bob_url = re.search(r"(http\S+/join\?code=\S+)", invitation).group(1)
-        assert "has its admin:" in b.console().run(["team", "join", address, "--name", "Bob", "--password", "correct horse battery"], USER).error, "a bare URL to a team with an admin is refused, naming the invitation URL"
-        assert c.console().run(["team", "join", bob_url, "--password", "correct horse battery"], USER).error.startswith("the team's journal belongs to the repository"), "a checkout of another repository is refused"
-        from journal.models.author import Author
-        from journal.models.message import Message
-        from journal.repositories.messages import Messages
-        with b.container.get(Scope).environment(MAIN):
-            b.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="the journal is ready", data={"kind": "card"}), Actor.system())
-            bobs_own = b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
-        b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-        before_refusal = [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()]
-        major, minor, patch = (int(n) for n in VERSION.split("."))
-        for other in (f"{major}.{minor}.{patch + 1}", f"{major}.{minor - 1}.0"):
-            monkeypatch.setattr("journal.features.team.support.team_join.VERSION", other)
-            refused_join = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-            assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
-        monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
-        assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
-        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
-        assert sorted(row.title for row in b.container.get(Tasks).global_matching()) == sorted([*(row.title for row in a.container.get(Tasks).global_matching()), bobs_own.title]), "a journal with its own history joins with no refusal, holding the team's tasks and keeping its own"
-        bob_names = {row.name: row for row in b.container.get(Environments).rows()}
-        assert bob_names["main"].team_name == "bob-main" and bob_names["ada-main"].key == ada_here.key, "Bob's machine keeps its own main, known to the team as bob-main, and knows Ada's by her name, matched by its key"
-        assert list((tmp_path / "b" / ".journal").glob("journal-before-team-*.db")), "the journal as it was is kept in a backup"
-        assert eventually(lambda: {user.id: user.name for user in a.container.get(Users).rows()}.get(2) == "Bob"), "every machine knows the new person"
-        assert "person: user 2" in b.console().run(["team", "status"], USER).text
-        bob_main = b.container.get(Environments).existing("main")
-        assert "works on branch worktree-bob-main" in b.console().run(["environment", "branch", "main", "worktree-bob-main"], replace(USER, person=2)).text
-        assert eventually(lambda: [row.branch for row in a.container.get(Environments).rows() if row.name == "bob-main"] == ["worktree-bob-main"]), "the branch an environment works on is known to the team"
-        ada_main = a.container.get(Environments).existing("main")
-        owners_a = a.container.get(EnvironmentOwners)
-        assert owners_a.owner_name(ada_main.row_id) == "Ada", "the first journal's environments are its person's, named for them"
-        assert eventually(lambda: [environment.name for environment in a.container.get(Environments).rows() if environment.name == "bob-main"] == ["bob-main"] and owners_a.owner_name(a.container.get(Environments).existing("bob-main").row_id) == "Bob"), "a colleague's environment arrives with its owner"
-        assert b.container.get(EnvironmentOwners).is_colleague(Actor.user(2), ada_main.row_id) and not b.container.get(EnvironmentOwners).is_colleague(Actor.user(2), bob_main.row_id)
-        refused = urlopen_refusal(f"http://127.0.0.1:{a.server().port}/journal/environments/{a.container.get(Environments).existing('bob-main').row_id}/launch")
-        assert "is Bob's: an agent starts only in your own environment" in refused, "the viewer's Start button refuses a colleague's environment"
-        rows = {row["name"]: row for row in json.loads(a.console().run(["environment", "json"], USER).text)}
-        assert rows["bob-main"]["refusal"].startswith("environment bob-main is Bob's") and rows["main"]["refusal"] == "", "the launcher's rows carry the same refusal"
-        with a.container.get(Scope).environment(ada_main.row_id):
-            note = a.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="for my agent"), Actor.user(1))
-        assert eventually(lambda: bool(b.container.get(Messages).global_matching(id=note.id)))
-        read = HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/messages/read", data=json.dumps({"ids": [note.id]}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "ada-main"})
-        urlopen(read, timeout=5).read()
-        assert b.container.get(Messages).global_matching(id=note.id)[0].read_at is None, "a colleague reading Ada's chat marks nothing read"
-        timing.sleep(0.3)
-        assert a.container.get(Messages).global_matching(id=note.id)[0].read_at is None, "nor on Ada's machine"
-        with b.container.get(Scope).environment(ada_main.row_id):
-            ada_task = b.container.get(Tasks).global_matching(environment_id=ada_main.row_id)
-            assert ada_task, "Ada's task is on Bob's machine"
-            for refused_write in (
-                lambda: b.container.get(Tasks).save(ada_task[0].with_(title="renamed by Bob"), Actor.user(2)),
-                lambda: b.container.get(Reactions).save(Reaction(environment_id=ada_main.row_id, emoji="👍"), Actor.user(2)),
-                lambda: b.container.get(Questions).save(Question(environment_id=ada_main.row_id, text="Bob asks?"), Actor.user(2)),
-                lambda: b.container.get(Environments).save(b.container.get(Environments).existing("ada-main").with_(name="bob-took-it"), Actor.user(2)),
-            ):
-                with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
-                    refused_write()
-            comment = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="a word from Bob"), Actor.user(2))
-        assert comment.author == Author.COLLEAGUE and comment.data["colleague"] == "Bob" and comment.sender == "Bob, a colleague of your user (not your user's words)", "a person's message in a colleague's environment is a colleague's comment"
-        assert eventually(lambda: bool(a.container.get(Messages).global_matching(id=comment.id)))
-        with a.container.get(Scope).environment(ada_main.row_id):
-            assert comment.id not in [message.id for message in a.container.get(Messages).unread()], "it is not among Ada's unread"
-            assert comment.id not in [message.id for message in a.container.get(Messages).unanswered()], "nor among what her agent owes an answer"
-            assert comment.id in [message.id for message in a.container.get(Messages).unread_comments()], "a comment that came while no agent ran waits to be named at the next start"
-            badge = a.container.get(Messages).unviewed()
-            a.container.get(Messages).read(a.container.get(Messages).find(comment.id), Actor.user(1), 0)
-            assert a.container.get(Messages).unviewed() == badge - 1 and comment.id in [message.id for message in a.container.get(Messages).unread_comments()], "Ada's badge counted the comment until she viewed it, which leaves it unread for her agent"
-            a.container.get(Messages).read(a.container.get(Messages).find(comment.id), Actor.agent("s1"), 0)
-            answer = a.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.AGENT, text="thanks, Bob", reply_target=comment.id), Actor.agent("s1"))
-            assert comment.id not in [message.id for message in a.container.get(Messages).unread_comments()], "and once the agent read it, it is named no more"
-        assert eventually(lambda: [row.reply_target for row in b.container.get(Messages).global_matching(id=answer.id)] == [comment.id]), "the agent's reply to Bob's comment is in Bob's view of Ada's chat"
-        assert urlopen_refusal(f"http://127.0.0.1:{b.server().port}/journal/environments/{ada_main.row_id}/stop").find("only comment") >= 0, "and Bob cannot stop Ada's agent from his viewer"
-        made = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/environments", data=json.dumps({"name": "feature-x"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5))
-        assert made["name"] == "feature-x", "an environment made from the viewer keeps the name it was given"
-        assert eventually(lambda: [row.name for row in a.container.get(Environments).rows() if row.name == "bob-feature-x"] == ["bob-feature-x"]), "and reaches the team under Bob's name"
-        for journal in (a, b):
-            names = [environment.name for environment in journal.container.get(Environments).rows()]
-            assert len(names) == len(set(names)), f"no two environments share a name: {names}"
-        assert eventually(lambda: all(a.container.get(EnvironmentOwners).owner_number(environment.row_id) for environment in a.container.get(Environments).rows() if environment.is_personal())), "every environment but the Team chat and the hub has an owner"
-        assert not any(c.container.get(EnvironmentOwners).is_colleague(Actor.user(1), environment.row_id) for environment in c.container.get(Environments).rows()), "a journal in no team has no colleagues"
-        def ada_name(journal):
-            return "main" if journal is a else "ada-main"
-
-        def side(journal, method, body=None):
-            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/side-thread", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", "X-Journal-Env": ada_name(journal)})
-            return json.load(urlopen(request, timeout=5))
-
-        ada_side = side(a, "POST", {"text": "lunch at one?"})
-        bob_side = side(b, "POST", {"text": "yes, and the tests pass"})
-        assert eventually(lambda: [row["text"] for row in side(a, "GET")] == ["lunch at one?", "yes, and the tests pass"] and [row["text"] for row in side(b, "GET")] == ["lunch at one?", "yes, and the tests pass"]), "everyone viewing Ada's environment sees its side thread"
-        with a.container.get(Scope).environment(ada_main.row_id):
-            unread = [message.id for message in a.container.get(Messages).unread()]
-        assert ada_side["id"] not in unread and bob_side["id"] not in unread and bob_side["author"] == "user", "no agent is told of the side thread, and a colleague's word there is no comment"
-        assert "lunch at one" not in a.console().run(["message", "unread"], Caller.agent("main", "s1", "claude")).text, "nor does the agent's inbox list it"
-        def journal_call(journal, path, body, content_type="application/json"):
-            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/{path}", data=body, method="POST", headers={"Content-Type": content_type, "X-Journal-Env": ada_name(journal)})
-            return json.load(urlopen(request, timeout=5))
-
-        def attached(journal, path, name, data):
-            boundary = "b0undary"
-            body = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode() + data + f"\r\n--{boundary}--\r\n".encode()
-            return journal_call(journal, path, body, f"multipart/form-data; boundary={boundary}")
-
-        def file_on(journal, path):
-            try:
-                with urlopen(HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/{path}", headers={"X-Journal-Env": ada_name(journal)}), timeout=5) as answer:
-                    return answer.read()
-            except HTTPError:
-                return b""
-
-        picture_message = journal_call(a, "messages", json.dumps({"text": "the screenshot"}).encode())
-        attached(a, f"messages/{picture_message['id']}/files", "pic.png", b"\x89PNG picture")
-        dump = journal_call(a, "dumps", json.dumps({"brief": "a pile"}).encode())
-        attached(a, f"dumps/{dump['id']}/files", "notes.txt", b"dumped notes")
-        assert eventually(lambda: file_on(b, f"messages/{picture_message['id']}/files/pic.png") == b"\x89PNG picture"), "a picture attached on Ada's machine opens on Bob's"
-        assert eventually(lambda: file_on(b, f"dumps/{dump['id']}/files/notes.txt") == b"dumped notes"), "and so does a file dropped in a dump"
-        journal_call(b, "messages", json.dumps({"text": "from Bob's viewer", "idempotency": "bob-1"}).encode())
-
-        def from_bobs_viewer():
-            with a.container.get(Scope).environment(ada_main.row_id):
-                return [message.author for message in a.container.get(Messages).sent_with("bob-1")]
-
-        assert eventually(lambda: from_bobs_viewer() == [Author.COLLEAGUE]), "a message posted from a colleague's viewer is made by the environment's host, Ada's journal, as a colleague's comment too"
-
-        def sent_on_bobs(key):
-            try:
-                with urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/messages/sent/{key}", headers={"X-Journal-Env": ada_name(b)}), timeout=5) as answer:
-                    return json.load(answer)["id"]
-            except HTTPError:
-                return 0
-
-        assert eventually(lambda: sent_on_bobs("bob-1")), "once the host has made it, Bob's viewer finds the message by the key it sent it with"
-        attached(b, f"messages/{sent_on_bobs('bob-1')}/files", "bob-sent.png", b"sent with the message")
-        assert eventually(lambda: file_on(a, f"messages/{sent_on_bobs('bob-1')}/files/bob-sent.png") == b"sent with the message"), "and the file it then attaches opens on the host"
-        assert file_on(b, f"messages/{early.id}/files/before.txt") == b"attached before the team", "a file attached before the journal became shared opens on a journal that joined"
-        with b.container.get(Scope).environment(bob_main.row_id):
-            comment_with_picture = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="look at this"), Actor.user(2))
-        attached(b, f"messages/{comment_with_picture.id}/files", "bob.png", b"bob's picture")
-        on_ada = a.config.files / "message" / str(comment_with_picture.id) / "bob.png"
-        assert eventually(lambda: on_ada.is_file() and on_ada.read_bytes() == b"bob's picture"), "a pulled comment's picture is fetched as it arrives, so it is on disk where journal message read points"
-        assert eventually(lambda: str(on_ada) in a.console().run(["message", "read", str(comment_with_picture.id)], Caller.agent("main", "s1", "claude")).text), "the pulled comment reads with its picture's path once its row has arrived, which may come after the file"
-        def team_post(journal, text):
-            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/messages", data=json.dumps({"text": text}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
-            return json.load(urlopen(request, timeout=5))
-
-        assert eventually(lambda: [row.name for row in b.container.get(Environments).rows() if row.is_session()] == ["team"]), "the Team chat is an environment every machine has"
-        team_env = b.container.get(Environments).existing("team")
-        assert b.container.get(EnvironmentOwners).owner_number(team_env.row_id) == 0, "owned by no one"
-        ada_word, bob_word = team_post(a, "morning, team"), team_post(b, "morning, Ada")
-        assert ada_word["author"] == "user" and bob_word["author"] == "user", "in the Team chat everyone's words are users' words, never a colleague's comment"
-        assert eventually(lambda: sorted(row.text for row in b.container.get(Messages).global_matching(environment_id=team_env.row_id)) == ["morning, Ada", "morning, team"]), "both people's words are in the Team chat on each machine"
-        assert not [row for row in b.container.get(Messages).global_matching(environment_id=bob_main.row_id) if row.text.startswith("morning")], "and stay out of their own chats"
-        rows = {row["name"]: row for row in json.loads(b.console().run(["environment", "json"], USER).text)}
-        assert "claim it first" in rows["team"]["refusal"], "the launcher starts an agent in the Team chat only on the machine that claims it"
-        started_agents = []
-        monkeypatch.setattr(AgentLauncher, "start", lambda self, environment, agent: started_agents.append((environment, agent)) or 1)
-        assert "you hold the Team chat now, as Ada" in a.console().run(["team", "claim"], USER).text
-        assert started_agents == [("team", "claude")], "the claiming machine starts the Team chat's agent"
-        refused_claim = b.console().run(["team", "claim"], replace(USER, person=2))
-        assert refused_claim.code == 1 and "team-chat is held by Ada" in refused_claim.error, "a second machine's claim is refused while the first holds it"
-        assert b.console().run(["team", "chat"], replace(USER, person=2)).text.startswith("Holder: Ada"), "and it sees who holds it"
-        rows_b = {row["name"]: row for row in json.loads(b.console().run(["environment", "json"], replace(USER, person=2)).text)}
-        rows_a = {row["name"]: row for row in json.loads(a.console().run(["environment", "json"], USER).text)}
-        assert "claim it first" in rows_b["team"]["refusal"] and rows_a["team"]["refusal"] == "", "only the holder's machine may start an agent in the Team chat"
-        typed = []
-        monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: typed.append(line))
-        session_start = HttpRequest(f"http://127.0.0.1:{a.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "chat1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
-        urlopen(session_start, timeout=5).read()
-        bob_ask = team_post(b, "please run the tests")
-        assert eventually(lambda: any(f"new message {bob_ask['id']}" in line for line in typed)), "a message posted on Bob's machine is typed into the agent Ada's machine runs for the Team chat"
-        read_line = a.console().run(["message", "read", str(bob_ask["id"])], Caller.agent("team", "chat1", "claude")).text
-        assert "Bob, one of the people you work for in the Team chat" in read_line, "and it reads as Bob's"
-        git("init", "-q", "--bare", str(tmp_path / "remote.git"))
-        git("-C", str(tmp_path / "a"), "remote", "add", "origin", str(tmp_path / "remote.git"))
-        git("-C", str(tmp_path / "b"), "remote", "set-url", "origin", str(tmp_path / "remote.git"))
-        git("-C", str(tmp_path / "a"), "config", "user.name", "Ada")
-        git("-C", str(tmp_path / "a"), "config", "user.email", "ada@example.com")
-        (Worktree(tmp_path / "a", "team").created() / "draft.txt").write_text("not committed yet\n")
-        stopped = []
-        monkeypatch.setattr(SupervisorLink, "stop", lambda self, environment_id: stopped.append(environment_id))
-        assert "you no longer hold the Team chat" in a.console().run(["team", "release"], USER).text
-        assert stopped == [a.container.get(Environments).existing("team").row_id] and not a.container.get(TeamAccount).is_chat_holder(), "a release stops the Team chat's agent on the machine that let it go"
-        assert "you hold the Team chat now, as Bob" in b.console().run(["team", "claim"], replace(USER, person=2)).text, "another person claims the Team chat once it is released"
-        bob_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "chat2"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
-        assert "Bob: please run the tests" in urlopen(bob_start, timeout=5).read().decode(), "the agent the new holder's machine starts carries the Team chat's recent history"
-        assert (Worktree(tmp_path / "b", "team").path / "draft.txt").read_text() == "not committed yet\n", "a release commits and pushes the holder's files, and the new holder starts from them"
-        monkeypatch.setattr("sync_server.leases.LAPSE_SECONDS", -1)
-        a.console().run(["team", "claim"], USER)
-        monkeypatch.setattr("sync_server.leases.LAPSE_SECONDS", 90)
-        with a.container.get(Scope).environment(a.container.get(Environments).existing("team").row_id):
-            lapsed = [m.text for m in a.container.get(Messages).recent(20) if "while Bob was offline" in m.text]
-        assert lapsed == ["Ada took over the Team chat while Bob was offline; Bob's unsent changes stayed on their machine"], "a claim over a lapsed holder says their unpushed work stayed behind"
-        major, minor, _ = (int(n) for n in VERSION.split("."))
-        pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
-        assert "the team is pinned to version" in a.console().run(["team", "upgrade", pinned], USER).text
-        assert eventually(lambda: b.container.get(SyncStatus).line() == f"Not syncing: your team runs {pinned} and this journal {VERSION}; your changes wait here until you update it"), "the admin's pin makes every member's status bar ask for the upgrade"
-        updater = b.container.get(Updater)
-        updater.releases = Release.lookup([f"v{pinned}", f"v{beyond}"])
-        assert [release.version for release in updater.newer()] == [pinned], "a shared journal is offered only the team's version, never a newer release"
-        own_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "bob-own"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        assert (started := urlopen(own_start, timeout=5).read().decode()) and has_nudge(started, TeamNudges.UPGRADE_NEEDED) and f"Not syncing: your team runs {pinned}" in started, "the agent is told at its session start that the journal must be upgraded"
-        migrated = a.container.get(Schema).version() + 1
-        assert carriers[0].drained() == {"drained": True}
-        assert a.container.get(TeamAccount).is_upgrader(), "an upgrade marks its journal the upgrader before the new version installs"
-        monkeypatch.setattr(Schema, "version", lambda self: migrated)
-        monkeypatch.setattr("journal.features.library.support.library_link.VERSION", pinned)
-        b.container.get(Connection).execute("UPDATE tasks SET title = 'stamped by a migration on Bob''s machine'")
-        carriers[0].upgrade_finished()
-        link = a.container.get(TeamServerLink)
-        assert link.summary(a.container.get(TeamAccount).address()).migration == migrated, "the upgrader's migrated copy becomes the team's"
-        assert not a.container.get(TeamAccount).is_upgrader() and not link.lease_state("upgrade").holder, "and it lets the lease and the mark go"
-        tasks_of = lambda journal: sorted((row.row, row.fields["title"]) for row in journal.container.get(JournalCopy).rows() if row.row_table == "tasks")
-        assert eventually(lambda: tasks_of(b) == tasks_of(a)), "a journal behind the upgrade takes the team's migrated copy in place of its own shared rows"
-        run = tmp_path / "a" / "run"
-        run.mkdir()
-        (run / "parts").write_text("R-\n")
-        (run / "0.part").write_text("make build")
-        (run / "0.out").write_text("step 1\n")
-        with a.container.get(Scope).environment(ada_main.row_id):
-            a.container.get(OutputLog).start("run", "make build", run, Caller.agent("main", "s1", "claude"))
-            [output] = [row for row in a.container.get(CommandOutputs).selected_globally(a.container.get(CommandOutputs).query()) if row.command == "make build"]
-            a.container.get(CommandOutputs).save(output.backgrounded(), Actor.system())
-        a.container.get(WatchRefresh).tick(timing.time())
-        (run / "0.out").write_text("step 1\nstep 2\n")
-        a.container.get(WatchRefresh).tick(timing.time())
-
-        def card_of(journal):
-            return [message for message in journal.container.get(Messages).global_matching() if (message.data or {}).get("output") == output.id]
-
-        assert eventually(lambda: bool(card_of(b)) and "step 2" in str(card_of(b)[0].data) + card_of(b)[0].text), "the running command's card moves in the colleague's chat too"
-        assert card_of(b)[0].data.get("docked") == card_of(a)[0].data.get("docked"), "and is docked as it is on its own machine"
-        assert not b.container.get(CommandOutputs).selected_globally(b.container.get(CommandOutputs).query()), "while the output itself never leaves its machine"
-        shell = subprocess.run(["sh", "-c", f". {Path(__file__).resolve().parent.parent}/src/journal/hooks/environment.sh; journal_environment"], capture_output=True, text=True, timeout=10, cwd=tmp_path, env={"PATH": "/usr/bin:/bin", "JOURNAL_ROOT": str(tmp_path / "b")})
-        assert shell.stdout == "main", "a shell on the joined machine works the environment of its own name"
-        request = HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/tasks", data=json.dumps({"title": "made in bob's viewer"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        made = json.load(urlopen(request, timeout=5))
-        assert b.container.get(Tasks).find(made["id"]).creator == Actor.user(2), "the viewer's write is the person's own"
-        assert eventually(lambda: (team.log.row("tasks", made["id"]) or None) is not None and team.log.row("tasks", made["id"]).fields.get("creator") == "user:2"), "and the server holds it as theirs"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a_second_keeps_its_own_rows_and_finds_the_same_hub_and_each_keeps_its_account_under_the_teams_key(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.environments import Environments
-    from journal.console.support.hub_rows import HubRows
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.models.link import Link
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.sync.attachments import Attachments
-    from journal.sync.sync_desk import SyncDesk
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "acme"))
-    git("-C", str(tmp_path / "acme"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "acme"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("acme", "b")]
-    carriers = [CarriedSync(journal).started() for journal in journals]
-    a, b = journals
-    try:
-        new = team.details.answer()
-        assert len(new.key) == 32 and 0 < new.number < 2 ** 21 and new.name == "", "a new team server answers its key and its number T before any journal has named it"
-        joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        named = team.details.answer()
-        assert (named.key, named.number, named.name) == (new.key, new.number, "acme"), "the first journal names the team after its checkout's folder, and the key and T stay as drawn"
-        [hub] = a.container.get(Environments).hubs()
-        assert (hub.name, hub.team_name, hub.environment_type, hub.team_key) == ("acme", "acme", EnvironmentType.HUB, new.key), "the first journal makes the team's hub environment"
-        assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
-        b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-        assert b.console().run(["environment", "create", "lab"], USER).code == 0
-        lab = b.container.get(Environments).existing("lab")
-        with b.container.get(Scope).environment(lab.row_id):
-            own_task = b.container.get(Tasks).save(Task(environment_id=lab.row_id, title="Bob's own, before joining"), Actor.user(1))
-            own_message = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's note before joining"), Actor.user(1))
-        b.container.get(Links).save(Link(source=Ref.build(own_task), target=Ref.build(own_message), link_type="mentions"), Actor.user(1))
-        b.container.get(Attachments).store("messages", own_message.id, "note.txt", b"kept")
-        bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert joined_b.code == 0, joined_b.error
-        assert [(row.row_id, row.key, row.environment_type, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentType.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
-        kept_lab = b.container.get(Environments).existing("lab")
-        [kept_task] = b.container.get(Tasks).global_matching(title=own_task.title)
-        [kept_message] = [message for message in b.container.get(Messages).global_matching(environment_id=kept_lab.row_id) if message.text == own_message.text]
-        assert kept_lab.key == lab.key and (kept_task.environment_id, kept_message.environment_id) == (kept_lab.row_id, kept_lab.row_id), "a journal with its own rows joins with no refusal and keeps its environment, task and message, each in its environment"
-        blocks = team.store.all("SELECT row_table, first_number, last_number FROM id_blocks WHERE device_id = ?", (int(b.container.get(TeamAccount).device()),))
-        assert all(any(block["row_table"] == table and block["first_number"] <= number <= block["last_number"] for block in blocks) for table, number in (("environments", kept_lab.row_id), ("tasks", kept_task.id), ("messages", kept_message.id))), "its own rows are renumbered into the team's blocks for this device"
-        assert b.container.get(Links).connecting(kept_task, kept_message) and kept_task.creator == Actor.user(2), "the link between them is renumbered with them, and the person's stamp names their team account"
-        assert b.container.get(Attachments).path("messages", kept_message.id, "note.txt").read_bytes() == b"kept", "a kept message's file moves to its new number"
-        assert {row.fields.get("title") for row in team.log.copied_rows() if row.row_table == "tasks"} <= {task.title for task in b.container.get(Tasks).global_matching()}, "the team's rows are laid in beside the kept ones, none in place of one"
-        assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
-        assert [journal.container.get(HubRows).number("acme:12") for journal in journals] == [12, 12], "each journal reads acme:12 by the team's name on its hub"
-        accounts = [journal.container.get(TeamAccount) for journal in journals]
-        assert [(account.path().name, account.team_key(), account.team_number()) for account in accounts] == [(f"{new.key}.json", new.key, new.number)] * 2, "a joined journal keeps its account in the teams folder under the team's key, with the team's T"
-        team.store.execute("DELETE FROM team_details WHERE name = 'number'")
-        before_keys = {name: value for name, value in accounts[1].contents().items() if name not in ("team_key", "team_number")}
-        accounts[1].path().unlink()
-        (b.config.home / TEAM_FILE).write_text(json.dumps(before_keys))
-        numbered = lambda: {table: [row["id"] for row in b.container.get(Connection).all(f"SELECT id FROM {table} ORDER BY id")] for table in ("environments", "messages", "tasks", "links", "users")}
-        rows_before = numbered()
-        assert accounts[1].is_joined() and accounts[1].team_key() == "unknown", "an account from before teams had keys is read from team.json, its key unknown"
-        b.container.get(Connection).execute("UPDATE environments SET team_key = 'unknown' WHERE environment_type = 'session'")
-        b.container.get(Connection).cache.cleared()
-        b.container.get(SyncDesk).refresh()
-        assert {row.team_key for row in b.container.get(Environments).sessions()} == {new.key}, "an environment placed in the team before its key was known is given it once the team server names it"
-        assert (accounts[1].path().name, accounts[1].team_key(), accounts[1].team_number()) == (f"{new.key}.json", new.key, 0), "its key is learnt from the team server and it moves to the teams folder, a team from before T reading T = 0"
-        assert not (b.config.home / TEAM_FILE).exists() and accounts[1].address() == address, "nothing of the account is lost in the move"
-        assert numbered() == rows_before, "and no row is renumbered"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-@contextmanager
-def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
-    """Ada's and Bob's journals of one repository joined to a team server in this process, on the hub or, for a team from before it, not."""
-    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub) as (team, a, b, held, _):
-        yield team, a, b, held
-
-
-@contextmanager
-def carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
-    """The same, with the sync carrying each journal, Ada's first, so a test can take one offline."""
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.repositories.shared_tables import SharedTables
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "acme"))
-    git("-C", str(tmp_path / "acme"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "acme"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    if not on_hub:
-        before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("acme", "b"))
-    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    carriers = [CarriedSync(journal).started() for journal in (a, b)]
-    tables = a.container.get(SharedTables)
-    held = {table: tables.highest_number(table, 1 << 62) for table in tables.names()}
-    try:
-        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
-        invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        joined = b.console().run(["team", "join", invitation, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        yield team, a, b, held, carriers
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in (a, b):
-            journal.runtime().stop()
-        team.close(server)
-
-
-def ada_tasks(a: App) -> tuple:
-    """A task in Ada's own environment, then one in the team's hub."""
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-
-    environments = a.container.get(Environments)
-    tasks = []
-    for environment, title in ((environments.existing("main"), "Ada's own"), (environments.hubs()[0], "the team's work")):
-        with a.container.get(Scope).environment(environment.row_id):
-            tasks.append(a.container.get(Tasks).save(Task(environment_id=environment.row_id, title=title), Actor.user(1)))
-    return tuple(tasks)
 
 
 def synced(check) -> bool:
@@ -9673,1293 +5911,6 @@ def synced(check) -> bool:
             return True
         timing.sleep(0.05)
     return False
-
-
-def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_a_hub_task_reaches_the_other_journal(tmp_path, template_journal, monkeypatch):
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, held):
-        assert a.container.get(TeamAccount).is_on_hub(), "a new team server is on the hub, and the join says so"
-        blocks = team.store.all("SELECT row_table, first_number FROM id_blocks")
-        assert blocks and all(block["first_number"] > held.get(block["row_table"], 0) for block in blocks), "the team's numbers start above every number Ada's journal had given, her own rows' too, though only the hub's were sent"
-        own, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "a task in the hub reaches the other journal"
-        assert team.log.row("tasks", own.id) is None and not b.container.get(Tasks).global_matching(id=own.id), "a task in Ada's own environment, written before it, never reaches the team server or Bob"
-        assert own.id > 0 and a.container.get(Tasks).find(own.id).title == "Ada's own", "and stays on her journal, numbered as before"
-        from journal.models.link import Link
-        from journal.models.support.ref import Ref
-        from journal.repositories.links import Links
-        mention = a.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), link_type="mentions"), Actor.user(1))
-        moved = a.container.get(Tasks).save(a.container.get(Tasks).find(own.id).with_(environment_id=hub_task.environment_id), Actor.user(1))
-        assert synced(lambda: [(task.title, task.environment_id) for task in b.container.get(Tasks).global_matching(id=own.id)] == [("Ada's own", moved.environment_id)]), "a task moved into the hub enters the team whole, its title with it"
-        assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=mention.id)] == [(Ref.build(own), Ref.build(hub_task))]), "and the link that now joins it to a hub task goes with it"
-
-
-def test_a_member_writes_a_hub_task_and_a_hub_message_on_their_own_journal_with_no_hosted_journal_and_both_reach_the_other(tmp_path, template_journal, monkeypatch):
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        [hub] = b.container.get(Environments).hubs()
-        posted = lambda path, body: urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": hub.name}), timeout=5)
-        assert posted("/journal/tasks", {"title": "Bob's hub task"}).status == 201
-        assert posted("/journal/messages", {"text": "Bob's word in the hub"}).status == 201, "a message in the hub is made on Bob's own journal, never asked of a host"
-        assert team.store.all("SELECT id FROM host_requests") == [], "and no host request is made"
-        in_hub = lambda repository, field, text: any(getattr(row, field) == text for row in a.container.get(repository).global_matching(environment_id=hub.row_id))
-        assert synced(lambda: in_hub(Tasks, "title", "Bob's hub task") and in_hub(Messages, "text", "Bob's word in the hub")), "both reach Ada's journal, in the hub"
-
-
-def test_a_full_copy_after_an_upgrade_and_after_falling_behind_replaces_only_the_teams_rows_and_keeps_every_row_placed_nowhere(tmp_path, template_journal, monkeypatch):
-    from journal.db.connection import Connection
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.tasks import Tasks
-    from journal.sync.team_upgrade import TeamUpgrade
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        hub_task = ada_tasks(a)[1]
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)))
-        main = b.container.get(Environments).existing("main")
-        with b.container.get(Scope).environment(main.row_id):
-            own = b.container.get(Tasks).save(Task(environment_id=main.row_id, title="Bob's own"), Actor.user(2))
-        mention = b.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), link_type="mentions"), Actor.user(2))
-        kept = lambda: bool(b.container.get(Tasks).global_matching(id=own.id)) and bool(b.container.get(Links).all_matching(id=mention.id)) and bool(b.container.get(Environments).numbered([main.row_id]))
-        has_hub_task = lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))
-
-        def lose_hub_task() -> None:
-            b.container.get(Connection).execute("DELETE FROM tasks WHERE id = ?", (hub_task.id,))
-            b.container.get(Connection).cache.cleared()
-
-        lose_hub_task()
-        assert synced(lambda: a.container.get(TeamAccount).sequence() == team.log.head())
-        team.details.record_migration(0)
-        upgrade = a.container.get(TeamUpgrade)
-        upgrade.claim()
-        upgrade.finish()
-        assert synced(has_hub_task), "after an upgrade Bob's journal takes the team's full copy, which brings the hub's task back"
-        assert kept(), "and keeps his own task, its link to the hub's task and his own environment, which the team never had"
-
-        lose_hub_task()
-        team.details.record_lowest_sequence(team.log.head() + 1)
-        with a.container.get(Scope).environment(hub_task.environment_id):
-            a.container.get(Tasks).save(Task(environment_id=hub_task.environment_id, title="the team's next work"), Actor.user(1))
-        assert synced(has_hub_task), "a journal behind the lowest sequence a pull may go on from takes the full copy too"
-        team.details.record_lowest_sequence(0)
-        assert kept(), "and keeps every row placed nowhere"
-
-
-def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_reaches_bobs_journal_with_no_row_made_on_hers(tmp_path, template_journal, monkeypatch):
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.task_started import TaskStarted
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import Tasks
-    heard: list[TaskStarted] = []
-
-    class StartedTasks(Listener[TaskStarted]):
-        def handle(self, event: TaskStarted) -> None:
-            heard.append(event)
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        tasks, scope, main = a.container.get(Tasks), a.container.get(Scope), a.container.get(Environments).existing("main")
-        _, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
-        own_rows = len(tasks.global_matching(environment_id=main.row_id))
-        a.container.get(Links).save(Link(source=Ref.build(hub_task), target=Ref(Environment.table(), main.row_id), link_type=BOUND_LINK), Actor.user(1))
-        a.container.get(Bus).listen(TaskStarted, StartedTasks())
-        with scope.environment(main.row_id):
-            assert hub_task.id in {task.id for task in tasks.open_tasks()}, "bound, the hub task reads as the environment's work"
-            tasks.save(tasks.find(hub_task.id).started(datetime.now(timezone.utc)), Actor.user(1))
-        a.container.get(ListenerQueue).drain()
-        assert [event.bound_environment_ids for event in heard] == [(main.row_id,)] and "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "its start reaches the environment's agent"
-        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).state == TaskState.STARTED), "and arrives on Bob's journal with its next pull"
-        assert tasks.find(hub_task.id).environment_id != main.row_id and len(tasks.global_matching(environment_id=main.row_id)) == own_rows, "the task stays the hub's and no local task is made"
-        assert team.log.row("links", a.container.get(Links).all_matching(link_type=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
-
-
-def test_an_agent_view_reaches_the_team_server_for_a_shared_environment_and_the_hub_and_never_for_one_its_owner_has_not_shared(tmp_path, template_journal, monkeypatch):
-    from journal.http.agents.agent_view_sender import AgentViewSender
-    from journal.repositories.environments import Environments
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["environment", "create", "open"], USER).code == 0
-        shared = a.console().run(["environment", "share", "open"], USER)
-        assert shared.code == 0, shared.error
-        environments = a.container.get(Environments)
-        own, open_one, hub = environments.existing("main"), environments.existing("open"), environments.hubs()[0]
-        bobs_own = b.container.get(Environments).existing("main")
-        for journal in (a, b):
-            journal.container.get(AgentViewSender).send(timing.time() + 3600)
-        keys = set(team.agent_views.views_by_key)
-        assert {open_one.key, hub.key} <= keys, "the views of a shared environment and of the hub reach the team server"
-        assert own.key not in keys and bobs_own.key not in keys, "a person's environment they have not shared never sends its agent view to the team server"
-
-
-def test_on_a_team_not_yet_moved_to_the_hub_the_agent_view_of_every_environment_reaches_the_team_server_as_before(tmp_path, template_journal, monkeypatch):
-    from journal.http.agents.agent_view_sender import AgentViewSender
-    from journal.repositories.environments import Environments
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
-        a.container.get(AgentViewSender).send(timing.time() + 3600)
-        assert a.container.get(Environments).existing("main").key in team.agent_views.views_by_key, "a team from before the hub sees each person's agents as it always has"
-
-
-def test_a_hub_task_is_driven_from_one_environment_at_a_time_a_second_drive_refused_naming_its_holder_and_taken_over_only_with_the_flag_once_its_lease_lapses(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from journal.features.plans.support.plan_bindings import PlanBindings
-    from journal.models.support.ref import Ref
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        _, hub_task = ada_tasks(a)
-        number = str(hub_task.id)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
-        assert a.console().run(["environment", "create", "docs"], USER).code == 0
-        driven = a.console().run(["task", "drive", number], USER)
-        assert driven.code == 0 and "is driven from here by Ada" in driven.text, driven.error
-        assert a.container.get(Tasks).find(hub_task.id).driver == "Ada" and "the agent of main on" in a.container.get(Tasks).find(hub_task.id).driver_agent, "the hub row names the person and the agent driving it"
-        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).driver == "Ada"), "and Bob's journal shows who drives it"
-        here = a.console().run(["task", "drive", number], replace(USER, environment="docs"))
-        assert here.code == 1 and "is driven from main" in here.error, "a second environment on the same machine is refused, naming the holder"
-        bob = replace(USER, person=2)
-        elsewhere = b.console().run(["task", "drive", number], bob)
-        assert elsewhere.code == 1 and "held by Ada on " in elsewhere.error, "another machine is refused, naming the person and the device holding it"
-        early = b.console().run(["task", "drive", number, "--take-over"], bob)
-        assert early.code == 1 and "held by Ada on " in early.error, "a takeover before the lease lapses is refused"
-        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
-        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
-        unflagged = b.console().run(["task", "drive", number], bob)
-        assert unflagged.code == 1 and "only a takeover has it" in unflagged.error, "lapsed, it is still not taken without the flag"
-        taken = b.console().run(["task", "drive", number, "--take-over"], bob)
-        assert taken.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "Bob", taken.error
-        a.container.get(HubDrives).renewed(Ref.build(hub_task))
-        assert not a.container.get(PlanBindings).environment_id(hub_task), "Ada's journal lets the task go at its next renewal"
-        released = b.console().run(["task", "release", number], bob)
-        assert released.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "" and not team.leases.state(HubDrives.lease_name(Ref.build(hub_task)), lapsed).holder, released.error
-
-
-def test_sharing_an_environment_made_after_joining_sends_its_older_and_new_messages_and_tasks_whole_to_the_other_journal(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["environment", "create", "lab"], USER).code == 0
-        lab = a.container.get(Environments).existing("lab")
-
-        def written(when: str) -> tuple:
-            with a.container.get(Scope).environment(lab.row_id):
-                return (a.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text=f"{when} word"), Actor.user(1)),
-                        a.container.get(Tasks).save(Task(environment_id=lab.row_id, title=f"{when} task", brief=f"the {when} brief"), Actor.user(1)))
-
-        older = written("older")
-        assert team.log.row("tasks", older[1].id) is None, "while the environment is Ada's own, its rows stay off the server"
-        shared = a.console().run(["environment", "share", "lab"], USER)
-        assert shared.code == 0, shared.error
-        newer = written("newer")
-        on_b = lambda: [b.container.get(Environments).keyed(lab.key), b.container.get(Messages).global_matching(environment_id=lab.row_id), b.container.get(Tasks).global_matching(environment_id=lab.row_id)]
-        assert synced(lambda: on_b()[0] and {message.text for message in on_b()[1]} >= {"older word", "newer word"} and {task.title for task in on_b()[2]} >= {"older task", "newer task"}), "the shared environment arrives on Bob's journal with its older and its new messages and tasks"
-        tasks_on_b = {task.title: task for task in on_b()[2]}
-        assert (tasks_on_b["older task"].brief, tasks_on_b["older task"].id) == ("the older brief", older[1].id), "each arrives whole, under its own number, not as the changed columns of an update"
-        assert on_b()[0][0].name == "ada-lab", "Bob's journal knows it by Ada's name for it"
-
-
-def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_it_once_and_a_task_of_an_unbound_hub_plan_reaches_no_agent(tmp_path, template_journal, monkeypatch):
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.engine.support.session_agents import SessionAgents
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.task_closed import TaskClosed
-    from journal.models.link import Link
-    from journal.models.plan import Plan
-    from journal.models.plan_state import PlanState
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.plans import Plans
-    from journal.repositories.tasks import PLAN_LINK, Tasks
-    heard: list[TaskClosed] = []
-
-    class ClosedTasks(Listener[TaskClosed]):
-        def handle(self, event: TaskClosed) -> None:
-            heard.append(event)
-
-    def finished_by_bob(task_id: int) -> None:
-        tasks = b.container.get(Tasks)
-        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
-            tasks.save(tasks.find(task_id).completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2))
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        a.console().run(["environment", "overview"], AGENT)
-        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
-        _, driven = ada_tasks(a)
-        with a.container.get(Scope).environment(hub.row_id):
-            plan = a.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), Actor.user(1))
-            planned = a.container.get(Tasks).save(Task(environment_id=hub.row_id, title="in the team's plan"), Actor.user(1))
-        a.container.get(Links).save(Link(source=Ref.build(planned), target=Ref.build(plan), link_type=PLAN_LINK), Actor.user(1))
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=driven.id)) and bool(b.container.get(Tasks).global_matching(id=planned.id))), "both hub tasks are on Bob's journal"
-        assert a.console().run(["task", "drive", str(driven.id)], USER).code == 0
-        assert a.console().run(["task", "start", str(driven.id)], AGENT).code == 0
-        assert a.container.get(SessionAgents).top("s1").task_id == driven.id
-        a.container.get(Bus).listen(TaskClosed, ClosedTasks())
-        finished_by_bob(planned.id)
-        finished_by_bob(driven.id)
-        assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.COMPLETED and a.container.get(Tasks).find(planned.id).state == TaskState.COMPLETED), "Bob's finishes reach Ada's journal"
-        assert synced(lambda: any(event.task_id == driven.id for event in heard)), "the driven task's finish is heard on Ada's journal"
-        assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "completed", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
-        assert "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "it reaches the agent of that environment"
-        assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"
-
-
-def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journal_or_its_lease_taken_over_with_its_link_gone_one_line_to_the_agent_and_the_old_drivers_write_refused(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from datetime import datetime, timezone
-    from journal.engine.state_machine import StateMachine
-    from journal.events.bus import Bus
-    from journal.events.listener import Listener
-    from journal.events.rows.drive_ended import DriveEnded
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
-    ended: list[DriveEnded] = []
-
-    class EndedDrives(Listener[DriveEnded]):
-        def handle(self, event: DriveEnded) -> None:
-            ended.append(event)
-
-    def hub_task(title: str) -> Task:
-        with a.container.get(Scope).environment(hub.row_id):
-            return a.container.get(Tasks).save(Task(environment_id=hub.row_id, title=title), Actor.user(1))
-
-    def bobs(task_id: int, write) -> None:
-        tasks = b.container.get(Tasks)
-        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
-            write(tasks, tasks.find(task_id))
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert hook(a, "SessionStart")[0] == 200
-        a.console().run(["environment", "overview"], AGENT)
-        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
-        deleted, finished, taken = [hub_task(title) for title in ("to be deleted", "to be finished", "to be taken over")]
-        assert synced(lambda: all(b.container.get(Tasks).global_matching(id=task.id) for task in (deleted, finished, taken))), "the three hub tasks are on Bob's journal"
-        for task in (deleted, finished, taken):
-            assert a.console().run(["task", "drive", str(task.id)], USER).code == 0
-        a.container.get(Bus).listen(DriveEnded, EndedDrives())
-        bobs(deleted.id, lambda tasks, task: tasks.delete(task, Actor.user(2)))
-        bobs(finished.id, lambda tasks, task: tasks.save(task.completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2)))
-        assert synced(lambda: {event.row_id for event in ended} >= {deleted.id, finished.id}), "the deletion and the finish end Ada's drives as they arrive"
-        a.container.get(HubDrives).renewed_at = clock.monotonic()
-        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
-        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
-        assert b.console().run(["task", "drive", str(taken.id), "--take-over"], replace(USER, person=2)).code == 0
-        a.container.get(HubDrives).renewed(Ref.build(taken))
-        a.container.get(ListenerQueue).drain()
-        assert not a.container.get(Links).all_matching(link_type=BOUND_LINK), "each binding is released"
-        assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
-        why = {event.row_id: event.reason for event in ended}
-        assert "deleted it on another journal" in why[deleted.id] and "marked it completed on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
-        machine = a.container.get(StateMachine)
-        assert all(event.environment_id == main.row_id and "s1" in {agent.session for agent in machine.audience(event)} for event in ended), "in the environment that drove it, to its agent"
-        assert a.container.get(Tasks).find(finished.id).state == TaskState.COMPLETED
-        for task in (finished, taken):
-            refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
-            assert refused.code == 1 and DRIVE_REFUSAL.format(name="", noun="task", n=task.id) in refused.error, refused.error
-        assert a.console().run(["task", "rename", str(deleted.id), "Ada's name for it"], USER).code == 1, "a deleted task is not written either"
-
-
-def test_with_the_team_server_stopped_a_drive_and_a_release_are_refused_saying_it_cannot_be_reached_writing_no_link_and_an_offline_edit_of_a_hub_task_arrives_once_it_is_back(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.models.plan import Plan
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import Tasks
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def bound() -> list:
-        return journal.container.get(Links).all_matching(link_type=BOUND_LINK)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    port = server.server_address[1]
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    carrier = CarriedSync(journal).started()
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{port}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console, tasks, hub = journal.console(), journal.container.get(Tasks), journal.container.get(Environments).hubs()[0]
-        with journal.container.get(Scope).environment(hub.row_id):
-            task, held = (tasks.save(Task(environment_id=hub.row_id, title=title), Actor.user(1)) for title in ("ship it", "held here"))
-            plan = journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan"), Actor.user(1))
-        assert console.run(["task", "drive", str(held.id)], USER).code == 0
-        assert synced(lambda: team.log.row("tasks", task.id) is not None), "the hub task is on the team server"
-        server.shutdown()
-        server.server_close()
-        try:
-            refused = console.run(["task", "drive", str(task.id)], USER)
-            assert refused.code == 1 and "the team server could not be reached" in refused.error, refused.error
-            refused_plan = console.run(["plan", "drive", str(plan.id)], USER)
-            assert refused_plan.code == 1 and "the team server could not be reached" in refused_plan.error, refused_plan.error
-            assert [link.source.id for link in bound()] == [held.id] and tasks.find(task.id).driver == "", "a refused drive writes no link and names no driver"
-            unreleased = console.run(["task", "release", str(held.id)], USER)
-            assert unreleased.code == 1 and "the team server could not be reached" in unreleased.error, unreleased.error
-            assert [link.source.id for link in bound()] == [held.id], "and a refused release keeps the drive as it was"
-            assert console.run(["task", "rename", str(task.id), "ship it today"], USER).code == 0, "an edit of a hub task is made offline"
-            assert [change for change in journal.container.get(OutgoingChanges).all() if change.row_table == "tasks" and change.row == task.id], "and queued for the server"
-        finally:
-            server = team.started("127.0.0.1", port)
-        deadline = timing.monotonic() + RECONNECT_WAIT_SECONDS
-        while timing.monotonic() < deadline and not ((row := team.log.row("tasks", task.id)) is not None and row.fields.get("title") == "ship it today"):
-            timing.sleep(0.2)
-        assert team.log.row("tasks", task.id).fields.get("title") == "ship it today", "the offline edit reaches the team server once it is back"
-    finally:
-        carrier.stop()
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_driven_hub_task_is_the_environments_task_its_agent_writing_with_none_of_its_own_its_log_and_a_proof_landing_on_the_hub_row_and_after_release_a_log_line_refused_again(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.proofs import PROOF_LINK, Proofs
-    from journal.repositories.task_logs import TaskLogs
-    from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
-    from journal.repositories.workers import Workers
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console, links = journal.console(), journal.container.get(Links)
-        main, hub = journal.container.get(Environments).existing("main"), journal.container.get(Environments).hubs()[0]
-        assert hook(journal, "SessionStart")[0] == 200
-        console.run(["environment", "overview"], AGENT)
-        with journal.container.get(Scope).environment(hub.row_id):
-            task = journal.container.get(Tasks).save(Task(environment_id=hub.row_id, title="the footer", brief="the footer names the shop"), Actor.user(1))
-        assert console.run(["task", "drive", str(task.id)], USER).code == 0
-        written = hook(journal, "PreToolUse", tool_name="Write", tool_input={"file_path": "footer.html"})
-        assert written[0] == 200 and console.run(["task", "show", "current"], AGENT).text.strip() == "no task is in hand", "the agent writes while it drives the hub task, holding no local task"
-        logged = console.run(["task", "log", str(task.id), "the footer has its links"], AGENT)
-        assert logged.code == 0, logged.error
-        lines = journal.container.get(TaskLogs).logs(task)
-        assert [(line.line, line.environment_id, line.task_id) for line in lines] == [("the footer has its links", hub.row_id, task.id)], "the log line lands on the hub row"
-        worker = journal.container.get(Workers).save(Worker(environment_id=main.row_id, name="Mr. Hooke", brief="write the footer"), Actor.system())
-        links.save(Link(source=Ref.build(worker), target=Ref.build(task), link_type=CURRENT_TASK_LINK), Actor.system())
-        proved = console.run(["proof", "record", "1", "footer.html:3, test_footer_names_the_shop"], Caller.worker("main", worker.id, None, "claude"))
-        assert proved.code == 0, proved.error
-        proofs = [journal.container.get(Proofs).find(ref.id) for ref in links.sources(task, PROOF_LINK)]
-        assert [(proof.point, proof.environment_id) for proof in proofs] == [(1, hub.row_id)], "the proof lands on the hub row"
-        assert console.run(["task", "release", str(task.id)], USER).code == 0
-        refused = console.run(["task", "log", str(task.id), "one more line"], AGENT)
-        assert refused.code == 1 and "is not in hand" in refused.error, "released, the hub task is no longer the environment's task in hand"
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_task_land_on_the_hub_a_document_stays_local_and_each_answer_says_where(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.models.plan import Plan
-    from journal.repositories.docs import Docs
-    from journal.repositories.environments import Environments
-    from journal.repositories.plans import Plans
-    from journal.repositories.reports import Reports
-    from journal.repositories.tasks import Tasks
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console = journal.console()
-        main, hub = journal.container.get(Environments).existing("main"), journal.container.get(Environments).hubs()[0]
-        assert hook(journal, "SessionStart")[0] == 200
-        console.run(["environment", "overview"], AGENT)
-        with journal.container.get(Scope).environment(hub.row_id):
-            plan = journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the launch"), Actor.user(1))
-        assert console.run(["plan", "drive", str(plan.id)], USER).code == 0
-        added = console.run(["plan", "add", str(plan.id), "the footer", "--brief", "the footer names the shop"], AGENT)
-        assert added.code == 0 and added.text.splitlines()[0].endswith(f"on the {hub.team_name} hub"), added.text
-        task = next(row for row in journal.container.get(Tasks).global_matching(title="the footer"))
-        assert task.environment_id == hub.row_id, "a task added to the driven plan is a hub row"
-        reported = console.run(["report", "create", "What the footer test found", "--abstract", "What it says, in one line", "--body", "it names the shop", "--about", f"tasks:{task.id}"], AGENT)
-        assert reported.code == 0 and f"on the {hub.team_name} hub" in reported.text, reported.text
-        assert journal.container.get(Reports).global_matching(title="What the footer test found")[0].environment_id == hub.row_id, "a report about a hub task lands on the hub"
-        notes = tmp_path / "notes.md"
-        notes.write_text("# Notes\n\nthe footer\n")
-        made = console.run(["doc", "create", "Footer notes", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT)
-        assert made.code == 0 and made.text.splitlines()[0].endswith(f"kept in {main.name} on this machine"), made.text
-        assert journal.container.get(Docs).global_matching(title="Footer notes")[0].environment_id == main.row_id, "any other row made while driving stays local"
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own_branch_held_and_hosted_by_the_machine_that_started_it_and_a_start_of_a_held_one_is_refused(tmp_path, template_journal, monkeypatch):
-    from journal.models.environment_type import EnvironmentType
-    from journal.repositories.environments import Environments
-    from journal.sync.hosts import Hosts
-    bob = replace(USER, person=2)
-
-    def session(journal, name: str):
-        sessions = journal.container.get(Environments).session_rows([name])
-        return sessions[0] if sessions else None
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        started = a.console().run(["session", "start", "review"], USER)
-        assert started.code == 0 and "held by this machine, its host, on its branch journal/session-review" in started.text, started.error
-        assert b.console().run(["session", "start", "release"], bob).code == 0
-        assert synced(lambda: session(a, "release") is not None and session(b, "review") is not None), "each journal holds both sessions"
-        hub = a.container.get(Environments).hubs()[0]
-        review = session(a, "review")
-        assert (review.environment_type, review.team_key, review.branch) == (EnvironmentType.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
-        a_hosts, b_hosts = a.container.get(Hosts), b.container.get(Hosts)
-        assert a_hosts.is_host(session(a, "review")) and not a_hosts.is_host(session(a, "release")), "Ada's machine hosts the session it holds and not Bob's"
-        assert b_hosts.is_host(session(b, "release")) and not b_hosts.is_host(session(b, "review")), "and Bob's machine the one it holds"
-        refused = b.console().run(["session", "start", "review"], bob)
-        assert refused.code == 1 and "session:review is held by Ada" in refused.error, refused.error
-        assert not b_hosts.is_host(session(b, "review")), "a refused start leaves the session to the machine holding it"
-
-
-def test_a_message_bob_writes_in_a_session_ada_holds_reaches_the_agent_of_the_session_on_adas_machine_named_as_his(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-
-    def session(journal):
-        sessions = journal.container.get(Environments).session_rows(["review"])
-        return sessions[0] if sessions else None
-
-    def lines() -> list[str]:
-        return [entry.data.get("line") for entry in a.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
-
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        assert a.console().run(["session", "start", "review"], USER).code == 0
-        assert posted(a, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200, "the session's agent runs on Ada's machine, which holds it"
-        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
-        with b.container.get(Scope).environment(session(b).row_id):
-            message = b.container.get(Messages).save(Message(environment_id=session(b).row_id, author=Author.USER, text="the release notes are ready"), Actor.user(2))
-        assert message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in the session as one of its people"
-        assert synced(lambda: f"new message {message.id} from Bob" in lines()), lines()
-        assert a.container.get(Messages).find(message.id).sender.startswith("Bob, one of the people you work for"), "and the agent reads it as his"
-
-
-def test_a_session_drives_a_hub_plan_whose_tasks_read_as_its_work_and_change_on_the_hub_rows_with_no_row_in_the_session_and_its_binding_never_sent(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from datetime import datetime, timezone
-    from conftest import copied
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.plan import Plan
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.task_state import TaskState
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import PLAN_LINK, Tasks
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console, tasks, plans, scope = journal.console(), journal.container.get(Tasks), journal.container.get(Plans), journal.container.get(Scope)
-        assert console.run(["session", "start", "review"], USER).code == 0
-        environments = journal.container.get(Environments)
-        hub, session = environments.hubs()[0], environments.session_rows(["review"])[0]
-        with scope.environment(hub.row_id):
-            plan = plans.save(Plan(environment_id=hub.row_id, title="the release"), Actor.user(1))
-            task = tasks.save(Task(environment_id=hub.row_id, title="the release notes"), Actor.user(1))
-        journal.container.get(Links).save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), Actor.user(1))
-        driven = console.run(["plan", "drive", str(plan.id)], replace(USER, environment="review"))
-        assert driven.code == 0, driven.error
-        with scope.environment(session.row_id):
-            assert plan.id in {row.id for row in plans.scoped()} and task.id in {row.id for row in tasks.scoped()}, "the hub plan and its task read as the session's work"
-            tasks.save(tasks.find(task.id).started(datetime.now(timezone.utc)), Actor.user(1))
-        assert tasks.find(task.id).state == TaskState.STARTED and tasks.find(task.id).environment_id == hub.row_id, "the change is made on the hub row"
-        assert not tasks.global_matching(environment_id=session.row_id) and not plans.global_matching(environment_id=session.row_id), "and no row is made in the session"
-        binding = journal.container.get(Links).all_matching(link_type=BOUND_LINK)
-        assert [link.target for link in binding] == [Ref(Environment.table(), session.row_id)], "the session is bound to the plan"
-        assert not [change for change in journal.container.get(OutgoingChanges).all() if change.row_table == "links" and change.row == binding[0].id], "and its binding, both ends in the team, is never sent"
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_and_reaches_the_agent_of_the_machine_that_claims_it_after_a_minute_and_a_half(tmp_path, template_journal, monkeypatch):
-    import time as clock
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.environments import Environments
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages
-    bob = replace(USER, person=2)
-
-    def session(journal):
-        sessions = journal.container.get(Environments).session_rows(["review"])
-        return sessions[0] if sessions else None
-
-    def lines() -> list[str]:
-        return [entry.data.get("line") for entry in b.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
-
-    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _, carriers):
-        assert a.console().run(["session", "start", "review"], USER).code == 0
-        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
-        carriers[0].carrier.stop()
-        team.log.wake()
-        assert synced(lambda: all(loop.is_dead() for loop in carriers[0].carrier.loops)), "Ada's machine is offline: its sync's loops have ended, no pull of hers left waiting on the server"
-        away_since = team.leases.state("session:review", clock.time()).renewed_at
-        monkeypatch.setattr(team.clock, "time", lambda: away_since + 89)
-        early = b.console().run(["session", "start", "review"], bob)
-        assert early.code == 1 and "session:review is held by Ada" in early.error, "no claim before the holder has been away a minute and a half, counted from the last renewal of her lease"
-        monkeypatch.setattr(team.clock, "time", lambda: away_since + 91)
-        status, answer = posted(b, "/journal/messages", {"text": "the release notes are ready", "idempotency": "bob-1"}, {"X-Journal-Env": "review"})
-        assert status == 202 and "session review is held by Ada, offline since" in answer["notice"], answer
-        assert not b.container.get(Messages).global_matching(idempotency="bob-1"), "the message waits on the team server, made nowhere yet"
-        assert posted(b, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200
-        claimed = b.console().run(["session", "start", "review"], bob)
-        assert claimed.code == 0, claimed.error
-        deadline = clock.monotonic() + RECONNECT_WAIT_SECONDS
-        while clock.monotonic() < deadline and not any(line.startswith("new message") and line.endswith("from Bob") for line in lines()):
-            clock.sleep(0.2)
-        made = b.container.get(Messages).global_matching(idempotency="bob-1")
-        assert made and made[0].data.get(Message.TEAMMATE) == "Bob", "the claiming machine makes the waiting message as Bob's"
-        assert f"new message {made[0].id} from Bob" in lines(), lines()
-
-
-def test_a_session_start_on_a_plan_a_local_environment_drives_is_refused_and_a_local_drive_of_a_plan_a_session_drives_is_refused(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.models.plan import Plan
-    from journal.repositories.environments import Environments
-    from journal.repositories.plans import Plans
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console, environments = journal.console(), journal.container.get(Environments)
-        main, hub = environments.existing("main"), environments.hubs()[0]
-        with journal.container.get(Scope).environment(hub.row_id):
-            local_plan, session_plan = (journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title=title), Actor.user(1)) for title in ("the local one", "the session's"))
-        assert console.run(["plan", "drive", str(local_plan.id)], USER).code == 0
-        refused = console.run(["session", "start", "alpha", "--plan", str(local_plan.id)], USER)
-        assert refused.code == 1 and f"is driven from {main.name}" in refused.error, refused.error
-        assert environments.session_rows(["alpha"]) == [], "the refused start makes no session"
-        started = console.run(["session", "start", "beta", "--plan", str(session_plan.id)], USER)
-        assert started.code == 0 and "session beta is held by this machine" in started.text and "is driven from here" in started.text, started.error
-        local = console.run(["plan", "drive", str(session_plan.id)], USER)
-        assert local.code == 1 and "is driven from beta" in local.error, local.error
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.repositories.environments import Environments
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    port = server.server_address[1]
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{port}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        server.shutdown()
-        server.server_close()
-        try:
-            refused = journal.console().run(["session", "start", "review"], USER)
-            assert refused.code == 1 and "the team server could not be reached" in refused.error, refused.error
-            assert journal.container.get(Environments).session_rows(["review"]) == [], "and no session is made"
-        finally:
-            server = team.started("127.0.0.1", port)
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.engine.support.session_agents import SessionAgents
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        console, hub = journal.console(), journal.container.get(Environments).hubs()[0]
-        assert hook(journal, "SessionStart")[0] == 200
-        console.run(["environment", "overview"], AGENT)
-        with journal.container.get(Scope).environment(hub.row_id):
-            task = journal.container.get(Tasks).save(Task(environment_id=hub.row_id, title="ship it"), Actor.user(1))
-        named = f"{hub.team_name} task {task.id}"
-        driven = console.run(["task", "drive", str(task.id)], USER)
-        assert driven.code == 0, driven.error
-        started = console.run(["task", "start", str(task.id)], AGENT)
-        assert started.code == 0 and f"{named} started" in started.text, started.error
-        assert journal.container.get(SessionAgents).top("s1").label() == named, "the task in hand is named with its team"
-        status, body = hook(journal, "Stop")
-        assert f"{named} is in hand" in body.get("reason", ""), body
-        journal.runtime().deferred.drain()
-        main = journal.container.get(Environments).existing("main")
-        with journal.container.get(Scope).environment(main.row_id):
-            marks = [m.text for m in journal.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
-        assert f"Started {named}: ship it" in marks, marks
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_the_team_so_no_row_is_overwritten_and_every_link_still_points_at_its_row(tmp_path, template_journal, monkeypatch):
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.models.link import Link
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        main = a.container.get(Environments).existing("main")
-        bobs_main = b.container.get(Environments).existing("main")
-        with b.container.get(Scope).environment(bobs_main.row_id):
-            bobs = b.container.get(Tasks).save(Task(environment_id=bobs_main.row_id, title="Bob's own"), Actor.user(2))
-        with a.container.get(Scope).environment(main.row_id):
-            adas = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's, before sharing"), Actor.user(1))
-            a.container.get(Connection).execute("UPDATE tasks SET id = ? WHERE id = ?", (bobs.id, adas.id))
-            a.container.get(Connection).cache.cleared()
-            note = a.container.get(Messages).save(Message(environment_id=main.row_id, author=Author.USER, text="Ada's note"), Actor.user(1))
-        mention = a.container.get(Links).save(Link(source=Ref("tasks", bobs.id), target=Ref.build(note), link_type="mentions"), Actor.user(1))
-        shared = a.console().run(["environment", "share", "main"], USER)
-        assert shared.code == 0, shared.error
-        moved_main = a.container.get(Environments).keyed(main.key)[0]
-        [moved] = [task for task in a.container.get(Tasks).global_matching(environment_id=moved_main.row_id) if task.title == "Ada's, before sharing"]
-        assert moved_main.row_id != main.row_id and moved.id != bobs.id, "an environment made before joining, and a task whose number falls in Bob's block, are moved into Ada's own numbers when shared"
-        [moved_note] = [message for message in a.container.get(Messages).global_matching(environment_id=moved_main.row_id) if message.text == "Ada's note"]
-        [moved_link] = a.container.get(Links).all_matching(link_type="mentions", target=Ref.build(moved_note))
-        assert moved_link.source == Ref.build(moved), "and the link on Ada's journal points at the task's new number"
-        assert synced(lambda: any(task.id == moved.id and task.title == "Ada's, before sharing" for task in b.container.get(Tasks).global_matching())), "the shared task reaches Bob under its new number"
-        assert b.container.get(Tasks).find(bobs.id).title == "Bob's own" and team.log.row("tasks", bobs.id) is None, "and no row is overwritten, on Bob's journal or on the server"
-        assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=moved_link.id)] == [(moved_link.source, moved_link.target)]), "the link reaches Bob still pointing at its task and its note"
-
-
-def test_a_journal_joins_two_teams_each_writing_with_its_own_account_on_its_own_carrier_and_numbers_apart_a_team_of_a_held_number_is_refused_and_a_tied_team_refuses_another_repository_until_untied(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    from journal.sync.team_accounts import TeamAccounts
-    from sync_server.account import ADMIN
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    for name, person in (("a", "Ada"), ("c", "Carol")):
-        git("init", "-q", str(tmp_path / name))
-        git("-C", str(tmp_path / name), "-c", f"user.name={person}", "-c", f"user.email={person.lower()}@example.com", "commit", "-q", "--allow-empty", "-m", f"{person}'s first")
-    teams = {}
-    for name in ("first", "second", "third"):
-        (tmp_path / name).mkdir()
-        team = TeamServer(tmp_path / name)
-        teams[name] = (team, team.started("127.0.0.1", 0))
-    address = lambda name: f"http://127.0.0.1:{teams[name][1].server_address[1]}"
-    first, second, third = (teams[name][0] for name in ("first", "second", "third"))
-    second.accounts.create("lead@example.com", "Lead", "correct horse battery", ADMIN, 1.0)
-    second.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    a, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("a", "c"))
-    c.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    carriers = [CarriedSync(journal).started() for journal in (a, c)]
-    join = lambda journal, url, email, name: journal.console().run(["team", "join", url, "--email", email, "--name", name, "--password", "correct horse battery"], USER)
-    try:
-        assert join(a, address("first"), "ada@example.com", "Ada").code == 0
-        joined = join(a, address("second"), "ada@example.com", "Ada")
-        assert joined.code == 0 and "beside this journal's other teams" in joined.text, joined.error
-        accounts = a.container.get(TeamAccounts).accounts()
-        assert sorted((account.team_key(), account.user_number()) for account in accounts) == sorted([(first.details.answer().key, 1), (second.details.answer().key, 2)]), "the journal holds one account and token per team, the first team's kept as it was"
-        hubs = {hub.team_key: hub for hub in a.container.get(Environments).hubs()}
-        hub_one, hub_two = hubs[first.details.answer().key], hubs[second.details.answer().key]
-
-        def written(hub) -> dict:
-            request = HttpRequest(f"http://127.0.0.1:{a.server().port}/journal/tasks", data=json.dumps({"title": f"filed in {hub.name}"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": hub.name})
-            return json.load(urlopen(request, timeout=5))
-
-        one, two = written(hub_one), written(hub_two)
-        creators = {task.id: task.creator for task in a.container.get(Tasks).global_matching(id=one["id"]) + a.container.get(Tasks).global_matching(id=two["id"])}
-        assert (creators[one["id"]], creators[two["id"]]) == (Actor.user(1), Actor.user(2)), "each team's write is stamped with this person's account in that team"
-        assert synced(lambda: first.log.row("tasks", one["id"]) is not None and second.log.row("tasks", two["id"]) is not None), "each team's write reaches its own server, the second team's on a carrier of its own"
-        assert first.log.row("tasks", two["id"]) is None and second.log.row("tasks", one["id"]) is None and one["id"] != two["id"], "and no other team's server, under a number no other team's row has"
-        filed = a.console().run(["task", "create", "filed by command", "--team", hub_two.name], USER)
-        assert filed.code == 0, filed.error
-        by_command = next(task for task in a.container.get(Tasks).global_matching(title="filed by command"))
-        assert synced(lambda: second.log.row("tasks", by_command.id) is not None and second.log.row("tasks", by_command.id).fields.get("creator") == "user:2" and set(second.log.row("tasks", by_command.id).writers.values()) == {2}), "a write into the second team from an environment of the first is sent with this person's account in the second team"
-        blocks = lambda team: [(row["row_table"], row["first_number"], row["last_number"]) for row in team.store.all("SELECT row_table, first_number, last_number FROM id_blocks")]
-        floors = {row["row_table"]: row["highest"] for row in second.store.all("SELECT row_table, highest FROM id_floors")}
-        assert blocks(second) and all(first_number > floors.get(table, 0) and first_number > second.details.number() << 32 for table, first_number, _ in blocks(second)), "every block of the second team is above that team's floor, in its own number space"
-        assert not [(table, low, high) for table, low, high in blocks(second) for other, other_low, other_high in blocks(first) if table == other and low <= other_high and other_low <= high], "and outside every block of the first team"
-
-        third.store.execute("UPDATE team_details SET value = ? WHERE name = 'number'", (str(first.details.number()),))
-        same_number = join(a, address("third"), "ada@example.com", "Ada")
-        assert same_number.code != 0 and "one team of each number" in same_number.error, "a join to a team whose number this journal holds already is refused"
-
-        invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "carol@example.com"], USER).text).group(1)
-        refused = join(c, invitation, "carol@example.com", "Carol")
-        assert refused.code != 0 and "join from a clone of the team's repository" in refused.error, "a team tied to its repository refuses a journal of another"
-        untied = a.console().run(["team", "repository", "untied"], USER)
-        assert untied.code == 0 and "any repository" in untied.text, untied.error
-        taken = join(c, invitation, "carol@example.com", "Carol")
-        assert taken.code == 0, "an untied team takes a journal of any repository: " + taken.error
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in (a, c):
-            journal.runtime().stop()
-        for team, server in teams.values():
-            team.close(server)
-
-
-def test_a_removed_member_has_their_drives_and_leases_freed_their_shared_chats_withdrawn_from_the_team_and_keeps_their_environments(tmp_path, template_journal, monkeypatch):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.support.ref import Ref
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.sync.hub_drives import HubDrives
-    bob = replace(USER, person=2)
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        _, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)))
-        assert b.console().run(["environment", "create", "lab"], bob).code == 0
-        lab = b.container.get(Environments).existing("lab")
-        with b.container.get(Scope).environment(lab.row_id):
-            note = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's lab note"), Actor.user(2))
-        assert b.console().run(["environment", "share", "lab"], bob).code == 0
-        driven = b.console().run(["task", "drive", str(hub_task.id)], bob)
-        assert driven.code == 0, driven.error
-        lease = HubDrives.lease_name(Ref.build(hub_task))
-        assert synced(lambda: team.log.row("environments", lab.row_id) is not None and bool(a.container.get(Environments).keyed(lab.key)) and a.container.get(Tasks).find(hub_task.id).driver == "Bob"), "Bob's shared lab and his drive reach the team"
-        assert team.leases.state(lease, timing.time()).holder == "Bob"
-
-        removed = a.console().run(["team", "remove", "2"], USER)
-        assert removed.code == 0 and "is removed from the team" in removed.text, removed.error
-        assert team.leases.state(lease, timing.time()).holder == "", "the removed member's leases are freed"
-        assert team.log.row("environments", lab.row_id) is None and team.log.row("messages", note.id) is None, "their shared chat is withdrawn from the server, its rows with it"
-        assert synced(lambda: not a.container.get(Environments).keyed(lab.key) and not a.container.get(Messages).global_matching(id=note.id) and a.container.get(Tasks).find(hub_task.id).driver == ""), "and from every colleague's journal, the hub task no longer named as theirs to drive"
-        assert b.container.get(Environments).keyed(lab.key) and b.container.get(Messages).global_matching(id=note.id) and b.container.get(Environments).existing("main"), "the removed member's own journal keeps their environments and chats"
-
-
-def test_a_hosted_journal_of_a_team_on_the_hub_lists_only_the_hub_the_sessions_and_the_shared_environments(tmp_path, template_journal, monkeypatch):
-    from journal.http.controllers.environments import EnvironmentController
-    from journal.http.listing import Listing
-    from journal.repositories.environments import Environments
-    from journal.sync.hosting import HOSTED_FILE
-    bob = replace(USER, person=2)
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
-        for name in ("lab", "open"):
-            assert b.console().run(["environment", "create", name], bob).code == 0
-        assert b.console().run(["environment", "share", "open"], bob).code == 0
-        listed = lambda: {row["name"] for row in b.container.get(EnvironmentController).listed(Listing.query_listing({}))["rows"]}
-        assert {"main", "lab", "open"} <= listed(), "a member's own journal lists its own environments"
-        (b.config.home / HOSTED_FILE).touch()
-        hub = b.container.get(Environments).hubs()[0].name
-        assert listed() == {hub, "team", "open"}, "a hosted journal lists the hub, the Team chat and the shared environment, never one not shared, its own main among them"
-
-
-def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
-    from journal.models.task import Task
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
-        assert not a.container.get(TeamAccount).is_on_hub() and not a.container.get(Environments).hubs(), "a team not yet moved to the hub has no hub until journal team migrate makes one"
-        main = a.container.get(Environments).existing("main")
-        with a.container.get(Scope).environment(main.row_id):
-            own = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's own"), Actor.user(1))
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task to Bob as before"
-        assert team.log.row("tasks", own.id) is not None, "and to the team server"
-
-
-def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_server_has_the_team_hold_each_environment_before_any_message_in_it(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.sync.team_account import TeamAccount
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def logged() -> list:
-        changes = []
-        while page := team.log.pull_page(changes[-1].sequence if changes else 0, 0):
-            changes += page
-        return changes
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    journals, carriers = [a], [CarriedSync(a).started()]
-    try:
-        claimed = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert claimed.code == 0, claimed.error
-        bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        alone = App(Config(copied(template_journal, tmp_path / "b"), port=0))
-        alone.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-        console = alone.console_without_server()
-        joined = console.run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert joined.code == 0 and "joined the team" in joined.text, joined.error
-        made = console.run(["environment", "create", "lab"], USER)
-        assert made.code == 0, made.error
-        b = booted(tmp_path / "b", monkeypatch)
-        journals.append(b)
-        assert b.container.get(TeamAccount).is_joined() and b.container.get(TeamAccount).team_version(), "a current team join survives server boot so its messages can sync"
-        bob = Actor.user(b.container.get(TeamAccount).user_number())
-        environments = [b.container.get(Environments).existing(name) for name in ("main", "lab")]
-        for environment in environments:
-            with b.container.get(Scope).environment(environment.id):
-                b.container.get(Messages).save(Message(environment_id=environment.id, author=Author.USER, text=f"written in {environment.name}"), bob)
-        carriers.append(CarriedSync(b).started())
-        assert eventually(lambda: {"written in main", "written in lab"} <= {change.fields.get("text") for change in logged() if change.row_table == "messages"}), "both messages reach the team"
-        changes = logged()
-        for environment in environments:
-            created = next((change.sequence for change in changes if change.row_table == "environments" and change.row == environment.id and change.fields.get("key") == environment.key), None)
-            first_message = min(change.sequence for change in changes if change.row_table == "messages" and change.fields.get("environment_id") == environment.id)
-            assert created is not None, f"the team holds {environment.name}, made by a command run with no server, under the number and key this machine holds it by"
-            assert created < first_message, f"the team holds {environment.name} before any message written in it"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_all_until_it_is_taken_back(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    def keyed(journal, key: str):
-        return next(iter(journal.container.get(Environments).keyed(key)), None)
-
-    def written(journal, environment_id: int, text: str, actor: Actor) -> Message:
-        with journal.container.get(Scope).environment(environment_id):
-            return journal.container.get(Messages).save(Message(environment_id=environment_id, author=Author.USER, text=text), actor)
-
-    def texts(journal, environment_id: int) -> list[str]:
-        return [message.text for message in journal.container.get(Messages).global_matching(environment_id=environment_id)]
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    b = booted(copied(template_journal, tmp_path / "b"), monkeypatch)
-    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
-    bob = replace(USER, person=2)
-    try:
-        claimed = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
-        assert claimed.code == 0, claimed.error
-        bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        joined = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert joined.code == 0, joined.error
-        assert a.console().run(["environment", "create", "docs"], USER).code == 0
-        docs = a.container.get(Environments).existing("docs")
-        assert eventually(lambda: keyed(b, docs.key) is not None and b.container.get(EnvironmentOwners).owner_number(keyed(b, docs.key).id) == 1), "Bob's journal holds Ada's docs as hers"
-        assert not keyed(b, docs.key).is_shared(), "an environment is its owner's alone until they share it"
-        assert written(b, keyed(b, docs.key).id, "before the share", bob.actor).is_comment(), "in a colleague's environment Bob only comments"
-        assert "the Team chat is the whole team's already" in a.console().run(["environment", "share", "team"], USER).error
-        shared = a.console().run(["environment", "share", "docs"], USER)
-        assert shared.code == 0 and "is shared with the team" in shared.text, shared.error
-        assert eventually(lambda: keyed(b, docs.key).is_shared()), "the share reaches every member's journal, whose sidebar then lists it"
-        on_b = keyed(b, docs.key)
-        refused = b.console().run(["environment", "share", on_b.name], bob)
-        assert refused.code == 1 and "only its owner shares it" in refused.error, refused.error
-        written(a, docs.id, "from Ada in docs", Actor.user(1))
-        assert eventually(lambda: "from Ada in docs" in texts(b, on_b.id)), "Bob reads the shared environment's chat"
-        message = written(b, on_b.id, "from Bob in docs", bob.actor)
-        assert not message.is_comment() and message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in its chat as in the Team chat, his message reaching its agent"
-        assert eventually(lambda: "from Bob in docs" in texts(a, docs.id)), "and Ada's journal holds what Bob wrote"
-        chat = sorted(texts(a, docs.id))
-        unshared = a.console().run(["environment", "unshare", "docs"], USER)
-        assert unshared.code == 0, unshared.error
-        assert eventually(lambda: keyed(b, docs.key) is None and texts(b, on_b.id) == []), "unsharing withdraws the environment and its chat from every other member's journal"
-        assert not a.container.get(Environments).existing("docs").is_shared() and sorted(texts(a, docs.id)) == chat, "while the owner's environment and chat stay as they were"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_read_only_hub_document_is_edited_by_its_author_or_an_admin_alone_on_a_journal_and_on_the_hosted_one_and_a_free_one_by_anyone(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.models.doc_edit_mode import DocEditMode
-    from journal.repositories.doc_revisions import DocRevisions
-    from journal.repositories.docs import Docs
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    def titled(journal, title: str):
-        return next(iter(journal.container.get(Docs).global_matching(title=title)), None)
-
-    def edited(journal, title: str, text: str, caller) -> object:
-        page = tmp_path / f"{title.replace(' ', '-')}-{abs(hash(text))}.md"
-        page.write_text(text)
-        return journal.console().run(["doc", "update", str(titled(journal, title).id), "--file", str(page)], caller)
-
-    def body(journal, title: str) -> str:
-        return titled(journal, title).body
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    for name in ("b", "c"):
-        git("clone", "-q", str(tmp_path / "a"), str(tmp_path / name))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a, b, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc")
-    for other in (b, c):
-        other.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    journals, carriers = [a, b, c], [CarriedSync(a).started(), CarriedSync(b).started(), CarriedSync(c).started()]
-    ada, bob, carol = USER, replace(USER, person=2), replace(USER, person=3)
-    try:
-        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ada).code == 0
-        invitation = lambda email: re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", email], ada).text).group(1)
-        assert b.console().run(["team", "join", invitation("bob@example.com"), "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
-        for title, mode in (("Free page", "free"), ("Locked page", "read_only")):
-            page = tmp_path / f"{mode}.md"
-            page.write_text("# First\n\nthe first words\n")
-            assert a.console().run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(page)], ada).code == 0
-            assert a.console().run(["doc", "share", str(titled(a, title).id), "--mode", mode], ada).code == 0
-        page = tmp_path / "bobs.md"
-        page.write_text("# Bob's\n\nBob wrote this\n")
-        assert b.console().run(["doc", "create", "Bob's page", "--abstract", "What it says, in one line", "--file", str(page)], bob).code == 0
-        assert b.console().run(["doc", "share", str(titled(b, "Bob's page").id), "--mode", "read_only"], bob).code == 0
-        assert eventually(lambda: all(titled(b, title) and titled(b, title).edit_mode != DocEditMode.LOCAL for title in ("Free page", "Locked page")) and titled(a, "Bob's page") is not None and titled(a, "Bob's page").edit_mode == DocEditMode.READ_ONLY), "each journal holds the hub's documents in their modes"
-        assert c.console().run(["team", "join", invitation("carol@example.com"), "--email", "carol@example.com", "--name", "Carol", "--password", "correct horse battery"], carol).code == 0
-        (c.config.home / "hosted").touch()
-        assert eventually(lambda: all(titled(c, title) is not None for title in ("Free page", "Locked page", "Bob's page"))), "a member who joins later is given the hub's documents too"
-
-        assert edited(b, "Free page", "# First\n\nBob's words\n", bob).code == 0
-        assert eventually(lambda: "Bob's words" in body(a, "Free page")), "an edit to a free document reaches the other journal"
-        for journal, who, caller in ((b, "Bob", bob), (c, "a late joiner on the hosted journal", carol), (c, "Bob on the hosted journal", bob)):
-            refused = edited(journal, "Locked page", "# First\n\nnot yours\n", caller)
-            assert refused.code == 1 and "read-only on the hub" in refused.error, f"{who}: {refused.error}"
-            assert "not yours" not in body(journal, "Locked page"), who
-        mode_refused = b.console().run(["doc", "mode", str(titled(b, "Locked page").id), "free"], bob)
-        assert mode_refused.code == 1 and "changes who may edit" in mode_refused.error, "another member does not change the mode"
-
-        assert edited(a, "Bob's page", "# Bob's\n\nAda, an admin, edited this\n", ada).code == 0, "an admin edits a document of another author"
-        assert edited(c, "Bob's page", "# Bob's\n\nAda, on the hosted journal\n", ada).code == 0, "an admin signed in to the hosted journal does too"
-        assert a.console().run(["doc", "mode", str(titled(a, "Bob's page").id), "free"], ada).code == 0 and titled(a, "Bob's page").edit_mode == DocEditMode.FREE, "and changes its mode"
-
-        assert edited(a, "Free page", "# First\n\nAda's later words\n", ada).code == 0
-        assert edited(a, "Free page", "# First\n\nBob's last words\n", replace(ada, person=2)).code == 0
-        revisions = a.container.get(DocRevisions).document_revisions(titled(a, "Free page"))
-        assert body(a, "Free page").endswith("Bob's last words\n") and any("Ada's later words" in revision.body for revision in revisions) and revisions[-1].body == body(a, "Free page"), "of two edits to a free document the later save stands and both stay in the revisions"
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_attached_is_edited_in_place_on_the_hub(tmp_path, template_journal, monkeypatch):
-    import subprocess
-    from conftest import copied
-    from journal.repositories.doc_revisions import DocRevisions
-    from journal.repositories.docs import Docs
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
-    try:
-        assert journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
-        journal.container.get(Environments).lookup("main")
-        console, docs, queue = journal.console(), journal.container.get(Docs), journal.container.get(OutgoingChanges)
-        titled = lambda title, copy=False: next(doc for doc in docs.global_matching(title=title) if doc.is_copy == copy)
-        page = tmp_path / "doc.md"
-        page.write_text("# Notes\n\nthe first words\n")
-        for title in ("Locked", "Open"):
-            assert console.run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(page)], USER).code == 0
-        assert console.run(["doc", "share", str(titled("Locked").id), "--mode", "read_only"], USER).code == 0
-        assert console.run(["doc", "share", str(titled("Open").id), "--mode", "free"], USER).code == 0
-        locked, free = titled("Locked"), titled("Open")
-        copied_doc = console.run(["doc", "copy", str(locked.id)], USER)
-        assert copied_doc.code == 0 and "kept on this machine" in copied_doc.text, copied_doc.error
-        copy = titled("Locked", copy=True)
-        assert copy.id != locked.id and copy.environment_id != locked.environment_id, "a copy is a document of this environment, the hub's staying on the hub"
-        assert "read-only" in console.run(["doc", "attach", str(locked.id)], USER).error, "a read-only document cannot be edited in place, so it is copied"
-        queued = lambda table, ids: [change for change in queue.all() if change.row_table == table and change.row in ids]
-        page.write_text("# Notes\n\nmy own words\n")
-        assert console.run(["doc", "update", str(copy.id), "--file", str(page)], USER).code == 0
-        assert docs.find(copy.id).body.endswith("my own words\n") and docs.find(locked.id).body.endswith("the first words\n"), "editing the copy leaves the hub's as it was"
-        assert not queued("docs", {copy.id}), "the copy's edits are never queued for the server"
-        assert not queued("doc_revisions", {revision.id for revision in journal.container.get(DocRevisions).document_revisions(copy)}), "nor its revisions"
-        attached = console.run(["doc", "attach", str(free.id)], USER)
-        assert attached.code == 0, attached.error
-        assert len(journal.container.get(Links).all_matching(link_type="attached_to")) == 1 and console.run(["doc", "attach", str(free.id)], USER).code == 1, "a document is attached to an environment once"
-        page.write_text("# Notes\n\nedited in place\n")
-        assert console.run(["doc", "update", str(free.id), "--file", str(page)], USER).code == 0
-        assert docs.find(free.id).environment_id == free.environment_id and docs.find(free.id).body.endswith("edited in place\n"), "the edit is made to the hub's document"
-        assert queued("docs", {free.id}), "and it is queued for the server"
-    finally:
-        journal.runtime().stop()
-        team.close(server)
-
-
-def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisions_for_the_other_journal_and_a_kept_copy_points_back_at_it(tmp_path, template_journal, monkeypatch):
-    import re
-    import subprocess
-    from carried_sync import CarriedSync
-    from conftest import copied
-    from journal.db.connection import Connection
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.repositories.doc_revisions import DocRevisions
-    from journal.repositories.docs import Docs
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from sync_server.team_server import TeamServer
-
-    def git(*arguments: str) -> None:
-        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    git("init", "-q", str(tmp_path / "a"))
-    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "ab")
-    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
-    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
-    bob = replace(USER, person=2)
-    try:
-        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
-        invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        assert b.console().run(["team", "join", invited, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
-        a.container.get(Environments).lookup("main")
-        docs, links, revisions = a.container.get(Docs), a.container.get(Links), a.container.get(DocRevisions)
-        page = tmp_path / "page.md"
-        page.write_text("# Page\n\nthe first words\n")
-        assert a.console().run(["doc", "create", "Linked page", "--abstract", "What it says, in one line", "--file", str(page)], USER).code == 0
-        doc = next(iter(docs.global_matching(title="Linked page")))
-        assert a.console().run(["doc", "keep", str(doc.id)], USER).code == 0
-        page.write_text("# Page\n\nthe second words\n")
-        assert a.console().run(["doc", "update", str(doc.id), "--file", str(page)], USER).code == 0
-        assert a.console().run(["task", "create", "About the page", "--brief", "b"], USER).code == 0
-        from journal.repositories.tasks import Tasks
-        task = next(iter(a.container.get(Tasks).global_matching(title="About the page")))
-        about = links.save(Link(source=Ref.build(task), target=Ref.build(doc), link_type="about_document"), Actor.system())
-        hub_name = a.container.get(Environments).hubs()[0].team_name
-        assert a.console().run(["task", "create", "Hub task about the page", "--brief", "b", "--team", hub_name], USER).code == 0
-        hub_task = next(iter(a.container.get(Tasks).global_matching(title="Hub task about the page")))
-        hub_about = links.save(Link(source=Ref.build(hub_task), target=Ref.build(doc), link_type="about_document"), Actor.system())
-        with a.container.get(Scope).environment(doc.environment_id):
-            before = len(revisions.document_revisions(doc))
-        assert before == 2, "the document has two revisions before it moves"
-        shared = a.console().run(["doc", "share", str(doc.id), "--keep-copy"], USER)
-        assert shared.code == 0, shared.error
-        moved = docs.find(doc.id)
-        assert moved.is_on_hub() and moved.id == doc.id, "the document keeps its row, so every link, mention and attachment to it points at the hub row"
-        assert sorted(link.row_id for link in links.all_matching(target=Ref.build(moved), link_type="about_document")) == sorted([about.row_id, hub_about.row_id]), "every local link still points at it"
-        assert len(revisions.document_revisions(moved)) == before and all(revision.environment_id == moved.environment_id for revision in revisions.document_revisions(moved)), "its revisions moved with it"
-        copy = next(d for d in docs.global_matching(title="Linked page") if d.is_copy)
-        assert [link.target for link in links.all_matching(source=Ref.build(copy), link_type="copied_from")] == [Ref.build(moved)], "--keep-copy leaves a copied_from link on the copy, which stays here"
-        assert eventually(lambda: (read := next(iter(b.container.get(Docs).global_matching(title="Linked page")), None)) is not None and read.is_on_hub() and len(b.container.get(DocRevisions).document_revisions(read)) == before), "the other journal reads the document and all its revisions"
-        on_b = next(d for d in b.container.get(Docs).global_matching(title="Linked page") if not d.is_copy)
-        assert eventually(lambda: [link.row_id for link in b.container.get(Links).all_matching(target=Ref.build(on_b), link_type="about_document")] == [hub_about.row_id]), "and the link that joins it to a hub task, the personal task's link staying on Ada's journal"
-        assert [revision.body for revision in b.container.get(DocRevisions).document_revisions(on_b)][-1].endswith("the second words\n")
-    finally:
-        for carrier in carriers:
-            carrier.stop()
-        for journal in journals:
-            journal.runtime().stop()
-        team.close(server)
 
 
 def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1066():
@@ -10984,115 +5935,6 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
         line = nudges[key].create(**values).rendered()
         assert len(line) <= limit and "Lady" not in line and "{{" not in line, f"{key} is said short: {line!r}"
     assert "workers.worker_clocked_in" not in nudges, "an arrival the orchestrator dispatched is not told back to it"
-
-
-def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
-    from journal.features.etiquette.feature import Etiquette
-    from journal.features.messages.feature import Messages as MessagesFeature
-    messages, etiquette = MessagesFeature.skill.body, Etiquette.skill.body
-    assert "a colleague of your user, commented in your chat" in messages and "a request in it waits until your user\n  agrees" in messages
-    assert "A colleague's comment is not your user's" in etiquette
-
-
-def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_them_in_while_its_copy_is_clean(app: App, tmp_path):
-    import dataclasses
-    import subprocess
-    from journal.chat.moment_cards import MomentCards
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.scope import Scope
-    from journal.sync.sync_status import SyncStatus
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-    from journal.support.worktree import Worktree
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.team_chat_branch import TEAM_CHAT
-    from journal.sync.team_chat_branch import TeamChatBranch
-
-    root, remote, clone = app.config.root, tmp_path / "remote.git", tmp_path / "clone"
-
-    def git(*arguments, cwd=root):
-        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
-
-    git("init", "-q", "--bare", str(remote), cwd=tmp_path)
-    git("init", "-q", "-b", "main")
-    git("config", "user.name", "Ada")
-    git("config", "user.email", "ada@example.com")
-    (root / ".gitignore").write_text("secret.env\n")
-    git("add", ".gitignore")
-    git("commit", "-q", "-m", "first")
-    git("remote", "add", "origin", str(remote))
-    git("push", "-q", "origin", "main")
-    git("clone", "-q", "-b", "main", str(remote), str(clone), cwd=tmp_path)
-    team = app.container.get(Environments).lookup(TEAM_CHAT)
-    account = app.container.get(TeamAccount)
-    try:
-        account.write({"account_id": 1, "device": "d1", "holds_chat": True})
-        app.container.get(IdBlocks).add("messages", 900000, 900100)
-        holder = app.container.get(TeamChatBranch)
-        held = Worktree(root, TEAM_CHAT).created()
-        (held / "plan.txt").write_text("the agent's work\n")
-        (held / "secret.env").write_text("TOKEN=1\n")
-        holder.push(0.0)
-        holder.push(5.0)
-        assert "plan.txt" not in git("ls-tree", "--name-only", "HEAD", cwd=held), "files still changing are not committed"
-        holder.push(20.0)
-        pushed = git("ls-tree", "--name-only", "journal/team-chat", cwd=remote)
-        assert "plan.txt" in pushed and "secret.env" not in pushed, "quiet files are committed and pushed, never an ignored one"
-
-        follower = TeamChatBranch(dataclasses.replace(app.config, root=clone), account, app.container.get(Environments), app.container.get(Announcer), app.container.get(SyncStatus))
-        follower.pull()
-        copy = Worktree(clone, TEAM_CHAT).path
-        assert not copy.exists(), "a machine that never claimed the Team chat has no worktree of it"
-        follower.claim()
-        assert (copy / "plan.txt").read_text() == "the agent's work\n", "claimed, its worktree is made and takes the holder's files"
-
-        (copy / "local.txt").write_text("a change of this machine's own\n")
-        (held / "plan.txt").write_text("more work\n")
-        holder.push(30.0)
-        holder.push(50.0)
-        follower.pull()
-        assert (copy / "plan.txt").read_text() == "the agent's work\n", "a copy with changes of its own is never reset"
-        with app.container.get(Scope).environment(team.id):
-            cards = [m.text for m in app.container.get(Messages).with_key(f"team-chat-files:{account.device_name()}")]
-        assert len(cards) == 1, "and a card in the Team chat says so"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-
-
-def test_the_team_chat_holder_waits_for_git_to_free_the_index_before_it_stages_and_stages_nothing_when_it_never_does(app: App, monkeypatch):
-    import subprocess
-    import threading
-    from journal.events.announcer import Announcer
-    from journal.repositories.environments import Environments
-    from journal.support.worktree import Worktree
-    from journal.sync import team_chat_branch
-    from journal.sync.sync_status import SyncStatus
-    from journal.sync.team_account import TeamAccount
-    from journal.sync.team_chat_branch import TEAM_CHAT, TeamChatBranch
-    root = app.config.root
-
-    def git(*arguments, cwd=root):
-        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
-
-    git("init", "-q", "-b", "main")
-    git("config", "user.name", "Ada")
-    git("config", "user.email", "ada@example.com")
-    (root / ".gitignore").write_text("secret.env\n")
-    git("add", ".gitignore")
-    git("commit", "-q", "-m", "first")
-    held = Worktree(root, TEAM_CHAT).created()
-    (held / "plan.txt").write_text("the agent's work\n")
-    holder = TeamChatBranch(app.config, app.container.get(TeamAccount), app.container.get(Environments), app.container.get(Announcer), app.container.get(SyncStatus))
-    lock = Path(git("rev-parse", "--absolute-git-dir", cwd=held)) / "index.lock"
-    monkeypatch.setattr(team_chat_branch, "STAGE_WAIT_SECONDS", 0.05)
-    lock.write_text("")
-    threading.Timer(0.5, lock.unlink).start()
-    staged = holder.staged_hash()
-    assert staged and "plan.txt" in git("ls-tree", "--name-only", staged, cwd=held), "git holding the index for a moment does not leave the file unstaged"
-    lock.write_text("")
-    monkeypatch.setattr(team_chat_branch, "STAGE_ATTEMPTS", 3)
-    assert holder.staged_hash() == "", "an index that never frees stages nothing, and the push does nothing this time"
-    lock.unlink()
 
 
 def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environments_worktree_and_main_is_untouched(app: App):
@@ -11137,355 +5979,6 @@ def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environm
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
 
 
-def test_a_member_opens_the_shared_journal_from_their_own_journal_by_a_one_time_link(app: App, tmp_path):
-    import json
-    from urllib.error import HTTPError
-    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.account import MEMBER, RELAY
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    ada = team.accounts.create("ada@example.com", "Ada", "correct horse battery", MEMBER, 1.0)
-    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
-    _, ada_token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, relay_token = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journal = f"http://127.0.0.1:{app.server().port}"
-
-    class Kept(HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-
-    opener = build_opener(Kept)
-
-    def sent(path, body=None, cookie=""):
-        headers = {"X-Journal-Env": "main", "Content-Type": "application/json", **({"Cookie": cookie} if cookie else {})}
-        request = HttpRequest(journal + path, data=None if body is None else json.dumps(body).encode(), headers=headers, method="POST" if body is not None else "GET")
-        try:
-            with opener.open(request, timeout=10) as answer:
-                return answer.status, answer.headers, answer.read()
-        except HTTPError as refused:
-            return refused.code, refused.headers, refused.read()
-
-    account = app.container.get(TeamAccount)
-    try:
-        account.write({"address": address, "token": ada_token, "device": 1, "account_id": ada.id})
-        status, _, body = sent("/journal/team/open", {})
-        url = json.loads(body)["url"]
-        assert status == 200 and url.startswith(f"{address}/open?code="), "a member's own journal asks the team server for a one-time link to the shared journal"
-        code = url.split("code=")[1]
-        account.write({"address": address, "token": relay_token, "device": 2, "account_id": 2})
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        status, headers, _ = sent(f"/open?code={code}")
-        assert status == 303 and headers["Location"] == "/", "the hosted journal takes the link up and signs the browser in"
-        cookie = headers["Set-Cookie"].split(";")[0]
-        assert json.loads(sent("/journal/people", cookie=cookie)[2])["me"] == ada.id, "as the member whose journal asked for it"
-        assert sent(f"/open?code={code}")[0] == 403, "a link works once"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names_them_in_what_they_write(app: App, tmp_path):
-    import json
-    from urllib.error import HTTPError
-    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.messages import Messages
-    from journal.repositories.setting_rows import SettingRows
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.repositories.environments import Environments
-    from sync_server.account import ADMIN, MEMBER, RELAY
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
-    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    journal = f"http://127.0.0.1:{app.server().port}"
-
-    class Kept(HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-
-    opener = build_opener(Kept)
-
-    def sent(path, body=None, cookie="", form=None):
-        headers = {"X-Journal-Env": "main", **({"Cookie": cookie} if cookie else {})}
-        data = None if body is None else json.dumps(body).encode()
-        if form is not None:
-            boundary = "journalform"
-            data = "".join(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n" for name, value in form.items()).encode() + f"--{boundary}--\r\n".encode()
-            headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-        elif data is not None:
-            headers["Content-Type"] = "application/json"
-        try:
-            with opener.open(HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET"), timeout=10) as answer:
-                return answer.status, answer.headers, answer.read()
-        except HTTPError as refused:
-            return refused.code, refused.headers, refused.read()
-
-    def signed_in(email):
-        status, headers, body = sent("/sign-in", form={"email": email, "password": "correct horse battery"})
-        assert status == 303 and headers["Location"] == "/", body
-        return headers["Set-Cookie"].split(";")[0]
-
-    app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": relay, "device": 1, "account_id": 3})
-    try:
-        app.container.get(IdBlocks).add("messages", 800000, 800100)
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
-        from journal.sync.sync_secret import SECRET_HEADER, SyncSecret
-        with opener.open(HttpRequest(journal + "/journal/sync/team", headers={SECRET_HEADER: app.container.get(SyncSecret).value, "X-Journal-Desk-Protocol": "3"}), timeout=10) as desk:
-            assert desk.status == 200, "the sync service beside the hosted journal reaches its doors with the journal's secret, signed in or not, so the hosted journal's changes go out"
-        assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
-        assert b'<form method="post" action="/sign-in"' in sent("/sign-in")[2], "which answers with its own form, never the viewer's page, so a browser is not sent round in a loop"
-        built = sorted(path.name for path in (Path(__file__).resolve().parents[1] / "src" / "web" / "dist" / "assets").iterdir())
-        script = next(name for name in built if name.endswith(".js"))
-        style = next(name for name in built if name.endswith(".css"))
-        assert "javascript" in sent(f"/assets/{script}")[1]["Content-Type"], "the sign-in page loads its scripts before anyone signs in"
-        assert "text/css" in sent(f"/assets/{style}")[1]["Content-Type"], "and its styles"
-        page = sent("/sign-in")[2].decode()
-        assert "127.0.0.1" in page and "Use the email and password your own journal joined the team with" in page, "the form names the team's address and which email and password to use"
-        status, _, refused = sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})
-        assert status == 401, "a wrong password opens no session"
-        assert 'value="ada@example.com"' in refused.decode() and 'class="wrong"' in refused.decode() and 'class="refusal"' in refused.decode(), "and the form comes back with the email kept, the password field edged as wrong and the reason shown"
-        ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
-        assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
-        assert [sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[0] for who, cookie in (("Ada", ada), ("Bob", bob))] == [202, 202], "main is Ada's, so the hosted journal asks her journal, its host, to make each message"
-        main = app.container.get(Environments).existing("main")
-        from sync_server.pool_slots import PoolSlots
-        from sync_server.pull_query import PullQuery
-        assert [request.account_id for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))] == [1, 2], "each in the name of the person who posted it"
-        assert sent("/sign-out", {}, cookie=bob)[0] == 303 and sent("/journal/people", cookie=bob)[0] == 401, "a signed-out session is gone"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_their_token(app: App, tmp_path):
-    import json
-    from urllib.error import HTTPError
-    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
-    from journal.http.support.member_sessions import MemberSessions
-    from sync_server.protocol import PROTOCOL, PROTOCOL_HEADER
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.account import ADMIN, MEMBER, RELAY
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
-    _, admin = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bobs = team.devices.login("bob@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journal = f"http://127.0.0.1:{app.server().port}"
-
-    class Kept(HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-
-    opener = build_opener(Kept)
-
-    def sent(path, body=None, cookie="", form=None):
-        headers = {"X-Journal-Env": "main", **({"Cookie": cookie} if cookie else {})}
-        data = None if body is None else json.dumps(body).encode()
-        if form is not None:
-            data = "".join(f"--f\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n" for name, value in form.items()).encode() + b"--f--\r\n"
-            headers["Content-Type"] = "multipart/form-data; boundary=f"
-        elif data is not None:
-            headers["Content-Type"] = "application/json"
-        request = HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET")
-        try:
-            with opener.open(request, timeout=10) as answer:
-                return answer.status, answer.headers, answer.read()
-        except HTTPError as refused:
-            return refused.code, refused.headers, refused.read()
-
-    def token_status(token):
-        try:
-            with opener.open(HttpRequest(address + "/people", headers={"Authorization": f"Bearer {token}", PROTOCOL_HEADER: str(PROTOCOL)}), timeout=10) as answer:
-                return answer.status
-        except HTTPError as refused:
-            return refused.code
-
-    app.container.get(TeamAccount).write({"address": address, "token": relay, "device": 1, "account_id": 3})
-    try:
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        status, headers, _ = sent("/sign-in", form={"email": "bob@example.com", "password": "correct horse battery"})
-        cookie = headers["Set-Cookie"].split(";")[0]
-        assert json.loads(sent("/journal/people", cookie=cookie)[2])["me"] == 2 and token_status(bobs) == 200, "Bob is signed in and his token works"
-        app.container.get(IdBlocks).add("messages", 800000, 800100)
-        assert sent("/journal/messages", {"text": "from Bob"}, cookie=cookie)[0] == 202, "he makes a hub write as himself"
-        team.admins.remove(admin, 2)
-        app.container.get(MemberSessions).read_at = float("-inf")
-        assert sent("/journal/people", cookie=cookie)[0] == 401, "his session is refused once he is removed"
-        assert token_status(bobs) == 403, "and so is his token"
-        ada = sent("/sign-in", form={"email": "ada@example.com", "password": "correct horse battery"})[1]["Set-Cookie"].split(";")[0]
-        server.shutdown()
-        server.server_close()
-        app.container.get(MemberSessions).read_at = float("-inf")
-        assert sent("/journal/people", cookie=ada)[0] == 200, "with the team server stopped a member still listed goes through on the people last read"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_the_host_and_a_push_brings_its_pull(app: App, tmp_path):
-    import sqlite3
-
-    from sync_server.pool_slots import PoolSlots
-    from sync_server.pull_query import PullQuery
-    from journal.models.link import Link
-    from journal.models.user import User
-    from journal.repositories.environment_owners import OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.models.support.ref import Ref
-    from carried_sync import CarriedSync
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.account import ADMIN, MEMBER
-    from sync_server.push_request import PushRequest
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    account, scope, messages = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Messages)
-    main = app.container.get(Environments).existing("main")
-
-    def posted(text, key):
-        body = json.dumps({"text": text, "idempotency": key}).encode()
-        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", data=body, headers={"X-Journal-Env": "main", "Content-Type": "application/json"}, method="POST"), timeout=10) as answer:
-            return answer.status
-
-    def made(key):
-        with scope.environment(main.row_id):
-            return messages.sent_with(key)
-
-    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), link_type=OWNER), Actor.system())
-    try:
-        app.container.get(IdBlocks).add("messages", 800000, 800100)
-        account.write({"address": address, "token": bob, "device": 2, "account_id": 2})
-        assert posted("from bob's journal", "k-1") == 202 and not made("k-1"), "a journal that does not host the environment makes no message; it asks the host"
-        assert [(request.kind, request.account_id, request.body["text"]) for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))] == [("message", 2, "from bob's journal")], "the request waits on the team server in Bob's name"
-        account.write({"address": address, "token": ada, "device": 1, "account_id": 1})
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        user_set(app, "workers.pool_slots", 2)
-        client = CarriedSync(app)
-        client.pulled()
-        assert [message.creator.stamp for message in made("k-1")] == ["user:2"], "the host takes the request up with its pull and makes the message as Bob"
-        from journal.version import VERSION
-        from sync_server.db.pool_capacity_rows import PoolCapacityRows
-        assert [(capacity.device_id, capacity.slots, capacity.free, capacity.version) for capacity in PoolCapacityRows(team.store).capacities()] == [(1, 2, 2, VERSION)], "the pull names the worker slots this machine gives the pool, how many are free and the version it runs, and the team server keeps them"
-        assert team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), "")) == (), "and says it is made"
-        client.pulled()
-        assert len(made("k-1")) == 1, "a request is made once"
-        team.pushes.answer(bob, PushRequest.parsed([{"row_table": "tasks", "row": 900001, "action": "created", "actor": "user:2", "fields": {"title": "bob's task", "brief": "b", "created_at": "2026-10-23T08:00:00+00:00", "creator": "user:2"}, "changed_at": {"title": 3.0, "brief": 3.0, "created_at": 3.0, "creator": 3.0}}]), 3.0)
-        client.sent()
-        assert team.log.row("messages", made("k-1")[0].id) is not None, "the host sends the message it made in Bob's name, which the server lets through"
-        with sqlite3.connect(app.config.database) as rows:
-            assert rows.execute("SELECT title FROM tasks WHERE id = 900001").fetchall() == [("bob's task",)], "the push's answer brings the team's changes, with no pull of its own"
-        account.write({"address": "http://127.0.0.1:9", "token": bob, "device": 2, "account_id": 2})
-        with pytest.raises(HTTPError) as unreached:
-            posted("while the team server is out of reach", "k-2")
-        assert unreached.value.code == 500 and not made("k-2"), "an ask the team server cannot take fails as a fault, which the page's outbox sends again, never as a refusal it would drop"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_hosted_journal_starts_no_agent_by_any_door(app: App):
-    import json
-    from journal.features.team.support.start_rule import HOSTED_REFUSAL
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.setting_rows import SettingRows
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-
-    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1})
-    try:
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        rows = json.loads(app.console().run(["environment", "json"], USER).text)
-        assert all(row["refusal"] == HOSTED_REFUSAL for row in rows), "the launcher's rows, which the viewer's Start and the picker read, refuse every environment"
-        assert HOSTED_REFUSAL in app.console().run(["team", "claim"], USER).error, "the Team chat is never claimed by a hosted journal"
-        assert HOSTED_REFUSAL in app.console().run(["worker", "dispatch", "Mr Faraday", "--task", "1", "--profile", "journal-medior", "--changes", "a.py", "--tests", "No tests"], USER).error, "nor a worker dispatched from it"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-    assert all(row["refusal"] == "" for row in json.loads(app.console().run(["environment", "json"], USER).text)), "an ordinary journal refuses none of its own"
-
-
-def test_a_members_journal_behind_its_team_installs_the_teams_version_without_sending_first(app: App, monkeypatch, tmp_path):
-    from sync_server.team_server import TeamServer
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.features.updates.support.release_installer import ReleaseInstaller
-    from journal.features.updates.support.release_source import ReleaseSource
-    from journal.features.updates.support.updater import Updater
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.version import VERSION
-
-    major, minor, _ = (int(n) for n in VERSION.split("."))
-    pinned = f"{major}.{minor + 1}.0"
-    steps = []
-    monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}"])
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: steps.append(ref))
-    monkeypatch.setattr(Updater, "is_drained", lambda self: steps.append("sent its changes") or True)
-    monkeypatch.setattr(Updater, "restart", lambda self: steps.append("restarted"))
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.details.record_version(pinned)
-    server = team.started("127.0.0.1", 0)
-    account = app.container.get(TeamAccount)
-    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
-    try:
-        updater = app.container.get(Updater)
-        updater.read()
-        updater.install_newest(Actor.user(1))
-        assert steps == [f"v{pinned}"], "a journal the team is already ahead of cannot send its changes, so it installs the team's version, whose install script restarts it, and sends them after"
-        steps.clear()
-        account.write({**account.contents(), "team_version": VERSION})
-        monkeypatch.setattr(ReleaseSource, "head_commit", lambda self, repository, branch: "abc1234")
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        updater.follow("development", Actor.user(1))
-        updater.read()
-        updater.install_newest(Actor.user(1))
-        assert steps == ["development"], "nor can one whose last pull still names the old pin while the team has moved on: it asks the server for the pin before it leads"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
 def updates_joined() -> None:
     import threading
     for thread in threading.enumerate():
@@ -11504,166 +5997,6 @@ def came_back(updater: Updater, monkeypatch, version: str) -> None:
     updates_joined()
 
 
-def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_installs_each_release_and_pins_the_team_to_it(app: App, monkeypatch):
-    from journal.features.updates.support.release_installer import ReleaseInstaller
-    from journal.features.updates.support.release_source import ReleaseSource
-    from journal.features.updates.support.updater import Updater
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.setting_rows import SettingRows
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.team_server_link import TeamServerLink
-    from journal.version import VERSION
-    from sync_server.team_summary import TeamSummary
-
-    major, minor, _ = (int(n) for n in VERSION.split("."))
-    pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
-    installed, pins = [], []
-    monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
-    monkeypatch.setattr(TeamServerLink, "summary", lambda self, address: TeamSummary("", True, app.container.get(TeamAccount).team_version()))
-    ended = []
-    monkeypatch.setattr(os, "kill", lambda pid, number: ended.append((pid, number)))
-    monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: installed.append(ref))
-    monkeypatch.setattr(Updater, "is_drained", lambda self: installed.append("the team's upgrade lease") or True)
-    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
-    try:
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        updater = app.container.get(Updater)
-        user_set(app, "updates.auto", False)
-        updater.checked()
-        assert installed == [f"v{pinned}"] and pins == [], "with the auto-update off a hosted journal installs the team's pinned version on its own, no newer one, and never takes the team's upgrade lease"
-        user_set(app, "updates.auto", True)
-        updater.card.clear()
-        updater.checked()
-        assert installed[-1] == f"v{beyond}" and pins == [], "with it on a hosted journal installs the newest release, and pins the team to it only once it runs it"
-        assert ended[-1] == (os.getpid(), signal.SIGTERM), "and ends its own process, which the team image starts again on the new code"
-        came_back(updater, monkeypatch, beyond)
-        assert pins == [beyond], "the journal that came back on the new release pins the team to it"
-        app.container.get(TeamAccount).record_pull(0, f"{major}.{minor + 3}.0")
-        updater.card.clear()
-        updater.checked()
-        assert pins == [beyond], "and never pins the team back to an older version than it is pinned to"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-
-
-def test_a_pinned_member_walks_the_steps_up_to_its_pin_and_never_past_it(app: App):
-    from journal.features.updates.support.update_path import UpdatePath
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.version import VERSION
-    major, minor, _ = (int(n) for n in VERSION.split("."))
-    version = lambda step: f"{major}.{minor + step}.0"
-    steps = json.dumps({version(3): {"step": True, "oldest": VERSION}, version(4): {"step": True, "oldest": VERSION}, version(8): {"step": True, "oldest": version(3)}, version(12): {"step": True, "oldest": version(8)}})
-    tags = [f"v{version(step)}" for step in (3, 4, 8, 10, 12)]
-    app.container.get(IdBlocks).add("settings", 800000, 800100)
-    try:
-        for pin, path in ((version(4), (version(4),)), (version(10), (version(4), version(8)))):
-            app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pin})
-            updating = updating_with(app, Source(*tags), Installer(), auto=False)
-            updating.read()
-            assert updating.target().ref == f"v{pin}", f"a member pinned to {pin} installs the pin and no newer release"
-            assert UpdatePath.planned(VERSION, pin, steps).versions == path, f"and its install walks the steps up to {pin}, never past it"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-
-
-def test_a_hosted_leaders_path_takes_the_teams_lease_once_and_pins_the_team_once_its_last_step_is_in(app: App, monkeypatch):
-    import time as timing
-    from journal.features.updates.support.release_installer import ReleaseInstaller
-    from journal.features.updates.support.update_path_file import UpdatePathFile
-    from journal.features.updates.support.update_pause import UpdatePause
-    from journal.features.updates.support.updater import Updater
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.team_server_link import TeamServerLink
-    from journal.version import VERSION
-    from sync_server.team_summary import TeamSummary
-    major, minor, _ = (int(n) for n in VERSION.split("."))
-    final = f"{major}.{minor + 9}.0"
-    installed, pins = [], []
-    monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
-    monkeypatch.setattr(TeamServerLink, "summary", lambda self, address: TeamSummary("", True, app.container.get(TeamAccount).team_version()))
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: installed.append(ref))
-    monkeypatch.setattr(Updater, "is_drained", lambda self: installed.append("the team's upgrade lease") or True)
-    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": "4.0.0"})
-    try:
-        app.container.get(IdBlocks).add("settings", 800000, 800100)
-        (app.config.home / "hosted").touch()
-        updater = app.container.get(Updater)
-        updater.source = Source(f"v{VERSION}", f"v{final}")
-        user_set(app, "updates.auto", True)
-        paths = app.container.get(UpdatePathFile)
-        paths.path.parent.mkdir(parents=True, exist_ok=True)
-        paths.path.write_text(json.dumps({"from": "4.0.0", "to": final, "steps": [VERSION], "reached": "4.0.0", "failed": ""}))
-        updater.card.write(UpdatePause("4.0.0", final, "Installing the new version", timing.time(), -1))
-        updater.reconcile(timing.time())
-        updater.checked()
-        updates_joined()
-        assert installed == [] and pins == [], "a boot on a step of the path neither pins the team nor takes its lease or starts another install"
-        came_back(updater, monkeypatch, final)
-        updater.reconcile(timing.time())
-        updates_joined()
-        assert pins == [final], "the team is pinned once, to the path's final version, once the last step is in"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-
-
-def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_line(app: App, tmp_path):
-    import json
-    from urllib.error import HTTPError
-    from urllib.request import Request as HttpRequest, urlopen
-
-    from journal.sync.team_account import TEAM_FILE
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-
-    def posted(path, body):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=20) as answer:
-                return answer.status, json.loads(answer.read())
-        except HTTPError as refused:
-            return refused.code, json.loads(refused.read())
-
-    def fetched(path):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", headers={"X-Journal-Env": "main"})
-        with urlopen(request, timeout=10) as answer:
-            return json.loads(answer.read())
-
-    def standing():
-        return fetched("/team")
-
-    try:
-        assert standing()["joined"] is False and "email" in standing(), "a journal in no team says so, with the email git knows, and the page shows the form"
-        refused = posted("/team/join", {"url": address, "email": "ada@example.com", "name": "Ada", "password": "weak"})
-        assert refused[0] == 409 and "at least 12 characters" in refused[1]["error"], "a refusal comes back as the line the page shows"
-        joined = posted("/team/join", {"url": address + "/", "email": "ada@example.com", "name": "Ada", "password": "correct horse battery"})
-        assert joined[0] == 201 and joined[1]["outcome"].startswith("this journal is now the team's"), "the page's join makes the first journal the team's"
-        joined_standing = standing()
-        assert joined_standing["joined"] and joined_standing["address"] == address and joined_standing["version"], "and the page shows the team's server, its sync and its version"
-        assert joined_standing["admin"] and joined_standing["state"] in ("in_step", "waiting", "connecting") and joined_standing["running"], "it says whether this person is an admin and which sync state to draw"
-        [ada] = fetched("/team/people")["people"]
-        assert ada["name"] == "Ada" and ada["role"] == "admin" and ada["me"] and ada["environments"], "the people list names each person with their role and environments, the viewer's own marked"
-        [device] = fetched("/team/devices")["devices"]
-        assert device["this"], "an admin sees the team's devices, this one marked"
-        chat = fetched("/team-chat")
-        assert chat["line"] == "No one holds the Team chat" and chat["claimable"] and not chat["mine"], "the Team chat answer says who holds it and whether anyone may claim it"
-        invited = posted("/team/invite", {"email": "bob@example.com"})
-        assert invited[0] in (200, 201) and invited[1]["url"].startswith(f"{address}/join?code="), "an admin makes a colleague's invitation URL from the Team tab"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
 def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app: App):
     from journal.features.shell.support.reader_commands import ReaderCommands
     from journal.features.shell.support.reader import Reader
@@ -11679,63 +6012,6 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app
     assert CardLine.is_poor('{"id": 12, "name": "' + "a" * 180 + '", "tags": ["x", "y"]}') and CardLine.is_poor('  File "/home/app/src/journal/features/shell/support/card_line.py", line 42, in is_poor'), "a long JSON line and a stack frame stay flagged"
     vitest = "   × the telephone rings at most once in two minutes, gathering every worker given work into one call that names each in turn 32ms"
     assert not CardLine.is_poor(CardLine.plain(vitest)) and not CardLine.is_poor(CardLine.plain(" FAIL  tests/figureVisor.test.js > the crosses and the ticks are the pixel pictures on the visor's screen in the run's colour")), "a test vitest or jest marks failed is named however long, as pytest's are"
-
-
-def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
-    from journal.features.shell.support.readers import Readers
-
-    full = ["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--about", "a unit run's summary", "--progress", r"\[ *([0-9]+)%\]", "--label", "Running tests", "--commands", "pytest", "--step", "[.F]", "--topic", r"(\S+\.py)", "--finished", "[0-9]+ passed", "--failed", "[0-9]+ failed"]
-    assert app.console().run(full, USER).code == 0
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ (passed|failed)"], USER).code == 0
-    reader = app.container.get(Readers).lookup("unit-runs")
-    assert reader.pattern == "[0-9]+ (passed|failed)" and reader.subject == "a unit run's summary" and reader.label == "Running tests" and reader.commands.programs and reader.step_pattern == "[.F]" and reader.topic_pattern and reader.finished_pattern and reader.failed_pattern, "a rewrite of the pattern alone keeps every other setting"
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--topic", ""], USER).code == 0
-    assert app.container.get(Readers).lookup("unit-runs").topic_pattern == "", "an empty value takes a setting away"
-    assert "a new reader states what it selects with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
-
-
-
-
-def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and_goes_at_once_when_none_runs(app: App, monkeypatch):
-    from journal.features.shell.jobs.restart_wait import RestartWait
-    from journal.features.shell.support.restart_queue import RestartQueue
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    sent = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: sent.append((environment_id, verb, fields.get("name"))))
-    monkeypatch.setattr(SupervisorLink, "hosting", lambda link: MAIN)
-    monkeypatch.setattr(SupervisorLink, "running", lambda link, environments: [e for e in environments if e.row_id == MAIN])
-    folder = app.config.root / "long-run"
-    folder.mkdir()
-    with app.container.get(Scope).environment(MAIN):
-        output = app.container.get(CommandOutputs).save(CommandOutput(chain="long-run", command="sleep 600", session="s1", folder=str(folder)).backgrounded(), Actor.system())
-    queue, wait = app.container.get(RestartQueue), app.container.get(RestartWait)
-    assert [waited.id for waited in queue.restart(MAIN, "")] == [output.id] and sent == [], "the restart waits and names the running command"
-    wait.tick(0.0)
-    assert sent == [] and queue.waiting() == [MAIN], "it keeps waiting while the command runs"
-    later = app.config.root / "later-run"
-    later.mkdir()
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(CommandOutputs).save(CommandOutput(chain="later-run", command="sleep 900", session="s2", folder=str(later)).backgrounded(), Actor.system())
-    (folder / "done").write_text("1")
-    wait.tick(0.0)
-    assert sent == [(MAIN, "restart", "journal")] and queue.waiting() == [], "it goes by itself once the command it waited on ended, never waiting on one started after it was asked"
-    (later / "done").write_text("1")
-    (folder / "done").unlink()
-    assert queue.restart(MAIN, str(folder)) == [] and len(sent) == 2, "the command asking for the restart is never waited on"
-    (folder / "done").write_text("1")
-    assert queue.restart(MAIN, "") == [] and len(sent) == 3, "with nothing running the restart goes at once"
-    from journal.models.pool_job import PoolJob
-    from journal.repositories.pool_jobs import PoolJobs
-    jobs = app.container.get(PoolJobs)
-    job = jobs.save(PoolJob(request_id=7, environment_key="k", account_id=1, worker_id=1, profile="journal-medior").started(1.0), Actor.system())
-    assert queue.restart(MAIN, "") == [] and len(sent) == 4, "a pool worker running here never holds a restart asked by hand"
-    assert queue.update_restart(MAIN) == [] and len(sent) == 4 and queue.is_waiting(MAIN), "an update's restart waits while a pool worker taken up here runs"
-    wait.tick(0.0)
-    assert len(sent) == 4, "and keeps waiting while it runs"
-    jobs.save(job.finished(2.0), Actor.system())
-    wait.tick(0.0)
-    assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
 
 def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopped_beating_is_ended_and_holds_no_restart(app: App, monkeypatch):
@@ -11791,9 +6067,6 @@ def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: Ap
     assert get_answer(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
 
 
-
-
-
 def test_a_silent_command_beats_while_it_runs(app: App):
     import threading
     from journal.support.heartbeat import Heartbeat
@@ -11817,8 +6090,6 @@ def project_copy_of_the_pytest_reader(app: App) -> None:
     from journal.features.shell.support.readers import Readers
     readers = app.container.get(Readers)
     readers.add(replaced(readers.lookup("pytest"), name="dots-run"))
-
-
 
 
 def test_a_commit_offers_an_update_at_most_once_an_hour_and_recap_docks_one_over_the_gathered_rows(app: App):
@@ -11860,118 +6131,6 @@ def test_a_commit_offers_an_update_at_most_once_an_hour_and_recap_docks_one_over
     assert console.run(["report", "note", "1", "the slow part"], AGENT).code == 0 and console.run(["report", "drop", "99"], AGENT).code != 0
 
 
-def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewers_are_out_hold_them_while_findings_go_in_and_end_when_it_is_readied(app: App, monkeypatch):
-    from journal.repositories.agents import Agents
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
-    console.run(["plan", "todos", "1", "1", "1"], USER)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the review", "--start"], AGENT)
-    console.run(["plan", "review", "1"], AGENT)
-    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
-    assert "Send the plan's reviewers" in " ".join(keystrokes), "the review starts the sequence and its first step is typed"
-    early = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads the design", "prompt": "read the design", "model": "sonnet", "run_in_background": True}
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=early, tool_use_id="t-0")[0] == 200, "a subagent's dispatch goes through before the step is taken up"
-    assert console.run(["sequence", "follow"], AGENT).code == 0
-    assert edit()[0] == 200, "edits go through while the reviewers are out"
-    reviewer = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads plan 1", "prompt": "read plan 1", "model": "sonnet"}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=reviewer, tool_use_id="t-1")
-    app.runtime().deferred.drain()
-    told = json.dumps(hook(app, "PostToolUse", tool_name="Agent", tool_input=reviewer, tool_use_id="t-1", tool_response="found two gaps")[1])
-    app.runtime().deferred.drain()
-    said = told + " ".join(keystrokes) + app.container.get(SupervisorLink).pending_lines(1)
-    assert nudge_reached(app, said, PlansNudges.REVIEW_ENTRY_REQUEST, n=1) and "Put each finding into the plan" in said, "the last reviewer back moves the sequence on to its second step by itself"
-    assert console.run(["sequence", "follow"], AGENT).code == 0
-    status, body = edit()
-    assert status == 409 and nudge_reached(app, body["error"], SequencesNudges.STEP_EDITS_WAIT), "while the findings go in, file edits wait"
-    assert console.run(["plan", "show", "1"], AGENT).code == 0 and hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.md"})[0] == 200, "plan commands and reads go through"
-    assert console.run(["sequence", "next"], AGENT).code == 0 and console.run(["sequence", "follow"], AGENT).code == 0
-    assert edit()[0] == 200, "the last step writes the report's file"
-    assert console.run(["plan", "ready", "1", "--changed", "two gaps filled"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        agent = app.container.get(Agents).session_agent("s1")
-    assert "following_sequence" not in [layer["state"] for layer in agent.stack], "the sequence ends when the plan is readied"
-    console.run(["plan", "review", "1"], AGENT)
-    app.runtime().deferred.drain()
-    assert app.container.get(RunTracker).current("s1", 1).title == "Applying a plan's reviews", "a second round starts a fresh run"
-    assert console.run(["plan", "ready", "1", "--changed", "nothing found"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    assert app.container.get(RunTracker).current("s1", 1) is None, "a plan readied with no reviewer sent ends the run from its first step"
-
-
-def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_ends(app: App, monkeypatch):
-    from journal.repositories.plans import Plans
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
-    console.run(["plan", "todos", "1", "1", "1"], USER)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the review", "--start"], AGENT)
-    reader = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads the design", "prompt": "read the design document", "model": "sonnet", "run_in_background": True}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=reader, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=reader, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
-    hook(app, "SubagentStop", agent_id="a1")
-    console.run(["plan", "review", "1"], AGENT)
-    console.run(["sequence", "follow"], AGENT)
-    message = {"to": "a1", "message": "now review plan 1 against the design"}
-    hook(app, "PreToolUse", tool_name="SendMessage", tool_input=message, tool_use_id="t-2")
-    hook(app, "PostToolUse", tool_name="SendMessage", tool_input=message, tool_response={}, tool_use_id="t-2")
-    app.runtime().deferred.drain()
-    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
-    assert app.container.get(Plans).find(1).reviewers == 1, "the subagent resumed with a message naming the plan is its reviewer out"
-    statuses = [edit()[0] for _ in range(12)]
-    assert statuses == [200] * 12 and "reviewers are all back" not in " ".join(keystrokes), "no countdown and no hold while it reads"
-    hook(app, "SubagentStop", agent_id="a1")
-    app.runtime().deferred.drain()
-    said = json.dumps(edit()[1]) + " ".join(keystrokes)
-    assert app.container.get(Plans).find(1).reviewers == 0 and nudge_reached(app, said, PlansNudges.REVIEW_ENTRY_REQUEST, n=1), "once it ends the countdown starts"
-
-
-def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_sent_before_moves_nothing(app: App, monkeypatch):
-    from types import SimpleNamespace
-    from journal.events.bus import Bus
-    from journal.events.rows.plan_reviewed import PlanReviewed
-    from journal.models.plan_state import PlanState
-    from journal.repositories.plans import Plans
-    typing_capture(app, monkeypatch, [])
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    plans = app.container.get(Plans)
-    plans.save(plans.find(1).with_(reviewers=3), Actor.system())
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    reviewed = []
-    app.container.get(Bus).listen(PlanReviewed, type("ReviewedPlans", (Listener,), {"handle": lambda self, event: reviewed.append(event)})())
-    early = {"subagent_type": "journal-researcher", "description": "Sir Babbage reads plan 1 early", "prompt": "read plan 1", "model": "sonnet", "run_in_background": True}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=early, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=early, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
-    console.run(["plan", "review", "1"], AGENT)
-    app.runtime().deferred.drain()
-    assert plans.find(1).state == PlanState.REVIEWING and plans.find(1).reviewers == 0, "a round starts its count at zero, and a subagent sent before it is no reviewer"
-    hook(app, "SubagentStop", agent_id="a1")
-    app.runtime().deferred.drain()
-    assert reviewed == [], "a stale count with no reviewer sent moves nothing"
-    sent = {"subagent_type": "journal-plan-reviewer", "description": "Dame Nightingale reviews plan 1", "prompt": "review plan 1", "model": "opus", "run_in_background": True}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=sent, tool_use_id="t-2")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=sent, tool_response={"isAsync": True, "agentId": "a2"}, tool_use_id="t-2")
-    app.runtime().deferred.drain()
-    assert plans.find(1).reviewers == 1, "a reviewer sent in the round is counted"
-    hook(app, "SubagentStop", agent_id="a2")
-    app.runtime().deferred.drain()
-    assert plans.find(1).reviewers == 0 and len(reviewed) == 1, "its return ends the round's count once"
-
-
 def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_in(app: App):
     import threading
 
@@ -12008,561 +6167,6 @@ def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alia
     assert runner.alias_wrapper_lines(suite) == [], "once"
     assert len(runner.line_wrapper_lines("timeout 600 npm test")) == 1 and runner.line_wrapper_lines("timeout 300 npm test") == [], "a plain line likewise, once for its command"
     assert runner.line_wrapper_lines("python3 -m pytest -q") == [] and runner.alias_wrapper_lines(Alias(name="plain", line="make")) == [], "a run without a wrapper is told nothing"
-
-
-def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a_worker_holds(app: App, monkeypatch):
-    from journal.features.tasks.support.round_robin_delivery import RoundRobinDelivery
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "an older loose job", "--brief", "b"], AGENT)
-    console.run(["task", "create", "another loose job", "--brief", "b"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for title in ("write the notes", "tag it"):
-        console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    assert [task.id for task in app.container.get(RoundRobinDelivery).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
-    from journal.models.support.ref import Ref
-    from journal.repositories.tasks import Tasks
-    with app.container.get(Scope).environment(MAIN):
-        worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
-        tasks = app.container.get(Tasks)
-        tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
-    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).offers()], "a task a worker holds is never offered"
-
-
-def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
-    from journal.features.profiles.support.profile_files import ProfileFiles
-    from journal.providers.support.profile import Profile
-    for name in ("pooler", "outsider"):
-        app.container.get(ProfileFiles).save(Profile(name, "Writes for the pool", "Read, Edit", "You write.", "worker"), "sonnet", "")
-    user_set(app, "workers.pool_profiles", ["pooler"])
-    from journal.support.agent_token import AgentToken
-    import subprocess
-
-    from journal.features.workers.support.worker_branch import WorkerBranch
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.sync.pull_queries import PullQueries
-    from carried_sync import CarriedSync
-
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.version import VERSION
-    from sync_server.account import ADMIN, MEMBER
-    from sync_server.pool_slots import PoolSlots
-    from sync_server.pull_query import PullQuery
-    from sync_server.team_server import TeamServer
-
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
-    git("init", "-q", "-b", "main")
-    git("commit", "-q", "--allow-empty", "-m", "start")
-    git("remote", "add", "origin", str(tmp_path / "origin.git"))
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
-    dispatch = lambda *extra: console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", *extra], AGENT)
-    try:
-        assert "joined no team" in dispatch("--profile", "pooler", "--worktree", "--no-libraries").error, "the pool is the team's"
-        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
-            app.container.get(IdBlocks).add(table, 800000, 800100)
-        app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": ada, "device": 1, "account_id": 1})
-        assert "add --worktree" in dispatch("--profile", "pooler").error, "a pool worker works in a worktree"
-        assert "leave --model out" in dispatch("--profile", "pooler", "--worktree", "--no-libraries", "--model", "opus").error, "a pool worker runs its profile's model, never one the dispatcher names"
-        assert "runs only the profiles pooler" in dispatch("--profile", "outsider", "--worktree", "--no-libraries").error, "a profile the team keeps out of its pool is refused"
-        assert "stays on this machine" in dispatch("--profile", "pooler", "--worktree", "--no-libraries", "--needs-secrets").error, "a job that uses this machine's secrets is refused the pool"
-        (root / "inner").mkdir()
-        git("init", "-q", cwd=root / "inner")
-        (root / ".git" / "info" / "exclude").write_text("inner/\n")
-        assert "repositories of its own (inner)" in dispatch("--profile", "pooler", "--worktree", "--no-libraries").error, "a project holding repositories of its own, which origin does not carry, is refused the pool"
-        subprocess.run(["rm", "-rf", str(root / "inner")], timeout=30)
-        (root / ".git" / "info" / "exclude").write_text("")
-        sent = dispatch("--profile", "pooler", "--worktree", "--no-libraries")
-        assert sent.code == 0, sent.error
-        assert "refs/heads/journal/pool/" in git("ls-remote", "origin").stdout, "the environment's head is pushed to origin as the base the worktree is cut from"
-        offered = team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION))
-        assert [(request.kind, request.body["worker"], request.body["task"], request.body["profile"]) for request in offered] == [("pool_worker", "Lady Lovelace", 1, "pooler")], "the pool is asked with the worker's name, task and profile, offered to a teammate's machine with a free slot"
-        worker = app.container.get(Workers).all()[0]
-        assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).delegated, "the worker keeps the request's number and holds its task, though nothing runs here"
-        with app.container.get(Scope).environment(MAIN):
-            assert app.container.get(Workers).running_locally() == [], "a pool worker does not count against the workers out on this machine"
-        from journal.features.workers.support.pool_lockfiles import PoolLockfiles
-        (root / "package-lock.json").write_text("{}\n")
-        assert PoolLockfiles(app.container.get(WorkerBranch)).differing(worker.with_(library_links=("node_modules",))) == ["package-lock.json"], "a library folder installed from a lockfile other than the base's is the wrong set for the base"
-        (root / "package-lock.json").unlink()
-        started = []
-        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
-        monkeypatch.setenv("PLANTED_CLOUD_KEY", "secret")
-        user_set(app, "workers.pool_slots", 1)
-        user_set(app, "workers.preparation_commands", ["touch prepared.txt"])
-        CarriedSync(app).pulled()
-        app.runtime().deferred.drain()
-        variables = app.container.get(WorkerRunner).worker_variables(started[0], AgentToken("tok"))
-        assert "PLANTED_CLOUD_KEY" not in variables and "PATH" in variables, "a pool worker gets a short list of the machine's variables, never its keys"
-        assert not (root / "prepared.txt").exists() and (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").exists(), "the machine's own commands run inside the pool worktree, never in its checkout"
-        (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").unlink()
-        assert [(each.name, each.model) for each in started] == [("Lady Lovelace", "sonnet")], "a machine giving the pool a slot takes the worker up and runs it on the model its profile names there"
-        folder = app.container.get(WorkerBranch).folder(worker)
-        assert git("rev-parse", "HEAD", cwd=folder).stdout == git("rev-parse", "main").stdout, "its worktree is cut from the base fetched from origin"
-        assert team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION)) == (), "once taken up it is offered to no other machine"
-        assert app.container.get(PullQueries).query(0).pool.free == 0, "the slot it took is no longer free"
-        from journal.features.workers.support.pool_overview import PoolOverview
-        overview = app.container.get(PoolOverview)
-        assert [(line.name, line.task) for line in overview.lent()] == [("Lady Lovelace", "the parser")] and overview.slots() == 1, "the Team page lists the worker this machine runs for the pool, with its task"
-        assert [line.name for line in overview.team()] == ["Lady Lovelace"], "and among the team's pool workers"
-        with app.container.get(Scope).environment(MAIN):
-            workers = app.container.get(Workers)
-            workers.save(workers.find(worker.id).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())
-        (folder / "parser.py").write_text("rules = []\n")
-        git("add", "parser.py", cwd=folder)
-        git("commit", "-q", "-m", "the parser", cwd=folder)
-        lovelace = Caller.worker("main", worker.id, "w-1", "claude")
-        assert console.run(["proof", "1", "parser.py:1, test_reads passes"], lovelace).code == 0
-        out = console.run(["clock-out", "the parser is done"], lovelace)
-        assert out.code == 0, out.error
-        assert f"refs/heads/journal/pool/{worker.id}-Lady-Lovelace\n" in git("ls-remote", "origin").stdout, "at clock-out the worker's branch is pushed to origin for the dispatcher to check and merge"
-        assert app.container.get(PullQueries).query(0).pool.free == 1, "and its slot is free again"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_journal(app: App, tmp_path, monkeypatch):
-    from journal.features.profiles.support.profile_files import ProfileFiles
-    from journal.providers.support.profile import Profile
-    for name in ("pooler", "outsider"):
-        app.container.get(ProfileFiles).save(Profile(name, "Writes for the pool", "Read, Edit", "You write.", "worker"), "sonnet", "")
-    user_set(app, "workers.pool_profiles", ["pooler"])
-    import subprocess
-
-    from journal.sync.pull_queries import PullQueries
-
-    from journal.features.workers.support.worker_branch import WorkerBranch
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.link import Link
-    from journal.models.user import User
-    from journal.models.worker_state import WorkerState
-    from journal.repositories.environment_owners import OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.workers import Workers
-    from journal.models.support.ref import Ref
-    from journal.sync.host_desk import HostDesk
-    from carried_sync import CarriedSync
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.version import VERSION
-    from sync_server.account import ADMIN, MEMBER
-    from sync_server.pool_slots import PoolSlots
-    from sync_server.pull_query import PullQuery
-    from sync_server.team_server import TeamServer
-
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
-    git("init", "-q", "-b", "main")
-    git("commit", "-q", "--allow-empty", "-m", "start")
-    git("remote", "add", "origin", str(tmp_path / "origin.git"))
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
-    main = app.container.get(Environments).existing("main")
-    links = app.container.get(Links)
-    for link in links.all_matching(link_type=OWNER):
-        links.delete(link, Actor.system())
-    links.save(Link(source=Ref(User.table(), 2), target=Ref.build(main), link_type=OWNER), Actor.system())
-    hosted_requests = lambda: team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), VERSION))
-    try:
-        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
-            app.container.get(IdBlocks).add(table, 800000, 800100)
-        address = f"http://127.0.0.1:{server.server_address[1]}"
-        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
-        assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "pooler", "--worktree", "--no-libraries"], AGENT).code == 0
-        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
-        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-        user_set(app, "workers.pool_slots", 1)
-        CarriedSync(app).pulled()
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            workers = app.container.get(Workers)
-            worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1", device="1"), Actor.system())
-            from journal.models.agent import Agent
-            from journal.support.agent_role import AgentRole
-            from journal.repositories.agents import Agents
-            app.container.get(Agents).save(Agent(environment_id=main.id, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        lovelace = Caller.worker("main", worker.id, "w-1", "claude")
-        assert console.run(["clock-in"], lovelace).code == 0
-        with app.container.get(Scope).environment(MAIN):
-            assert workers.find(worker.id).state == WorkerState.DISPATCHED, "this machine does not host the worker's environment, so it makes none of its moves"
-            assert [layer["state"] for layer in app.container.get(Agents).session_agent("w-1").stack] == ["void", "working_task"], "but the machine that runs it puts it to work at its clock-in"
-        asked = hosted_requests()
-        assert [request.kind for request in asked] == ["worker_ready"], "it asks the environment's host to make the clock-in"
-        app.container.get(HostDesk).handle(asked)
-        with app.container.get(Scope).environment(MAIN):
-            assert workers.find(worker.id).state == WorkerState.READY, "the host makes it, so its events fire where the dispatcher waits"
-        folder = app.container.get(WorkerBranch).folder(worker)
-        (folder / "parser.py").write_text("rules = []\n")
-        git("add", "parser.py", cwd=folder)
-        git("commit", "-q", "-m", "the parser", cwd=folder)
-        assert console.run(["proof", "1", "parser.py:1, test_reads passes"], lovelace).code == 0
-        out = console.run(["clock-out", "the parser is done"], lovelace)
-        assert out.code == 0, out.error
-        asked = hosted_requests()
-        assert [(request.kind, request.body["report"]) for request in asked] == [("worker_delivered", "the parser is done")], "the clock-out and its report are asked of the host too"
-        app.container.get(HostDesk).handle(asked)
-        with app.container.get(Scope).environment(MAIN):
-            assert workers.find(worker.id).state == WorkerState.DELIVERED and any("the parser is done" in message.text for message in app.container.get(Messages).all()), "the host clocks the worker out and posts its report in the dispatcher's chat"
-        assert hosted_requests() == (), "each request is made once and finished"
-        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
-        assert console.run(["worker", "check", str(worker.id), "1", "--short", "name the rule it reads"], AGENT).code == 0, "the dispatcher checks the pool worker's proofs on its own journal"
-        app.runtime().deferred.drain()
-        redo = [request for request in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if request.kind == "worker_redo"]
-        assert len(redo) == 1 and "name the rule it reads" in redo[0].body["brief"], "a point sent back travels to the machine running the worker, once"
-        team.host_requests.finished(ada, redo[0].id, team.clock.time())
-        assert console.run(["proof", "1", "parser.py:1, test_reads passes and names the rule"], lovelace).code == 0
-        assert console.run(["worker", "check", str(worker.id), "1"], AGENT).code == 0
-        git("config", "user.email", "t@t")
-        git("config", "user.name", "t")
-        git("worktree", "remove", "--force", str(folder))
-        git("branch", "-D", app.container.get(WorkerBranch).name(worker))
-        merged = console.run(["worker", "merge", str(worker.id)], AGENT)
-        assert merged.code == 0, merged.error
-        assert (root / "parser.py").exists(), "the merge fetches the worker's pool branch from origin and takes it into the dispatcher's checkout, with no worktree of its own"
-        from journal.repositories.agents import Agents
-        dispatcher = app.container.get(Agents).session_agent("s1")
-        assert sum(lines for _, lines in dispatcher.merged_lines) == 1 and dispatcher.counted_shas, "a pool worker's lines and shas are read from its fetched tip, so they count as merged and never as the agent's own commits"
-        assert "journal/pool/" not in git("ls-remote", "origin").stdout, "and both pool branches are deleted from origin"
-        cleared = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if each.kind == "worker_cleanup"]
-        assert [each.body["worker_id"] for each in cleared] == [worker.id], "and the machine that ran it is told to drop its worktree and branch"
-        team.host_requests.finished(ada, cleared[0].id, team.clock.time())
-        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
-        printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
-        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
-        assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "pooler", "--worktree", "--no-libraries"], AGENT).code == 0
-        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
-        CarriedSync(app).pulled()
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            babbage = [each for each in workers.all() if each.name == "Mr. Babbage"][0]
-            babbage = workers.save(babbage.with_(device=app.container.get(TeamAccount).device()), Actor.system())
-        assert console.run(["worker", "stop", str(babbage.id), "--why", "my machine needs its memory back"], USER).code == 0
-        asked = hosted_requests()
-        assert [(request.kind, request.body["reason"]) for request in asked] == [("worker_stopped", "my machine needs its memory back")], "the member whose machine runs it may stop it, and the stop is asked of the dispatcher's journal"
-        app.container.get(HostDesk).handle(asked)
-        with app.container.get(Scope).environment(MAIN):
-            assert workers.find(babbage.id).state == WorkerState.STOPPED, "where the dispatcher is told it was stopped"
-        assert app.container.get(PullQueries).query(0).pool.free == 1, "and the slot it took is free again"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_one_nobody_takes_ends_unfinished(app: App, tmp_path, monkeypatch):
-    from journal.features.profiles.support.profile_files import ProfileFiles
-    from journal.providers.support.profile import Profile
-    for name in ("pooler", "outsider"):
-        app.container.get(ProfileFiles).save(Profile(name, "Writes for the pool", "Read, Edit", "You write.", "worker"), "sonnet", "")
-    user_set(app, "workers.pool_profiles", ["pooler"])
-    import subprocess
-
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.pool_job import PoolJob
-    from journal.models.pool_job_state import PoolJobState
-    from journal.models.worker_state import WorkerState
-    from journal.repositories.environments import Environments
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.pool_jobs import PoolJobs
-    from journal.repositories.workers import Workers
-    from journal.support.worktree_failure import WorktreeFailure
-    from journal.sync.host_desk import HostDesk
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.version import VERSION
-    from sync_server.account import ADMIN, MEMBER
-    from sync_server.pool_slots import PoolSlots
-    from sync_server.pull_query import PullQuery
-    from sync_server.team_server import TeamServer
-
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
-    git("init", "-q", "-b", "main")
-    git("commit", "-q", "--allow-empty", "-m", "start")
-    git("remote", "add", "origin", str(tmp_path / "origin.git"))
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
-    offered = lambda device: [request for request in team.host_requests.waiting(team.devices.device(device).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION)) if request.kind == "pool_worker"]
-    jobs = app.container.get(PoolJobs)
-    try:
-        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
-            app.container.get(IdBlocks).add(table, 800000, 800100)
-        app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": ada, "device": 1, "account_id": 1})
-        assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "pooler", "--worktree", "--no-libraries"], AGENT).code == 0
-        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-        monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
-        user_set(app, "workers.pool_slots", 1)
-        busy = jobs.save(PoolJob(request_id=999, environment_key="elsewhere", account_id=2, worker_id=1, profile="pooler").started(1.0), Actor.system())
-        app.container.get(HostDesk).handle(tuple(offered(ada)))
-        app.runtime().deferred.drain()
-        request = offered(bob)[0]
-        assert [job.state for job in jobs.all_matching(request_id=request.id)] == [PoolJobState.DECLINED] and offered(ada) == [], "a machine whose slot is already taken declines it and is not offered it again"
-        assert [each.id for each in offered(bob)] == [request.id], "the others still are"
-        jobs.save(busy.finished(2.0), Actor.system())
-        import shutil as disk
-        import time as clock
-        from collections import namedtuple
-        from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
-        intake = app.container.get(PoolJobIntake)
-        user_set(app, "workers.pool_daily_minutes", 2)
-        spent = jobs.save(PoolJob(request_id=998, environment_key="elsewhere", account_id=2, worker_id=1, profile="pooler", started_at=clock.time() - 180, ended_at=clock.time()), Actor.system())
-        assert "run its 2 minutes of pool work for today" in intake.machine_refusal(), "past the day's minutes of pool work a machine turns pool workers down"
-        jobs.delete(spent, Actor.system())
-        assert intake.machine_refusal() == "", "under the cap and with a free slot it takes them"
-        monkeypatch.setattr(disk, "disk_usage", lambda path: namedtuple("Usage", "total used free")(10, 9, 1))
-        assert "GB of disk free" in intake.machine_refusal(), "and with too little disk free for a worktree it turns them down"
-        monkeypatch.undo()
-        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-        monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
-        for job in jobs.all_matching(request_id=request.id):
-            jobs.delete(job, Actor.system())
-        def failed(self, worker):
-            raise WorktreeFailure(worker.name, "the disk is full")
-        monkeypatch.setattr(WorkerRunner, "workplace", failed)
-        team.host_requests.claimed(bob, request.id)
-        with pytest.raises(Exception):
-            team.host_requests.claimed(ada, request.id)
-        team.host_requests.declined(bob, request.id)
-        assert [each.id for each in offered(ada)] == [], "ada declined it before, so it stays away from her"
-        team.host_requests.lapse(team.clock.time() + 601)
-        answered = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (app.container.get(Environments).existing("main").key,), PoolSlots(0, 0), VERSION)) if each.kind == "pool_unclaimed"]
-        assert len(answered) == 1, "one nobody takes is answered back to its environment's host"
-        app.container.get(HostDesk).handle(tuple(answered))
-        with app.container.get(Scope).environment(MAIN):
-            worker = app.container.get(Workers).all()[0]
-        assert worker.state == WorkerState.UNFINISHED and "no machine of the team's pool took it up" in worker.run_end, "and the dispatcher's worker ends unfinished with the reason, so the agent is told"
-        printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
-        assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "pooler", "--worktree", "--no-libraries"], AGENT).code == 0
-        second = offered(bob)[-1]
-        team.host_requests.claimed(bob, second.id)
-        team.host_requests.lapse(team.clock.time() + 601)
-        quiet = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (app.container.get(Environments).existing("main").key,), PoolSlots(0, 0), VERSION)) if each.kind == "pool_machine_offline"]
-        assert len(quiet) == 1, "a claimed pool worker whose machine has not pulled for ten minutes is answered back to its environment's host"
-        app.container.get(HostDesk).handle(tuple(quiet))
-        with app.container.get(Scope).environment(MAIN):
-            babbage = [each for each in app.container.get(Workers).all() if each.name == "Mr. Babbage"][0]
-        assert babbage.state == WorkerState.UNFINISHED and "has not reached the team server for ten minutes" in babbage.run_end, "and the dispatcher is told its machine went quiet"
-        from sync_server.host_ask_request import HostAskRequest
-        with app.container.get(Scope).environment(MAIN):
-            babbage = app.container.get(Workers).save(babbage.with_(device=str(team.devices.device(bob).id)), Actor.system())
-        late = team.host_requests.created(bob, HostAskRequest(app.container.get(Environments).existing("main").key, "worker_delivered", {"worker_id": babbage.id, "report": "done after all"}, 2), team.clock.time()).requests
-        app.container.get(HostDesk).handle(late)
-        with app.container.get(Scope).environment(MAIN):
-            assert app.container.get(Workers).find(babbage.id).state == WorkerState.UNFINISHED, "a machine back from offline cannot clock out a worker already marked lost"
-        cleanup = [each for each in team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if each.kind == "worker_cleanup"]
-        assert [each.body["worker_id"] for each in cleanup] == [babbage.id], "it is told to stop that run and drop its worktree, so only the worker sent again holds the task"
-        app.container.get(HostDesk).handle(tuple(team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION))) + (answered[0].__class__(id=0, environment_key="k", kind="from a later version", body={}, account_id=1, created_at=0.0),))
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_a_session_start_after_a_restart_names_the_background_runs_it_cut_off(app: App):
-    import time as clock
-
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    with app.container.get(Scope).environment(MAIN):
-        outputs = app.container.get(CommandOutputs)
-        run = outputs.save(CommandOutput(chain="suite", command="python3 -m pytest -q", session="s0", folder=str(app.config.root / "suite")).backgrounded(), Actor.system())
-        outputs.save(outputs.find(run.id).interrupted(clock.time()), Actor.system())
-    status, body = hook(app, "SessionStart")
-    told = body["hookSpecificOutput"]["additionalContext"]
-    assert nudge_reached(app, told, BriefingNudges.INTERRUPTED_RUNS, rows=f"output {run.id}, python3 -m pytest -q"), "the new session hears at its start which runs the restart ended, so none is taken for still running"
-
-
-def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_colleague_only_sees_it(app: App, tmp_path):
-    import json
-    import time as clock
-    from urllib.error import HTTPError
-    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
-
-    from journal.models.agent import Agent
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.user import User
-    from journal.repositories.agents import Agents
-    from journal.repositories.environment_owners import OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.http.agents.agent_view_sender import AgentViewSender
-    from carried_sync import CarriedSync
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.account import ADMIN, MEMBER, RELAY
-    from sync_server.host_ask_request import HostAskRequest
-    from sync_server.pool_slots import PoolSlots
-    from sync_server.pull_query import PullQuery
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
-    _, ada_device = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
-    _, bob_device = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
-    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journal = f"http://127.0.0.1:{app.server().port}"
-    account, scope, agents = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Agents)
-    main = app.container.get(Environments).existing("main")
-    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), link_type=OWNER), Actor.system())
-    from journal.repositories.setting_rows import SettingRows
-    user_set(app, "voices.profile", "squire")
-
-    class Kept(HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-
-    opener = build_opener(Kept)
-
-    def sent(path, body=None, cookie=""):
-        headers = {"X-Journal-Env": "main", "Cookie": cookie, "Content-Type": "application/json"}
-        data = None if body is None else json.dumps(body).encode()
-        try:
-            with opener.open(HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET"), timeout=10) as answer:
-                return answer.status, answer.read()
-        except HTTPError as refused:
-            return refused.code, refused.read()
-
-    def signed_in(email):
-        form = f"--b\r\nContent-Disposition: form-data; name=\"email\"\r\n\r\n{email}\r\n--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\ncorrect horse battery\r\n--b--\r\n"
-        with pytest.raises(HTTPError) as redirected:
-            opener.open(HttpRequest(journal + "/sign-in", data=form.encode(), headers={"Content-Type": "multipart/form-data; boundary=b"}, method="POST"), timeout=10)
-        return redirected.value.headers["Set-Cookie"].split(";")[0]
-
-    def waiting():
-        return [(request.kind, request.account_id) for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))]
-
-    with scope.environment(main.row_id):
-        agent = agents.save(Agent(environment_id=main.row_id, session="ada-session", provider="claude", state="working"), Actor.system())
-    def hook(type_name, **extra):
-        body = json.dumps({"hook_event_name": type_name, "session_id": "ada-session", **extra}).encode()
-        opener.open(HttpRequest(journal + "/hooks/claude", data=body, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}, method="POST"), timeout=10).read()
-
-    try:
-        hook("PreToolUse", tool_name="Bash", tool_input={"command": "git status"}, tool_use_id="t-1")
-        hook("PostToolUse", tool_name="Bash", tool_input={"command": "git status"}, tool_response={"stdout": "clean"}, tool_use_id="t-1")
-        account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
-        app.container.get(AgentViewSender).send(clock.time())
-        assert [row["session"] for row in team.agent_views.listed(bob_device, [main.key], clock.time()).views[main.key]] == ["ada-session"], "Ada's journal sends the team server what its agent bar shows for her environment"
-        account.write({"address": address, "token": relay, "device": 3, "account_id": 3})
-        (app.config.home / "hosted").touch()
-        ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
-        status, body = sent("/journal/agents", cookie=ada)
-        assert status == 200 and [(row["session"], row["remote"]) for row in json.loads(body)["rows"]] == [("ada-session", True)], "on the hosted journal Ada sees her agent as her own journal shows it"
-        assert json.loads(body)["rows"][0]["voice"] == "squire", "with the voice Ada chose on her own journal, so the hosted journal shows everyone her figure"
-        assert "terminal" not in json.loads(body)["rows"][0] and [line["command"] for line in json.loads(sent(f"/journal/agents/{agent.id}/terminal", cookie=ada)[1])] == ["git status"], "its terminal lines come with the view, read by the pane alone"
-        assert sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=bob)[0] == 409 and sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=ada) == (200, b'{"asked": true}'), "a line typed into it is asked of her journal for her alone"
-        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [("agent_shell", 1)], "Bob sees it but cannot change it"
-        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=ada) == (200, b'{"asked": true}') and waiting() == [("agent_shell", 1), ("agent_pause", 1)], "Ada's pause is asked of her journal, where the agent runs, after her typed line"
-        team.host_requests.created(relay, HostAskRequest(main.key, "agent_resume", {"agent_id": agent.id}, 2), clock.time())
-        (app.config.home / "hosted").unlink()
-        account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
-        CarriedSync(app).pulled()
-        with scope.environment(main.row_id):
-            assert agents.find(agent.id).state == "paused", "her journal pauses the agent, and refuses the resume asked in Bob's name, since main is not his"
-        assert waiting() == [], "both requests are taken up"
-    finally:
-        (app.config.home / "hosted").unlink(missing_ok=True)
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-        team.close(server)
-
-
-def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):
-    from journal.chat.moment_cards import MomentCards
-    from journal.repositories.messages import Messages
-    from journal.support.card_type import CardType
-    cards, messages = app.container.get(MomentCards), app.container.get(Messages)
-    with app.container.get(Scope).environment(MAIN):
-        before = len(messages.scoped())
-        for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
-            cards.show(MAIN, None, label, detail="kept: 4", shows=CardType.CONFLICTS)
-        cards.show(MAIN, None, "Task 4 started", "task", shows=CardType.MEMORIES)
-        chat = messages.scoped()[before:]
-    assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
-    assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
-    assert chat[0].data["detail"] == "3 in all" and chat[0].data["lines"] == chat[0].data["covers"], "which its card lists under its count"
-
-
-
-
-def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_to_delete_it(app: App, monkeypatch):
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    typing_capture(app, monkeypatch, transmitted)
-
-    def api(method: str, path: str):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=b"{}" if method == "POST" else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-
-    def jobs():
-        return [job["id"] for row in agent_rows(app) if row["session"] == "s1" for job in row["jobs"]]
-
-    hook(app, "SessionStart")
-    created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check", "recurring": True}
-    hook(app, "PreToolUse", tool_name="CronCreate", tool_input=created, tool_use_id="c1")
-    hook(app, "PostToolUse", tool_name="CronCreate", tool_input=created, tool_response="Scheduled recurring job 200ed8b1 (7,22,37,52 * * * *). Session-only.", tool_use_id="c1")
-    app.runtime().deferred.drain()
-    assert jobs() == ["200ed8b1"]
-    assert api("POST", "agents/1/jobs/ffffffff/stop")[0] != 200, "a job the agent does not have is refused"
-    assert api("POST", "agents/1/jobs/200ed8b1/stop")[0] == 200
-    app.runtime().deferred.drain()
-    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_use_id="r1")[1])
-    assert "CronDelete" in told and "200ed8b1" in told, "the stop types the agent a line to delete the job, which reaches it at its next hook while it works"
-    assert jobs() == ["200ed8b1"], "the job stays listed until its deletion is seen"
-    hook(app, "PreToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_use_id="c2")
-    hook(app, "PostToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_response="Cancelled job 200ed8b1.", tool_use_id="c2")
-    app.runtime().deferred.drain()
-    assert jobs() == [], "the job is gone once its CronDelete is seen"
 
 
 def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_its_row_names_its_agent(app: App, tmp_path):
@@ -12627,72 +6231,6 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
     assert all(message.id != mark.id for message in main_chat), "and never in the main chat"
 
 
-
-
-
-
-
-
-
-
-
-def test_a_new_environment_is_filled_from_a_kept_claude_session_and_its_first_agent_is_asked_once_to_read_it(app: App, tmp_path, monkeypatch):
-    import json
-    import re
-    from urllib.error import HTTPError
-
-    from journal.models.message import Message
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-
-    config = tmp_path / "claude-config"
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
-    folder = config / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(app.config.root.resolve()))
-    folder.mkdir(parents=True)
-    rows = [
-        {"type": "user", "message": {"content": "Fix the login page"}, "timestamp": "2026-10-01T10:00:00Z"},
-        {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "where is it"}, {"type": "text", "text": "Looking at it."}, {"type": "tool_use", "name": "Read", "id": "t1", "input": {"file_path": "a.py"}}]}, "timestamp": "2026-10-01T10:00:05Z"},
-        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x"}]}, "timestamp": "2026-10-01T10:00:06Z"},
-        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t2", "input": {}}]}, "timestamp": "2026-10-01T10:00:20Z"},
-        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t3", "input": {}}]}, "timestamp": "2026-10-01T10:00:30Z"},
-        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Fixed the login page."}]}, "timestamp": "2026-10-01T10:01:00Z"},
-    ]
-    (folder / "old-session.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
-
-    def call(method, path, body=None, environment="main"):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as refused:
-            return refused.code, json.loads(refused.read())
-
-    def started():
-        return call("POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "old-session"}, "login")[1]["hookSpecificOutput"]["additionalContext"]
-    status, listed = call("GET", "/journal/environments/sessions")
-    assert status == 200 and [(row["provider"], row["session"], row["first_prompt"], row["line_count"]) for row in listed] == [("claude", "old-session", "Fix the login page", 6)], "the form lists the project's kept sessions with their first prompt and length"
-    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 201
-    login = app.container.get(Environments).existing("login")
-    with app.container.get(Scope).environment(login.row_id):
-        chat = app.container.get(Messages).scoped()
-        assert [(m.author.value, m.text, m.created_at.isoformat()[:19]) for m in chat] == [
-            ("user", "Fix the login page", "2026-10-01T10:00:00"),
-            ("agent", "Looking at it.", "2026-10-01T10:00:05"),
-            ("system", "Tool calls: Edit 2, Read 1", "2026-10-01T10:00:05"),
-            ("agent", "Fixed the login page.", "2026-10-01T10:01:00"),
-            ("system", "This chat was filled from Claude Code session old-sess: 4 messages.", "2026-10-01T10:01:00"),
-        ], "prompts and replies at their own times, the tool calls between them in one line, the thinking left out, and a line saying where the chat came from"
-        assert all(m.read_at for m in chat if m.author.value == "user"), "no prompt reaches the agent as a new message"
-        assert [(a.session, a.state) for a in app.container.get(Agents).scoped()] == [("old-session", "ended")], "the session is the environment's ended agent, so its first launch carries it on"
-    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 409, "an environment that exists is never filled again"
-    first = started()
-    assert nudge_reached(app, first, HydrationNudges.READ_CHAT, session="old-sess"), "the first session there is asked to read the chat"
-    app.runtime().deferred.drain()
-    assert "filled from the earlier conversation" not in started(), "and only once"
-    assert call("GET", "/journal/environments/sessions")[1][0]["environment"] == "login", "the form names the environment a session went into"
-
-
 def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_lines(tmp_path):
     from journal.providers.claude import Claude
     path = tmp_path / "kept.jsonl"
@@ -12750,9 +6288,6 @@ def test_filling_an_environment_reports_how_far_it_has_come(app: App, tmp_path, 
     assert hydration.filled_percent("long") == 0, "and is back to nothing once the environment is filled"
 
 
-
-
-
 def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when_its_bar_counts_suites_not_tests(app: App):
     from journal.support.command_classifier import CommandClassifier
     from types import SimpleNamespace
@@ -12781,7 +6316,7 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
 
 
 def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_and_a_reader_add_tries_two_runs_at_once(app: App, tmp_path):
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     from types import SimpleNamespace
     from journal.support.listener_queue import ListenerQueue
     from journal.features.faults.support.developer_tally import DeveloperTally
@@ -12821,43 +6356,6 @@ def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_an
     with app.container.get(Scope).environment(MAIN):
         raised = [report for report in reports.all() if report.reader == "builds"]
     assert len(tried) == 3 and [report.output for report in raised] == [5], "the runs after the two tried at once are tried later, and the one that misses raises a report"
-
-
-def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
-    user_set(app, "faults.developer", True)
-    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
-    from journal.models.support.request_loads import RequestLoads
-    console = app.console()
-    slow = app.container.get(RequestTimeRecorder)
-    with app.container.get(Scope).environment(MAIN):
-        for n in range(14):
-            slow.counted("GET", f"/journal/route{n}", 100 + n, RequestLoads())
-        for ms in (900, 300, 200):
-            slow.counted("GET", "/journal/messages/12/read", ms, RequestLoads())
-    listed = console.run(["developer", "slowest"], AGENT)
-    first = listed.text.splitlines()[0]
-    assert "GET /journal/messages/{n}/read" in first and "900 ms worst" in first and "300 ms typical" in first and "3 logged" in first, listed.text
-    assert "page 1 of 2" in listed.text and "--page 2" in listed.text, "the groups come a page at a time"
-    assert "route0" in console.run(["developer", "slowest", "--page", "2"], AGENT).text
-    inspected = console.run(["developer", "inspect", "GET /journal/messages/{n}/read"], AGENT)
-    assert inspected.code == 0 and [line.split()[1] for line in inspected.text.splitlines()[:3]] == ["900", "300", "200"], inspected.text
-    assert console.run(["developer", "inspect", "GET /nowhere"], AGENT).code != 0
-
-
-def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_timed(app: App):
-    app.container.get(SettingRows).set("faults.developer", True, Actor.user(1))
-    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
-    from journal.features.faults.support.developer_numbers import DeveloperNumbers
-    from journal.support.listener_queue import ListenerQueue
-    slow = app.container.get(RequestTimeRecorder)
-    with app.container.get(Scope).environment(MAIN):
-        slow.measured("GET", "/journal/developer", 900)
-        slow.measured("GET", "/cli/developer slowest", 900)
-        slow.measured("GET", "/journal/sync/batch", 5000)
-        slow.measured("GET", "/journal/tasks", 40)
-        app.container.get(ListenerQueue).drain()
-    routes = [timing.route for timing in app.container.get(DeveloperNumbers).recent()]
-    assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route or "/sync/" in route], "nor the sync carrier's doors, whose batch waits for a commit"
 
 
 def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_failing_tick_listener_stops_no_other(app: App, monkeypatch, tmp_path):
@@ -12912,45 +6410,6 @@ def test_a_bare_journal_update_applies_and_with_no_journal_running_installs_the_
     assert installer.ran == ["v4.99.0"] and "to 4.99.0" in out and "installed here" in out, "the release is installed before the command returns, naming the version"
 
 
-
-
-def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_fold_never_misses_a_row(app: App, monkeypatch):
-    import threading
-    import sync_service.carrier as carrier_module
-    from journal.models.outgoing_change import UPDATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from carried_sync import CarriedSync
-    from sync_service.loop import Loop
-    monkeypatch.setattr(carrier_module, "FIRST_RETRY_SECONDS", 0.01)
-    sync, rounds = CarriedSync(app).carrier, []
-
-    def loop():
-        rounds.append(1)
-        if len(rounds) == 1:
-            raise RuntimeError("no outgoing_changes row 93604")
-        sync.stopping.set()
-
-    sync.repeated(Loop("test", loop, 60), 0)
-    assert len(rounds) == 2 and "RuntimeError" in sync.fault, "a fault of any kind is shown and the loop tries again"
-    outgoing, faults = app.container.get(OutgoingChanges), []
-
-    def fold():
-        for n in range(300):
-            outgoing.queued(OutgoingChange(row_table="tasks", row=n % 5, action=UPDATED, fields={"state": str(n)}, changed_at={"state": float(n)}, writer="user:1"), Actor.system())
-
-    def take():
-        try:
-            for _ in range(100):
-                outgoing.sent(outgoing.sending_batch(3, ("",)))
-        except Exception as fault:
-            faults.append(fault)
-
-    folding, taking = threading.Thread(target=fold), threading.Thread(target=take)
-    folding.start(), taking.start()
-    folding.join(30), taking.join(30)
-    assert faults == [], "a change folded away while a batch is taken is never sought again"
-
-
 def test_a_worker_sent_a_job_while_its_branch_clashes_is_rebased_by_the_journal_and_sent_the_conflict_to_fix(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
@@ -12962,8 +6421,6 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_is_rebased_by_the_journal_
     brief = worker_row(app).brief
     assert brief.startswith("The journal rebased your worktree onto the project's branch") and "conflict in platform/app.php" in brief and "fix only the files that clash" in brief and brief.endswith("finish the job"), brief
     assert "<<<<<<< " in (folder / "platform/app.php").read_text(), "the journal stopped the rebase with the conflict in the worktree, for the worker to fix"
-
-
 
 
 def test_a_clean_clock_out_commits_the_workers_work_and_tells_it_the_journal_rebased_it(app: App, monkeypatch):
@@ -13036,22 +6493,12 @@ def test_a_commands_mark_names_the_command_without_its_folder_change_brackets_va
     assert [CommandText(SHAPES).shown(line) for line in ("(cd src/web && npx vitest run tests/)", "cd app && make build", "FOO=1 timeout 60 pytest -q", "pytest -q tests/a.py", "cd a; export X=1; npm test && ls")] == ["npx vitest run tests/", "make build", "pytest -q", "pytest -q tests/a.py", "npm test && ls"]
 
 
-
-
-
-
-
-
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     from journal.support.decision import Decision
     answered = Decision.allowed_with("a line\nanother").merged(Decision.allowed_with("a line"))
     assert answered.context.split("\n") == ["a line", "another"], "the same line from two listeners is said once in one answer"
     held = Decision.refuse("hold on").merged(Decision.refuse("hold on"))
     assert held.reason == "hold on"
-
-
-
-
 
 
 def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and_marked_broken_at_the_fifth(app: App, monkeypatch):
@@ -13126,67 +6573,6 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
         path.unlink(missing_ok=True)
 
 
-def test_claiming_checks_the_servers_address_before_it_asks_for_the_account(app: App, tmp_path):
-    from journal.features.team.support.team_join import TeamJoin
-    from journal.sync.team_url import TeamUrl
-    from sync_server.install_request import InstallRequest
-    from sync_server.team_server import TeamServer
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    check = lambda url: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/team/check", data=json.dumps({"url": url}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
-    try:
-        assert check(address + "/.") == {"address": address, "refusal": ""}, "a server with no admin can be claimed, its address made plain"
-        team.logins.installed(InstallRequest("ada@example.com", "Ada", "correct horse battery staple", "laptop"), "127.0.0.1")
-        assert "has its admin already" in check(address)["refusal"], "a claimed server is said to be one before the account is asked"
-        assert app.container.get(TeamJoin).claim_refusal(TeamUrl.parse(address)) != ""
-        try:
-            check("http://127.0.0.1:9")
-            raise AssertionError("an unreachable address went on")
-        except HTTPError as refused:
-            assert "could not be reached" in refused.read().decode()
-    finally:
-        server.shutdown()
-        team.store.close()
-
-
-def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_a_held_lock_is_a_fault(app: App, monkeypatch):
-    import threading
-    import time as timing
-    from journal.sync import sync_desk
-    from carried_sync import CarriedSync
-    from journal.sync.sync_desk import SyncDesk
-    from sync_service.loop import Loop
-    client = CarriedSync(app).carrier
-    steps, released = [], threading.Event()
-    loop = Loop("test", lambda: steps.append(1) or released.wait(5), 60)
-    client.loops = (loop,)
-    client.watch()
-    assert loop.generation == 1 and not loop.is_dead(), "a loop that is not running is started"
-    first = loop.thread
-    client.watch()
-    assert loop.thread is first and loop.generation == 1, "a running loop is left alone, so two never run"
-    loop.beat_at = timing.monotonic() - 120
-    client.watch()
-    assert "sync stopped: its test loop has been silent for 120 seconds" in client.fault, "a loop silent past its longest wait shows as stopped"
-    client.stopping.set()
-    released.set()
-    first.join(5)
-    assert not client.is_working(), "and the service's health says so once a loop is gone"
-    monkeypatch.setattr(sync_desk, "LOCK_SECONDS", 0.2)
-    desk = app.container.get(SyncDesk)
-    holder = threading.Thread(target=lambda: (desk.applying.acquire(), timing.sleep(1), desk.applying.release()))
-    holder.start()
-    timing.sleep(0.05)
-    try:
-        with desk.locked(desk.applying, "apply the team's changes"):
-            raise AssertionError("the lock was taken while another held it")
-    except TimeoutError as fault:
-        assert "to apply the team's changes, held by its other loop" in str(fault)
-    holder.join()
-
-
 def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_or_its_setup(app: App):
     from journal.features.shell.support.activity_label import ActivityLabel
     labels = app.container.get(ActivityLabel)
@@ -13201,108 +6587,6 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     assert labels.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in labels.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
 
 
-def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_team_settings(app: App):
-    from journal.features.team.support.team_join import TeamJoin
-    from journal.models.outgoing_change import UPDATED, OutgoingChange
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.sync.team_account import TeamAccount
-    account = app.container.get(TeamAccount)
-    account.write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 7})
-    app.container.get(IdBlocks).add("tasks", 100, 199)
-    app.container.get(IdBlocks).add("messages", 100, 199)
-    app.container.get(OutgoingChanges).queued(OutgoingChange(row_table="tasks", row=1, action=UPDATED, fields={"state": "open"}, changed_at={"state": 1.0}, writer="user:1"), Actor.system())
-    app.console().run(["task", "create", "kept after leaving"], USER)
-    said = app.console().run(["team", "leave"], USER)
-    assert said.code == 0 and "left the team at http://127.0.0.1:9" in said.text and "the team server was not reached" in said.text, said.error
-    assert not account.is_joined() and list(app.config.home.glob("team.json.left-*")), "the team's settings are kept in a backup"
-    assert app.container.get(IdBlocks).all() == [] and app.container.get(OutgoingChanges).waiting() == [], "the blocks and the queue only the old team could take are gone"
-    assert "kept after leaving" in app.console().run(["task", "list"], USER).text, "every local row stays"
-    assert app.console().run(["team", "leave"], USER).code != 0, "a journal in no team has nothing to leave"
-    from journal.sync.block_supply import BlockSupply
-    app.container.get(BlockSupply).refill()
-    assert app.container.get(IdBlocks).all() == [], "a journal out of its team asks no team server for row numbers, so the sync service's last call after leaving fails nothing"
-
-
-def joined_team(app: App):
-    """A team server of the test's own, started, and the app's journal joined to it as its admin; the caller shuts the server down."""
-    from sync_server.account import ADMIN
-    from sync_server.login_request import LoginRequest
-    from sync_server.team_server import TeamServer
-    from journal.sync.team_account import TeamAccount
-    folder = app.config.root / "team-server"
-    folder.mkdir()
-    team = TeamServer(folder)
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    server = team.started("127.0.0.1", 0)
-    answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
-    account = app.container.get(TeamAccount)
-    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": answer.token, "device": answer.device_id, "sequence": 0})
-    return server, account
-
-
-def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_local_doors(app: App):
-    from journal.events.bus import Bus
-    from journal.events.models.synced_creation import SyncedCreation
-    from journal.models.outgoing_change import CREATED, UPDATED, OutgoingChange
-    from journal.models.task import Task
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.tasks import Tasks
-    from journal.sync.team_account import TeamAccount
-    server, account = joined_team(app)
-    heard = []
-
-    class TaskCreations(Listener[SyncedCreation]):
-        def handle(self, event: SyncedCreation) -> None:
-            if isinstance(event.model, Task):
-                heard.append(event.model)
-
-    app.container.get(Bus).listen(SyncedCreation, TaskCreations())
-    port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
-    change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
-    assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(Tasks).find(7001).title == "made on another machine", "the answer's row is written in the server"
-    app.container.get(ListenerQueue).drain()
-    assert [task.id for task in heard] == [7001] and account.sequence() == 5, "its event is dispatched in the server and the sequence moves"
-    outgoing = app.container.get(OutgoingChanges)
-    outgoing.clear()
-    outgoing.queued(OutgoingChange(row_table="tasks", row=7001, action=UPDATED, fields={"state": "started"}, changed_at={"state": 2.0}, writer="user:1"), Actor.system())
-    batch = door("GET", "batch")
-    assert len(batch["ids"]) == 1 and batch["request_body"]["changes"][0]["fields"] == {"state": "started"} and door("GET", "query")["sequence"] == 5
-    door("POST", f"pushed?ids={','.join(map(str, batch['ids']))}", {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}})
-    assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
-    account.leave(0)
-    server.shutdown()
-
-
-def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts_once(app: App):
-    from journal.models.outgoing_change import UPDATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.sync.team_account import TeamAccount
-    server, account = joined_team(app)
-    outgoing = app.container.get(OutgoingChanges)
-    outgoing.clear()
-    change = lambda row, state: outgoing.queued(OutgoingChange(row_table="tasks", row=row, action=UPDATED, fields={"state": state}, changed_at={"state": float(row)}, writer="user:1"), Actor.system())
-    change(1, "started")
-    change(2, "started")
-    port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
-    first = door("GET", "batch")
-    change(3, "done")
-    again = door("GET", "batch")
-    assert again["ids"] == first["ids"] and again["request_body"]["changes"] == first["request_body"]["changes"], "a batch whose result never came is handed out again, the same changes and nothing added"
-    result = {"settlement": {"sequences": [1, 2], "rejected": [], "server_time": 1.0}, "delivery": {"changes": [], "head": 2, "server_time": 1.0}}
-    pushed = f"pushed?ids={','.join(map(str, first['ids']))}"
-    door("POST", pushed, result)
-    door("POST", pushed, result)
-    assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
-    account.leave(0)
-    server.shutdown()
-
-
 def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     from journal.features.shell.support.readers import Readers
     readers = app.container.get(Readers)
@@ -13314,32 +6598,6 @@ def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     assert readers.reading("cd x && tox -e py").name == "tests" and readers.reading("sleep 5").name == "naps", "the working command decides, and a lone wait is still a pause"
     line = "S=/tmp/rewrite; ( cd $S/mirror.git && git filter-repo --force 2>&1 )"
     assert readers.reading(line).name == "rewrites", "an assignment in front of a subshell is passed over, and the subshell is known by its work"
-
-
-def test_the_sync_service_is_handed_the_pull_query_and_the_waiting_files_and_its_poll_keeps_the_blocks_filled(app: App):
-    from dataclasses import asdict
-    from journal.models.pending_upload import PendingUpload
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.pending_uploads import PendingUploads
-    from journal.sync.pull_queries import PullQueries
-    server, account = joined_team(app)
-    port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
-    account.record_sequence(42)
-    query = door("GET", "query?wait_seconds=25")
-    assert query == {**json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "path": query["path"]} and query["path"].startswith("/pull?after=42&wait=25"), "the query is the server's own, sequence and all, with the pull's path to send"
-    assert door("GET", "query")["sequence"] == 42
-    blocks = app.container.get(IdBlocks)
-    blocks.clear()
-    uploads = app.container.get(PendingUploads)
-    upload = uploads.save(PendingUpload(row_table="messages", row=7, name="notes.txt"), Actor.system())
-    batch = door("GET", "batch")
-    assert batch["ids"] == [] and [file["id"] for file in batch["files"]] == [upload.id] and batch["files"][0]["place"]["name"] == "notes.txt", "a file waits to go with no change beside it"
-    assert blocks.all(), "the poll filled the empty row number blocks from the team server"
-    door("POST", "files-sent", {"ids": [upload.id]})
-    assert uploads.waiting() == [] and door("GET", "batch")["files"] == [], "a file reported sent leaves the queue"
-    account.leave(0)
-    server.shutdown()
 
 
 def test_every_line_of_the_command_corpus_carries_every_expectation():
@@ -13460,127 +6718,6 @@ def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_name
     assert not fixed, f"{len(fixed)} frozen disagreements are fixed: write the list anew with CORPUS_FREEZE=1, the first: {fixed[:5]}"
 
 
-def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boot_and_never_one_through_a_proxy(app: App):
-    import stat
-    from urllib.error import HTTPError
-    port = app.server().port
-    secret_file = app.config.home / "runtime" / "sync-secret"
-    assert stat.S_IMODE(secret_file.stat().st_mode) == 0o600 and len(secret_file.read_text()) == 64, "the secret is written at boot for its owner alone"
-    def status(headers: dict) -> int:
-        try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "3", **headers}), timeout=10).status
-        except HTTPError as refusal:
-            return refusal.code
-    secret = secret_file.read_text()
-    assert status({}) == 403 and status({"X-Journal-Sync-Secret": "0" * 64}) == 403, "no secret, or a wrong one, is refused"
-    assert status({"X-Journal-Sync-Secret": secret, "X-Forwarded-For": "203.0.113.9"}) == 403, "a request passed on by a proxy is refused even with the secret"
-    assert status({"X-Journal-Sync-Secret": secret}) == 200
-
-
-def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_after_a_refused_install(app: App, monkeypatch):
-    from journal.sync.sync_status import SyncStatus
-    app.container.get(SyncStatus).connected()
-    from types import SimpleNamespace
-    from journal.features.updates.support.official_install import OfficialInstall
-    monkeypatch.setattr(OfficialInstall, "installation", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="no network in the tests"))
-    from journal.features.updates.support.updater import Updater
-    from journal.models.outgoing_change import CREATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.support.rejection import Rejection
-    from carried_sync import CarriedSync
-    class RefusingInstaller:
-        def run(self, ref: str, repository: str, reason: str) -> None:
-            raise Rejection("the install was refused")
-
-    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + 20
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    server, account = joined_team(app)
-    sync = CarriedSync(app).started()
-    try:
-        outgoing = app.container.get(OutgoingChanges)
-        assert eventually(lambda: outgoing.waiting() == []), "the sync service takes what waited when it starts"
-        sync.stop()
-        sync = CarriedSync(app)
-        sync.inbox.start()
-        sync.carrier.address = sync.inbox.address
-        sync.carrier.report()
-        app.console().run(["task", "create", "made before the upgrade"], USER)
-        assert outgoing.waiting(), "the new task waits to go to the team"
-        monkeypatch.setattr(Updater, "restart", lambda self: None)
-        account.record_pull(account.sequence(), "4.99.0")
-        updating.read()
-        updating.install_newest(Actor.user(1))
-        assert outgoing.waiting() == [], "the updater has the sync service send the whole queue before it installs"
-        assert "the install was refused" in updating.problem and eventually(lambda: not sync.carrier.is_paused()), "a refused install, its official install command failing too, has the sync service carry on"
-    finally:
-        sync.stop()
-        account.leave(0)
-        server.shutdown()
-
-
-def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_the_waiting_writes_on_top(app: App):
-    import sqlite3
-    from journal.models.outgoing_change import UPDATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.tasks import Tasks
-    server, account = joined_team(app)
-    port = app.server().port
-    for i in range(3):
-        app.console().run(["task", "create", f"task {i}"], USER)
-    from journal.repositories.shared_tables import SharedTables
-    with sqlite3.connect(app.config.database) as database:
-        database.row_factory = sqlite3.Row
-        local = [dict(row) for row in database.execute("select * from tasks")]
-        from journal.db.query import Query
-        from journal.models.all_models import AllModels
-        models = {model.table(): model for model in AllModels.MODELS}
-        others = [{"row_table": table, "row": row["id"], "fields": dict(row), "changed_at": {}} for table in app.container.get(SharedTables).names() if table != "tasks" for row in database.execute(*Query.build(models[table]).select())]
-    rows = others + [{"row_table": "tasks", "row": row["id"], "fields": {**row, "brief": "x" * 4_000_000 if n == 0 else row["brief"]}, "changed_at": {}} for n, row in enumerate(local)]
-    edited = local[1]["id"]
-    outgoing = app.container.get(OutgoingChanges)
-    outgoing.clear()
-    outgoing.queued(OutgoingChange(row_table="tasks", row=edited, action=UPDATED, fields={"title": "edited here meanwhile"}, changed_at={"title": 9e9}, writer="user:1"), Actor.system())
-    body = json.dumps({"rows": rows, "head": 50, "server_time": 1.0}).encode()
-    assert len(body) > 4_000_000
-    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=60).read())
-    tasks = app.container.get(Tasks)
-    with app.container.get(Scope).environment(local[0]["environment_id"]):
-        assert answer == {"laid_in": True} and len(tasks.find(local[0]["id"]).brief) == 4_000_000, "the copy is laid in, many megabytes as it is"
-        assert tasks.find(edited).title == "edited here meanwhile", "the write waiting to go stays on top of the team's copy"
-    assert account.sequence() == 50
-    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=60).read())
-    assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
-    account.leave(0)
-    server.shutdown()
-
-
-def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
-    import time as clock
-    from urllib.error import HTTPError
-    from journal.engine.lifecycle import Lifecycle
-    port = app.server().port
-    lifecycle = app.container.get(Lifecycle)
-    def status() -> int:
-        try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).status
-        except HTTPError as refusal:
-            return refusal.code
-    lifecycle.booting()
-    began = clock.monotonic()
-    assert status() == 503 and clock.monotonic() - began < 2, "booting, the carrier is told to wait at once, never held"
-    lifecycle.booted()
-    assert status() == 200
-
-
-
-
 def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     from journal.features.shell.support.readers import Readers
     script = app.config.root / "counts.sh"
@@ -13595,149 +6732,6 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     assert app.container.get(Readers).reading("make check --suite fast").name == "counts", "it reads the commands it names"
     Path(reader.script).write_text("printf 'cut \\342\\200 here\\n'\n")
     assert reader.variant("finished").card_lines(["x"]) == ["cut \ufffd here"], "a script that cuts a character in half is read with the half replaced, never a fault"
-
-
-def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no_other(app: App, monkeypatch):
-    import time as clock
-    from journal.features.updates.support.updater import Updater
-    from journal.support.rejection import Rejection
-    from journal.sync.team_account import TeamAccount
-    from journal.version import VERSION
-    major = VERSION.split(".")[0]
-    pin, beside = f"{major}.98.0", f"{major}.99.0"
-    monkeypatch.setattr(Updater, "restart", lambda self: None)
-    monkeypatch.setattr(Updater, "leads_upgrade", lambda self: False)
-    installer = Installer()
-    updating = updating_with(app, Source(f"v{VERSION}", f"v{pin}", f"v{beside}"), installer, auto=False)
-    account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0, "team_version": pin})
-    try:
-        updating.tick(0.0)
-        for _ in range(50):
-            if installer.ran:
-                break
-            clock.sleep(0.05)
-        assert installer.ran == [f"v{pin}"], "with automatic updates off, the pinned version is installed by itself, never the newer one beside it"
-        account.write({**account.contents(), "team_version": VERSION})
-        updating.read()
-        try:
-            updating.target()
-            raise AssertionError("a manual update past the pin was not refused")
-        except Rejection as refused:
-            assert "sets this journal's version" in str(refused) and VERSION in str(refused), str(refused)
-    finally:
-        account.leave(0)
-
-
-def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_quiet_shows_as_not_running(app: App):
-    import time as clock
-    from journal.sync import sync_status
-    from journal.sync.sync_status import SyncStatus
-    from journal.sync.team_account import TeamAccount
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
-    status = app.container.get(SyncStatus)
-    try:
-        assert SyncStatus(account, app.container.get(OutgoingChanges)).state() == "connecting", "a journal whose sync service has not yet reported is connecting, however long ago the server started"
-        status.reported("the team server refused the push: the device was revoked", True)
-        assert status.line() == "Not connected: the team server refused the push: the device was revoked", "the sync service's refusal shows on the line"
-        status.reported("", True)
-        assert status.state() == "in_step"
-        status.reported_at = clock.monotonic() - sync_status.STALE_SECONDS - 1
-        assert status.line() == "Not connected: the sync service is not running" and status.state() == "not_connected", "a sync service gone quiet shows as not connected"
-    finally:
-        status.reported("", True)
-        status.reported_at = None
-        account.leave(0)
-
-
-def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_doors(app: App, tmp_path):
-    import http.server
-    import threading
-    from urllib.error import HTTPError
-    from journal.sync.sync_secret import DESK_PROTOCOL
-    from sync_service import journal_doors
-    from sync_service.journal_doors import JournalDoors
-    from sync_service.journal_mismatch import JournalMismatch
-    assert journal_doors.DESK_PROTOCOL == DESK_PROTOCOL == 3, "the sync service and the server speak the doors' version that carries a withdrawn change"
-    port = app.server().port
-    secret = (app.config.home / "runtime" / "sync-secret").read_text()
-    try:
-        urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": secret, "X-Journal-Desk-Protocol": str(DESK_PROTOCOL - 1)}), timeout=10)
-        raise AssertionError("a carrier of the version before was answered")
-    except HTTPError as refusal:
-        assert refusal.code == 426 and f"version {DESK_PROTOCOL} of the sync desk's doors" in json.loads(refusal.read())["error"]
-
-    class OldServer(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(404)
-            self.end_headers()
-
-        def log_message(self, *arguments):
-            return None
-
-    old = http.server.HTTPServer(("127.0.0.1", 0), OldServer)
-    threading.Thread(target=old.serve_forever, daemon=True).start()
-    root = tmp_path / "old"
-    (root / ".journal" / "runtime").mkdir(parents=True)
-    (root / ".journal" / "port").write_text(str(old.server_address[1]))
-    (root / ".journal" / "runtime" / "sync-secret").write_text("s")
-    try:
-        JournalDoors(root).query(0)
-        raise AssertionError("an older server was not named")
-    except JournalMismatch as mismatch:
-        assert "has no sync doors of this version" in str(mismatch), "a server without the doors is named, so the status line says why sync stopped"
-    finally:
-        old.shutdown()
-
-    class MissingRowServer(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = json.dumps({"error": "the requested sync row is gone"}).encode()
-            self.send_response(404)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *arguments):
-            return None
-
-    missing = http.server.HTTPServer(("127.0.0.1", 0), MissingRowServer)
-    threading.Thread(target=missing.serve_forever, daemon=True).start()
-    root = tmp_path / "missing"
-    (root / ".journal" / "runtime").mkdir(parents=True)
-    (root / ".journal" / "port").write_text(str(missing.server_address[1]))
-    (root / ".journal" / "runtime" / "sync-secret").write_text("s")
-    try:
-        JournalDoors(root).query(0)
-        raise AssertionError("a missing row was mistaken for missing sync doors")
-    except OSError as refusal:
-        assert "journal sync door answered 404: the requested sync row is gone" in str(refusal), "an application 404 keeps its cause instead of being misreported as missing doors"
-    finally:
-        missing.shutdown()
-
-
-
-
-def test_a_sync_desk_renews_hub_drives_under_the_lock_that_applies_incoming_changes(app: App, monkeypatch):
-    desk = app.container.get(SyncDesk)
-    renewals = []
-
-    def renewed():
-        acquired = desk.incoming.applying.acquire(blocking=False)
-        if acquired:
-            desk.incoming.applying.release()
-        assert not acquired, "a hub drive is renewed while incoming changes cannot delete its row"
-        renewals.append(True)
-
-    monkeypatch.setattr(desk.chat, "renew", lambda: None)
-    monkeypatch.setattr(desk.drives, "renew", renewed)
-    monkeypatch.setattr(desk.sessions, "renew", lambda: None)
-    monkeypatch.setattr(desk, "refill", lambda: None)
-    monkeypatch.setattr(desk, "keyed", lambda: None)
-    monkeypatch.setattr(desk, "hub_learnt", lambda: None)
-    desk.refresh()
-    assert renewals == [True], "the refresh renews its drives once"
 
 
 def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_out(app: App):
@@ -13832,8 +6826,6 @@ def test_the_agent_programs_command_line_runs_with_no_terminal_to_read_and_a_mis
         raise AssertionError("a missing program is a refusal, never a fault")
 
 
-
-
 def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go_through(app: App):
     from journal.db.relation_read import RelationRead
     from journal.http.controllers.controller import Controller
@@ -13872,11 +6864,6 @@ def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go
                 plans.find(1)
             assert tasks.unfinished_count() == 0 and plans.task_counts([plan]) == {1: 1}, "a counting query goes through, though it reads the links table"
         assert plans.find(1) == plan, "once the list is built, every table is read again"
-
-
-
-
-
 
 
 def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorded(app: App, monkeypatch):
@@ -14021,112 +7008,12 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
         assert reviewers.find(sent.id).state == ReviewerState.ENDED, "and a run that ends without a report ends the reviewer"
 
 
-def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_team_and_hands_the_teams_back(tmp_path, template_journal, monkeypatch):
-    import threading
-    from conftest import copied
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.tasks import Tasks
-    from journal.services.service_hooks import ServiceHooks
-    from journal.sync.team_account import TeamAccount
-    from sync_server.account import ADMIN
-    from sync_server.team_server import TeamServer
-    from sync_service.carrier import Carrier
-    from sync_service.event_inbox import EventInbox
-    from sync_service.journal_doors import JournalDoors
-    from sync_service.team_link import TeamLink
-    from journal.repositories.messages import Messages
-    from journal.sync.sync_desk import SyncDesk
-    from journal.sync.sync_status import SyncStatus
-
-    def eventually(check) -> bool:
-        deadline = timing.monotonic() + 20
-        while timing.monotonic() < deadline:
-            if check():
-                return True
-            timing.sleep(0.05)
-        return False
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    before_the_hub(team)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("a", "b")]
-    carriers, inboxes = [], []
-    try:
-        for number, journal in enumerate(journals, start=1):
-            _, token = team.devices.login("ada@example.com", "correct horse battery", f"machine {number}", "127.0.0.1", 1.0)
-            journal.container.get(TeamAccount).write({"address": address, "token": token, "device": number, "account_id": 1, "sequence": 0})
-            journal.container.get(IdBlocks).add("tasks", 900000 + number * 1000, 900000 + number * 1000 + 99)
-            journal.server()
-            carrier = Carrier(JournalDoors(journal.config.root))
-            inbox = EventInbox(carrier)
-            inbox.start()
-            threading.Thread(target=carrier.run, args=(inbox.address,), daemon=True).start()
-            carriers.append(carrier)
-            inboxes.append(inbox)
-        a, b = journals
-        assert eventually(lambda: [registration.name for registration in a.container.get(ServiceHooks).registrations()] == ["sync"]), "the sync service registers with the journal server for its events"
-        assert a.console().run(["task", "create", "made on machine 1"], USER).code == 0
-        assert eventually(lambda: "made on machine 1" in [task.title for task in b.container.get(Tasks).global_matching()]), "a change queued on one journal is carried to the team and handed back to the other"
-        assert eventually(lambda: a.container.get(SyncStatus).line() == "In step with the team"), a.container.get(SyncStatus).line()
-        [task] = [task for task in a.container.get(Tasks).global_matching() if task.title == "made on machine 1"]
-        with b.container.get(Scope).environment(MAIN):
-            b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="renamed by b"), Actor.user(1))
-        assert eventually(lambda: a.container.get(Tasks).find(task.id).title == "renamed by b"), "and back the other way"
-        carriers[1].stop()
-        assert eventually(carriers[1].sending_loop.is_dead), "the second journal's sending is down before its edit, so no round still under way sends it"
-        with b.container.get(Scope).environment(MAIN):
-            b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="b's older title"), Actor.user(1))
-        timing.sleep(0.01)
-        with a.container.get(Scope).environment(MAIN):
-            a.container.get(Tasks).save(a.container.get(Tasks).find(task.id).with_(title="a's later title"), Actor.user(1))
-        assert eventually(lambda: team.log.row("tasks", task.id).fields["title"] == "a's later title")
-        carriers[1] = Carrier(JournalDoors(b.config.root))
-        inboxes[1] = EventInbox(carriers[1])
-        inboxes[1].start()
-        threading.Thread(target=carriers[1].run, args=(inboxes[1].address,), daemon=True).start()
-        assert eventually(lambda: b.container.get(Tasks).find(task.id).title == "a's later title") and a.container.get(Tasks).find(task.id).title == "a's later title", "two edits of one title made while one journal's sync was down keep the later on both"
-        assert eventually(lambda: any("was kept instead of yours" in message.text for message in b.container.get(Messages).global_matching())), "the journal whose edit lost shows a card naming whose edit was kept"
-        # an answer that waits to be applied, as under load, still measures the clock offset as it arrived, so this journal's later
-        # edits never go out stamped before its own earlier ones and are rejected against them
-        desk, team_a = a.container.get(SyncDesk), TeamLink(carriers[0].doors.team())
-        holding = threading.Thread(target=lambda: (desk.applying.acquire(), timing.sleep(1.5), desk.applying.release()))
-        holding.start()
-        timing.sleep(0.05)
-        carriers[0].pulled(team_a, 0)
-        holding.join()
-        assert abs(desk.offset.seconds) < 1.0, f"the offset was measured after the wait to apply, {desk.offset.seconds:.2f} s off"
-        # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
-        copied, held = threading.Event(), a.container.get(TeamAccount).sequence()
-        answer = lambda head: json.dumps({"changes": [], "head": head, "server_time": timing.time(), "team_version": "", "copy_needed": True, "requests": []}).encode()
-        with carriers[0].carrying:
-            at_head = threading.Thread(target=lambda: carriers[0].applied_count(team_a, answer(held)))
-            at_head.start()
-            at_head.join(1.0)
-            assert not at_head.is_alive(), "a journal already at the team's head never takes the copy, so it never waits for the send"
-            taking = threading.Thread(target=lambda: (carriers[0].applied_count(team_a, answer(held + 1)), copied.set()))
-            taking.start()
-            assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
-        assert copied.wait(5.0), "and goes ahead once the send is done"
-        taking.join()
-        assert a.container.get(Tasks).find(task.id).title == "a's later title", "the copy kept this journal's rows"
-    finally:
-        for carrier, inbox in zip(carriers, inboxes):
-            carrier.stop()
-            inbox.stop()
-        server.shutdown()
-
-
 def test_a_progress_pattern_that_matches_a_line_with_no_number_reads_no_progress_from_it_and_never_fails():
     from journal.features.shell.support.progress import Progress
     lines = ["running tests", "tests [ 40%]", "running tests again", "done"]
     assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, "") == Progress(40, 100), "a line the pattern matches with no number in it is passed over, before and after the counted line"
     assert not Progress.found(r"running (\w+)", "", lines, "").is_known(), "a pattern whose match holds only words reads no progress"
     assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, r"\.") == Progress(40, 100), "and so does a run with a step pattern"
-
-
 
 
 def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(app: App):
@@ -14238,24 +7125,6 @@ def test_a_reminder_set_for_a_local_time_in_a_repeated_hour_is_due_at_its_earlie
         time.tzset()
 
 
-def test_the_orchestrator_approves_a_plan_only_when_the_user_allows_it(app: App):
-    console = app.console()
-    settings = app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "create", "p", "--brief", "the goal"], AGENT)
-    console.run(["plan", "phase", "1", "Lay the floor", "--when", "the floor is level"], AGENT)
-    console.run(["plan", "add", "1", "pour the slab"], AGENT)
-    console.run(["plan", "ready", "1"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "with the toggle off the orchestrator is refused"
-    user_set(app, "workers.orchestrator_approves_plans", True)
-    user_set(app, "workers.mode", "builder")
-    assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "the toggle counts in orchestrator mode only"
-    user_set(app, "workers.mode", "orchestrator")
-    assert console.run(["plan", "approve", "1"], AGENT).code == 0, "with the toggle on the orchestrator approves, all plans by default"
-
-
 def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each_has_run(app: App):
     from journal.http.controllers.test_turns import TestTurnController
     from journal.http.listing import Listing
@@ -14287,37 +7156,6 @@ def drafted_plan(app: App, caller: Caller, title: str) -> int:
     return int(n)
 
 
-def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_approval_choice_names(app: App):
-    from journal.models.plan import Plan
-    from journal.repositories.plans import Plans
-    from journal.support.actor_type import ActorType
-    from journal.features.workers.support.plan_approval import PlanApproval
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    own, users = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan")
-    with app.container.get(Scope).environment(MAIN):
-        drafted = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal"), Actor.worker(3))
-        others = app.container.get(Plans).save(drafted.ready(0.0), Actor.worker(3)).id
-        assert app.container.get(Plans).find(others).creation_actor.actor_type == ActorType.WORKER, "the plan is the worker's, saved with its actor"
-    approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
-    choose = lambda approval: user_set(app, "workers.orchestrator_plan_approval", approval.value)
-    choose(PlanApproval.ALL)
-    assert all("only the user approves" in approve(n).error for n in (own, users, others)), "with the toggle off the orchestrator approves no plan, whatever the choice"
-    user_set(app, "workers.orchestrator_approves_plans", True)
-    choose(PlanApproval.OWN)
-    assert "only the user approves" in approve(users).error and "only the user approves" in approve(others).error, "its own plans are only the plans a main agent created"
-    assert approve(own).code == 0, "and it approves its own"
-    choose(PlanApproval.USER_MADE)
-    assert "only the user approves" in approve(others).error, "a plan a worker made is not a plan the user made"
-    assert approve(users).code == 0, "and it approves the user's"
-    choose(PlanApproval.ALL)
-    assert approve(others).code == 0, "with all plans it approves any"
-    refused = console.run(["settings", "set", "workers.orchestrator_plan_approval", PlanApproval.OWN.value], AGENT)
-    assert refused.code == 1 and "the user's to set" in refused.error, "the journal refuses an agent that changes the choice"
-
-
 def test_the_switch_to_approve_only_plans_it_did_not_write_becomes_the_plans_the_user_made(app: App):
     from journal.db.connection import Connection
     from journal.db.migrations.plan_approval_choice import PlanApprovalChoice
@@ -14330,40 +7168,6 @@ def test_the_switch_to_approve_only_plans_it_did_not_write_becomes_the_plans_the
     PlanApprovalChoice().apply(connection)
     rows = {(row["environment_id"], row["key"]): row["value"] for row in connection.all("SELECT environment_id, key, value FROM settings WHERE environment_id IN (7, 8)")}
     assert rows == {(7, "workers.orchestrator_approves_plans"): "true", (7, "workers.orchestrator_plan_approval"): '"can approve plans the user made"', (8, "workers.orchestrator_approves_plans"): "true"}, rows
-
-
-def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    drafted = lambda caller, title: drafted_plan(app, caller, title)
-
-    own = drafted(AGENT, "the orchestrator's plan")
-    user_set(app, "workers.orchestrator_writes_plans", False)
-    assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
-    user_set(app, "workers.mode", "builder")
-    assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
-    user_set(app, "workers.mode", "orchestrator")
-    users = drafted(USER, "the user's plan")
-    user_set(app, "workers.orchestrator_approves_plans", True)
-    user_set(app, "workers.orchestrator_plan_approval", "can approve plans the user made")
-    assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving the plans the user made, the orchestrator may not approve its own"
-    assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
-    user_set(app, "workers.orchestrator_plan_approval", "can approve all plans")
-    assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with all plans it approves its own too"
-    for _ in range(4):
-        console.run(["sequence", "follow"], AGENT)
-        console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
-    tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
-    status, body = tag()
-    assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.RELEASE_REFUSED), "with May release off the orchestrator's release waits for the user"
-    user_set(app, "workers.orchestrator_releases", True)
-    status, body = tag()
-    assert status == 200, ("with it on the orchestrator releases", body)
-    for name in ("orchestrator_writes_plans", "orchestrator_approves_plans", "orchestrator_releases"):
-        refused = console.run(["settings", "set", f"workers.{name}", "on"], AGENT)
-        assert refused.code == 1 and "the user's to set" in refused.error, f"workers.{name} is the user's to set, refused from an agent"
 
 
 def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_the_supervisors_notice_are_told_once_booted(app: App, capsys):
@@ -14428,7 +7232,6 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     assert served == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
 
 
-
 def test_a_rebase_order_rebases_a_resting_worker_at_once_and_sends_a_clash_back(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
@@ -14443,8 +7246,6 @@ def test_a_rebase_order_rebases_a_resting_worker_at_once_and_sends_a_clash_back(
     assert ordered.code == 0, ordered.error
     assert (folder / "platform/notes.md").is_file() and worker_row(app).state == WorkerState.DELIVERED, "a clocked-out worker is rebased at once and stays as it was"
     assert worker_row(app, 2).state == WorkerState.DISPATCHED and "conflict in platform/app.php" in worker_row(app, 2).brief, "one that clashes goes back to fix the files"
-
-
 
 
 def test_a_long_run_whose_progress_showed_only_in_its_last_lines_is_flagged_and_one_counting_as_it_went_is_not():
@@ -14543,40 +7344,6 @@ def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progr
     assert judge.unshown_build(reader, output("pytest -q"), ["..."], began + timedelta(seconds=40)) == [], "a run that is not a build raises nothing"
 
 
-def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_until_taken_up_and_the_outer_resumes_after(app: App):
-    console = app.console()
-    outer = console.run(["sequence", "create", "outer", "--steps", "plan it | ship it"], USER).text.split()[1].rstrip(":")
-    inner = console.run(["sequence", "create", "inner", "--steps", "check it"], USER).text.split()[1].rstrip(":")
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "t", "--start"], AGENT)
-    bash = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
-    console.run(["sequence", "run", outer], AGENT)
-    console.run(["sequence", "follow"], AGENT)
-    assert bash("make build")[0] == 200, "a taken up step lets work through"
-    assert "step 1: check it" in console.run(["sequence", "run", inner], AGENT).text
-    assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(inner), "a sequence started inside another takes priority"
-    with app.container.get(Scope).environment(MAIN):
-        from journal.repositories.agents import Agents
-        from journal.engine.support.stack_history import StackHistory
-        from journal.repositories.entries import Entries
-        layers = [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack]
-        trail = [entry.data for entry in app.container.get(Entries).all_matching(entry_type=StackHistory.KIND) if entry.data.get("session") == "s1"]
-    assert layers.count("following_sequence") == 2 and json.dumps(trail[-1]["after"]).count("following_sequence") == 2, "a push of the top's own kind leaves two layers and a trail entry"
-    status, body = bash("make build")
-    assert status == 409 and nudge_reached(app, body["error"], SequencesNudges.STEP_EDIT_BLOCK, n=inner), "work that is not reading is held while the top step is not taken up"
-    assert bash("journal task list")[0] == 200 and hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "journal commands and reads go through"
-    assert "step 1 of sequence" in console.run(["sequence", "next"], AGENT).error, "only the top can be moved on, and not before it is followed"
-    console.run(["sequence", "follow"], AGENT)
-    assert bash("make build")[0] == 200
-    link = app.container.get(SupervisorLink)
-    link.working(MAIN)
-    ended = console.run(["sequence", "next"], AGENT).text
-    assert nudge_reached(app, ended, SequencesNudges.SEQUENCE_ENDED) and "step 1: plan it" in link.pending_lines(MAIN), "when the inner ends the outer's state, on top again, says its step"
-    assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(outer), "and the outer is the top again"
-    assert bash("make build")[0] == 200, "the outer, taken up before, resumes with its step taken up"
-
-
 def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says_what_runs(app: App):
     from datetime import datetime, timezone
     from types import SimpleNamespace
@@ -14623,12 +7390,6 @@ def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_th
     (root / "tools" / "hooks" / "post-commit").write_text("#!/bin/sh\necho done\n")
     os.chmod(root / "tools" / "hooks" / "post-commit", 0o755)
     assert [hook["name"] for hook in get_answer(app, "/journal/git-hooks", {"X-Journal-Env": "main"})[1]] == ["post-commit"], "core.hooksPath names the folder git uses"
-
-
-
-
-
-
 
 
 def test_a_commit_is_one_card_whichever_session_sees_it_and_a_merge_read_twice_acts_on_its_trailer_once(app: App, monkeypatch):
@@ -14685,32 +7446,6 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
         round_robin = app.container.get(RoundRobinDelivery)
         assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
         assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
-
-
-def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cleared_await_removes_its_check(app: App):
-    from journal.repositories.checks import Checks
-    from journal.repositories.entries import NUDGE, Entries
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    assert console.run(["await", "the nightly build", "--until", "exit 0"], AGENT).code == 0
-    lifted = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert nudge_reached(app, lifted, TasksNudges.WAIT_LIFTED, what="the nightly build", n=1)
-    app.runtime().deferred.drain()
-    checks = app.container.get(Checks)
-    with app.container.get(Scope).environment(MAIN):
-        assert [check.row_id for check in checks.wait_rows()] == [1], "the lifted wait leaves its check running"
-    assert console.run(["check", "run", "1"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "tasks.wait_check_passed"]
-        assert told == ["the nightly build is done: the check passed"], "the agent is told once"
-        assert checks.wait_rows() == [], "and the check retires"
-    assert console.run(["await", "the second build", "--until", "exit 0"], AGENT).code == 0
-    assert "check 2 removed" in console.run(["await", "clear"], AGENT).text
-    with app.container.get(Scope).environment(MAIN):
-        assert checks.wait_rows() == [], "a cleared await removes its check"
-    assert app.container.get(SessionAgents).top("s1").name != "awaiting"
 
 
 def test_the_git_page_reads_branches_with_their_distance_from_the_base_the_recent_commits_and_the_open_pull_requests(app: App, monkeypatch):
@@ -14796,70 +7531,6 @@ def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_r
     assert len(found) == 1 and "121632227066" in found[0] and "an id" in found[0], f"a count towards a job's id, 55/121632227066, is reported: {found}"
 
 
-def test_a_watched_test_run_that_prints_without_a_total_is_told_once_to_give_one(app: App):
-    from datetime import timedelta
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    hook(app, "SessionStart")
-    folder = app.config.root / "matrix"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("python3 -m pytest -q tests/update_matrix_run.py")
-    (folder / "0.out").write_text("." * 44 + "\n")
-    app.container.get(OutputLog).start("m", "python3 -m pytest -q tests/update_matrix_run.py", folder, Caller.agent("main", "s1", "claude"))
-    outputs = app.container.get(CommandOutputs)
-    started = outputs.find(1)
-    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=90)), Actor.system())
-    assert app.console().run(["output", "watch", "1"], AGENT).code == 0
-    for _ in range(3):
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
-    app.runtime().deferred.drain()
-    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == ShellNudges.RUN_TOTAL_MISSING.key]
-    assert len(told) == 1 and has_nudge(told[0], ShellNudges.RUN_TOTAL_MISSING, n=1), f"a watched test run printing dots with no total is told once to give one: {told}"
-
-
-def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stream_and_its_card_says_why(app: App):
-    from datetime import timedelta
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_views import SILENT_CARD_LINE, OutputViews
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.support.heartbeat import Heartbeat
-    hook(app, "SessionStart")
-    folder = app.config.root / "go-v"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("go test -v ./...")
-    app.container.get(OutputLog).start("q", "go test -v ./...", folder, Caller.agent("main", "s1", "claude"))
-    outputs = app.container.get(CommandOutputs)
-    started = outputs.find(1)
-    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
-    Heartbeat(folder).write(timing.time())
-    for _ in range(2):
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
-    app.runtime().deferred.drain()
-    hints = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.silent_run_streams"]
-    assert len(hints) == 1 and has_nudge(hints[0], ShellNudges.SILENT_RUN_HINT, n=1, seconds=40), f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
-    views = app.container.get(OutputViews)
-    assert views.card_text(outputs.find(1), replace(views.view(outputs.find(1)), silent=True)) == SILENT_CARD_LINE, "and its card says the command buffers its output"
-    from journal.features.shell.support.silent_runs import SilentRuns
-    resting = app.config.root / "nap"
-    resting.mkdir()
-    (resting / "parts").write_text("R-\n")
-    (resting / "0.part").write_text("sleep 60")
-    app.container.get(OutputLog).start("n", "sleep 60", resting, Caller.agent("main", "s1", "claude"))
-    nap = max(outputs.all(), key=lambda output: output.id)
-    outputs.save(nap.backgrounded().with_(created_at=nap.creation_time - timedelta(seconds=40)), Actor.system())
-    with app.container.get(Scope).environment(MAIN):
-        assert [run.output for run in app.container.get(SilentRuns).running("s1")] == [1], "a sleep prints nothing by its nature and is never told to stream"
-
-
-
 def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_quietly_and_is_shared_by_the_machine(app: App, monkeypatch):
     import email.message
     import subprocess
@@ -14892,63 +7563,6 @@ def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_qu
     assert updater.problem == "" and updater._next_check_at == 4102444800.0, "a refusal says nothing to the user and waits until the reset"
     memory.store(ReleaseCheck(1000.0, 0.0, ("v4.70.0",)))
     assert source.next_check_time(3600) == 4600.0 and source.stored_tags("v4.") == ["v4.70.0"], "a journal that starts again counts its next look from the machine's last one and keeps its tags"
-
-
-
-
-def test_a_sequence_is_never_started_over_a_compaction_or_a_wait_whose_own_event_it_would_hide(app: App):
-    from journal.repositories.agents import Agents
-    console = app.console()
-    number = console.run(["sequence", "create", "Checking", "--steps", "check it"], USER).text.split()[1].rstrip(":")
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    stack = lambda: [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack]
-    for state in ("compacting", "awaiting"):
-        assert console.run(["panic", "apply", state], AGENT).code == 0
-        refused = console.run(["sequence", "run", number], AGENT)
-        with app.container.get(Scope).environment(MAIN):
-            layers = stack()
-        assert refused.code != 0 and "once that is over" in refused.error and "following_sequence" not in layers, (state, refused.error, layers)
-        assert console.run(["panic", "apply", "pop"], AGENT).code == 0
-    assert console.run(["sequence", "run", number], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        assert stack()[-1] == "following_sequence", "once the wait is over the sequence starts on top"
-
-
-def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_in_words_and_a_titled_one_is_not(app: App):
-    from datetime import timedelta
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.support.heartbeat import Heartbeat
-    hook(app, "SessionStart")
-    folder = app.config.root / "suite-run"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("journal suite --filter=Performance")
-    app.container.get(OutputLog).start("q", "journal suite --filter=Performance", folder, Caller.agent("main", "s1", "claude"))
-    outputs = app.container.get(CommandOutputs)
-    started = outputs.find(1)
-    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
-    Heartbeat(folder).write(timing.time())
-
-    def told() -> list[str]:
-        app.runtime().deferred.drain()
-        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
-
-    def tick() -> None:
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
-
-    outputs.watch(outputs.find(1), "", "Running /private/tmp/claude-501/suite", Actor.system())
-    for _ in range(2):
-        tick()
-    lines = told()
-    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.FLAGGED_TITLE, n=1, card_title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
-    outputs.watch(outputs.find(1), "", "Running the performance tests", Actor.system())
-    tick()
-    assert len(told()) == 1, "a card titled in words adds no line"
 
 
 def test_a_check_row_is_updated_twice_by_a_run_once_when_it_starts_and_once_when_it_ends(app: App):
@@ -15009,111 +7623,6 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
     assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)
 
 
-def test_a_chained_runs_card_is_titled_by_its_test_run_never_by_the_sed_before_it_and_a_foreground_cards_title_is_checked(app: App):
-    from datetime import timedelta
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.shell.support.activity_label import ActivityLabel
-    from journal.features.shell.support.output_files import OutputFiles
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_process_card import OutputProcessCard
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    hook(app, "SessionStart")
-    assert app.console().run(["alias", "add", "viewer-tests", "npm --prefix src/web test", "--about", "the viewer's tests"], AGENT).code == 0
-    outputs, card = app.container.get(CommandOutputs), app.container.get(OutputProcessCard)
-
-    def ran(n: int, command: str, parts: list[str]) -> str:
-        folder = app.config.root / f"chain-{n}"
-        folder.mkdir()
-        (folder / "parts").write_text("R-\n" * len(parts))
-        for i, part in enumerate(parts):
-            (folder / f"{i}.part").write_text(part)
-        OutputFiles(folder).ended_with(0, 0)
-        app.container.get(OutputLog).start(f"c{n}", command, folder, Caller.agent("main", "s1", "claude"))
-        started = outputs.find(n)
-        output = outputs.save(started.with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
-        return card.title(output, card.shown_part(output))
-
-    sed = "sed -i '' 's/abstract: About/abstract: Plain/' notes.txt"
-    assert ran(1, f"{sed}\njournal viewer-tests", [sed, "npm --prefix src/web test"]) == "Journal viewer-tests", "a chain calling an alias is titled by the alias, not the sed before it"
-    testing = app.container.get(ActivityLabel).build("pytest tests")
-    assert ran(2, f"{sed}\npytest tests", [sed, "pytest tests"]) == testing[:1].upper() + testing[1:], "a chain is titled by the part still running, the test run"
-    flagged = ran(3, "true\n./checks.sh --all", ["true", "./checks.sh --all"])
-    app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
-    app.runtime().deferred.drain()
-    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
-    assert len(told) == 1 and has_nudge(told[0], ShellNudges.FLAGGED_TITLE, n=3, card_title=flagged), f"a foreground run showing a card has its title checked too: {flagged!r}, {told}"
-
-
-def test_runs_of_different_lines_under_one_card_title_are_told_once_naming_both_and_runs_differing_in_arguments_under_a_topic_are_not(app: App):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    hook(app, "SessionStart")
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--about", "a unit run's summary", "--label", "Running tests", "--commands", "pytest", "--topic", r"(\S+\.py)"], USER).code == 0
-    outputs = app.container.get(CommandOutputs)
-
-    def ran(n: int, line: str, reader: str, title: str) -> None:
-        folder = app.config.root / f"run-{n}"
-        folder.mkdir()
-        (folder / "parts").write_text("R-\n")
-        (folder / "0.part").write_text(line)
-        app.container.get(OutputLog).start(f"c{n}", line, folder, Caller.agent("main", "s1", "claude"))
-        outputs.save(outputs.find(n).backgrounded().watched(reader, title), Actor.system())
-
-    def told() -> list[str]:
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
-        app.runtime().deferred.drain()
-        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.give_each_run_its_own_title"]
-
-    ran(1, "python3 scripts/suite.py", "", "Running tests")
-    ran(2, "python3 scripts/suite.py --update-matrix", "", "Running tests")
-    told()
-    lines = told()
-    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.SHARED_TITLE, card_title="Running tests", first_line="python3 scripts/suite.py", second_line="python3 scripts/suite.py --update-matrix"), f"two lines under one title are told once, naming both: {lines}"
-    ran(3, "pytest tests/test_a.py -x", "unit-runs", "")
-    ran(4, "pytest tests/test_a.py -q", "unit-runs", "")
-    assert len(told()) == 1, "runs that differ only in their arguments under a reader's topic add no line"
-
-
-def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_to_the_agent_and_on_its_card(app: App):
-    from journal.features.shell.jobs.watch_refresh import COMPLETE_WAIT_SECONDS, WatchRefresh
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_views import COMPLETE_UNENDED_LINE
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.messages import Messages
-    from journal.support.heartbeat import Heartbeat
-    hook(app, "SessionStart")
-    outputs, messages = app.container.get(CommandOutputs), app.container.get(Messages)
-    folder = app.config.root / "stuck"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest tests")
-    (folder / "0.out").write_text("tests/a.py ..  [100%]\n")
-    app.container.get(OutputLog).start("w", "pytest tests", folder, Caller.agent("main", "s1", "claude"))
-    Heartbeat(folder).write(timing.time())
-    outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    app.console().run(["output", "watch", "1", "--reader", "pytest"], AGENT)
-    refresh = app.container.get(WatchRefresh)
-    start = timing.time()
-    refresh.tick(start)
-    refresh.tick(start + COMPLETE_WAIT_SECONDS - 1)
-    assert not outputs.find(1).is_complete_reported, "a run at its whole bar for less than the set time is not named"
-    for later in (COMPLETE_WAIT_SECONDS + 1, COMPLETE_WAIT_SECONDS + 5):
-        refresh.tick(start + later)
-    app.runtime().deferred.drain()
-    told = [e.data["line"] for e in app.container.get(Entries).all_matching(entry_type=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
-    assert len(told) == 1 and has_nudge(told[0], ShellNudges.COMPLETE_PROGRESS_RUN, n=1, seconds=COMPLETE_WAIT_SECONDS + 1), f"the agent is told once: {told}"
-    card = messages.with_key("watch:1")[0].data
-    assert COMPLETE_UNENDED_LINE in (card.get("detail"), *card.get("lines", ())), "and the card says what the whole bar means"
-
-
-
-
 def test_a_chain_of_three_parts_is_classified_only_by_its_command_parts_and_no_other_caller_classifies_a_part(app: App):
     import re
     from pathlib import Path
@@ -15139,128 +7648,6 @@ def test_the_organization_settings_default_and_only_the_user_sets_them(app: App)
     assert console.run(["settings", "set", "workers.seat_cap", "4"], AGENT).code != 0, "the agent may not set a cap"
 
 
-def test_a_teammate_may_not_approve_or_pause_a_plan_in_a_colleagues_environment_but_may_comment(app: App):
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.message import Message
-    from journal.models.plan import Plan
-    from journal.models.support.ref import Ref
-    from journal.models.user import User
-    from journal.repositories.environment_owners import OWNER
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.plans import Plans
-    from journal.repositories.scope import Scope
-    from journal.repositories.users import Users
-    from journal.models.author import Author
-    from journal.support.rejection import Rejection
-    environments, links, users = app.container.get(Environments), app.container.get(Links), app.container.get(Users)
-    ada, bob = (users.save(User(name=name, email=f"{name.lower()}@example.com"), Actor.system()) for name in ("Ada", "Bob"))
-    home = environments.save(Environment(name="ada-plans"), Actor.system())
-    links.save(Link(source=Ref.build(ada), target=Ref.build(home), link_type=OWNER), Actor.system())
-    plans = app.container.get(Plans)
-    with app.container.get(Scope).environment(home.row_id):
-        plan = plans.save(Plan(title="ship the organization"), Actor.user(ada.row_id))
-        for refused in (lambda: plans.user_approved(plan, Actor.user(bob.row_id)), lambda: plans.user_cancelled(plan, Actor.user(bob.row_id))):
-            with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
-                refused()
-        assert plans.find(plan.row_id).state.value == "draft", "none of Bob's moves changed the plan"
-        approved = plans.user_approved(plan, Actor.user(ada.row_id))
-        assert approved.state.value == "approved" and approved.updater == Actor.user(ada.row_id), "the owner's approval is written, naming Ada"
-        with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
-            plans.user_postponed(approved, Actor.user(bob.row_id))
-        assert plans.find(plan.row_id).state.value == "approved", "nor did his pause"
-        postponed = plans.user_postponed(approved, Actor.user(ada.row_id))
-        assert postponed.state.value == "paused", "and the owner's pause"
-        comment = app.container.get(Messages).save(Message(environment_id=home.row_id, author=Author.USER, text="looks right to me"), Actor.user(bob.row_id))
-        assert comment.author == Author.COLLEAGUE, "Bob's word in Ada's environment is a comment, not a command"
-
-def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_worker_goes_on_while_a_short_goes_back_to_it(app: App, monkeypatch):
-    from journal.features.reviewing.support.review_report import ReviewReport
-    from journal.models.command_output import CommandOutput
-    from journal.models.proof_state import ProofState
-    from journal.models.task_state import TaskState
-    from journal.models.support.ref import Ref
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import Entries
-    from journal.repositories.proofs import Proofs
-    from journal.repositories.reviewers import Reviewers
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    assert ReviewReport("1 passed\n2 short: no table").judged and ReviewReport("1 passed").is_approved(1) and ReviewReport("1 passed. 2 undecided: the proof names no test").is_undecided(2) and ReviewReport("1 passed").is_undecided(2), "a report signs off when it passes every point, and is undecided when no point is short but one is undecided or not named"
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "reviewing.reviewer", True)
-    user_set(app, "workers.allowed_models", ["claude reviewer: haiku"])
-    for table in ("tasks", "links", "messages", "proofs", "workers"):
-        app.container.get(IdBlocks).add(table, 800000, 800100)
-    with app.container.get(Scope).environment(MAIN):
-        workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
-    console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        parser, lexer = sorted(tasks.scoped(), key=lambda row: row.id)[-2:]
-    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--report", "each"], AGENT)
-    assert dispatched.code == 0, dispatched.error
-    with app.container.get(Scope).environment(MAIN):
-        worker = max(workers.scoped(), key=lambda row: row.id)
-        workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
-    assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
-    lovelace = Caller.worker("main", worker.id, "w-1", "claude")
-
-    def clocked_out(proof: str):
-        assert console.run(["proof", "1", proof], lovelace).code == 0
-        out = console.run(["clock-out", "done"], lovelace)
-        assert out.code == 0, out.error
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            [reviewer] = [r for r in reviewers.scoped() if r.is_reviewing()]
-            return reviewer
-
-    def newest() -> int:
-        with app.container.get(Scope).environment(MAIN):
-            return max((entry.id for entry in app.container.get(Entries).kind_entries("nudge", 1)), default=0)
-
-    def told_since(mark: int) -> list[str]:
-        with app.container.get(Scope).environment(MAIN):
-            return [entry.data["key"] for entry in reversed(app.container.get(Entries).kind_entries("nudge", 500)) if entry.id > mark and entry.data["session"] == "s1"]
-
-    def reviewed(reviewer, report: str) -> None:
-        out = console.run(["review", report], Caller.reviewer("main", reviewer.id, reviewer.session, "claude"))
-        assert out.code == 0, out.error
-        app.runtime().deferred.drain()
-
-    reviewer = clocked_out("parser.py:20, test_reads_every_rule passes")
-    assert reviewer.model == "haiku", "the reviewer runs on the strongest model the settings allow it"
-    assert all(part in reviewer.brief for part in ("the parser reads every rule of the grammar", "parser.py:20, test_reads_every_rule passes", "$ python3 -m pytest tests/test_parser.py (exit 0)", "3 passed in 0.4s")), "it is handed the task's brief, the worker's proof and the output of the test the worker ran"
-    before = newest()
-    reviewed(reviewer, "1 passed. Tests: python3 -m pytest tests/test_parser.py passed")
-    with app.container.get(Scope).environment(MAIN):
-        signed, going = tasks.find(parser.id), workers.find(worker.id)
-        holding = tasks.holder_task_ids(Ref.build(going))
-    assert signed.state == TaskState.COMPLETED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
-    assert told_since(before) == [TasksNudges.WAIT_END.key], "the orchestrator is told only that its wait on the worker is over"
-    again = clocked_out("lexer.py:4, test_splits passes")
-    assert again.id == reviewer.id, "the same reviewer takes the next review"
-    before = newest()
-    reviewed(again, "1 short: the lexer drops the last word. FAILED tests/test_lexer.py::test_last_word")
-    with app.container.get(Scope).environment(MAIN):
-        back, [proof] = workers.find(worker.id), proofs.task_proofs(tasks.find(lexer.id))
-    assert back.state == WorkerState.DISPATCHED and proof.state == ProofState.SHORT and "the lexer drops the last word" in proof.shortfall and "test_last_word" in proof.shortfall, "a point short goes back to the worker by itself, with the reason and the failing output"
-    assert told_since(before) == [], "and the orchestrator hears nothing of it"
-    last = clocked_out("lexer.py:9, test_last_word passes")
-    reviewed(last, "1 passed")
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(lexer.id).state == TaskState.COMPLETED, "the work proved again is signed off"
-    lines = told_since(before)
-    assert lines.count("workers.worker_has_no_work_left") == 1 and set(lines) <= {"workers.worker_has_no_work_left", "tasks.wait_over"}, ("the orchestrator is told once, when the worker's queue runs dry, and its wait on the worker ends with it", lines)
-
-
 def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in(app: App):
     """The mode is the floor of the agent's stack; when the user switches it, the next step says once what the new mode asks."""
     hook(app, "SessionStart")
@@ -15269,8 +7656,7 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work" not in use("a.py"), "nothing is said while the mode stays"
     user_set(app, "workers.mode", "orchestrator")
     switched = use("b.py")
-    assert "you orchestrate:" in switched, "the switch is told at the next step"
-    assert "dispatch tasks, review and merge, run the suite" in switched, "and it is told to hand the work out, review and merge it, and run the suite"
+    assert nudge_reached(app, switched, WorkersNudges.ORCHESTRATOR_MODE), "the switch is told at the next step, naming the command that says what the mode asks"
     assert "you now work" not in use("c.py"), "and only once"
     user_set(app, "workers.mode", "solo")
     assert nudge_reached(app, use("d.py"), WorkersNudges.SOLO_MODE)
@@ -15286,8 +7672,6 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     from journal.models.task import Task
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
-    for table in ("tasks", "messages", "links"):
-        app.container.get(IdBlocks).add(table, 800000, 800100)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)

@@ -1,7 +1,7 @@
-from journal.http.support.member_sessions import MemberSessions
 from journal.http.support.request_head import RequestHead
 from journal.http.support.supervisor_access import SupervisorAccess
 from journal.support.actor import Actor
+from journal.support.caller import LOCAL_USER
 from journal.support.response import Response
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
@@ -22,8 +22,8 @@ PRIVATE_PREFIX = "/_supervisor/"
 class SupervisorRequestAuth:
     """Resolve private supervisor requests before ordinary local/browser identity can run."""
 
-    def __init__(self, authority: SupervisorAuthority, sessions: MemberSessions) -> None:
-        self.authority, self.sessions = authority, sessions
+    def __init__(self, authority: SupervisorAuthority) -> None:
+        self.authority = authority
 
     def before_identity(self, head: RequestHead, path: str) -> SupervisorAccess:
         has_token, token, token_error = self._service_credential(head.headers)
@@ -32,10 +32,7 @@ class SupervisorRequestAuth:
                 return self._refused(403, "the supervisor service credential cannot use owner management routes")
             if head.method != "POST":
                 return self._refused(403, "supervisor owner management routes accept POST only")
-            session = self.sessions.session(head.cookie)
-            if session is None:
-                return self._refused(401, "an authenticated owner browser session is required")
-            return SupervisorAccess(actor=Actor.user(session.person))
+            return SupervisorAccess(actor=Actor.user(LOCAL_USER))
 
         if path in SERVICE_PATHS:
             if token_error:

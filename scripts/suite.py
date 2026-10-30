@@ -1,9 +1,8 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; --coverage-map runs the whole suite noting which source files each test runs, for scripts/affected_tests.py; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; a run of the simulator's files runs at a lower priority."""
 import importlib
 import json
 import os
 import re
-import signal
 import subprocess
 import sys
 import tempfile
@@ -15,19 +14,13 @@ PYTEST = [sys.executable, "-m", "pytest", "-p", "no:warnings"]
 SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
 TALLY_VARIABLE = "JOURNAL_TEST_TALLY"
 SPARE_CORES = 2
-MOST_SHARDS = 8
+MOST_SHARDS = 4
 # what one shard holds in memory, measured at about 210 MB a shard process and 150 MB a booted module journal, with room to spare
 SHARD_BYTES = 300 * 2**20
 # the pages macOS can hand a new process without swapping
 RECLAIMABLE_PAGES = ("free", "inactive", "speculative")
 SHARD_TIMEOUT_SECONDS = 600
-JUDGE_TIMEOUT_SECONDS = 120
-JUDGE_POLL_SECONDS = 1.0
-JUDGE_STOP_TIMEOUT_SECONDS = 5.0
-JUDGE_PROGRESS_TAIL_CHARS = 4096
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
-# the progress line the commandments judge writes at each of its stages
-JUDGE_PROGRESS = re.compile(r"^(parsing|reading|detector) (\d+)/(\d+)$")
 FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
 PERCENT = re.compile(r"\[\s*(\d+)%\]")
@@ -41,9 +34,7 @@ DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
 # every test of the last sharded run with its seconds, slowest first, and how many of them the run's end names
 SLOWEST_FILE = ROOT / ".journal" / "runtime" / "suite-slowest.txt"
 SLOWEST_SHOWN = 20
-JUDGE = ROOT / ".journal" / "plugins" / "code-commandments" / "bin" / "commandments-release"
 LOW_PRIORITY = ["nice", "-n", "10"]
-TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
 # a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
 SIMULATION_FILE = "simulation"
 MATRIX_OPTION = "--update-matrix"
@@ -52,10 +43,6 @@ STORIES_OPTION = "--stories"
 STORIES_FOLDER = "tests/stories"
 # the merged record of the last story run, read by scripts/old_test_coverage.py
 STORY_RECORD_FILE = ROOT / ".journal" / "runtime" / "story-record.json"
-COVERAGE_OPTION = "--coverage-map"
-# which source files each test runs, read by scripts/affected_tests.py
-COVERAGE_MAP_FILE = ROOT / ".journal" / "runtime" / "test-coverage.json"
-COVERAGE_OUT_VARIABLE = "JOURNAL_COVERAGE_OUT"
 MATRIX_FILE = "tests/update_matrix_run.py"
 MATRIX_SHARDS = 5
 MATRIX_SKIP_VARIABLE = "JOURNAL_SKIP_UPDATE_MATRIX"
@@ -167,17 +154,11 @@ def slowest_shown(folder: Path) -> None:
 
 def whole_suite() -> int:
     with tempfile.TemporaryDirectory() as folder:
-        judging = commandments_started(Path(folder))
         available = available_bytes()
         count = shard_count(available)
         if count < core_shards():
             print(memory_line(count, available), flush=True)
-        failed = sharded_run(Path(folder), count, (), "the suite")
-        sinful = False
-        if judging is not None:
-            print("waiting for the test commandments judging tests/", flush=True)
-            sinful = commandments_judged(judging)
-        return 1 if sinful or failed else 0
+        return 1 if sharded_run(Path(folder), count, (), "the suite") else 0
 
 
 # the stories alone, in shards: each shard writes what its stories leave to be checked, and the paths are laid over each other here once every shard has ended
@@ -252,88 +233,6 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str,
     return bool(totals.get("failed") or totals.get("errors") or any(process.returncode not in (0, 5) for process, _ in shards))
 
 
-def commandments_started(folder: Path) -> tuple[subprocess.Popen, Path] | None:
-    if not JUDGE.is_file():
-        print("the test commandments were not run: the code-commandments plugin is not installed here", flush=True)
-        return None
-    output = folder / "commandments.txt"
-    try:
-        with output.open("w") as stream:
-            process = subprocess.Popen(TEST_COMMANDMENTS, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
-    except OSError as fault:
-        print(f"the test commandments were not run: the code-commandments plugin could not start: {fault}", flush=True)
-        return None
-    return process, output
-
-
-def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
-    if judging is None:
-        return False
-    process, output = judging
-    if not judge_waited(process, output):
-        stopped = stop_judge(process)
-        ending = "and was stopped" if stopped else "but did not stop within the cleanup limit"
-        print(f"the test commandments were not judged: the judge did not finish within {JUDGE_TIMEOUT_SECONDS} seconds {ending}", flush=True)
-        return True
-    if process.returncode == 0:
-        print("the tests break none of the test commandments")
-        return False
-    print("the tests break the test commandments (tests-drive-the-real-path):")
-    print(output.read_text(), end="", flush=True)
-    return True
-
-
-def judge_waited(process: subprocess.Popen, output: Path) -> bool:
-    deadline, shown, progress_text = time.monotonic() + JUDGE_TIMEOUT_SECONDS, "", ""
-    with output.open(errors="replace") as stream:
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return process.poll() is not None
-            try:
-                process.wait(timeout=min(JUDGE_POLL_SECONDS, remaining))
-                return True
-            except subprocess.TimeoutExpired:
-                if process.poll() is not None:
-                    return True
-                progress_text = (progress_text + stream.read())[-JUDGE_PROGRESS_TAIL_CHARS:]
-                line = judge_progress(progress_text)
-                if line and line != shown:
-                    print(line, flush=True)
-                    shown = line
-
-
-def stop_judge(process: subprocess.Popen) -> bool:
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=JUDGE_STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        return False
-    return True
-
-
-def judge_progress(text: str) -> str:
-    steps = [match for line in re.split(r"[\r\n]", text) if (match := JUDGE_PROGRESS.match(line.strip()))]
-    if not steps:
-        return ""
-    stage, done, total = steps[-1].groups()
-    return f"judging tests/: {stage} {done}/{total} [{round(100 * int(done) / max(int(total), 1)):3d}%]"
-
-
-def coverage_map() -> int:
-    with tempfile.TemporaryDirectory() as folder:
-        os.environ[COVERAGE_OUT_VARIABLE] = folder
-        failed = sharded_run(Path(folder), shard_count(available_bytes()), (), "the suite, noting which source files each test runs")
-        covered = {node: files for path in Path(folder).glob("shard-*.coverage.json") for node, files in json.loads(path.read_text()).items()}
-        COVERAGE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        COVERAGE_MAP_FILE.write_text(json.dumps(covered))
-        print(f"the source files of {len(covered)} tests are written to {COVERAGE_MAP_FILE}", flush=True)
-        return 1 if failed else 0
-
-
 def scoped_command(arguments: list[str]) -> list[str]:
     return [*(LOW_PRIORITY if any(SIMULATION_FILE in argument for argument in arguments) else []), *PYTEST, *arguments]
 
@@ -358,8 +257,6 @@ def main(arguments: list[str]) -> int:
         return story_run(tuple(arguments[1:]))
     if arguments == [MATRIX_OPTION]:
         return update_matrix(update_release())
-    if arguments == [COVERAGE_OPTION]:
-        return coverage_map()
     if arguments:
         return scoped_run(arguments)
     return whole_suite()

@@ -9,7 +9,7 @@ from journal.support.card_type_catalogue import CardTypeCatalogue
 from journal.version import VERSION
 
 DIST = Path(__file__).resolve().parents[3] / "web" / "dist" / "index.html"
-PLACED = {"sharing": ("Sharing", "sharing"), "updates": ("Project", "system"), "record": ("Project", "system"), "faults": ("Developer", "developer")}
+PLACED = {"sharing": ("Sharing", "sharing"), "updates": ("Project", "system"), "record": ("Project", "system"), "error_reports": ("Project", "system"), "faults": ("Developer", "developer")}
 SYSTEM_GROUPS = [{"key": "organization", "title": "Organization", "line": "How plans run as an agentic organization: where its folder is, how a new plan works, the OpenRig it runs on and what it may spend. Only you can change these", "section": "Organization", "tab": "agent", "lead": ""}, {"key": "project", "title": "Project", "line": "Settings for the whole project, in every environment", "section": "Project", "tab": "system", "lead": ""}]
 
 

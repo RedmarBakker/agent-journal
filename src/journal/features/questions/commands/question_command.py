@@ -26,6 +26,7 @@ class QuestionCommand(Command):
         inquiry = self.verb(verbs, "ask", "ask the user something and wait")
         inquiry.add_argument("text")
         inquiry.add_argument("--options", nargs="+", default=[], help="the choices, each quoted on its own: --options \"first\" \"second\"")
+        inquiry.add_argument("--recommend", default="", help="the choice the agent recommends, word for word as one of the options: it is put first and marked")
         answer = self.verb(verbs, "answer", "answer a question")
         answer.add_argument("n", type=int)
         answer.add_argument("answer")
@@ -39,12 +40,14 @@ class QuestionCommand(Command):
         if len(options) == 1 and "," in options[0]:
             raise Rejection("give each choice as its own quoted argument, --options \"first\" \"second\", so a comma stays in it")
         requested = Question(text=args.text, options=options)
+        if args.recommend.strip():
+            requested = requested.with_recommendation(args.recommend.strip())
         if requested.unclear_options():
             raise Rejection(f"an option states who acts by name, the agent or the user, never I, we or you: {'; '.join(requested.unclear_options())}")
         question = self.questions.save(self.questions.save(requested, caller.actor).posed(self.time_source.moment().timestamp()), caller.actor)
         print(f"question {question.id} asked; waiting for the answer")
         for i, option in enumerate(question.options, 1):
-            print(f"  {i}. {option}")
+            print(f"  {i}. {question.option_label(option)}")
         return 0
 
     def answer(self, args: Namespace, caller: Caller) -> int:

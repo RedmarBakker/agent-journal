@@ -14,8 +14,6 @@ from journal.features.plans.listeners.advance_plan import AdvancePlan
 from journal.features.plans.listeners.allowed_test_run_use import AllowedTestRunUse
 from journal.features.plans.listeners.reopen_finished_plan import ReopenFinishedPlan
 from journal.features.plans.listeners.plan_reopening import PlanReopening
-from journal.features.plans.listeners.driven_row_closures import DrivenRowClosures
-from journal.features.plans.listeners.driven_row_deletions import DrivenRowDeletions
 from journal.features.plans.listeners.ended_drive_write_guard import EndedDriveWriteGuard
 from journal.features.plans.listeners.session_start_plan_start import SessionStartPlanStart
 from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
@@ -57,7 +55,7 @@ class Plans(Feature[PlansData]):
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn, CoordinatingPlans, LeadingPlan, LeadingTask, LeadingTaskWorking)
     modes = Modes(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
     commands = (PlanCommand,)
-    answer_listeners = ((EndedDriveWriteGuard, Blocking.ANSWER), (SessionStartPlanStart, Blocking.NEXT_DECISION), (DrivenRowDeletions, Blocking.NEXT_DECISION), (DrivenRowClosures, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION))
+    answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION))
     listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
@@ -67,7 +65,7 @@ class Plans(Feature[PlansData]):
     jobs = (TemplatePlanStart,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS, PlansOptions.PLAN_AGENTS)
-    nudges = (PlansNudges.LEADING_PLAN, PlansNudges.PLAN_RETURN_QUESTION, PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.SUPERVISOR_WORK_AVAILABLE, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.COORDINATOR_SENDS_NO_WORKER, PlansNudges.WORKING_TASK_ALONE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
+    nudges = (PlansNudges.LEADING_PLAN, PlansNudges.PLAN_RETURN_QUESTION, PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.SUPERVISOR_WORK_AVAILABLE, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.BUILDER_MODE, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.COORDINATOR_SENDS_NO_WORKER, PlansNudges.WORKING_TASK_ALONE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans
@@ -79,8 +77,8 @@ by you, approved by them, and then followed: finishing one task starts the next 
 - `journal plan phase <n> "<title>" --when "<complete when>"` adds a phase, `--checkpoint` where the user
   should review before the plan continues. A checkpoint stops the plan only when auto mode is off; in auto mode the plan
   continues straight on.
-- `journal plan add <n> "<task title>" --brief "<done when>"` files a task; `journal plan todos <n> <phase> <tasks…>`
-  puts tasks under a phase by its number from 1.
+- `journal plan add <n> "<task title>" --brief "<done when>" --phase <k>` files a task straight under its phase, by its number
+  from 1; `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase.
 - `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
   A builder or a solo agent has one started plan: starting or resuming one pauses the others, and a switch out of the

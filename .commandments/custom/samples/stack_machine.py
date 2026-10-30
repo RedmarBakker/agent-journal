@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.engine.base_state import BaseState
-from journal.engine.support.held import Held
+from journal.engine.support.block import Block
 from journal.engine.support.stack import Stack
 from journal.engine.support.transition import Transition
 from journal.events.agent.tool_starting import ToolStarting
@@ -33,17 +33,17 @@ class Sinning(BaseState):
     def on_model_event(self, event: ModelEvent, settings) -> Transition:
         return self.unchanged()
 
-    # @sin TransitionOutsideBaseStateDetector
     def on_task_closed(self, event: TaskClosed, settings) -> Transition:
+        # @sin TransitionOutsideBaseStateDetector
         return Transition(self)
 
-    # @sin HookThatMovesDetector
     def on_pop(self, settings):
+        # @sin HookThatMovesDetector
         return self.pop()
 
-    def on_suspend(self, settings):
-        # @sin HeldOutsideOnPushDetector
-        return Held(None)
+    def on_pause(self, settings):
+        # @sin BlockOutsideOnPushDetector
+        return Block(None)
 
 
 @dataclass(frozen=True)
@@ -58,16 +58,16 @@ class Righteous(BaseState):
         return self.unchanged()
 
     def on_push(self, settings):
-        # @righteous HeldOutsideOnPushDetector
-        return Held(None)
+        # @righteous BlockOutsideOnPushDetector
+        return Block(None)
 
     # @righteous HookThatMovesDetector
-    def on_resume(self, snapshot, settings):
+    def on_resume(self, data, settings):
         return self.pop()
 
 
+# @sin FeatureListenerSpeaksDetector
 class Speaking(AgentListener[ToolStarting]):
-    # @sin FeatureListenerSpeaksDetector
     def handle(self, event: ToolStarting) -> Decision:
         return Decision.refuse("no")
 
@@ -78,7 +78,7 @@ class Recording(AgentListener[ToolStarting]):
         self.entries.save(event)
 
 
-def outside(bus, stack: Stack):
+def stack_moved(bus, stack: Stack):
     # @sin StackBuiltOutsideEngineDetector
     built = Stack(())
     # @sin StackChangedOutsideEngineDetector
@@ -87,7 +87,7 @@ def outside(bus, stack: Stack):
     bus.dispatch(stack)
 
 
-def inside(plans, plan):
+def plan_started(plans, plan):
     # @righteous DispatchOutsideFunnelsDetector
     # @righteous StackBuiltOutsideEngineDetector
     plans.save(plan.started(None, 0.0), None)

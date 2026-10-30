@@ -34,6 +34,9 @@ class Memory(Scoped, Commentable):
     def reweighed(self, weight: int) -> "Memory":
         return self.weighed(weight).with_event(MemoryWeighed(weight=weight))
 
+    def reworded(self, text: str) -> "Memory":
+        return replace(self, text=text)
+
     def faded(self) -> "Memory":
         return replace(self, weight=max(LIGHTEST, self.weight - 1))
 

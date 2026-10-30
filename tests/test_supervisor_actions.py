@@ -14,10 +14,8 @@ from journal.models.entry import Entry
 from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.models.task import Task
-from journal.models.user import User
 from journal.models.worker import Worker
 from journal.repositories.checks import Checks
-from journal.repositories.environment_owners import OWNER
 from journal.repositories.environments import Environments
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
@@ -255,16 +253,13 @@ def test_phase_or_owner_edit_conflicts_entire_bundle(bounded_maintenance, edit):
         {"kind": "check_interval", "check_id": fixture.check.row_id, "interval_minutes": 5},
     ]
     request = maintenance_request(context, operations)
-    links = context["maintenance"].links
     with context["scope"].environment(fixture.owner_environment.row_id):
         plan_before = context["maintenance"].plans.find(fixture.plan.row_id)
         check_before = context["maintenance"].checks.find(fixture.check.row_id)
         if edit == "phase":
             context["maintenance"].plans.phases.save(fixture.phase.with_(title="Edited current phase"), fixture.owner)
         else:
-            for link in links.matching(target=Ref.build(fixture.owner_environment), link_type=OWNER):
-                links.delete(link, Actor.system())
-            links.linked(Ref.build(User(id=2)), Ref.build(fixture.owner_environment), OWNER, Actor.system())
+            context["maintenance"].plans.save(plan_before.with_(creator=Actor.user(2)), Actor.user(2))
     receipt = context["maintenance"].apply_maintenance(context["principal"], request)
     with context["scope"].environment(fixture.owner_environment.row_id):
         plan_after = context["maintenance"].plans.find(fixture.plan.row_id)

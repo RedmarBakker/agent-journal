@@ -99,6 +99,9 @@ async function start() {
                 <template v-if="plan.chat">
                     <Btn small :href="scope.api.page(plan.chat)" title="Open the chat of the plan's own agent">Open its chat</Btn>
                 </template>
+                <template v-if="plan.state === 'ready' && !reviewing">
+                    <Btn small v-tip="'Reviewers read it before you approve'" @click="critiquing = true">Ask for a critique</Btn>
+                </template>
                 <template v-if="!reviewing && !paused">
                     <SplitButton
                         kind="primary"
@@ -114,9 +117,6 @@ async function start() {
                         <template #menu="{close}">
                             <MenuItem @click="close(), start()">Approve</MenuItem>
                             <MenuItem description="Type a comment; sending it approves the plan" @click="close(), approveWithComment()">Approve with a comment</MenuItem>
-                            <template v-if="plan.state === 'ready'">
-                                <MenuItem description="Reviewers read it before you approve" @click="close(), (critiquing = true)">Ask for a critique</MenuItem>
-                            </template>
                         </template>
                     </SplitButton>
                 </template>

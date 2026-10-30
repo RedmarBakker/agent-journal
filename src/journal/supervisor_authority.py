@@ -594,7 +594,7 @@ class SupervisorAuthority:
         return self._digest({
             "links": [self._link_values(link) for link in bindings],
             "agent": self._agent_values(agent),
-            "environment": {"id": environment.row_id, "key": environment.key, "type": environment.environment_type.value},
+            "environment": {"id": environment.row_id, "key": environment.key, "parent_key": environment.parent_key, "generated_for": environment.generated_for},
         })
 
     def _check_revision(self, check: Check) -> str:

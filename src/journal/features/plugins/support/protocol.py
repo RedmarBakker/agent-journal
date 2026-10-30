@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict, fields
-from datetime import datetime, timezone
 
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.event import Event
@@ -14,8 +13,8 @@ from journal.support.time_source import TimeSource
 
 ANSWERS = ("allow", "refuse", "tell")
 ANSWER_COMMANDS = 20
-PLACED = ("agent", "session", "environment_id", "bound_environment_ids", "provider", "context", "subagent", "time", "data", "propagation")
-EVENT_NAMES = {"stop": "idle", "edit_overridden": "edit_kept", "plugin_recovered": "plugin_answering", "plugin_card_requested": "plugin_card_asked", "plugin_upgrade_failed": "plugin_not_upgraded",
+PLACED = ("agent", "session", "environment_id", "provider", "context", "subagent", "time", "data", "propagation")
+EVENT_NAMES = {"stop": "idle", "plugin_recovered": "plugin_answering", "plugin_card_requested": "plugin_card_asked", "plugin_upgrade_failed": "plugin_not_upgraded",
                "plugin_disabled": "plugin_switched_off", "search_completed": "search_made", "shared_comment_posted": "shared_comment_left"}
 ANSWER_FIELDS = {"tell": "message"}
 FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "edited_paths": "written_paths", "field_value": "kept", "menu_choice": "done", "explanation": "why", "edit_type": "kind"}

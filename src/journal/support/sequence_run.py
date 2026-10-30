@@ -50,6 +50,9 @@ class SequenceRun:
     def paused(self, reason: str) -> "SequenceRun":
         return replace(self, pause_reason=reason)
 
+    def has_edit_lock(self) -> bool:
+        return bool(self.subject) and not self.current_step.file_edits_allowed
+
     @property
     def skipped(self) -> tuple[SequenceStep, ...]:
         return self.steps[self.step:]

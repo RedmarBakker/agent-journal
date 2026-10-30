@@ -54,7 +54,6 @@ def start_block(briefing: BriefingData, source: str) -> list[Nudge]:
     takeover_at = "" if source == COMPACT else briefing.peer_session_active_at
     optional = (
         (takeover_at, lambda: BriefingNudges.TAKEOVER.create(time=takeover_at)),
-        (source != COMPACT and briefing.team_history, lambda: BriefingNudges.TEAM_HISTORY.create(rows=briefing.team_history)),
         (briefing.rules, lambda: BriefingNudges.ACTIVE_RULES.create(count=briefing.rules_count, rows=briefing.rules)),
         (briefing.memories, lambda: BriefingNudges.ENVIRONMENT_MEMORIES.create(rows=briefing.memories)),
         (briefing.reminders, lambda: BriefingNudges.ENVIRONMENT_REMINDERS.create(rows=briefing.reminders)),

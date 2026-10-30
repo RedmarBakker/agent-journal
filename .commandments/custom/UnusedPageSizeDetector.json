@@ -5,7 +5,15 @@
         "select": "parameter",
         "where": [
             {
-                "nameIn": ["limit", "page", "page_size", "page_rows", "rows_limit", "count", "listing"]
+                "nameIn": [
+                    "limit",
+                    "page",
+                    "page_size",
+                    "page_rows",
+                    "rows_limit",
+                    "count",
+                    "listing"
+                ]
             },
             {
                 "unused": true
@@ -14,9 +22,6 @@
         "reject": [
             {
                 "testCode": true
-            },
-            {
-                "file": ".commandments/custom/samples/**"
             }
         ]
     },

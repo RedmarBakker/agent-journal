@@ -28,11 +28,11 @@ def test_the_user_pausing_a_workers_task_takes_it_from_the_worker(story):
 
 @story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_releasing_a_worker_still_out_waits_for_its_stop_and_then_opens_its_queue(story):
-    story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()}")
+    result.expect_command_refused()
     story.agent_runs(story.agents.subject, f"worker stop {story.agents.workers.first()}")
-    story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()}")
+    result.expect_command_passed()
     story.expect_task(story.tasks.second, state=TaskState.OPEN, delegated=False)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
     story.expect_stack(story.agents.subject, Ready)
@@ -48,8 +48,8 @@ def test_a_task_the_user_cancels_while_its_work_waits_releases_the_worker_unmerg
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_stopping_a_worker_tells_the_agent_it_ended_without_a_report(story):
-    story.agent_runs(story.agents.subject, f"worker stop {story.agents.workers.first()}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"worker stop {story.agents.workers.first()}")
+    result.expect_command_passed()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.STOPPED)
-    story.expect_agent_told(story.agents.subject, WorkersNudges.WORKER_STOPPED_UNREPORTED)
+    result.expect_agent_told(story.agents.subject, WorkersNudges.WORKER_STOPPED_UNREPORTED)
     story.expect_stack(story.agents.subject, Ready)

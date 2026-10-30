@@ -138,12 +138,14 @@ export const CHANGE_SECONDS = 0.25;
 // goes at once, the picture never sliding, and the body unfolds on its feet on the floor line (figure.js blendedMoves)
 export const leavesSeat = (from, to) => SEATED.has(from) && POSTURES[to].drop === 0;
 
-// A figure stepping out of the way sprints, at this many times its walking pace and with its steps that much quicker
+// A figure stepping out of the way runs at this many times its walking pace, with the run's own distance-driven cycle.
 export const SPRINT = 2;
 
 // The figure walks this many pixels a second. A jump crouches this long before it leaves the ground and is in the air for this long, a
 // little longer for a higher perch, in milliseconds; a fall takes as long as a body takes to drop that far.
 const WALK_SPEED = 90;
+const WALK_RAMP_MS = 180;
+const RUN_RAMP_MS = 140;
 const JUMP_CROUCH_MS = 280;
 const JUMP_AIR_MS = 420;
 const JUMP_AIR_PER_PIXEL = 0.25;
@@ -164,10 +166,13 @@ export const STEADY = 5;
 // that came or went under it: it goes straight up or down where it is, then walks. It lands after a hop unless it `hangs` there, from a
 // bubble's corner or on a rope swing's seat. It walks
 // at `pace` times its walking speed, which the trip keeps.
-export function tripBetween(from, to, size, {straight = false, hangs = false, pace = 1, random = Math.random, memory = null, now = 0, room = 0, pogo = false} = {}) {
+export function tripBetween(from, to, size, {straight = false, hangs = false, pace = 1, pressing = false, sprinting = false, random = Math.random, memory = null, now = 0, room = 0, pogo = false} = {}) {
     if (Math.hypot(to.x - from.x, to.y - from.y) < STEADY) return null;
+    if (pressing || sprinting) pace = Math.max(pace, SPRINT);
+    const running = pace > 1;
     const across = Math.abs(to.x - from.x);
     const walk = across < STEADY ? 0 : (across / (WALK_SPEED * pace)) * 1000;
+    const ramp = Math.min(walk, running ? RUN_RAMP_MS : WALK_RAMP_MS);
     const height = Math.abs(to.y - from.y);
     const up = to.y < from.y;
     const flip = up && !pogo && flips(height, size, random, memory, now, room);
@@ -181,10 +186,10 @@ export function tripBetween(from, to, size, {straight = false, hangs = false, pa
         hopping: true,
         clip: flip ? "backflip" : up ? "jump" : "fall",
     };
-    const stroll = {x: to.x, y: to.y, ms: walk, lead: 0, easing: "linear"};
+    const stroll = {x: to.x, y: to.y, ms: walk + ramp, lead: 0, easing: "linear", ramp, ...(running ? {clip: "run"} : {})};
     const rise = pogo ? pogoLeg(to, size) : hop;
     const legs = up && !straight ? [{...stroll, y: from.y}, rise] : [{...hop, x: from.x}, stroll];
-    return {way: Math.sign(to.x - from.x) || 1, legs, lands: !hangs, pace};
+    return {way: Math.sign(to.x - from.x) || 1, legs, lands: !hangs, pace, running};
 }
 
 // the leg up to `to` on the pogo stick, for a picture `size` pixels tall: as long as the stick's act (acts.js pogo), stepped by pogoAt
@@ -694,7 +699,8 @@ export const LADDER = {lean: 22, steepest: 38, most: 1.6, over: 0.3, within: 6, 
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture
 // in the posture it travels in there; on a climb it hops on up from each foothold of `via` (perches.js climbOf) to the next, and on to the
 // spot, or goes up in one on the `pogo` stick; to or from a spot on a ladder it goes by the ladder's foot and climbs it (ladderTrip)
-export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random, via = [], memory = null, now = 0, room = 0, pogo = false} = {}) {
+export function tripTo(place, spot, figure, {straight = false, pace = 1, pressing = false, sprinting = false, random = Math.random, via = [], memory = null, now = 0, room = 0, pogo = false} = {}) {
+    if (pressing || sprinting) pace = Math.max(pace, SPRINT);
     const corner = (each) => {
         const box = boxAt(each, figure, POSTURES[each.posture].travels);
         return {x: box.left, y: box.top};
@@ -702,7 +708,7 @@ export function tripTo(place, spot, figure, {straight = false, pace = 1, random 
     const ladder = spot.ladder ?? place.ladder;
     if (ladder && !(spot.ladder && place.ladder)) return ladderTrip(corner(place), corner(spot), corner({...ladder.foot, posture: "stand"}), ladder.way, Boolean(spot.ladder), figure, pace);
     const [from, ...stops] = [place, ...via, spot].map(corner);
-    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, random, memory, now, room, pogo});
+    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, pressing, sprinting, random, memory, now, room, pogo});
     const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random, memory, now, room})?.legs.find((leg) => leg.hopping));
     return trip && {...trip, legs: [...trip.legs, ...hops.filter(Boolean)]};
 }
@@ -714,7 +720,7 @@ function ladderTrip(from, to, foot, way, up, figure, pace) {
     const climb = (start, end) => ({x: end.x, y: end.y, ms: (Math.hypot(end.x - start.x, end.y - start.y) / LADDER.climb) * 1000, lead: 0, easing: "linear", hopping: true, clip: "ladder_climb", facing: way > 0 ? 90 : 270});
     const ground = up ? tripBetween(from, foot, figure.size, {pace}) : tripBetween(foot, to, figure.size, {pace});
     const legs = up ? [...(ground?.legs ?? []), climb(foot, to)] : [climb(from, foot), ...(ground?.legs ?? [])];
-    return {way: Math.sign(to.x - from.x) || 1, legs, lands: false, pace};
+    return {way: Math.sign(to.x - from.x) || 1, legs, lands: false, pace, running: pace > 1};
 }
 
 // The way a figure whose middle is at `x` turns to look at a chat mark, by its key: to its right or its left, or toward the viewer when

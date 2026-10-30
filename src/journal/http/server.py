@@ -5,7 +5,6 @@ from journal.db.connection import Connection
 from journal.engine.lifecycle import Lifecycle
 from journal.http.handler import Handler
 from journal.http.support.identity import Identity
-from journal.http.support.login_gate import LoginGate
 from journal.http.support.request_faults import RequestFaults
 from journal.support.fault_log import FaultLog
 from journal.http.router import Router
@@ -18,8 +17,8 @@ from journal.http.support.supervisor_authentication import SupervisorRequestAuth
 class Server:
     """One process, one port; every request is answered on a thread of its own. The port it got is written where the hook script reads it, and removed when it stops only while the file still names that port."""
 
-    def __init__(self, config: Config, router: Router, identity: Identity, static: StaticFiles, database: Connection, gate: LoginGate, lifecycle: Lifecycle, secret: SyncSecret, faults: RequestFaults, fault_log: FaultLog, supervisor_auth: SupervisorRequestAuth) -> None:
-        self.config, self.router, self.identity, self.static, self.database, self.gate, self.lifecycle = config, router, identity, static, database, gate, lifecycle
+    def __init__(self, config: Config, router: Router, identity: Identity, static: StaticFiles, database: Connection, lifecycle: Lifecycle, secret: SyncSecret, faults: RequestFaults, fault_log: FaultLog, supervisor_auth: SupervisorRequestAuth) -> None:
+        self.config, self.router, self.identity, self.static, self.database, self.lifecycle = config, router, identity, static, database, lifecycle
         self.faults, self.fault_log = faults, fault_log
         self.secret = secret
         self.supervisor_auth = supervisor_auth
@@ -53,7 +52,7 @@ class Server:
         return self.config.port_file.is_file() and self.config.port_file.read_text().strip() == str(self.port)
 
     def _build(self) -> ThreadingServer:
-        bound = type("BoundHandler", (Handler,), {"router": self.router, "identity": self.identity, "static": self.static, "database": self.database, "gate": self.gate, "lifecycle": self.lifecycle, "faults": self.faults, "fault_log": self.fault_log, "supervisor_auth": self.supervisor_auth})
+        bound = type("BoundHandler", (Handler,), {"router": self.router, "identity": self.identity, "static": self.static, "database": self.database, "lifecycle": self.lifecycle, "faults": self.faults, "fault_log": self.fault_log, "supervisor_auth": self.supervisor_auth})
         return self._bind(bound)
 
     def _bind(self, handler: type[Handler]) -> ThreadingServer:

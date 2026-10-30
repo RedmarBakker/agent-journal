@@ -14,6 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
+import {isScrollbarPress, wheelsInside} from "../domain/readerHand.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
@@ -52,7 +53,6 @@ import PlanCard from "./PlanCard.vue";
 import {planCardChoice} from "../state/planCardChoice.js";
 import {seconds} from "../domain/row.js";
 import {ui} from "../state/ui.js";
-import {useColleague} from "../composables/colleague.js";
 import {approveWithMessage} from "../actions/plans.js";
 
 const scroller = ref(null);
@@ -153,7 +153,8 @@ const sizeWatch = new ResizeObserver(([entry]) => (short.value = entry.contentRe
 // the docks and the status line take their own room under the pane, so the pane changes height as they open, fold or leave: a reader
 // following the foot stays at it, and the bubbles move up or down with the docks
 const paneWatch = new ResizeObserver(() => scroller.value && !away.value && (scroller.value.scrollTop = scroller.value.scrollHeight));
-const AT_BOTTOM = 0;
+// how near the foot counts as at it, past the fraction of a pixel a zoomed or fractional layout leaves under the last row
+const AT_BOTTOM = 2;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
@@ -266,7 +267,7 @@ let added = null;
 const opening = useOpenInPlace(scroller, FAR, readingUp);
 
 function pressed(event) {
-    scrolledByHand();
+    if (isScrollbarPress(event, scroller.value)) scrolledByHand();
     opening.press(event);
 }
 
@@ -278,7 +279,6 @@ function pagedByKey(event) {
 }
 
 function keyed(event) {
-    scrolledByHand();
     opening.keyed(event);
 }
 
@@ -338,6 +338,7 @@ function scrolledByHand() {
 }
 
 function wheeled(e) {
+    if (wheelsInside(e, scroller.value)) return;
     scrolledByHand();
     const s = scroller.value;
     if (e.deltaY < 0 && s && s.scrollHeight > s.clientHeight + AT_BOTTOM) {
@@ -424,7 +425,7 @@ function watchScroll() {
         return;
     }
     if (far && isReaderMove()) readingUp();
-    else if (!far && (!away.value || isByHand())) atTheFoot();
+    else if (!far) atTheFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
 }
@@ -508,7 +509,6 @@ watch(
     },
     {immediate: true}
 );
-const {colleague, me} = useColleague();
 
 </script>
 
@@ -527,7 +527,7 @@ const {colleague, me} = useColleague();
             <UpdateOverlay :key="updateView.id" />
         </template>
         <template v-if="outputOpen">
-            <OutputDialog :key="outputOpen" :n="outputOpen" :owner="colleague" @close="outputOpen = 0" />
+            <OutputDialog :key="outputOpen" :n="outputOpen" @close="outputOpen = 0" />
         </template>
         <template v-if="chatOpen">
             <div :class="['thread-write', {hidden: feeding}]">
@@ -554,8 +554,8 @@ const {colleague, me} = useColleague();
                 </template>
                 <template v-if="!scope.chat || scope.chat.send">
                     <Compose
-                        :placeholder="colleague ? `Comment as ${me}` : 'Message the agent'"
-                        :submit="colleague ? 'Comment' : 'Send'"
+                        :placeholder="'Message the agent'"
+                        submit="Send"
                         :send="post"
                         :waiting="waitingNow"
                         :quote="quote.text"

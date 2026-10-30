@@ -11,7 +11,7 @@ class PlansNudges:
     MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end", "to run one now: `journal plan allow-tests {{n}} --why \"<reason>\"`", repeat=Timeout.seconds(0), longest_characters=170, longest_reason="it shows the plan, its phase and the command that lets one test run through")
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     LEADING_PLAN = Nudge("plans", "you_lead_the_plan", "you lead plan {{n}} in this worktree; work its tasks here", repeat=Timeout.seconds(0))
-    BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", repeat=Timeout.seconds(0))
+    BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", "`journal mode show` prints what the mode asks", repeat=Timeout.seconds(0))
     COORDINATOR_MODE = Nudge("plans", "now_coordinating_plans", "you now coordinate the plans: each plan's own Plan agent does its work; write no code", repeat=Timeout.seconds(0))
     COORDINATOR_WRITES_NO_CODE = Nudge("plans", "coordinator_writes_no_code", "you coordinate the plans and write no code", "put the change in a task of a plan instead", repeat=Timeout.seconds(0))
     COORDINATOR_SENDS_NO_WORKER = Nudge("plans", "coordinator_sends_no_worker", "you run plans through their Plan agents, never a worker of your own", "`journal plan tell <n> \"<what>\"`", repeat=Timeout.seconds(0))
@@ -28,11 +28,10 @@ class PlansNudges:
     PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} done", "run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`", repeat=Timeout.seconds(0), longest_characters=392, longest_reason="it contains the test commands the agent runs")
     PHASE_END = Nudge("plans", "phase_complete_go_on", "plan {{n}}: phase {{phase}} done", "start the next with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     PLAN_BLOCKED = Nudge("plans", "plan_blocked", "plan {{n}} is blocked: {{why|cap=44}}", "unblock it by hand with `journal plan unblock {{n}}`", repeat=Timeout.seconds(0))
-    DRIVE_ENDED = Nudge("plans", "drive_ended", "{{name|cap=17}}: no longer driven ({{why|cap=19}}); writes refused", "retake: `journal {{noun}} drive {{n}}`", repeat=Timeout.seconds(0))
     PLAN_RETURN_QUESTION = Nudge("plans", "return_to_the_paused_plan", "plan {{n}} paused, task {{task}} in hand: back to the plan after it?", "`journal plan return {{n}} yes` or `no`", repeat=Timeout.seconds(0))
     PLAN_REOPENED = Nudge("plans", "plan_reopened", "plan {{n}} is open again: {{why|cap=53}}", "continue with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     UNAPPROVED_PLAN = Nudge("plans", "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat=Timeout.seconds(0))
-    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan", repeat=Timeout.seconds(0))
+    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan", "then `journal plan ready {{n}} --changed \"<what this round changed>\"`", repeat=Timeout.seconds(0), longest_characters=200, longest_reason="it lists the unread reports and the command that ends the review")
 
     @staticmethod
     def unread(reports: tuple[int, ...]) -> str:

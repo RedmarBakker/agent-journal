@@ -136,7 +136,7 @@ describe("the Agent tab", () => {
     });
 });
 
-test("a feature switched off shows its switch alone, and a setting that only works while another switch is on is not shown while that switch is off", () => {
+test("a feature switched off shows its switch alone, and switched on shows the settings under it with no second switch", () => {
     const option = (name, kind, more = {}) => ({key: `faults.${name}`, name, title: name, abstract: `About ${name}`, option_type: kind, default: false, unit: "", choices: [], provider: "", main_switch: "", ...more});
     const spec = {
         features: [
@@ -145,15 +145,14 @@ test("a feature switched off shows its switch alone, and a setting that only wor
                 title: "Slow requests",
                 help: "Tools for developing the journal.",
                 default: false,
-                options: [option("developer", "switch"), option("terminal_hook_lines", "switch", {main_switch: "faults.developer"})],
+                options: [option("terminal_hook_lines", "switch", {main_switch: "features.faults"}), option("report", "switch", {main_switch: "features.faults"})],
             },
         ],
         groups: [{key: "faults", title: "Slow requests", line: "Tools for developing the journal.", section: "Agent", tab: "agent", lead: "faults"}],
     };
     const keys = (settings) => groupRows(catalog(spec, settings)[0].groups[0]).map((row) => [row.key, row.kind]);
     expect(keys({})).toEqual([["faults", "switch"]]);
-    expect(keys({features: {faults: true}})).toEqual([["faults", "switch"], ["faults:developer", "switch"]]);
-    expect(keys({features: {faults: true}, faults: {developer: true}})).toEqual([["faults", "switch"], ["faults:developer", "switch"], ["faults:terminal_hook_lines", "switch"]]);
+    expect(keys({features: {faults: true}})).toEqual([["faults", "switch"], ["faults:terminal_hook_lines", "switch"], ["faults:report", "switch"]]);
 });
 
 describe("the manifest's features", () => {

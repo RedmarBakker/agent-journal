@@ -15,13 +15,8 @@ from journal.http.controllers.mcp import McpController
 from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
 from journal.http.controllers.mode import ModeController
-from journal.http.controllers.sync import SyncController
-from journal.http.controllers.sync_desk import SyncDeskController
-from journal.http.controllers.team import TeamController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
-from journal.http.controllers.login_controller import LoginController
-from journal.http.controllers.team_chat import TeamChatController
 from journal.http.controllers.notices import NoticeController
 from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
@@ -54,7 +49,6 @@ from journal.http.controllers.services import ServiceController
 from journal.http.controllers.shell import ShellController
 from journal.http.controllers.shares import ShareController
 from journal.http.controllers.skills import SkillController
-from journal.http.controllers.requests import RequestController
 from journal.http.controllers.tasks import TaskController
 from journal.http.controllers.templates import TemplateController
 from journal.http.controllers.transcripts import TranscriptController
@@ -96,10 +90,6 @@ class Routes:
         router.post("/shell/run", get(ShellController).run)
         router.post("/cli", get(CliController).run)
         router.post("/cli/run", get(CliController).run_posted)
-        router.get_unscoped("/sign-in", get(LoginController).show)
-        router.get_unscoped("/open", get(LoginController).opened)
-        router.post_unscoped("/sign-in", get(LoginController).submit)
-        router.post_unscoped("/sign-out", get(LoginController).logout)
         self.journal(router)
         self.work(router)
         self.chat(router)
@@ -133,37 +123,8 @@ class Routes:
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
         router.post(f"{API}/updates/force", get(UpdateController).force_update)
-        router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
-        router.get_unscoped(f"{API}/sync/team", get(SyncDeskController).guarded(get(SyncDeskController).team))
-        router.get_unscoped(f"{API}/sync/teams", get(SyncDeskController).guarded(get(SyncDeskController).teams))
-        router.post_unscoped(f"{API}/sync/state", get(SyncDeskController).guarded(get(SyncDeskController).state))
-        router.get_unscoped(f"{API}/sync/query", get(SyncDeskController).guarded(get(SyncDeskController).query))
-        router.post_unscoped(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))
-        router.get_unscoped(f"{API}/sync/batch", get(SyncDeskController).guarded(get(SyncDeskController).batch))
-        router.post_unscoped(f"{API}/sync/pushed", get(SyncDeskController).guarded(get(SyncDeskController).pushed))
-        router.post_unscoped(f"{API}/sync/delivery", get(SyncDeskController).guarded(get(SyncDeskController).delivery))
-        router.post_unscoped(f"{API}/sync/files-sent", get(SyncDeskController).guarded(get(SyncDeskController).files_sent))
-        router.post_unscoped(f"{API}/sync/upgrade-claimed", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_claimed))
-        router.post_unscoped(f"{API}/sync/upgrade-finished", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_finished))
-        router.post_unscoped(f"{API}/sync/copy", get(SyncDeskController).guarded(get(SyncDeskController).copy))
-        router.get(f"{API}/team", get(TeamController).show)
-        router.post(f"{API}/team/join", get(TeamController).join)
-        router.post(f"{API}/team/check", get(TeamController).check)
-        router.post(f"{API}/team/leave", get(TeamController).leave)
-        router.post(f"{API}/team/invite", get(TeamController).invite)
-        router.post(f"{API}/team/open", get(TeamController).opening)
-        router.post(f"{API}/team/password", get(TeamController).password)
-        router.post(f"{API}/team/people/{{id}}/password", get(TeamController).password_reset)
-        router.get(f"{API}/team/people", get(TeamController).people)
-        router.get(f"{API}/team/pool", get(TeamController).pool)
-        router.post(f"{API}/team/pool/{{id}}/stop", get(TeamController).pool_stop)
-        router.get(f"{API}/team/devices", get(TeamController).devices)
-        router.post(f"{API}/team/devices/{{id}}/revoke", get(TeamController).revoke)
         router.get(f"{API}/people", get(PeopleController).show)
-        router.get(f"{API}/team-chat", get(TeamChatController).show)
-        router.post(f"{API}/team-chat/claim", get(TeamChatController).claim)
-        router.post(f"{API}/team-chat/release", get(TeamChatController).release)
         mode = get(ModeController)
         router.get(f"{API}/mode", mode.show)
         router.post(f"{API}/mode", mode.choose)
@@ -199,7 +160,7 @@ class Routes:
         router.get(f"{API}/environments/filling", environments.filling)
         self.listed(router, "environments", environments)
         router.post(f"{API}/environments", environments.store)
-        self.acts(router, "environments", environments, "launch", "stop", "remove", "share", "unshare")
+        self.acts(router, "environments", environments, "launch", "stop", "remove")
         router.post(f"{API}/environments/{{id}}/worktree-removal", environments.worktree_removal)
         worktrees = get(WorktreeController)
         router.get(f"{API}/worktrees", worktrees.index)
@@ -208,8 +169,6 @@ class Routes:
     def work(self, router: Router) -> None:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
-        router.get(f"{API}/requests", get(RequestController).index)
-        router.get(f"{API}/requests/filed", get(RequestController).filed)
         self.resource(router, "tasks", tasks)
         self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
@@ -253,8 +212,6 @@ class Routes:
         messages, notices = get(MessageController), get(NoticeController)
         router.post(f"{API}/messages/read", messages.read_all)
         router.get(f"{API}/messages/sent/{{key}}", messages.sent)
-        router.get(f"{API}/side-thread", messages.side_thread)
-        router.post(f"{API}/side-thread", messages.side_post)
         self.listed(router, "messages", messages)
         router.post(f"{API}/messages", messages.store)
         router.post(f"{API}/messages/{{id}}", messages.update)
@@ -324,6 +281,7 @@ class Routes:
         router.post(f"{API}/library/revoke", library.revoke)
         router.get(f"{API}/library/people", library.people)
         router.post(f"{API}/library/password", library.password)
+        router.get(f"{API}/library/copies", library.copies)
         router.get(f"{API}/library/items", library.items_listed)
         router.get(f"{API}/library/items/{{item_type}}/{{name}}", library.item)
         router.post(f"{API}/library/items/{{item_type}}/{{name}}/import", library.import_item)

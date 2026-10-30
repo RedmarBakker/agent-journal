@@ -12,13 +12,15 @@ from journal.http.support.stream_response import StreamResponse
 from journal.support.response import Response
 from journal.http.support.route import Answer, Handler, Route
 from journal.http.support.viewer_presence import ViewerPresence
+from journal.http.support.project_check import ProjectCheck
 from journal.repositories.scope import Scope
 
 
 class Router:
     """Finds the route a request takes and answers it inside the environment the request names, or in none for an unscoped route."""
 
-    def __init__(self, scope: Scope, presence: ViewerPresence, recorder: RequestTimeRecorder, stalls: StallWatch) -> None:
+    def __init__(self, scope: Scope, presence: ViewerPresence, recorder: RequestTimeRecorder, stalls: StallWatch, projects: ProjectCheck) -> None:
+        self.projects = projects
         self.scope, self.presence, self.recorder, self.stalls = scope, presence, recorder, stalls
         self.routes: list[Route] = []
 
@@ -49,6 +51,8 @@ class Router:
         return Response.refused(f"{request.method} {request.path} streams, so it is no page") if isinstance(answer, StreamResponse) else answer
 
     def route(self, request: Request) -> Answer:
+        if self.projects.is_other(request.headers):
+            return self.projects.refusal(request.headers)
         self.presence.record(request.headers)
         matching = self.match(request)
         if matching is None:

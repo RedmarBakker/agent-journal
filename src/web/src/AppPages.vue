@@ -11,29 +11,22 @@ import IntegrationsPage from "./pages/IntegrationsPage.vue";
 import OrganizationPage from "./pages/OrganizationPage.vue";
 import RolePage from "./organization/RolePage.vue";
 import SharedRoles from "./organization/SharedRoles.vue";
+import LibraryPage from "./pages/LibraryPage.vue";
 import PluginsPage from "./pages/PluginsPage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import SearchPage from "./pages/SearchPage.vue";
 import SecretsPage from "./pages/SecretsPage.vue";
-import TeamPage from "./pages/TeamPage.vue";
 import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
-import RequestsPage from "./pages/RequestsPage.vue";
-import HubPage from "./pages/HubPage.vue";
 import HomePlanBoard from "./pages/HomePlanBoard.vue";
 import PhoneDesktopNotice from "./phone/PhoneDesktopNotice.vue";
 import {onPhone} from "./platform/phone.js";
-import {computed} from "vue";
-import {peek, route} from "./route.js";
-import {store} from "./state/store.js";
-import {rows} from "./sync/rows.js";
+import {route} from "./route.js";
 import {planAgents} from "./domain/planAgents.js";
 
 defineProps({page: {type: String, required: true}});
-const hosted = computed(() => Boolean(store.people && store.people.hosted));
-const open = (row) => peek(row.table, row.id);
 </script>
 
 <template>
@@ -44,9 +37,6 @@ const open = (row) => peek(row.table, row.id);
                     <div class="home-plan-board-screen-board"><HomePlanBoard /></div>
                     <div class="home-plan-board-screen-chat"><Home /></div>
                 </div>
-            </template>
-            <template v-else-if="hosted">
-                <HubPage :environments="rows('environments')" :docs="rows('docs')" :plans="rows('plans')" :tasks="rows('tasks')" :messages="rows('messages')" @open="open" />
             </template>
             <template v-else><Home /></template>
         </template>
@@ -60,8 +50,7 @@ const open = (row) => peek(row.table, row.id);
         <template #about><AboutPage /></template>
         <template #plugins><PluginsPage /></template>
         <template #secrets><SecretsPage /></template>
-        <template #team><TeamPage /></template>
-        <template #requests><RequestsPage /></template>
+        <template #library><LibraryPage /></template>
         <template #worker><WorkerHome /></template>
         <template #mcp><IntegrationsPage /></template>
         <template #organization>

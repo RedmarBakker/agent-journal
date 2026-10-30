@@ -9,7 +9,7 @@ WORKER_NAME = "Lady Lovelace"
 
 @story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_with_work_to_check_is_listed_among_the_workers_to_act_on(story):
-    story.agent_runs(story.agents.subject, "worker open")
-    story.expect_command_text(WORKER_NAME)
+    result = story.agent_runs(story.agents.subject, "worker open")
+    result.expect_command_text(WORKER_NAME)
     story.expect_stack(story.agents.subject, Ready)
 

@@ -44,8 +44,8 @@ def test_a_long_wait_with_another_task_open_names_the_next_work_at_the_next_tool
     story.time_travel(minutes=LONG_WAIT_MINUTES)
     story.agent_reads(story.agents.subject)
     story.agent_is_quiet_for(story.agents.subject, minutes=MEASURE_MINUTES)
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, WorkersNudges.OPEN_WORK_WAIT_LINE, n=story.tasks.open)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, WorkersNudges.OPEN_WORK_WAIT_LINE, n=story.tasks.open)
     story.expect_stack(story.agents.subject, ModeFloor, Working)
 
 
@@ -56,6 +56,6 @@ def test_an_orchestrators_long_wait_with_another_task_open_is_no_fitness_line(st
     story.time_travel(minutes=LONG_WAIT_MINUTES)
     story.agent_reads(story.agents.subject)
     story.agent_is_quiet_for(story.agents.subject, minutes=MEASURE_MINUTES)
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, WorkersNudges.OPEN_WORK_WAIT_LINE)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.OPEN_WORK_WAIT_LINE)
     story.expect_stack(story.agents.subject, ModeFloor, Working)

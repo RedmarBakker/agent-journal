@@ -85,8 +85,8 @@ class Links(Repository[Link]):
 
     def remove_links(self, model: Model, actor: Actor) -> None:
         ref = Ref.build(model)
-        self.purged_rows(Link, self.query().filter(source=ref).filter_unlisted("link_type", list(Link.SURVIVING_SOURCE)), actor)
-        self.purged_rows(Link, self.query().filter(target=ref).filter_unlisted("link_type", list(Link.SURVIVING_TARGET)), actor)
+        self.purged_rows(Link, self.query().filter(source=ref), actor)
+        self.purged_rows(Link, self.query().filter(target=ref), actor)
 
     def row_links(self, models: Sequence[Model]) -> list[Link]:
         refs = [Ref.build(model) for model in models]

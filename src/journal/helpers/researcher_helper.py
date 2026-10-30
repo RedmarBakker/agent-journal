@@ -19,27 +19,13 @@ class ResearcherHelper(Helper):
     first_state = Researching
     features = (PluginsFeature,)
     commands = (
-        (DocCommand, "create"),
-        (DocCommand, "update"),
-        (DocCommand, "ready"),
-        (DocCommand, "show"),
-        (OutputCommand, "read"),
-        (PlanCommand, "create"),
-        (PlanCommand, "brief"),
-        (PlanCommand, "phase"),
-        (PlanCommand, "add"),
-        (PlanCommand, "todos"),
-        (PlanCommand, "ready"),
-        (PlanCommand, "show"),
-        (ReportCommand, "create"),
-        (ReportCommand, "update"),
-        (ReportCommand, "ready"),
-        (ReportCommand, "show"),
-        (RuleCommand, "list"),
-        (RuleCommand, "read"),
-        (SearchCommand, "find"),
-        (TaskCommand, "list"),
-        (TaskCommand, "show"),
+        (DocCommand, ("create", "update", "ready", "show")),
+        (OutputCommand, ("read",)),
+        (PlanCommand, ("create", "brief", "phase", "add", "todos", "ready", "show")),
+        (ReportCommand, ("create", "update", "ready", "show")),
+        (RuleCommand, ("list", "read")),
+        (SearchCommand, ("find",)),
+        (TaskCommand, ("list", "show")),
     )
     listeners = (SubagentTurnRecord,)
 

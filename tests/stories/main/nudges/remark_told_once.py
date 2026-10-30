@@ -14,8 +14,8 @@ def test_a_remark_told_on_a_tool_use_is_not_told_again_at_the_stop_even_for_the_
     story.agent_reads(story.agents.subject)
     story.expect_last_answer_carries(EtiquetteNudges.SHOP_TALK_WARNING)
     story.agent_closes_its_turn(story.agents.subject, SHOP_TALK)
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_last_answer_without(EtiquetteNudges.SHOP_TALK_WARNING)
     story.expect_stack(story.agents.subject, Ready)
 

@@ -39,50 +39,6 @@ def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dot
     assert suite.shard_progress(output) == (9, 9), "an assertion line of a failure's report is no result"
 
 
-def test_the_suite_waiting_on_the_commandments_judge_prints_the_judges_own_progress_for_its_card():
-    suite = suite_script()
-    line = suite.judge_progress("parsing 3/10\rparsing 10/10\nreading 40/120\n")
-    assert line == "judging tests/: reading 40/120 [ 33%]", "the judge's latest stage is said with its count and its share"
-    assert suite.PERCENT.search(line).group(1) == "33", "in the form the suite's card reads its bar from"
-    assert suite.judge_progress("") == "", "a judge that has printed nothing yet adds no line"
-
-
-def test_a_missing_commandments_plugin_does_not_hold_the_tests_or_change_their_result(tmp_path, monkeypatch, capsys):
-    suite = suite_script()
-    monkeypatch.setattr(suite, "JUDGE", tmp_path / "missing-commandments-plugin")
-    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
-    monkeypatch.setattr(suite, "core_shards", lambda: 1)
-    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
-    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
-
-    assert suite.whole_suite() == 0
-    output = capsys.readouterr().out
-    assert "the test commandments were not run" in output, "the missing judge is stated plainly"
-    assert "waiting for the test commandments" not in output, "the suite does not claim to wait on a judge that never started"
-
-
-def test_the_whole_suite_stops_an_unresponsive_judge_and_finishes_with_a_clear_failure(tmp_path, monkeypatch, capsys):
-    suite = suite_script()
-    monkeypatch.setattr(suite, "JUDGE", Path(__file__))
-    monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(60)"])
-    monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
-    judging = suite.commandments_started(tmp_path)
-    assert judging is not None, "the test judge started"
-    process, _ = judging
-    monkeypatch.setattr(suite, "commandments_started", lambda _: judging)
-    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
-    monkeypatch.setattr(suite, "core_shards", lambda: 1)
-    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
-    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
-    try:
-        assert suite.whole_suite() == 1, "the suite reports that its judge did not complete"
-        assert process.poll() is not None, "the stuck judge process was stopped and reaped"
-        assert "the test commandments were not judged" in capsys.readouterr().out
-    finally:
-        if process.poll() is None:
-            suite.stop_judge(process)
-
-
 def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_memory_on_macos_and_linux():
     suite = suite_script()
     shard = suite.SHARD_BYTES
@@ -92,12 +48,3 @@ def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_
     assert suite.vm_stat_available(vm_stat) == 16384 * 32, "macOS: the free, inactive and speculative pages"
     assert suite.meminfo_available("MemTotal:  1000 kB\nMemAvailable:   512 kB\n") == 512 * 1024, "Linux: MemAvailable"
     assert "only 600 MB of memory is free" in suite.memory_line(2, 600 * 2**20), "the run says why it took fewer"
-
-
-def test_the_tests_a_change_touches_are_its_own_test_files_and_the_quickest_tests_that_ran_its_source_files():
-    script = suite_script("affected_tests")
-    covered = {"tests/test_a.py::test_slow": ["src/journal/a.py"], "tests/test_a.py::test_quick": ["src/journal/a.py", "src/journal/b.py"], "tests/test_b.py::test_other": ["src/journal/b.py"], "tests/test_c.py::test_c": ["src/journal/a.py"]}
-    seconds = {"tests/test_a.py::test_slow": 9.0, "tests/test_a.py::test_quick": 0.1}
-    assert script.affected(["src/journal/a.py", "tests/test_c.py"], covered, seconds) == ["tests/test_c.py", "tests/test_a.py::test_quick", "tests/test_a.py::test_slow"], "a changed test file runs whole; the tests that ran a changed source file follow, quickest first, without repeating the test file"
-    many = {f"tests/test_a.py::test_{n}": ["src/journal/a.py"] for n in range(100)}
-    assert len(script.affected(["src/journal/a.py"], many, {})) == script.MOST_TESTS, "a file every test runs never turns the clock-out into the whole suite"

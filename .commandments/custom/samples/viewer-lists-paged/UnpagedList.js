@@ -1,13 +1,13 @@
 import {api} from "../api/client.js";
 import {pageOf} from "../sync/paging.js";
 
-// flagged: the whole table
+// @sin UnpagedViewerListDetector
 export const everyPlugin = () => api.list("plugins");
 
-// flagged: options, but no limit
+// @sin UnpagedViewerListDetector
 export const closedSecrets = () => api.list("secrets", {closed: true});
 
-// kept: a page
+// @righteous UnpagedViewerListDetector
 export const plugins = () => api.list("plugins", {limit: pageOf("plugins")});
 
 // kept: the rows it holds

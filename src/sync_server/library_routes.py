@@ -10,14 +10,14 @@ from sync_server.publish_request import PublishRequest
 
 
 class LibraryRoutes:
-    """What each library route answers, the token checked on every one but GET /library, and none of them held to the team's version pin: the lowest journal version of a published version is the publisher's own, from its request's header."""
+    """What each library route answers, the token checked on every one but GET /library: the lowest journal version of a published version is the publisher's own, from its request's header."""
 
     def __init__(self, team) -> None:
         self.team = team
 
     def summary(self) -> LibraryAnswer:
-        details = self.team.details.answer()
-        return LibraryAnswer(details.name, details.key, PROTOCOL, details.has_admin, "")
+        details = self.team.details
+        return LibraryAnswer(details.name(), details.key(), PROTOCOL, not self.team.accounts.is_empty(), "")
 
     def member_summary(self, token: str) -> LibraryAnswer:
         return LibraryAnswer(**{**self.summary().__dict__, "role": self.team.devices.person(token).role})

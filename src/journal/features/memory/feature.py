@@ -5,8 +5,6 @@ from journal.support.card_type_catalogue import AGENT, REMINDERS
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.memory.listeners.memory_moment_end import MemoryMomentEnd
-from journal.features.memory.listeners.memory_plan_end import MemoryPlanEnd
-from journal.features.memory.listeners.memory_task_end import MemoryTaskEnd
 from journal.features.memory.listeners.start_memory import StartMemory
 from journal.features.memory.listeners.memory_hint_card import MemoryHintCard
 from journal.features.memory.listeners.context_threshold_check import ContextThresholdCheck
@@ -45,7 +43,7 @@ class Memory(Feature[MemoryData]):
     helper_conduct = {AgentRole.WORKER: (WorkerMemoryConduct,)}
     states = (WeighingMemories,)
     answer_listeners = ((ContextThresholdCheck, Blocking.NEXT_DECISION), (CompactionMarkClear, Blocking.NEXT_DECISION), (StartMemory, Blocking.ANSWER))
-    listeners = (MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, DueReminderStrike, SingleUseMemoryStrike, MemoryTaskEnd, MemoryPlanEnd, MemoryMomentEnd)
+    listeners = (MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, DueReminderStrike, SingleUseMemoryStrike, MemoryMomentEnd)
     helper_listeners = {AgentRole.WORKER: (ContextThresholdCheck, CompactionMarkClear, MemoryFading)}
     data = (MemoryDataReader,)
     commands = (RuleCommand, ReminderCommand, MemoryCommand)
@@ -62,11 +60,15 @@ What you keep in mind lasts only as long as you keep judging it worth keeping.
   `journal memory add "<what to keep in mind>" --weight 7`. Every compaction lowers every weight by one, and at
   nought the memory is no longer shown.
 - `journal memory weigh 3,7,9 5,8,2` gives each memory its own weight, in order; `journal memory weigh 3,7,9 5` gives
-  them all one. Raising a memory after a compaction keeps it where it was.
+  them all one. A weight is kept or raised, never lowered: raising a memory after a compaction keeps it where it was.
+  One that is mostly true is corrected, not lowered: `journal memory edit 3 "<the words anew>"` keeps its weight. One
+  that is no longer true is removed. Never lower a memory to forget a stale detail.
+- `--for task:3852` or `--for plan:1047` on a memory ties it to that row: the first compaction after the row is
+  completed or cancelled removes it. `--valid-until "2026-10-28 09:00"` ends it at a moment.
 - `journal memory list` names every memory with its number and weight, heaviest first; `journal memory remove 3,7`
   takes out the ones that are no longer true.
-- At 50, 80 and 90 percent of the context window you weigh your memories: writes and stops wait until you weigh,
-  add or remove one, or say why nothing needs keeping with `journal memory skip "<why>"`. Reads and journal commands
+- At 50, 80 and 90 percent of the context window you weigh your memories: keep, raise or correct the words, never lower. Writes and stops wait until you weigh,
+  edit, add or remove one, or say why nothing needs keeping with `journal memory skip "<why>"`. Reads and journal commands
   go through.
 - After a compaction the overview opens with your memories by weight: weigh them right after it.
 - A **rule** binds the whole project, written as the ruling itself: `journal rule create "Always ..." --reason "<why>"`.

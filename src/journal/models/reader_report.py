@@ -16,7 +16,6 @@ CLEARED_VERDICT = "cleared by a later run that printed its total"
 class ReaderReport(Scoped):
     """What the reader judge found when a reader read a run poorly: the reader, the output and command it read, the session that ran it, what fell short with its evidence and the fix for each, when the agent read the report and, if it dismissed the report, why; and the verdict of the verifier the journal sent on that dismissal, its reason and when it was given, a refuted report open again until its reader is written anew."""
 
-    shared: ClassVar[bool] = False
     text_fields: ClassVar[tuple[str, ...]] = ("reader", "command")
 
     reader: str = ""

@@ -28,7 +28,6 @@ class TasksData:
     open_count: int = 0
     started_ids: tuple[int, ...] = ()
     agent_tasks: tuple[int, ...] = ()
-    task_nouns: Mapping[int, str] = field(default_factory=dict)
     last_moves: Mapping[int, float] = field(default_factory=dict)
     person_waits: tuple[int, ...] = ()
     wait_progress: Mapping[str, WaitProgress] = field(default_factory=dict)
@@ -40,6 +39,7 @@ class TasksData:
     choosable_summary: str = ""
     free_open: bool = False
     paused_declined: bool = False
+    task_paused_lines: int = 0
     command_lines: tuple[str, ...] = ()
     turn_finished: bool = False
     wake_count: int = 0

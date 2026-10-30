@@ -22,7 +22,6 @@ from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.scope import Scope
 from journal.container import Container
 from journal.support.project_shell import ProjectShell
-from journal.sync.environment_names import EnvironmentNames
 
 
 HELP_FLAGS = ("-h", "--help")
@@ -31,8 +30,8 @@ HELP_FLAGS = ("-h", "--help")
 class Console:
     """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from. run_streamed runs a command whose printed lines a reply streams as they are printed, such as a merge that waits on the plugins."""
 
-    def __init__(self, container: Container, environments: Environments, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, verb_rules: VerbRules, seats: HookSeats) -> None:
-        self.names, self.verb_rules, self.seats = names, verb_rules, seats
+    def __init__(self, container: Container, environments: Environments, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, verb_rules: VerbRules, seats: HookSeats) -> None:
+        self.verb_rules, self.seats = verb_rules, seats
         self.container, self.environments, self.scope, self.row_verbs, self.shell = container, environments, scope, row_verbs, shell
         self.commands: dict[str, Command] = {}
         self.helper_commands: dict[AgentRole, dict[str, Command]] = {}
@@ -76,7 +75,7 @@ class Console:
         return self.scoped_run(argv, caller, StreamedOutput(output_queue))
 
     def scoped_run(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
-        environment = self.names.resolved(caller.environment).row_id
+        environment = self.environments.lookup(caller.environment).row_id
         with self.scope.environment(environment):
             seated = self.seats.caller_seated(caller)
         with self.scope.entered(seated.origin(environment)):

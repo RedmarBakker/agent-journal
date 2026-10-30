@@ -5,7 +5,7 @@ import Btn from "../kit/Btn.vue";
 import EmptyState from "../kit/EmptyState.vue";
 import StateDot from "../kit/StateDot.vue";
 import TextInput from "../kit/TextInput.vue";
-import "./team.css";
+import "./library.css";
 
 // The Settings Library tab: connect this journal to the team's library by its URL, see as whom it is connected, disconnect, and for an
 // admin the invitations, devices and people; a password change for everyone

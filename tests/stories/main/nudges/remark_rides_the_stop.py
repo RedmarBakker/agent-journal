@@ -21,12 +21,12 @@ EM_DASHES = "The build — the one from last night — is green."
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_waiting_when_the_agent_stops_holds_that_stop_once_and_the_next_stop_goes_through(story):
     story.agent_closes_its_turn(story.agents.subject, "I ran journal task start 3 because the user wants it.")
-    story.agent_stops(story.agents.subject)
-    story.expect_refused_by_anything()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused_by_anything()
     story.expect_last_answer_carries(EtiquetteNudges.SHOP_TALK_WARNING)
     story.expect_last_answer_carries(EtiquetteNudges.SECOND_PERSON)
-    story.agent_stops_again(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops_again(story.agents.subject)
+    result.expect_allowed()
     story.expect_last_answer_without(EtiquetteNudges.SHOP_TALK_WARNING)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -34,8 +34,8 @@ def test_a_remark_waiting_when_the_agent_stops_holds_that_stop_once_and_the_next
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_refused_for_the_task_in_hand_beside_the_refusal(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
     story.expect_task(story.tasks.started, state="started")
     story.expect_stack(story.agents.subject, Ready, Working)
@@ -61,7 +61,7 @@ def test_a_remark_rides_a_stop_made_while_a_sequence_runs(story):
 @story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_remark_rides_the_stop_held_at_a_context_mark_beside_its_hold(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP)
     story.expect_last_answer_carries(EtiquetteNudges.EM_DASH_WARNING)
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)

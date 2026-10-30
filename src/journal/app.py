@@ -32,7 +32,6 @@ from journal.chat.process_card_poll import ProcessCardPoll
 from journal.chat.row_process_card import RowProcessCard
 from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
-from journal.sync.team_writes import TeamWrites
 from journal.http.router import Router
 from journal.http.routes.routes import Routes
 from journal.http.server import Server
@@ -88,7 +87,6 @@ class App:
         return self.console()
 
     def run_without_server(self, argv: list[str], caller: Caller) -> Outcome:
-        self.container.get(TeamWrites).listen()
         outcome = self.console().run(argv, caller)
         self.container.get(ListenerQueue).drain()
         return outcome

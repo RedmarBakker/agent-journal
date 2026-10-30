@@ -39,10 +39,9 @@ function toggle(label) {
             <FoldGroup :label="part.label" :count="part.rows.length" :open="opened.has(part.label)" flush @toggle="toggle(part.label)">
                 <ul class="memory-round-rows">
                     <template v-for="memory in part.rows" :key="memory.id">
-                        <li class="memory-round-row">
-                            <button type="button" class="memory-round-ref" @click.stop="openRef(`memories:${memory.id}`)">Memory {{ memory.id }}</button>
+                        <li class="memory-round-row" @click.stop="openRef(`memories:${memory.id}`)">
+                            <button type="button" class="memory-round-ref">Memory {{ memory.id }}</button>
                             <span class="memory-round-weight">{{ memory.change }}</span>
-                            <span class="memory-round-text">{{ memory.text }}</span>
                         </li>
                     </template>
                 </ul>
@@ -77,6 +76,7 @@ function toggle(label) {
     font-size: 12px;
     line-height: 1.45;
     overflow-wrap: anywhere;
+    cursor: pointer;
 }
 
 .memory-round-ref {
@@ -90,9 +90,5 @@ function toggle(label) {
 
 .memory-round-weight {
     color: var(--text-4);
-}
-
-.memory-round-text {
-    flex-basis: 100%;
 }
 </style>

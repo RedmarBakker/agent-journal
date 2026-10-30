@@ -1,4 +1,5 @@
 from journal.engine.support.session_agents import SessionAgents
+from journal.events.rows.worker_session_bound import WorkerSessionBound
 from journal.models.environment import Environment
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -26,5 +27,5 @@ class WorkerHooks:
     def bind(self, hook: Hook, environment: Environment) -> Agent:
         worker = self.workers.find(hook.worker)
         if not worker.session:
-            self.workers.save(worker.with_(session=hook.session), Actor.system())
+            self.workers.save(worker.with_(session=hook.session).with_event(WorkerSessionBound(environment_id=worker.environment_id)), Actor.system())
         return self.agents.worker_agent(hook.session, environment.row_id, hook.provider)

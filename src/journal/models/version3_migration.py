@@ -1,4 +1,3 @@
-from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.models.migration_state import MigrationState
@@ -9,7 +8,6 @@ from journal.models.model import Model
 class Version3Migration(Model):
     """Migrating the version 3 journal stored in .journal/version-3 into this one, for the whole project."""
 
-    shared: ClassVar[bool] = False
 
     state: MigrationState = MigrationState.OFFERED
 

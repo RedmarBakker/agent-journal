@@ -1,7 +1,6 @@
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
 
@@ -27,11 +26,9 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.template import Template
-from journal.models.user import User
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
-from journal.repositories.environment_owners import OWNER
 from journal.repositories.environments import Environments
 from journal.repositories.links import Links
 from journal.repositories.phases import PHASE_TASK_LINK, Phases
@@ -85,10 +82,6 @@ def seeded(app, owner_id: int = 1) -> Fixture:
 
     owner_environment = environments.made(f"supervisor-owner-{owner_id}", actor)
     driver_environment = environments.made(f"supervisor-driver-{owner_id}", actor)
-    for environment in (owner_environment, driver_environment):
-        for owner_link in links.matching(target=Ref.build(environment), link_type=OWNER):
-            links.delete(owner_link, Actor.system())
-        links.linked(Ref.build(User(id=owner_id)), Ref.build(environment), OWNER, Actor.system())
     with scope.environment(owner_environment.row_id):
         plan = plans.save(Plan(environment_id=owner_environment.row_id, title="started plan", brief="keep the service healthy", state=PlanState.STARTED, mode=PlanMode.SOLO), actor)
         phase = phases.save(Phase(environment_id=owner_environment.row_id, title="current phase", completion_rule="open work is complete"), actor)
@@ -163,11 +156,12 @@ def test_bad_service_credentials_never_fall_back_to_local_person(app, authority_
     missing = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/admit", {"Content-Type": "application/json"}), b'{"plan_id":1}', identity, auth)
     invalid = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/receipt", {"Content-Type": "application/json", "X-Journal-Supervisor-Token": "wrong"}), b'{"receipt_id":"private"}', identity, auth)
     generic = RequestReading.read(RequestReading.head("POST", "/cli", {"Content-Type": "application/json", "X-Journal-Supervisor-Token": "wrong"}), b'{"argv":["settings"]}', identity, auth)
-    owner_without_session = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/enrollment", {"Content-Type": "application/json"}), b'{"protocol_version":1}', identity, auth)
+    local_owner = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/enrollment", {"Content-Type": "application/json"}), b'{"protocol_version":1}', identity, auth)
 
-    assert (missing.auth_error.status, invalid.auth_error.status, generic.auth_error.status, owner_without_session.auth_error.status) == (401, 403, 403, 401), "missing, invalid and generic-route service credentials and owner routes without browser sessions fail before identity fallback"
-    assert missing.body == invalid.body == generic.body == owner_without_session.body == {}, "rejected requests do not parse or return row/evidence payloads"
-    assert all(set(request.auth_error.body) == {"error"} for request in (missing, invalid, generic, owner_without_session)), "rejections reveal no grant, row or evidence fields"
+    assert (missing.auth_error.status, invalid.auth_error.status, generic.auth_error.status) == (401, 403, 403), "service credentials fail before local identity fallback"
+    assert local_owner.actor.stamp == fixture.owner.stamp and local_owner.body == {"protocol_version": 1}, "owner routes use the local user's identity"
+    assert missing.body == invalid.body == generic.body == {}, "rejected requests do not parse or return row/evidence payloads"
+    assert all(set(request.auth_error.body) == {"error"} for request in (missing, invalid, generic)), "rejections reveal no grant, row or evidence fields"
     assert app.container.get(Entries).global_last_id() == before, "rejected credentials do not mutate the Entry log"
     assert fixture.authority.secrets_store.values() == secrets_before, "rejected service credentials do not rotate or alter stored credentials"
 
@@ -183,7 +177,7 @@ def test_bad_service_credentials_never_fall_back_to_local_person(app, authority_
     assert mismatched.auth_error.status == 403 and mismatched.body == {}, "a service credential cannot enter the owner route or fall back to a local person"
 
 
-def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture, monkeypatch):
+def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture):
     fixture = authority_fixture
     body = enrollment(fixture)
     entries = app.container.get(Entries)
@@ -199,21 +193,13 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture, monkeypa
 
     auth = app.container.get(SupervisorRequestAuth)
     identity = app.container.get(Identity)
-    session_person = fixture.owner.number()
-    monkeypatch.setattr(auth.sessions, "session", lambda cookie: SimpleNamespace(person=session_person) if cookie == "browser=owner" else None)
 
     def owner_request(request_body):
-        head = RequestReading.head("POST", "/_supervisor/v1/enrollment", {"Content-Type": "application/json", "Cookie": "browser=owner"})
+        head = RequestReading.head("POST", "/_supervisor/v1/enrollment", {"Content-Type": "application/json"})
         return RequestReading.read(head, json.dumps(request_body).encode(), identity, auth)
 
-    before_non_owner_route = grant_rows(entries)
-    non_owner_secrets = fixture.authority.secrets_store.values()
-    session_person = 2
-    non_owner_response = app.container.get(Router).route(owner_request(body))
-    assert non_owner_response.status == 403 and grant_rows(entries) == before_non_owner_route and fixture.authority.secrets_store.values() == non_owner_secrets, "an authenticated colleague cannot enroll or change stored credentials through the management route"
-    session_person = fixture.owner.number()
     response = app.container.get(Router).route(owner_request(body))
-    assert response.status == 201 and response.headers.get("Cache-Control") == "no-store", "the owner-only HTTP route creates a grant privately"
+    assert response.status == 201 and response.headers.get("Cache-Control") == "no-store", "the local owner route creates a grant privately"
     grant = response.body
     token = response.headers["X-Journal-Supervisor-Token"]
     fixture.credentials.append(fixture.authority._credential_name(grant["grant_id"], grant["grant_version"]))
@@ -227,7 +213,7 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture, monkeypa
     rotate = {"protocol_version": 1, "grant_id": grant["grant_id"], "expected_grant_version": 1,
         "change": {"kind": "replace", "enrollment": enrollment(fixture, "bounded_write")}}
     def owner_change(request_body):
-        head = RequestReading.head("POST", "/_supervisor/v1/enrollment/change", {"Content-Type": "application/json", "Cookie": "browser=owner"})
+        head = RequestReading.head("POST", "/_supervisor/v1/enrollment/change", {"Content-Type": "application/json"})
         return RequestReading.read(head, json.dumps(request_body).encode(), identity, auth)
 
     rotated_response = app.container.get(Router).route(owner_change(rotate))
@@ -252,15 +238,14 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture, monkeypa
     with pytest.raises(SupervisorFailure):
         fixture.authority.authenticate(replacement_token)
 
-    links = app.container.get(Links)
-    for environment in (fixture.owner_environment, fixture.driver_environment):
-        for owner_link in links.matching(target=Ref.build(environment), link_type=OWNER):
-            links.delete(owner_link, Actor.system())
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        plans = app.container.get(Plans)
+        plans.save(plans.find(fixture.plan.row_id).with_(creator=Actor.system()), Actor.system())
     before_unowned = grant_rows(entries)
     secrets_before = fixture.authority.secrets_store.values()
     with pytest.raises(SupervisorFailure) as unowned:
         fixture.authority.enroll(fixture.owner, body)
-    assert unowned.value.status == 403 and grant_rows(entries) == before_unowned, "an unowned plan cannot be enrolled by a former local person"
+    assert unowned.value.status == 403 and grant_rows(entries) == before_unowned, "a plan without a user creator cannot be enrolled"
     assert fixture.authority.secrets_store.values() == secrets_before, "unowned enrollment cannot change credential storage"
 
 

@@ -14,8 +14,8 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_clocks_in_only_once_each_time_it_is_sent(story):
-    story.agent_runs(story.agents.workers.first(), "clock-in")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.workers.first(), "clock-in")
+    result.expect_command_refused()
     story.expect_stack(story.agents.workers.first(), Void, WorkingTask)
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
@@ -24,16 +24,16 @@ def test_a_worker_clocks_in_only_once_each_time_it_is_sent(story):
 @story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_whose_task_was_cancelled_before_it_clocked_in_cannot_clock_in(story):
     story.user_cancels_task(story.tasks.briefed, "not needed")
-    story.agent_runs(story.agents.workers.first(), "clock-in")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.workers.first(), "clock-in")
+    result.expect_command_refused()
     story.expect_task(story.tasks.briefed, state=TaskState.CANCELLED)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_only_a_worker_clocks_in(story):
-    story.agent_runs(story.agents.subject, "clock-in")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, "clock-in")
+    result.expect_command_refused()
     story.expect_task(story.tasks.briefed, delegated=False)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -41,16 +41,16 @@ def test_only_a_worker_clocks_in(story):
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_clock_out_with_a_point_unproved_is_refused(story):
     story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
-    story.agent_runs(story.agents.workers.first(), "clock-out 'the parser is done'")
-    story.expect_command_refused()
-    story.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
+    result = story.agent_runs(story.agents.workers.first(), "clock-out 'the parser is done'")
+    result.expect_command_refused()
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_proof_for_a_point_the_brief_does_not_have_is_refused(story):
-    story.agent_runs(story.agents.workers.first(), "proof 3 'parser.py:40'")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.workers.first(), "proof 3 'parser.py:40'")
+    result.expect_command_refused()
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

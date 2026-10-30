@@ -1,4 +1,4 @@
-import {GROUPS, groupOf, planned, questionAbout, refParts} from "./records.js";
+import {GROUPS, groupOf, questionAbout, refParts, unstartedPlan} from "./records.js";
 import {standingOf, wholePhases} from "./plans.js";
 import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
@@ -7,7 +7,7 @@ import {NORMAL_PRIORITY} from "./taskPriority.js";
 export const STATUS_PREFIXES = {...GROUPS, done: "Completed"};
 // Tasks in progress, the agent's and the workers', come first; a task with a worker is grouped by its own state, the worker marked beside it.
 export const STATUS_ORDER = ["started", "testing", "blocked", "asked", "paused", "open", "planned", "done"];
-const WAIT_KINDS = {tasks: "task", questions: "question", checks: "command"};
+const WAIT_KINDS = {tasks: "task", plans: "plan", questions: "question", checks: "command"};
 
 export const statusOf = (task) => (isClosed(task) ? "done" : groupOf(task));
 
@@ -22,6 +22,7 @@ export function waitOf(task) {
 
 const WAIT_LINES = {
     task: (w) => `Blocked by task ${w.id}`,
+    plan: (w) => `Blocked by plan ${w.id}`,
     question: (w) => `Waiting on question ${w.id}`,
     command: () => "Waiting for a command to pass",
     reason: (w) => `Blocked: ${w.why}`,
@@ -38,6 +39,7 @@ const act = (name, label) => ({name, label});
 const NEXT = {
     done: () => act("reopen", "Reopen"),
     started: (t) => (t.delegated ? null : act("finish", "Finish")),
+    testing: (t) => (t.delegated ? null : act("finish", "Finish")),
     paused: () => act("start", "Resume"),
     asked: (t) => act("answer", `Answer question ${questionAbout(t).id}`),
     blocked: (t) => {
@@ -120,7 +122,7 @@ function byPlan(shown, all, rows, folded) {
         const mine = shown.filter((t) => t.plan_id === plan.id);
         if (!mine.length) continue;
         const key = `p${plan.id}`;
-        const note = planned(mine[0]) ? "Waiting for your approval" : standingOf(plan, all).title;
+        const note = unstartedPlan(plan) ? "Waiting for your approval" : standingOf(plan, all).title;
         lines.push(head(key, 0, plan.title, note, {number: `Plan ${plan.id}`}));
         if (!folded[key])
             lines.push(

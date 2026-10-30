@@ -20,5 +20,5 @@ class PausedWorkChoice(StateFixture):
         story.agent_stops(story.agents.main)
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.main, TasksNudges.PAUSED_CHOICE)
+        story.last_step.expect_refused(story.agents.main, TasksNudges.PAUSED_CHOICE)
         story.expect_stack(story.agents.main, Ready, ChoosingPausedWork)

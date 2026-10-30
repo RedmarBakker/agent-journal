@@ -26,7 +26,6 @@ class MessagesDataReader:
             "unanswered": lambda: tuple(self.messages.unanswered_ids()),
             "unanswered_files": lambda: tuple(f"{self.config.files / 'message' / str(n)}/" for n in facts.unanswered),
             "peer_questions": lambda: tuple(PeerQuestion(m.row_id, m.data[Message.PEER]) for m in self.messages.peer_questions()),
-            "unread_comments": lambda: tuple(m.row_id for m in self.messages.unread_comments()),
             "turn_replies": lambda: tuple(m.row_id for m in self.turn_replies.replies(agent.session)),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

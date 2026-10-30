@@ -3,11 +3,12 @@ from journal.features.tasks.support.task_state_names import EXTERNAL_WAIT
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
 from journal.models.question import Question
+from journal.models.plan import Plan
 from journal.models.task import Task
 from journal.repositories.checks import Checks
 from journal.repositories.command_outputs import CommandOutputs
 
-WAIT_TARGETS = (CommandOutput, Task, Question, Check)
+WAIT_TARGETS = (CommandOutput, Task, Question, Check, Plan)
 POLL_INTERVAL_MINUTES = 0.5
 
 

@@ -21,7 +21,7 @@ SYSTEM = Origin(environment=ScopeMissing.raised, actor=Actor.system(), role=Agen
 
 
 class Scope:
-    """The origin of this thread of work, its environment, actor, role and agent, which every scoped read and write is in: set where a request, a hook or a command enters, cleared when it ends; a hub row bound to it by a bound_to link is its work as well."""
+    """The origin of this thread of work, its environment, actor, role and agent, which every scoped read and write is in: set where a request, a hook or a command enters, cleared when it ends."""
 
     def __init__(self, environments: Environments, links: Links) -> None:
         self.environments, self.links = environments, links
@@ -70,3 +70,4 @@ class Scope:
             return ()
         owners = {ref, *(link.target for type_name in member_links for link in self.links.ref_links("source", [ref], type_name))}
         return tuple(dict.fromkeys(link.target.id for link in bindings if link.source in owners))
+

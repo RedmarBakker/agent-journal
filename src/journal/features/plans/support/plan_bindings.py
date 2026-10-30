@@ -9,7 +9,6 @@ from journal.repositories.links import Links
 from journal.repositories.scope import BOUND_LINK
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
-from journal.support.row_labels import RowLabels
 
 ENDED_LINK = "drive_ended"
 
@@ -17,8 +16,12 @@ ENDED_LINK = "drive_ended"
 class PlanBindings:
     """The hub plans and tasks bound to this machine's environments by a bound_to link, which places in no team and so never leaves the machine: one environment at a time, a second one refused naming who drives it from where. A drive ended, as the row is deleted or closed on another journal or its lease taken over, leaves a drive_ended link in place of its binding, saved with the DriveEnded its environment's agent hears, and that link refuses this machine's writes to the row until it is driven again."""
 
-    def __init__(self, links: Links, environments: Environments, labels: RowLabels) -> None:
-        self.links, self.environments, self.labels = links, environments, labels
+    def __init__(self, links: Links, environments: Environments) -> None:
+        self.links, self.environments = links, environments
+
+    @staticmethod
+    def name(row: Task | Plan) -> str:
+        return f"{type(row).__name__.lower()} {row.row_id}"
 
     def environment_id(self, row: Task | Plan) -> int:
         return next((ref.id for ref in self.links.targets(row, BOUND_LINK)), 0)
@@ -27,7 +30,7 @@ class PlanBindings:
         bound = self.environment_id(row)
         if bound and bound != environment_id:
             noun = type(row).__name__.lower()
-            raise Rejection(f"{self.labels.name(noun, row)} is driven from {self.environments.find(bound).name}: `journal {noun} release {row.row_id}` there")
+            raise Rejection(f"{self.name(row)} is driven from {self.environments.find(bound).name}: `journal {noun} release {row.row_id}` there")
 
     def bind(self, row: Task | Plan, environment_id: int, actor: Actor) -> None:
         self.check(row, environment_id)
@@ -38,7 +41,7 @@ class PlanBindings:
     def end(self, row: Task | Plan, reason: str, actor: Actor) -> None:
         environment_id = self.environment_id(row)
         noun = type(row).__name__.lower()
-        ending = DriveEnded(environment_id=environment_id, row_id=row.row_id, name=self.labels.name(noun, row), noun=noun, reason=reason)
+        ending = DriveEnded(environment_id=environment_id, row_id=row.row_id, name=self.name(row), noun=noun, reason=reason)
         self.unbind(Ref.build(row), actor)
         self.links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), environment_id), link_type=ENDED_LINK).with_event(ending), actor)
 

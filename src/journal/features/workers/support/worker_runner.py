@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import Callable
 import os
 from pathlib import Path
@@ -13,13 +12,10 @@ from journal.config import Config
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
-from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
+from journal.providers.support.helper_setup import HelperSetup
 from journal.support.agent_token import AgentToken
 from journal.features.workers.support.usage_limit import UsageLimit
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.features.workers.support.pool_worker_moves import ENDED, PoolWorkerMoves
-from journal.features.workers.support.worker_end import WorkerEnd
 from journal.features.workers.support.worker_chat import WorkerChat
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
@@ -39,7 +35,6 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.worktree_commands import WorktreeCommands
 from journal.support.worktree_failure import WorktreeFailure
 from journal.support.process_check import ProcessCheck
-from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.time_source import TimeSource
 
@@ -50,8 +45,6 @@ TIMEOUT_STATUS = -1
 END_UNWATCHED = -2
 ERROR_STATUS = -3
 ENDINGS = {TIMEOUT_STATUS: "stopped after {minutes:g} minutes without ending: {report}", END_UNWATCHED: "{report}", ERROR_STATUS: "failed: {report}"}
-POOL_VARIABLES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN)
-POOL_PREFIXES = ("LC_", "JOURNAL_")
 
 
 # the variable the hook script reads the seconds a worker waits for its journal from, when the journal cannot be asked
@@ -60,13 +53,13 @@ LOCKOUT_VARIABLE = "JOURNAL_LOCKOUT_SECONDS"
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization, roles: RoleBoot, seats: SeatRunner) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource, organization: Organization, roles: RoleBoot, seats: SeatRunner) -> None:
         self.time_source, self.supervisor = time_source, supervisor
         self.organization, self.roles = organization, roles
         self.seats = seats
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
-        self.account, self.moves, self.setup = account, moves, setup
+        self.setup = setup
         self._locks: dict[int, threading.RLock] = {}
         self._locks_lock = threading.Lock()
 
@@ -79,7 +72,7 @@ class WorkerRunner:
             self.seats.start(worker, actor, self.instructed(worker), self.finish_seat)
             return
         provider = self.providers.lookup(worker.provider)
-        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume), device=self.account.device()), actor)
+        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume)), actor)
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session, self.roles.effort(worker)), *provider.worker_settings_flags(self.hook_settings(worker))]
         threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
 
@@ -117,10 +110,7 @@ class WorkerRunner:
         self.finish(worker, self.waited(worker, process, actor), actor)
 
     def worker_variables(self, worker: Worker, token: AgentToken) -> dict[str, str]:
-        variables = {**self.setup.variables(self.environments.find(worker.environment_id).name, Actor.worker(worker.id), token), LOCKOUT_VARIABLE: str(self.settings.integer(LOCKOUT_OPTION))}
-        if not worker.pool_request:
-            return variables
-        return {name: value for name, value in variables.items() if name in POOL_VARIABLES or name.startswith(POOL_PREFIXES)}
+        return {**self.setup.variables(self.environments.find(worker.environment_id).name, Actor.worker(worker.id), token), LOCKOUT_VARIABLE: str(self.settings.integer(LOCKOUT_OPTION))}
 
     def waited(self, worker: Worker, process: subprocess.Popen, actor: Actor) -> int:
         while True:
@@ -181,12 +171,6 @@ class WorkerRunner:
         outcome = ENDINGS.get(code, f"failed with code {code}: {{report}}").format(report=report, minutes=self.minutes()) if code else report
         current = self.workers.find(worker.row_id)
         current = self.cost_recorded(current.with_(resume=resume or current.resume), ended.cost_dollars, actor)
-        if self.moves.is_remote(current):
-            self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
-            self.moves.ended(current)
-            if persistent_seat:
-                self.seats.preserve(worker, actor, seat_identity)
-            return
         resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", self.time_source.seconds())
         if resumes_at and current.is_running():
             self.workers.save(current.limited(self.time_source.seconds(), resumes_at, outcome), actor)
@@ -323,8 +307,6 @@ class WorkerRunner:
         return self.inner_worktrees(worker, names)
 
     def prepared(self, worker: Worker, names: tuple[str, ...], maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
-        if worker.pool_request:
-            return self.pool_prepared(worker, maker)
         folder = self.branch.folder(worker)
         self.commands.run(worker, WorkersOptions.PREPARATION_COMMANDS.texts(self.settings.option(WorkersOptions.PREPARATION_COMMANDS)), self.config.root, names)
         repositories = maker(worker, names) if self.settings.option(WorkersOptions.WORKTREE_STEP) else ()
@@ -333,15 +315,8 @@ class WorkerRunner:
             raise WorktreeFailure(worker.name, f"the worktree commands made no worktree at {folder}; with the journal's own step off, they make it there on the branch {self.branch.name(worker)}")
         return repositories or tuple(name for name in names if (folder / name / ".git").exists())
 
-    def pool_prepared(self, worker: Worker, maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
-        repositories = maker(worker, ())
-        folder = self.branch.folder(worker)
-        for option in (WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS):
-            self.commands.run(worker, option.texts(self.settings.option(option)), folder, ())
-        return repositories
-
     def worktree_creation(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:
-        self.added(worker, "-b", self.branch.name(worker), str(self.branch.folder(worker)), f"origin/{worker.base}" if worker.base else "HEAD")
+        self.added(worker, "-b", self.branch.name(worker), str(self.branch.folder(worker)), "HEAD")
         return self.inner_worktrees(worker, names)
 
     def worktree_restoration(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:

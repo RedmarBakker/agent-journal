@@ -7,7 +7,6 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
-from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.rows.message_read import MessageRead
@@ -15,8 +14,6 @@ from journal.events.rows.message_rows_faulty import MessageRowsFaulty
 from journal.events.rows.reply_posted import ReplyPosted
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.reaction_added import ReactionAdded
-from journal.events.rows.colleague_commented import ColleagueCommented
-from journal.support.chain import Chain
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_part import MessagesPart
 from journal.features.messages.support.messages_data import MessagesData
@@ -25,11 +22,7 @@ TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread
 
 
 class MessagesConduct(Conduct):
-    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, after a reply sent by command that it is in the chat and is never said again, closing words written after such a reply that they were not sent, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
-
-    def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        comments = event.data.part(MessagesPart).unread_comments
-        return self.none(MessagesNudges.UNREAD_COMMENTS.create(ns=", ".join(map(str, comments)))) if comments else self.none()
+    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, after a reply sent by command that it is in the chat and is never said again, closing words written after such a reply that they were not sent, the user's emoji on a message informed."""
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         return self.none(*inbox_line(event.data.part(MessagesPart)))
@@ -65,9 +58,6 @@ class MessagesConduct(Conduct):
 
     def on_reply_posted(self, event: ReplyPosted, settings: Settings) -> Transition:
         return self.none(MessagesNudges.REPLY_REPEAT_WARNING.create(reply=event.row_id, n=event.reply_target)) if event.is_agents(event.session) else self.none()
-
-    def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
-        return self.none(MessagesNudges.COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))
 
     def on_reaction_added(self, event: ReactionAdded, settings: Settings) -> Transition:
         return self.none(MessagesNudges.USER_REACTION.create(emoji=event.emoji, n=event.message_id)) if event.user_origin else self.none()

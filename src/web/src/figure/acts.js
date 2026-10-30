@@ -59,6 +59,8 @@ export const ACTS = {
     },
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
+    // Each voice has its own angry performance, with a full recovery before ordinary activity resumes.
+    tantrum: {frames: 108, fps: 18, hops: 6},
     // a rope swing tied under a bubble, drawn whole from the act's first frame: its two ropes `rope` of the figure's height long from the
     // middle of the bubble's bottom edge, `ties` of it apart, just outside the figure's arms, down to a seat `seat` of it wide, a little wider
     // than its body, whose top is `under` of it below the line the figure sits on, where its thighs' underside rests. Its frames are an

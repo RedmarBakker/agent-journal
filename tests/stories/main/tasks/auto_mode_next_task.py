@@ -21,8 +21,8 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 def test_with_auto_on_a_completed_task_is_followed_by_the_next_open_one(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
     story.expect_task(story.tasks.open, state=TaskState.STARTED)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
@@ -31,8 +31,8 @@ def test_with_auto_on_a_completed_task_is_followed_by_the_next_open_one(story):
 def test_with_auto_off_a_completed_task_is_followed_by_nothing(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
     story.expect_task(story.tasks.open, state=TaskState.OPEN)
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -72,8 +72,8 @@ def test_a_task_a_worker_holds_is_never_started_by_the_stop(story):
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
@@ -85,8 +85,8 @@ def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
 def test_a_stop_with_several_open_tasks_starts_only_one(story):
     first = story.agent_creates_task(story.agents.subject, "the header")
     second = story.agent_creates_task(story.agents.subject, "the logo")
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(first, state=TaskState.STARTED)
     story.expect_task(second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, Working)

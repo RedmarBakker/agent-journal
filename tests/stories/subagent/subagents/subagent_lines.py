@@ -10,6 +10,6 @@ from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_the_main_agents_new_message_is_never_told_to_the_subagent(story):
     story.user_sends_message("how far is the parser?")
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
     story.expect_stack(story.agents.subject, Void, Researching)

@@ -8,17 +8,19 @@ TOLERANCE_SECONDS = 2
 
 def waited(began: float) -> bool:
     # @sin SpanWorkedOutByHandDetector
+    # @sin HandWrittenIntervalDetector
     return time.monotonic() - began >= WAIT_SECONDS
 
 
 def overdue(started_at: float, moment: float) -> bool:
     # @sin SpanWorkedOutByHandDetector
+    # @sin HandWrittenIntervalDetector
     return moment - started_at > WAIT_SECONDS
 
 
-def recent(times: list[float], moment: float) -> int:
+def recent_count(stamps: list[float], moment: float) -> int:
     # @sin SpanWorkedOutByHandDetector
-    return sum(1 for seen in times if moment - WAIT_SECONDS < seen <= moment)
+    return sum(1 for stamp in stamps if moment - WAIT_SECONDS < stamp <= moment)
 
 
 def waited_plainly(began: float) -> bool:
@@ -26,6 +28,6 @@ def waited_plainly(began: float) -> bool:
     return Timeout.seconds(WAIT_SECONDS).started(began).is_elapsed(time.monotonic())
 
 
-def drifted(offset: float, seconds: float) -> bool:
+def drift(offset: float, expected: float) -> bool:
     # @righteous SpanWorkedOutByHandDetector
-    return abs(offset - seconds) > TOLERANCE_SECONDS
+    return abs(offset - expected) > TOLERANCE_SECONDS

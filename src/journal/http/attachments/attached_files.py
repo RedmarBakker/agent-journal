@@ -2,7 +2,7 @@ import mimetypes
 from urllib.parse import quote
 
 from journal.http.attachments.attached_file import AttachedFile
-from journal.sync.attachments import Attachments
+from journal.features.messages.support.attachments import Attachments
 from journal.http.attachments.file_request import FileRequest
 from journal.http.attachments.file_view import FileView
 from journal.models.message import Message
@@ -19,7 +19,7 @@ class AttachedFiles:
         self.messages, self.attachments = messages, attachments
 
     def page(self, requested: FileRequest) -> FileView:
-        all_items = sorted((f for m in self.messages.scoped() for f in self.build(m)), key=lambda f: -f.time)
+        all_items = sorted((f for m in self.messages.with_files() for f in self.build(m)), key=lambda f: -f.time)
         rows = [f for f in all_items if requested.contains(f)]
         shelves = {Message.table(): len(all_items)} if all_items else {}
         images = sum(f.image for f in all_items)

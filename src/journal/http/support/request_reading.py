@@ -26,7 +26,7 @@ class RequestReading:
         if access and access.error:
             return Request(head.method, url.path, query, {}, {}, head.headers, Actor.system(), request_at=request_at,
                 boot_wait_seconds=waited, auth_error=access.error)
-        person = access.actor if access and access.actor else identity.build(head.headers, head.cookie)
+        person = access.actor if access and access.actor else identity.build(head.headers)
         principal = access.principal if access else None
         if head.content_type == "application/octet-stream":
             return Request(head.method, url.path, query, {"raw": raw}, {}, head.headers, person, request_at=request_at, boot_wait_seconds=waited, supervisor=principal)

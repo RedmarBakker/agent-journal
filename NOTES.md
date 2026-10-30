@@ -1158,6 +1158,10 @@ Code commandments judges `src/journal` clean (657 files). Decided on the way:
   last is held in the typing funnel, SupervisorLink.type, never in a workflow, and the tick types the held lines as
   one marked line, the instructions joined with " | ". The window and the hold until a line is seen back are the
   same hold; 0 types each line at once, which the tests about other conduct set.
+- The replays are gone (Sir Jesse, messages 82817 and 82821, 2026-10-29): the stories record what the states say
+  now. tests/replays_run.py, tests/plugins_replays_run.py and the records under tests/replays were deleted; the hook
+  and clock helpers the stories and tests share live in tests/agent_hooks.py. Older notes below that name the replays
+  describe how things were.
 - A settings save from the viewer names only the keys it sets, null clearing one; the server never unsets a key
   by its absence. Before, a pane layout or colour scheme save dropped every other viewer key, the tour's finished
   mark among them, so the tour replayed after every update.

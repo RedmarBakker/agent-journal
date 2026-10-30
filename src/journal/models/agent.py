@@ -41,7 +41,6 @@ ENDED_STATE = "ended"
 @dataclass(frozen=True)
 
 class Agent(Scoped):
-    shared: ClassVar[bool] = False
     unshown_fields: ClassVar[tuple[str, ...]] = ("work_queue", "message_queue", "mode_loads", "band_changed_at", "measures")
 
 

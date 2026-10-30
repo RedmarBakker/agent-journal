@@ -9,7 +9,6 @@ from worker_dispatch import dispatched
 from tests.suite_app import SuiteApp
 from journal.app import App
 from journal.repositories.scope import Scope
-from journal.hooks.support.hook_seats import HookSeats
 from journal.config import Config
 from journal.support.caller import Caller
 from journal.providers.providers import Providers
@@ -26,17 +25,6 @@ MAIN = Caller.user("main")
 @pytest.fixture
 def app(journal_root: Path) -> App:
     return SuiteApp(Config(journal_root, port=0))
-
-
-
-
-def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
-    app.console().run(["task", "create", "t", "--start"], Caller.agent("main", "s-1", "claude"))
-    assert app.container.get(Tasks).find(1).creator == Actor.agent("s-1")
-
-
-
-
 
 
 
@@ -58,17 +46,11 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
 
 
 
-def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_from(app: App):
-    from journal.support.actor import Actor
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    app.container.get(Agents).save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
-    with app.container.get(Scope).environment(1):
-        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
-    assert attributed.session == "s1" and attributed.actor.actor_type == "agent", "an unnamed agent's shell is the live agent's"
+def test_a_shell_marked_by_an_agent_program_names_the_agent_and_its_session_when_the_program_gives_one():
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
+    assert Providers().caller({"JOURNAL_SESSION": "worker-session", "CODEX_THREAD_ID": "parent-session"}).session == "worker-session", "a session the journal names wins over the one the program marks"
 
 
 def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks_it():
@@ -82,42 +64,6 @@ def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks
     assert providers.caller({"JOURNAL_ACTOR": "verifier:4", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.verifier("main", 4, None, "claude"), "one actor variable names a worker or a verifier by its stamp"
     variables = providers.caller_variables({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "t1", "JOURNAL_LAUNCH": "l1"})
     assert CallerVariables.parsed(variables.body(), "claude") == variables, "what the shim posts reads back as the variables it posted"
-
-
-def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_events(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    codex = Caller.agent("main", "t9", "codex")
-    assert dispatched(app.console(), ["Ada Lovelace", "write storage.py", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "gpt-5"], codex).code == 0
-    assert app.container.get(Workers).find(1).provider == "codex", "the provider comes with the caller, not from the agent's row"
-    assert app.console().run(["stuck", "the build is red"], MAIN).code == 1, "only an agent says it is stuck"
-
-
-def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app: App):
-    with app.container.get(Scope).environment(1):
-        attributed = app.container.get(HookSeats).attributed(Providers().caller({"CLAUDECODE": "1"}))
-    assert attributed.actor.actor_type == "user", "a shell outside the journal is the user's"
-
-
-def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    environments, agents = app.container.get(Environments), app.container.get(Agents)
-    development = environments.lookup("development")
-    with app.container.get(Scope).environment(development.id):
-        agents.save(Agent(session="codex-session", environment_id=development.id, provider="codex", is_overview_read=False), Actor.system())
-        agents.save(Agent(session="claude-session", environment_id=development.id, provider="claude", is_overview_read=False), Actor.system())
-    caller = Providers().caller({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "codex-session", "CODEX_CI": "1"})
-    assert app.console().run(["environment", "overview"], caller).code == 0
-    with app.container.get(Scope).environment(development.id):
-        assert agents.session_agent("codex-session").is_overview_read
-        assert not agents.session_agent("claude-session").is_overview_read
-    assert app.console().run(["task", "create", "Codex task"], caller).code == 0
-    with app.container.get(Scope).environment(development.id):
-        assert app.container.get(Tasks).all()[-1].creator == Actor.agent("codex-session")
-    assert Providers().caller({"JOURNAL_SESSION": "worker-session", "CODEX_THREAD_ID": "parent-session"}).session == "worker-session"
 
 
 def test_a_workers_shim_never_runs_the_package_when_no_server_answers(app: App):
@@ -443,7 +389,7 @@ def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_regi
     assert "TEAM_PROJECT: ${{ inputs.project }}" in workflow and "TEAM_ADDRESS: ${{ inputs.address }}" in workflow
     assert 'curl -fsSL "https://github.com/jessegall/agent-journal/releases/download/v${TEAM_VERSION}/install.sh" | sh' in workflow
     told = capsys.readouterr().out
-    assert "--labels agent-journal" in told and "journal team join <url>" in told
+    assert "--labels agent-journal" in told and "journal library connect <url>" in told
     assert RemoteGithub.parsed(["init"], root).run() == 1, "a workflow already there is not written over"
     assert RemoteGithub.parsed(["init", "--replace"], root).run() == 0
 
@@ -495,27 +441,6 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
 
 
 
-
-
-def test_a_library_member_cannot_invite(app: App, tmp_path: Path):
-    from dataclasses import replace
-    from journal.features.library.support.library_account import LibraryAccount
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
-        _, member_token = team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
-        account = LibraryAccount(app.config)
-        account.write(replace(account.connection(), token=member_token, role="member"))
-        assert console.run(["library", "invite", "dan@example.com"], user).code != 0, "a member's invite is refused, admins only"
-    finally:
-        team.close(server)
 
 
 def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_update_offers_the_import(app: App, tmp_path: Path):

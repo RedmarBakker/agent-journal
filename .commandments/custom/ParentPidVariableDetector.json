@@ -8,7 +8,7 @@
                 "textMatches": "(JOURNAL_PARENT_PID|SUPERVISOR_PID)"
             },
             {
-                "fileMatches": "(^|/)src/(journal|sync_service)/"
+                "fileMatches": "(^|/)src/journal/"
             }
         ]
     },

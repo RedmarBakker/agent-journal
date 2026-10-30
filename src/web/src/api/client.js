@@ -418,28 +418,6 @@ export class ApiClient {
         return this.get(this.here(`/agents/${agent}/terminal${query({after})}`));
     }
 
-    // who holds the Team chat, and the Claim that makes this machine hold it
-    teamChat() {
-        return this.get("/team-chat");
-    }
-
-    claimTeamChat() {
-        return this.post("/team-chat/claim", {});
-    }
-
-    // lets the Team chat go: its agent here stops after its files are committed and pushed
-    releaseTeamChat() {
-        return this.post("/team-chat/release", {}, LONG_WAIT_MS);
-    }
-
-    // the people's side thread beside an environment's chat, which no agent reads
-    sideThread() {
-        return this.get(this.here("/side-thread"));
-    }
-
-    postSideThread(text) {
-        return this.post(this.here("/side-thread"), {text});
-    }
 
     // who the viewer is and who else is on the journal, so it says you only for its own person
     people() {
@@ -484,89 +462,35 @@ export class ApiClient {
         return this.post("/library/password", {old, new: fresh});
     }
 
-    // how this journal stands with its team, or that it has joined none
-    team() {
-        return this.get("/team");
+    // the library's items, each with its newest version and the version this journal imported, by kind and words
+    libraryItems(type, search) {
+        const query = new URLSearchParams(Object.entries({type, search}).filter(([, value]) => value));
+        return this.get(`/library/items?${query}`);
     }
 
-    // joins a team by its URL: a new server's makes this person its admin, an invitation URL a member; as journal team join does
-    joinTeam(fields) {
-        return this.post("/team/join", fields, LONG_WAIT_MS);
+    // one library item with every version and its note, and the version this journal imported
+    libraryItem(type, name) {
+        return this.get(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}`);
     }
 
-    // leaves the team: the sync stops, every local row stays, and the team's settings are kept in a backup file
-    leaveTeam() {
-        return this.post("/team/leave", {});
+    // every copy here that came from the library, with the version it came from and the row or file it is
+    libraryCopies() {
+        return this.get("/library/copies");
     }
 
-    // whether a team server's address can be claimed: its address made plain, and why not when it cannot
-    checkTeam(fields) {
-        return this.post("/team/check", fields, LONG_WAIT_MS);
+    // publishes a sequence or template, by its number, or a profile, by its name, as the library's next version
+    publishLibraryItem(type, reference, note, description) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/publish`, {reference, note, description}, LONG_WAIT_MS);
     }
 
-    // the team's people, each with their role, when they were last seen and their environments
-    teamPeople() {
-        return this.get("/team/people");
+    // imports a library item's version as this journal's own copy; accept writes a reader or a sequence whose script or powers were read
+    importLibraryItem(type, name, version, accept = false) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version, accept});
     }
 
-    // the worker pool: the slots this machine gives, the pool workers it runs for teammates, this journal's on other machines, and the team's
-    teamPool() {
-        return this.get("/team/pool");
-    }
-
-    // stops a pool worker this machine runs for a teammate, answered with the pool as it then stands
-    stopPoolWorker(request) {
-        return this.post(`/team/pool/${encoded(request)}/stop`, {});
-    }
-
-    // the team's devices, for an admin
-    teamDevices() {
-        return this.get("/team/devices");
-    }
-
-    // the requests this person filed, with the state each has reached
-    filedRequests() {
-        return this.get("/requests/filed");
-    }
-
-    // the requests filed for this person, in every environment
-    requests() {
-        return this.get("/requests");
-    }
-
-    // revokes one device, so it reaches the team no more
-    revokeDevice(id) {
-        return this.post(`/team/devices/${encoded(id)}/revoke`, {});
-    }
-
-    // an admin's invitation for one email, answered with the line the person joins with
-    // changes this person's team password, the old one checked
-    changeTeamPassword(old, password) {
-        return this.post("/team/password", {old, new: password});
-    }
-
-    // an admin resets a person's team password, answered with the new one to pass on
-    resetTeamPassword(id) {
-        return this.post(`/team/people/${id}/password`, {});
-    }
-
-    // a one-time link that opens the team's hosted journal signed in as this person
-    openSharedJournal() {
-        return this.post("/team/open", {});
-    }
-
-    inviteToTeam(email) {
-        return this.post("/team/invite", {email});
-    }
-
-    // ends the browser's session on a hosted journal
-    signOut() {
-        return transport.request("POST", `${this.base}/sign-out`, {});
-    }
-
-    // how a shared journal's sync with its team stands, one line for the status bar
-    syncLine() {
-        return this.get("/sync");
+    // updates the imported copy to the newest version; replace writes over a copy edited here
+    updateLibraryItem(type, name, replace) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace});
     }
 
     // the work mode the plan bar's buttons set, and the pause of an agent
@@ -602,14 +526,6 @@ export class ApiClient {
 
     removeEnvironment(environment) {
         return this.act("environments", environment, "remove");
-    }
-
-    shareEnvironment(environment) {
-        return this.act("environments", environment, "share");
-    }
-
-    unshareEnvironment(environment) {
-        return this.act("environments", environment, "unshare");
     }
 
     leftWorktrees() {
