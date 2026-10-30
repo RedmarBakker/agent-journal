@@ -66,6 +66,11 @@ class StoryChecks:
         newest = self.api_row("messages", self.newest("messages"))
         assert newest["text"] == text, f"the newest message reads {newest['text']!r}, not {text!r}"
 
+    def expect_recent_message_text(self, text: str, within: int = 5) -> None:
+        newest = self.newest("messages")
+        reads = [self.api_row("messages", n)["text"] for n in range(newest, max(newest - within, 0), -1)]
+        assert text in reads, f"none of the newest {within} messages reads {text!r}: {reads}"
+
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
 

@@ -12,5 +12,5 @@ def test_the_compaction_mark_counts_the_removed_memories_in_its_total(story):
         story.agent_runs(story.agents.subject, f"memory add '{words}' --weight 5")
     story.agent_runs(story.agents.subject, f"memory remove {story.created_number('memory')}")
     story.compaction_begins()
-    story.expect_newest_message_text("Memories faded by one: 2 of 3 still shown")
+    story.expect_recent_message_text("Memories faded by one: 2 of 3 still shown")
     story.expect_stack(story.agents.subject, Ready, Compacting)
