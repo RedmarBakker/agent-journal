@@ -1031,7 +1031,11 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "rationale": "The current failed check needs a bounded diagnostic task.",
             }
             applied = scripted_call(TOOL_NAMES[1], action, "apply_maintenance")
-            assert applied["result"]["isError"] is False, applied
+            assert applied["result"]["isError"] is False, {
+                "applied": applied,
+                "usage_settlement": state.snapshot()["usage_settlement"],
+                "last_error": state.snapshot()["last_error"],
+            }
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
             assert applied_receipt["verification"] == "verified", {
                 "status": applied_receipt["status"],
