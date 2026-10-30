@@ -3151,6 +3151,14 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
+def test_a_blocks_waits_and_the_from_flag_are_taught_in_the_tasks_skill_alone(app: App):
+    from journal.features.registry import Registry
+    skills = app.container.get(Registry).skills()
+    for flag in ("--on task:", "--until", "--from"):
+        teaching = [skill.name for skill in skills if flag in skill.body]
+        assert teaching == ["tasks"], f"{flag} is taught in {teaching}, not in the tasks skill alone"
+
+
 def test_an_outputs_tail_and_a_polled_transcript_are_read_only_as_far_as_needed(tmp_path):
     from journal.features.shell.support.output_files import OutputFiles
     from journal.http.transcripts.transcript_turns import TranscriptTurns

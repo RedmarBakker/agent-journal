@@ -62,7 +62,7 @@ The user sends messages; you answer them before anything else.
   as your turn's closing text ends the turn, so the work you meant to do next never happens. Words written after a reply
   in the same turn are not sent to the chat, and you are told so at the stop: end such a turn with the reply.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
-  as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message. A comment on
+  as a task from it (the tasks skill), so the chat shows the task above the message. A comment on
   a document or report is neither: answer it, and write what it asks into that document or report, as a change, a section
   or an open question; it becomes work only when the user asks for it.
 - A number that names a row is written with its kind, task 3399 or plan 1032, so the chat links it. A message of
