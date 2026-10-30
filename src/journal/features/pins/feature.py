@@ -28,6 +28,8 @@ class Pins(Feature[PinsData]):
 
 Whenever you point the user at something outside the journal, a design, a hosted page, a document, any link they
 will open again, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
+A button under your message (`journal message send` with `--button` or `--form-button`, the messages skill) is there
+as well, never instead: the chat moves on and the button with it, while the pin stays.
 A document or a report docks itself at the bottom of the chat when it is created, by you or the user, and stays
 until the user closes it. Any other row of the journal you want to keep in view, a plan or a task, is docked there with
 `journal plan dock 12`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with

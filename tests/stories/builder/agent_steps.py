@@ -541,6 +541,9 @@ class AgentSteps:
         path.write_text(text)
         return self.observed(f"the project holds {name}", None, None)
 
+    def project_path(self, name: str) -> str:
+        return str(self.app.config.root / name)
+
     def project_script_holding(self, name: str, text: str) -> None:
         self.project_file_holding(name, text)
         (self.app.config.root / name).chmod(0o755)
