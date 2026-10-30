@@ -3,6 +3,7 @@ import shlex
 import pytest
 
 from journal.support.option import AGENT, USER, Option
+from journal.features.workers.organization_options import OrganizationOptions
 from tests.lab.finding_task import FindingTask
 from tests.lab.trial_setting import TrialSetting
 
@@ -24,6 +25,7 @@ def test_trial_setting_builds_pinned_designs_with_the_owner_set_switch_off_by_de
         "key": "plans.trial_route",
         "owner": "Product owner",
         "default": False,
+        "baseline": False,
         "candidate": True,
     }
 
@@ -34,13 +36,34 @@ def test_trial_setting_rejects_agent_controlled_switches():
 
 
 def test_trial_setting_rejects_a_switch_that_is_on_by_default():
-    with pytest.raises(ValueError, match="default is off"):
+    with pytest.raises(ValueError, match="default off"):
         TrialSetting(trial_option(default=True), "Product owner")
 
 
 def test_trial_setting_rejects_non_switch_options():
     with pytest.raises(ValueError, match="switch"):
-        TrialSetting(trial_option(option_type="choice"), "Product owner")
+        TrialSetting(trial_option(option_type="number"), "Product owner")
+
+
+def test_trial_setting_builds_a_default_and_candidate_for_a_user_choice():
+    setting = TrialSetting(OrganizationOptions.DOMAIN_AGENT_MODEL_TIER, "Journal owner", "contract", "lowest_allowed")
+
+    baseline, candidate = setting.designs("contract", "lowest", {})
+
+    assert dict(baseline.settings) == {"workers.domain_agent_model_tier": "contract"}
+    assert dict(candidate.settings) == {"workers.domain_agent_model_tier": "lowest_allowed"}
+    assert setting.manifest() == {
+        "key": "workers.domain_agent_model_tier",
+        "owner": "Journal owner",
+        "default": "contract",
+        "baseline": "contract",
+        "candidate": "lowest_allowed",
+    }
+
+
+def test_trial_setting_rejects_a_choice_without_its_default_baseline():
+    with pytest.raises(ValueError, match="default as baseline"):
+        TrialSetting(OrganizationOptions.DOMAIN_AGENT_MODEL_TIER, "Journal owner", "lowest_allowed", "contract")
 
 
 def test_trial_setting_does_not_replace_a_common_design_value():
@@ -73,8 +96,8 @@ def test_finding_task_command_carries_report_metric_scenarios_and_replay_traces(
     for reference in (
         "report 22", "handoff_traceability", "metric-schema-v3", "fleet_operator/tracker_outage",
         "law_firm/court_filing_deadline", "$LAB_HOME/batches/b1/runs/r1/trace.json",
-        "plans.trial_route", "Product owner", "default off", "journal doc show 10 --section 19", "both paths",
-        "keep_eligible", "switch removal", "inconclusive", "NOTES.md",
+        "plans.trial_route", "Product owner", "default off", "design A off", "design B on",
+        "journal doc show 10 --section 19", "both paths", "keep_eligible", "setting removal", "inconclusive", "NOTES.md",
     ):
         assert reference in task.brief
 

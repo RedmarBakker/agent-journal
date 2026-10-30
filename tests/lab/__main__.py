@@ -8,9 +8,10 @@ from uuid import uuid4
 from tests.lab.batch import Batch
 from tests.lab.batch_runner import BatchRunner
 from tests.lab.drift_report import DriftReport
+from tests.lab.first_trial_simulation import run as run_first_trial_simulation
 
 
-VERBS = ("organizations", "simulate", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
+VERBS = ("organizations", "simulate", "simulate-first-trials", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -27,12 +28,23 @@ def parser() -> argparse.ArgumentParser:
             if name == "regression":
                 subcommand.add_argument("--baseline-batch", required=True, help="pinned simulated batch to compare against")
                 subcommand.description = "run one simulated regression batch for an external schedule"
+        if name == "simulate-first-trials":
+            subcommand.add_argument("--source-commit", required=True, help="full source commit pin for the simulator inputs")
+            subcommand.add_argument("--lab-home", type=Path, required=True, help="private artifact directory outside source checkouts")
     return command
 
 
 def main(arguments: list[str]) -> int:
     command = parser()
     options = command.parse_args(arguments)
+    if options.verb == "simulate-first-trials":
+        try:
+            for result in run_first_trial_simulation(options.lab_home, options.source_commit):
+                print(result)
+        except (ImportError, OSError, ValueError, TypeError, KeyError, AttributeError) as failure:
+            print(str(failure), file=sys.stderr)
+            return 2
+        return 0
     if options.verb not in {"simulate", "regression"}:
         print(f"{options.verb} is not available; no real run or other action was started", file=sys.stderr)
         return 2

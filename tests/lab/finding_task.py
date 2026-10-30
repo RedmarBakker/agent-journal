@@ -45,11 +45,11 @@ class FindingTask:
             f"Metric: {self.metric_id} (version {self.metric_version})",
             f"Scenarios: {', '.join(self.scenario_ids)}",
             f"Replayable traces: {', '.join(self.trace_refs)}",
-            f"Setting: {setting['key']}; owner: {setting['owner']}; default off; candidate on in design B only.",
-            "Keep the default off. Keep the candidate behind this setting and keep both paths' stories valid.",
+            f"Setting: {setting['key']}; owner: {setting['owner']}; default {self.setting.value_name(setting['default'])}; design A {self.setting.value_name(setting['baseline'])}; design B {self.setting.value_name(setting['candidate'])}.",
+            "Keep the declared default. Keep the candidate behind this setting and keep both paths' stories valid.",
             "Before any confirmatory batch, copy and complete every field from `journal doc show 10 --section 19`; explain each not_applicable field.",
             "Freeze the manifest and decision rule before confirmatory outcomes. Real spending still needs the owner's L02 approval.",
-            "After the recorded outcome, keep_eligible needs owner review plus explicit default-change and switch-removal tasks; drop needs candidate and switch removal; inconclusive needs a bounded follow-up or rollback deadline while A stays active and the setting stays off.",
+            "After the recorded outcome, keep_eligible needs owner review plus explicit default-change and setting-removal tasks; drop needs candidate and setting removal; inconclusive needs a bounded follow-up or rollback deadline while design A stays active and the declared default remains.",
             "Only the authorized owner records the outcome and report/task/rule references in NOTES.md. This task never flips a default or authorizes deployment or spend.",
         ))
 

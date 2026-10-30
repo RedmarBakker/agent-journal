@@ -162,6 +162,10 @@ def test_a_plan_rig_places_its_plan_agent_domain_agent_and_plan_roles_by_contrac
         ("domain:alpha", "gpt-6.1-sol", "xhigh"),
         ("role:alpha/planner", "gpt-6-luna", "max"),
     ], "Codex seats use contract model and effort, with the configured plan selection"
+    user_set(app, OrganizationOptions.DOMAIN_AGENT_MODEL_TIER.key, "lowest_allowed")
+    user_set(app, WorkersOptions.ALLOWED_MODELS.key, ["claude domain-agent: haiku, sonnet"])
+    lowest = seats.seats("plan-29", contracts, ("alpha",), providers.lookup("claude"))[1]
+    assert (lowest.model, lowest.effort) == ("haiku", contracts.domains[0].models.effort), "the candidate picks the lowest user-allowed Domain model and retains its contract reasoning effort"
 
 
 def test_a_domain_pod_lead_routes_by_domain_rules_and_returns_role_reports_over_the_same_handoff(app, tmp_path, monkeypatch):

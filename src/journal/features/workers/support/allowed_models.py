@@ -26,6 +26,13 @@ class AllowedModels:
         ranking = self.providers.lookup(provider).model_ranking
         return max(self.allowed(provider, role), key=lambda model: ranking.index(model) if model in ranking else -1)
 
+    def weakest(self, provider: str, role: str) -> str:
+        ranking = self.providers.lookup(provider).model_ranking
+        allowed = tuple(model for model in self.allowed(provider, role) if model in ranking)
+        if not allowed:
+            raise ValueError(f"{role} has no allowed model for {provider}")
+        return min(allowed, key=ranking.index)
+
     def clamped(self, provider: str, role: str, model: str) -> tuple[str, str]:
         ranking, allowed = self.providers.lookup(provider).model_ranking, self.allowed(provider, role)
         requested = next((word for word in ranking if word in model.lower()), "")

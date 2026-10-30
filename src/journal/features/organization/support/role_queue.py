@@ -4,6 +4,7 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_instances import RoleInstances
+from journal.features.workers.organization_options import OrganizationOptions
 from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.models.task import Task
@@ -12,6 +13,7 @@ from journal.repositories.links import Links
 from journal.repositories.tasks import QUEUED_LINK
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
+from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 
@@ -19,9 +21,9 @@ from journal.support.rejection import Rejection
 class RoleQueue:
     """Queue a shared Role's tasks one at a time per plan, keeping each plan's task order and the worker's context separate."""
 
-    def __init__(self, instances: RoleInstances, tasks: Tasks, organization: Organization, links: Links, workers: Workers) -> None:
+    def __init__(self, instances: RoleInstances, tasks: Tasks, organization: Organization, links: Links, workers: Workers, settings: SettingRows) -> None:
         self.instances, self.tasks, self.organization = instances, tasks, organization
-        self.links, self.workers = links, workers
+        self.links, self.workers, self.settings = links, workers, settings
         self._feed_lock = RLock()
         self._feeding: set[int] = set()
 
@@ -51,6 +53,8 @@ class RoleQueue:
             return
         queued = self.tasks.queue(Ref.build(current))
         if len(queued) < 2:
+            return
+        if self.settings.option(OrganizationOptions.SHARED_ROLE_QUEUE_ORDER) == "arrival":
             return
         active = self.tasks.holder_task(Ref.build(current))
         last_plan = self.instances.plan_of(active) if active else current.plan_id
