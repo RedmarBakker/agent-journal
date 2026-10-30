@@ -35,7 +35,7 @@ class PlansConduct(Conduct):
         return self.none(PlansNudges.PLAN_APPROVED_WITH_COMMENT.create(n=event.plan_id, comment=event.comment_id))
 
     def on_plan_finished(self, event: PlanFinished, settings: Settings) -> Transition:
-        if not settings.option(PlansOptions.PLAN_AGENTS) or event.mode != PlanMode.SOLO:
+        if not settings.value(PlansOptions.PLAN_AGENTS) or event.mode != PlanMode.SOLO:
             return self.none()
         return self.none(PlansNudges.PLAN_MERGE_READY.create(n=event.plan_id))
 
