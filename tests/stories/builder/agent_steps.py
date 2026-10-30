@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from journal.engine.nudge import Nudge
 from journal.version import VERSION
@@ -148,6 +149,14 @@ class AgentSteps:
     def agent_reads_part(self, agent: StoryAgent, path: str, limit: int) -> None:
         self.hooked(agent, "agent reads part of a file", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path, "limit": limit})
 
+    def agent_reads_skills_at_once(self, agent: StoryAgent, *folders: str) -> None:
+        def read(folder: str) -> tuple[int, object]:
+            call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)}, tool_response={})
+            return self.posted_hook(agent, "PostToolUse", **call)
+        with ThreadPoolExecutor(len(folders)) as pool:
+            answers = list(pool.map(read, folders))
+        self.hook_observed("agent has read skills at once", *answers[-1])
+
     def agent_loads_a_skill(self, agent: StoryAgent, name: str) -> None:
         self.hooked(agent, "agent loads a skill by the skill tool", "PostToolUse", tool_name="Skill", tool_input={"skill": name}, tool_response="")
 
@@ -210,6 +219,9 @@ class AgentSteps:
 
     def subagent_ends(self, subagent: str) -> None:
         self.hooked(self.agents.subject, "a subagent ends", "SubagentStop", agent_id=subagent)
+
+    def agent_turn_fails_on_the_usage_limit(self, agent: StoryAgent) -> None:
+        self.hooked(agent, "the agent's turn fails on the usage limit", "StopFailure", error="rate_limit", last_assistant_message="You've hit your weekly limit · resets 11am (Europe/Amsterdam)")
 
     def agent_stops(self, agent: StoryAgent) -> None:
         self.hooked(agent, "agent stops", "Stop")

@@ -474,16 +474,6 @@ def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: Ap
 
 
 
-def test_every_skill_loaded_shows_in_the_chat(skilled):
-    from journal.repositories.messages import Messages
-    app = skilled
-    hook(app, "SessionStart")
-    hook(app, "PostToolUse", tool_name="Skill", tool_input={"skill": "commandments-plain-code-words"}, tool_response="")
-    hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / ".agents/skills/commandments-python-flow/SKILL.md")}, tool_response="")
-    shown = " ".join(f"{message.text} {json.dumps(message.data)}" for message in app.container.get(Messages).scoped())
-    assert "commandments-plain-code-words" in shown and "commandments-python-flow" in shown, "a skill not the journal's, loaded by the tool or read as its file, shows in the chat"
-
-
 def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
     from journal.features.plugins.support.plugin_folders import PluginFolders
     from journal.features.plugins.support.plugin_skills import PluginSkills
@@ -503,55 +493,11 @@ def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
     assert "Name things plainly." in (app.config.root / ".claude/skills/checker-naming/SKILL.md").read_text(), "and the skills it ships are written again"
 
 
-def test_a_plugin_requires_a_skill_it_publishes_and_a_read_of_the_file_pays_it(skilled):
-    from journal.events.agent.prompt_submitted import PromptSubmitted
-    from journal.features.plugins.support.plugin_answers import PluginAnswers
+def test_a_plugins_required_skills_are_a_list_of_skill_ids(app: App):
     from journal.features.plugins.support.plugin_fault import PluginFault
-    from journal.features.plugins.support.plugin_relay import PluginRelay
-    from journal.features.plugins.support.plugin_skills import PluginSkills
     from journal.features.plugins.support.protocol import Protocol
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import Entries
-    from journal.support.listener_queue import ListenerQueue
-    app = skilled
-    plugin = echo(app, hears=["tasks.created"], holds=[])
-    app.container.get(PluginSkills).publish(plugin)
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    protocol, agents, entries = app.container.get(Protocol), app.container.get(Agents), app.container.get(Entries)
     with pytest.raises(PluginFault, match="not a list of skill ids"):
-        protocol.parsed_answer(json.dumps({"require_skills": "echo-guide"}))
-    answer = protocol.parsed_answer(json.dumps({"require_skills": ["echo-guide", "echo-guide", "echo-missing"]}))
-    app.container.get(PluginRelay).applied(plugin, PromptSubmitted(agent=EVENT_AGENT, prompt="x").placed(Agent(environment_id=MAIN, session="s1", provider="claude"), 0.0, 0.0), answer, "main", MAIN)
-    app.container.get(ListenerQueue).drain()
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a skill the plugin publishes is owed once, however often the line names it"
-    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert status == 409 and nudge_reached(app, body["error"], SkillsNudges.SKILL_READ_REQUEST, skills="the echo-guide skill, .claude/skills/echo-guide/SKILL.md"), "the skills conduct holds the write as for the journal's own skills"
-    answers = app.container.get(PluginAnswers)
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a repeat of the line changes nothing"
-    warned = [e.data["warning"] for e in entries.matching(entry_type="plugin_warning")]
-    assert warned == ["it requires skills it does not publish, ignored: echo-missing"], "an id the plugin does not publish is a warning, written once"
-    read_skill(app, "echo-guide")
-    assert agents.session_agent("s1").skills_due == () and "echo-guide" in agents.session_agent("s1").skills_loaded, "a read of the published file pays the debt"
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == (), "a skill already read at its text is not owed again"
-    agents.save(agents.session_agent("s1").with_(skills_loaded={}), Actor.system())
-    answers.apply(plugin, answer, "main", MAIN, "s1")
-    assert agents.session_agent("s1").skills_due == ("echo-guide",), "after a compaction it is owed again"
-    app.console().run(["plugin", "remove", "echo"], USER)
-    assert agents.session_agent("s1").skills_due == (), "a skill no longer published is owed no longer once the plugin is removed"
-
-
-def test_two_skill_reads_sent_together_are_both_kept(skilled):
-    from concurrent.futures import ThreadPoolExecutor
-    from journal.repositories.agents import Agents
-    app = skilled
-    hook(app, "SessionStart")
-    with ThreadPoolExecutor(2) as pool:
-        list(pool.map(lambda folder: read_skill(app, folder), ["journal-tasks", "journal-checks"]))
-    assert {"tasks", "checks"} <= set(app.container.get(Agents).session_agent("s1").skills_loaded), "each read adds to what the agent holds, never writes over the other"
+        app.container.get(Protocol).parsed_answer(json.dumps({"require_skills": "echo-guide"}))
 
 
 def test_the_link_asks_a_supervisor_on_the_protocol_and_sends_an_old_one_its_datagrams(app: App):
@@ -648,36 +594,6 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
     assert transmitted[0]["verb"] == "start" and transmitted[0]["name"] == "watcher" and transmitted[0]["command"][1:] == ["-m", "journal.watcher", str(app.config.root)] and transmitted[0]["log"].endswith("runtime/watcher.log")
     package = Path(__file__).resolve().parents[1] / "src"
     assert transmitted[0]["env"]["PYTHONPATH"] == str(package), "the module is imported from the folder the package is installed in, never from inside the journal package"
-
-
-
-
-def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    console.run(["voice", "address", "--title", "Sir", "--name", "Example"], USER)
-    text = hook(app, "SessionStart")[1]["hookSpecificOutput"]["additionalContext"]
-    assert "Talk like a good butler" in text and 'Address me as "Sir Example"' in text
-    console.run(["environment", "overview"], AGENT)
-    console.run(["voice", "choose", "squire"], AGENT)
-    segments = [line for line in keystrokes if line.startswith("[journal]")]
-    full = " ".join(line.removeprefix("[journal] ") for line in segments)
-    assert "from now on talk to the user like this" in full and 'Address me as "my liege"' in full, "the change is typed whole, in as many marked pieces as the terminal needs"
-    assert "* squire" in console.run(["voice", "list"], USER).text
-    for segment in segments:
-        hook(app, "UserPromptSubmit", prompt=segment)
-    hook(app, "Stop")
-    app.runtime().deferred.drain()
-    line_text = len(keystrokes)
-    user_set(app, "voices.avatar_shown", "never")
-    user_set(app, "voices.avatar", False)
-    assert len(keystrokes) == line_text, "a change to the figure's look is no change of voice: nothing is typed"
-    user_set(app, "voices.title", "Captain")
-    assert "from now on talk to the user like this" in keystrokes[line_text] and sum("from now on talk to the user like this" in line for line in keystrokes[line_text:]) == 1, "a change to the words is typed once, in its pieces"
-
-
-
 
 
 
@@ -7374,43 +7290,6 @@ def test_a_scoped_suite_run_counts_its_finished_tests_against_the_total_it_colle
     assert suite.progress_line(*suite.shard_progress(output)) == "running tests [100%] 2 of 2 finished", "and both once they ran"
 
 
-
-
-
-
-def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_the_limit_is_over(app: App, monkeypatch):
-    from journal.events.bus import Bus
-    from journal.events.agent.ticked import Ticked
-    from journal.repositories.agents import Agents
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    state = lambda: app.container.get(Agents).current().state
-    limit = {"error": "rate_limit", "last_assistant_message": "You've hit your weekly limit · resets 11am (Europe/Amsterdam)"}
-    hook(app, "StopFailure", **limit)
-    assert state() == "limited", "a turn refused on the usage limit holds the agent"
-    hook(app, "StopFailure", **limit)
-    assert [layer["state"] for layer in app.container.get(Agents).current().stack].count("limited") == 1, "a second refusal keeps the one hold"
-    tick = lambda seconds: app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=timing.time() + seconds, silence_seconds=seconds))
-    keystrokes.clear()
-    console.run(["task", "create", "a line the journal would type", "--start"], USER)
-    tick(60)
-    app.runtime().deferred.drain()
-    assert keystrokes == [], "nothing of the journal's is typed while the limit holds"
-    console.run(["message", "send", "are you there?"], USER)
-    app.runtime().deferred.drain()
-    assert state() != "limited" and any("new message" in line for line in keystrokes), "the user's message pops the hold and is typed at once"
-    hook(app, "StopFailure", **limit)
-    keystrokes.clear()
-    tick(16 * 60)
-    app.runtime().deferred.drain()
-    assert state() != "limited" and any(nudge_reached(app, line, UsageNudges.LIMIT_CHECK) for line in keystrokes), "every so many minutes a turn is tried"
-    hook(app, "StopFailure", **limit)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert state() != "limited", "a turn that works again ends the hold"
 
 
 

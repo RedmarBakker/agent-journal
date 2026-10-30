@@ -206,6 +206,13 @@ class StoryChecks:
         lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
         assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
+    def expect_typed_nudge(self, nudge: Nudge, count: int = 1) -> None:
+        self.expect_typed_text(nudge.title.partition("{{")[0], count)
+
+    def expect_typed_text(self, part: str, count: int = 1) -> None:
+        typed = " ".join(line.removeprefix(f"{JOURNAL_PREFIX} ") for line in self.typed[self.typed_from:])
+        assert typed.count(part) == count, f"the terminal was to be typed {part!r} {count} times since the story or its fixture began; typed {typed!r}"
+
     def expect_typed_last(self, line: str) -> None:
         last = self.typed[-1] if self.typed else ""
         assert last == line, f"the last line typed into the agent's terminal is {last!r}, not {line!r}"
@@ -239,6 +246,9 @@ class StoryChecks:
     def expect_last_answer_carries(self, nudge: Nudge, **values) -> None:
         line = nudge.cut(nudge.create(**values).rendered())
         assert line in self.agent_text(), f"the last hook's answer does not carry {nudge.key}: {self.agent_text()!r}"
+
+    def expect_answer_text(self, part: str) -> None:
+        assert part in self.agent_text(), f"the last hook's answer does not carry {part!r}: {self.agent_text()!r}"
 
     def expect_last_answer_lines_in_order(self, *nudges: Nudge) -> None:
         places = [self.agent_text().find(nudge.cut(nudge.rendered())) for nudge in nudges]
