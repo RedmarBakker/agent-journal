@@ -165,7 +165,7 @@ def test_a_plan_rig_places_its_plan_agent_domain_agent_and_plan_roles_by_contrac
     user_set(app, OrganizationOptions.DOMAIN_AGENT_MODEL_TIER.key, "lowest_allowed")
     user_set(app, WorkersOptions.ALLOWED_MODELS.key, ["claude domain-agent: haiku, sonnet"])
     lowest = seats.seats("plan-29", contracts, ("alpha",), providers.lookup("claude"))[1]
-    assert (lowest.model, lowest.effort) == ("haiku", contracts.domains[0].models.effort), "the candidate picks the lowest user-allowed Domain model and retains its contract reasoning effort"
+    assert (lowest.model, lowest.effort) == ("haiku", placed[1].effort), "the candidate picks the lowest user-allowed Domain model and retains the contract-selected reasoning effort"
 
 
 def test_a_domain_pod_lead_routes_by_domain_rules_and_returns_role_reports_over_the_same_handoff(app, tmp_path, monkeypatch):

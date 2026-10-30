@@ -1,16 +1,20 @@
 from pathlib import Path
 
+from journal.engine.states_catalogue import StatesCatalogue
+from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_options import PlansOptions
-from journal.features.tasks.states.external_wait import ExternalWait
-from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.main.working_agent import WorkingAgent
+
+
+def awaiting_state(story):
+    return story.app.container.get(StatesCatalogue).restored("awaiting", {})
 
 
 class SharedRoleQueue(WorkingAgent):
     """A journal-cardinality builder holds one task from the first plan while three tasks from two plans wait in its queue."""
 
-    stack = (Ready, ExternalWait)
+    stack = (CoordinatingPlans,)
     settings = (
         (OrganizationOptions.FOLDER, str(Path(__file__).with_name("shared_role_queue"))),
         (PlansOptions.PLAN_AGENTS, True),
@@ -36,4 +40,4 @@ class SharedRoleQueue(WorkingAgent):
         story.agent_clocks_in(story.agents.workers.first())
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.main, Ready, ExternalWait)
+        story.expect_stack(story.agents.main, CoordinatingPlans, awaiting_state(story))

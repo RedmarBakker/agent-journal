@@ -353,8 +353,6 @@ class WorkerCommand(Command):
         self.refused_in_review(worker)
         for n in args.tasks:
             self.tasks.require_assignment_ready(self.tasks.find(n))
-        if args.report:
-            worker = self.actions.set_report_choice(worker.id, ReportChoice.argument(args.report), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.drop_holder(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)

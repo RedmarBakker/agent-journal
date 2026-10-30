@@ -1,0 +1,20 @@
+id = "maker"
+title = "Maker"
+domain = "alpha"
+description = "Builds a separate Alpha change."
+cardinality = "plan"
+writes = true
+responsible = ["the assigned change"]
+not_responsible = ["other work"]
+inputs = ["a task"]
+outputs = ["the change"]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6-luna"
+effort = "max"

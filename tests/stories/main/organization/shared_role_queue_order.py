@@ -1,10 +1,11 @@
 from journal.features.workers.organization_options import OrganizationOptions
-from journal.features.tasks.states.external_wait import ExternalWait
-from journal.features.tasks.states.ready import Ready
+from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.shared_role_queue import SharedRoleQueue
+from tests.stories.fixtures.main.shared_role_queue import SharedRoleQueue, awaiting_state
 
 
 @story(SharedRoleQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -22,4 +23,7 @@ def test_a_shared_role_keeps_queue_arrival_order_when_the_trial_setting_is_selec
         {"id": story.tasks.second_queued, "title": "Second queued task"},
         {"id": story.tasks.other_plan, "title": "Other plan task"},
     ])
-    story.expect_stack(story.agents.main, Ready, ExternalWait)
+    story.expect_task(story.tasks.active, state=TaskState.STARTED)
+    story.expect_plan(story.plans.first, title="Alpha delivery", state=PlanState.APPROVED)
+    story.expect_plan(story.plans.second, title="Beta delivery", state=PlanState.APPROVED)
+    story.expect_stack(story.agents.main, CoordinatingPlans, awaiting_state(story))
