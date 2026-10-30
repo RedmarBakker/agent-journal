@@ -149,7 +149,7 @@ class Registry:
         return [*CardTypeCatalogue.TYPES, *(type_name for feature in self.features for type_name in feature.card_types)]
 
     def skills(self) -> list[Skill]:
-        return [skill for feature in self.features for skill in (feature.skill, *feature.other_skills) if skill]
+        return [skill for feature in self.features for skill in (feature.skill, *feature.companion_skills) if skill]
 
     def skill(self, name: str) -> Skill | None:
         return next((skill for skill in self.skills() if skill.name == name), None)
