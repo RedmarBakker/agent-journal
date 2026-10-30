@@ -16,18 +16,19 @@ from supervisor_bridge.state import StateError, StateStore
 METERED_PROVIDER_HEALTH_URL = "http://127.0.0.1:17840/healthz"
 PROXY_HOST = "127.0.0.1"
 PROXY_PORT = 17840
-PROVIDER_HOST = "api.openai.com"
-MODEL_ID = "gpt-6.1-sol"
+PROVIDER_HOST = "api.anthropic.com"
+MODEL_ID = "claude-sonnet-5"
+MODEL_REFERENCE = f"anthropic/{MODEL_ID}"
 MAX_PROVIDER_ATTEMPTS = 2
 MAX_PROXY_REQUEST_BYTES = 1_048_576
 MAX_PROVIDER_RESPONSE_BYTES = 8_388_608
 INPUT_COUNT_FIELDS = frozenset({
-    "model", "input", "instructions", "tools", "tool_choice", "parallel_tool_calls",
-    "previous_response_id", "conversation", "reasoning", "text", "truncation", "prompt",
+    "model", "messages", "system", "tools", "tool_choice", "thinking", "output_config",
+    "context_management", "mcp_servers",
 })
 NON_INPUT_FIELDS = frozenset({
-    "max_output_tokens", "stream", "store", "metadata", "prompt_cache_key", "prompt_cache_retention",
-    "temperature", "top_p", "service_tier", "user", "safety_identifier", "background", "include",
+    "max_tokens", "stream", "metadata", "temperature", "top_p", "top_k", "stop_sequences",
+    "service_tier", "speed",
 })
 
 
@@ -69,8 +70,8 @@ class ProviderResponse:
     headers: dict[str, str] = field(default_factory=dict)
 
 
-class OpenAIProviderTransport:
-    """A fixed-origin, API-key-only connection to the pinned Responses API."""
+class AnthropicProviderTransport:
+    """A fixed-origin, API-key-only connection to the pinned Messages API."""
 
     def __init__(self, api_key: str, timeout: int = 180):
         if not api_key or len(api_key) > 4096:
@@ -79,7 +80,7 @@ class OpenAIProviderTransport:
         self.timeout = timeout
 
     def post(self, path: str, payload: dict, accept: str) -> ProviderResponse:
-        if path not in {"/v1/responses/input_tokens", "/v1/responses"}:
+        if path not in {"/v1/messages/count_tokens", "/v1/messages"}:
             raise MeteringError("provider route is not enabled", 404)
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
         if len(body) > MAX_PROXY_REQUEST_BYTES:
@@ -87,7 +88,8 @@ class OpenAIProviderTransport:
         connection = HTTPSConnection(PROVIDER_HOST, 443, timeout=self.timeout)
         try:
             connection.request("POST", path, body, {
-                "Authorization": f"Bearer {self.api_key}",
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
                 "Accept": accept,
                 "Accept-Encoding": "identity",
@@ -103,7 +105,7 @@ class OpenAIProviderTransport:
 
 
 class MeteringProxy:
-    """A single-run OpenAI Responses proxy with durable grant accounting."""
+    """A single-run Anthropic Messages proxy with durable grant accounting."""
 
     def __init__(self, state: StateStore, provider: ProviderTransport, retry_wait: Callable[[float], None] = time.sleep):
         self.state = state
@@ -125,20 +127,26 @@ class MeteringProxy:
             if remaining_output < 1:
                 self.state.mark_provider_cap(run)
                 raise MeteringError("output token cap reached")
-            requested_output = request.get("max_output_tokens", remaining_output)
+            requested_output = request.get("max_tokens", remaining_output)
             if type(requested_output) is not int or requested_output < 1:
                 raise MeteringError("provider output limit is invalid", 400)
-            request["max_output_tokens"] = min(requested_output, remaining_output)
+            request["max_tokens"] = min(requested_output, remaining_output)
             response = self.generation(run, request, accept)
             try:
                 tokens = self.response_usage(response)
             except MeteringError:
                 self.state.record_provider_unknown_cost(run, "provider_usage_missing")
                 raise
-            if tokens["input_tokens"] != count:
+            if StateStore.total_input_tokens(tokens) != count:
                 self.state.record_provider_unknown_cost(run, "provider_usage_mismatch")
                 raise MeteringError("provider usage does not match the input token preflight", 502)
-            if not self.state.record_provider_usage(run, tokens["input_tokens"], tokens["output_tokens"], tokens["cached_tokens"]):
+            if not self.state.record_provider_usage(
+                run,
+                tokens["input_tokens"],
+                tokens["output_tokens"],
+                tokens["cache_creation_input_tokens"],
+                tokens["cache_read_input_tokens"],
+            ):
                 raise MeteringError("provider usage exceeded the grant token cap", 502)
             return response
 
@@ -146,12 +154,12 @@ class MeteringProxy:
     def request_object(value: object) -> dict:
         if not isinstance(value, dict) or not isinstance(value.get("model"), str):
             raise MeteringError("provider request must name the pinned model", 400)
-        if value["model"] not in {MODEL_ID, f"openai/{MODEL_ID}"}:
+        if value["model"] not in {MODEL_ID, MODEL_REFERENCE}:
             raise MeteringError("provider request changed the pinned model", 403)
         unsupported = set(value) - INPUT_COUNT_FIELDS - NON_INPUT_FIELDS
         if unsupported:
             raise MeteringError("provider request has uncounted input fields", 400)
-        if not ("input" in value or "prompt" in value or "previous_response_id" in value):
+        if not isinstance(value.get("messages"), list) or not value["messages"]:
             raise MeteringError("provider request has no countable input", 400)
         return dict(value)
 
@@ -167,7 +175,7 @@ class MeteringProxy:
             raise MeteringError("the active run has no verified grant limits", 403)
         if metering["status"] == "capped":
             if (
-                metering["input_tokens"] >= metering["limits"]["max_input_tokens_per_turn"]
+                StateStore.total_input_tokens(metering) >= metering["limits"]["max_input_tokens_per_turn"]
                 or metering["output_tokens"] >= metering["limits"]["max_output_tokens_per_turn"]
             ):
                 raise MeteringError("token cap reached")
@@ -182,7 +190,7 @@ class MeteringProxy:
     def input_count(self, run: RunReference, request: dict) -> int:
         count_request = {key: value for key, value in request.items() if key in INPUT_COUNT_FIELDS}
         count_request["model"] = MODEL_ID
-        response = self.provider_request(run, "input_count", "/v1/responses/input_tokens", count_request, "application/json")
+        response = self.provider_request(run, "input_count", "/v1/messages/count_tokens", count_request, "application/json")
         if not 200 <= response.status < 300:
             self.state.record_provider_unknown_cost(run, "provider_request_uncertain")
             raise MeteringError("provider input token count failed closed", 502)
@@ -200,7 +208,7 @@ class MeteringProxy:
         return count
 
     def generation(self, run: RunReference, request: dict, accept: str) -> ProviderResponse:
-        response = self.provider_request(run, "generation", "/v1/responses", request, accept)
+        response = self.provider_request(run, "generation", "/v1/messages", request, accept)
         if not 200 <= response.status < 300:
             self.state.record_provider_unknown_cost(run, "provider_request_uncertain")
             raise MeteringError("provider generation failed closed", 502)
@@ -250,7 +258,9 @@ class MeteringProxy:
 
     @staticmethod
     def stream_usage(body: bytes) -> dict:
-        terminal = None
+        message_usage = None
+        output_usage = None
+        stopped = False
         for line in body.splitlines():
             if not line.startswith(b"data:"):
                 continue
@@ -261,11 +271,18 @@ class MeteringProxy:
                 event = json.loads(value)
             except (UnicodeDecodeError, json.JSONDecodeError):
                 continue
-            if isinstance(event, dict) and event.get("type") in {"response.completed", "response.incomplete"}:
-                terminal = event.get("response")
-        if not isinstance(terminal, dict):
+            if not isinstance(event, dict):
+                continue
+            if event.get("type") == "message_start":
+                message = event.get("message")
+                message_usage = message.get("usage") if isinstance(message, dict) else None
+            elif event.get("type") == "message_delta":
+                output_usage = event.get("usage")
+            elif event.get("type") == "message_stop":
+                stopped = True
+        if not stopped or not isinstance(message_usage, dict) or not isinstance(output_usage, dict):
             raise MeteringError("provider stream ended without a usage-bearing response", 502)
-        return MeteringProxy.checked_usage(terminal.get("usage"))
+        return MeteringProxy.checked_usage({**message_usage, **output_usage})
 
     @staticmethod
     def checked_usage(value: object) -> dict:
@@ -273,13 +290,18 @@ class MeteringProxy:
             raise MeteringError("provider response usage is missing", 502)
         input_tokens = value.get("input_tokens")
         output_tokens = value.get("output_tokens")
-        details = value.get("input_tokens_details")
-        cached_tokens = details.get("cached_tokens") if isinstance(details, dict) else None
-        if any(type(token) is not int or token < 0 for token in (input_tokens, output_tokens, cached_tokens)):
+        cache_creation_input_tokens = value.get("cache_creation_input_tokens")
+        cache_read_input_tokens = value.get("cache_read_input_tokens")
+        if any(type(token) is not int or token < 0 for token in (
+            input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens
+        )):
             raise MeteringError("provider response token usage is incomplete", 502)
-        if cached_tokens > input_tokens:
-            raise MeteringError("provider cache token usage exceeds input usage", 502)
-        return {"input_tokens": input_tokens, "output_tokens": output_tokens, "cached_tokens": cached_tokens}
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cache_creation_input_tokens": cache_creation_input_tokens,
+            "cache_read_input_tokens": cache_read_input_tokens,
+        }
 
     def require_capacity(self, run: RunReference, count: int, reason: str) -> None:
         metering = self.state.metering_state(run)
@@ -314,22 +336,23 @@ class MeteredAggregateBudgetProof:
         entries = config["agents"]["entries"]
         defaults = config["agents"]["defaults"]
         return (
-            set(provider) == {"openai"}
-            and set(provider["openai"]) == {"baseUrl", "auth", "api", "agentRuntime", "maxTokens", "timeoutSeconds"}
-            and provider["openai"]["baseUrl"] == METERED_PROVIDER_BASE_URL
-            and provider["openai"]["api"] == "openai-responses"
-            and provider["openai"]["auth"] == "api-key"
-            and provider["openai"]["agentRuntime"] == {"id": "openclaw"}
-            and provider["openai"]["maxTokens"] == 8000
-            and provider["openai"]["timeoutSeconds"] == 180
+            set(provider) == {"anthropic"}
+            and set(provider["anthropic"]) == {"baseUrl", "auth", "api", "agentRuntime", "maxTokens", "timeoutSeconds"}
+            and provider["anthropic"]["baseUrl"] == METERED_PROVIDER_BASE_URL
+            and provider["anthropic"]["api"] == "anthropic-messages"
+            and provider["anthropic"]["auth"] == "api-key"
+            and provider["anthropic"]["agentRuntime"] == {"id": "openclaw"}
+            and provider["anthropic"]["maxTokens"] == 8000
+            and provider["anthropic"]["timeoutSeconds"] == 180
             and set(entries) == {"supervisor"}
             and entries["supervisor"]["runtime"] == {"type": "embedded"}
-            and entries["supervisor"]["model"] == {"primary": "openai/gpt-6.1-sol", "fallbacks": []}
-            and entries["supervisor"]["modelPolicy"]["allow"] == ["openai/gpt-6.1-sol"]
+            and entries["supervisor"]["model"] == {"primary": MODEL_REFERENCE, "fallbacks": []}
+            and entries["supervisor"]["modelPolicy"]["allow"] == [MODEL_REFERENCE]
             and entries["supervisor"]["models"] == {
-                "openai/gpt-6.1-sol": {"agentRuntime": {"id": "openclaw"}, "codeMode": False}
+                MODEL_REFERENCE: {"agentRuntime": {"id": "openclaw"}, "codeMode": False}
             }
-            and defaults["utilityModel"] == "openai/gpt-6.1-sol"
+            and entries["supervisor"]["thinkingDefault"] == "high"
+            and defaults["utilityModel"] == MODEL_REFERENCE
             and defaults["decisionModel"] == ""
             and defaults["maxConcurrent"] == 1
         )
@@ -346,7 +369,7 @@ class MeteredAggregateBudgetProof:
 
 
 class MeteringProxyServer:
-    """A loopback HTTP route for the fixed OpenAI Responses provider."""
+    """A loopback HTTP route for the fixed Anthropic Messages provider."""
 
     def __init__(self, proxy: MeteringProxy, host: str = PROXY_HOST, port: int = PROXY_PORT):
         self.proxy = proxy
@@ -376,7 +399,7 @@ class MeteringProxyServer:
                 })
 
             def do_POST(self):
-                if self.path != "/v1/responses":
+                if self.path != "/v1/messages":
                     self.send_error(404)
                     return
                 length = self.headers.get("Content-Length", "")

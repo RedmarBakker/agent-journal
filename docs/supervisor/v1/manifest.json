@@ -93,7 +93,7 @@
   "networks": {
     "journal_management": {"internal": true, "members": ["journal-writer"], "allowed": ["operator loopback tunnel to 18440"]},
     "gateway_link": {"internal": true, "members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["gateway to the authenticated supervisor routes on writer 8421"]},
-    "provider_egress": {"members": ["openclaw-gateway-and-stdio-client"], "allowed": ["HTTPS to api.openai.com only; enforced by the tenant VM firewall"]},
+    "provider_egress": {"members": ["openclaw-gateway-and-stdio-client"], "allowed": ["HTTPS to api.anthropic.com only; enforced by the tenant VM firewall"]},
     "backup_egress": {"members": ["backup"], "allowed": ["the operator-selected encrypted backup repository only"]}
   },
   "network_enforcement": [
@@ -110,7 +110,7 @@
     "restore_candidate": {"mount": "/restore-candidate", "owner": "operator-provisioned uid 10005", "storage": "tenant-specific host directory via local bind volume", "backup": false, "contains": ["isolated restore output; never mounted by a running writer"]}
   },
   "secrets": [
-    {"name": "supervisor_openai_api_key", "owner": "tenant billing/project operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/supervisor_openai_api_key", "purpose": "dedicated API-key profile openai:supervisor-api"},
+    {"name": "supervisor_anthropic_api_key", "owner": "tenant billing/project operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/supervisor_anthropic_api_key", "purpose": "dedicated API-key profile anthropic:supervisor-api"},
     {"name": "openclaw_hook_token", "owner": "tenant operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/openclaw_hook_token", "purpose": "private hook authentication"},
     {"name": "journal_supervisor_credential", "owner": "journal owner/operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway stdio client:/run/secrets/journal_supervisor_credential", "purpose": "single-installation, revocable supervisor scope; never a plugin token or owner cookie"},
     {"name": "restic_password", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_password", "purpose": "encrypted backup repository"},

@@ -6,10 +6,10 @@ from pathlib import Path
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
 from supervisor_bridge.mcp import McpServer
 from supervisor_bridge.metering import (
+    AnthropicProviderTransport,
     MeteredAggregateBudgetProof,
     MeteringProxy,
     MeteringProxyServer,
-    OpenAIProviderTransport,
 )
 from supervisor_bridge.state import DEFAULT_STATE_DIR, StateStore
 from supervisor_bridge.transport import JsonHttpConnection, OpenClawHookClient, SupervisorHttpClient, TransportError
@@ -38,7 +38,7 @@ def run(command: list[str]) -> int:
     if command == ["mcp"]:
         state = StateStore(state_directory())
         bridge = SupervisorBridge(service_client(), state, NoAggregateBudgetProof())
-        proxy = MeteringProxy(state, OpenAIProviderTransport(os.environ.get("OPENAI_API_KEY", "")))
+        proxy = MeteringProxy(state, AnthropicProviderTransport(os.environ.get("ANTHROPIC_API_KEY", "")))
         server = MeteringProxyServer(proxy)
         server.start()
         try:

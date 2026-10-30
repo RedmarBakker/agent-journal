@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
-  "reviewed_at": "2026-10-29",
-  "verification_method": "Read source and docs only; no validator, test, provider call or runtime launch.",
+  "reviewed_at": "2026-10-30",
+  "verification_method": "Read the pinned Anthropic provider source and docs only; no validator, test, provider call or runtime launch.",
   "openclaw_commit": "dc2523e5a5c7a309517fd7fa834add938231d526",
   "openclaw_sources": [
     {
@@ -70,19 +70,19 @@
       "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/automation/cron-jobs/webhooks.md"
     },
     {
-      "path": "docs/providers/openai/authentication.md",
-      "sha256": "9960d1d2f066ac5c30e3a7b018f2e5f3e658e358805ad72da0723c25f8cc2375",
-      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/authentication.md"
+      "path": "docs/providers/anthropic.md",
+      "sha256": "255b83f6a1240bc544bb9456f8bac99e016811b0a1878bf29f2936f617b68b50",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/anthropic.md"
     },
     {
-      "path": "docs/providers/openai/models.md",
-      "sha256": "e0417cf76c22437948d9279893baa72eebf4a3f9e2d73a4fcc5e02a67ac31fdd",
-      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/models.md"
+      "path": "extensions/anthropic/config-defaults.ts",
+      "sha256": "db372d2f48797079dde49af37e113d52f23bc07ea06069bb579307df2c6e1b4c",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/extensions/anthropic/config-defaults.ts"
     },
     {
-      "path": "docs/providers/openai/runtimes.md",
-      "sha256": "b65fca2ff75ada35f45d375d4511acd63f9f7c1dd6c934c2423878677e463121",
-      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/runtimes.md"
+      "path": "extensions/anthropic/index.ts",
+      "sha256": "2a5f948bcdbb9c4e6d357d9c71692f8fef6ad1964fcf1fb6dc2fadc74e8692e6",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/extensions/anthropic/index.ts"
     },
     {
       "path": "src/agents/tool-policy.ts",

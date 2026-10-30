@@ -44,7 +44,7 @@
       ],
       "environment": {"HOME": "/home/node", "OPENCLAW_GATEWAY_PORT": "18789"},
       "secrets": [
-        {"source": "supervisor_openai_api_key", "target": "supervisor_openai_api_key"},
+        {"source": "supervisor_anthropic_api_key", "target": "supervisor_anthropic_api_key"},
         {"source": "openclaw_hook_token", "target": "openclaw_hook_token"},
         {"source": "journal_supervisor_credential", "target": "journal_supervisor_credential"}
       ],
@@ -122,7 +122,7 @@
     "backup_entrypoint": {"file": "./backup-entrypoint.sh"}
   },
   "secrets": {
-    "supervisor_openai_api_key": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/supervisor_openai_api_key"},
+    "supervisor_anthropic_api_key": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/supervisor_anthropic_api_key"},
     "openclaw_hook_token": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/openclaw_hook_token"},
     "journal_supervisor_credential": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/journal_supervisor_credential"},
     "restic_password": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/restic_password"},

@@ -11,16 +11,16 @@
   "agent": {
     "id": "supervisor",
     "runtime_id": "openclaw",
-    "model": "openai/gpt-6.1-sol",
-    "thinking_default": "xhigh",
+    "model": "anthropic/claude-sonnet-5",
+    "thinking_default": "high",
     "fallbacks": []
   },
   "provider": {
-    "base_url": "https://api.openai.com/v1",
-    "api": "openai-responses",
+    "base_url": "http://127.0.0.1:17840",
+    "api": "anthropic-messages",
     "auth": "api-key",
-    "profile": "openai:supervisor-api",
-    "credential_file": "/run/secrets/supervisor_openai_api_key"
+    "profile": "anthropic:supervisor-api",
+    "credential_file": "/run/secrets/supervisor_anthropic_api_key"
   },
   "tools": {
     "mcp_server": "journal",

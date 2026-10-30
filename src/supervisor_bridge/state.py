@@ -214,7 +214,7 @@ class StateStore:
             if state["active_run"] != run.to_dict() or metering["pending_request"] != "input_count":
                 raise StateError("provider input count has no current request reservation")
             metering["pending_request"] = None
-            if metering["input_tokens"] + count > metering["limits"]["max_input_tokens_per_turn"]:
+            if self.total_input_tokens(metering) + count > metering["limits"]["max_input_tokens_per_turn"]:
                 metering["status"] = "capped"
                 metering["preflight_input_tokens"] = None
                 return
@@ -255,8 +255,21 @@ class StateStore:
                 metering["status"] = "capped"
         self.update(change)
 
-    def record_provider_usage(self, run: RunReference, input_tokens: int, output_tokens: int, cached_tokens: int) -> bool:
-        for value, name in ((input_tokens, "input_tokens"), (output_tokens, "output_tokens"), (cached_tokens, "cached_tokens")):
+    def record_provider_usage(
+        self,
+        run: RunReference,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_input_tokens: int,
+        cache_read_input_tokens: int,
+    ) -> bool:
+        usage = (
+            (input_tokens, "input_tokens"),
+            (output_tokens, "output_tokens"),
+            (cache_creation_input_tokens, "cache_creation_input_tokens"),
+            (cache_read_input_tokens, "cache_read_input_tokens"),
+        )
+        for value, name in usage:
             if type(value) is not int or value < 0:
                 raise ContractError(f"provider {name} is invalid")
         within_cap = False
@@ -266,18 +279,21 @@ class StateStore:
             metering = state["metering"]
             if state["active_run"] != run.to_dict() or metering["pending_request"] != "generation":
                 raise StateError("provider usage has no current generation reservation")
-            if metering["preflight_input_tokens"] != input_tokens or cached_tokens > input_tokens:
+            if metering["preflight_input_tokens"] != (
+                input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+            ):
                 self.block_metering_locked(state, run)
                 state["health"] = "down"
                 state["last_error"] = "provider_usage_mismatch"
                 return
             metering["input_tokens"] += input_tokens
             metering["output_tokens"] += output_tokens
-            metering["cached_tokens"] += cached_tokens
+            metering["cache_creation_input_tokens"] += cache_creation_input_tokens
+            metering["cache_read_input_tokens"] += cache_read_input_tokens
             metering["pending_request"] = None
             metering["preflight_input_tokens"] = None
             if (
-                metering["input_tokens"] > metering["limits"]["max_input_tokens_per_turn"]
+                self.total_input_tokens(metering) > metering["limits"]["max_input_tokens_per_turn"]
                 or metering["output_tokens"] > metering["limits"]["max_output_tokens_per_turn"]
             ):
                 self.block_metering_locked(state, run)
@@ -285,7 +301,7 @@ class StateStore:
                 state["last_error"] = "provider_usage_overrun"
                 return
             if (
-                metering["input_tokens"] == metering["limits"]["max_input_tokens_per_turn"]
+                self.total_input_tokens(metering) == metering["limits"]["max_input_tokens_per_turn"]
                 or metering["output_tokens"] == metering["limits"]["max_output_tokens_per_turn"]
                 or metering["provider_requests"] == metering["limits"]["max_provider_requests_per_turn"]
             ):
@@ -395,6 +411,29 @@ class StateStore:
             if state["receipt"] is not None:
                 state["receipt"]["usage"] = None
             self.write_locked(state)
+        old_metering_fields = {
+            "run_ref", "limits", "input_tokens", "output_tokens", "cached_tokens", "provider_requests",
+            "provider_retries", "status", "pending_request", "preflight_input_tokens",
+        }
+        if (
+            set(state) == set(self.empty_state())
+            and isinstance(state.get("metering"), dict)
+            and set(state["metering"]) == old_metering_fields
+        ):
+            old_run = state["active_run"]
+            state["metering"] = self.empty_metering(RunReference.from_reference(old_run) if old_run else None)
+            if old_run:
+                state.update({
+                    "active_run": None,
+                    "blocked_run": old_run,
+                    "budget_gate": "unknown_cost",
+                    "last_admission": "unknown_cost",
+                    "usage_settlement": "unknown_cost",
+                    "health": "down",
+                    "last_error": "usage_before_anthropic_route_unknown",
+                })
+                state["metering"]["status"] = "unknown_cost"
+            self.write_locked(state)
         if set(state) != set(self.empty_state()):
             raise StateError("transport state has an unsupported shape")
         if state["observation_cursor"] is not None:
@@ -421,7 +460,8 @@ class StateStore:
             raise StateError("transport receipt summary is invalid")
         metering = state["metering"]
         if not isinstance(metering, dict) or set(metering) != {
-            "run_ref", "limits", "input_tokens", "output_tokens", "cached_tokens", "provider_requests",
+            "run_ref", "limits", "input_tokens", "output_tokens", "cache_creation_input_tokens",
+            "cache_read_input_tokens", "provider_requests",
             "provider_retries", "status", "pending_request", "preflight_input_tokens",
         }:
             raise StateError("provider metering state has an unsupported shape")
@@ -434,7 +474,10 @@ class StateStore:
             or any(type(value) is not int or value < 1 for value in limits.values())
         ):
             raise StateError("provider metering grant limits are invalid")
-        for key in ("input_tokens", "output_tokens", "cached_tokens", "provider_requests", "provider_retries"):
+        for key in (
+            "input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens",
+            "provider_requests", "provider_retries",
+        ):
             if type(metering[key]) is not int or metering[key] < 0:
                 raise StateError("provider metering totals are invalid")
         if metering["status"] not in {"awaiting_limits", "ready", "known", "capped", "settled", "unknown_cost"}:
@@ -512,7 +555,8 @@ class StateStore:
             "limits": None,
             "input_tokens": 0,
             "output_tokens": 0,
-            "cached_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
             "provider_requests": 0,
             "provider_retries": 0,
             "status": "awaiting_limits" if run else "unknown_cost",
@@ -525,10 +569,20 @@ class StateStore:
         return {
             "input_tokens": metering["input_tokens"],
             "output_tokens": metering["output_tokens"],
-            "cached_tokens": metering["cached_tokens"],
+            "cache_creation_input_tokens": metering["cache_creation_input_tokens"],
+            "cache_read_input_tokens": metering["cache_read_input_tokens"],
+            "total_input_tokens": StateStore.total_input_tokens(metering),
             "provider_requests": metering["provider_requests"],
             "provider_retries": metering["provider_retries"],
         }
+
+    @staticmethod
+    def total_input_tokens(metering: dict) -> int:
+        return (
+            metering["input_tokens"]
+            + metering["cache_creation_input_tokens"]
+            + metering["cache_read_input_tokens"]
+        )
 
     @staticmethod
     def receipt_terminal(receipt: dict | None) -> bool:

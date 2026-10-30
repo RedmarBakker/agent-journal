@@ -19,7 +19,7 @@ OPENCLAW_TOOL_NAMES = (
     "journal__journal_supervisor-apply_maintenance",
     "journal__journal_supervisor-receipt",
 )
-METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840/v1"
+METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840"
 RUN_KEYS = frozenset({
     "run_id",
     "episode_id",
@@ -320,13 +320,13 @@ def validate_pinned_fixture(fixture: dict) -> None:
     expected_tool_names = list(OPENCLAW_TOOL_NAMES)
     expected_config = {
         "auth": {
-            "profiles": {"openai:supervisor-api": {"provider": "openai", "mode": "api_key"}},
-            "order": {"openai": ["openai:supervisor-api"]},
+            "profiles": {"anthropic:supervisor-api": {"provider": "anthropic", "mode": "api_key"}},
+            "order": {"anthropic": ["anthropic:supervisor-api"]},
         },
-        "models": {"providers": {"openai": {
+        "models": {"providers": {"anthropic": {
             "baseUrl": METERED_PROVIDER_BASE_URL,
             "auth": "api-key",
-            "api": "openai-responses",
+            "api": "anthropic-messages",
             "agentRuntime": {"id": "openclaw"},
             "maxTokens": 8000,
             "timeoutSeconds": 180,
@@ -336,10 +336,10 @@ def validate_pinned_fixture(fixture: dict) -> None:
                 "default": True,
                 "name": "Journal plan maintenance",
                 "runtime": {"type": "embedded"},
-                "model": {"primary": "openai/gpt-6.1-sol", "fallbacks": []},
-                "modelPolicy": {"allow": ["openai/gpt-6.1-sol"]},
-                "thinkingDefault": "xhigh",
-                "models": {"openai/gpt-6.1-sol": {"agentRuntime": {"id": "openclaw"}, "codeMode": False}},
+                "model": {"primary": "anthropic/claude-sonnet-5", "fallbacks": []},
+                "modelPolicy": {"allow": ["anthropic/claude-sonnet-5"]},
+                "thinkingDefault": "high",
+                "models": {"anthropic/claude-sonnet-5": {"agentRuntime": {"id": "openclaw"}, "codeMode": False}},
                 "tools": {"allow": expected_tool_names},
             }},
             "defaults": {
@@ -348,7 +348,7 @@ def validate_pinned_fixture(fixture: dict) -> None:
                 "skills": [],
                 "embeddedAgent": {"projectSettingsPolicy": "ignore", "cyberFailover": {"mode": "off"}},
                 "decisionModel": "",
-                "utilityModel": "openai/gpt-6.1-sol",
+                "utilityModel": "anthropic/claude-sonnet-5",
             },
         },
         "hooks": {
@@ -397,8 +397,8 @@ def validate_pinned_fixture(fixture: dict) -> None:
         "agentId": "supervisor",
         "sessionMode": "isolated",
         "deliver": False,
-        "thinking": "xhigh",
-        "model": "openai/gpt-6.1-sol",
+        "thinking": "high",
+        "model": "anthropic/claude-sonnet-5",
         "timeoutSeconds": 180,
     }
     if fixture.get("hook_agent_request") != expected_hook:

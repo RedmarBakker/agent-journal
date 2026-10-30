@@ -154,8 +154,8 @@ def hook_request(run: RunReference) -> tuple[dict, dict[str, str]]:
         "agentId": "supervisor",
         "sessionMode": "isolated",
         "deliver": False,
-        "thinking": "xhigh",
-        "model": "openai/gpt-6.1-sol",
+        "thinking": "high",
+        "model": "anthropic/claude-sonnet-5",
         "timeoutSeconds": 180,
     }, {
         "Content-Type": "application/json",

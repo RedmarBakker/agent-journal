@@ -34,7 +34,7 @@
     },
     {
       "source": "Gateway",
-      "destination": "api.openai.com",
+      "destination": "api.anthropic.com",
       "protocol": "tcp",
       "ports": [443],
       "action": "allow through the tenant-managed egress proxy or maintained provider IP set",

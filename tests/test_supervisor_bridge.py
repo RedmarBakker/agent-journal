@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,6 +20,7 @@ from supervisor_bridge.contracts import (
 from supervisor_bridge.hints import HintSpool
 from supervisor_bridge.mcp import McpServer
 from supervisor_bridge.metering import (
+    AnthropicProviderTransport,
     METERED_PROVIDER_BASE_URL,
     MeteredAggregateBudgetProof,
     MeteringError,
@@ -180,26 +182,33 @@ def metered_state(directory, max_input=100, max_output=100, max_requests=8):
 
 
 def provider_input_tokens(count):
-    return ProviderResponse(200, json.dumps({"object": "response.input_tokens", "input_tokens": count}).encode())
+    return ProviderResponse(200, json.dumps({"input_tokens": count}).encode())
 
 
-def provider_response(input_tokens, output_tokens, cached_tokens=0):
+def provider_response(input_tokens, output_tokens, cache_creation_input_tokens=0, cache_read_input_tokens=0):
     return ProviderResponse(200, json.dumps({
-        "id": "response-1",
+        "id": "message-1",
         "usage": {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
-            "input_tokens_details": {"cached_tokens": cached_tokens},
+            "cache_creation_input_tokens": cache_creation_input_tokens,
+            "cache_read_input_tokens": cache_read_input_tokens,
         },
     }).encode())
 
 
-def model_request(max_output_tokens=20):
+def model_request(max_tokens=20):
     return {
-        "model": "gpt-6.1-sol",
-        "input": "Review the current failed check.",
-        "tools": [{"type": "function", "name": "observe"}],
-        "max_output_tokens": max_output_tokens,
+        "model": "anthropic/claude-sonnet-5",
+        "messages": [{"role": "user", "content": "Review the current failed check."}],
+        "tools": [{
+            "name": "observe",
+            "description": "Read journal evidence",
+            "input_schema": {"type": "object", "properties": {}},
+        }],
+        "max_tokens": max_tokens,
+        "stream": True,
+        "thinking": {"type": "adaptive"},
     }
 
 
@@ -348,6 +357,7 @@ def test_reference_only_hook_cannot_override_agent_session_or_scope():
     assert set(body) == {"message", "name", "agentId", "sessionMode", "deliver", "thinking", "model", "timeoutSeconds"}
     assert body["agentId"] == "supervisor"
     assert body["sessionMode"] == "isolated" and body["deliver"] is False
+    assert body["model"] == "anthropic/claude-sonnet-5" and body["thinking"] == "high"
     assert "sessionKey" not in body and "sessionId" not in body
     assert json.dumps(run.to_dict(), sort_keys=True, separators=(",", ":")) in body["message"]
     assert headers == {"Content-Type": "application/json", "Idempotency-Key": "run-1"}
@@ -527,8 +537,8 @@ def test_apply_ack_without_readback_is_not_reported_as_complete(tmp_path):
 def test_tool_loop_stops_at_the_grant_token_caps(tmp_path):
     state = metered_state(tmp_path, max_input=8, max_output=8, max_requests=8)
     provider = StubProvider([
-        provider_input_tokens(3), provider_response(3, 3, 1),
-        provider_input_tokens(5), provider_response(5, 5, 2),
+        provider_input_tokens(3), provider_response(2, 3, 1),
+        provider_input_tokens(5), provider_response(3, 5, 1, 1),
     ])
     proxy = MeteringProxy(state, provider)
 
@@ -536,13 +546,46 @@ def test_tool_loop_stops_at_the_grant_token_caps(tmp_path):
     second = proxy.forward(model_request())
 
     assert first.status == 200 and second.status == 200
-    assert second_body_max_output(provider.requests) == 5
+    assert second_body_max_tokens(provider.requests) == 5
     with pytest.raises(MeteringError, match="token cap"):
         proxy.forward(model_request())
     assert len(provider.requests) == 4
     usage = state.snapshot()["metering"]
-    assert (usage["input_tokens"], usage["output_tokens"], usage["cached_tokens"]) == (8, 8, 3)
+    assert (usage["input_tokens"], usage["output_tokens"]) == (5, 8)
+    assert (usage["cache_creation_input_tokens"], usage["cache_read_input_tokens"]) == (2, 1)
     assert usage["status"] == "capped"
+
+
+def test_anthropic_transport_pins_messages_host_and_api_key_headers(monkeypatch):
+    observed = {}
+    response = SimpleNamespace(
+        status=200,
+        read=lambda _maximum: b'{"input_tokens":2}',
+        getheaders=lambda: [("Content-Type", "application/json")],
+    )
+    connection = SimpleNamespace(
+        request=lambda method, path, body, headers: observed.update({
+            "method": method, "path": path, "body": body, "headers": headers,
+        }),
+        getresponse=lambda: response,
+        close=lambda: observed.update({"closed": True}),
+    )
+    monkeypatch.setattr(
+        "supervisor_bridge.metering.HTTPSConnection",
+        lambda host, port, timeout: observed.update({"host": host, "port": port, "timeout": timeout}) or connection,
+    )
+    response = AnthropicProviderTransport("test-anthropic-key").post(
+        "/v1/messages/count_tokens", {"model": "claude-sonnet-5"}, "application/json"
+    )
+
+    assert response.status == 200
+    assert (observed["host"], observed["port"], observed["method"], observed["path"]) == (
+        "api.anthropic.com", 443, "POST", "/v1/messages/count_tokens"
+    )
+    assert observed["headers"]["x-api-key"] == "test-anthropic-key"
+    assert observed["headers"]["anthropic-version"] == "2023-06-01"
+    assert "Authorization" not in observed["headers"]
+    assert observed["closed"] is True
 
 
 def test_bounded_provider_retries_consume_the_request_cap(tmp_path):
@@ -561,6 +604,54 @@ def test_bounded_provider_retries_consume_the_request_cap(tmp_path):
     with pytest.raises(MeteringError, match="request cap"):
         proxy.forward(model_request())
     assert len(provider.requests) == 3
+
+
+@pytest.mark.parametrize("missing", [
+    "input_tokens",
+    "output_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+])
+def test_anthropic_missing_usage_figure_fails_closed(tmp_path, missing):
+    state = metered_state(tmp_path)
+    usage = {
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "cache_creation_input_tokens": 1,
+        "cache_read_input_tokens": 1,
+    }
+    del usage[missing]
+    provider = StubProvider([
+        provider_input_tokens(4),
+        ProviderResponse(200, json.dumps({"id": "message-1", "usage": usage}).encode()),
+    ])
+
+    with pytest.raises(MeteringError, match="usage"):
+        MeteringProxy(state, provider).forward(model_request())
+
+    assert state.snapshot()["budget_gate"] == "unknown_cost"
+    assert state.snapshot()["active_run"] is None
+
+
+def test_anthropic_stream_usage_records_input_cache_and_output_tokens(tmp_path):
+    state = metered_state(tmp_path)
+    body = b"\n".join([
+        b'data: {"type":"message_start","message":{"usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":1,"cache_read_input_tokens":1}}}',
+        b'data: {"type":"message_delta","usage":{"output_tokens":3}}',
+        b'data: {"type":"message_stop"}',
+    ])
+    provider = StubProvider([
+        provider_input_tokens(3),
+        ProviderResponse(200, body, "text/event-stream"),
+    ])
+
+    assert MeteringProxy(state, provider).forward(model_request()).status == 200
+
+    usage = state.snapshot()["metering"]
+    assert usage["input_tokens"] == 1
+    assert usage["output_tokens"] == 3
+    assert usage["cache_creation_input_tokens"] == 1
+    assert usage["cache_read_input_tokens"] == 1
 
 
 def test_successful_provider_response_without_usage_fails_closed(tmp_path):
@@ -588,13 +679,13 @@ def test_provider_credentials_fail_without_an_alternate_route(tmp_path):
         proxy.forward(model_request())
 
     assert error.value.status_code == 401
-    assert [path for path, _, _ in provider.requests] == ["/v1/responses/input_tokens"]
+    assert [path for path, _, _ in provider.requests] == ["/v1/messages/count_tokens"]
     assert state.snapshot()["budget_gate"] == "unknown_cost"
 
 
 def test_provider_usage_totals_survive_a_bridge_restart(tmp_path):
     state = metered_state(tmp_path, max_input=5, max_output=10, max_requests=8)
-    first_provider = StubProvider([provider_input_tokens(3), provider_response(3, 2, 1)])
+    first_provider = StubProvider([provider_input_tokens(3), provider_response(1, 2, 1, 1)])
     assert MeteringProxy(state, first_provider).forward(model_request()).status == 200
 
     restarted_state = StateStore(tmp_path)
@@ -605,12 +696,36 @@ def test_provider_usage_totals_survive_a_bridge_restart(tmp_path):
         restarted_proxy.forward(model_request())
     assert len(second_provider.requests) == 1
     usage = restarted_state.snapshot()["metering"]
-    assert (usage["input_tokens"], usage["output_tokens"], usage["cached_tokens"]) == (3, 2, 1)
+    assert (usage["input_tokens"], usage["output_tokens"]) == (1, 2)
+    assert (usage["cache_creation_input_tokens"], usage["cache_read_input_tokens"]) == (1, 1)
+
+
+def test_previous_provider_meter_state_blocks_an_active_run_after_the_route_change(tmp_path):
+    state = StateStore(tmp_path)
+    old_state = state.empty_state()
+    metering = old_state["metering"]
+    metering.pop("cache_creation_input_tokens")
+    metering.pop("cache_read_input_tokens")
+    metering["cached_tokens"] = 1
+    metering.update({"run_ref": RUN_REF, "limits": {
+        "max_input_tokens_per_turn": 10,
+        "max_output_tokens_per_turn": 10,
+        "max_provider_requests_per_turn": 8,
+    }, "status": "known", "input_tokens": 2, "output_tokens": 1, "provider_requests": 2})
+    old_state.update({"active_run": RUN_REF, "budget_gate": "verified", "usage_settlement": "reserved"})
+    state.path.write_text(json.dumps(old_state))
+
+    migrated = StateStore(tmp_path).snapshot()
+
+    assert migrated["active_run"] is None
+    assert migrated["blocked_run"] == RUN_REF
+    assert migrated["budget_gate"] == "unknown_cost"
+    assert migrated["metering"]["status"] == "unknown_cost"
 
 
 def test_under_cap_provider_usage_settles_against_the_readback_receipt(tmp_path):
     state = metered_state(tmp_path, max_input=10, max_output=10, max_requests=8)
-    provider = StubProvider([provider_input_tokens(3), provider_response(3, 2, 1)])
+    provider = StubProvider([provider_input_tokens(3), provider_response(1, 2, 1, 1)])
     proxy = MeteringProxy(state, provider)
     assert proxy.forward(model_request()).status == 200
     bridge = SupervisorBridge(StubJournal(), state)
@@ -622,9 +737,11 @@ def test_under_cap_provider_usage_settles_against_the_readback_receipt(tmp_path)
     snapshot = state.snapshot()
     assert snapshot["usage_settlement"] == "settled"
     assert snapshot["receipt"]["usage"] == {
-        "input_tokens": 3,
+        "input_tokens": 1,
         "output_tokens": 2,
-        "cached_tokens": 1,
+        "cache_creation_input_tokens": 1,
+        "cache_read_input_tokens": 1,
+        "total_input_tokens": 3,
         "provider_requests": 2,
         "provider_retries": 0,
     }
@@ -644,12 +761,17 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
 
     assert proof.is_verified(run) is True
     assert NoAggregateBudgetProof().is_verified(run) is False
+    assert fixture["openclaw_config"]["models"]["providers"]["anthropic"]["api"] == "anthropic-messages"
+    assert fixture["openclaw_config"]["agents"]["entries"]["supervisor"]["model"] == {
+        "primary": "anthropic/claude-sonnet-5", "fallbacks": []
+    }
+    assert fixture["openclaw_config"]["agents"]["entries"]["supervisor"]["thinkingDefault"] == "high"
 
-    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = "https://api.openai.com/v1"
+    fixture["openclaw_config"]["models"]["providers"]["anthropic"]["baseUrl"] = "https://api.anthropic.com"
     config_path.write_text(json.dumps(fixture["openclaw_config"]))
     assert proof.is_verified(run) is False
 
-    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = METERED_PROVIDER_BASE_URL
+    fixture["openclaw_config"]["models"]["providers"]["anthropic"]["baseUrl"] = METERED_PROVIDER_BASE_URL
     config_path.write_text(json.dumps(fixture["openclaw_config"]))
     offline = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: False)
     assert offline.is_verified(run) is False
@@ -674,7 +796,7 @@ def test_reconcile_invokes_hook_only_with_live_metered_proxy(tmp_path):
     assert result.status == "hook_acknowledged"
     assert hook.calls == [RunReference.from_run(RUN)]
 
-    fixture["openclaw_config"]["models"]["providers"]["openai"]["baseUrl"] = "https://api.openai.com/v1"
+    fixture["openclaw_config"]["models"]["providers"]["anthropic"]["baseUrl"] = "https://api.anthropic.com"
     config_path.write_text(json.dumps(fixture["openclaw_config"]))
     blocked_state = StateStore(tmp_path / "unrouted")
     blocked_hook = StubHook()
@@ -687,7 +809,7 @@ def test_reconcile_invokes_hook_only_with_live_metered_proxy(tmp_path):
     assert blocked_hook.calls == []
 
 
-def second_body_max_output(provider_requests):
-    generation = [payload for path, payload, _ in provider_requests if path == "/v1/responses"]
-    return generation[-1]["max_output_tokens"]
+def second_body_max_tokens(provider_requests):
+    generation = [payload for path, payload, _ in provider_requests if path == "/v1/messages"]
+    return generation[-1]["max_tokens"]
 

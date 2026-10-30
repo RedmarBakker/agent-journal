@@ -74,7 +74,7 @@ def test_secret_mounts_match_the_receiving_service():
     writer_secrets = {secret["source"] for secret in compose["services"]["writer"].get("secrets", [])}
     backup_secrets = {secret["source"] for secret in compose["services"]["backup"]["secrets"]}
 
-    assert gateway_secrets == {"supervisor_openai_api_key", "openclaw_hook_token", "journal_supervisor_credential"}
+    assert gateway_secrets == {"supervisor_anthropic_api_key", "openclaw_hook_token", "journal_supervisor_credential"}
     assert writer_secrets == set()
     assert backup_secrets == {"restic_password", "restic_repository", "backup_object_store_credentials"}
     assert set(secrets) == gateway_secrets | writer_secrets | backup_secrets
@@ -96,6 +96,7 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert set(firewall["default_policy"].values()) == {"deny", True}
     assert any(rule["ports"] == [8421] and rule["action"] == "allow" for rule in firewall["rules"])
     assert any(rule["ports"] == [8440, 5432, 3306, 6379] and rule["action"] == "deny" for rule in firewall["rules"])
+    assert any(rule["destination"] == "api.anthropic.com" and rule["ports"] == [443] for rule in firewall["rules"])
     assert any("refuse enrollment" in rule["action"] for rule in firewall["rules"])
     assert manifest["launch_gates"]["active_worker_restricted_profile_verified_or_enrollment_refused"] is False
     assert manifest["launch"]["enrollment_enabled"] is False
@@ -145,8 +146,15 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["is_openclaw_config"] is False
     assert compose["services"]["gateway"]["image"] == fixture["runtime"]["image"]
     assert fixture["runtime"]["version"] == "v2026.10.8"
-    assert fixture["agent"]["model"] == "openai/gpt-6.1-sol"
-    assert fixture["agent"]["thinking_default"] == "xhigh"
+    assert fixture["agent"]["model"] == "anthropic/claude-sonnet-5"
+    assert fixture["agent"]["thinking_default"] == "high"
+    assert fixture["provider"] == {
+        "base_url": "http://127.0.0.1:17840",
+        "api": "anthropic-messages",
+        "auth": "api-key",
+        "profile": "anthropic:supervisor-api",
+        "credential_file": "/run/secrets/supervisor_anthropic_api_key",
+    }
     assert fixture["agent"]["fallbacks"] == []
     assert fixture["hooks"]["enabled"] is False
     assert fixture["network"] == {"bind": "lan", "port": 18789, "host_published": False}
@@ -157,7 +165,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["secret_values_in_fixture"] is False
 
     entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
-    assert "cat /run/secrets/supervisor_openai_api_key" in entrypoint
+    assert "cat /run/secrets/supervisor_anthropic_api_key" in entrypoint
     assert "cat /run/secrets/openclaw_hook_token" in entrypoint
     assert "cat /run/secrets/journal_supervisor_credential" in entrypoint
 
