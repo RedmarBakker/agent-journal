@@ -2129,7 +2129,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     from journal.support.caller import Caller
     from tests.test_features import WORKER_RUNNER_START
 
-    _fixture, organization = plan_contracts(app, tmp_path)
+    contracts = plan_contracts(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
     user_set(app, "workers.openrig_version", "0.7.5")
     monkeypatch.setattr(WorkerRunner, "start", WORKER_RUNNER_START)
@@ -2191,7 +2191,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
         worker = app.container.get(Workers).save(Worker(
             environment_id=1, name="Ada Lovelace", brief="Write a short note.", role="planner",
-            contract=organization.contracts().version, plan_id=plan.id, provider="claude", model="sonnet",
+            contract=contracts.version, plan_id=plan.id, provider="claude", model="sonnet",
             dispatcher="domain-session",
         ).contacted(10), actor)
         tasks.handover(task, Ref.build(worker), actor)
