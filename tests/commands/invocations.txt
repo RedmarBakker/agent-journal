@@ -1,5 +1,6 @@
 # Every journal command, one line each, run in order on one seeded journal by tests/test_commands.py.
 # A line starts with who runs it, agent or user; a verb that would start a process or reach the network runs as --help.
+agent mode show
 agent task create "Write the footer" --brief "The footer names the shop" --start
 agent task log 1 "the footer has its links"
 agent task create "Fix the cart total" --brief "The total adds the tax once"
