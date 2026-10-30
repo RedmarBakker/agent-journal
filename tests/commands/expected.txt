@@ -1810,6 +1810,7 @@ plans.plan_reopened  [plans]  plan {{n}} is open again: {{why|cap=53}}. continue
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan
 plans.return_to_the_paused_plan  [plans]  plan {{n}} paused, task {{task}} in hand: back to the plan after it?. `journal plan return {{n}} yes` or `no`
+plans.supervisor_work_available  [plans]  eligible plan work is available; the journal will assign it when you are free
 plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end. to run one now: `journal plan allow-tests {{n}} --why "<reason>"`
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
@@ -2003,7 +2004,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-308 nudges
+309 nudges
 
 $ agent: journal worker list
 exit 0
