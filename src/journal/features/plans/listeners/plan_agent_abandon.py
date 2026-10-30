@@ -10,4 +10,4 @@ class PlanAgentAbandon(Listener[PlanAbandoned]):
         self.agents = agents
 
     def handle(self, event: PlanAbandoned) -> None:
-        self.agents.stopped(event.plan_id)
+        self.agents.stopped(event)

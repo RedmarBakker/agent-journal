@@ -2,6 +2,7 @@ import time
 
 from journal.features.seed import Seed
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 
@@ -9,10 +10,11 @@ from journal.support.time_source import TimeSource
 class CutOffOutputs(Seed):
     """At boot, every command not ended was cut off with the server that ran it, in the foreground or moved to the background, since its chain ran inside that server: it is recorded as ended so, and its agent is informed once, as any other end."""
 
-    def __init__(self, outputs: CommandOutputs, time_source: TimeSource) -> None:
+    def __init__(self, outputs: CommandOutputs, time_source: TimeSource, scope: Scope) -> None:
         self.time_source = time_source
-        self.outputs = outputs
+        self.outputs, self.scope = outputs, scope
 
     def run(self) -> None:
         for output in self.outputs.unended():
-            self.outputs.save(output.interrupted(self.time_source.seconds()), Actor.system())
+            with self.scope.environment(output.environment_id):
+                self.outputs.save(output.interrupted(self.time_source.seconds()), Actor.system())

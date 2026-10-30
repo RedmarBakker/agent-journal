@@ -10,4 +10,4 @@ class PlanAgentPause(Listener[PlanPostponed]):
         self.agents = agents
 
     def handle(self, event: PlanPostponed) -> None:
-        self.agents.stopped(event.plan_id)
+        self.agents.stopped(event)

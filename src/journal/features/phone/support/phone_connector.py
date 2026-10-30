@@ -9,6 +9,7 @@ from journal.models.phone_code import PhoneCode
 from journal.models.phone import Phone
 from journal.repositories.phone_codes import PhoneCodes
 from journal.repositories.phones import Phones
+from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 
@@ -22,8 +23,8 @@ DEVICE_CHARACTERS = 60
 class PhoneConnector:
     """How a phone pairs, as version 3 did: the user asks for a code on the desk, the phone hands it back once within minutes and is given a key it keeps; one phone at a time, a newer code replacing an older one, too many wrong codes voiding it."""
 
-    def __init__(self, phones: Phones, codes: PhoneCodes, tunnel: Tunnel) -> None:
-        self.phones, self.codes, self.tunnel = phones, codes, tunnel
+    def __init__(self, phones: Phones, codes: PhoneCodes, tunnel: Tunnel, scope: Scope) -> None:
+        self.phones, self.codes, self.tunnel, self.scope = phones, codes, tunnel, scope
 
     def proposal(self, days: int, actor: Actor, time: datetime) -> ConnectionProposal:
         if not actor.can_pair_phone():
@@ -35,7 +36,8 @@ class PhoneConnector:
             raise Rejection("a phone pairs through the tunnel's address, and there is none yet: log in to tunler under Settings, Share links")
         self.refuse_duplicate(time)
         for older in self.codes.open(time):
-            self.codes.save(older.closed(time), actor)
+            with self.scope.environment(older.environment_id):
+                self.codes.save(older.closed(time), actor)
         code, short = secrets.token_urlsafe(24), "".join(secrets.choice(SHORT_LETTERS) for _ in range(SHORT_CHARACTERS))
         pairing = self.codes.save(PhoneCode(code=self.hashed(code), short=self.hashed(short), days=days, expires_at=time + timedelta(minutes=CODE_MINUTES)), actor)
         self.tunnel.reconcile()
@@ -49,16 +51,18 @@ class PhoneConnector:
             raise Rejection("that code pairs no phone: ask for a new one on the computer")
         self.refuse_duplicate(time)
         key = secrets.token_urlsafe(32)
-        self.codes.save(rows.closed(time), Actor.system())
         name = " ".join(device.split())[:DEVICE_CHARACTERS] or "A phone"
-        phone = self.phones.save(Phone(environment_id=rows.environment_id, name=name, key=self.hashed(key), expires_at=time + timedelta(days=rows.days), last_visited_at=time), Actor.system())
+        with self.scope.environment(rows.environment_id):
+            self.codes.save(rows.closed(time), Actor.system())
+            phone = self.phones.save(Phone(environment_id=rows.environment_id, name=name, key=self.hashed(key), expires_at=time + timedelta(days=rows.days), last_visited_at=time), Actor.system())
         self.tunnel.reconcile()
         return PairedPhone(phone, key)
 
     def disconnect(self, phone: Phone, actor: Actor, time: datetime) -> Phone:
         if not actor.can_disconnect_phone():
             raise Rejection("only the user disconnects a phone")
-        ended = self.phones.save(phone.ended(time), actor)
+        with self.scope.environment(phone.environment_id):
+            ended = self.phones.save(phone.ended(time), actor)
         self.tunnel.reconcile()
         return ended
 
@@ -69,7 +73,8 @@ class PhoneConnector:
 
     def missed(self, time: datetime) -> None:
         for code in self.codes.open(time):
-            self.codes.save(code.tried(time), Actor.system())
+            with self.scope.environment(code.environment_id):
+                self.codes.save(code.tried(time), Actor.system())
 
     @staticmethod
     def hashed(secret: str) -> str:

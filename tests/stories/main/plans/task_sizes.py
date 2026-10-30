@@ -1,11 +1,14 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.manual_draft_plan import ManualDraftPlan
+from tests.stories.fixtures.main.solo_plan_agent_started import PLAN_AGENT_SESSION, SoloPlanAgentStarted
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
 
@@ -33,6 +36,21 @@ def test_a_plan_builder_keeps_initial_size_and_reasoned_revisions_separate(story
     result.expect_viewer_rows("history", "reason", ["plan composition", "the form needs another validation path", "the delivery scope now includes contact preferences"])
     story.expect_task(task, size=8, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready)
+
+
+@setting(EstimatesOptions.SIZE_SCALE, [1, 2, 3, 5, 8, 13])
+@story(SoloPlanAgentStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_solo_plan_agent_can_set_a_task_size_for_its_plan(story):
+    result = story.agent_in_runs(
+        story.agents.main,
+        f"plan-{story.plans.first}",
+        PLAN_AGENT_SESSION,
+        f"task size {story.tasks.first} 3 --reason 'the work has one implementation path'",
+    )
+    result.expect_command_passed()
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, size=3, state=TaskState.OPEN)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, OrchestratingPlan)
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)

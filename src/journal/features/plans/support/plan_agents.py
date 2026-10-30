@@ -1,4 +1,7 @@
 from journal.config import Config
+from journal.events.rows.plan_abandoned import PlanAbandoned
+from journal.events.rows.plan_finished import PlanFinished
+from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.plan_started import PlanStarted
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
@@ -15,6 +18,7 @@ from journal.models.plan_state import PlanState
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.inner_repositories import InnerRepositories
@@ -24,15 +28,16 @@ from journal.support.time_source import TimeSource
 class PlanAgents:
     """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation, the environment made by whoever started the plan and seen as the plan's own environment is, shared with its team or private, set again at each start; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
-    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource) -> None:
+    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource, scope: Scope) -> None:
         self.config, self.inner_repositories = config, InnerRepositories(config.root)
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
         self.places, self.settings, self.staffing = places, settings, staffing
         self.usage, self.time_source = usage, time_source
+        self.scope = scope
 
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
-        return self.agents.find(agent_id) if agent_id else None
+        return next(iter(self.agents.global_matching(id=agent_id)), None) if agent_id else None
 
     def environment(self, plan: Plan) -> Environment | None:
         agent = self.agent(plan)
@@ -52,42 +57,44 @@ class PlanAgents:
         return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
 
     def started(self, event: PlanStarted) -> None:
-        if not self.is_on():
-            return
-        plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
-        environment = self.environment(plan)
-        environment = self.places.visible(environment, plan.environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor, "plan")
-        agent = self.agent(plan)
-        if plan.mode == PlanMode.ORGANIZATION:
-            if agent and self.staffing.is_running(plan, agent.provider):
+        with self.scope.environment(event.environment_id):
+            if not self.is_on():
                 return
-        elif self.places.is_running(environment):
-            return
-        self.bindings.bind(plan, environment.row_id, actor)
-        agent = agent or self.prepared(plan, environment, event.environment_id, actor)
-        if plan.mode == PlanMode.ORGANIZATION:
-            self.staffing.start_plan(plan, environment, agent, actor)
-        else:
-            self.places.launched(environment, agent, self.repository_folders(plan))
+            plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
+            environment = self.environment(plan)
+            environment = self.places.visible(environment, plan.environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor, "plan")
+            agent = self.agent(plan)
+            if plan.mode == PlanMode.ORGANIZATION:
+                if agent and self.staffing.is_running(plan, agent.provider):
+                    return
+            elif self.places.is_running(environment):
+                return
+            self.bindings.bind(plan, environment.row_id, actor)
+            agent = agent or self.prepared(plan, environment, event.environment_id, actor)
+            if plan.mode == PlanMode.ORGANIZATION:
+                self.staffing.start_plan(plan, environment, agent, actor)
+            else:
+                self.places.launched(environment, agent, self.repository_folders(plan))
 
     def prepared(self, plan: Plan, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
         agent = self.places.prepared(environment, LeadingPlan(plan_id=plan.row_id), starter_environment_id, actor)
         self.plans.agent_linked(plan, agent, actor)
         return agent
 
-    def stopped(self, plan_id: int) -> None:
-        if not self.is_on():
-            return
-        plan = self.plans.find(plan_id)
-        if plan.mode in (PlanMode.SOLO, PlanMode.ORGANIZATION):
-            self.record_usage(plan)
-        environment = self.environment(plan)
-        if environment:
-            if plan.mode == PlanMode.ORGANIZATION:
-                agent = self.agent(plan)
-                if agent:
-                    self.staffing.stop_plan(plan, agent.provider)
-            self.places.stopped(environment)
+    def stopped(self, event: PlanAbandoned | PlanFinished | PlanPostponed) -> None:
+        with self.scope.environment(event.environment_id):
+            if not self.is_on():
+                return
+            plan = self.plans.find(event.plan_id)
+            if plan.mode in (PlanMode.SOLO, PlanMode.ORGANIZATION):
+                self.record_usage(plan)
+            environment = self.environment(plan)
+            if environment:
+                if plan.mode == PlanMode.ORGANIZATION:
+                    agent = self.agent(plan)
+                    if agent:
+                        self.staffing.stop_plan(plan, agent.provider)
+                self.places.stopped(environment)
 
     def repository_folders(self, plan: Plan) -> tuple[str, ...]:
         tasks = self.plans.plan_tasks(plan)
