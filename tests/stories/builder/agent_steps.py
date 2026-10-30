@@ -407,15 +407,23 @@ class AgentSteps:
             outputs.save(run.ended_with(status, self.app.container.get(TimeSource).seconds()), Actor.system())
         return self.observed(f"the background run ends {'passing' if status == 0 else 'failing'}", None, None)
 
+    def background_run_prints(self, output: int, *printed: str) -> StepResult:
+        self.running_part_printed(output, *printed)
+        return self.observed("the background run prints", None, None)
+
     def background_run_ends(self, agent: StoryAgent, output: int, *printed: str, status: int = 0) -> StepResult:
+        folder = self.running_part_printed(output, *printed)
+        folder.ended_with(len(folder.kinds()) - 1, status)
         with self.app.container.get(Scope).environment(1):
-            folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
-            running = len(folder.kinds()) - 1
-            with (folder.folder / f"{running}.out").open("a") as stream:
-                stream.write("".join(f"{row}\n" for row in printed))
-            folder.ended_with(running, status)
             self.app.container.get(ChainWorker).chain_ended(folder, status, self.seated_caller_of(agent))
         return self.observed(f"the background run ends {'failing' if status else 'passing'}", None, None)
+
+    def running_part_printed(self, output: int, *printed: str) -> OutputFiles:
+        with self.app.container.get(Scope).environment(1):
+            folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
+        with (folder.folder / f"{len(folder.kinds()) - 1}.out").open("a") as stream:
+            stream.write("".join(f"{row}\n" for row in printed))
+        return folder
 
     def seated_caller_of(self, agent: StoryAgent) -> Caller:
         with self.app.container.get(Scope).environment(1):

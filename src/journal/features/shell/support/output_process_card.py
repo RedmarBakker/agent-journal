@@ -34,7 +34,7 @@ HEADLINE_CHARACTERS = 60
 
 
 class OutputProcessCard(ProcessCard):
-    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends; docked above the chat once it has run five seconds, so a quick command never docks; a card written for a run that has ended is final from its first write."""
+    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends; docked above the chat once it has run five seconds, so a quick command never docks; a card written for a run that has ended is final from its first write; the viewer's poll is answered from the stored card, which WatchRefresh keeps current, so a request never runs a reader."""
 
     name = "output"
 
@@ -60,8 +60,7 @@ class OutputProcessCard(ProcessCard):
 
     def refresh(self, message: Message) -> dict:
         output = self.outputs.find(message.data["output"])
-        view = self.views.view(output)
-        return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), **self.run_times(output), "active": not output.ended}
+        return {**CardProgress.stored(message.data), **CardDetail.stored(message.data), **self.run_times(output), "active": not output.ended}
 
     def progress(self, output: CommandOutput, view: OutputView) -> CardProgress:
         return CardProgress(self.outcome(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)
