@@ -18,8 +18,8 @@ class LibraryConnection:
 
     @classmethod
     def read(cls, fields: dict) -> "LibraryConnection":
-        named = {"team": TeamUrl(fields["address"]).host(), **fields}
-        return cls(**{name: named[name] for name in cls.__dataclass_fields__})
+        contents = {"team": TeamUrl(fields["address"]).host(), **fields}
+        return cls(**{name: contents[name] for name in cls.__dataclass_fields__})
 
     def fields(self) -> dict:
         return asdict(self)

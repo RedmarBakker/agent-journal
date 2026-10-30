@@ -18,11 +18,11 @@ class LibraryAccounts:
     def names(self) -> list[str]:
         return [account.connection().team for account in self.all()]
 
-    def named(self, name: str) -> LibraryAccount:
-        found = [account for account in self.all() if account.connection().team == name]
-        if not found:
-            raise Rejection(f"no team named {name} is connected here; the teams are {', '.join(self.names()) or 'none'}")
-        return found[0]
+    def team(self, name: str) -> LibraryAccount:
+        accounts = [account for account in self.all() if account.connection().team == name]
+        if not accounts:
+            raise Rejection(f"no team called {name} is connected here; the teams are {', '.join(self.names()) or 'none'}")
+        return accounts[0]
 
     def home(self) -> LibraryAccount:
         return self.keyed(LibraryAccount(self.config).path().stem)

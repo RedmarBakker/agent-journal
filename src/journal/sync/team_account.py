@@ -6,7 +6,6 @@ import socket
 import threading
 from pathlib import Path
 
-from journal.config import Config
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.release import Release
@@ -24,15 +23,6 @@ ACCOUNT_LOCK_FILE = "team-account.lock"
 
 class TeamAccount(HubAccount):
     """This journal's place in a team: whether it has joined one and which device of the team this machine is, whether it holds the team's upgrade, and the team's key and number T, read from the file the join writes in the teams folder beside the database, named by the team's key; the home team's, the first joined, unless made for one team's key; an account from before teams had keys is read from team.json until its key is recorded, which moves it into the teams folder. Merged fields written at the same moment never put back the old ones."""
-
-    def __init__(self, config: Config) -> None:
-        self.config, self.key = config, ""
-
-    @classmethod
-    def keyed(cls, config: Config, key: str) -> "TeamAccount":
-        account = cls(config)
-        account.key = key
-        return account
 
     def is_joined(self) -> bool:
         return self.path().is_file()

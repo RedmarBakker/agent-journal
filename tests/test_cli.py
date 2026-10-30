@@ -418,10 +418,10 @@ def test_the_team_accounts_list_every_team_find_one_by_name_and_keep_the_first_j
     account.write(LibraryConnection("aa-key", "https://studio.example", "t2", 2, 1, "Ada", "member", "studio"))
     accounts = LibraryAccounts(config)
     assert accounts.names() == ["studio", "shop"], "the teams are listed by their key"
-    assert accounts.named("studio").connection().key == "aa-key"
+    assert accounts.team("studio").connection().key == "aa-key"
     assert accounts.home().connection().team == "shop" and account.connection().team == "shop", "the first joined is home, also for the one-team account"
     try:
-        accounts.named("nowhere")
+        accounts.team("nowhere")
         raise AssertionError("an unknown team name was found")
     except Rejection as refused:
         assert "nowhere" in str(refused) and "shop" in str(refused)

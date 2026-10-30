@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 
-from journal.config import Config
 from journal.features.library.support.library_connection import LibraryConnection
 from journal.support.rejection import Rejection
 from journal.sync.hub_account import HubAccount
@@ -12,15 +11,6 @@ LIBRARIES_FOLDER = "libraries"
 
 class LibraryAccount(HubAccount):
     """This journal's account on one team: the file connect writes in the libraries folder beside the database, named by the team's key, holding its name and address, this device's token and number, the person's account number, name and role, with the team's certificate authority beside it when its server signs its own; the home team's, the first joined, unless made for one team's key."""
-
-    def __init__(self, config: Config) -> None:
-        self.config, self.key = config, ""
-
-    @classmethod
-    def keyed(cls, config: Config, key: str) -> "LibraryAccount":
-        account = cls(config)
-        account.key = key
-        return account
 
     def folder(self) -> Path:
         return self.config.home / LIBRARIES_FOLDER
