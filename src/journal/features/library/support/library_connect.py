@@ -47,7 +47,9 @@ class LibraryConnect:
 
     def login(self, url: TeamUrl, summary: LibraryAnswer, email: str, name: str, password: str, link: LibraryLink) -> LoginAnswer:
         if not summary.has_admin:
-            return link.install(url.address, email, name, password, socket.gethostname())
+            if not url.setup_code:
+                raise Rejection(f"{url.address} is a new team server: claim it with the setup URL its log printed at its start, journal team connect {url.address}/setup?code=<code>")
+            return link.install(url.address, url.setup_code, email, name, password, socket.gethostname())
         if url.is_invitation():
             return link.accept(url.address, url.code, email, name, password, socket.gethostname())
         return self.account_login(url, email, password, link)

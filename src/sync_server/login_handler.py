@@ -7,13 +7,14 @@ from sync_server.login_request import LoginRequest
 from sync_server.login_answer import LoginAnswer
 from sync_server.refusal import Refusal
 from sync_server.server_clock import ServerClock
+from sync_server.setup_code import SetupCode
 
 
 class LoginHandler:
-    """Trades a person's email and password for a device token, an invitation code for a new account and its first device token, or, on a server with no account yet, the first connection's email and password for its admin's account and first device token; the address is the one the proxy in front forwards."""
+    """Trades a person's email and password for a device token, an invitation code for a new account and its first device token, or, on a server with no account yet, the first connection's email and password, with the server's setup code, for its admin's account and first device token; the address is the one the proxy in front forwards."""
 
-    def __init__(self, devices: Devices, invitations: Invitations, accounts: Accounts, clock: ServerClock) -> None:
-        self.devices, self.invitations, self.accounts, self.clock = devices, invitations, accounts, clock
+    def __init__(self, devices: Devices, invitations: Invitations, accounts: Accounts, clock: ServerClock, setup_code: SetupCode) -> None:
+        self.devices, self.invitations, self.accounts, self.clock, self.setup_code = devices, invitations, accounts, clock, setup_code
 
     def answer(self, request: LoginRequest, address: str) -> LoginAnswer:
         device, token = self.devices.login(request.email, request.password, request.device_name, address, self.clock.time())
@@ -25,5 +26,7 @@ class LoginHandler:
         return self.answer(LoginRequest(account.email, request.password, request.device_name), address)
 
     def installed(self, request: InstallRequest, address: str) -> LoginAnswer:
+        self.setup_code.checked(request.setup_code)
         account = self.accounts.first_admin(request.email, request.name, request.password, self.clock.time())
+        self.setup_code.used()
         return self.answer(LoginRequest(account.email, request.password, request.device_name), address)
