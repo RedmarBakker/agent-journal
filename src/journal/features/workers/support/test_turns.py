@@ -229,6 +229,9 @@ class TestTurns:
         timed = [f"timed out: the run was stopped after {self.limit_seconds() / 60:g} minutes, the test budget's time limit"] if turn.id in self.timed_out else []
         return "\n".join([*(reader_lines or lines[-LAST_LINES:]), *timed])
 
+    def has_command(self, folder: str) -> bool:
+        return bool(str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()) or (Path(folder) / "tests").is_dir()
+
     def command(self, folder: str) -> str:
         set = str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()
         if set:

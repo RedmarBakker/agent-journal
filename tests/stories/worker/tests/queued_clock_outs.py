@@ -1,7 +1,7 @@
 from journal.engine.states.void import Void
 from journal.features.workers.states.working_task import WorkingTask
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE, JOURNAL_TESTING, WorkersOptions
+from journal.features.workers.workers_options import BUILDER_MODE, WorkersOptions
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.worker.queued_worker import QueuedWorker
@@ -10,7 +10,6 @@ TEST_SCRIPT = "#!/bin/sh\ncase \"$*\" in *passing*) echo '1 passed'; exit 0;; *)
 
 
 @story(QueuedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
-@setting(WorkersOptions.TESTING, JOURNAL_TESTING)
 @setting(WorkersOptions.TEST_COMMAND, "./run_tests.sh")
 def test_a_worker_with_a_task_queued_is_handed_it_as_it_proves_the_last_point_and_clocks_out_once_its_queue_is_done_with_the_tests_run(story):
     story.project_script_holding("run_tests.sh", TEST_SCRIPT)

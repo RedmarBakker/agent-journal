@@ -21,7 +21,10 @@ function inspect(entry) {
                 <h4 class="agents-heading">{{ title }}</h4>
                 <span class="agents-counts">{{ counts }}</span>
             </div>
-            <CloseButton @click="emit('close')" />
+            <span class="agents-actions">
+                <slot name="actions" />
+                <CloseButton @click="emit('close')" />
+            </span>
         </header>
         <slot />
         <div class="agents-body">
@@ -149,5 +152,11 @@ function inspect(entry) {
     margin: 8px;
     color: var(--text-3);
     font-size: 12px;
+}
+
+.agents-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 </style>

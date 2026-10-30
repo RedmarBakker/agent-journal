@@ -1364,7 +1364,6 @@ workers.model_fit_sample = 5
 workers.costly_shaped_work_dollars = 2.0
 workers.timeout_minutes = 60
 workers.mode = 'builder'  (the user sets it)
-workers.testing = 'Hand the tests over'
 workers.test_runs = 3
 workers.test_waiting = ''
 workers.tests_per_run = 20
@@ -1458,7 +1457,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 7
+created: setting 6
 
 $ agent: journal environment list
 exit 0
@@ -1588,12 +1587,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 8
+created: setting 7
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 9
+created: setting 8
 
 $ agent: journal skill list
 exit 0
@@ -1900,9 +1899,6 @@ workers.suite_failed_after_merges  [workers]  suite output {{run}} failed after 
 workers.take_up_next_work  [workers]  you spent {{share}} of the last hour waiting while other work was open. take up task {{n}} while the run goes on
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
 workers.task_names_another_without_a_wait  [workers]  task {{task}} mentions open task {{other}}: `journal task block {{task}} --on task:{{other}}`
-workers.tests_are_handed_over  [workers]  do not run {{command|cap=27}}. name each point's test and its command in the proof; the merging agent runs them
-workers.tests_go_through_a_turn  [workers]  do not run {{command}} yourself. run tests with `journal tests turn <test ids>`
-workers.the_journal_runs_the_tests  [workers]  do not run {{command|cap=34}}; name the tests: `journal clock-out "<report>" --tests "<test arguments>"`
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most allowed. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most allowed. run `journal worker wait <n>`, or send the job to one that reported
 workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you, at place {{place}} in worker {{n}}'s queue: `journal worker queue {{n}} {{task}} --first`
@@ -1924,7 +1920,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-297 nudges
+294 nudges
 
 $ agent: journal worker list
 exit 0

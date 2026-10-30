@@ -1698,11 +1698,11 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
 
 
 
-def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
+def test_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
     from journal.features.workers.support.test_run_result import TestRunResult
     from journal.features.workers.workers_conduct import WorkersConduct
-    from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
-    budget = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: True})
+    from journal.features.workers.workers_options import WorkersOptions
+    budget = SettingsValue({WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: True})
     worker = Worker(id=3, environment_id=1, name="Lady Lovelace, keeper of the parser", dispatcher="s1")
 
     # a run as the turn hands it back, ended with the runner's exit line, kept on the worker; what the orchestrator, session s1, hears of it
@@ -1730,14 +1730,12 @@ def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one
     for _ in range(2):
         ran("1 failed", 1)
     assert has_nudge(ran("1 failed", 1)[1], WorkersNudges.WORKER_KEEPS_FAILING, n=3, runs=3), "and the notice comes again after the reset"
-    quiet = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
+    quiet = SettingsValue({WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
     assert ran("12 passed", 0, quiet) == [] and ran("1 failed", 1, quiet) == [], "with the line off a failed run is not told"
     assert ran("1 failed", 1, quiet) == []
     notice = ran("1 failed", 1, quiet)
     assert len(notice) == 1 and has_nudge(notice[0], WorkersNudges.WORKER_KEEPS_FAILING, n=3, runs=3), "the notice still comes"
     assert ran("1 failed", 1, session="w9") == [], "only the agent that sent the worker hears of it"
-    handed = SettingsValue({WorkersOptions.TESTING.key: "Hand the tests over"})
-    assert ran("1 failed", 1, handed) == [], "without the test budget nothing is told"
 
 
 def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_clearings():

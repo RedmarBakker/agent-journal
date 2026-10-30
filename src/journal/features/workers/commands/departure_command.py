@@ -14,7 +14,6 @@ from journal.features.workers.support.affected_tests import AffectedTests
 from journal.features.workers.support.test_selection import TestSelection
 from journal.features.workers.support.test_turns import TestTurns
 from journal.features.workers.support.worker_reports import WorkerReports
-from journal.features.workers.workers_options import JOURNAL_TESTING, WorkersOptions
 from journal.models.task_log import TaskLog
 from journal.models.support.ref import Ref
 from journal.models.task import Task
@@ -78,7 +77,7 @@ class DepartureCommand(Command):
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if worker.rebase_due:
             self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", self.time_source.moment().timestamp()), caller.actor)
-        if self.is_journal_testing(worker):
+        if self.turns.has_command(str(self.branch.place(worker))):
             self.tested(worker, task, args.tests, caller)
         self.plugin_check(WorkerDelivering, worker, task, DELIVERY_REFUSAL)
         self.reports.delivered(worker, args.report, caller.actor)
@@ -91,9 +90,6 @@ class DepartureCommand(Command):
         refusals = self.events.worker_merging(self.branch.merging_event(event_class, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
             raise Rejection(refusal_heading + "\n" + "\n".join(refusals))
-
-    def is_journal_testing(self, worker: Worker) -> bool:
-        return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
 
     def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
         folder = self.branch.place(worker)

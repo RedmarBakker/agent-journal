@@ -39,8 +39,8 @@ from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.work_mode import WorkMode
-from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
-from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
+from journal.features.workers.workers_options import WorkersOptions
+from journal.features.templates.shipped import JOURNAL_TESTS
 from journal.support.time_source import TimeSource
 
 DELEGATED_REFUSAL = "task {n} is delegated to a worker already: send that worker the next job, or release it first"
@@ -55,7 +55,6 @@ ASSIGNMENT_REFUSALS = {
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
 
-TEST_COMMAND_MISSING = "the journal runs each worker's tests with the project's test command, and none is set: set it with journal tests command \"<the command, without the tests>\" --proof \"<the arguments that run one test that passes>\", then dispatch again"
 
 # the most workers `journal worker list` reads and shows, the newest
 LISTED_WORKERS = 30
@@ -144,17 +143,8 @@ class WorkerCommand(Command):
     def provider_default(self, caller: Caller) -> str:
         return self.providers.default().name if caller.provider is None else caller.provider
 
-    def is_test_command_missing(self) -> bool:
-        return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING and not str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()
-
-    @staticmethod
-    def testing_title(mode: str, title: str) -> str:
-        fixed = {MERGER_TESTING: ZERO_TESTS.title, TEST_BUDGET: BUDGET_TESTS.title, JOURNAL_TESTING: JOURNAL_TESTS.title}
-        return fixed.get(mode) or title or SCOPED_TESTS.title
-
     def testing_template(self, title: str) -> Template:
-        mode = self.settings.option(WorkersOptions.TESTING)
-        title = self.testing_title(mode, title)
+        title = JOURNAL_TESTS.title
         matches = self.templates.testing_titled(title, "worker")
         if not matches:
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
@@ -170,8 +160,6 @@ class WorkerCommand(Command):
         return f"You work {self.delegation.scope_name(args.plan, args.phase)}: tasks {', '.join(str(task.row_id) for task in planned)}, in this order; each next one comes to you when you clock out of the one before."
 
     def dispatch(self, args: Namespace, caller: Caller) -> int:
-        if self.is_test_command_missing():
-            raise Rejection(TEST_COMMAND_MISSING)
         self.worker_profile(args.profile)
         output = self.workers.busy_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
@@ -275,9 +263,8 @@ class WorkerCommand(Command):
             task = self.actions.short_check(args.n, args.point, args.short, caller.actor, args.task)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
             return 0
-        warning = self.actions.unrun(args.n, args.point, args.task) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""
         task = self.actions.check(args.n, args.point, caller.actor, args.task)
-        print("\n".join(filter(None, [f"point {args.point} of task {task.id} checked", warning])))
+        print(f"point {args.point} of task {task.id} checked")
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:

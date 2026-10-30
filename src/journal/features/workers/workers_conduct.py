@@ -35,7 +35,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.measure_lines import MeasureLines
 from journal.features.workers.fitness_options import FitnessOptions
-from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.tasks_part import TasksPart
@@ -107,7 +107,7 @@ class WorkersConduct(Conduct):
         return self.none(WorkersNudges.WORKER_REPORTED.create(n=event.worker.id, name=event.worker.name))
 
     def on_worker_test_failed(self, event: WorkerTestFailed, settings: Settings) -> Transition:
-        if event.worker.is_other_dispatcher(event.session) or settings.value(WorkersOptions.TESTING) != TEST_BUDGET:
+        if event.worker.is_other_dispatcher(event.session):
             return self.none()
         name = event.worker.name[:TEST_LINE_NAME]
         failed = (WorkersNudges.TEST_RUN_FAILED.create(n=event.worker.id, name=name, failed=event.failed),) if settings.value(WorkersOptions.TEST_RUN_LINES) else ()

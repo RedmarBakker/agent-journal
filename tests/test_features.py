@@ -315,12 +315,12 @@ def test_a_profile_is_saved_with_its_kind_and_models_and_a_worker_is_instructed_
     assert codex["model"] == "gpt-6" and codex["sandbox_mode"] == "workspace-write" and codex["developer_instructions"] == "You write.\nSay \"done\"."
     assert files.read("builder")["profile_type"] == "worker" and files.read("journal-planner")["profile_type"] == "subagent"
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
-    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TURN
+    from journal.features.profiles.support.profile_files import JOURNAL_TESTING_INSTRUCTION, TURN
     from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.worker import Worker
     worker = Worker(environment_id=1, name="Mr. Brunel", profile="builder", brief=f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}")
-    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{JOURNAL_TESTING_INSTRUCTION}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and the worker is told its tests and builds are queued with the journal, whatever --tests names"
     assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
 
 
@@ -907,11 +907,9 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
     from types import SimpleNamespace
     from journal.config import Config
     from journal.features.workers.support.failed_runs import FailedRuns
-    from journal.features.workers.support.test_run_folder import TestRunFolder
     from journal.features.shell.support.readers import Readers
     from journal.models.command_output import CommandOutput
     from journal.models.support.worker_moves import WorkerMoves
-    from journal.support.command_classifier import CommandClassifier
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
@@ -929,8 +927,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    from journal.repositories.run_history import RunHistory
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers, app.container.get(CommandClassifier)), app.container.get(RunHistory))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.with_output(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -1366,36 +1363,6 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
         links.save(Link(source=Ref.build(report), target=Ref.build(plan), link_type=Messages.SUBJECT_LINK), Actor.agent("s1"))
     reports.save(read.read(datetime.now(timezone.utc)), Actor.user(1))
     assert [report.row_id for report in rounds.unread(plan)] == [unread.row_id], "of the reports filed about the plan in its review only the unread one is named"
-
-
-def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_recorded_since_the_clock_out(app: App, tmp_path):
-    import time
-    from types import SimpleNamespace
-    from journal.features.shell.support.readers import Readers
-    from journal.features.workers.support.failed_runs import FailedRuns
-    from journal.features.workers.support.test_run_folder import TestRunFolder
-    from journal.models.command_output import CommandOutput
-    from journal.models.support.worker_moves import WorkerMoves
-    from journal.models.worker import Worker
-    from journal.repositories.command_outputs import CommandOutputs
-    outputs = app.container.get(CommandOutputs)
-    from journal.repositories.run_history import RunHistory
-    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"), app.container.get(TestRunFolder), app.container.get(RunHistory))
-    worker = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() - 100),)))
-    proof = "parser.py:12, and the test tests/test_parser.py::test_reads passes"
-    assert runs.unrun(worker, proof) == "no run of tests/test_parser.py::test_reads is recorded since worker 4 clocked out: run it before you trust the point", "no run: one line naming the test"
-    assert runs.unrun(worker, "parser.py:12 reads the grammar") == "", "a proof naming no test has nothing to run"
-    outputs.save(CommandOutput(chain="elsewhere", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o1"), ran_in=str(tmp_path / "other")), Actor.system())
-    assert runs.unrun(worker, proof), "a run in another folder is not a run of this worker's work"
-    outputs.save(CommandOutput(chain="ran", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o2"), ran_in=str(tmp_path / "tree")), Actor.system())
-    assert runs.unrun(worker, proof) == "", "with a run of the test's file in the worker's worktree no warning"
-    later = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() + 100),)))
-    assert runs.unrun(later, proof), "a run from before the clock-out does not count"
-    lexer = "lexer.py:4, and the test tests/test_lexer.py::test_tokens passes"
-    outputs.save(CommandOutput(chain="narrow", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py -k parser', folder=str(tmp_path / "o3")), Actor.system())
-    assert runs.unrun(worker, lexer), "a run narrowed to other tests does not run this one"
-    outputs.save(CommandOutput(chain="suite", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py', folder=str(tmp_path / "o4")), Actor.system())
-    assert runs.unrun(worker, lexer) == "", "a whole suite run started by a leading cd into the worktree runs every test in it"
 
 
 def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app: App):
@@ -3804,7 +3771,6 @@ def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_te
     from journal.repositories.task_logs import TaskLogs
     from journal.repositories.tasks import Tasks
     console = app.console()
-    user_set(app, "workers.testing", "The journal runs them")
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
     hook(app, "SessionStart")
@@ -3829,13 +3795,10 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     settings, console = app.container.get(SettingRows), app.console()
-    user_set(app, "workers.testing", "The journal runs them")
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
     hook(app, "SessionStart")
     console.run(["task", "create", "the job 1", "--brief", "the job"], AGENT)
-    refused = console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    assert refused.code != 0 and "journal tests command" in refused.error, "no worker is sent while the project's test command is not set"
     failed_proof = console.run(["tests", "command", "test", "--proof", "1 = 2"], AGENT)
     assert failed_proof.code != 0 and "is not set" in failed_proof.error and not settings.option(WorkersOptions.TEST_COMMAND), "a test command whose proof run fails is not set"
     assert console.run(["tests", "command", "test", "--proof", "1 = 1"], AGENT).code == 0
@@ -3928,8 +3891,7 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
 
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
-    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TESTS_RUN, TURN, ProfileFiles
-    from journal.features.workers.workers_options import WORKER_TESTING
+    from journal.features.profiles.support.profile_files import JOURNAL_TESTING_INSTRUCTION, TURN, ProfileFiles
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_type import ProfileType
     files = app.container.get(ProfileFiles)
@@ -3939,13 +3901,8 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
         assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileType.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
-    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
-    assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
-    assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
-    from journal.features.workers.workers_options import TEST_BUDGET
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
-    assert "journal tests turn" in files.worker_instructions("journal-medior") and "journal tests turn" in files.worker_instructions("cartographer"), "with Test budget a worker is told to test only through journal tests turn, hooks or none"
+    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{JOURNAL_TESTING_INSTRUCTION}", "a shipped one says it once, then that its tests and builds are queued with the journal"
+    assert "journal tests turn" in files.worker_instructions("cartographer") and "journal build" in files.worker_instructions("cartographer"), "and so does a custom one"
     assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
 
@@ -6308,16 +6265,6 @@ def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many
     assert len(mixed["rows"]) <= 40 and [row.row_id for row in mixed["rows"]][-20:] == ids[-20:], "the page and at most a page of open rows beside it"
     changed = Listing.query_listing({"since": str(timing.time() + 60)}).listed(tasks, rows, rows, no_rows)
     assert changed == {"rows": [], "is_last_page": True}, "a change read finds the rows changed since, here none, in SQL"
-
-
-def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
-    from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
-    from journal.features.workers.commands.worker_command import WorkerCommand
-    from journal.features.workers.workers_options import MERGER_TESTING, WORKER_TESTING
-    command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
-    assert settings.option(WorkersOptions.TESTING) == MERGER_TESTING and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    settings.set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
-    assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 
 def test_a_server_is_added_and_removed_through_the_agent_programs_cli_from_the_pages_routes_and_the_journal_keeps_answering(app: App, monkeypatch, tmp_path):

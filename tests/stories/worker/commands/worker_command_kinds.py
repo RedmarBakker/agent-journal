@@ -70,3 +70,12 @@ def test_a_worker_queues_a_build_and_the_journal_runs_the_projects_build_command
     result.expect_command_passed()
     result.expect_command_text("built the viewer")
     story.expect_stack(story.agents.subject, Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@setting(WorkersOptions.COMMAND_KINDS, "read, search")
+def test_a_worker_the_user_allows_only_reads_and_searches_is_refused_a_file_edit(story):
+    story.agent_runs_in_the_shell(story.agents.subject, "grep -rn parse src").expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "rm src/old_parser.py")
+    result.expect_refused(story.agents.subject, WorkersNudges.COMMAND_KIND_REFUSAL)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
