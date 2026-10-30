@@ -13,7 +13,7 @@ def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     rig = f"plan-{plan}"
     result = story.agent_runs(story.agents.main, f"plan start {plan}")
     result.expect_command_passed()
-    seat = story.agent_runs_from_organization_seat(story.agents.main, "plan", f"organization handoff {story.tasks.first} domain:alpha")
+    seat = story.agent_runs_from_openrig_organization_seat(story.agents.main, "plan", f"organization handoff {story.tasks.first} domain:alpha")
     seat.expect_command_passed()
     seat.expect_command_text(f"task {story.tasks.first} routed from plan to domain:alpha")
     story.expect_task_tied_to_domain(story.tasks.first, "alpha")

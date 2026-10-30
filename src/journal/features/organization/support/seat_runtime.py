@@ -269,11 +269,12 @@ class SeatRuntime:
     def start_rig(self, spec: Path) -> None:
         self.run("up", str(spec), "--json")
 
+    def replace_rig(self, rig: str, spec: Path) -> None:
+        self.run("down", rig, "--yes", "--json")
+        self.start_rig(spec)
+
     def rig_exists(self, rig: str) -> bool:
         return self.run("ps", "--nodes", "--json", "--rig", rig, check=False).returncode == 0
-
-    def launch_node(self, rig: str, logical_id: str) -> None:
-        self.run("launch", rig, logical_id, "--json")
 
     def expand(self, rig: str, pod: Path, root: Path) -> None:
         self.run("expand", rig, str(pod), "--json", "--rig-root", str(root))

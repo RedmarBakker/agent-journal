@@ -46,7 +46,9 @@ class PausedOrganizationHubPlan(OrganizationHubPlan):
         member = next(member for member in plan["members"] if member["id"] == PLAN_AGENT)
         member["env"].pop(ORGANIZATION_SEAT)
         member["env"].pop(ORGANIZATION_RIG)
-        (folder / "rig.yaml").write_text(json.dumps(spec))
+        spec_path = folder / "rig.yaml"
+        spec_path.write_text(json.dumps(spec))
+        story.openrig.remember_spec(rig, spec_path)
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.PAUSED)
