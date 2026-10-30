@@ -27,6 +27,7 @@ def test_the_paused_task_is_offered_once_at_a_wait_not_at_the_next_waits_with_th
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.open}")
     following = story.agent_creates_task(story.agents.subject, "the tests")
     story.agent_runs(story.agents.subject, f"task start {following}")
+    story.agent_runs(story.agents.subject, AWAIT)
     story.expect_stack(story.agents.subject, Ready)
     waits_a_minute(story)
     story.expect_typed_nudge(TasksNudges.WAIT_PAUSED_TASK, count=2, n=story.tasks.started, what="the build")
