@@ -29,7 +29,7 @@ class Pins(Feature[PinsData]):
 A pin and a button are two different things.
 
 - A pin is a note left on the user's desk: something ready that they must see when they come back hours later, after
-  the chat has moved on. Your pull request is ready, your design is ready, the process has finished. Pin it above the
+  the chat has moved on, as a note someone left you: your pull request is ready, your design is ready. Pin it above the
   chat: `journal notice create "<what is ready>" --link "<url>" --label "Open the design"`. It stays until the user
   closes it.
 - A button is an action for now: open this page, start this, send this form. It goes under your message
