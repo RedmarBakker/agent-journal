@@ -11,6 +11,7 @@ from journal.support.agent_message import AgentMessage
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.references import events
 from journal.support.rejection import Rejection
+from journal.repositories.scope import PROJECT
 
 
 ENTRIES = Query.build(Entry)
@@ -43,6 +44,7 @@ SUPERVISOR_ENTRY_TYPES = (
     "SupervisorRun",
     "SupervisorRunState",
     "SupervisorUsage",
+    "SupervisorObservation",
 )
 
 
@@ -175,6 +177,23 @@ class Entries(ScopedRepository[Entry]):
         for key, value in data.items():
             query = query.filter_json(f"data->{key}", value)
         return self.selected(query.order_descending("id").limit(last))
+
+    def supervisor_page(self, entry_type: str, last: int, after_id: int = 0, unexpired_after_ms: int | None = None, **data) -> list[Entry]:
+        if entry_type not in SUPERVISOR_ENTRY_TYPES or not 1 <= last <= 100 or after_id < 0:
+            raise ValueError("supervisor record pages are typed and limited to 100 rows")
+        query = self.query().filter(entry_type=entry_type).filter_greater("id", after_id)
+        if unexpired_after_ms is not None:
+            query = query.filter_greater("data->expires_at_ms", unexpired_after_ms)
+        for key, value in data.items():
+            query = query.filter_json(f"data->{key}", value)
+        return self.selected(query.order("id").limit(last))
+
+    def _erase_expired_supervisor_observations(self, now_ms: int) -> None:
+        query = self.query().filter(entry_type="SupervisorObservation", environment_id=PROJECT).filter_less_equal("data->expires_at_ms", now_ms)
+        with self.scope.environment(PROJECT), self.writing():
+            rows = self.selected_globally(query)
+            if rows:
+                super()._purged(query.filter_listed("id", [row.row_id for row in rows]))
 
     def last_prompt(self, session: str) -> datetime | None:
         rows = self.selected(self.query().filter(entry_type=events.PROMPT_SUBMITTED, actor=Actor.agent(session)).order_descending("id").limit(1))

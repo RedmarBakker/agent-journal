@@ -88,6 +88,7 @@ class Routes:
         supervisor = get(SupervisorController)
         router.post_unscoped("/_supervisor/v1/enrollment", supervisor.enroll)
         router.post_unscoped("/_supervisor/v1/enrollment/change", supervisor.change)
+        router.post_unscoped("/_supervisor/v1/observe", supervisor.observe)
         router.post("/hooks/{agent}", get(HookController).receive)
         router.post("/shell/run", get(ShellController).run)
         router.post("/cli", get(CliController).run)

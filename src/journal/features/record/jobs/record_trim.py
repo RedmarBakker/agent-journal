@@ -2,6 +2,7 @@ from journal.engine.job import Job
 from journal.features.record.record_options import RecordOptions
 from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.supervisor_entries import SupervisorEntries
 
 
 class RecordTrim(Job):
@@ -9,10 +10,11 @@ class RecordTrim(Job):
 
     interval_seconds = 300.0
 
-    def __init__(self, entries: Entries, settings: SettingRows) -> None:
-        self.entries, self.settings = entries, settings
+    def __init__(self, entries: Entries, supervisor_entries: SupervisorEntries, settings: SettingRows) -> None:
+        self.entries, self.supervisor_entries, self.settings = entries, supervisor_entries, settings
 
     def tick(self, time: float) -> None:
         stored = self.settings.integer(RecordOptions.RECORD_LENGTH)
+        self.supervisor_entries.erase_expired_observations(int(time * 1000))
         self.entries.trim(self.entries.global_last_id(), stored)
         self.entries.trim_lines(stored)

@@ -211,6 +211,120 @@ class SupervisorAuthority:
             raise SupervisorFailure(403, "the supervisor grant no longer matches its diagnostic template")
         return grant
 
+    def observation_candidates(self, check: Check) -> list[dict[str, Any]]:
+        candidates = []
+        for entry in self._latest_entries():
+            grant = self._public_grant(entry)
+            if (grant["revoked"] or grant["mode"] == "disabled" or grant["valid_until_ms"] <= self._now_ms()
+                    or not entry.data.get("_credential_sha256")):
+                continue
+            enrolled = next((item for item in grant["checks"] if item["check_id"] == check.row_id), None)
+            if enrolled is None or self._check_revision(check) != enrolled["expected_revision"]:
+                continue
+            if (self._command_hash(check.command) != enrolled["command_sha256"] or check.is_retired or check.wait_target
+                    or not enrolled["minimum_interval_minutes"] <= int(check.interval) <= enrolled["baseline_interval_minutes"]):
+                continue
+            try:
+                plan = self._plan(grant["plan_id"])
+            except SupervisorFailure:
+                continue
+            if (check.environment_id != plan.environment_id or self.owners.number(plan) != grant["owner_user_id"]
+                    or grant["scope"] != self._scope(grant["owner_user_id"], grant["driver_environment_id"])):
+                continue
+            candidates.append({"grant": grant, "binding_revision": entry.data.get("_expected_binding_revision", "")})
+        return candidates
+
+    def observation_context(self, grant: dict[str, Any]) -> dict[str, Any]:
+        plan = self._plan(grant["plan_id"])
+        with self.scope.environment(plan.environment_id):
+            phases = self.plans.phase_states(plan)
+            phase_number = plan.current_phase(phases)
+            phase_state = next((phase for phase in phases if phase.number == phase_number), None)
+            plan_revision = self._plan_revision(plan, phases)
+            phase_revision = self._phase_revision(plan, phase_state) if phase_state else ""
+            tasks = self.plans.plan_tasks(plan)
+            task_facts = [
+                {"id": task.row_id, "state": task.state.value, "revision": self._digest(self._task_values(task))}
+                for task in tasks[:100]
+            ]
+            phase = {"id": phase_state.phase.row_id, "number": phase_state.number, "revision": phase_revision} if phase_state else None
+            review = {
+                "state": plan.state.value,
+                "reviewers": plan.reviewers,
+                "revision": self._digest({"state": plan.state.value, "reviewers": plan.reviewers, "updated_at": self._date(plan.updated_at)}),
+            }
+        with self.scope.environment(grant["driver_environment_id"]):
+            agent = self.agents.agent(plan)
+            environment = self.agents.environment(plan)
+            binding_revision = self._binding_revision(plan, agent, environment) if agent and environment else ""
+        return {
+            "plan_id": plan.row_id,
+            "plan_state": plan.state.value,
+            "plan_revision": plan_revision,
+            "phase": phase,
+            "tasks": task_facts,
+            "review": review,
+            "binding_revision": binding_revision,
+        }
+
+    def observation_snapshot(self, principal: SupervisorPrincipal, installation_epoch: int) -> dict[str, Any]:
+        grant = self.revalidate(principal)
+        plan = self._plan(grant["plan_id"])
+        context = self._eligible(plan, grant["owner_user_id"])
+        with self.scope.environment(plan.environment_id):
+            phases = self.plans.phase_states(plan)
+            phase_state = next((phase for phase in phases if phase.number == plan.current_phase(phases)), None)
+            phase_tasks = self.plans.phase_tasks(phase_state.phase) if phase_state else []
+            eligible_ids = [task.row_id for task in self.plans.tasks.selected(
+                self.plans.startable_tasks(plan).filter_listed("id", [task.row_id for task in phase_tasks]).order("id")
+            )[:100]]
+            started = self.plans.started_task(plan)
+            reserved_checkpoint = bool(self.plans.checkpoint_plans(plan))
+            unpassed_phase_commands = list(self.phase_testing.unpassed(plan))[:20]
+        with self.scope.environment(context["driver_environment_id"]):
+            checks = []
+            for enrolled in grant["checks"]:
+                check = self._check(enrolled["check_id"])
+                checks.append({
+                    "check_id": check.row_id,
+                    "revision": self._check_revision(check),
+                    "command_sha256": self._command_hash(check.command),
+                    "interval_minutes": int(check.interval),
+                })
+        current_phase = dict(grant["current_phase"])
+        result_grant = {**grant, "scope": {**grant["scope"], "installation_epoch": installation_epoch}}
+        return {
+            "grant": result_grant,
+            "plan_id": plan.row_id,
+            "plan_revision": context["plan_revision"],
+            "plan_state": plan.state.value,
+            "approved": True,
+            "current_phase": current_phase,
+            "binding_revision": context["binding_revision"],
+            "driver": {
+                "agent_id": context["agent"].row_id,
+                "environment_id": context["driver_environment_id"],
+                "provider": context["agent"].provider,
+                "role": context["agent"].role.value,
+                "live": self.agents.is_running(context["environment"]),
+                "session_present": bool(context["agent"].session),
+                "started_task_id": started.row_id if started else None,
+            },
+            "gates": {
+                "explicit_owner_pause": False,
+                "reserved_checkpoint": reserved_checkpoint,
+                "ended_drive": self.bindings.is_ended(plan),
+                "pending_owner_decision": False,
+                "unpassed_phase_commands": unpassed_phase_commands,
+                "can_advance_assignment": bool(eligible_ids) and started is None,
+            },
+            "existing_diagnostic_task_id": None,
+            "eligible_current_phase_task_ids": eligible_ids,
+            "checks": checks,
+            "writable": grant["mode"] == "bounded_write",
+            "ineligibility_reasons": [],
+        }
+
     def permits_domain_write(self, grant: dict[str, Any], operation: str) -> bool:
         if (operation.casefold() in RESERVED_OPERATIONS or grant.get("mode") != "bounded_write"
                 or grant.get("revoked") or grant.get("valid_until_ms", 0) <= self._now_ms()):
