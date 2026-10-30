@@ -64,36 +64,24 @@ export function cardChoices(plans, shown) {
     return openPlans(plans).filter((plan) => plan.id !== shown.id && PLANNED.includes(statusOf(plan)) && !plan.is_dismissed);
 }
 
-const MAX_BARS = 3;
 const isRunning = (p) => PLAN_RUNNING.includes(statusOf(p));
 
-export function barPlans(plans) {
-    const running = openPlans(plans)
-        .filter(isRunning)
-        .sort((a, b) => Boolean(a.delegated) - Boolean(b.delegated) || (statusOf(a) === "approved") - (statusOf(b) === "approved") || a.id - b.id);
-    return running.length > MAX_BARS ? running.slice(0, MAX_BARS) : running;
+const CLOSED_SHOWN = 5;
+
+// The Plans window's groups: the plans being worked on, the ones waiting to start or paused, and the newest closed ones.
+export function planGroups(plans) {
+    const open = openPlans(plans);
+    const closed = plans.filter((p) => isClosed(p) && p.state !== "cancelled").sort((a, b) => b.id - a.id);
+    return [
+        {key: "running", title: "Being worked on", plans: open.filter(isRunning)},
+        {key: "waiting", title: "Waiting to start", plans: open.filter((p) => !isRunning(p))},
+        {key: "closed", title: "Closed", plans: closed.slice(0, CLOSED_SHOWN)},
+    ].filter((group) => group.plans.length);
 }
 
-export function otherPlans(plans, shown) {
-    return openPlans(plans).filter((p) => p.id !== shown.id);
-}
 
-export function foldedPlans(plans) {
-    const barred = barPlans(plans);
-    return openPlans(plans).filter((p) => !barred.includes(p));
-}
 
-export function othersLine(others) {
-    const paused = others.filter((p) => statusOf(p) === "paused").length;
-    const active = others.filter(isRunning).length;
-    const planned = others.length - paused - active;
-    const words = [
-        active && `+${active} more active ${active === 1 ? "plan" : "plans"}`,
-        planned && `+${planned} more planned`,
-        paused && `${active || planned ? "" : "+"}${paused} paused`,
-    ];
-    return words.filter(Boolean).join(" · ");
-}
+
 
 // A plan list row carries the plan alone; its phases and their task ids are read from a plan held whole.
 export const isWholePlan = (p) => "task_ids" in p;

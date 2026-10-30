@@ -6,7 +6,7 @@ vi.mock("../src/api/client.js", () => ({api, onWrite: vi.fn()}));
 vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
 
 const {usePlanRows} = await import("../src/composables/planRows.js");
-const {barPlans, delegationOf, planProgress, standingOf} = await import("../src/domain/plans.js");
+const {delegationOf, planProgress, standingOf} = await import("../src/domain/plans.js");
 const {rows} = await import("../src/sync/rows.js");
 const {store} = await import("../src/state/store.js");
 
@@ -30,7 +30,6 @@ test("a started plan listed as a summary is read whole, then its tasks, so the b
     expect(api.show.mock.calls).toContainEqual(["plans", 5]);
     expect(standingOf(plan, rows("tasks")).title).toBe("2 of 3 tasks done");
     expect(planProgress(plan)).toMatchObject({total: 2, phase: 2, finished: 1});
-    expect(barPlans(rows("plans"))).toEqual([plan]);
     expect(() => delegationOf(index, {tasks: [], workers: []})).not.toThrow();
     expect(delegationOf(plan, {tasks: rows("tasks"), workers: []}).line).toBe("Delegated");
     scope.stop();

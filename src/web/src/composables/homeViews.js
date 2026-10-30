@@ -37,6 +37,13 @@ export function useHomeViews() {
             warm: false,
             all: {page: "tasks", label: "View all tasks"},
         },
+        plans: {
+            title: "Plans",
+            icon: meta("plans").icon,
+            count: open("plans").length,
+            warm: false,
+            all: {page: "plans", label: "View all plans"},
+        },
     }));
     const usable = computed(() => VIEWS.filter((v) => (v !== "feed" || feedOn.value) && (v !== "reviewer" || reviewing.value)));
     return {views, usable};
