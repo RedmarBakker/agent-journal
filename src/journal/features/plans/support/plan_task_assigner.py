@@ -9,6 +9,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
+from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
@@ -76,7 +77,7 @@ class PlanTaskAssigner:
         if plan is None:
             return Assignment()
         if not self.is_advancing(plan):
-            if plan.is_blocked() and not isinstance(event, PlanWorkAvailable):
+            if (plan.is_blocked() or plan.state == PlanState.FINISHED) and not isinstance(event, PlanWorkAvailable):
                 return self.default.next_task(agent, event, quantity)
             return Assignment()
         with self.scope.environment(plan.environment_id):
