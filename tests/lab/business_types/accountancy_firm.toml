@@ -1,0 +1,290 @@
+id = "accountancy_firm"
+title = "Accountancy firm"
+
+[[domains]]
+id = "client_services"
+title = "Client services"
+icon = "🤝"
+description = "Understand client needs and coordinate accounting work."
+outcome = "Each client has a clear service plan and current records."
+responsible = ["Client onboarding", "Service coordination"]
+not_responsible = ["Tax positions", "Audit opinions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "bookkeeping", about = "A client needs their books maintained." }]
+routing = [{ when = "a new client engagement", role = "client_accountant", then = ["client_onboarding_specialist"] }]
+board = { planned = "Planned", in_progress = "Onboarding", in_review = "Client review", done = "Active" }
+
+[[domains]]
+id = "bookkeeping"
+title = "Bookkeeping"
+icon = "📒"
+description = "Maintain complete and reconciled client books."
+outcome = "Client transactions are categorized and reconciled."
+responsible = ["Transaction records", "Account reconciliations"]
+not_responsible = ["Tax advice", "Audit opinions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "tax", about = "Reconciled records are ready for tax work." }]
+routing = [{ when = "a monthly close", role = "bookkeeper", then = ["bookkeeping_reviewer"] }]
+board = { planned = "Queued", in_progress = "Recording", in_review = "Reconciliation", done = "Closed" }
+
+[[domains]]
+id = "tax"
+title = "Tax"
+icon = "🧾"
+description = "Prepare tax filings and review tax positions."
+outcome = "Tax filings are supported and ready for approval."
+responsible = ["Tax preparation", "Tax position review"]
+not_responsible = ["Audit opinions", "Payroll processing"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "audit_assurance", about = "A filing needs an independent records review." }]
+routing = [{ when = "a client tax filing", role = "tax_partner", then = ["tax_preparer"] }]
+board = { planned = "Planned", in_progress = "Preparing", in_review = "Partner review", done = "Filed" }
+
+[[domains]]
+id = "audit_assurance"
+title = "Audit and assurance"
+icon = "🔎"
+description = "Review evidence and issue independent assurance work."
+outcome = "Assurance findings are supported by reviewed evidence."
+responsible = ["Audit evidence", "Assurance reviews"]
+not_responsible = ["Bookkeeping entries", "Tax preparation"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "payroll", about = "Payroll records support assurance work." }]
+routing = [{ when = "an assurance engagement", role = "audit_manager", then = ["assurance_analyst"] }]
+board = { planned = "Queued", in_progress = "Examining", in_review = "Partner review", done = "Reported" }
+
+[[domains]]
+id = "payroll"
+title = "Payroll"
+icon = "💼"
+description = "Prepare payroll records and review employment changes."
+outcome = "Payroll records are reconciled and changes are reviewed."
+responsible = ["Payroll calculations", "Employment record checks"]
+not_responsible = ["Employment decisions", "Tax advice"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "compliance", about = "A payroll record raises a compliance question." }]
+routing = [{ when = "a payroll cycle", role = "payroll_approver", then = ["payroll_specialist"] }]
+board = { planned = "Queued", in_progress = "Calculating", in_review = "Approval", done = "Processed" }
+
+[[domains]]
+id = "compliance"
+title = "Compliance"
+icon = "🛡️"
+description = "Review privacy and regulatory obligations."
+outcome = "Compliance decisions and supporting records are documented."
+responsible = ["Privacy reviews", "Regulatory records"]
+not_responsible = ["Client tax positions", "Bookkeeping entries"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "client_services", about = "A compliance decision changes client service requirements." }]
+routing = [{ when = "a privacy or regulatory question", role = "compliance_officer", then = ["compliance_analyst"] }]
+board = { planned = "Queued", in_progress = "Reviewing", in_review = "Decision", done = "Recorded" }
+
+[[roles]]
+id = "client_accountant"
+title = "Client accountant"
+domain = "client_services"
+description = "Coordinate accounting work for a client engagement."
+cardinality = "plan"
+writes = true
+responsible = ["Client service plans", "Work coordination"]
+not_responsible = ["Audit opinions", "Unapproved tax positions"]
+inputs = ["Client needs", "Engagement records"]
+outputs = ["A scoped accounting work plan"]
+edges = [{ kind = "delegates_to", to = "client_onboarding_specialist", about = "Collect the records needed to begin work." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "client_onboarding_specialist"
+title = "Client onboarding specialist"
+domain = "client_services"
+description = "Gather client records and prepare the engagement workspace."
+cardinality = "many"
+writes = true
+responsible = ["Onboarding checklists", "Record requests"]
+not_responsible = ["Tax opinions", "Audit sign-off"]
+inputs = ["An approved engagement plan"]
+outputs = ["A complete onboarding record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "bookkeeper"
+title = "Bookkeeper"
+domain = "bookkeeping"
+description = "Record client transactions and reconcile accounts."
+cardinality = "many"
+writes = true
+responsible = ["Transaction categorization", "Account reconciliations"]
+not_responsible = ["Tax positions", "Audit conclusions"]
+inputs = ["Client source records", "Prior account balances"]
+outputs = ["Reconciled client books"]
+edges = [{ kind = "delegates_to", to = "bookkeeping_reviewer", about = "Review the reconciled accounts." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "bookkeeping_reviewer"
+title = "Bookkeeping reviewer"
+domain = "bookkeeping"
+description = "Review reconciliations and identify unsupported entries."
+cardinality = "plan"
+writes = false
+responsible = ["Reconciliation review", "Exception reporting"]
+not_responsible = ["Making unsupported entries", "Tax advice"]
+inputs = ["Reconciled client books"]
+outputs = ["A review report"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "tax_preparer"
+title = "Tax preparer"
+domain = "tax"
+description = "Prepare tax returns from reviewed client records."
+cardinality = "many"
+writes = true
+responsible = ["Tax return preparation", "Supporting schedules"]
+not_responsible = ["Final tax positions", "Audit opinions"]
+inputs = ["Reconciled client books", "Tax documents"]
+outputs = ["A supported draft tax return"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "tax_partner"
+title = "Tax partner"
+domain = "tax"
+description = "Review tax filings and approve financial actions."
+cardinality = "plan"
+writes = true
+responsible = ["Tax position review", "Client tax decisions"]
+not_responsible = ["Preparing unsupported returns", "Audit opinions"]
+inputs = ["A draft tax return", "Tax position questions"]
+outputs = ["An approved tax filing"]
+edges = [{ kind = "delegates_to", to = "tax_preparer", about = "Prepare the supporting return." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["financial_transaction", "invoice_correction"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "audit_manager"
+title = "Audit manager"
+domain = "audit_assurance"
+description = "Plan assurance work and review its evidence."
+cardinality = "plan"
+writes = true
+responsible = ["Audit plans", "Assurance conclusions"]
+not_responsible = ["Bookkeeping entries", "Tax return preparation"]
+inputs = ["Engagement scope", "Client records"]
+outputs = ["A reviewed assurance report"]
+edges = [{ kind = "delegates_to", to = "assurance_analyst", about = "Collect and assess supporting evidence." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "assurance_analyst"
+title = "Assurance analyst"
+domain = "audit_assurance"
+description = "Collect evidence and document assurance findings."
+cardinality = "many"
+writes = true
+responsible = ["Evidence collection", "Finding records"]
+not_responsible = ["Final assurance opinions", "Client bookkeeping"]
+inputs = ["An assurance work plan", "Client evidence"]
+outputs = ["A documented evidence summary"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "payroll_specialist"
+title = "Payroll specialist"
+domain = "payroll"
+description = "Prepare payroll calculations and reconciliations."
+cardinality = "many"
+writes = true
+responsible = ["Payroll calculations", "Payroll reconciliations"]
+not_responsible = ["Employment decisions", "Unapproved payments"]
+inputs = ["Approved employee records", "Payroll changes"]
+outputs = ["A reconciled payroll record"]
+edges = [{ kind = "delegates_to", to = "payroll_approver", about = "Review this payroll cycle." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "payroll_approver"
+title = "Payroll approver"
+domain = "payroll"
+description = "Review payroll changes that affect employment terms."
+cardinality = "journal"
+writes = false
+responsible = ["Payroll change review", "Employment term checks"]
+not_responsible = ["Making employment decisions", "Processing payments"]
+inputs = ["A payroll change request", "Supporting records"]
+outputs = ["A reviewed payroll decision"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["employment_terms_action"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "compliance_officer"
+title = "Compliance officer"
+domain = "compliance"
+description = "Review privacy duties and document compliance decisions."
+cardinality = "journal"
+writes = false
+responsible = ["Privacy reviews", "Regulatory decision records"]
+not_responsible = ["Tax opinions", "Audit sign-off"]
+inputs = ["A compliance question", "Relevant client records"]
+outputs = ["A documented compliance decision"]
+edges = [{ kind = "delegates_to", to = "compliance_analyst", about = "Collect the supporting records." }]
+skills = []
+tools = ["read_files"]
+approval_required = ["privacy_decision"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "compliance_analyst"
+title = "Compliance analyst"
+domain = "compliance"
+description = "Collect regulatory records and summarize compliance evidence."
+cardinality = "many"
+writes = true
+responsible = ["Compliance evidence", "Regulatory record maintenance"]
+not_responsible = ["Final legal decisions", "Tax positions"]
+inputs = ["A compliance review request"]
+outputs = ["A compliance evidence summary"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }

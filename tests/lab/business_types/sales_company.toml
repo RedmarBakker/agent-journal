@@ -1,0 +1,290 @@
+id = "sales_company"
+title = "Sales company"
+
+[[domains]]
+id = "market_strategy"
+title = "Market strategy"
+icon = "📈"
+description = "Choose customer segments and set commercial priorities."
+outcome = "Sales teams have clear market priorities and targets."
+responsible = ["Market priorities", "Commercial targets"]
+not_responsible = ["Customer contract approval", "Invoice processing"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "sales", about = "A market priority needs customer outreach." }]
+routing = [{ when = "a new market opportunity", role = "sales_strategy_lead", then = ["market_researcher"] }]
+board = { planned = "Planned", in_progress = "Researching", in_review = "Commercial review", done = "Approved" }
+
+[[domains]]
+id = "sales"
+title = "Sales"
+icon = "🤝"
+description = "Develop customer opportunities and manage sales work."
+outcome = "Customer opportunities have a clear next step."
+responsible = ["Customer opportunities", "Sales plans"]
+not_responsible = ["Unapproved contract terms", "Invoice corrections"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "pipeline", about = "A market needs qualified customer opportunities." }]
+routing = [{ when = "a customer opportunity", role = "sales_manager", then = ["account_executive"] }]
+board = { planned = "Qualified", in_progress = "Working", in_review = "Customer review", done = "Won" }
+
+[[domains]]
+id = "pipeline"
+title = "Pipeline operations"
+icon = "🗂️"
+description = "Maintain pipeline records and qualify incoming leads."
+outcome = "Pipeline records are complete and consistently qualified."
+responsible = ["Pipeline records", "Lead qualification"]
+not_responsible = ["Final sales terms", "Customer liability decisions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "sales", about = "Qualified opportunities return to the sales team." }]
+routing = [{ when = "an incoming sales lead", role = "pipeline_manager", then = ["sales_development_rep"] }]
+board = { planned = "New", in_progress = "Qualifying", in_review = "Sales review", done = "Accepted" }
+
+[[domains]]
+id = "customer_success"
+title = "Customer success"
+icon = "💬"
+description = "Help customers adopt the product and resolve service issues."
+outcome = "Customers receive clear onboarding and ongoing support."
+responsible = ["Customer onboarding", "Customer support"]
+not_responsible = ["Product implementation", "Unapproved liability commitments"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "market_strategy", about = "Customer feedback informs market priorities." }]
+routing = [{ when = "a new customer onboarding", role = "customer_success_manager", then = ["onboarding_specialist"] }]
+board = { planned = "Ready", in_progress = "Onboarding", in_review = "Customer check", done = "Active" }
+
+[[domains]]
+id = "contracts_compliance"
+title = "Contracts and compliance"
+icon = "📑"
+description = "Review sales contracts, customer commitments and data duties."
+outcome = "Customer terms and privacy questions are reviewed and recorded."
+responsible = ["Contract review", "Privacy decisions"]
+not_responsible = ["Unapproved customer commitments", "Sales forecasting"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "sales", about = "A contract review affects the sales opportunity." }]
+routing = [{ when = "a customer contract or data request", role = "contracts_manager", then = ["privacy_officer"] }]
+board = { planned = "Queued", in_progress = "Reviewing", in_review = "Approval", done = "Recorded" }
+
+[[domains]]
+id = "finance"
+title = "Finance"
+icon = "💰"
+description = "Review invoices, receipts and financial actions."
+outcome = "Sales finances are recorded with appropriate approvals."
+responsible = ["Financial controls", "Invoice records"]
+not_responsible = ["Customer contract decisions", "Unapproved transactions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "contracts_compliance", about = "Contract terms affect billing controls." }]
+routing = [{ when = "a customer invoice or financial action", role = "finance_controller", then = ["billing_specialist"] }]
+board = { planned = "Queued", in_progress = "Processing", in_review = "Approval", done = "Recorded" }
+
+[[roles]]
+id = "sales_strategy_lead"
+title = "Sales strategy lead"
+domain = "market_strategy"
+description = "Set market priorities and coordinate commercial research."
+cardinality = "plan"
+writes = true
+responsible = ["Commercial priorities", "Market research plans"]
+not_responsible = ["Contract approval", "Unapproved customer promises"]
+inputs = ["Business goals", "Customer feedback"]
+outputs = ["A prioritized sales strategy"]
+edges = [{ kind = "delegates_to", to = "market_researcher", about = "Gather evidence for the market priority." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "market_researcher"
+title = "Market researcher"
+domain = "market_strategy"
+description = "Summarize customer and market evidence for sales planning."
+cardinality = "many"
+writes = true
+responsible = ["Market evidence", "Customer research summaries"]
+not_responsible = ["Commercial decisions", "Customer contract terms"]
+inputs = ["A market research question"]
+outputs = ["A sourced market summary"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "sales_manager"
+title = "Sales manager"
+domain = "sales"
+description = "Plan customer opportunity work and review sales progress."
+cardinality = "plan"
+writes = true
+responsible = ["Sales work plans", "Opportunity review"]
+not_responsible = ["Unapproved customer liability commitments", "Invoice corrections"]
+inputs = ["Qualified opportunities", "Commercial targets"]
+outputs = ["A customer opportunity plan"]
+edges = [{ kind = "delegates_to", to = "account_executive", about = "Work the customer opportunity." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "account_executive"
+title = "Account executive"
+domain = "sales"
+description = "Manage customer opportunities and prepare sales proposals."
+cardinality = "many"
+writes = true
+responsible = ["Customer opportunity records", "Sales proposal drafts"]
+not_responsible = ["Unapproved commitments", "Final contract approval"]
+inputs = ["A qualified opportunity", "Customer requirements"]
+outputs = ["A customer proposal and next steps"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "pipeline_manager"
+title = "Pipeline manager"
+domain = "pipeline"
+description = "Maintain sales pipeline quality and qualification rules."
+cardinality = "plan"
+writes = true
+responsible = ["Pipeline quality", "Lead qualification process"]
+not_responsible = ["Customer contract approval", "Final pricing decisions"]
+inputs = ["Lead records", "Sales qualification rules"]
+outputs = ["A qualified pipeline record"]
+edges = [{ kind = "delegates_to", to = "sales_development_rep", about = "Qualify new customer leads." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "sales_development_rep"
+title = "Sales development representative"
+domain = "pipeline"
+description = "Research and qualify incoming customer leads."
+cardinality = "many"
+writes = true
+responsible = ["Lead research", "Qualification records"]
+not_responsible = ["Contract terms", "Customer commitments"]
+inputs = ["An incoming lead", "Qualification criteria"]
+outputs = ["A qualified lead record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "customer_success_manager"
+title = "Customer success manager"
+domain = "customer_success"
+description = "Coordinate customer onboarding and ongoing support."
+cardinality = "plan"
+writes = true
+responsible = ["Customer onboarding plans", "Support escalation"]
+not_responsible = ["Unapproved liability commitments", "Product implementation"]
+inputs = ["A new customer handoff", "Customer goals"]
+outputs = ["A customer success plan"]
+edges = [{ kind = "delegates_to", to = "onboarding_specialist", about = "Complete the approved onboarding tasks." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "onboarding_specialist"
+title = "Onboarding specialist"
+domain = "customer_success"
+description = "Prepare customer onboarding records and progress updates."
+cardinality = "many"
+writes = true
+responsible = ["Onboarding records", "Customer progress updates"]
+not_responsible = ["Contract changes", "Clinical or legal advice"]
+inputs = ["An approved onboarding plan"]
+outputs = ["An onboarding progress report"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "contracts_manager"
+title = "Contracts manager"
+domain = "contracts_compliance"
+description = "Review customer contract changes and liability commitments."
+cardinality = "plan"
+writes = true
+responsible = ["Contract review", "Customer commitment approval requests"]
+not_responsible = ["Unapproved contract changes", "Sales forecasting"]
+inputs = ["A proposed sales contract", "Customer data questions"]
+outputs = ["A reviewed customer contract"]
+edges = [{ kind = "delegates_to", to = "privacy_officer", about = "Review customer data terms." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["contract_change", "customer_liability_commitment"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "privacy_officer"
+title = "Privacy officer"
+domain = "contracts_compliance"
+description = "Review customer data requests and record privacy decisions."
+cardinality = "journal"
+writes = false
+responsible = ["Privacy reviews", "Data use decisions"]
+not_responsible = ["Contract negotiation", "Customer sales commitments"]
+inputs = ["A customer data request", "Proposed contract terms"]
+outputs = ["A documented privacy decision"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["privacy_decision"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "finance_controller"
+title = "Finance controller"
+domain = "finance"
+description = "Review sales payments and preserve financial controls."
+cardinality = "journal"
+writes = false
+responsible = ["Financial review", "Transaction records"]
+not_responsible = ["Customer contract terms", "Unapproved transactions"]
+inputs = ["A financial action", "Supporting invoices"]
+outputs = ["A financial review and approval request"]
+edges = [{ kind = "delegates_to", to = "billing_specialist", about = "Prepare the invoice records." }]
+skills = []
+tools = ["read_files"]
+approval_required = ["financial_transaction", "invoice_correction"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "billing_specialist"
+title = "Billing specialist"
+domain = "finance"
+description = "Prepare customer invoices from approved sales records."
+cardinality = "many"
+writes = true
+responsible = ["Invoice preparation", "Billing record matching"]
+not_responsible = ["Approving financial transactions", "Changing customer terms"]
+inputs = ["Approved sales records", "Customer billing details"]
+outputs = ["A prepared customer invoice"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }

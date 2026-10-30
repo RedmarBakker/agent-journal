@@ -44,3 +44,71 @@ def test_software_company_generates_and_loads_with_the_journal_contract_reader(a
     assert contracts.role("product_manager").edge_targets() == ("product_analyst",)
     assert "Software company" in contracts.domain("product").guidance
     assert "Product manager" in contracts.role("product_manager").guidance
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_approvals"),
+    [
+        (
+            "accountancy_firm",
+            frozenset({
+                ApprovalAction.FINANCIAL_TRANSACTION,
+                ApprovalAction.INVOICE_CORRECTION,
+                ApprovalAction.EMPLOYMENT_TERMS_ACTION,
+                ApprovalAction.PRIVACY_DECISION,
+            }),
+        ),
+        (
+            "dental_practice",
+            frozenset({
+                ApprovalAction.INVOICE_CORRECTION,
+                ApprovalAction.PRIVACY_DECISION,
+                ApprovalAction.DATA_BREACH_DECISION,
+                ApprovalAction.PEOPLE_ACTION,
+                ApprovalAction.EMPLOYMENT_TERMS_ACTION,
+                ApprovalAction.FINANCIAL_TRANSACTION,
+            }),
+        ),
+        (
+            "sales_company",
+            frozenset({
+                ApprovalAction.CONTRACT_CHANGE,
+                ApprovalAction.CUSTOMER_LIABILITY_COMMITMENT,
+                ApprovalAction.PRIVACY_DECISION,
+                ApprovalAction.FINANCIAL_TRANSACTION,
+                ApprovalAction.INVOICE_CORRECTION,
+            }),
+        ),
+        (
+            "law_firm",
+            frozenset({
+                ApprovalAction.LEGAL_DECISION,
+                ApprovalAction.CONTRACT_CHANGE,
+                ApprovalAction.PRIVACY_DECISION,
+                ApprovalAction.DATA_BREACH_DECISION,
+                ApprovalAction.INVOICE_CORRECTION,
+                ApprovalAction.FINANCIAL_TRANSACTION,
+            }),
+        ),
+    ],
+)
+def test_other_business_types_generate_and_load_with_the_journal_contract_reader(
+    app, tmp_path, name, expected_approvals
+):
+    business_type = BusinessType.read(BUSINESS_TYPES / f"{name}.toml")
+    folder = OrganizationBuilder().build(business_type, tmp_path / business_type.id)
+    user_set(app, "workers.organization_folder", str(folder))
+    result = app.console().run(["organization", "reload"], USER_CALLER)
+
+    assert result.code == 0, result.error
+    contracts = app.container.get(Organization).contracts()
+    assert not contracts.problems
+    assert len(contracts.domains) >= 5
+    assert len(contracts.roles) >= 12
+    assert {domain.id for domain in contracts.domains} == {domain["id"] for domain in business_type.domains}
+    assert {role.id for role in contracts.roles} == {role["id"] for role in business_type.roles}
+    assert {role.cardinality for role in contracts.roles} == set(Cardinality)
+    assert all(domain.routing for domain in contracts.domains)
+    assert any(domain.edges for domain in contracts.domains)
+    assert any(role.edges for role in contracts.roles)
+    assert {action for role in contracts.roles for action in role.approval_required} == expected_approvals

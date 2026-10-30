@@ -1,0 +1,338 @@
+id = "dental_practice"
+title = "Dental practice"
+
+[[domains]]
+id = "clinical"
+title = "Clinical care"
+icon = "🦷"
+description = "Plan and document patient dental care."
+outcome = "Care plans are clear and ready for the clinician."
+responsible = ["Treatment planning", "Clinical records"]
+not_responsible = ["Appointment operations", "Insurance claim decisions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "scheduling", about = "A care plan needs an appointment." }]
+routing = [{ when = "a new care plan", role = "treatment_planner", then = ["dental_assistant"] }]
+board = { planned = "Planned", in_progress = "Under care", in_review = "Clinician review", done = "Documented" }
+
+[[domains]]
+id = "scheduling"
+title = "Scheduling"
+icon = "📅"
+description = "Coordinate appointments and practice capacity."
+outcome = "Patients have suitable appointments and clear reminders."
+responsible = ["Appointment scheduling", "Capacity coordination"]
+not_responsible = ["Clinical decisions", "Insurance coverage decisions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "patient_communication", about = "Appointment changes need patient communication." }]
+routing = [{ when = "an appointment request", role = "schedule_coordinator", then = ["appointment_scheduler"] }]
+board = { planned = "Queued", in_progress = "Scheduling", in_review = "Confirmation", done = "Booked" }
+
+[[domains]]
+id = "billing_insurance"
+title = "Billing and insurance"
+icon = "🧾"
+description = "Prepare patient invoices and insurance claims."
+outcome = "Claims and billing records are complete and reviewed."
+responsible = ["Insurance claim preparation", "Patient billing records"]
+not_responsible = ["Clinical treatment decisions", "Unapproved financial adjustments"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "finance", about = "A billing adjustment needs financial review." }]
+routing = [{ when = "an insurance claim", role = "billing_manager", then = ["insurance_claims_clerk"] }]
+board = { planned = "Ready", in_progress = "Preparing", in_review = "Review", done = "Submitted" }
+
+[[domains]]
+id = "patient_communication"
+title = "Patient communication"
+icon = "💬"
+description = "Give patients clear information about their care and visits."
+outcome = "Patients receive accurate and timely practice communication."
+responsible = ["Patient information", "Appointment communication"]
+not_responsible = ["Clinical advice beyond the approved plan", "Insurance decisions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "clinical", about = "A patient question needs clinical review." }]
+routing = [{ when = "a patient message", role = "patient_coordinator", then = ["patient_contact_specialist"] }]
+board = { planned = "Queued", in_progress = "Responding", in_review = "Clinical check", done = "Answered" }
+
+[[domains]]
+id = "compliance"
+title = "Compliance"
+icon = "🛡️"
+description = "Maintain patient safety, privacy and regulatory records."
+outcome = "Practice compliance and privacy decisions are documented."
+responsible = ["Sterilisation records", "Patient privacy reviews"]
+not_responsible = ["Treatment choices", "Payment processing"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "people", about = "Staff training supports safe practice." }]
+routing = [{ when = "a safety or privacy review", role = "sterilisation_auditor", then = ["privacy_officer"] }]
+board = { planned = "Planned", in_progress = "Checking", in_review = "Decision", done = "Recorded" }
+
+[[domains]]
+id = "people"
+title = "People"
+icon = "👥"
+description = "Coordinate staffing, training and employment records."
+outcome = "Practice roles and staff records are up to date."
+responsible = ["Staff coordination", "Training records"]
+not_responsible = ["Clinical supervision", "Unapproved employment changes"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "clinical", about = "Clinical capacity informs staffing needs." }]
+routing = [{ when = "a staffing change", role = "practice_manager", then = ["staff_coordinator"] }]
+board = { planned = "Queued", in_progress = "Coordinating", in_review = "Practice review", done = "Recorded" }
+
+[[domains]]
+id = "finance"
+title = "Finance"
+icon = "💰"
+description = "Review practice spending and payment records."
+outcome = "Financial actions have complete supporting records."
+responsible = ["Financial records", "Payment review"]
+not_responsible = ["Clinical decisions", "Unapproved financial actions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = []
+routing = [{ when = "a practice payment", role = "finance_controller", then = ["payment_clerk"] }]
+board = { planned = "Queued", in_progress = "Reviewing", in_review = "Approval", done = "Recorded" }
+
+[[roles]]
+id = "treatment_planner"
+title = "Treatment planner"
+domain = "clinical"
+description = "Prepare patient treatment plans for clinician review."
+cardinality = "plan"
+writes = true
+responsible = ["Treatment plan drafts", "Clinical record summaries"]
+not_responsible = ["Final clinical decisions", "Appointment scheduling"]
+inputs = ["Patient records", "Clinician notes"]
+outputs = ["A treatment plan draft"]
+edges = [{ kind = "delegates_to", to = "dental_assistant", about = "Prepare the care record for review." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "dental_assistant"
+title = "Dental assistant"
+domain = "clinical"
+description = "Prepare visit records and care-plan supporting details."
+cardinality = "many"
+writes = true
+responsible = ["Visit record preparation", "Care-plan supporting details"]
+not_responsible = ["Diagnosis", "Unreviewed treatment decisions"]
+inputs = ["A clinician-approved visit plan"]
+outputs = ["A complete visit record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "schedule_coordinator"
+title = "Schedule coordinator"
+domain = "scheduling"
+description = "Coordinate appointments around care needs and practice capacity."
+cardinality = "plan"
+writes = true
+responsible = ["Appointment planning", "Capacity coordination"]
+not_responsible = ["Clinical decisions", "Insurance determinations"]
+inputs = ["Appointment requests", "Practice capacity"]
+outputs = ["A scheduling plan"]
+edges = [{ kind = "delegates_to", to = "appointment_scheduler", about = "Book the planned appointments." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "appointment_scheduler"
+title = "Appointment scheduler"
+domain = "scheduling"
+description = "Book appointments and prepare patient reminders."
+cardinality = "many"
+writes = true
+responsible = ["Appointment booking", "Reminder preparation"]
+not_responsible = ["Clinical triage", "Changing an approved care plan"]
+inputs = ["A scheduling plan", "Patient availability"]
+outputs = ["Booked appointments"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "billing_manager"
+title = "Billing manager"
+domain = "billing_insurance"
+description = "Review billing records and approve invoice corrections."
+cardinality = "plan"
+writes = true
+responsible = ["Billing review", "Invoice correction decisions"]
+not_responsible = ["Clinical decisions", "Unapproved payment changes"]
+inputs = ["Patient billing records", "Insurance claim status"]
+outputs = ["A reviewed billing record"]
+edges = [{ kind = "delegates_to", to = "insurance_claims_clerk", about = "Prepare the claim records." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["invoice_correction"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "insurance_claims_clerk"
+title = "Insurance claims clerk"
+domain = "billing_insurance"
+description = "Prepare insurance claims from approved treatment records."
+cardinality = "many"
+writes = true
+responsible = ["Claim preparation", "Claim status records"]
+not_responsible = ["Treatment decisions", "Insurance coverage decisions"]
+inputs = ["Approved treatment record", "Insurance details"]
+outputs = ["A complete insurance claim"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "patient_coordinator"
+title = "Patient coordinator"
+domain = "patient_communication"
+description = "Coordinate patient communications and follow-up."
+cardinality = "plan"
+writes = true
+responsible = ["Patient communication plans", "Follow-up coordination"]
+not_responsible = ["Clinical advice", "Privacy decisions"]
+inputs = ["Approved care information", "Patient requests"]
+outputs = ["A patient communication plan"]
+edges = [{ kind = "delegates_to", to = "patient_contact_specialist", about = "Send the approved patient communication." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "patient_contact_specialist"
+title = "Patient contact specialist"
+domain = "patient_communication"
+description = "Send approved reminders and record patient responses."
+cardinality = "many"
+writes = true
+responsible = ["Patient reminders", "Response records"]
+not_responsible = ["Clinical advice", "Changing patient data without review"]
+inputs = ["An approved communication plan"]
+outputs = ["A sent message and response record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "sterilisation_auditor"
+title = "Sterilisation auditor"
+domain = "compliance"
+description = "Check sterilisation records and report safety gaps."
+cardinality = "journal"
+writes = true
+responsible = ["Sterilisation record checks", "Safety finding records"]
+not_responsible = ["Patient treatment", "Employment decisions"]
+inputs = ["Sterilisation logs", "Practice safety procedures"]
+outputs = ["A documented safety review"]
+edges = [{ kind = "delegates_to", to = "privacy_officer", about = "Review any patient-data exposure." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "privacy_officer"
+title = "Privacy officer"
+domain = "compliance"
+description = "Review patient privacy requests and document decisions."
+cardinality = "journal"
+writes = false
+responsible = ["Patient privacy reviews", "Data breach decisions"]
+not_responsible = ["Clinical decisions", "Billing adjustments"]
+inputs = ["A patient privacy request", "A suspected data breach"]
+outputs = ["A documented privacy decision"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["privacy_decision", "data_breach_decision"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "practice_manager"
+title = "Practice manager"
+domain = "people"
+description = "Coordinate practice staffing and review employment changes."
+cardinality = "plan"
+writes = true
+responsible = ["Staffing plans", "Practice employment records"]
+not_responsible = ["Clinical supervision", "Unapproved employment changes"]
+inputs = ["Staffing needs", "Employment change requests"]
+outputs = ["A reviewed staffing plan"]
+edges = [{ kind = "delegates_to", to = "staff_coordinator", about = "Keep the staff records current." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["people_action", "employment_terms_action"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "staff_coordinator"
+title = "Staff coordinator"
+domain = "people"
+description = "Maintain staff schedules and training records."
+cardinality = "many"
+writes = true
+responsible = ["Staff schedule records", "Training records"]
+not_responsible = ["Employment decisions", "Clinical supervision"]
+inputs = ["An approved staffing plan"]
+outputs = ["Updated staff records"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "finance_controller"
+title = "Finance controller"
+domain = "finance"
+description = "Review practice payments and financial records."
+cardinality = "journal"
+writes = false
+responsible = ["Financial control review", "Payment records"]
+not_responsible = ["Clinical decisions", "Unapproved transactions"]
+inputs = ["A payment request", "Supporting records"]
+outputs = ["A financial review and approval request"]
+edges = [{ kind = "delegates_to", to = "payment_clerk", about = "Prepare the payment record." }]
+skills = []
+tools = ["read_files"]
+approval_required = ["financial_transaction"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "payment_clerk"
+title = "Payment clerk"
+domain = "finance"
+description = "Prepare payment records from approved practice invoices."
+cardinality = "many"
+writes = true
+responsible = ["Payment preparation", "Invoice record matching"]
+not_responsible = ["Approving transactions", "Changing invoices without review"]
+inputs = ["An approved payment request", "Practice invoices"]
+outputs = ["A prepared payment record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }

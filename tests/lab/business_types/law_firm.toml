@@ -1,0 +1,290 @@
+id = "law_firm"
+title = "Law firm"
+
+[[domains]]
+id = "client_intake"
+title = "Client intake"
+icon = "📨"
+description = "Review prospective client requests and coordinate new matters."
+outcome = "New matters have a documented scope and intake decision."
+responsible = ["Client intake", "Conflict check coordination"]
+not_responsible = ["Unreviewed legal advice", "Trust account transactions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "legal_services", about = "An accepted matter needs legal work." }]
+routing = [{ when = "a prospective client request", role = "intake_partner", then = ["intake_coordinator"] }]
+board = { planned = "New", in_progress = "Reviewing", in_review = "Conflict check", done = "Accepted" }
+
+[[domains]]
+id = "legal_services"
+title = "Legal services"
+icon = "⚖️"
+description = "Plan legal work and prepare advice for client review."
+outcome = "Legal work is supported and ready for a lawyer's decision."
+responsible = ["Legal work planning", "Client advice drafts"]
+not_responsible = ["Final legal decisions without review", "Billing controls"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "delegates_to", to = "research", about = "A legal question needs supporting authorities." }]
+routing = [{ when = "an accepted legal matter", role = "practice_partner", then = ["associate"] }]
+board = { planned = "Scoped", in_progress = "Working", in_review = "Partner review", done = "Advised" }
+
+[[domains]]
+id = "research"
+title = "Legal research"
+icon = "📚"
+description = "Find and summarize authorities for legal matters."
+outcome = "Legal questions have sourced research summaries."
+responsible = ["Legal research", "Authority summaries"]
+not_responsible = ["Client legal decisions", "Court filings without review"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "litigation", about = "Research supports litigation work." }]
+routing = [{ when = "a legal research question", role = "research_librarian", then = ["legal_researcher"] }]
+board = { planned = "Queued", in_progress = "Researching", in_review = "Lawyer review", done = "Filed" }
+
+[[domains]]
+id = "litigation"
+title = "Litigation"
+icon = "🏛️"
+description = "Coordinate litigation matters and prepare court materials."
+outcome = "Court work is organized and ready for lawyer review."
+responsible = ["Litigation planning", "Court material preparation"]
+not_responsible = ["Final court strategy without review", "Trust accounting"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "compliance", about = "A matter raises an ethics or privacy question." }]
+routing = [{ when = "a litigation task", role = "litigation_partner", then = ["paralegal"] }]
+board = { planned = "Queued", in_progress = "Preparing", in_review = "Lawyer review", done = "Filed" }
+
+[[domains]]
+id = "compliance"
+title = "Ethics and compliance"
+icon = "🛡️"
+description = "Review conflicts, privacy duties and legal compliance records."
+outcome = "Ethics and privacy decisions are recorded and approved."
+responsible = ["Conflict reviews", "Privacy and ethics records"]
+not_responsible = ["Client legal advice", "Financial transactions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "collaborates_with", to = "client_intake", about = "Conflict checks apply during intake." }]
+routing = [{ when = "an ethics or privacy issue", role = "ethics_officer", then = ["document_controller"] }]
+board = { planned = "Queued", in_progress = "Checking", in_review = "Decision", done = "Recorded" }
+
+[[domains]]
+id = "finance"
+title = "Finance"
+icon = "💰"
+description = "Review client billing and trust-account records."
+outcome = "Financial records are reviewed and controlled."
+responsible = ["Client billing", "Trust account review"]
+not_responsible = ["Legal advice", "Unapproved financial transactions"]
+skills = []
+model = { claude = "sonnet", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+edges = [{ kind = "escalates_to", to = "compliance", about = "A financial record raises an ethics concern." }]
+routing = [{ when = "a client billing or trust account matter", role = "billing_partner", then = ["trust_accountant"] }]
+board = { planned = "Queued", in_progress = "Reconciling", in_review = "Approval", done = "Recorded" }
+
+[[roles]]
+id = "intake_partner"
+title = "Intake partner"
+domain = "client_intake"
+description = "Review new client requests and decide whether to open a matter."
+cardinality = "plan"
+writes = true
+responsible = ["Matter intake decisions", "Scope review"]
+not_responsible = ["Advice before engagement", "Unreviewed conflict decisions"]
+inputs = ["A prospective client request", "Conflict check results"]
+outputs = ["A documented matter intake decision"]
+edges = [{ kind = "delegates_to", to = "intake_coordinator", about = "Collect intake and conflict-check records." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["legal_decision"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "intake_coordinator"
+title = "Intake coordinator"
+domain = "client_intake"
+description = "Collect prospective client information and coordinate conflict checks."
+cardinality = "many"
+writes = true
+responsible = ["Client intake records", "Conflict check coordination"]
+not_responsible = ["Legal advice", "Accepting a client matter"]
+inputs = ["A prospective client request"]
+outputs = ["A complete intake file"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "practice_partner"
+title = "Practice partner"
+domain = "legal_services"
+description = "Plan matter work and review legal advice drafts."
+cardinality = "plan"
+writes = true
+responsible = ["Matter work plans", "Client advice review"]
+not_responsible = ["Unreviewed legal decisions", "Trust accounting"]
+inputs = ["An accepted matter", "Client legal questions"]
+outputs = ["A reviewed legal advice plan"]
+edges = [{ kind = "delegates_to", to = "associate", about = "Prepare the legal analysis and advice draft." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["legal_decision", "contract_change"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "associate"
+title = "Associate"
+domain = "legal_services"
+description = "Research and prepare legal work for partner review."
+cardinality = "many"
+writes = true
+responsible = ["Legal analysis drafts", "Matter records"]
+not_responsible = ["Final legal decisions", "Client commitments without review"]
+inputs = ["A matter work plan", "Client records"]
+outputs = ["A sourced legal analysis draft"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "research_librarian"
+title = "Research librarian"
+domain = "research"
+description = "Plan legal research and maintain research records."
+cardinality = "plan"
+writes = false
+responsible = ["Research planning", "Research record review"]
+not_responsible = ["Legal advice", "Final court strategy"]
+inputs = ["A legal research question", "Matter references"]
+outputs = ["A scoped research plan"]
+edges = [{ kind = "delegates_to", to = "legal_researcher", about = "Find and summarize relevant authorities." }]
+skills = []
+tools = ["read_files"]
+approval_required = []
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "legal_researcher"
+title = "Legal researcher"
+domain = "research"
+description = "Find legal authorities and prepare sourced summaries."
+cardinality = "many"
+writes = true
+responsible = ["Authority research", "Sourced research summaries"]
+not_responsible = ["Legal decisions", "Unreviewed court filings"]
+inputs = ["A scoped research question"]
+outputs = ["A sourced authority summary"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "litigation_partner"
+title = "Litigation partner"
+domain = "litigation"
+description = "Plan litigation work and review court materials."
+cardinality = "plan"
+writes = true
+responsible = ["Litigation plans", "Court material review"]
+not_responsible = ["Unreviewed court submissions", "Trust accounting"]
+inputs = ["A litigation matter", "Court deadlines"]
+outputs = ["A reviewed litigation plan"]
+edges = [{ kind = "delegates_to", to = "paralegal", about = "Prepare the court material and deadline records." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["legal_decision"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "paralegal"
+title = "Paralegal"
+domain = "litigation"
+description = "Prepare litigation records and court filing drafts."
+cardinality = "many"
+writes = true
+responsible = ["Court record preparation", "Deadline tracking"]
+not_responsible = ["Legal strategy", "Final court submissions"]
+inputs = ["A reviewed litigation plan", "Matter records"]
+outputs = ["A court material draft and deadline record"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "ethics_officer"
+title = "Ethics officer"
+domain = "compliance"
+description = "Review legal ethics, privacy and data breach questions."
+cardinality = "journal"
+writes = false
+responsible = ["Ethics reviews", "Privacy and data breach decisions"]
+not_responsible = ["Client representation", "Financial transactions"]
+inputs = ["An ethics question", "A privacy or breach report"]
+outputs = ["A documented ethics decision"]
+edges = [{ kind = "delegates_to", to = "document_controller", about = "Keep the supporting matter documents organized." }]
+skills = []
+tools = ["read_files"]
+approval_required = ["legal_decision", "privacy_decision", "data_breach_decision"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
+
+[[roles]]
+id = "document_controller"
+title = "Document controller"
+domain = "compliance"
+description = "Maintain matter document indexes and compliance records."
+cardinality = "many"
+writes = true
+responsible = ["Document indexes", "Compliance record maintenance"]
+not_responsible = ["Legal conclusions", "Client privacy decisions"]
+inputs = ["Matter documents", "A records request"]
+outputs = ["An updated matter document index"]
+edges = []
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+model = { claude = "sonnet", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "billing_partner"
+title = "Billing partner"
+domain = "finance"
+description = "Review client bills and approve financial actions."
+cardinality = "plan"
+writes = true
+responsible = ["Client billing review", "Financial approval requests"]
+not_responsible = ["Unapproved invoice corrections", "Legal advice"]
+inputs = ["Matter time records", "Client invoices"]
+outputs = ["A reviewed client bill"]
+edges = [{ kind = "delegates_to", to = "trust_accountant", about = "Review trust account entries and balances." }]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = ["invoice_correction"]
+model = { claude = "opus", codex = { model = "gpt-6-luna", effort = "max" } }
+
+[[roles]]
+id = "trust_accountant"
+title = "Trust accountant"
+domain = "finance"
+description = "Reconcile trust account records and review transactions."
+cardinality = "journal"
+writes = false
+responsible = ["Trust account reconciliation", "Financial control review"]
+not_responsible = ["Client legal advice", "Unapproved transactions"]
+inputs = ["Trust account statements", "Matter transaction records"]
+outputs = ["A reviewed trust account reconciliation"]
+edges = []
+skills = []
+tools = ["read_files"]
+approval_required = ["financial_transaction"]
+model = { claude = "opus", codex = { model = "gpt-6.1-sol", effort = "xhigh" } }
