@@ -1,31 +1,33 @@
-from journal.features.tasks.tasks_part import TasksPart
-from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
+from pathlib import Path
+
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
-from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.plan_approved import PlanApproved
 from journal.events.rows.plan_blocked import PlanBlocked
+from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_reviewed import PlanReviewed
 from journal.events.rows.plan_started import PlanStarted
-from journal.events.rows.plan_finished import PlanFinished
+from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
-from journal.events.agent.tool_starting import ToolStarting
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
-from journal.models.plan_mode import PlanMode
-from journal.features.plans.states.naming_test_commands import NamingTestCommands
-from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.plans.plans_part import PlansPart
+from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
+from journal.features.plans.states.naming_test_commands import NamingTestCommands
 from journal.features.plans.support.started_plan import StartedPlan
+from journal.features.shell.support.reader_commands import ReaderCommands
+from journal.features.tasks.tasks_part import TasksPart
+from journal.models.plan_mode import PlanMode
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the main agent told when a solo Plan agent's branch is ready, the plan's next task named when it starts, the wait named when none can start, the testing template informed at a start or close, and reviewers told when their reports are ready."""
+    """The plans feature's conduct in every state: approvals and plan changes informed, solo plan branches merged, the next task named, waits and testing named, and reviewer reports shown."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         if not event.user_origin:
@@ -68,7 +70,11 @@ class PlansConduct(Conduct):
         return self.none(*lines) if test_commands(settings).programs else self.push(NamingTestCommands(task_id=event.task_id), *lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [plan_return_check(self, event), mid_phase_test_check(self, event, settings)])
+        return Transition.merged(self, [
+            plan_return_check(self, event),
+            mid_phase_test_check(self, event, settings),
+            plan_agent_write_check(self, event),
+        ])
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         started = event.data.part(PlansPart).started
@@ -114,3 +120,19 @@ def plan_return_check(state: BaseState, event: ToolStarting) -> Transition:
         return state.none()
     choice = ChoosingPlanReturn(plan_id=plans.agent_paused_plan, task_id=current)
     return Transition.merged(state, [state.push(choice), state.refuse(choice.question())])
+
+
+def plan_agent_write_check(state: BaseState, event: ToolStarting) -> Transition:
+    if not event.call.writes or not event.call.edited_paths:
+        return state.none()
+    scope = event.data.part(PlansPart).plan_agent_write_scope
+    if scope is None:
+        return state.none()
+    folder = Path(event.folder or scope.worktree).expanduser()
+    folder = (folder if folder.is_absolute() else scope.root / folder).resolve()
+    paths = [Path(path).expanduser() for path in event.call.edited_paths]
+    paths = [(path if path.is_absolute() else folder / path).resolve() for path in paths]
+    outside = next((path for path in paths if not path.is_relative_to(scope.worktree)), None)
+    if outside is None:
+        return state.none()
+    return state.refuse(PlansNudges.PLAN_AGENT_WRITE_SCOPE.create(path=str(outside), worktree=str(scope.worktree)))

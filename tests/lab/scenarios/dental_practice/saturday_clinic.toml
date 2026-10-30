@@ -96,6 +96,14 @@ target = "saturday_clinic"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_opening_pack", "main_opening_pack"] },
+  { id = "decision_safety", weight = 30, expectations = ["overtime_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["clinic_notice_task", "clinic_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 360
 [budget.real_caps]

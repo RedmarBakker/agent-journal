@@ -226,11 +226,7 @@ class SeatRuntime:
         except (OSError, ValueError):
             return None
         members = [member for pod in spec.get("pods", []) for member in pod.get("members", [])]
-        roles = [member for member in members if member.get("role") or str(member.get("qualified", "")).startswith("role:")]
-        if roles:
-            return len(roles)
-        roles = [member for member in members if member.get("id") not in {"plan-agent", "domain-agent"}]
-        return len(roles) if roles else None
+        return len(members) or None
 
     def session(self, seat: SeatMember, native_session: str = "") -> SeatSession | None:
         try:

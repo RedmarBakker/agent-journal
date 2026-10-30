@@ -62,15 +62,16 @@ class Batch:
 
     @classmethod
     def from_mapping(cls, recipe: dict[str, object]) -> "Batch":
+        organization = recipe["organization"]
         return cls(
             str(recipe["batch_id"]),
             tuple(ScenarioPin(str(row["name"]), str(row["business_type"]), str(row["version"]), str(row["checksum"]), row["simulated_minutes"]) for row in recipe["scenarios"]),
             tuple(Design.from_mapping(str(row["name"]), row["settings"]) for row in recipe["designs"]),
             tuple(recipe["seeds"]),
             str(recipe["source_commit"]),
-            str(recipe["organization_commit"]),
-            str(recipe["organization_version"]),
-            str(recipe["organization_checksum"]),
+            str(organization["commit"]),
+            str(organization["version"]),
+            str(organization["checksum"]),
             tuple(str(model) for model in recipe["models"]),
             SimulationCaps(**recipe["caps"]),
             str(recipe["metric_schema_version"]),
@@ -122,8 +123,12 @@ class Batch:
             "caps": asdict(self.caps),
             "approval_scope": [],
         }
-        digest = sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+        digest = self.content_digest(body)
         return {**body, "content_digest": digest}
+
+    @staticmethod
+    def content_digest(body: dict[str, object]) -> str:
+        return sha256(json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
     @staticmethod
     def canonical(manifest: dict[str, object]) -> str:

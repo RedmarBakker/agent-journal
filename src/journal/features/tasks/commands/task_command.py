@@ -24,6 +24,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
+from journal.repositories.reports import Reports
 from journal.repositories.questions import Questions
 from journal.repositories.environments import Environments
 from journal.repositories.tasks import Tasks
@@ -45,16 +46,17 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check = check
+        self.check, self.reports = check, reports
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
         creation.add_argument("title")
+        creation.add_argument("--report", type=int, default=0, help="the report this task follows up")
         transfer = self.verb(verbs, "transfer", "move a task, with its log, to another environment of this project")
         transfer.add_argument("n", type=int)
         transfer.add_argument("environment", help="the name of the environment it moves to")
@@ -107,12 +109,16 @@ class TaskCommand(Command):
         self.verb(verbs, "next", "the next tasks to hand out, as the task assigner in force chooses them: for the orchestrator the next tasks to give workers, plan by plan in turn; it starts none").add_argument("--quantity", type=int, default=1, help="how many tasks to name, the assigner choosing each in turn")
 
     def create(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.find(args.report) if args.report else None
         task = self.tasks.save(self.created(args), caller.actor)
         self.link_creation(args.message, task, caller)
+        if report:
+            self.links.linked(Ref.build(report), Ref.build(task), Messages.SUBJECT_LINK, caller.actor)
         if args.start:
             task = self.taking.start(task, caller)
         unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
         line = f"task {task.row_id} {task.state}" + (f" (from message {args.message})" if args.message else "")
+        line += f" (about report {args.report})" if report else ""
         print("\n".join(filter(None, [line, unfiled])))
         return 0
 

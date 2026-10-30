@@ -96,6 +96,14 @@ target = "tracker_outage"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_outage_report", "main_outage_report"] },
+  { id = "decision_safety", weight = 30, expectations = ["driver_impact_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["driver_impact_task", "outage_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 420
 [budget.real_caps]

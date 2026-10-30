@@ -6,6 +6,7 @@ from journal.engine.agent_launcher import AgentLauncher
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.organization_options import OrganizationOptions
+from journal.models.plan_mode import PlanMode
 from journal.models.setting import Setting
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
@@ -49,7 +50,8 @@ class LabJournal:
         self.app.runtime().start()
         try:
             self.simulator = Simulator(self.app, monkeypatch, VoidProvider.name)
-            self.scenario_rows = ScenarioLoader(self.app).load(scenario)
+            mode = PlanMode.named(self.app.container.get(SettingRows).option(OrganizationOptions.PLAN_MODE))
+            self.scenario_rows = ScenarioLoader(self.app).load(scenario, mode)
         except BaseException:
             self.app.runtime().stop()
             raise

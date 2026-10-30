@@ -17,6 +17,7 @@ from tests.stories.builder.void_provider import VoidProvider
 from tests.test_features import booted
 from journal.app import App
 from journal.config import Config
+from journal.events.rows.worker_session_bound import WorkerSessionBound
 from journal.providers.support.helper_runner import HelperRunner
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import Worker
@@ -82,7 +83,11 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
 
 def worker_session_given(runner: WorkerRunner, worker: Worker, actor: Actor) -> None:
     if worker.provider == Claude.name:
-        runner.workers.save(worker.with_(session=worker.resume or worker_session(worker.id)), actor)
+        session = worker.resume or worker_session(worker.id)
+        bound = worker.with_(session=session)
+        if not worker.session:
+            bound = bound.with_event(WorkerSessionBound(environment_id=worker.environment_id))
+        runner.workers.save(bound, actor)
 
 
 def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:

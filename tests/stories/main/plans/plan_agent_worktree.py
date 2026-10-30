@@ -3,6 +3,7 @@ from pathlib import Path
 from journal.engine.agent_launcher import AgentLauncher
 from journal.features.git.support.branch_holders import BranchHolders
 from journal.features.git.support.start_rule import StartRule
+from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.launcher.launch import Launch

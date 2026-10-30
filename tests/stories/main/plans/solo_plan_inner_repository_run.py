@@ -10,7 +10,7 @@ from tests.stories.fixtures.main.plan_approved import PlanApproved
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_solo_plan_commits_and_merges_a_task_edit_in_its_inner_repository(story, monkeypatch):
+def test_a_solo_plan_commits_and_automatically_merges_its_inner_repository_edit(story, monkeypatch):
     root = story.app.config.root
     story.project_is_a_git_repository()
     story.git_in(root, "config", "user.name", "Story")
@@ -37,7 +37,6 @@ def test_a_solo_plan_commits_and_merges_a_task_edit_in_its_inner_repository(stor
     story.git_in(change.parent, "commit", "-q", "-m", "edit the architecture")
     story.agent_in_runs(story.agents.main, environment, session, f"task complete {story.tasks.first} --how done")
     story.agent_in_runs(story.agents.main, environment, session, f"task complete {story.tasks.second} --how done")
-    story.agent_runs(story.agents.main, f"plan merge {plan}").expect_command_passed()
     story.expect_project_file_is("agentic-organization/ARCHITECTURE.md", "edited in the Plan agent worktree\n")
     story.expect_no_project_file(".claude/worktrees/plan-1/agentic-organization")
     story.expect_no_project_file(f".claude/worktrees/{environment}")

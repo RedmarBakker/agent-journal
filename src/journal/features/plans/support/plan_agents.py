@@ -1,11 +1,12 @@
 from journal.config import Config
 from journal.events.rows.plan_started import PlanStarted
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
+from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_bindings import PlanBindings
-from journal.features.organization.support.rig_staffing import RigStaffing
-from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.models.agent import Agent
 from journal.models.environment import Environment
 from journal.models.plan import Plan
@@ -78,7 +79,7 @@ class PlanAgents:
         if not self.is_on():
             return
         plan = self.plans.find(plan_id)
-        if plan.mode == PlanMode.SOLO:
+        if plan.mode in (PlanMode.SOLO, PlanMode.ORGANIZATION):
             self.record_usage(plan)
         environment = self.environment(plan)
         if environment:
@@ -95,7 +96,19 @@ class PlanAgents:
 
     def record_usage(self, plan: Plan) -> None:
         agent = self.agent(plan)
-        if not agent or not agent.session:
+        if not agent:
+            return
+        if plan.mode == PlanMode.ORGANIZATION:
+            rig_id = self.plans.rig_id(plan)
+            if not rig_id:
+                return
+            rig = self.staffing.find_rig(rig_id)
+            target = self.staffing.runtime.target(rig.name, PLAN_POD, PLAN_AGENT)
+            reading = self.staffing.runtime.usage_cost(target)
+            self.usage.record(plan.id, target, reading.native_session_id or target, reading,
+                              self.time_source.seconds(), self.staffing.runtime.expected_seats(rig.name))
+            return
+        if not agent.session:
             return
         provider = self.places.providers.lookup(agent.provider)
         amount = provider.estimated_cost(agent.session, self.config.status_home)

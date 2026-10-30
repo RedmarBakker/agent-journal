@@ -217,6 +217,12 @@ class AgentSteps:
     def agent_writes(self, agent: StoryAgent, path: str) -> StepResult:
         return self.hooked(agent, "agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
 
+    def agent_writes_in_environment(self, agent: StoryAgent, environment: str, session: str, folder: str, path: str) -> StepResult:
+        body = {"hook_event_name": "PreToolUse", "session_id": session, "cwd": folder,
+                "tool_name": self.tools.write, "tool_input": {"file_path": path, "content": "x"}}
+        answer = posted(self.app, f"/hooks/{self.provider}", body, {"X-Journal-Env": environment})
+        return self.hook_observed(f"the {agent.role.value} agent in {environment} writes {path}", *answer)
+
     def agent_writes_from_a_hook_without_its_header(self, agent: StoryAgent, path: str) -> StepResult:
         call = {"tool_name": self.tools.write, "tool_input": {"file_path": path, "content": "x"}}
         return self.hook_observed("agent writes from a hook without its header", *self.session_posted_hook(self.hook_session_of(agent), {}, "PreToolUse", {**self.hook_fields_of(agent), **call}))

@@ -77,7 +77,10 @@ class LabReport:
 
     @staticmethod
     def write(comparison: Comparison, seed_estimate: SeedEstimate | None = None) -> Path:
-        destination = comparison.report_path
+        return LabReport.write_content(comparison.report_path, LabReport.render(comparison, seed_estimate))
+
+    @staticmethod
+    def write_content(destination: Path, content: str) -> Path:
         parent = destination.parent
         if not parent.is_dir() or parent.is_symlink() or stat.S_IMODE(parent.stat().st_mode) & 0o077:
             raise ValueError("the report batch directory must already exist and be private")
@@ -85,7 +88,7 @@ class LabReport:
         try:
             os.fchmod(descriptor, 0o600)
             with os.fdopen(descriptor, "w") as report:
-                report.write(LabReport.render(comparison, seed_estimate))
+                report.write(content)
                 report.flush()
                 os.fsync(report.fileno())
             os.replace(temporary, destination)

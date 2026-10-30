@@ -96,6 +96,14 @@ target = "payroll_tax_change"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_payroll_guidance", "main_payroll_guidance"] },
+  { id = "decision_safety", weight = 30, expectations = ["employment_change_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["payroll_guidance_task", "payroll_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 300
 [budget.real_caps]

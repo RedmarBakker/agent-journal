@@ -23,9 +23,9 @@ TOOLS = {"claude": Tools("Read", "Write", "Bash", "Agent"), "codex": Tools("read
 PROVIDERS = tuple(TOOLS)
 
 
-def hook_as(app, provider: str, type_name: str, session: str = "s1", **body):
+def hook_as(app, provider: str, type_name: str, session: str = "s1", environment: str = "main", **body):
     """A hook as the provider's agent sends it, for the session named: the status and the answer."""
-    return posted(app, f"/hooks/{provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main"})
+    return posted(app, f"/hooks/{provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": environment})
 
 
 def typing_capture(app, monkeypatch, keystrokes: list) -> None:

@@ -1,18 +1,22 @@
+from journal.config import Config
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.features.plans.support.phase_testing import PhaseTesting
+from journal.features.plans.support.plan_agent_write_scope import PlanAgentWriteScope
+from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
+from journal.features.plans.plans_nudges import PlansNudges
+from journal.features.templates.shipped import PLAN_PHASE_TESTS, PLAN_ZERO_TESTS
+from journal.features.tasks.support.task_briefing import TaskBriefing
 from journal.models.agent import Agent
 from journal.models.plan import Plan
-from journal.features.templates.shipped import PLAN_PHASE_TESTS, PLAN_ZERO_TESTS
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
-from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
-from journal.features.tasks.support.task_briefing import TaskBriefing
-from journal.features.plans.plans_nudges import PlansNudges
 from journal.support.stage_times import StageTimes
+from journal.support.workspace_worktree import WorkspaceWorktree
 
 EMPTY_PLAN_NOTE = "it has no brief and nothing logged yet"
 # a task event is told after its task is written, so the task it names is the newest changed of its plan's
@@ -22,9 +26,10 @@ RECENT_PLAN_TASKS = 3
 class PlansDataReader:
     """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields PlansData names; a helper, whose file turns no plans on, never reads it; the started plan's facts the same, with the fields StartedPlan names."""
 
-    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, phase_testing: PhaseTesting, scope: Scope, stages: StageTimes, rounds: ReviewRounds, assigner: PlanTaskAssigner) -> None:
+    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, phase_testing: PhaseTesting, scope: Scope, stages: StageTimes, rounds: ReviewRounds, assigner: PlanTaskAssigner, agents: PlanAgents, config: Config) -> None:
         self.plans, self.briefing, self.entries, self.testing, self.statuses, self.phase_testing = plans, briefing, entries, testing, statuses, phase_testing
         self.scope, self.stages, self.rounds, self.assigner = scope, stages, rounds, assigner
+        self.agents, self.config = agents, config
 
     def read(self, agent: Agent) -> LazyFacts:
         return LazyFacts("plans", {
@@ -34,7 +39,17 @@ class PlansDataReader:
             "review_reports": lambda: self.review_reports(),
             "agent_paused_plan": lambda: self.agent_paused_plan(),
             "agent_paused_tasks": lambda: self.agent_paused_tasks(),
+            "plan_agent_write_scope": lambda: self.plan_agent_write_scope(agent),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
+
+    def plan_agent_write_scope(self, agent: Agent) -> PlanAgentWriteScope | None:
+        plan = self.agents.led_plan(agent.environment_id)
+        environment = self.agents.environment(plan) if plan else None
+        if environment is None:
+            return None
+        root = self.config.root.resolve()
+        worktree = WorkspaceWorktree.chosen(root, environment.name).path.resolve()
+        return PlanAgentWriteScope(root, worktree)
 
     def agent_paused_plan(self) -> int:
         paused = self.plans.agent_paused()

@@ -28,7 +28,8 @@ PROFILE = "default"
 GUIDANCE = "guidance/role.md"
 HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
-DENIED = ("Bash(rig send *)", "Bash(rig queue *)")
+DENIED = ("Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)")
+WORKER_COMMANDS = ("Bash(rig context *)", "Bash(nohup *)")
 CODEX_ROUTE_RULES = '''prefix_rule(
     pattern = ["rig", "send"],
     decision = "forbidden",
@@ -179,7 +180,7 @@ class RigSpecs:
             f"Bash({command} {noun} *)" for command in scoped_commands for noun in ("proof", "clock-out")
         )
         allow.extend((
-            f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *WORKER_COMMANDS, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
             *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
             *(tool for tool in seat.tools if tool != "Read"),
         ))

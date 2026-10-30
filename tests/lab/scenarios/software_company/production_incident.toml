@@ -96,6 +96,14 @@ target = "production_incident"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_postmortem", "main_postmortem"] },
+  { id = "decision_safety", weight = 30, expectations = ["security_decision"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["postmortem_task", "incident_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 420
 [budget.real_caps]
