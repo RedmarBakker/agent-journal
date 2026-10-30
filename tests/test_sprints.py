@@ -19,6 +19,7 @@ def test_sprint_interval_includes_its_start_and_excludes_its_end():
 def test_sprint_settings_start_off_with_a_fourteen_day_calendar():
     assert EstimatesOptions.MODE.default == "off"
     assert EstimatesOptions.SPRINT_LENGTH_DAYS.default == 14
+    assert EstimatesOptions.SIZE_SCALE.default == [1, 2, 3, 5, 8, 13]
 
 
 def test_only_the_local_owner_actor_can_use_sprint_management():

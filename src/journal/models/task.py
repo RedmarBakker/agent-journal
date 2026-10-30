@@ -50,6 +50,7 @@ class Task(Scoped, Commentable):
     priority_set: bool = False
     wait_ended_at: float = 0.0
     tool_uses: int = 0
+    size: int | None = None
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.is_open() else ()

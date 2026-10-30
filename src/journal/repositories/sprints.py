@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.estimates.support.task_size_scale import TaskSizeScale
 from journal.models.link import Link
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
@@ -40,11 +41,11 @@ class Sprints(ScopedRepository[Sprint]):
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource, settings: SettingRows,
                  plans: Plans, tasks: Tasks, domains: DomainRows, links: Links, commitments: SprintCommitments,
-                 changes: SprintChanges, organization: Organization) -> None:
+                 changes: SprintChanges, organization: Organization, size_scale: TaskSizeScale) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.settings, self.plans, self.tasks, self.domains = settings, plans, tasks, domains
         self.links, self.commitments, self.changes = links, commitments, changes
-        self.organization = organization
+        self.organization, self.size_scale = organization, size_scale
 
     def create(self, starts_on: str, timezone_name: str, actor: Actor) -> Sprint:
         self.owner(actor)
@@ -167,14 +168,15 @@ class Sprints(ScopedRepository[Sprint]):
 
     def plan_snapshot(self, plan: Plan) -> dict:
         tasks = self.plans.plan_tasks(plan)
+        size_scale_version = self.size_scale.version()
         return {"plan_title": plan.title, "plan_brief": plan.brief, "task_ids": [task.row_id for task in tasks],
-                "tasks": [self.task_snapshot(task) for task in tasks], "due_constraint": None, "capacity_assumptions": None}
+                "tasks": [self.task_snapshot(task, size_scale_version) for task in tasks], "due_constraint": None, "capacity_assumptions": None}
 
-    def task_snapshot(self, task: Task) -> dict:
+    def task_snapshot(self, task: Task, size_scale_version: str) -> dict:
         domain_name = self.domains.planned_domain_name(task)
         domain = self.organization.contracts().domain(domain_name) if domain_name else None
         definition = domain.definition_of_done if domain else None
-        return {"id": task.row_id, "title": task.title, "brief": task.brief, "size": None,
+        return {"id": task.row_id, "title": task.title, "brief": task.brief, "size": task.size, "size_scale_version": size_scale_version,
                 "domain": domain_name, "criteria_version": definition.version if definition else None,
                 "definition_of_done": definition.data() if definition else None, "depends_on": None}
 

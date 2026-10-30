@@ -123,6 +123,33 @@ class StepChecks:
             part = part[key]
         assert part == value, f"the viewer was given {part!r} at {'/'.join(map(str, path))}, not {value!r}"
 
+    def expect_viewer_part_is_truthy(self, path: tuple) -> None:
+        part = self.viewer_answer
+        for key in path:
+            part = part[key]
+        assert part, f"the viewer was given an empty value at {'/'.join(map(str, path))}"
+
+    def expect_viewer_parts_differ(self, first: tuple, second: tuple) -> None:
+        left, right = self.viewer_answer, self.viewer_answer
+        for key in first:
+            left = left[key]
+        for key in second:
+            right = right[key]
+        assert left != right, f"the viewer was given the same value {left!r} at both paths"
+
+    def expect_viewer_parts_equal(self, first: tuple, second: tuple) -> None:
+        left, right = self.viewer_answer, self.viewer_answer
+        for key in first:
+            left = left[key]
+        for key in second:
+            right = right[key]
+        assert left == right, f"the viewer was given different values {left!r} and {right!r} at the two paths"
+
+    def expect_viewer_rows_have_fields(self, key: str, *fields: str) -> None:
+        rows = self.viewer_answer.get(key, [])
+        missing = [(index, field) for index, row in enumerate(rows) for field in fields if field not in row]
+        assert not missing, f"the viewer's {key} rows lack fields {missing}"
+
     def expect_viewer_count_at_most(self, key: str, count: int) -> None:
         shown = self.viewer_answer.get(key, [])
         assert len(shown) <= count, f"the viewer was given {len(shown)} {key}, more than {count}"

@@ -45,7 +45,7 @@ class WorkerHelper(Helper):
         (RuleCommand, ("list", "read")),
         (SearchCommand, ("find",)),
         (ImpasseCommand, ("declare",)),
-        (WorkerTaskCommand, ("log", "show")),
+        (WorkerTaskCommand, ("log", "show", "propose-size")),
         (WorkerTestsCommand, ("turn",)),
         (WorkerBuildCommand, ("queued",)),
         (TodoCommand, ("add", "check", "list")),

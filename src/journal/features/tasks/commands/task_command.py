@@ -23,6 +23,7 @@ from journal.models.task_log import TaskLog
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.task_logs import TaskLogs
+from journal.repositories.task_sizes import TaskSizes
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.reports import Reports
 from journal.repositories.questions import Questions
@@ -46,12 +47,13 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.reports = check, reports
+        self.task_sizes = task_sizes
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -77,6 +79,20 @@ class TaskCommand(Command):
         creation.add_argument("--priority", default="", help="low, normal, high, critical or a number; unnamed, the task is normal and is asked about with the others of the default priority")
         creation.add_argument("--start", action="store_true", help="start it at once")
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
+        sizing = self.verb(verbs, "size", "set the current story point size of a planned task")
+        sizing.add_argument("n", type=int)
+        sizing.add_argument("size", help="a value on the configured scale or unknown")
+        sizing.add_argument("--reason", required=True, help="why the accepted size is revised")
+        scope_size = self.verb(verbs, "scope-size", "revise the story point size after its scope changes")
+        scope_size.set_defaults(verb="scope_size")
+        scope_size.add_argument("n", type=int)
+        scope_size.add_argument("size", help="a value on the configured scale or unknown")
+        scope_size.add_argument("--reason", required=True, help="what scope changed")
+        proposal = self.verb(verbs, "propose-size", "propose a resize of the task you are working on")
+        proposal.set_defaults(verb="propose_size")
+        proposal.add_argument("n", type=int)
+        proposal.add_argument("size", help="a value on the configured scale or unknown")
+        proposal.add_argument("--reason", required=True, help="why the size should change")
         self.verb(verbs, "start", "take a task in hand").add_argument("n", type=int)
         log = self.verb(verbs, "log", "note where a task stands")
         log.add_argument("n", type=int)
@@ -120,6 +136,21 @@ class TaskCommand(Command):
         line = f"task {task.row_id} {task.state}" + (f" (from message {args.message})" if args.message else "")
         line += f" (about report {args.report})" if report else ""
         print("\n".join(filter(None, [line, unfiled])))
+        return 0
+
+    def size(self, args: Namespace, caller: Caller) -> int:
+        task = self.task_sizes.revise(args.n, args.size, args.reason, caller.actor)
+        print(f"task {task.row_id} size {task.size if task.size is not None else 'unknown'}")
+        return 0
+
+    def scope_size(self, args: Namespace, caller: Caller) -> int:
+        task = self.task_sizes.revise_scope(args.n, args.size, args.reason, caller.actor)
+        print(f"task {task.row_id} scope size {task.size if task.size is not None else 'unknown'}")
+        return 0
+
+    def propose_size(self, args: Namespace, caller: Caller) -> int:
+        row = self.task_sizes.propose(args.n, args.size, args.reason, caller.actor)
+        print(f"task {args.n} resize proposal {row.row_id}")
         return 0
 
     @staticmethod

@@ -17,11 +17,13 @@ from journal.models.task_log import TaskLog
 from journal.models.task_state import TaskState
 from journal.repositories.plans import PLAN_LINK
 from journal.repositories.task_logs import TaskLogs
+from journal.repositories.task_sizes import TaskSizes
 from journal.repositories.tasks import CLOSED_STATES, Tasks
 from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.repositories.proofs import Proofs
 from journal.repositories.worker_todos import WorkerTodos
 from journal.repositories.workers import Workers
+from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
 
@@ -30,9 +32,10 @@ class TaskController(Controller[Task]):
 
     repository: Tasks
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs, time_source: TimeSource) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs, time_source: TimeSource, task_sizes: TaskSizes) -> None:
         self.time_source = time_source
         self.repository, self.task_logs, self.workers, self.waits, self.taking, self.task_holders, self.todos, self.proofs = tasks, logs, workers, waits, taking, task_holders, todos, proofs
+        self.task_sizes = task_sizes
 
     def open_rows(self, query: Query) -> Query:
         return query.filter_unlisted("state", CLOSED_STATES)
@@ -42,6 +45,11 @@ class TaskController(Controller[Task]):
 
     def counts(self, query: Query) -> Counts:
         return Counts(all=self.repository.count(), open=self.repository.unfinished_count(), unread=self.repository.unviewed())
+
+    def store(self, request: Request) -> Response:
+        if "size" in request.body:
+            raise Rejection("task size must be supplied while composing a plan task")
+        return super().store(request)
 
     def shown_page(self, rows: list[Task]) -> list[dict]:
         plans, holders, waits = self.repository.linked(PLAN_LINK, [t.row_id for t in rows]), self.workers.containing({t.row_id for t in rows}), self.repository.open_wait_refs(rows)
@@ -59,10 +67,29 @@ class TaskController(Controller[Task]):
         return RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(query))
 
     def update(self, request: Request) -> Response:
+        if "size" in request.body:
+            raise Rejection("task size must use /journal/tasks/{id}/size to keep its estimate history")
         row = self.repository.find(request.number("id"))
         changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name not in ("title", "brief")})
         rewritten = changed.edited(request.body.get("title", row.title), request.body.get("brief", row.brief), self.time().timestamp())
         return Response.json(self.shown(self.repository.save(rewritten, request.actor)))
+
+    def size(self, request: Request) -> Response:
+        return Response.json(self.task_sizes.show(request.number("id")))
+
+    def revise_size(self, request: Request) -> Response:
+        task_id = request.number("id")
+        if "size" not in request.body:
+            raise Rejection("task size is required; use null for unknown")
+        revision = request.body.get("change_type", "size_revision")
+        reason = request.body.get("reason", "")
+        if revision == "size_revision":
+            self.task_sizes.revise(task_id, request.body["size"], reason, request.actor)
+        elif revision == "scope_revision":
+            self.task_sizes.revise_scope(task_id, request.body["size"], reason, request.actor)
+        else:
+            raise Rejection("task size change_type is size_revision or scope_revision")
+        return Response.json(self.task_sizes.show(task_id))
 
     def start(self, request: Request) -> Response:
         if self.repository.task_worker_holdings({request.number("id")}):
