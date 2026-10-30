@@ -82,8 +82,8 @@ class TasksDataReader:
         return current.row_id if current else 0
 
     def paused_line_said(self, agent: Agent) -> bool:
-        current, last = self.tasks.current(agent), self.entries.last_key_moment(agent.session, TasksNudges.WAIT_PAUSED_TASK.key)
-        return current is not None and current.started_at is not None and last is not None and last.seconds >= current.started_at.timestamp()
+        current = self.tasks.current(agent)
+        return current is not None and self.entries.is_line_said_in_task(agent.session, TasksNudges.WAIT_PAUSED_TASK.key, current.row_id)
 
     def current_log(self, agent: Agent) -> str:
         current = self.tasks.current(agent)

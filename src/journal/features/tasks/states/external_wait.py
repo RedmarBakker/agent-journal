@@ -132,7 +132,7 @@ class ExternalWait(Wait):
         if work is not None:
             return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=work.id, title=work.title),)
         if tasks.paused and not tasks.paused_line_said:
-            return (TasksNudges.WAIT_PAUSED_TASK.create(what=self.focus, n=tasks.paused[0], why=tasks.first_pause_reason),)
+            return (TasksNudges.WAIT_PAUSED_TASK.create(what=self.focus, n=tasks.paused[0], why=tasks.first_pause_reason, task=tasks.current_task),)
         return ()
 
     @staticmethod
