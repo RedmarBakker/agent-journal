@@ -2,9 +2,11 @@ from tests.stories.builder.story_agent import StoryAgent
 import re
 import shlex
 import uuid
+import json
+from urllib.parse import urlsplit
 from dataclasses import replace
 
-from journal.features.library.support.library_account import LibraryAccount
+from journal.features.library.support.library_account import LIBRARIES_FOLDER, LibraryAccount
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.caller import Caller
 from journal.support.option import Option
@@ -42,15 +44,25 @@ class UserSteps:
         return self.user_did("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")
 
     def a_team_server_runs(self, name: str = "team") -> str:
+        address = self.team_server_started(name, 0)
+        self.observed("a team server runs", None, None)
+        return address
+
+    def team_server_started(self, name: str, port: int) -> str:
         folder = self.app.config.root / f"{name}-server"
         folder.mkdir(exist_ok=True)
         team = TeamServer(folder)
-        server = team.started("127.0.0.1", 0)
+        server = team.started("127.0.0.1", port)
         self.team_server = team
         self.closers.append(lambda: team.close(server))
         self.team_addresses[name] = f"http://127.0.0.1:{server.server_address[1]}"
-        self.observed("a team server runs", None, None)
         return self.team_addresses[name]
+
+    def team_servers_restarted(self) -> None:
+        for path in sorted((self.app.config.home / LIBRARIES_FOLDER).glob("*.json")):
+            connection = json.loads(path.read_text())
+            if (self.app.config.root / f"{connection['team']}-server").is_dir():
+                self.team_server_started(connection["team"], urlsplit(connection["address"]).port)
 
     def user_adds_a_team(self, name: str) -> StepResult:
         body = {"url": self.a_team_server_runs(name), "email": "ada@example.com", "name": "Ada", "password": "correct horse battery", "team": name}
