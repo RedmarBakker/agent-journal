@@ -736,6 +736,7 @@ def test_seed_estimate_uses_the_preregistered_continuous_guard_margin():
 def test_lab_report_writes_pinned_analysis_to_the_batch_without_filing_a_journal_report(tmp_path):
     from tests.lab.comparison import Comparison
     from tests.lab.lab_report import LabReport
+    from journal.support.outline import Outline
 
     plan = comparison_plan()
     batch = comparison_batch(plan)
@@ -751,9 +752,24 @@ def test_lab_report_writes_pinned_analysis_to_the_batch_without_filing_a_journal
     )
 
     report = LabReport.write(comparison)
+    draft = LabReport.draft(comparison)
+    outline = Outline.build(draft["body"])
 
     assert report == comparison.report_path
     assert report.stat().st_mode & 0o777 == 0o600
-    assert "Manifest digest:" in report.read_text()
-    assert "Action taken: no" in report.read_text()
+    assert set(draft) == {"title", "abstract", "body"}
+    assert draft["title"] == f"Lab comparison {batch.batch_id}"
+    assert len(draft["abstract"]) <= 200
+    assert tuple(section.heading for section in outline.sections) == (
+        "Summary", "Trial and pins", "Recommendation", "Results", "Confirmatory family", "Evidence and methods", "Limits",
+    )
+    report_text = report.read_text()
+    assert report_text == draft["body"]
+    assert f'"manifest_digest": "{comparison.manifest_digest}"' in report_text
+    assert f'"source_commit": "{batch.source_commit}"' in report_text
+    assert f'"commit": "{batch.organization_commit}"' in report_text
+    assert '"providers": [\n    "VoidProvider"' in report_text
+    assert f'"metric_schema_version": "{batch.metric_schema_version}"' in report_text
+    assert "| goal_reached |" in report_text
+    assert "Action taken: no" in report_text
 

@@ -11,44 +11,69 @@ from tests.lab.seed_estimate import SeedEstimate
 
 class LabReport:
     @staticmethod
-    def render(comparison: Comparison, seed_estimate: SeedEstimate | None = None) -> str:
+    def draft(comparison: Comparison, seed_estimate: SeedEstimate | None = None) -> dict[str, str]:
         result = comparison.analyze()
-        lines = [
-            "# Lab comparison",
+        abstract = LabReport._abstract(result)
+        sections = [
+            "## Summary",
             "",
-            f"- Batch: `{result['batch_id']}`",
-            f"- Mode: `{result['mode']}`",
-            f"- Manifest digest: `{result['manifest_digest']}`",
-            f"- Decision-rule version: `{result['decision_rule_version']}`",
-            f"- Decision-rule digest: `{result['decision_rule_digest']}`",
-            f"- Designs: `{result['design_a']}` (A) and `{result['design_b']}` (B)",
-            f"- Recommendation: **{result['recommendation']}** — {result['recommendation_reason']}",
+            abstract,
+            "",
+            "## Trial and pins",
+            "",
+            "```json",
+            LabReport._json({
+                "batch_id": result["batch_id"],
+                "mode": result["mode"],
+                "manifest_digest": result["manifest_digest"],
+                "decision_rule_version": result["decision_rule_version"],
+                "decision_rule_digest": result["decision_rule_digest"],
+                "design_a": result["design_a"],
+                "design_b": result["design_b"],
+                "pins": result["pins"],
+            }),
+            "```",
+            "",
+            "## Recommendation",
+            "",
+            f"- Recommendation: {result['recommendation']}",
+            f"- Reason: {result['recommendation_reason']}",
             "- Action taken: no",
             "",
-            "## Confirmatory results",
+            "## Results",
             "",
-            "| Metric | Business type | Scenario | Model | Method | Effect | Raw p | Holm p | Status |",
-            "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+            LabReport._results_table(result),
+            "",
+            "## Confirmatory family",
+            "",
+            "```json",
+            LabReport._json(result["confirmatory_family"]),
+            "```",
+            "",
+            "## Evidence and methods",
+            "",
+            "```json",
+            LabReport._json({"metric_rules": result["metric_rules"], "results": result["results"]}),
+            "```",
+            "",
         ]
-        for row in result["results"]:
-            analysis = row["analysis"]
-            effect = analysis.get("effect_percentage_points", analysis.get("effect_median"))
-            holm = row.get("holm") or {}
-            lines.append(
-                "| " + " | ".join((
-                    str(row["metric"]), str(row["business_type"]), str(row["scenario"]), str(row["model"]),
-                    LabReport._cell(analysis.get("method", "unavailable")), LabReport._format(effect),
-                    LabReport._format(analysis.get("p_value")), LabReport._format(holm.get("adjusted_p_value")),
-                    LabReport._cell(analysis.get("status", "unavailable")),
-                )) + " |"
-            )
-        lines.extend(("", "## Analysis family", "", "```json", json.dumps(result["confirmatory_family"], sort_keys=True, indent=2), "```", ""))
-        lines.extend(("## Metric rules and paired evidence", "", "```json", json.dumps({"metric_rules": result["metric_rules"], "results": result["results"]}, sort_keys=True, indent=2), "```", ""))
         if seed_estimate is not None:
-            lines.extend(("## Seed estimate", "", "```json", json.dumps(seed_estimate.manifest(), sort_keys=True, indent=2), "```", ""))
-        lines.append("This is simulated benchmark evidence only; it does not establish production effectiveness.")
-        lines.append("Filing a journal report is an explicit operator action.")
-        return "\n".join(lines) + "\n"
+            sections.extend(("## Seed estimate", "", "```json", LabReport._json(seed_estimate.manifest()), "```", ""))
+        sections.extend((
+            "## Limits",
+            "",
+            "This is simulated benchmark evidence only; it does not establish production effectiveness.",
+            "Filing a journal report is an explicit operator action.",
+        ))
+        return {
+            "title": f"Lab comparison {result['batch_id']}",
+            "abstract": abstract,
+            "body": "\n".join(sections) + "\n",
+        }
+
+    @staticmethod
+    def render(comparison: Comparison, seed_estimate: SeedEstimate | None = None) -> str:
+        return LabReport.draft(comparison, seed_estimate)["body"]
 
     @staticmethod
     def write(comparison: Comparison, seed_estimate: SeedEstimate | None = None) -> Path:
@@ -68,6 +93,34 @@ class LabReport:
             os.unlink(temporary)
             raise
         return destination
+
+    @staticmethod
+    def _abstract(result: dict[str, Any]) -> str:
+        if result["recommendation"] == "keep_eligible":
+            return "B is eligible for operator review under the simulated comparison; no setting changed."
+        return "The simulated comparison is inconclusive; no setting changed."
+
+    @staticmethod
+    def _results_table(result: dict[str, Any]) -> str:
+        lines = [
+            "| Metric | Business type | Scenario | Model | Effect | Raw p | Holm p | Status |",
+            "| --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+        ]
+        for row in result["results"]:
+            analysis = row["analysis"]
+            effect = analysis.get("effect_percentage_points", analysis.get("effect_median"))
+            holm = row.get("holm") or {}
+            lines.append("| " + " | ".join((
+                LabReport._cell(row["metric"]), LabReport._cell(row["business_type"]),
+                LabReport._cell(row["scenario"]), LabReport._cell(row["model"]),
+                LabReport._format(effect), LabReport._format(analysis.get("p_value")),
+                LabReport._format(holm.get("adjusted_p_value")), LabReport._cell(analysis.get("status", "unavailable")),
+            )) + " |")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _json(value: object) -> str:
+        return json.dumps(value, sort_keys=True, indent=2, allow_nan=False)
 
     @staticmethod
     def _format(value: Any) -> str:
