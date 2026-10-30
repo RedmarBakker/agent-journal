@@ -41,15 +41,20 @@ class UserSteps:
     def viewer_logs_a_console_error(self, message: str, stack: str) -> StepResult:
         return self.user_did("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")
 
-    def a_team_server_runs(self) -> str:
-        folder = self.app.config.root / "team-server"
+    def a_team_server_runs(self, name: str = "team") -> str:
+        folder = self.app.config.root / f"{name}-server"
         folder.mkdir(exist_ok=True)
         team = TeamServer(folder)
         server = team.started("127.0.0.1", 0)
         self.team_server = team
         self.closers.append(lambda: team.close(server))
+        self.team_addresses[name] = f"http://127.0.0.1:{server.server_address[1]}"
         self.observed("a team server runs", None, None)
-        return f"http://127.0.0.1:{server.server_address[1]}"
+        return self.team_addresses[name]
+
+    def user_adds_a_team(self, name: str) -> StepResult:
+        body = {"url": self.a_team_server_runs(name), "email": "ada@example.com", "name": "Ada", "password": "correct horse battery", "team": name}
+        return self.user_presses("/journal/team/connect", body)
 
     def user_connects_to_a_team(self) -> str:
         team = self.a_team_server_runs()

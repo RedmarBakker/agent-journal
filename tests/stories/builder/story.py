@@ -46,6 +46,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.shell_text, self.shell_exit, self.shell_outputs = "", 0, 0
         self.viewer_status, self.viewer_answer = 0, {}
         self.closers: list = []
+        self.team_addresses: dict[str, str] = {}
         self.typed: list[str] = []
         self.typed_from = 0
         self.mode = BUILDER_MODE
