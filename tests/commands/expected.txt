@@ -531,9 +531,13 @@ exit 0
    1  weight  7  the suite runs in shards
    2  weight  5  the port is fixed
 
-$ agent: journal memory weigh 1,2 6,4
+$ agent: journal memory edit 1 'the suite runs in shards'
 exit 0
-memory 1 weighs 6, memory 2 weighs 4
+memory 1 corrected, weight 7: the suite runs in shards
+
+$ agent: journal memory weigh 1,2 8,6
+exit 0
+memory 1 weighs 8, memory 2 weighs 6
 
 $ agent: journal memory dock 1
 exit 0
@@ -1454,7 +1458,7 @@ main                 just now
 
 $ agent: journal environment overview
 exit 0
-your memories, heaviest first: 1 (weight 6) the suite runs in shards. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`
+your memories, heaviest first: 1 (weight 8) the suite runs in shards. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`
 task in hand: 4 A card pays the total
 messages read and unanswered: 14
 
@@ -1666,7 +1670,7 @@ laws.name_a_profile  [laws]  the dispatch has no profile of this project: {{aske
 laws.name_the_model  [laws]  name a model in the dispatch: the least expensive one that reliably fits the work
 mcp.sign_in_to_the_server  [mcp]  sign in to {{server}}: `mcp__{{name|cap=23}}__authenticate`, then `complete_authentication`; tell the user
 memory.check_stale_memory  [memory]  memories {{stale|cap=25}} are {{stale_after}}+ days old. remove what is no longer true: `journal memory remove <numbers>`
-memory.decide_at_the_mark  [memory]  writes wait at {{percent}}%: weigh {{count}} memories, `journal memory weigh <numbers> <weights>`, or `journal memory skip "<why>"`
+memory.decide_at_the_mark  [memory]  writes wait at {{percent}}%: keep, raise or correct {{count}} memories, never lower one; or `journal memory skip "<why>"`
 memory.does_the_rule_apply_project_wide  [memory]  if rule {{n}} does not apply to the whole project, delete it and record a fact or a reminder instead
 memory.memories_shown_at_clock_in  [memory]  your memories: {{memories|cap=3000}}. `journal memory weigh <numbers> <weights>` or `journal memory remove <numbers>`
 memory.memory_for_this_moment  [memory]  {{noun}} {{n}} applies now: `journal {{noun}} read {{n}}`
@@ -1705,7 +1709,7 @@ pins.pin_the_link  [pins]  pin this link if the user will return to it: `journal
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}
-plans.now_building  [plans]  your mode changed: you are now the builder.. read what it asks: journal mode show
+plans.now_building  [plans]  you are now the builder. `journal mode show` prints what the mode asks
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
 plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`
@@ -1807,7 +1811,7 @@ tasks.output_polled  [tasks]  do not poll output {{n}}. wait for it: `journal aw
 tasks.park_the_wait  [tasks]  {{what|cap=18}} has about {{seconds}} seconds left, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
-tasks.paused_task_while_waiting  [tasks]  while you wait for {{what}}, resume paused task {{n}}: `journal task resume {{n}}`
+tasks.paused_task_while_waiting  [tasks]  task {{n}} is paused; it could go on while you wait for {{what}}: `journal task resume {{n}}`
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks|cap=51}}. resume one that can go on: `journal task resume <n>`
 tasks.paused_wait_ended  [tasks]  task {{n}}'s wait is over: {{reason|cap=61}}. run `journal task resume {{n}}`
 tasks.paused_work_to_choose  [tasks]  paused: {{tasks|cap=15}}{{blocked}}. `journal task resume <n>`, or `journal task skip-paused` to take the open task
@@ -1856,8 +1860,8 @@ workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}; the user 
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}}; a cheaper model would do. choose a cheaper one for work like this
 workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times. use a stronger model for work like this
 workers.no_workers_when_solo  [workers]  you work solo: dispatch no workers
-workers.now_orchestrating  [workers]  you are now the orchestrator.. read what it asks: journal mode show
-workers.now_solo  [workers]  your mode changed: you are now the solo worker.. read what it asks: journal mode show
+workers.now_orchestrating  [workers]  you are now the orchestrator. `journal mode show` prints what the mode asks
+workers.now_solo  [workers]  you are now the solo worker. `journal mode show` prints what the mode asks
 workers.open_todos  [workers]  {{count}} to-dos open: {{items|cap=34}}. finish them, or say why in `journal clock-out "<report>"`
 workers.orchestrate  [workers]  {{count}} tasks open; next: {{tasks|cap=26}}. dispatch a worker on each you can with journal worker dispatch
 workers.orchestrator_check_worker  [workers]  worker {{n}} has waited {{minutes}} minutes, too long. check it now
