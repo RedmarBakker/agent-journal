@@ -2,6 +2,8 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
@@ -418,3 +420,127 @@ def test_generic_entry_writes_cannot_forge_grants_or_receipts(app, authority_fix
         entries.trim(entries.last_id(), 0)
         preserved = entries.selected(entries.query().filter(id=receipt.row_id))
     assert [row.row_id for row in preserved] == [receipt.row_id], "trim retains protected receipt kinds outside the current explicit type list"
+
+
+def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, authority_fixture):
+    from journal.events.rows.check_completed import CheckCompleted
+    from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+    from journal.http.server import Server
+    from journal.support.time_source import TimeSource
+
+    fixture = authority_fixture
+    grant, token, principal = admitted(fixture, "bounded_write")
+    observations = app.container.get(SupervisorObservations)
+    time_source = app.container.get(TimeSource)
+    check = app.container.get(Checks).find(fixture.check.row_id)
+    observed_at = time_source.seconds()
+    observations.completed(check, CheckCompleted(
+        environment_id=fixture.owner_environment.row_id,
+        time=observed_at,
+        check_id=check.row_id,
+        title=check.title,
+        passed=False,
+        output="health check failed",
+        prior_failure=False,
+        wait_target=False,
+        failure_reported_at=0,
+    ), observed_at - 1, "")
+
+    server = app.container.call(Server)
+    server.start()
+    try:
+        status, admitted_body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
+            "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        }, token)
+        assert status == 200 and admitted_body["status"] == "admitted", admitted_body
+        run = admitted_body["run"]
+        assert run["grant_id"] == grant["grant_id"] and run["grant_version"] == grant["grant_version"]
+
+        status, observed_body = _post_supervisor_http(server.port, "/_supervisor/v1/observe", {
+            "protocol_version": 1,
+            "run_id": run["run_id"],
+            "installation_epoch": run["installation_epoch"],
+            "fence": run["fence"],
+            "cursor": None,
+        }, token)
+        assert status == 200, observed_body
+        snapshot = observed_body["snapshot"]
+        evidence = observed_body["page"]["observations"][0]
+
+        with app.container.get(Scope).environment(PROJECT):
+            app.container.get(SupervisorEntries).recorded(Entry(
+                environment_id=PROJECT,
+                entry_type="SupervisorUsage",
+                actor=principal.actor,
+                data={"tenant_id": principal.scope["tenant_id"], "run_ref": run["run_id"],
+                    "status": "known", "turns": 1, "input_tokens": 10, "output_tokens": 10,
+                    "cost_usd": "0.000001", "overrun": False},
+                idempotency=f"supervisor:http-usage:{run['run_id']}",
+            ), principal.actor)
+
+        action = {
+            "protocol_version": 1,
+            "run_id": run["run_id"],
+            "installation_epoch": run["installation_epoch"],
+            "fence": run["fence"],
+            "grant_version": grant["grant_version"],
+            "episode_id": run["episode_id"],
+            "action_id": run["pending_action_id"],
+            "observation_ids": [evidence["observation_id"]],
+            "expected_revisions": [
+                {"ref": {"table": "plans", "id": grant["plan_id"]}, "revision": snapshot["plan_revision"]},
+                {"ref": {"table": "phases", "id": snapshot["phase"]["id"]}, "revision": snapshot["phase"]["revision"]},
+            ],
+            "operations": [{"kind": "plan_priorities", "plan_id": grant["plan_id"], "text": "Investigate the failed check"}],
+            "rationale": "Record a bounded diagnostic priority.",
+        }
+        status, applied = _post_supervisor_http(server.port, "/_supervisor/v1/apply", action, token)
+        assert status == 200 and applied["status"] == "applied", applied
+
+        status, receipt = _post_supervisor_http(server.port, "/_supervisor/v1/receipt", {
+            "protocol_version": 1, "action_id": action["action_id"],
+        }, token)
+        assert status == 200 and receipt["status"] == "applied", receipt
+        assert receipt["receipt_id"] == applied["receipt_id"]
+        assert receipt["data"]["action_id"] == action["action_id"]
+        assert receipt["data"]["verification"] == "verified"
+    finally:
+        server.stop()
+
+
+def test_bad_bridge_credential_over_http_changes_nothing(app, authority_fixture, monkeypatch):
+    from journal.http.server import Server
+
+    fixture = authority_fixture
+    admitted(fixture, "bounded_write")
+    entries = app.container.get(Entries)
+    before = entries.global_last_id()
+    monkeypatch.setattr(app.container.get(Identity), "build", lambda *_: pytest.fail("bridge auth must reject before local-person fallback"))
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        before_priorities = app.container.get(Plans).find(fixture.plan.row_id).priorities
+    server = app.container.call(Server)
+    server.start()
+    try:
+        status, body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
+            "protocol_version": 1, "source": "timer", "observation_cursor": None,
+        }, "invalid-service-token")
+    finally:
+        server.stop()
+    assert status == 403 and set(body) == {"error"}, body
+    assert entries.global_last_id() == before, "bad bridge credentials cannot read or append supervisor rows"
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        assert app.container.get(Plans).find(fixture.plan.row_id).priorities == before_priorities
+
+
+def _post_supervisor_http(port: int, path: str, body: dict, token: str) -> tuple[int, dict]:
+    request = HttpRequest(
+        f"http://127.0.0.1:{port}{path}",
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read())
+    except HTTPError as response:
+        return response.code, json.loads(response.read())

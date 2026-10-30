@@ -17,6 +17,7 @@ MAX_DAILY_RUNS = 100
 MAX_INTENT_BYTES = 32_000
 MAX_IDENTIFIER_BYTES = 256
 MAX_OBSERVATION_AGE = 600
+DEFAULT_LEASE_SECONDS = 300
 MONEY_UNIT = Decimal("0.000001")
 MILLION = Decimal("1000000")
 TERMINAL_RUN_STATES = ("complete", "conflicted", "rejected")
@@ -91,7 +92,7 @@ class SupervisorAdmissions:
         control_entries: SupervisorEntries,
         prices: Mapping[str, tuple[object, object]],
         clock: Callable[[], datetime],
-        lease_seconds: int = 300,
+        lease_seconds: int = DEFAULT_LEASE_SECONDS,
     ) -> None:
         if not 1 <= lease_seconds <= 600:
             raise ValueError("supervisor leases must be between 1 and 600 seconds")

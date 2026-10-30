@@ -55,7 +55,7 @@ class SupervisorEpisodeQualification:
             return {"status": "skipped", "reason": "attempt_reference_invalid"}
         with self.scope.environment(PROJECT), self.entries.writing():
             grant = self.authority.revalidate(principal)
-            current = self.qualify(grant, self._current_epoch(grant))
+            current = self.qualify(grant, self.current_epoch(grant))
             if current["episode_id"] != episode_id:
                 return {"status": "skipped", "reason": "episode_not_current"}
             if current["status"] != "actionable_stall":
@@ -243,7 +243,7 @@ class SupervisorEpisodeQualification:
     def _escalation_key(self, grant: dict[str, Any], episode_id: str) -> str:
         return f"supervisor:episode-escalation:{grant['scope']['tenant_id']}:{grant['grant_id']}:{episode_id}"
 
-    def _current_epoch(self, grant: dict[str, Any]) -> int:
+    def current_epoch(self, grant: dict[str, Any]) -> int:
         with self.scope.environment(PROJECT):
             rows = self.entries.supervisor_records("SupervisorInstallation", last=1, tenant_id=grant["scope"]["tenant_id"])
         return int(rows[0].data["epoch"]) if rows else grant["scope"]["installation_epoch"]

@@ -8,6 +8,7 @@ from journal.supervisor_failure import SupervisorFailure
 from journal.supervisor_principal import SupervisorPrincipal
 
 TOKEN_HEADER = "x-journal-supervisor-token"
+AUTHORIZATION_HEADER = "authorization"
 OWNER_PATHS = frozenset({"/_supervisor/v1/enrollment", "/_supervisor/v1/enrollment/change"})
 SERVICE_PATHS = frozenset({
     "/_supervisor/v1/admit",
@@ -25,8 +26,7 @@ class SupervisorRequestAuth:
         self.authority, self.sessions = authority, sessions
 
     def before_identity(self, head: RequestHead, path: str) -> SupervisorAccess:
-        has_token = TOKEN_HEADER in head.headers
-        token = head.headers.get(TOKEN_HEADER, "")
+        has_token, token, token_error = self._service_credential(head.headers)
         if path in OWNER_PATHS:
             if has_token:
                 return self._refused(403, "the supervisor service credential cannot use owner management routes")
@@ -38,6 +38,8 @@ class SupervisorRequestAuth:
             return SupervisorAccess(actor=Actor.user(session.person))
 
         if path in SERVICE_PATHS:
+            if token_error:
+                return self._refused(403, "the supervisor service credential headers disagree")
             try:
                 principal = self.authority.authenticate(token)
             except SupervisorFailure as denied:
@@ -51,6 +53,22 @@ class SupervisorRequestAuth:
         if has_token:
             return self._refused(403, "the supervisor service credential cannot use generic journal routes")
         return SupervisorAccess()
+
+    @staticmethod
+    def _service_credential(headers: dict[str, str]) -> tuple[bool, str, bool]:
+        token_header = TOKEN_HEADER in headers
+        token = headers.get(TOKEN_HEADER, "")
+        authorization = headers.get(AUTHORIZATION_HEADER)
+        if authorization is None:
+            return token_header, token, False
+        scheme, separator, bearer = authorization.partition(" ")
+        if scheme.lower() != "bearer":
+            return token_header, token, False
+        if not separator or not bearer or bearer.strip() != bearer or " " in bearer:
+            return True, "", False
+        if token_header and token != bearer:
+            return True, "", True
+        return True, bearer, False
 
     @staticmethod
     def _refused(status: int, message: str) -> SupervisorAccess:
