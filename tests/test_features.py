@@ -5391,6 +5391,17 @@ def test_a_scoped_suite_run_counts_its_finished_tests_against_the_total_it_colle
     assert suite.progress_line(*suite.shard_progress(output)) == "running tests [100%] 2 of 2 finished", "and both once they ran"
 
 
+
+def test_a_run_of_chosen_tests_is_sharded_unless_it_names_only_a_few_single_tests(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("suite_script", Path(__file__).parents[1] / "scripts" / "suite.py")
+    suite = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(suite)
+    assert suite.is_sharded(["tests/stories/worker", "tests/test_features.py", "-k", "worker", "-q"]), "folders, files and a filter run in shards"
+    assert suite.is_sharded(["tests/test_features.py", "-q"]), "a whole file runs in shards"
+    assert not suite.is_sharded(["tests/test_features.py::test_a", "tests/test_engine.py::test_b", "-q"]), "a few single tests start quicker as one process"
+    assert suite.is_sharded([f"tests/test_features.py::test_{n}" for n in range(suite.FEW_TESTS + 1)]), "more than a few single tests run in shards"
+
 # how long the team test waits for a change to travel between journals; under the sharded suite's load it can take far longer than alone
 TEAM_SYNC_WAIT_SECONDS = 40
 # the sync's retries back off to 30 seconds while the server is away, so a reconnect is waited on longer
