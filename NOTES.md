@@ -2050,3 +2050,52 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   and does every other action by its command. A reply written as a turn's closing text ended the turn before the work it promised
   in another project. A tag an older agent still writes opening a line is stripped from the chat text and runs
   nothing; no skill, line or document teaches one.
+
+## Plan 2 screens after the OpenRig trial (task 92, 2026-10-30)
+
+Plan 2 is the viewer work that follows plan 1's backend sweep. Report 8 says the OpenRig trial passed. The `plans.plan_agents`
+setting gates the new Home board, chat chooser and Plan page sections: with it off, Home and the old work-mode behavior stay
+as before; with it on, the main chat remains beside the plans board.
+
+- **Organization and domain boards (tasks 66, 72 and 85).** `GET /organization` returns folder metadata, contract problems,
+  domains, Roles, domain plan boards, all plan summaries and scheduled plans; `POST /organization/reload` rereads the folder.
+  A selected Role contract comes from `GET /organization/roles/{domain}/{role}`. Domain boards use the folder's phase names
+  and show a plan only while that domain has one of its tasks. Done waits until every domain task is closed, including its
+  review. The Home board reuses `OrganizationPlanBoard` and `OrganizationPlanCard` for all plans.
+- **Home plans board (task 74).** `HomePlanBoard` reads `plans` and `scheduled_plans` from `GET /organization`; the board
+  cards show mode, phase, tasks done, Plan agent state, estimated API cost and status, cost cap, wait reason and chat link.
+  Filters are running, paused, waiting on you and scheduled; scheduled rows show `next_start`. The main chat stays beside
+  the board.
+- **Phone plan board and approvals (tasks 78 and 91).** `GET /p/state` identifies the paired environment. `PhonePages`
+  forwards allowed `/p/journal/...` reads and actions into that environment, so the phone uses the same organization plan
+  data and approval rows. Approval cards read `GET /approvals` and `GET /questions` and answer through
+  `/approvals/{id}/approve` or `/approvals/{id}/refuse`; they appear in the requesting chat and the Waiting for you rail,
+  and the phone can reach them. The Organization and Role pages and the plan timeline say they open on the desktop.
+- **Shared Roles page.** It reads contracts from `GET /organization`, the selected contract from
+  `GET /organization/roles/{domain}/{role}`, and polls `GET /environments` plus the existing `GET /workers`, `GET /plans`
+  and `GET /tasks` rows in those environments for current jobs, queues and recent work. The domain Role page uses the same
+  contract endpoint and its existing instance and transcript readers.
+- **Plan agent section and chat chooser (task 73).** `GET /plans/{id}` supplies the plan's chat environment and last-action
+  time; `GET /summary` supplies its current agent status, branch and action. Start and stop use the environment's existing
+  launch and stop actions, with a stop confirmation and the supervisor's refusal shown plainly. The chat link opens
+  `GET /chats/{session}`. The agent-bar chooser combines plan summaries from `GET /organization` with environments from
+  `GET /summary`, lists the main agent and each unfinished Plan agent, supports search and unread marks, and selects a chat
+  by its environment in the route so a reload keeps the choice. A Plan chat header names the plan, mode and phase and links
+  back to the plan page.
+- **Solo plan Role history (task 77).** `GET /plans/{id}/roles` returns the current Role and the Plan agent's taken-Role
+  steps with task and time. Role titles come from the organization data; a read-only shared plan preloads this as
+  `plan_agent_roles`.
+- **Plan timeline.** `GET /plans/{id}/timeline` returns task moments and the Plan agent's handoffs and refused sends in
+  time order. The phone shows that the timeline opens on the desktop.
+- **Organization plan Team (task 79).** `GET /plans/{id}/team` returns the rig's domain seats, their idle, working or shared
+  queue state, task, recorded seat estimate, plan estimate, and seat and cost caps. It reads the existing rig roster,
+  task holders, shared Role queue and usage ledger. A read-only shared plan preloads the same response as `plan_team`.
+- **Decisions.** Plan 2 follows plan 1 instead of adding UI work to the backend sweep. Home and domain boards share their
+  component; the Plan page shares its Plan agent section and shows Team in organization mode or Roles taken on in solo
+  mode. Read-only shares preload the sections' data. Costs are estimated API usage, not subscription charges; missing
+  estimates say Not reported or Not measured, and seat and cost caps are changed in Settings by their owner. Stopping a
+  Plan agent asks for confirmation. The new screens use server data rather than defining organization or Role facts in
+  the viewer.
+- **Still open.** The communication graph is view-only; editing its edges is deferred. The main agent is to merge a plan's
+  worktree at the plan's end, but that merge is not built yet. Approval-required actions are not yet recognized from a
+  tool call. The `plans.plan_agents` switch remains for the rollout until the later phase that removes the old modes.
