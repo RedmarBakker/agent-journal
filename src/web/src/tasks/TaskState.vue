@@ -11,6 +11,7 @@ const props = defineProps({task: {type: Object, required: true}, tasks: {type: A
 const emit = defineEmits(["status", "select", "answer"]);
 const status = computed(() => statusOf(props.task));
 const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
+const hasBlockDetails = computed(() => !reasonOnly.value || Boolean(props.task.block_reason?.trim()));
 </script>
 
 <template>
@@ -37,7 +38,7 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
             <p class="note">A worker holds it: merging its work finishes it, and releasing the worker opens it again.</p>
         </section>
     </template>
-    <template v-if="status === 'blocked'">
+    <template v-if="status === 'blocked' && hasBlockDetails">
         <section :class="['reason', status]">
             <span class="label">Blocked, waiting on</span>
             <template v-if="reasonOnly">

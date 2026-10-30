@@ -136,6 +136,16 @@ describe("the tasks dialog", () => {
         expect([...document.body.querySelectorAll(".task-inspector > .dock button")].map((b) => b.textContent.trim())).toContain("Unblock");
     });
 
+    test("a blocked task without a wait or reason has no empty waiting section", async () => {
+        store.rows.tasks = [blocked(5, "the blocked task", [])];
+        await opened();
+        inDialog('.task-row[data-task="5"]').click();
+        await flush();
+
+        expect(inDialog(".task-inspector .reason.blocked")).toBeNull();
+        expect(inDialog(".task-inspector .reason .label")?.textContent).not.toBe("Blocked, waiting on");
+    });
+
     test("a started task names the agent that holds it in hand, and an open one names none", async () => {
         store.rows.tasks = [task(1, "first", {plan_id: 31, state: "started", held_by: "worker 2, Lady Lovelace"}), task(4, "fourth")];
         await opened();

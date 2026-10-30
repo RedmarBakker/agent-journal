@@ -48,6 +48,9 @@ class TaskController(Controller[Task]):
                  "waits": [str(ref) for ref in waits.get(t.row_id, [])], "held_by": self.task_holders.name(task_holders[t.row_id]) if t.row_id in task_holders else "",
                  "work": WorkerTaskView.built(t, todos.get(t.row_id, []), proofs.get(t.row_id, []))} for t in rows]
 
+    def index_page(self, rows: list[Task]) -> list[dict]:
+        return self.shown_page(rows)
+
     def update(self, request: Request) -> Response:
         row = self.repository.find(request.number("id"))
         changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name not in ("title", "brief")})
