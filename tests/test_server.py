@@ -172,6 +172,18 @@ def test_tasks_live_over_http(server):
     assert call(server, "GET", "/journal/tasks", environment="other")[1]["rows"] == []
 
 
+def test_the_task_list_includes_open_task_waits(server):
+    opening = call(server, "POST", "/journal/tasks", {"title": "the prerequisite"})[1]
+    blocked = call(server, "POST", "/journal/tasks", {"title": "the dependent"})[1]
+    call(server, "POST", f"/journal/tasks/{blocked['id']}/block", {"on": [f"task:{opening['id']}"]})
+
+    rows = call(server, "GET", "/journal/tasks?limit=10")[1]["rows"]
+    by_id = {row["id"]: row for row in rows}
+
+    assert by_id[opening["id"]]["waits"] == []
+    assert by_id[blocked["id"]]["waits"] == [f"tasks:{opening['id']}"]
+
+
 def test_the_viewer_pauses_blocks_and_unblocks_a_task_and_its_row_names_what_it_waits_on(server):
     for title in ("first", "second", "third"):
         call(server, "POST", "/journal/tasks", {"title": title})
