@@ -65,6 +65,7 @@ from tests.test_supervisor_authority import admitted as authority_admitted
 from tests.test_supervisor_authority import seeded as authority_seeded
 from tests.test_supervisor_driver import add_phase_task
 from tests.test_supervisor_driver import prepare_driver_processes
+from tests.test_supervisor_driver import add_phase_task
 from tests.test_supervisor_driver import start_normal_driver
 from tests.test_supervisor_driver import stop_normal_driver
 
@@ -1125,7 +1126,7 @@ def test_two_tenant_replay_restore_and_injection_boundaries(tmp_path, monkeypatc
         restored_entries = restored.container.get(Entries)
         restored_grants = restored_entries.selected_globally(
             restored_entries.query().filter(entry_type="SupervisorGrant")
-            .filter_json("data->grant_id", grant_a["grant_id"]).limit(10)
+                .filter_json("data->grant_id", grant_a["grant_id"]).limit(10),
         )
         assert len(restored_grants) == 1
         assert tenant_a.resolve() != tenant_b.resolve() != restore_root.resolve()

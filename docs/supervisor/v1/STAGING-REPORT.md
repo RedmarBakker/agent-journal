@@ -14,7 +14,7 @@ The scripted model path uses the pinned fixture and the loopback metering proxy 
 
 The receipt envelope mismatch is fixed in `SupervisorHttpClient.receipt`: it now validates the journal envelope and returns its canonical `data` receipt. `tests/test_supervisor_bridge.py::test_private_adapters_use_only_fixed_authenticated_routes` covers both a valid envelope and malformed-envelope refusal. The controlled selector now reaches apply and receives a canonical, rejected `usage_unknown` receipt; it continues to assert the required success chain and does not assert that failure as expected behavior.
 
-The two-tenant selector and the remaining focused controls passed in journal test turns 569-570. The controlled selector does not prove a committed diagnostic, ordinary driver pickup or settled canonical success receipt. Its Plan driver fixture is in-process, not a real Codex process or an execution-isolation probe.
+The two-tenant selector and the remaining focused controls passed in journal test turns 569-570 and are named again for the clock-out run after conflict resolution. The controlled selector does not prove a committed diagnostic, ordinary driver pickup or settled canonical success receipt. Its Plan driver fixture is in-process, not a real Codex process or an execution-isolation probe.
 
 ## Not done
 
