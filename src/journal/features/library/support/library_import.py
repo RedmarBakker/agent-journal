@@ -2,6 +2,7 @@ from journal.config import Config
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
+from journal.features.library.support.team_bound import TeamBound
 from journal.features.library.support.profile_body import ProfileBody
 from journal.features.library.support.file_body import FileBody
 from journal.features.library.support.plan_body import PlanBody
@@ -35,7 +36,7 @@ from sync_server.item_version import ItemVersion
 LIBRARY_TITLE_SUFFIX = " (from the library)"
 
 
-class LibraryImport:
+class LibraryImport(TeamBound):
     """Importing an item of the team's library as a row of this journal, written by the importer: a sequence or template through its repository, a profile as its file, each joined to a LibraryItem that keeps the local copy's body as written, so a later edit shows against it. An item that needs a newer journal is refused with the update line; one already imported is pointed to update; a title a local row already has gets the words from the library after it; a profile never takes a name the journal ships; and a sequence's triggers and allowed commands, like a reader's pattern or script, are shown, and written only once accepted."""
 
     def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, sequences: Sequences, templates: Templates, profiles: ProfileFiles, config: Config, plans: Plans, phases: Phases, tasks: Tasks, links: Links) -> None:
@@ -71,7 +72,7 @@ class LibraryImport:
 
     def template_row(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         template = TemplateBody.template(item.body)
-        row = self.templates.save(template.with_(title=self.free_title(template.title, bool(self.templates.matching(title=template.title)))), actor)
+        row = self.templates.save(template.with_(title=self.free_title(template.title, self.templates.matching(title=template.title))), actor)
         return self.joined_item(item, row, TemplateBody.text(row), actor)
 
     def joined_item(self, item: LibraryItem, row: Model, body: str, actor: Actor) -> LibraryItem:
@@ -79,8 +80,8 @@ class LibraryImport:
         return self.items.save(item.with_(body=body), actor)
 
     @staticmethod
-    def free_title(title: str, is_duplicate: bool) -> str:
-        return title + LIBRARY_TITLE_SUFFIX if is_duplicate else title
+    def free_title(title: str, rows: list[Model]) -> str:
+        return title + LIBRARY_TITLE_SUFFIX if rows else title
 
     def profile_file(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         profile = ProfileBody.profile(item.body)
@@ -121,7 +122,7 @@ class LibraryImport:
 
     def draft_plan(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         title = PlanBody.title(item.body)
-        plan = self.plans.save(Plan(title=self.free_title(title, bool(self.plans.matching(title=title)))), actor)
+        plan = self.plans.save(Plan(title=self.free_title(title, self.plans.matching(title=title))), actor)
         for outline in PlanBody.phases(item.body):
             phase = self.phases.save(Phase(environment_id=plan.environment_id, title=outline.title, completion_rule=outline.completion_rule, checkpoint=outline.checkpoint), actor)
             self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)

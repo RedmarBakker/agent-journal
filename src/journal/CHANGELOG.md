@@ -2,6 +2,21 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.0
+
+- A worker clocks out once, when its whole queue is done: proving the last point of a task hands it the next, and its tests run and its report reaches you only at the end. The report choice and `--report` are gone.
+- A worker's shell runs only reads, searches, file edits and journal commands. A test or a build it runs itself is refused with the line to queue it: `journal tests turn` for single named tests, `journal build` for the project's build, run for it one at a time. A subagent only reads. Which kinds of command workers may run is set from the workers dropdown's new settings view; the How workers test setting is gone.
+- A worker whose work waits for its check and merge takes no new task.
+- A subagent is shown by the name its dispatch gives it, with its current job beside it.
+- `journal output stop <n>` ends a running output whose command hangs or whose process is gone, and any wait on it.
+- Several teams per project: the Team page lists each connected team, and library commands take `--team`.
+- The skills are reorganised around a short journal map.
+- The Plans window shows open plans only, each plan being worked on as a card with its state, phase, workers and progress.
+- Under tests at each phase end, a finished task waits in testing while the next starts.
+- A run of chosen tests is split across the shards like the whole suite, so it is no longer slower than the suite.
+- The avatars' ears are detached at load, Homie's headphones travel with the headset, and the phone call is redone standing and seated.
+- Fixes: a worker before clock-in may run a journal command after a change of folder; a test run whose stored output was cleared out no longer blocks a clock-out; a journal reaches a team server before it joins one; the developer switch is named Developer features.
+
 ## 4.68.6
 
 - Each hook waits its own time for the journal's answer instead of two seconds for all: a tool 5 seconds, your prompt 8, a stop 10, a session start 15, so a busy machine no longer lets hooks go through unchecked.

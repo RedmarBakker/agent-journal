@@ -1,5 +1,5 @@
 from journal.support.card_outcome import CardOutcome
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
 
 @dataclass(frozen=True)
@@ -15,3 +15,7 @@ class CardProgress:
 
     def fields(self) -> dict:
         return {**asdict(self), "outcome": str(self.outcome)}
+
+    @staticmethod
+    def stored(data: dict) -> dict:
+        return {field.name: data[field.name] for field in fields(CardProgress) if field.name in data}

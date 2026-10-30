@@ -47,6 +47,7 @@ class Feature[D](DataSource[D]):
     process_cards: ClassVar[tuple[type[ProcessCard], ...]] = ()
     assigners: ClassVar[tuple[type, ...]] = ()
     skill: ClassVar[Skill | None] = None
+    companion_skills: ClassVar[tuple[Skill, ...]] = ()
     card_families: ClassVar[tuple[CardFamily, ...]] = ()
     card_types: ClassVar[tuple[CardTypeEntry, ...]] = ()
     services: ClassVar[tuple[Service, ...]] = ()

@@ -1,4 +1,5 @@
 import ipaddress
+import re
 from dataclasses import dataclass
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -22,6 +23,12 @@ class TeamUrl:
 
     def invitation(self, code: str, fingerprint: str) -> str:
         return f"{self.address}{JOIN_PATH}?{urlencode({'code': code, 'fingerprint': fingerprint})}"
+
+    def host(self) -> str:
+        return urlsplit(self.address).hostname or self.address
+
+    def file_name(self) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", urlsplit(self.address).netloc.lower()).strip("-")
 
     def is_invitation(self) -> bool:
         return bool(self.code)

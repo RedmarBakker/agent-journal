@@ -19,7 +19,7 @@ class Secrets(Feature[SecretsData]):
     nudges = (SecretsNudges.PRIVATE_SECRETS, SecretsNudges.SECRET_PROGRAM_GRANT)
     commands = (SecretCommand,)
     seeds = (SecretFiles,)
-    skill = Skill("secrets", 'Keys and logins the agent uses without seeing them; load it when a task needs a key, a login or a site you must be logged in to', """
+    skill = Skill("secrets", 'Use keys and logins without seeing them; load it when a task needs a key, a login or a site you must be logged in to', """
 # Secrets
 
 A secret is a key or a login you may use without ever seeing it. Its values are stored in a file in the user's home folder,

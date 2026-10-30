@@ -12,6 +12,8 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 // what lies flat on the palm rather than in the closed fingers: the hand is anywhere under the sheet
 const SHEETS = new Set(["papers", "writing_paper", "writing_tablet"]);
+// The shared glove's inner palm, measured on hand_shell at (±HAND.grip, HAND.forward), behind its grip centre.
+const PALM_INSIDE = 0.22803;
 // it poses every frame of every clip that holds a prop for every voice, about nine seconds alone and longer beside the other tests, so it
 // has a minute of its own
 const POSES_EVERY_FRAME = 60_000;
@@ -20,6 +22,11 @@ test("every prop a hand holds sits in that hand, in every frame of every clip th
     const held = new Set();
     const props = propsOf();
     const toGlb = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+    const handset = props.get("telephone_handset"), handle = handset.getObjectByName("telephone_handset_handle");
+    const handsetOnly = {propByName: new Map([[handset.name, handset]])};
+    const {position} = handle.geometry.attributes, indices = handle.geometry.index.array;
+    const handleTriangles = Array.from({length: indices.length / 3}, (_, index) => new THREE.Triangle(...[0, 1, 2].map((corner) => new THREE.Vector3().fromBufferAttribute(position, indices[index * 3 + corner]))));
+    const nearest = new THREE.Vector3();
     for (const voice of Object.keys(stances)) {
         for (const clip of CLIPS.filter((each) => !each.voices || each.voices.includes(voice))) {
             for (const posture of clip.postures ?? ["stand"]) {
@@ -41,6 +48,20 @@ test("every prop a hand holds sits in that hand, in every frame of every clip th
                             hat.updateMatrixWorld(true);
                             const fingers = pose.grip(side, [REACTING.hatFingers, 0, 0]).applyMatrix4(moves.get(prop.bone)).applyMatrix4(toGlb);
                             expect(contact.applyMatrix4(hat.matrixWorld).distanceTo(fingers), `${voice} ${clip.name} ${posture} ${step} brim contact`).toBeLessThan(1e-5);
+                            continue;
+                        }
+                        if (name === "telephone_handset") {
+                            // Its origin is inside the curved handle; the thick glove contacts its outside surface.
+                            moveProps(handsetOnly, pose, moves);
+                            handset.updateMatrixWorld(true);
+                            const palm = pose.grip(prop.bone.slice(-1), [0, 0, -PALM_INSIDE]).applyMatrix4(moves.get(prop.bone)).applyMatrix4(toGlb);
+                            const local = palm.clone().applyMatrix4(handle.matrixWorld.clone().invert());
+                            let distance = Infinity;
+                            for (const triangle of handleTriangles) {
+                                triangle.closestPointToPoint(local, nearest).applyMatrix4(handle.matrixWorld);
+                                distance = Math.min(distance, nearest.distanceTo(palm));
+                            }
+                            expect(distance, `${voice} ${clip.name} ${posture} ${step} handle contact`).toBeLessThan(0.02);
                             continue;
                         }
                         const grip = pose.grip(prop.bone.slice(-1), [0, 0, 0]).applyMatrix4(moves.get(prop.bone));

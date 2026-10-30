@@ -16,7 +16,7 @@ def serve(arguments: argparse.Namespace) -> None:
         print(f"moved the row sync's old files to {folder}", flush=True)
     team = TeamServer(arguments.data)
     if team.accounts.is_empty():
-        print("this team server has no admin yet: the first journal to connect to it with journal library connect becomes its admin", flush=True)
+        print("this team server has no admin yet: the first journal to connect to it with journal team connect becomes its admin", flush=True)
     team.http(arguments.host, arguments.port).serve_forever()
 
 

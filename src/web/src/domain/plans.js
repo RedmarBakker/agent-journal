@@ -66,16 +66,23 @@ export function cardChoices(plans, shown) {
 
 const isRunning = (p) => PLAN_RUNNING.includes(statusOf(p));
 
-const CLOSED_SHOWN = 5;
+// The tone a plan's state is drawn in on the Plans window, by its state
+const TONES = {delegated: "workers", started: "working", waiting: "asks", blocked: "blocked", ready: "ready", approved: "ready", paused: "paused", reviewing: "review", draft: "review"};
+export const planTone = (p) => TONES[statusOf(p)] || "working";
 
-// The Plans window's groups: the plans being worked on, the ones waiting to start or paused, and the newest closed ones.
+// Why a plan being worked on stands where it does, shown after its state: a block's reason, or the checkpoint it waits at
+const REASONS = {blocked: (p) => p.block_reason || "", waiting: () => "Stopped at a checkpoint for you to check it"};
+export const planReason = (p) => (REASONS[statusOf(p)] || (() => ""))(p);
+
+// A plan waiting to start, as its row names its state
+export const waitingLabel = (p) => (statusOf(p) === "ready" ? `${PLAN_STATES.ready}, ${NOT_STARTED.ready}` : PLAN_STATES[statusOf(p)]);
+
+// The Plans window's groups of open plans: those being worked on, then those waiting to start or paused.
 export function planGroups(plans) {
     const open = openPlans(plans);
-    const closed = plans.filter((p) => isClosed(p) && p.state !== "cancelled").sort((a, b) => b.id - a.id);
     return [
         {key: "running", title: "Being worked on", plans: open.filter(isRunning)},
         {key: "waiting", title: "Waiting to start", plans: open.filter((p) => !isRunning(p))},
-        {key: "closed", title: "Closed", plans: closed.slice(0, CLOSED_SHOWN)},
     ].filter((group) => group.plans.length);
 }
 
@@ -95,9 +102,14 @@ const phaseAt = (p) => wholePhases(p)[(p.current_phase || 1) - 1] || null;
 export function delegationOf(p, {tasks, workers}) {
     const phase = phaseAt(p);
     if (!p.delegated || !phase) return null;
-    const held = new Set(tasks.filter((t) => phase.task_ids.includes(t.id) && !isClosed(t) && t.worker_id).map((t) => t.worker_id));
-    const found = workers.filter((w) => held.has(w.id)).map((w) => ({id: w.id, name: w.name, job: w.brief, branch: w.worktree}));
+    const found = workersHolding(phase.task_ids, {tasks, workers});
     return {workers: found, line: found.length === 1 ? `Worker: ${found[0].name}` : "Delegated"};
+}
+
+// The workers that hold an open task among these, each with the job it was given and the task it holds.
+export function workersHolding(taskIds, {tasks, workers}) {
+    const held = new Map(tasks.filter((t) => taskIds.includes(t.id) && !isClosed(t) && t.worker_id).map((t) => [t.worker_id, t]));
+    return workers.filter((w) => held.has(w.id)).map((w) => ({id: w.id, name: w.name, job: w.brief, branch: w.worktree, task: `${held.get(w.id).id} ${held.get(w.id).title}`}));
 }
 
 export function sizeOf(p) {

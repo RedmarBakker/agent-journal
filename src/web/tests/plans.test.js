@@ -64,13 +64,12 @@ test("pausing a plan marks it paused", async () => {
     expect(first.state).toBe("paused");
 });
 
-test("the Plans window groups the plans being worked on, those waiting to start, and the newest closed ones", async () => {
+test("the Plans window groups the open plans: those being worked on, then those waiting to start, and never a closed one", async () => {
     const {planGroups} = await import("../src/domain/plans.js");
     const plans = [plan(1, "started", {delegated: true}), plan(2, "started"), plan(3, "ready"), plan(4, "paused"), plan(5, "done", {updated_at: "2026-10-30T10:00:00+00:00"}), plan(6, "cancelled", {updated_at: "2026-10-30T10:00:00+00:00"})];
     expect(planGroups(plans).map((g) => [g.key, g.plans.map((p) => p.id)])).toEqual([
         ["running", [1, 2]],
         ["waiting", [3, 4]],
-        ["closed", [5]],
     ]);
 });
 

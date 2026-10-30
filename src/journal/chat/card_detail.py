@@ -1,4 +1,5 @@
 DETAIL_CHARACTERS = 80
+DETAIL_KEYS = ("detail", "lines")
 
 
 class CardDetail:
@@ -11,6 +12,10 @@ class CardDetail:
             return {"detail": ""}
         head = {"detail": cls.shortened(lines[0])}
         return head | {"lines": lines} if len(lines) > 1 else head
+
+    @staticmethod
+    def stored(data: dict) -> dict:
+        return {key: data[key] for key in DETAIL_KEYS if key in data}
 
     @staticmethod
     def shortened(detail: str) -> str:

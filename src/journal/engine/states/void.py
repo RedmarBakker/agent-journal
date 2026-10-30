@@ -12,7 +12,7 @@ from journal.events.agent.tool_starting import ToolStarting
 
 @dataclass(frozen=True)
 class Void(BaseState):
-    """A helper's floor, never popped: no feature's conduct reaches it, no sequence starts on it, and every tool but a journal command is refused, until the journal puts the helper to work by pushing its working state over it."""
+    """A helper's floor, never popped: no feature's conduct reaches it, no sequence starts on it, and every tool but a journal command is refused, a line that only changes folder or filters what the journal command prints counting as one, until the journal puts the helper to work by pushing its working state over it."""
 
     name = "void"
     assigner = NoTaskAssigner
@@ -30,7 +30,7 @@ class Void(BaseState):
         return False
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.call.is_journal:
+        if event.call.is_journal_line:
             return self.none()
         return self.refuse(EngineNudges.JOBLESS_HELPER.create())
 

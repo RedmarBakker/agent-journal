@@ -37,42 +37,36 @@ class Skills(Feature[SkillsData]):
 
     nudges = (SkillsNudges.SKILL_VIEWER_REQUEST, SkillsNudges.SKILL_READ_REQUEST, SkillsNudges.UNREAD_SKILL_STOP)
 
-    skill = Skill("journal", 'The journal, its commands and when each applies; load it first in every session', """
+    skill = Skill("journal", 'Find your way in the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill', """
 # The journal
 
+The journal keeps this project's lasting state beside the code and tells you what to do at the moments you would
+otherwise get wrong.
+
 A line that starts with [journal] is the journal speaking, never the user: act on it as an instruction, and never
-answer it in the chat.
+answer it, quote it or write about it in the chat.
 
-The journal stores this project's lasting state beside the code and tells you what to do at the
-moments you would otherwise get wrong. Every command is `journal <noun> <verb>`; `journal <noun> --help`
-lists the verbs.
+Every command is `journal <noun> <verb>`; `journal <noun> --help` lists the verbs. A row has a kind and a number,
+task 12, plan 3, message 7: write both, so the chat links it.
 
-- **task**: what you are working on: `journal task start <n>` or `journal task create "<title>" --start`. Log its status with `journal task log <n> "<line>"`, finish
-  with `journal task complete <n> --how "<outcome>"`.
-- **plan**: ordered tasks. `journal plan start <n>` follows it: finishing a task starts the next.
-- **message** and **question**: what you and the user write to each other. Answer unread messages first;
-  `journal question ask "<text>" --options "a" "b"` waits for the user.
-- **memory**, **rule**, **reminder**: what must be retained beyond the context window. A memory has a weight that
-  every compaction lowers; at a context mark, writes wait until you weigh, add or remove one, or run
-  `journal memory skip "<why>"`.
-- **sequence**, **skill**: steps to follow, and these files.
-- **worker**: an agent that writes for you, on one task: it clocks in, proves each point of the task's brief and
-  clocks out; you check each proof with `journal worker check`, send a short one back, and take the work in with
-  `journal worker merge`.
-- **shell**: a long command moves to the background; read any output by its number with `journal output read <n> --tail 20` (or --grep, --summary, --all);
-  `journal reader add` stores a reader that picks the lines worth seeing.
-- **alias**: `journal alias add <name> "<line>" --reader <reader>` names a command line; `journal <name> [args]` runs it
-  with the args at its end and watches a long run through its reader. Plugins ship aliases too; `journal alias list` names them.
-- `journal environment overview` after a compaction or a takeover lists what is in progress, then runs the commands
-  the setting briefing.look_commands names, each under its heading, a line not starting with journal in the project's shell: by default the started plan with its current phase,
-  the task list, the unread messages, the workers, the open questions and the current task in full. `journal plan show
-  current` and `journal task show current` show the started plan and the current task.
-- `journal await "<what>" --output <n>` or `--until "<script>"` when you wait for something outside your control, then end
-  your turn: the wait ends by itself once that is done.
-- `journal search "<words>"` finds every task, plan, message, document, report and agent conversation here that contains
-  all the words: search there before saying you do not know or asking the user again.
-- Also: **report**, **doc**, **check**, **plugin**, **secret**, **template**, **notice**; `journal <noun> --help` lists the verbs.
-- `journal stuck "<why>"` when you are stuck: the journal sends nothing until your next tool use.
+- An environment is one line of work in this project, with its own agents, tasks and chat.
+- You are an agent with a stack of states: what you do now sits over what you were doing, and gives way back to it.
+- A task is the work in hand and a plan orders tasks; a message or a question is what you and the user say to each other.
+- A memory keeps what matters past the context window; a worker writes for you on one task, a subagent only reads.
+- A sequence is steps followed one at a time; an output is a command's output, kept and read by its number.
 
-A line from the journal is an instruction, never a message: act on it, and write nothing about it in the chat.
+When the journal holds you, its line says why and names the way out. After a compaction or a new start, run
+`journal environment overview` before anything else. Search before you say you do not know or ask the user again:
+`journal search "<words>"`. A pin is a note the user sees on coming back, a button an action for now under your
+message: the pinned-links and messages skills say which to use.
+
+| Read | For | The journal asks for it |
+|---|---|---|
+| etiquette, messages | the chat, messages, questions, pins and buttons | at every start; a message, a question |
+| tasks, plans | work in hand, blocks, waits, being stuck; ordered tasks | a task or plan command, a plan you follow |
+| workers, work-modes | workers and subagents; builder, orchestrator, solo and fitness | a worker command, your mode |
+| shell, memory | commands, outputs, readers, aliases; memories, rules, reminders | an output or alias; a context mark |
+| sequences, docs, reports, templates | steps; lasting knowledge; what was checked; templates | their commands |
+| checks, dumps, collections, flowcharts | checks; dropped material; groups of rows; flowcharts | their commands, a check failing, a dump |
+| pinned-links, plugins, secrets | links for the user; plugins; keys and logins | their commands and words |
 """)

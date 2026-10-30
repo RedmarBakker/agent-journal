@@ -86,18 +86,16 @@ class ShellRunner:
         began = time.perf_counter()
         with self.scope.environment(environment), self.stages.timed("shell setup"):
             cap = self.caps.build(request.line)
-            folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
-            folder.split(request.line, [self.lines.part_with_code_read(part) for part in Chain.parts(request.line)], self.classifier)
+            folder = self.split_folder(request.line)
             if not cap.is_whole() and not cap.is_direct():
-                folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller, request.cwd))
+                self.recorded(folder, posted.line, caller, request.cwd)
         self.recorder.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         if self.is_held(request, caller, environment):
             yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
             return
-        if not cap.is_direct() and self.is_carded_test_run(folder, caller):
+        if not cap.is_direct():
             with self.scope.environment(environment):
-                reading = self.readers.reading(request.line)
-                self.outputs.watch(self.outputs.find(folder.number()), reading.name if reading is not None else "", "", caller.actor)
+                self.test_run_watched(folder, request.line, caller)
         output_text: queue.Queue = queue.Queue()
         ended: list[int] = []
         faults: list[Exception] = []
@@ -111,6 +109,19 @@ class ShellRunner:
         if cap.is_direct() or folder.is_finished():
             self.closed(folder, request, caller, cap)
         yield f"{'' if last == b'\n' else chr(10)}{EXIT} {ended[0] if ended else 0}\n".encode()
+
+    def split_folder(self, line: str) -> OutputFiles:
+        folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
+        folder.split(line, [self.lines.part_with_code_read(part) for part in Chain.parts(line)], self.classifier)
+        return folder
+
+    def recorded(self, folder: OutputFiles, line: str, caller: Caller, cwd: str) -> None:
+        folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(line)), folder.folder, caller, cwd))
+
+    def test_run_watched(self, folder: OutputFiles, line: str, caller: Caller) -> None:
+        if self.is_carded_test_run(folder, caller):
+            reader = self.readers.reading(line)
+            self.outputs.watch(self.outputs.find(folder.number()), reader.name if reader is not None else "", "", caller.actor)
 
     def worked(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: queue.Queue, ended: list[int], faults: list[Exception], environment: int) -> None:
         with self.scope.environment(environment):
@@ -150,19 +161,21 @@ class ShellRunner:
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
             if limit > 0 and (immediate or Timeout.seconds(limit).started(began).is_elapsed(time.monotonic())):
-                folder.moved()
-                part = self.readers.read_part(reader, request.line) if reader is not None else background or folder.part_text(shown)
-                number = self.record.moved(folder.folder.name, part, folder.folder, caller)
-                alias = self.aliases.running(part)
-                watching = self.watch_lines(number, part, alias, reader, caller)
-                moved = [] if any(line.key == ShellNudges.WATCH_VIEW.key for line in watching) else [ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder))]
-                notes = self.send_notes(caller, environment, [*display.notes, *moved, *watching])
-                yield notes.encode()
+                yield self.background_move(folder, request.line, shown, caller, environment, display.notes).encode()
                 return
             time.sleep(TICK_SECONDS)
             tick += 1
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
+
+    def background_move(self, folder: OutputFiles, line: str, shown: int, caller: Caller, environment: int, notes: list[Nudge]) -> str:
+        folder.moved()
+        reader = self.readers.reading(line)
+        part = self.readers.read_part(reader, line) if reader is not None else self.aliases.background_part(line) or folder.part_text(shown)
+        number = self.record.moved(folder.folder.name, part, folder.folder, caller)
+        watching = self.watch_lines(number, part, self.aliases.running(part), reader, caller)
+        moved = [] if any(nudge.key == ShellNudges.WATCH_VIEW.key for nudge in watching) else [ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder))]
+        return self.send_notes(caller, environment, [*notes, *moved, *watching])
 
     def is_carded_test_run(self, folder: OutputFiles, caller: Caller) -> bool:
         return caller.is_main_agent() and folder.number() > 0 and any(CommandPart.plain(text, self.classifier).classification.is_test_run for _, text in folder.recorded_texts())

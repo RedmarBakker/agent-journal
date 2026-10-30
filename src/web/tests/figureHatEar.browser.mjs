@@ -1,5 +1,5 @@
-// The actual skinned glove, cuff and sleeve triangles stay outside the ear's mesh envelope throughout a hat gesture. Clipping triangles
-// against the convex envelope also catches an edge crossing the ear when none of the hand's sampled vertices lies inside it.
+// The hat gesture retains its original side-head clearance after the ears are removed. The source ears supply the old reserve only;
+// none is rendered. Clipping actual glove, cuff and sleeve triangles catches crossings between sampled vertices too.
 import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -20,12 +20,19 @@ try {
     const result = await page.evaluate(async ({samples, render, variants, postures, failFast, transitions, yaws, approaches, clipName}) => {
         const THREE = await import("/node_modules/three/build/three.module.js");
         const {ConvexHull} = await import("/node_modules/three/examples/jsm/math/ConvexHull.js");
+        const {GLTFLoader} = await import("/node_modules/three/examples/jsm/loaders/GLTFLoader.js");
+        const {DRACOLoader} = await import("/node_modules/three/examples/jsm/loaders/DRACOLoader.js");
         const {CLIPS, HAND, REACTING, Stage, figureOf} = await import("/src/figure/figure.js");
         const {BUTLER} = await import("/src/figure/butler.js");
         const {partOf} = await import("/src/figure/acts.js");
         const {CHANGE_SECONDS} = await import("/src/figure/places.js");
         const files = await (await fetch("/voices/figures/figures.json")).json();
-        const figure = await figureOf(await (await fetch(`/voices/figures/${files.butler}`)).arrayBuffer(), "butler", "/voices/figures/draco/");
+        const bytes = await (await fetch(`/voices/figures/${files.butler}`)).arrayBuffer();
+        const figure = await figureOf(bytes, "butler", "/voices/figures/draco/");
+        const decoder = new DRACOLoader().setDecoderPath("/voices/figures/draco/");
+        const source = (await new GLTFLoader().setDRACOLoader(decoder).parseAsync(bytes, "")).scene;
+        source.updateMatrixWorld(true);
+        decoder.dispose();
         const stage = new Stage();
         const body = stage.drawBody.bind(stage), screen = stage.drawScreen.bind(stage);
         stage.drawBody = stage.drawScreen = () => {};
@@ -34,7 +41,9 @@ try {
         const all = [];
         figure.scene.traverse((node) => {if (node.isSkinnedMesh && node.name) all.push(node);});
         const skeletons = new Set(all.map((node) => node.skeleton));
-        const ears = all.filter((node) => node.name.startsWith("ear_") && node.name.endsWith(`_${side}`));
+        if (all.some((node) => node.name.startsWith("ear_"))) throw new Error("The loaded butler still has ears");
+        const ears = [];
+        source.traverse((node) => { if (node.isSkinnedMesh && node.name.startsWith("ear_") && node.name.endsWith(`_${side}`)) ears.push(node); });
         const arms = all.filter((node) => node.name.endsWith(`_${side}`) && /hand_shell|wrist_joint|elbow_joint|__cuff_|__sleeve_/.test(node.name));
         const update = () => {
             figure.scene.updateMatrixWorld(true);

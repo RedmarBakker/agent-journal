@@ -1,9 +1,8 @@
 import {seconds} from "./row.js";
 import {span} from "../format/time.js";
 
-// The workers' turns to run tests under the test budget: those running first, then those waiting, each oldest first,
+// The workers' queued test runs and builds: those running first, then those waiting, each oldest first,
 // with its worker, the test ids it named and how long it has run or waited.
-export const TEST_BUDGET = "Test budget";
 
 const turnLine = (turn, names, now) => {
     const running = turn.state === "running";

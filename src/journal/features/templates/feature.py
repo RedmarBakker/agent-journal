@@ -11,7 +11,7 @@ class TemplatesFeature(Feature):
     commands = (TemplateCommand,)
     seeds = (BuiltinTemplates,)
 
-    skill = Skill("templates", 'Load it when something is to be made from a template, or a template is written, or the user asks for a critique that names one', """
+    skill = Skill("templates", 'Make something from a template, or write one; load it when something is to be made from a template, a template is written, or the user asks for a critique that names one', """
 # Templates
 
 A template is written once and used many times: its brief holds the instructions you read before working on
@@ -22,4 +22,4 @@ anything made from it, and its parts are the outline a new item starts with.
 - `journal template create "<title>" --brief "<instructions>" --applies-to plan --purpose critique --parts "title: body | title: body"` writes one.
 - The plan page asks for a critique naming a template: review the plan with it, and put what you find in a
   report linked to the plan.
-""", keywords=('template', 'templates', 'critique'), commands=('template',))
+""", keywords=('template', 'templates'), commands=('template',))

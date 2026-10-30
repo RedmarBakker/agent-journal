@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming at most a few single tests by id is one pytest run that counts its finished tests against its total as it goes; any other run naming tests, folders or options, and the whole suite, is split into shards run side by side, one per core but two, and their outcomes added up; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; a run of the simulator's files runs at a lower priority."""
 import importlib
 import json
 import os
@@ -43,6 +43,10 @@ STORY_RECORD_FILE = ROOT / ".journal" / "runtime" / "story-record.json"
 MATRIX_FILE = "tests/update_matrix_run.py"
 MATRIX_SHARDS = 5
 MATRIX_SKIP_VARIABLE = "JOURNAL_SKIP_UPDATE_MATRIX"
+# the most single tests named by id that run as one process, not in shards
+FEW_TESTS = 3
+# a shard's own lines are read for its counts, never shown, so a quiet option that would drop its summary line is left out
+QUIET_OPTIONS = ("-q", "--quiet")
 
 
 def shard_count(available: int) -> int:
@@ -158,12 +162,17 @@ def whole_suite() -> int:
         return 1 if sharded_run(Path(folder), count, (), "the suite") else 0
 
 
-# the stories alone, in shards: each shard writes what its stories leave to be checked, and the paths are laid over each other here once every shard has ended
+# the stories alone, in shards
 def story_run(options: tuple[str, ...]) -> int:
+    return chosen_run((STORIES_FOLDER, *options), "the stories")
+
+
+# chosen tests in shards, as the whole suite runs: each shard keeps its share of the same selection, and each writes what its stories leave to be checked, the paths laid over each other here once every shard has ended
+def chosen_run(arguments: tuple[str, ...], name: str) -> int:
     with tempfile.TemporaryDirectory() as folder:
         records = Path(folder) / "story-records"
         records.mkdir()
-        failed = sharded_run(Path(folder), shard_count(available_bytes()), (STORIES_FOLDER, *options), "the stories", {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
+        failed = sharded_run(Path(folder), shard_count(available_bytes()), arguments, name, {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
         record_class = story_record_module().StoryRunRecord
         record = record_class.merged([record_class.loaded(path) for path in sorted(records.glob("*.json"))])
         record.saved(STORY_RECORD_FILE)
@@ -230,6 +239,12 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str,
     return bool(totals.get("failed") or totals.get("errors") or any(process.returncode not in (0, 5) for process, _ in shards))
 
 
+# a run of a few single tests named by id starts quicker as one process than as shards that each boot a journal
+def is_sharded(arguments: list[str]) -> bool:
+    named = [argument for argument in arguments if not argument.startswith("-")]
+    return not (named and len(named) <= FEW_TESTS and all("::" in argument for argument in named) and "-k" not in arguments)
+
+
 def scoped_command(arguments: list[str]) -> list[str]:
     return [*PYTEST, *arguments]
 
@@ -254,6 +269,8 @@ def main(arguments: list[str]) -> int:
         return story_run(tuple(arguments[1:]))
     if arguments == [MATRIX_OPTION]:
         return update_matrix(update_release())
+    if arguments and is_sharded(arguments):
+        return chosen_run(tuple(argument for argument in arguments if argument not in QUIET_OPTIONS), "the chosen tests")
     if arguments:
         return scoped_run(arguments)
     return whole_suite()

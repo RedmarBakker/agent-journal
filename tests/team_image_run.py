@@ -79,7 +79,7 @@ def test_the_host_setup_starts_a_server_on_a_fresh_volume_and_the_first_journal_
     try:
         setup = subprocess.run(["sh", str(ROOT / "host" / "install.sh")], input=answers, capture_output=True, text=True, env=environment, timeout=300)
         assert setup.returncode == 0, setup.stderr
-        line = re.search(r"journal library connect (\S+)", setup.stdout)
+        line = re.search(r"journal team connect (\S+)", setup.stdout)
         assert line and line.group(1) == f"https://127.0.0.1:{PORT}", setup.stdout
         install = urllib.request.Request(f"{line.group(1)}/install", data=json.dumps({"email": "ada@example.com", "name": "Ada", "password": PASSWORD, "device_name": "laptop"}).encode(), headers=SPOKEN)
         with urllib.request.urlopen(install, timeout=10, context=unverified_context()) as answer:

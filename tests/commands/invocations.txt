@@ -175,6 +175,7 @@ agent output read --help
 agent output test --help
 agent output watch --help
 agent output unwatch
+agent output stop 1
 agent output undock --help
 agent await begin --help
 agent await clear --help
@@ -338,14 +339,17 @@ agent message comments 1
 agent sequence comments 1
 agent dump comments 1
 user library connect --help
-user library login --help
-user library status --help
-user library disconnect --help
-user library invite --help
-user library devices --help
-user library revoke --help
-user library people --help
-user library password --help
+user team connect --help
+user team login --help
+user team status --help
+user team disconnect --help
+user team invite --help
+user team devices --help
+user team revoke --help
+user team people --help
+user team password --help
+user team remove --help
+user team reset --help
 user library publish --help
 user library list --help
 user library show --help
@@ -353,5 +357,3 @@ user library import --help
 user library update --help
 user library withdraw --help
 user library delete --help
-user library remove --help
-user library reset --help

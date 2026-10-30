@@ -22,7 +22,6 @@ from journal.features.workers.support.merge_outcome import MergeOutcome
 from journal.features.workers.support.merge_statuses import MergeStatuses
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
-from journal.models.support.report_choice import ReportChoice
 from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
@@ -144,10 +143,6 @@ class WorkerActions:
         shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
         self.proofs.save(proof.short(self.failures.with_output(worker, shortfall_lines), self.time_source.moment().timestamp(), task.id, worker.id, worker.dispatcher, prior_shortfalls, worker.model), actor)
         return task
-
-    def unrun(self, n: int, point: int, task_id: int = 0) -> str:
-        worker = self.mergeable(n, "proofs to check")
-        return self.failures.unrun(worker, self.open_proof(self.checked_task(worker, task_id), point).text)
 
     def open_proof(self, task: Task, point: int) -> Proof:
         proofs = self.proofs.point_proofs(task, point)
@@ -293,10 +288,6 @@ class WorkerActions:
 
     def worker_task(self, worker: Worker) -> Task:
         return self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
-
-    def set_report_choice(self, n: int, choice: ReportChoice, actor: Actor) -> Worker:
-        worker = self.workers.find(n)
-        return self.workers.save(worker.with_(report_choice=choice), actor)
 
     def release(self, n: int, actor: Actor) -> Worker:
         finished = self.tasks.finished_task_ids(Ref.build(self.workers.find(n)))

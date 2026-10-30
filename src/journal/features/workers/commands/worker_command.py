@@ -3,7 +3,6 @@ from journal.features.git.support.start_rule import StartRule
 from journal.providers.support.profile_type import ProfileType
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace
-from journal.features.workers.support.report_argument import ReportArgument
 
 from journal.repositories.setting_rows import SettingRows
 from journal.features.tasks.active_task import ActiveTask
@@ -20,9 +19,7 @@ from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.features.workers.support.merge_steps import MergeSteps
-from journal.features.workers.support.report_fitting import ReportFitting
 from journal.features.workers.support.worker_rebase import WorkerRebase
-from journal.models.support.report_choice import ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.subagents import Subagents
@@ -42,8 +39,8 @@ from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.work_mode import WorkMode
-from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
-from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
+from journal.features.workers.workers_options import WorkersOptions
+from journal.features.templates.shipped import JOURNAL_TESTS
 from journal.support.time_source import TimeSource
 
 DELEGATED_REFUSAL = "task {n} is delegated to a worker already: send that worker the next job, or release it first"
@@ -58,23 +55,22 @@ ASSIGNMENT_REFUSALS = {
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
 
-TEST_COMMAND_MISSING = "the journal runs each worker's tests with the project's test command, and none is set: set it with journal tests command \"<the command, without the tests>\" --proof \"<the arguments that run one test that passes>\", then dispatch again"
 
 # the most workers `journal worker list` reads and shows, the newest
 LISTED_WORKERS = 30
 
 
 class WorkerCommand(Command):
-    """The report choice named is used, else the queue's end."""
+    """A worker's dispatch, its queue, its checks and merge, and its list; every worker reports once no task of its queue is left."""
 
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge", "send"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, delegation: PlanDelegation) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, delegation: PlanDelegation) -> None:
         self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
-        self.targets, self.fitting, self.rebases = targets, fitting, rebases
+        self.targets, self.rebases = targets, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
@@ -95,8 +91,6 @@ class WorkerCommand(Command):
         dispatch.add_argument("--copies", default="", help="library folders the worktree gets copies of its own of, comma separated, such as vendor for composer, whose autoloader would load the main checkout's classes through a link")
         dispatch.add_argument("--no-libraries", action="store_true", help="a worktree with no library folders, for a job that changes the libraries themselves")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
-        dispatch.set_defaults(job_text="")
-        dispatch.add_argument("--report", nargs="+", action=ReportArgument, help="when it reports on a queue: queue (once its queue is empty, the default), each (after every task) or every <n> (after every n tasks)")
         work = dispatch.add_mutually_exclusive_group(required=True)
         work.add_argument("--task", type=int, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         work.add_argument("--plan", type=int, help="a whole plan it works through: its open tasks go to it one after another in the plan's order, and it tests the way the plan sets")
@@ -124,7 +118,6 @@ class WorkerCommand(Command):
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order, a started or paused one in your own hands let go to it: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
-        queue.add_argument("--report", nargs="+", help="when it reports from now: each, queue or every <n>; unnamed, its choice stays")
         queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order listed, taking one from another worker's queue if it is there, so the first is the next one sent")
         rebase = self.verb(verbs, "rebase", "have the journal rebase workers' worktrees onto the project's branch: one on a task at its next clock-out, any other at once")
         rebase.add_argument("workers", type=int, nargs="*", help="the workers to rebase; all of yours with a worktree when none are named")
@@ -150,17 +143,8 @@ class WorkerCommand(Command):
     def provider_default(self, caller: Caller) -> str:
         return self.providers.default().name if caller.provider is None else caller.provider
 
-    def is_test_command_missing(self) -> bool:
-        return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING and not str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()
-
-    @staticmethod
-    def testing_title(mode: str, title: str) -> str:
-        fixed = {MERGER_TESTING: ZERO_TESTS.title, TEST_BUDGET: BUDGET_TESTS.title, JOURNAL_TESTING: JOURNAL_TESTS.title}
-        return fixed.get(mode) or title or SCOPED_TESTS.title
-
     def testing_template(self, title: str) -> Template:
-        mode = self.settings.option(WorkersOptions.TESTING)
-        title = self.testing_title(mode, title)
+        title = JOURNAL_TESTS.title
         matches = self.templates.testing_titled(title, "worker")
         if not matches:
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
@@ -176,8 +160,6 @@ class WorkerCommand(Command):
         return f"You work {self.delegation.scope_name(args.plan, args.phase)}: tasks {', '.join(str(task.row_id) for task in planned)}, in this order; each next one comes to you when you clock out of the one before."
 
     def dispatch(self, args: Namespace, caller: Caller) -> int:
-        if self.is_test_command_missing():
-            raise Rejection(TEST_COMMAND_MISSING)
         self.worker_profile(args.profile)
         output = self.workers.busy_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
@@ -192,7 +174,7 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
         testing = self.testing_brief(args, planned)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session)
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         for queued_task in planned[1:]:
             self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
@@ -200,9 +182,6 @@ class WorkerCommand(Command):
             self.delegation.delegate(args.plan, moment, caller.actor)
         return self.launched(worker, task, caller)
 
-    @staticmethod
-    def report_choice(args: Namespace) -> ReportChoice:
-        return ReportChoice.argument(args.report) if args.report else ReportChoice()
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:
         try:
@@ -270,6 +249,8 @@ class WorkerCommand(Command):
         return 0
 
     def send(self, args: Namespace, caller: Caller) -> int:
+        if args.task:
+            self.refused_in_review(self.workers.find(args.n))
         holdings = self.actions.task_holdings(args.n, args.task)
         if not args.task and not holdings:
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
@@ -279,14 +260,18 @@ class WorkerCommand(Command):
         print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
         return 0
 
+    @staticmethod
+    def refused_in_review(worker: Worker) -> None:
+        if worker.is_delivered():
+            raise Rejection(f"worker {worker.id}, {worker.name}, takes no new work while its work waits for its check and merge: check and merge it with journal worker merge {worker.id}, or give the job to another worker")
+
     def check(self, args: Namespace, caller: Caller) -> int:
         if args.short:
             task = self.actions.short_check(args.n, args.point, args.short, caller.actor, args.task)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
             return 0
-        warning = self.actions.unrun(args.n, args.point, args.task) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""
         task = self.actions.check(args.n, args.point, caller.actor, args.task)
-        print("\n".join(filter(None, [f"point {args.point} of task {task.id} checked", warning])))
+        print(f"point {args.point} of task {task.id} checked")
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
@@ -326,17 +311,13 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
-        if args.report:
-            worker = self.actions.set_report_choice(worker.id, ReportChoice.argument(args.report), caller.actor)
+        self.refused_in_review(worker)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.drop_holder(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
-        print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
+        print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports once no task is left")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))
-        advice = self.fitting.advice(self.workers.find(worker.id))
-        if advice:
-            print(advice)
         return 0
 
     def rebase(self, args: Namespace, caller: Caller) -> int:
@@ -429,21 +410,21 @@ class WorkerCommand(Command):
             print(self.standing_line(worker))
         subagents = [] if caller.session is None else self.subagents.running_session_subagents(caller.session)
         for subagent in subagents:
-            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
+            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.title_words()}")
         if not workers and not subagents:
             print("no worker or subagent to act on")
         return 0
 
     @staticmethod
     def standing_line(worker: Worker) -> str:
-        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} at API prices, sent back {worker.rejections()} times on this task, reports {worker.report_choice.label()}"
+        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} at API prices, sent back {worker.rejections()} times on this task"
 
     def print_subagents(self, session: str | None) -> None:
         subagents = [] if session is None else self.subagents.session_subagents(session)
         if subagents:
             print("subagents this agent started:")
         for subagent in subagents:
-            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
+            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.title_words()}")
             if subagent.is_idle():
                 print(f"{'':>16}session: {subagent.session}")
         if any(subagent.is_idle() for subagent in subagents):

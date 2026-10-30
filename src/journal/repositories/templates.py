@@ -10,3 +10,6 @@ class Templates(Repository[Template]):
 
     def testing_titled(self, title: str, target: str) -> list[Template]:
         return [template for template in self.testing(target) if template.title == title]
+
+    def has_titled(self, ids: list[int], title: str) -> bool:
+        return self.counted(self.query().filter_listed("id", ids).filter(title=title)) > 0

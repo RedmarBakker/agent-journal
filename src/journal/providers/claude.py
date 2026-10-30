@@ -99,7 +99,7 @@ class Claude(Provider):
         "Skill": lambda input: SkillLoad(str(input.get("skill", ""))),
         "Agent": lambda input: Claude.subagent(input),
         "Task": lambda input: Claude.subagent(input),
-        "SendMessage": lambda input: AgentMessage(str(input.get("to", "")), str(input.get("message", ""))),
+        "SendMessage": lambda input: AgentMessage(str(input.get("to", "")), str(input.get("message", "")), str(input.get("summary", ""))),
         "AskUserQuestion": lambda input: UserQuestion(),
         "CronCreate": lambda input: JobSchedule(str(input.get("cron", "")), str(input.get("prompt", "")), bool(input.get("recurring", True))),
         "CronDelete": lambda input: JobCancel(str(input.get("id", ""))),

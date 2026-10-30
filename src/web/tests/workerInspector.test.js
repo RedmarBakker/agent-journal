@@ -219,31 +219,15 @@ test("a worker's queued tasks count as tasks not yet done in the Tasks count, an
     expect(host.querySelectorAll(".tasks [data-worker-queue] .queued-task").length).toBe(11);
 });
 
-test("a worker with three queued tasks shows its report choice and its place in the queue in the worker list and the inspector", async () => {
+test("a worker with three queued tasks shows its place in the queue and that it reports when the queue is empty, in the worker list and the inspector", async () => {
     const {workerEntry} = await import("../src/domain/agentEntries.js");
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
-    const queued = {...worker("clocked in"), report_choice: {tasks: 0}, holds: [8, 9], finished: [7], queue: [{id: 9, title: "c"}]};
+    const queued = {...worker("clocked in"), holds: [8, 9], finished: [7], queue: [{id: 9, title: "c"}]};
     expect(workerEntry(queued).work).toBe("Task 2 of 3, reports when its queue is empty · Write the parser.");
-    expect(workerEntry({...queued, report_choice: {tasks: 2}}).work).toContain("reports after every 2 tasks");
     const host = mount(WorkerPage, {resource: queued}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
     expect([...host.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Task 2 of 3, reports when its queue is empty");
-    app.unmount();
-    const single = mount(WorkerPage, {resource: {...worker("clocked in"), report_choice: {tasks: 1}, holds: [7]}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
-    await flush();
-    expect([...single.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Reports after each task");
-});
-
-test("the user changes when a worker reports from its page", async () => {
-    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
-    const scope = {scope: {env: "", api, rows: () => [], holding: async () => {}}};
-    const host = mount(WorkerPage, {resource: {...worker("clocked in"), report_choice: {tasks: 1}}}, scope);
-    await flush();
-    const options = [...host.querySelectorAll(".report-choice .segmented-option")];
-    expect(options.map((option) => option.textContent.trim())).toEqual(["Each task", "Every 2", "Every 3", "Queue end"]);
-    expect(host.querySelector(".report-choice .segmented-option.on").textContent.trim()).toBe("Each task");
-    options[3].click();
-    expect(api.act).toHaveBeenCalledWith("workers", 3, "report_choice", {choice: "queue"});
+    expect(host.querySelector(".report-choice")).toBe(null);
 });
 
 test("the worker's Tasks section lists every task it held with its state, and counts the finished ones", () => {

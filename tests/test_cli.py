@@ -389,7 +389,7 @@ def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_regi
     assert "TEAM_PROJECT: ${{ inputs.project }}" in workflow and "TEAM_ADDRESS: ${{ inputs.address }}" in workflow
     assert 'curl -fsSL "https://github.com/jessegall/agent-journal/releases/download/v${TEAM_VERSION}/install.sh" | sh' in workflow
     told = capsys.readouterr().out
-    assert "--labels agent-journal" in told and "journal library connect <url>" in told
+    assert "--labels agent-journal" in told and "journal team connect <url>" in told
     assert RemoteGithub.parsed(["init"], root).run() == 1, "a workflow already there is not written over"
     assert RemoteGithub.parsed(["init", "--replace"], root).run() == 0
 
@@ -403,6 +403,30 @@ def test_a_team_url_is_its_address_or_an_invitation():
     assert TeamUrl.parse("https://team.example/").address == "https://team.example"
     assert TeamUrl.parse("https://team.example.com:8443").has_self_signed_certificate() and TeamUrl.parse("https://203.0.113.5").has_self_signed_certificate()
     assert not TeamUrl.parse("https://team.example.com").has_self_signed_certificate(), "a domain on 443 has a public certificate"
+
+
+def test_the_team_accounts_list_every_team_find_one_by_name_and_keep_the_first_joined_as_home(tmp_path: Path):
+    import json
+    from journal.config import Config
+    from journal.features.library.support.library_account import LibraryAccount
+    from journal.features.library.support.library_accounts import LibraryAccounts
+    from journal.features.library.support.library_connection import LibraryConnection
+    from journal.support.rejection import Rejection
+    config = Config(tmp_path)
+    account = LibraryAccount(config)
+    account.write(LibraryConnection("zz-key", "https://shop.example", "t1", 1, 1, "Ada", "admin", "shop"))
+    account.write(LibraryConnection("aa-key", "https://studio.example", "t2", 2, 1, "Ada", "member", "studio"))
+    accounts = LibraryAccounts(config)
+    assert accounts.names() == ["shop", "studio"], "the teams are listed by their name, whatever their keys"
+    assert accounts.team("studio").connection().key == "aa-key"
+    assert accounts.home().connection().team == "shop" and account.connection().team == "shop", "the first joined is home, also for the one-team account"
+    try:
+        accounts.team("nowhere")
+        raise AssertionError("an unknown team name was found")
+    except Rejection as refused:
+        assert "nowhere" in str(refused) and "shop" in str(refused)
+    (config.home / "libraries" / "old.json").write_text(json.dumps({"key": "old", "address": "https://203.0.113.5:8443", "token": "t", "device_id": 3, "account_id": 1, "name": "Ada", "role": "admin"}))
+    assert accounts.keyed("old").connection().team == "203.0.113.5", "a file from before names is named by its host"
 
 
 def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from_a_team_server(app: App, tmp_path: Path):
@@ -455,7 +479,7 @@ def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_updat
     console, user = app.console(), Caller.user("main")
     sequences = app.container.get(Sequences)
     try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        assert console.run(["team", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
         number = console.run(["sequence", "create", "Lunch Break", "--steps", "eat"], user).text.split()[1].rstrip(":")
         assert console.run(["library", "publish", "sequence", number], user).code == 0
         assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0

@@ -27,7 +27,7 @@ class SubagentProcessCard(ProcessCard):
         older = self.messages.keyed(self.key(row), actor)
         if older and all(older[0].data.get(k) == v for k, v in data.items()):
             return None
-        return ProcessCardContents(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardType.SUBAGENTS, row.is_running(), row.task)
+        return ProcessCardContents(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.title_words()}", data, actor, CardType.SUBAGENTS, row.is_running(), row.title_words())
 
     def refresh(self, message: Message) -> SubagentCardState:
         row = self.subagents.dispatched(message.data["session"], message.data["dispatch"])

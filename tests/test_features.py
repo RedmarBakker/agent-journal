@@ -315,12 +315,12 @@ def test_a_profile_is_saved_with_its_kind_and_models_and_a_worker_is_instructed_
     assert codex["model"] == "gpt-6" and codex["sandbox_mode"] == "workspace-write" and codex["developer_instructions"] == "You write.\nSay \"done\"."
     assert files.read("builder")["profile_type"] == "worker" and files.read("journal-planner")["profile_type"] == "subagent"
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
-    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TURN
+    from journal.features.profiles.support.profile_files import JOURNAL_TESTING_INSTRUCTION, TURN
     from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.worker import Worker
     worker = Worker(environment_id=1, name="Mr. Brunel", profile="builder", brief=f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}")
-    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    assert app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{JOURNAL_TESTING_INSTRUCTION}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and the worker is told its tests and builds are queued with the journal, whatever --tests names"
     assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
 
 
@@ -907,11 +907,9 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
     from types import SimpleNamespace
     from journal.config import Config
     from journal.features.workers.support.failed_runs import FailedRuns
-    from journal.features.workers.support.test_run_folder import TestRunFolder
     from journal.features.shell.support.readers import Readers
     from journal.models.command_output import CommandOutput
     from journal.models.support.worker_moves import WorkerMoves
-    from journal.support.command_classifier import CommandClassifier
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
@@ -929,8 +927,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    from journal.repositories.run_history import RunHistory
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers, app.container.get(CommandClassifier)), app.container.get(RunHistory))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.with_output(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -1060,7 +1057,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
@@ -1162,7 +1159,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     def fresh():
         started.clear(), gates.clear(), results.clear(), stops.clear()
         gates.update({n: threading.Event() for n in range(1, 5)})
-        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
@@ -1254,7 +1251,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
         (folders[name] / "tests").mkdir(parents=True)
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_RUNS.key, 3)
     results = {}
 
@@ -1330,7 +1327,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             going.pop()
             yield outcome
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
     user_set(app, WorkersOptions.TEST_RUNS.key, 1)
@@ -1366,36 +1363,6 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
         links.save(Link(source=Ref.build(report), target=Ref.build(plan), link_type=Messages.SUBJECT_LINK), Actor.agent("s1"))
     reports.save(read.read(datetime.now(timezone.utc)), Actor.user(1))
     assert [report.row_id for report in rounds.unread(plan)] == [unread.row_id], "of the reports filed about the plan in its review only the unread one is named"
-
-
-def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_recorded_since_the_clock_out(app: App, tmp_path):
-    import time
-    from types import SimpleNamespace
-    from journal.features.shell.support.readers import Readers
-    from journal.features.workers.support.failed_runs import FailedRuns
-    from journal.features.workers.support.test_run_folder import TestRunFolder
-    from journal.models.command_output import CommandOutput
-    from journal.models.support.worker_moves import WorkerMoves
-    from journal.models.worker import Worker
-    from journal.repositories.command_outputs import CommandOutputs
-    outputs = app.container.get(CommandOutputs)
-    from journal.repositories.run_history import RunHistory
-    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"), app.container.get(TestRunFolder), app.container.get(RunHistory))
-    worker = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() - 100),)))
-    proof = "parser.py:12, and the test tests/test_parser.py::test_reads passes"
-    assert runs.unrun(worker, proof) == "no run of tests/test_parser.py::test_reads is recorded since worker 4 clocked out: run it before you trust the point", "no run: one line naming the test"
-    assert runs.unrun(worker, "parser.py:12 reads the grammar") == "", "a proof naming no test has nothing to run"
-    outputs.save(CommandOutput(chain="elsewhere", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o1"), ran_in=str(tmp_path / "other")), Actor.system())
-    assert runs.unrun(worker, proof), "a run in another folder is not a run of this worker's work"
-    outputs.save(CommandOutput(chain="ran", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o2"), ran_in=str(tmp_path / "tree")), Actor.system())
-    assert runs.unrun(worker, proof) == "", "with a run of the test's file in the worker's worktree no warning"
-    later = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() + 100),)))
-    assert runs.unrun(later, proof), "a run from before the clock-out does not count"
-    lexer = "lexer.py:4, and the test tests/test_lexer.py::test_tokens passes"
-    outputs.save(CommandOutput(chain="narrow", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py -k parser', folder=str(tmp_path / "o3")), Actor.system())
-    assert runs.unrun(worker, lexer), "a run narrowed to other tests does not run this one"
-    outputs.save(CommandOutput(chain="suite", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py', folder=str(tmp_path / "o4")), Actor.system())
-    assert runs.unrun(worker, lexer) == "", "a whole suite run started by a leading cd into the worktree runs every test in it"
 
 
 def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app: App):
@@ -3176,6 +3143,100 @@ def test_every_line_a_feature_declares_is_registered_with_it(app: App):
     assert unregistered == [], f"a line the registry cannot find is taken for one whose answer stays out of the chat: {unregistered}"
 
 
+def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skill_names_it(app: App):
+    from journal.features.registry import Registry
+    skills = app.container.get(Registry).skills()
+    for command in ("journal await", "journal stuck"):
+        teaching = [skill.name for skill in skills if command in skill.body]
+        assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
+
+
+def test_the_fiddly_skills_show_a_real_command_and_hold_one_rule_to_a_bullet_of_four_lines_at_most(app: App):
+    import re
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    for name, noun in (("messages", "message"), ("tasks", "task"), ("reports", "report"), ("workers", "worker")):
+        real = re.findall(rf"`journal {noun} [^`<]*\d[^`<]*`", registry.skill(name).body)
+        assert real, f"the {name} skill shows no real {noun} command, one with its values filled in"
+    for name in ("messages", "tasks", "workers"):
+        bullets = [bullet for block in registry.skill(name).body.split("\n\n") for bullet in re.split(r"\n(?=- )", block)]
+        long = [bullet.splitlines()[0][:60] for bullet in bullets if bullet.startswith("- ") and len(bullet.splitlines()) > 4]
+        assert long == [], f"the {name} skill has bullets of more than four lines, more than one rule each: {long}"
+
+
+def test_the_skills_check_fails_on_a_skill_off_the_map_and_on_a_sentence_in_two_skills_and_passes_on_the_shipped_set():
+    import importlib.util
+    from dataclasses import replace
+    from journal.support.skill import Skill
+    spec = importlib.util.spec_from_file_location("skills_map", Path(__file__).resolve().parents[1] / "scripts" / "checks" / "skills_map.py")
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    shipped = check.shipped()
+    assert check.problems(shipped) == [], "the shipped skills pass"
+    sentence = "Every footer names the shop that sells the goods on its page."
+    unmapped = Skill("footers", "Write footers; load it when a footer changes", f"# Footers\n\n- {sentence}\n")
+    problems = check.problems([*shipped, unmapped])
+    assert any("footers skill" in problem for problem in problems), f"a skill off the map is named: {problems}"
+    echoed = [replace(skill, body=f"{skill.body}\n- {sentence}\n") if skill.name == "tasks" else skill for skill in [*shipped, unmapped]]
+    assert any(problem.startswith(("tasks and footers", "footers and tasks")) for problem in check.problems(echoed)), "a sentence in two skills is named"
+
+
+def test_every_skill_description_says_what_then_when_in_under_300_characters(app: App):
+    from journal.features.registry import Registry
+    from journal.features.skills.skills_options import SkillsOptions
+    skills = app.container.get(Registry).skills()
+    when = {skill.name: "; read at the start of every session" if skill.name in SkillsOptions.START_SKILLS.default else "; load it " for skill in skills}
+    unclaused = [skill.name for skill in skills if when[skill.name] not in skill.description or skill.description.startswith(("Load it", "How ", "The "))]
+    long = [skill.name for skill in skills if len(skill.description) >= 300]
+    assert unclaused == [], f"these skills do not say what they do, then when: {unclaused}"
+    assert long == [], f"these descriptions are 300 characters or more: {long}"
+
+
+def test_the_journal_skill_is_a_short_map_naming_every_skill_and_listing_no_commands(app: App):
+    import re
+    from journal.features.registry import Registry
+    skills = app.container.get(Registry).skills()
+    journal = next(skill for skill in skills if skill.name == "journal")
+    table = "\n".join(line for line in journal.body.splitlines() if line.startswith("| "))
+    unnamed = [skill.name for skill in skills if skill.name != "journal" and not re.search(rf"(?<![\w-]){re.escape(skill.name)}(?![\w-])", table)]
+    commands = set(re.findall(r"`journal (\S+)", journal.body))
+    assert unnamed == [], f"the map's table names no row for {unnamed}"
+    assert commands <= {"<noun>", "environment", "search"}, f"the map lists commands: {commands}"
+    assert len(journal.body.strip().splitlines()) <= 35 and journal.body.count("[journal]") == 1, "the map is about 30 lines and says the line rule once"
+
+
+def test_the_work_modes_skill_holds_the_mode_and_fitness_paragraphs_and_the_workers_skill_stays_short(app: App):
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    workers, modes, journal = (registry.skill(name) for name in ("workers", "work-modes", "journal"))
+    assert "The work mode is the bottom state of your stack" in modes.body and "Your fitness is worked out" in modes.body, "the work-modes skill holds the mode and fitness paragraphs"
+    assert "The work mode is the bottom state" not in workers.body and "Your fitness is worked out" not in workers.body, "the workers skill no longer holds them"
+    assert set(modes.keywords) == {"orchestrator", "builder", "solo", "fitness"} and set(modes.required_states) == {"orchestrating", "soloing"}
+    assert len(workers.body.strip().splitlines()) < 70, f"the workers skill is {len(workers.body.strip().splitlines())} lines"
+    assert "workers, work-modes" in journal.body, "the journal map names both"
+
+
+def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_button_is_in_the_same_words(app: App):
+    from journal.features.pins.support.pin_and_button_text import PinAndButtonText
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    for sentence in ("A pin is a note left on the user's desk", "It stays until the user\n  closes it.", "A button is an action for now", "moves on with the chat.", "Something ready that the user also acts on now gets both"):
+        assert sentence in PinAndButtonText.BULLETS, f"the pin and button text no longer says {sentence!r}"
+    holding = [name for name in ("pinned-links", "messages") if PinAndButtonText.BULLETS in registry.skill(name).body]
+    assert holding == ["pinned-links", "messages"], f"only {holding} say what a pin and a button are"
+    pointer = [line for line in registry.skill("journal").body.splitlines() if "A pin is" in line and "a button" in line]
+    assert pointer and "the pinned-links and messages skills" in registry.skill("journal").body, "the journal map names the distinction and points to both skills"
+
+
+def test_a_blocks_waits_and_the_from_flag_are_taught_in_tasks_and_plans_and_messages_point_to_it(app: App):
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    tasks, plans, messages = (registry.skill(name).body for name in ("tasks", "plans", "messages"))
+    assert all(flag in tasks for flag in ("--on task:", "--until", "--from")), "the tasks skill teaches a block's waits and --from"
+    assert "--on" not in plans and "--until" not in plans and "the tasks skill" in plans, "the plans skill points to tasks for a block's waits"
+    assert "--from" not in messages and "the tasks skill" in messages, "the messages skill keeps the choice and points to tasks for --from"
+
+
 def test_an_outputs_tail_and_a_polled_transcript_are_read_only_as_far_as_needed(tmp_path):
     from journal.features.shell.support.output_files import OutputFiles
     from journal.http.transcripts.transcript_turns import TranscriptTurns
@@ -3804,7 +3865,6 @@ def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_te
     from journal.repositories.task_logs import TaskLogs
     from journal.repositories.tasks import Tasks
     console = app.console()
-    user_set(app, "workers.testing", "The journal runs them")
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
     hook(app, "SessionStart")
@@ -3829,13 +3889,10 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     settings, console = app.container.get(SettingRows), app.console()
-    user_set(app, "workers.testing", "The journal runs them")
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
     hook(app, "SessionStart")
     console.run(["task", "create", "the job 1", "--brief", "the job"], AGENT)
-    refused = console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    assert refused.code != 0 and "journal tests command" in refused.error, "no worker is sent while the project's test command is not set"
     failed_proof = console.run(["tests", "command", "test", "--proof", "1 = 2"], AGENT)
     assert failed_proof.code != 0 and "is not set" in failed_proof.error and not settings.option(WorkersOptions.TEST_COMMAND), "a test command whose proof run fails is not set"
     assert console.run(["tests", "command", "test", "--proof", "1 = 1"], AGENT).code == 0
@@ -3928,8 +3985,7 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
 
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
-    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TESTS_RUN, TURN, ProfileFiles
-    from journal.features.workers.workers_options import WORKER_TESTING
+    from journal.features.profiles.support.profile_files import JOURNAL_TESTING_INSTRUCTION, TURN, ProfileFiles
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_type import ProfileType
     files = app.container.get(ProfileFiles)
@@ -3939,13 +3995,8 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
         assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileType.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
-    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
-    assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
-    assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
-    from journal.features.workers.workers_options import TEST_BUDGET
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
-    assert "journal tests turn" in files.worker_instructions("journal-medior") and "journal tests turn" in files.worker_instructions("cartographer"), "with Test budget a worker is told to test only through journal tests turn, hooks or none"
+    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{JOURNAL_TESTING_INSTRUCTION}", "a shipped one says it once, then that its tests and builds are queued with the journal"
+    assert "journal tests turn" in files.worker_instructions("cartographer") and "journal build" in files.worker_instructions("cartographer"), "and so does a custom one"
     assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
 
@@ -4817,39 +4868,11 @@ def test_a_workers_report_names_its_task_and_its_clock_out_writes_no_second_mark
         assert not [m for m in messages if m.text.endswith("finished, ready to check")], "the clock-out writes no second mark beside the report's card"
 
 
-def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(app: App):
-    from journal.features.workers.support.report_fit import ReportFit
-    from journal.features.workers.support.task_sizes import TaskSizes
-    from journal.models.support.report_choice import ReportChoice
-    from journal.models.task import Task
-    fit = ReportFit(app.container.get(TaskSizes))
-    small = [Task(title=f"small {n}", brief="1. one thing") for n in range(3)]
-    large = [Task(title=f"large {n}", brief="1. a\n2. b\n3. c\n4. d\n5. e") for n in range(4)]
-    assert fit.better(ReportChoice(1), small) == ReportChoice(0), "several small tasks reported each fit reporting at the queue's end"
-    assert fit.better(ReportChoice(0), large) == ReportChoice(2), "a long queue of large tasks reported at its end fits reporting every two"
-    assert fit.better(ReportChoice(5), small) == ReportChoice(0), "every five beyond three tasks fits the queue's end"
-    assert fit.better(ReportChoice(1), small[:1]) is None and fit.better(ReportChoice(0), small) is None, "a choice that fits is left alone"
-
-
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
     from journal.models.support.worker_moves import WorkerMoves
     from journal.models.worker import Worker
     worker = Worker(name="w", brief="b", moves=WorkerMoves((("dispatched", 100.0), ("clocked in", 110.0), ("moved on to task 2", 900.0), ("moved on to task 3", 1500.0))))
     assert worker.job_start_time() == 100.0, "a move inside the queue is the same job going on, so a report at the queue's end is never a quick or tiny one for its last task alone"
-
-
-def test_a_worker_handed_its_next_queued_task_after_a_merge_starts_on_a_worktree_holding_the_latest_work(app: App, monkeypatch):
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    committed(worktree, "notes1.md", "note 1\n")
-    assert proved_and_out(app, caller, "notes1.md:1").code == 0
-    committed(app.config.root, "later.md", "merged on the project after the worker began\n")
-    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
-    merged = checked_and_merged(app)
-    assert merged.code == 0 and "it went straight on to task 2" in merged.text, merged.error
-    assert (worktree / "later.md").is_file() and (worktree / "notes1.md").is_file(), "the worktree holds the project's latest work and its own merged task before it starts the next"
 
 
 def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merge_then_takes_all_three(app: App, monkeypatch):
@@ -4862,7 +4885,7 @@ def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merg
     console = app.console()
     for title in ("the second job", "the third job"):
         console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    assert console.run(["worker", "queue", "1", "2", "3"], AGENT).code == 0
     for n in (1, 2, 3):
         committed(worktree, f"notes{n}.md", f"note {n}\n")
         proved_and_out(app, caller, f"notes{n}.md:1")
@@ -4912,7 +4935,7 @@ def queue_sent_back_short(app: App, monkeypatch):
     _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
     console = app.console()
     console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2", "--report", "queue"], AGENT).code == 0
+    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
     for n in (1, 2):
         committed(worktree, f"notes{n}.md", f"note {n}\n")
         proved_and_out(app, caller, f"notes{n}.md:1")
@@ -5021,31 +5044,6 @@ def test_a_run_printing_a_count_of_a_total_in_any_common_form_gets_a_progress_pa
     reader = Reader("counted", "the counted runs", ".", progress_pattern=progress, step_pattern=step)
     assert reader.progress(lines).fraction() == pytest.approx(fraction), "the guessed pattern reads the run's own fraction"
     assert "--progress" in ReaderJudge.progress_fix("a command", lines), "and the report's fix suggests a --progress pattern"
-
-
-def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
-    from journal.features.workers.support.worker_actions import WorkerActions
-    from journal.models.support.ref import Ref
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    committed(worktree, "notes.md", "the notes\n")
-    assert proved_and_out(app, caller, "notes.md:1").code == 0
-    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
-    gate = WorkerActions.merge_gate
-    def merged_beside(actions, event):
-        monkeypatch.setattr(WorkerActions, "merge_gate", gate)
-        assert console.run(["worker", "merge", "1"], AGENT).code == 0, "the run beside it merges while the first still waits on the plugins"
-    monkeypatch.setattr(WorkerActions, "merge_gate", merged_beside)
-    late = checked_and_merged(app)
-    assert late.code == 1 and "only a worker that has ended" in late.error, late.error
-    with app.container.get(Scope).environment(MAIN):
-        worker, tasks = app.container.get(Workers).find(1), app.container.get(Tasks)
-        assert worker.state == "dispatched" and worker.brief.startswith("Your next task, 2"), "the late run writes nothing: the worker stays on its next job"
-        assert tasks.find(1).state == "completed" and tasks.holder_task_ids(Ref("workers", 1)) == (2,)
 
 
 def test_a_workspace_worker_gets_worktrees_of_the_repositories_its_brief_names_as_whole_words_in_any_case(app: App, monkeypatch):
@@ -5447,6 +5445,17 @@ def test_a_scoped_suite_run_counts_its_finished_tests_against_the_total_it_colle
     output.write_text("collected 2 items\n..                                                                       [100%]\n2 passed in 0.6s\n")
     assert suite.progress_line(*suite.shard_progress(output)) == "running tests [100%] 2 of 2 finished", "and both once they ran"
 
+
+
+def test_a_run_of_chosen_tests_is_sharded_unless_it_names_only_a_few_single_tests(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("suite_script", Path(__file__).parents[1] / "scripts" / "suite.py")
+    suite = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(suite)
+    assert suite.is_sharded(["tests/stories/worker", "tests/test_features.py", "-k", "worker", "-q"]), "folders, files and a filter run in shards"
+    assert suite.is_sharded(["tests/test_features.py", "-q"]), "a whole file runs in shards"
+    assert not suite.is_sharded(["tests/test_features.py::test_a", "tests/test_engine.py::test_b", "-q"]), "a few single tests start quicker as one process"
+    assert suite.is_sharded([f"tests/test_features.py::test_{n}" for n in range(suite.FEW_TESTS + 1)]), "more than a few single tests run in shards"
 
 # how long the team test waits for a change to travel between journals; under the sharded suite's load it can take far longer than alone
 TEAM_SYNC_WAIT_SECONDS = 40
@@ -6322,16 +6331,6 @@ def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many
     assert len(mixed["rows"]) <= 40 and [row.row_id for row in mixed["rows"]][-20:] == ids[-20:], "the page and at most a page of open rows beside it"
     changed = Listing.query_listing({"since": str(timing.time() + 60)}).listed(tasks, rows, rows, no_rows)
     assert changed == {"rows": [], "is_last_page": True}, "a change read finds the rows changed since, here none, in SQL"
-
-
-def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
-    from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
-    from journal.features.workers.commands.worker_command import WorkerCommand
-    from journal.features.workers.workers_options import MERGER_TESTING, WORKER_TESTING
-    command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
-    assert settings.option(WorkersOptions.TESTING) == MERGER_TESTING and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    settings.set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
-    assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 
 def test_a_server_is_added_and_removed_through_the_agent_programs_cli_from_the_pages_routes_and_the_journal_keeps_answering(app: App, monkeypatch, tmp_path):
@@ -7318,3 +7317,32 @@ def test_runs_started_together_prune_each_old_output_once_and_every_start_return
         [thread.start() for thread in threads]
         [thread.join() for thread in threads]
     assert not failures and len(started) == 48, f"every start returns its row though another prunes beside it: {failures[:1]}"
+
+
+def test_a_running_turn_whose_output_row_is_gone_no_longer_counts_as_running(app: App):
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.test_turn import TestTurn
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    with app.container.get(Scope).environment(MAIN):
+        rows = app.container.get(TurnRows)
+        rows.save(TestTurn(environment_id=1, worker=1, ids="tests/test_a.py", command="pytest tests/test_a.py", folder=".").started(1.0).backgrounded(987654), Actor.system())
+        assert app.container.get(TestTurns).running() == [], "an output kept no longer ended long ago, so its turn holds no run"
+
+
+def test_a_task_a_worker_finished_reads_done_on_its_page_until_the_merge_whatever_the_task_row_still_holds():
+    from journal.features.workers.support.worked_task import WorkedTask
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    started, waiting = Task(id=4508, title="a", state=TaskState.STARTED), Task(id=4530, title="b", state=TaskState.OPEN, delegated=True)
+    assert [WorkedTask.read(task, [4508, 4530]).state for task in (started, waiting)] == ["done", "done"], "finished and waiting for the merge reads done, a started row or a delegated open one alike"
+    assert WorkedTask.read(waiting, []).state == "in hand" and WorkedTask.read(Task(id=1, title="c", state=TaskState.COMPLETED), []).state == "merged"
+
+
+def test_a_subagent_takes_its_name_from_its_dispatch_and_its_job_from_each_new_message():
+    from journal.models.subagent import Subagent
+    subagent = Subagent(name=Subagent.dispatch_name("You are Mr. Faraday, an experimenter turned design reviewer. Review doc 1086."), task="Review doc 1086")
+    assert (subagent.name, subagent.title_words()) == ("Mr. Faraday", "Mr. Faraday: Review doc 1086"), "the name the law asks for, beside the job"
+    resumed = subagent.resumed(2.0, "New job, as Mr. Babbage, an engine designer. Write the modular design.", "Design the journal as an engine")
+    assert resumed.title_words() == "Mr. Babbage: Design the journal as an engine", "a new message names the job, and a new name when it gives one"
+    assert subagent.resumed(3.0, "Apply the two reviews to doc 1086.", "").title_words() == "Mr. Faraday: Review doc 1086", "a message with no name or summary keeps both"
+    assert Subagent(task="map the hooks").title_words() == "map the hooks" and Subagent.dispatch_name("map the hooks") is None, "a dispatch naming no one keeps its job alone"

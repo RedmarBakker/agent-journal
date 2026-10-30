@@ -2,7 +2,7 @@ from journal.support.option import Option
 
 
 class FaultsOptions:
-    DEVELOPER = Option("features.faults", "Developer features", "The switch of the Slow requests feature, read where the developer tools ask whether they are on", False, option_type="switch")
+    DEVELOPER = Option("features.faults", "Developer features", "The switch of the developer features, read where the developer tools ask whether they are on", False, option_type="switch")
     PERFORMANCE = Option("faults.performance", "Performance monitoring", "How long requests, hooks and jobs take and what they read, reported to the agent when they run slow; off, none of it is measured or reported", True, option_type="switch", main_switch=DEVELOPER)
     INTERNAL = Option("faults.internal_feedback", "Internal feedback", "What the journal shows you of its own workings while you build it: the agent's hook lines and their durations in the terminal, and viewer updates made too early; off, none of it is shown", True, option_type="switch", main_switch=DEVELOPER)
     REPORT = Option("faults.report", "Report slow requests to the agent", "A request over its budget is marked in the chat and the agent is sent a line to fix it; off, the Developer tab still counts every request's time while the developer features are on", False, option_type="switch", main_switch=PERFORMANCE)

@@ -1,26 +1,13 @@
 import os
 import shutil
 import sqlite3
-import threading
-import types
 from journal.support.agent_role import AgentRole
-from enum import Enum
 from pathlib import Path
 
 from journal.app import App
-from journal.container import Container
 from journal.db.connection import Connection
-from journal.engine.job_runner import JobRunner
-from journal.http.server import Server
-from journal.http.share_server import ShareServer
-from journal.support.listener_queue import ListenerQueue
 from journal.support.secret_values import SecretValues
-
-THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner, threading.local)
-"""What runs the journal rather than remembers for it: its threads, sockets and pool, and what each thread keeps for itself, are left as they are between tests."""
-
-PLAIN = (type, types.FunctionType, types.MethodType, types.ModuleType, Enum)
-"""What has a __dict__ but keeps no state of a journal's."""
+from tests.service_memory import ServiceMemory
 
 DATABASE_SUFFIXES = ("", "-wal", "-shm")
 
@@ -41,9 +28,7 @@ class SharedJournal:
         self.files = {path: Path(path).read_bytes() for path in kept}
         self.stamps = {path: self.stamp(path) for path in kept}
         self.instances = dict(app.container._instances)
-        self.fields: dict[int, tuple[object, dict[str, object]]] = {}
-        for instance in self.instances.values():
-            self.remember(instance)
+        self.memory = ServiceMemory(self.instances.values())
 
     def reset(self) -> None:
         jobs = self.app.runtime().jobs
@@ -57,8 +42,7 @@ class SharedJournal:
     def put_back(self) -> None:
         self.app.container._instances.clear()
         self.app.container._instances.update(self.instances)
-        for instance, fields in self.fields.values():
-            self.restored(instance, fields)
+        self.memory.put_back()
         with sqlite3.connect(self.app.config.database) as live:
             self.rows.backup(live)
         self.app.container.get(Connection).cache.cleared()
@@ -103,30 +87,3 @@ class SharedJournal:
 
     def is_database(self, path: str) -> bool:
         return os.path.basename(path) in {self.app.config.database.name + suffix for suffix in DATABASE_SUFFIXES}
-
-    def remember(self, instance: object) -> None:
-        if id(instance) in self.fields or not self.remembers(instance):
-            return
-        self.fields[id(instance)] = (instance, self.remembered(instance))
-        for value in vars(instance).values():
-            self.remember(value)
-
-    @staticmethod
-    def remembers(instance: object) -> bool:
-        return hasattr(instance, "__dict__") and not isinstance(instance, THREADED + PLAIN)
-
-    @staticmethod
-    def remembered(instance: object) -> dict[str, object]:
-        return {name: value.copy() if isinstance(value, (dict, list, set)) else value for name, value in vars(instance).items()}
-
-    @staticmethod
-    def restored(instance: object, fields: dict[str, object]) -> None:
-        for name in set(vars(instance)) - set(fields):
-            object.__delattr__(instance, name)
-        for name, value in fields.items():
-            current = vars(instance).get(name)
-            if isinstance(value, (dict, list, set)) and type(current) is type(value):
-                current.clear()
-                current.update(value) if not isinstance(value, list) else current.extend(value)
-            else:
-                object.__setattr__(instance, name, value)

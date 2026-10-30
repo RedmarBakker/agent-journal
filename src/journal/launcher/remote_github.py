@@ -43,7 +43,7 @@ STEPS = """wrote {workflow}. Next:
      --labels {label} to ./config.sh, then sudo ./svc.sh install and sudo ./svc.sh start so it keeps running.
   2. Commit and push {workflow}.
   3. In the repository's Actions tab, run Agent journal server with the server's address. Its log prints the URL and
-     how to connect to it: journal library connect <url>."""
+     how to connect to it: journal team connect <url>."""
 
 
 class RemoteGithub:

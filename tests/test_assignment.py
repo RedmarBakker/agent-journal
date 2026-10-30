@@ -366,7 +366,8 @@ def worker_through_its_task(app: App, queued: bool) -> dict:
     workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
     lovelace = Caller.worker("main", 1, "w-1", "claude")
     run(app, ["proof", "1", "parser.py:3, test_reads_the_grammar passes"], lovelace)
-    run(app, ["clock-out", "the parser reads the grammar"], lovelace)
+    if not queued:
+        run(app, ["clock-out", "the parser reads the grammar"], lovelace)
     app.runtime().deferred.drain()
     return rows
 

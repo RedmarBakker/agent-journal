@@ -2,6 +2,7 @@ from journal.db.schema import Schema
 from journal.features.library.support.library_entry import LibraryEntry
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
+from journal.features.library.support.team_bound import TeamBound
 from journal.features.library.support.library_name import LibraryName
 from journal.features.library.support.profile_body import ProfileBody
 from journal.features.library.support.file_body import DOCUMENT_SUFFIX, FileBody
@@ -24,11 +25,11 @@ from sync_server.item_version import ItemVersion
 from sync_server.publish_request import PublishRequest
 
 
-class LibraryPublish:
+class LibraryPublish(TeamBound):
     """Publishing a sequence, template or plan outline by its number, or a profile, a reader or a skill by its name, or a document or a file by its path, to the team's library: its portable body posted as the next version, named from its title, with this journal's version as the lowest that reads it; a shipped, locked sequence may be published too."""
 
     def __init__(self, account: LibraryAccount, schema: Schema, sequences: Sequences, templates: Templates, profiles: ProfileFiles, readers: Readers, plans: Plans) -> None:
-        self.link = LibraryLink(account, schema)
+        self.account, self.link = account, LibraryLink(account, schema)
         self.sequences, self.templates, self.profiles, self.readers, self.plans = sequences, templates, profiles, readers, plans
 
     def published(self, item_type: str, reference: str, note: str, description: str | None) -> ItemVersion:

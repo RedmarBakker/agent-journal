@@ -1,7 +1,7 @@
 import {feedOn, reviewerOn, workMode} from "./settings.js";
 import {meta, tables} from "../domain/tables.js";
 import {computed} from "vue";
-import {open, unreadByUser} from "../domain/records.js";
+import {open, recordCount, unreadByUser} from "../domain/records.js";
 import {VIEWS} from "../domain/panes.js";
 
 const OWN_TABS = ["questions"];
@@ -33,14 +33,14 @@ export function useHomeViews() {
         tasks: {
             title: "Tasks",
             icon: meta("tasks").icon,
-            count: open("tasks").length,
+            count: recordCount("tasks"),
             warm: false,
             all: {page: "tasks", label: "View all tasks"},
         },
         plans: {
             title: "Plans",
             icon: meta("plans").icon,
-            count: open("plans").length,
+            count: recordCount("plans"),
             warm: false,
             all: {page: "plans", label: "View all plans"},
         },

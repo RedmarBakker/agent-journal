@@ -8,6 +8,8 @@ UNKNOWN = "unknown"
 JOURNAL = "journal"
 # a chain is named by the kind of its weightiest part: a test run over the tee that keeps its log, an edit over a read, and a journal command or a program the table does not know over a read, so a line holding one is never only a read
 KIND_ORDER = ("test run", "build", "package", "edit", "network", "version control", "check", "process", "journal", UNKNOWN, "search", "read")
+# the kinds the user may allow a worker to run, the journal's own commands always allowed and an unknown program never
+WORKER_KINDS = ("read", "search", "edit", "package", "network", "check", "process", "test run", "build")
 WRITES = "writes_files"
 FILE_CHANGING_EFFECTS = frozenset({WRITES, "deletes_files"})
 # a program that runs code it is handed, whose writes the table cannot see

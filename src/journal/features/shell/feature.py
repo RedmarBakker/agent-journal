@@ -64,7 +64,7 @@ class Shell(Feature[ShellData]):
 
     nudges = (ShellNudges.OPEN_OUTPUT_STOP, ShellNudges.JOURNAL_POLL, ShellNudges.SLEEP_LOOP_WAIT, ShellNudges.SLEEP_LINE_REFUSAL, ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.ALIASED_LINE, ShellNudges.MORE_SPECIFIC_ALIAS, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.PIPED_TEST_RUN, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.RUN_TOTAL_MISSING, ShellNudges.RUN_COUNT_UNSHOWN, ShellNudges.READER_DRAFT, ShellNudges.READER_HINT, ShellNudges.PARTIAL_FILE_READ, ShellNudges.FLAGGED_TITLE, ShellNudges.COMPLETE_PROGRESS_RUN, ShellNudges.SHARED_TITLE)
 
-    skill = Skill("shell", 'How the journal runs your shell commands: in parts, timed, and in the background past the limit', """
+    skill = Skill("shell", 'Run shell commands through the journal: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias', """
 # Shell commands
 
 Every shell command you run goes through the journal's runner.
@@ -106,8 +106,8 @@ Every shell command you run goes through the journal's runner.
   refuses it naming what it missed, such as the counts of a passing or a failing run, or a --progress that matches no line;
   fix what it names and add it again. A reader the journal made on its own reads the run at once and the user sees a card
   for it: keep it, or write your own over it. The journal ships readers for pytest, dotnet test and phpunit
-  or pest in .journal/readers as examples. Waiting on a command, `journal await "<what>" --output N --reader <name>`
-  watches it too, so the user sees it progress while you wait.
+  or pest in .journal/readers as examples. A wait on a command given `--reader <name>`
+  (the tasks skill) watches it too, so the user sees it progress while you wait.
 - A test run, a build or any other command's output is shown in full up to 400 characters; past that you see only a
   line naming the output to read by its number, with its lines, its characters and the part of the line it belongs to. A command that reads (cat, grep, sed, git diff) is shown up to 8,000
   characters, past that by its two ends. A line of journal commands is shown in full and stored as no output.

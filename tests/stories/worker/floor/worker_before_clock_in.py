@@ -26,6 +26,13 @@ def test_a_journal_command_before_clock_in_goes_through(story):
 
 
 @story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_journal_command_after_a_change_of_folder_before_clock_in_goes_through(story):
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"cd {story.project_path('.')}; journal clock-in 2>&1 | tail -2")
+    result.expect_allowed()
+    story.expect_stack(story.agents.subject, Void)
+
+
+@story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_before_clock_in_is_never_told_the_main_agents_lines(story):
     message = story.user_sends_message("how far is the parser?")
     result = story.agent_runs(story.agents.main, f"message read {message}")
