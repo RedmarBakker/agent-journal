@@ -8,8 +8,8 @@ from tests.stories.fixtures.main.summary_reader import TEST_RUN, TEST_RUN_LINES,
 
 @story(SummaryReader, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(story):
-    output = story.agent_has_a_background_run_printing(story.agents.subject, TEST_RUN, *TEST_RUN_LINES)
+    output = story.agent_has_a_background_run_printing(story.agents.subject, TEST_RUN)
     story.agent_runs(story.agents.subject, f"await 'the tests' --output {output} --reader {story.readers.first}")
-    story.background_run_ends(story.agents.subject, output, TEST_RUN_STATUS)
+    story.background_run_ends(story.agents.subject, output, *TEST_RUN_LINES, status=TEST_RUN_STATUS)
     story.expect_typed(TasksNudges.WAIT_END.create(outcome=f"output {output} failed with code 1: 1 failed, 3 passed"))
     story.expect_stack(story.agents.subject, Ready)

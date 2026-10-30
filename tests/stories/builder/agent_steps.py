@@ -407,10 +407,13 @@ class AgentSteps:
             outputs.save(run.ended_with(status, self.app.container.get(TimeSource).seconds()), Actor.system())
         return self.observed(f"the background run ends {'passing' if status == 0 else 'failing'}", None, None)
 
-    def background_run_ends(self, agent: StoryAgent, output: int, status: int = 0) -> StepResult:
+    def background_run_ends(self, agent: StoryAgent, output: int, *printed: str, status: int = 0) -> StepResult:
         with self.app.container.get(Scope).environment(1):
             folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
-            folder.ended_with(len(folder.kinds()) - 1, status)
+            running = len(folder.kinds()) - 1
+            with (folder.folder / f"{running}.out").open("a") as stream:
+                stream.write("".join(f"{row}\n" for row in printed))
+            folder.ended_with(running, status)
             self.app.container.get(ChainWorker).chain_ended(folder, status, self.seated_caller_of(agent))
         return self.observed(f"the background run ends {'failing' if status else 'passing'}", None, None)
 

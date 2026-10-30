@@ -2,7 +2,7 @@ from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.state_fixture import StateFixture
 
-# the command of a test run in the background, the failure and summary it prints and the status it ends with
+# the command of a test run in the background, the failure and summary it prints at its end and the status it ends with
 TEST_RUN = "./scripts/run-tests.sh"
 TEST_RUN_LINES = ("FAILED tests/a.py::test_b", "1 failed, 3 passed")
 TEST_RUN_STATUS = 1
