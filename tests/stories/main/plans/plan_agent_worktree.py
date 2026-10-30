@@ -2,9 +2,9 @@ from pathlib import Path
 
 from journal.engine.agent_launcher import AgentLauncher
 from journal.features.git.support.branch_holders import BranchHolders
+from journal.features.git.support.start_rule import StartRule
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.team.support.start_rule import StartRule
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.launcher.launch import Launch
 from journal.launcher.menu import Menu
@@ -62,7 +62,7 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
     def environment_rows(menu):
         rules, supervisor = app.container.get(StartRule), app.container.get(SupervisorLink)
         return [
-            EnvironmentRow(environment.name, working=supervisor.runs(environment.row_id), refusal=rules.refusal(environment, 1))
+            EnvironmentRow(environment.name, working=supervisor.runs(environment.row_id), refusal=rules.refusal(environment))
             for environment in environments.working()
         ]
 
