@@ -64,8 +64,7 @@ class DriverProcesses:
         self.running.discard(environment_id)
 
 
-@pytest.fixture
-def driver_processes(app: App, monkeypatch) -> DriverProcesses:
+def prepare_driver_processes(app: App, monkeypatch) -> DriverProcesses:
     processes = DriverProcesses(app)
     monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, agent, resume, repositories=None: processes.start(environment, agent, resume))
     monkeypatch.setattr(SupervisorLink, "runs", lambda _self, environment_id: environment_id in processes.running)
@@ -75,7 +74,11 @@ def driver_processes(app: App, monkeypatch) -> DriverProcesses:
 
 
 @pytest.fixture
-def normal_driver(app: App, driver_processes: DriverProcesses) -> Fixture:
+def driver_processes(app: App, monkeypatch) -> DriverProcesses:
+    return prepare_driver_processes(app, monkeypatch)
+
+
+def start_normal_driver(app: App, driver_processes: DriverProcesses) -> Fixture:
     user_set(app, OrganizationOptions.PLAN_MODE.key, "solo")
     user_set(app, PlansOptions.PLAN_AGENTS.key, True)
     status, answer = posted(app, "/hooks/codex", {"hook_event_name": "SessionStart", "session_id": "supervisor-main"}, {"X-Journal-Env": "main"})
@@ -112,8 +115,18 @@ def normal_driver(app: App, driver_processes: DriverProcesses) -> Fixture:
     with scope.environment(driver_environment.row_id):
         agent = app.container.get(Agents).find(driver_agent_id)
     fixture = Fixture(app.container.get(SupervisorAuthority), actor, owner_environment, driver_environment, plan, phase, Task(), agent, check, template)
-    yield fixture
+    return fixture
+
+
+def stop_normal_driver(fixture: Fixture) -> None:
     fixture.authority.secrets_store.drop(fixture.credentials)
+
+
+@pytest.fixture
+def normal_driver(app: App, driver_processes: DriverProcesses) -> Fixture:
+    fixture = start_normal_driver(app, driver_processes)
+    yield fixture
+    stop_normal_driver(fixture)
 
 
 def add_phase_task(app: App, fixture: Fixture, title: str, brief: str) -> Task:

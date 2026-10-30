@@ -73,4 +73,8 @@ The profile is not a VM installer and does not assume that a prepared VM is oper
 
 ## Artifact-only checks
 
-`tests/test_supervisor_runtime_packaging.py` checks the manifest, inert fixture, secret/mount boundaries and the uninstalled plugin package without installing or launching a deployment service. It does not replace the disposable-staging checks above. This checkout has not run a viewer build, installed a service, started a VM or performed staging probes.
+`tests/test_supervisor_runtime_packaging.py` checks the manifest, inert fixture, secret/mount boundaries and the uninstalled plugin package without installing or launching a deployment service. It does not replace the disposable-staging checks above.
+
+## Local controlled staging result
+
+Task 112's temporary local probes and blocker are recorded in [STAGING-REPORT.md](STAGING-REPORT.md). They do not satisfy the dedicated-VM filesystem, network, worker-identity or backup-rotation checks above. Enrollment remains disabled until the Journal metered-usage settlement handoff is implemented and the full staging acceptance is complete.

@@ -1,10 +1,28 @@
 import importlib.util
 import json
 from pathlib import Path
+from shutil import copytree
 from types import SimpleNamespace
+from urllib.request import Request, urlopen
 
 import pytest
 
+from journal.app import App
+from journal.config import Config
+from journal.db.connection import Connection
+from journal.events.rows.check_completed import CheckCompleted
+from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
+from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+from journal.http.server import Server
+from journal.models.support.ref import Ref
+from journal.models.task_state import TaskState
+from journal.repositories.checks import Checks
+from journal.repositories.entries import Entries
+from journal.repositories.plans import Plans
+from journal.repositories.scope import PROJECT, Scope
+from journal.repositories.tasks import Tasks
+from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
 from supervisor_bridge.contracts import (
     FIXTURE_PATH,
@@ -16,6 +34,7 @@ from supervisor_bridge.contracts import (
     load_contract_schema,
     tool_input_schemas,
     validate_pinned_fixture,
+    validate_operation,
 )
 from supervisor_bridge.hints import HintSpool
 from supervisor_bridge.mcp import McpServer
@@ -23,6 +42,7 @@ from supervisor_bridge.metering import (
     AnthropicProviderTransport,
     METERED_PROVIDER_BASE_URL,
     MeteredAggregateBudgetProof,
+    MeteringProxyServer,
     MeteringError,
     MeteringProxy,
     ProviderResponse,
@@ -39,6 +59,14 @@ from supervisor_bridge.transport import (
     TransportError,
     hook_request,
 )
+from tests.test_features import booted
+from tests.in_process import posted
+from tests.test_supervisor_authority import admitted as authority_admitted
+from tests.test_supervisor_authority import seeded as authority_seeded
+from tests.test_supervisor_driver import add_phase_task
+from tests.test_supervisor_driver import prepare_driver_processes
+from tests.test_supervisor_driver import start_normal_driver
+from tests.test_supervisor_driver import stop_normal_driver
 
 
 RUN = {
@@ -364,14 +392,21 @@ def test_reference_only_hook_cannot_override_agent_session_or_scope():
 
 
 def test_private_adapters_use_only_fixed_authenticated_routes():
+    receipt = make_receipt()
+    receipt_envelope = {
+        "status": receipt["status"], "reason": receipt["reason"], "receipt_id": 23,
+        "data": receipt, "report": {"verification": {"verification": "verified"}}, "duplicate": False,
+    }
     opener = StubOpener([
         b'{"status":"skipped","reason":"empty"}',
+        json.dumps(receipt_envelope).encode(),
         b'{"runId":"gateway-run-1"}',
     ])
     connection = JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token")
     connection.opener = opener
     client = SupervisorHttpClient(connection)
     assert client.admit("timer", None) == {"status": "skipped", "reason": "empty"}
+    assert client.receipt("action-1") == receipt
     with pytest.raises(TransportError):
         connection.post("/_supervisor/v1/admin", {})
 
@@ -379,12 +414,21 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     hook.opener = opener
     assert hook.send(RunReference.from_run(RUN)).gateway_run_id == "gateway-run-1"
 
+    malformed = StubOpener([json.dumps({"status": "applied", "data": receipt}).encode()])
+    rejected = SupervisorHttpClient(JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token"))
+    rejected.connection.opener = malformed
+    with pytest.raises(TransportError, match="receipt envelope"):
+        rejected.receipt("action-1")
+
     service_request, service_timeout = opener.requests[0]
-    hook_request_sent, hook_timeout = opener.requests[1]
+    receipt_request, receipt_timeout = opener.requests[1]
+    hook_request_sent, hook_timeout = opener.requests[2]
     assert service_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/admit"
     assert service_request.get_header("Authorization") == "Bearer journal-service-token"
     assert json.loads(service_request.data) == {"protocol_version": 1, "source": "timer", "observation_cursor": None}
-    assert service_timeout == hook_timeout == 20
+    assert receipt_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/receipt"
+    assert json.loads(receipt_request.data) == {"protocol_version": 1, "action_id": "action-1"}
+    assert service_timeout == receipt_timeout == hook_timeout == 20
     assert hook_request_sent.full_url == "http://localhost:18789/hooks/agent"
     assert hook_request_sent.get_header("Authorization") == "Bearer openclaw-hook-token"
     assert hook_request_sent.get_header("Idempotency-key") == "run-1"
@@ -807,6 +851,298 @@ def test_reconcile_invokes_hook_only_with_live_metered_proxy(tmp_path):
 
     assert blocked.status == "blocked" and blocked.reason == "unknown_cost"
     assert blocked_hook.calls == []
+
+
+def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, monkeypatch):
+    for name in ("JOURNAL_ROOT", "JOURNAL_ENV", "JOURNAL_ACTOR", "JOURNAL_SESSION"):
+        monkeypatch.delenv(name, raising=False)
+    tenant_root = tmp_path / "tenants" / "tenant-a"
+    app = booted(tenant_root, monkeypatch)
+    driver_processes = prepare_driver_processes(app, monkeypatch)
+    fixture = start_normal_driver(app, driver_processes)
+    current_work = add_phase_task(app, fixture, "current work", "Complete the existing work")
+    proxy_server = None
+    try:
+        grant, token, _principal = authority_admitted(fixture, "bounded_write")
+        time_source = app.container.get(TimeSource)
+        check = app.container.get(Checks).find(fixture.check.row_id)
+        observations = app.container.get(SupervisorObservations)
+        observed_at = time_source.seconds()
+        observations.completed(check, CheckCompleted(
+            environment_id=fixture.owner_environment.row_id,
+            time=observed_at,
+            check_id=check.row_id,
+            title=check.title,
+            passed=False,
+            output="health check failed",
+            prior_failure=False,
+            wait_target=False,
+            failure_reported_at=0,
+        ), observed_at - 1, "")
+
+        service = SupervisorHttpClient(JsonHttpConnection(
+            f"http://127.0.0.1:{app.runtime().server.port}", token,
+        ))
+        state = StateStore(tenant_root / "gateway_state")
+        pinned = json.loads(FIXTURE_PATH.read_text())
+        config_path = tenant_root / "gateway_state" / "openclaw.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps(pinned["openclaw_config"]))
+        scripted_answers = []
+        provider_requests = []
+
+        def scripted_provider(path, payload, _accept):
+            provider_requests.append((path, payload))
+            if path == "/v1/messages/count_tokens":
+                return provider_input_tokens(8)
+            name, arguments = scripted_answers.pop(0)
+            return ProviderResponse(200, json.dumps({
+                "id": "scripted-message",
+                "content": [{"type": "tool_use", "id": "scripted-tool", "name": name, "input": arguments}],
+                "usage": {"input_tokens": 8, "output_tokens": 5,
+                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+            }).encode())
+
+        proxy = MeteringProxy(state, SimpleNamespace(post=scripted_provider), retry_wait=lambda _seconds: None)
+        proxy_server = MeteringProxyServer(proxy)
+        proxy_server.start()
+        proof = MeteredAggregateBudgetProof(
+            state, config_path,
+            health_probe=lambda: proxy_server.thread.is_alive() and proxy_server.server.fileno() >= 0,
+        )
+
+        def scripted_hook(run):
+            hook, _headers = hook_request(run)
+            assert hook["agentId"] == "supervisor" and hook["deliver"] is False
+            assert hook["sessionMode"] == "isolated" and hook["model"] == "anthropic/claude-sonnet-5"
+            assert hook["thinking"] == "high" and hook["timeoutSeconds"] == 180
+            mcp = McpServer(bridge)
+            listed = mcp.handle({"jsonrpc": "2.0", "id": "tools", "method": "tools/list"})
+            tools = listed["result"]["tools"]
+            assert [tool["name"] for tool in tools] == list(TOOL_NAMES)
+            model_tools = [{"name": tool["name"], "description": tool["description"],
+                "input_schema": tool["inputSchema"]} for tool in tools]
+
+            def scripted_call(name, arguments, step):
+                scripted_answers.append((name, arguments))
+                request = {
+                    "model": "anthropic/claude-sonnet-5",
+                    "messages": [{"role": "user", "content": json.dumps({"run_ref": run.to_dict(), "step": step})}],
+                    "tools": model_tools,
+                    "max_tokens": 32,
+                    "stream": False,
+                    "thinking": {"type": "adaptive"},
+                }
+                reply = urlopen(Request(
+                    f"{METERED_PROVIDER_BASE_URL}/v1/messages",
+                    data=json.dumps(request).encode(),
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    method="POST",
+                ), timeout=5)
+                model_answer = json.loads(reply.read())
+                tool_call = model_answer["content"][0]
+                assert tool_call["name"] == name and tool_call["input"] == arguments
+                return mcp.handle({"jsonrpc": "2.0", "id": step, "method": "tools/call",
+                    "params": {"name": name, "arguments": tool_call["input"]}})
+
+            observed = scripted_call(TOOL_NAMES[0], {"run_ref": run.to_dict(), "cursor": None}, "observe")
+            observation = json.loads(observed["result"]["content"][0]["text"])
+            assert len(observation["page"]["observations"]) == 1
+            snapshot = observation["snapshot"]
+            page_observation = observation["page"]["observations"][0]
+            action = {
+                "run_ref": run.to_dict(),
+                "observation_ids": [page_observation["observation_id"]],
+                "expected_revisions": [
+                    {"ref": {"table": "plans", "id": grant["plan_id"]}, "revision": snapshot["plan_revision"]},
+                    {"ref": {"table": "phases", "id": snapshot["current_phase"]["phase_id"]},
+                        "revision": snapshot["current_phase"]["revision"]},
+                ],
+                "operations": [{
+                    "kind": "diagnostic_task",
+                    "plan_id": grant["plan_id"],
+                    "phase_id": snapshot["current_phase"]["phase_id"],
+                    "template_id": grant["diagnostic_template_id"],
+                    "template_revision": grant["diagnostic_template_revision"],
+                    "evidence_ids": [page_observation["observation_id"]],
+                }],
+                "rationale": "The current failed check needs a bounded diagnostic task.",
+            }
+            applied = scripted_call(TOOL_NAMES[1], action, "apply_maintenance")
+            assert applied["result"]["isError"] is False, {
+                "mcp_error": applied["result"]["content"][0]["text"],
+                "bridge_error": state.snapshot()["last_error"],
+                "health": state.snapshot()["health"],
+            }
+            applied_receipt = json.loads(applied["result"]["content"][0]["text"])
+            assert applied_receipt["verification"] == "verified", {
+                "status": applied_receipt["status"],
+                "reason": applied_receipt["reason"],
+                "receipt": applied_receipt,
+            }
+            receipt = scripted_call(TOOL_NAMES[2], {"run_ref": run.to_dict()}, "receipt")
+            assert receipt["result"]["isError"] is False
+            canonical_receipt = json.loads(receipt["result"]["content"][0]["text"])
+            assert canonical_receipt["verification"] == "verified"
+            return HookAcknowledgement("scripted-model-run")
+
+        bridge = SupervisorBridge(service, state, proof, SimpleNamespace(send=scripted_hook))
+        result = bridge.reconcile("timer")
+        app.runtime().deferred.drain()
+        status, answer = posted(app, "/hooks/codex", {
+            "hook_event_name": "Stop", "session_id": fixture.agent.session,
+        }, {"X-Journal-Env": fixture.driver_environment.name})
+        assert status < 400, answer
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(fixture.driver_environment.row_id):
+            current_work = app.container.get(Tasks).find(current_work.row_id)
+        assert current_work.state == TaskState.STARTED
+
+        assert result.status == "hook_acknowledged" and result.reason == "ack_is_not_completion", (
+            result.status, result.reason, state.snapshot(),
+        )
+        active = state.active_run()
+        snapshot = state.snapshot()
+        assert active is not None and snapshot["receipt"]["verification"] == "verified"
+        assert snapshot["usage_settlement"] == "settled"
+        assert snapshot["receipt"]["actor_kind"] == "plugin"
+        assert snapshot["receipt"]["actor_id"] == "journal-supervisor"
+        assert snapshot["receipt"]["usage"] == {
+            "input_tokens": 24,
+            "output_tokens": 15,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "total_input_tokens": 24,
+            "provider_requests": 6,
+            "provider_retries": 0,
+        }
+        assert len(provider_requests) == 6
+        assert [path for path, _payload in provider_requests] == [
+            "/v1/messages/count_tokens", "/v1/messages",
+        ] * 3
+        assert all(payload["model"] == "claude-sonnet-5" for _path, payload in provider_requests)
+
+        title, brief = diagnostic_task_values(fixture.template)
+        scope = app.container.get(Scope)
+        with scope.environment(fixture.owner_environment.row_id):
+            diagnostics = [task for task in app.container.get(Plans).phase_tasks(fixture.phase)
+                if task.title == title and task.brief == brief]
+        assert len(diagnostics) == 1
+        diagnostic = diagnostics[0]
+        with scope.environment(fixture.driver_environment.row_id):
+            current = app.container.get(Tasks).find(current_work.row_id)
+            app.container.get(Tasks).save(
+                current.completed(time_source.moment(), "current work completed"),
+                Actor.agent(fixture.agent.session),
+            )
+        app.runtime().deferred.drain()
+        with scope.environment(fixture.driver_environment.row_id):
+            current = app.container.get(Tasks).find(current_work.row_id)
+            diagnostic = app.container.get(Tasks).find(diagnostic.row_id)
+            holder = app.container.get(Tasks).task_holder(diagnostic.row_id)
+        assert current.state == TaskState.COMPLETED
+        assert diagnostic.state == TaskState.STARTED and holder == Ref.build(fixture.agent)
+        assert fixture.agent.environment_id in driver_processes.running
+        with scope.environment(PROJECT):
+            usage_rows = app.container.get(Entries).supervisor_records(
+                "SupervisorUsage", last=10, run_ref=active.run_id,
+            )
+        assert usage_rows and usage_rows[-1].data["status"] == "known"
+    finally:
+        if proxy_server is not None:
+            proxy_server.close()
+        stop_normal_driver(fixture)
+        app.runtime().stop()
+
+
+def test_two_tenant_replay_restore_and_injection_boundaries(tmp_path, monkeypatch):
+    for name in ("JOURNAL_ROOT", "JOURNAL_ENV", "JOURNAL_ACTOR", "JOURNAL_SESSION"):
+        monkeypatch.delenv(name, raising=False)
+    staging_root = tmp_path / "two-tenants"
+    tenant_a = staging_root / "tenant-a"
+    tenant_b = staging_root / "tenant-b"
+    app_a = App(Config(tenant_a, port=0))
+    app_b = App(Config(tenant_b, port=0))
+    server_a = app_a.container.call(Server)
+    server_b = app_b.container.call(Server)
+    started_a = False
+    started_b = False
+    stopped_a = False
+    restored = None
+    fixture_a = fixture_b = None
+    try:
+        server_a.start()
+        started_a = True
+        server_b.start()
+        started_b = True
+        fixture_a = authority_seeded(app_a, owner_id=101)
+        fixture_b = authority_seeded(app_b, owner_id=202)
+        monkeypatch.setattr(fixture_a.authority.agents, "is_running", lambda _environment: True)
+        monkeypatch.setattr(fixture_b.authority.agents, "is_running", lambda _environment: True)
+        grant_a, token_a, _principal_a = authority_admitted(fixture_a, "bounded_write")
+        grant_b, token_b, _principal_b = authority_admitted(fixture_b, "bounded_write")
+        assert grant_a["scope"]["tenant_id"] != grant_b["scope"]["tenant_id"]
+        base_a = f"http://127.0.0.1:{server_a.port}"
+        base_b = f"http://127.0.0.1:{server_b.port}"
+        client_a = SupervisorHttpClient(JsonHttpConnection(base_a, token_a))
+        client_b = SupervisorHttpClient(JsonHttpConnection(base_b, token_b))
+
+        entries_b = app_b.container.get(Entries)
+        before_b = entries_b.global_last_id()
+        foreign_client = SupervisorHttpClient(JsonHttpConnection(base_b, token_a))
+        with pytest.raises(AuthorizationError):
+            foreign_client.admit("timer", None)
+        assert entries_b.global_last_id() == before_b
+        assert client_a.admit("timer", None)["status"] == "skipped"
+
+        mcp = McpServer(SupervisorBridge(client_a, StateStore(tenant_a / "gateway_state")))
+        listed = mcp.handle({"jsonrpc": "2.0", "id": "tools", "method": "tools/list"})
+        assert [tool["name"] for tool in listed["result"]["tools"]] == list(TOOL_NAMES)
+        unknown = mcp.handle({"jsonrpc": "2.0", "id": "injection", "method": "tools/call",
+            "params": {"name": "shell", "arguments": {"command": "printenv"}}})
+        assert unknown["error"]["code"] == -32602
+        with pytest.raises(ContractError, match="operation kind is not enabled"):
+            validate_operation({"kind": "shell_command", "argv": ["printenv"]})
+
+        state_directory = tenant_a / "gateway_state"
+        state = metered_state(state_directory)
+        provider = StubProvider([provider_input_tokens(3), provider_response(3, 2)])
+        assert MeteringProxy(state, provider).forward(model_request()).status == 200
+        first_receipt = SupervisorBridge(StubJournal(), state).receipt(RUN_REF)
+        restarted = StateStore(state_directory)
+        second_receipt = SupervisorBridge(StubJournal(), restarted).receipt(RUN_REF)
+        assert second_receipt == first_receipt
+        assert restarted.snapshot()["usage_settlement"] == "settled"
+        assert restarted.snapshot()["receipt"]["usage"]["input_tokens"] == 3
+        assert len(provider.requests) == 2
+
+        server_a.stop()
+        app_a.container.get(Connection).close()
+        stopped_a = True
+        restore_root = staging_root / "restore-candidate"
+        copytree(tenant_a, restore_root)
+        restored = App(Config(restore_root, port=0))
+        restored_entries = restored.container.get(Entries)
+        restored_grants = restored_entries.selected_globally(
+            restored_entries.query().filter(entry_type="SupervisorGrant")
+            .filter_json("data->grant_id", grant_a["grant_id"]).limit(10)
+        )
+        assert len(restored_grants) == 1
+        assert tenant_a.resolve() != tenant_b.resolve() != restore_root.resolve()
+        assert (tenant_a / ".journal" / "journal.db").resolve() != (tenant_b / ".journal" / "journal.db").resolve()
+    finally:
+        if restored is not None:
+            restored.container.get(Connection).close()
+        if started_a and not stopped_a:
+            server_a.stop()
+            app_a.container.get(Connection).close()
+        if started_b:
+            server_b.stop()
+            app_b.container.get(Connection).close()
+        if fixture_a is not None:
+            fixture_a.authority.secrets_store.drop(fixture_a.credentials)
+        if fixture_b is not None:
+            fixture_b.authority.secrets_store.drop(fixture_b.credentials)
 
 
 def second_body_max_tokens(provider_requests):

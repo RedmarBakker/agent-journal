@@ -17,6 +17,7 @@ from supervisor_bridge.contracts import (
 REQUEST_TIMEOUT_SECONDS = 20
 RESPONSE_MAX_BYTES = 1_048_576
 HOOK_PATH = "/hooks/agent"
+RECEIPT_ENVELOPE_FIELDS = frozenset({"status", "reason", "receipt_id", "data", "report", "duplicate"})
 
 
 class TransportError(RuntimeError):
@@ -138,7 +139,14 @@ class SupervisorHttpClient:
 
     def receipt(self, action_id: str) -> dict:
         bounded_text(action_id, "action_id", 1, 256)
-        return self.connection.post(ROUTES["receipt"], {"protocol_version": 1, "action_id": action_id})
+        envelope = self.connection.post(ROUTES["receipt"], {"protocol_version": 1, "action_id": action_id})
+        data = envelope.get("data")
+        if (set(envelope) != RECEIPT_ENVELOPE_FIELDS or not isinstance(data, dict)
+                or type(envelope["receipt_id"]) is not int or envelope["receipt_id"] < 1
+                or not isinstance(envelope["report"], dict) or type(envelope["duplicate"]) is not bool
+                or envelope["status"] != data.get("status") or envelope["reason"] != data.get("reason")):
+            raise TransportError("journal receipt envelope is unsupported")
+        return data
 
 
 @dataclass(frozen=True)
