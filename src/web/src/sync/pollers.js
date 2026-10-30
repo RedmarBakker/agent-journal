@@ -42,61 +42,41 @@ async function selectedRows(client, table, ids, closed = false) {
     return pages.flatMap((page) => page.rows || []);
 }
 
-async function roleRowsFor(roleIds, {withAgents = true, withJobs = false} = {}) {
+async function roleRowsFor(roleIds) {
     const wanted = new Set(roleIds);
-    if (!wanted.size) return {workers: [], agents: [], plans: [], tasks: []};
+    if (!wanted.size) return {workers: [], agents: [], plans: []};
     const environments = await everyPage(api, "environments");
     const places = await Promise.all(environments.map(async (environment) => {
         const client = api.in(environment.name);
         const [workers, closedWorkers, agents, closedAgents, plans, closedPlans] = await Promise.all([
             everyPage(client, "workers"), everyPage(client, "workers", true),
-            withAgents ? everyPage(client, "agents") : Promise.resolve([]), withAgents ? everyPage(client, "agents", true) : Promise.resolve([]),
+            everyPage(client, "agents"), everyPage(client, "agents", true),
             everyPage(client, "plans"), everyPage(client, "plans", true),
         ]);
         const roleWorkers = [...new Map([...workers, ...closedWorkers].filter((row) => [...wanted].some((role) => isRoleWorker(row, role))).map((row) => [row.id, row])).values()];
-        const roleAgents = withAgents ? [...new Map([...agents, ...closedAgents].filter((row) => [...wanted].some((role) => roleWorkOf(row, role))).map((row) => [row.id, row])).values()] : [];
+        const roleAgents = [...new Map([...agents, ...closedAgents].filter((row) => [...wanted].some((role) => roleWorkOf(row, role))).map((row) => [row.id, row])).values()];
         const closedWorkerIds = new Set(closedWorkers.map((row) => row.id));
         const detailedWorkers = (await Promise.all([
             selectedRows(client, "workers", roleWorkers.filter((row) => !closedWorkerIds.has(row.id)).map((row) => row.id)),
             selectedRows(client, "workers", roleWorkers.filter((row) => closedWorkerIds.has(row.id)).map((row) => row.id), true),
         ])).flat();
-        let detailedAgents = [];
-        if (withAgents) {
-            const agentIds = [...new Set([...roleAgents.map((row) => row.id), ...detailedWorkers.map((row) => row.agent).filter(Boolean)])];
-            const closedAgentIds = new Set(closedAgents.map((row) => row.id));
-            detailedAgents = (await Promise.all([
-                selectedRows(client, "agents", agentIds.filter((id) => !closedAgentIds.has(id))),
-                selectedRows(client, "agents", agentIds.filter((id) => closedAgentIds.has(id)), true),
-            ])).flat();
-        }
-        let detailedTasks = [];
-        if (withJobs) {
-            const taskIds = [...new Set(detailedWorkers.flatMap((worker) => [
-                worker.task?.task_id,
-                ...(worker.queue || []).map((task) => task.id),
-                ...(worker.worked || []).slice(-5).map((task) => task.id),
-            ]).filter(Boolean))];
-            const openTasks = await selectedRows(client, "tasks", taskIds);
-            const foundTaskIds = new Set(openTasks.map((task) => task.id));
-            const closedTasks = await selectedRows(client, "tasks", taskIds.filter((id) => !foundTaskIds.has(id)), true);
-            detailedTasks = [...openTasks, ...closedTasks].map((row) => ({...row, environment: environment.name}));
-        }
+        const agentIds = [...new Set([...roleAgents.map((row) => row.id), ...detailedWorkers.map((row) => row.agent).filter(Boolean)])];
+        const closedAgentIds = new Set(closedAgents.map((row) => row.id));
+        const detailedAgents = (await Promise.all([
+            selectedRows(client, "agents", agentIds.filter((id) => !closedAgentIds.has(id))),
+            selectedRows(client, "agents", agentIds.filter((id) => closedAgentIds.has(id)), true),
+        ])).flat();
         return {
             workers: detailedWorkers.map((row) => ({...row, environment: environment.name})),
             agents: detailedAgents.map((row) => ({...row, environment: environment.name})),
             plans: [...new Map([...plans, ...closedPlans].map((row) => [row.id, row])).values()].map((row) => ({...row, environment: environment.name})),
-            tasks: detailedTasks,
         };
     }));
-    return {workers: places.flatMap((place) => place.workers), agents: places.flatMap((place) => place.agents), plans: places.flatMap((place) => place.plans), tasks: places.flatMap((place) => place.tasks)};
+    return {workers: places.flatMap((place) => place.workers), agents: places.flatMap((place) => place.agents), plans: places.flatMap((place) => place.plans)};
 }
 
 async function roleRows({domain, role}) {
     return {key: `${domain}/${role}`, ...await roleRowsFor([role])};
-}
-
-async function sharedRoleRows({roles}) {
-    return roleRowsFor(roles, {withAgents: false, withJobs: true});
 }
 
 // the cards docked above a chat, read apart from its pages so a card older than the newest page is still drawn
@@ -205,7 +185,6 @@ export const POLLERS = Object.freeze({
     "workers.activity": {read: () => api.workerActivity().then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => workerChanges("workers.every", 200), every: 5000},
     "organization.role.instances": {read: roleRows, every: 15000, by: ({domain, role}) => `${domain}/${role}`},
-    "organization.roles.shared": {read: sharedRoleRows, every: 15000, by: ({roles}) => [...roles].sort().join(",")},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewers.every": {read: () => api.list("reviewers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},

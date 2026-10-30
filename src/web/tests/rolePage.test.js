@@ -138,6 +138,21 @@ test("an organization-plan Role seat shows its read-only transcript and queue be
     expect(route.value.open).toMatchObject({table: "tasks", id: 51, env: "plan-4"});
 });
 
+test("a journal-cardinality Role keeps its queue on the Role page", async () => {
+    apiMock.organizationRole.mockResolvedValue({...role, cardinality: "journal"});
+    fixtures.snapshot = {
+        key: "product/architect",
+        workers: [worker(14, "plan-4", {name: "Shared architect", queue: [{id: 61, title: "Review the shared plan"}], task: {task_id: 60, title: "Review"}})],
+        agents: [agent(114, "plan-4")],
+        plans: [{id: 4, environment: "plan-4", mode: "organization", title: "Release"}],
+    };
+    await mount();
+
+    expect(host.querySelector(".role-management-title").textContent).toContain("One for all plans");
+    expect(host.querySelector(".role-instance-picker")).toBeFalsy();
+    expect(host.querySelector(".role-instance-queue").textContent).toContain("Task 61: Review the shared plan");
+});
+
 test("a worker Role gets writable chat and keeps a legacy worker under its old title in the instance picker", async () => {
     fixtures.snapshot = {
         key: "product/architect",

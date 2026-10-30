@@ -10,8 +10,11 @@ import Index from "./pages/Index.vue";
 import IntegrationsPage from "./pages/IntegrationsPage.vue";
 import OrganizationPage from "./pages/OrganizationPage.vue";
 import RolePage from "./organization/RolePage.vue";
+<<<<<<< HEAD
 import SharedRoles from "./organization/SharedRoles.vue";
 import LibraryPage from "./pages/LibraryPage.vue";
+=======
+>>>>>>> agentic-organization
 import PluginsPage from "./pages/PluginsPage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import SearchPage from "./pages/SearchPage.vue";
@@ -23,7 +26,14 @@ import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
 import HomePlanBoard from "./pages/HomePlanBoard.vue";
 import PhoneDesktopNotice from "./phone/PhoneDesktopNotice.vue";
 import {onPhone} from "./platform/phone.js";
+<<<<<<< HEAD
 import {route} from "./route.js";
+=======
+import {computed} from "vue";
+import {peek} from "./route.js";
+import {store} from "./state/store.js";
+import {rows} from "./sync/rows.js";
+>>>>>>> agentic-organization
 import {planAgents} from "./domain/planAgents.js";
 
 defineProps({page: {type: String, required: true}});
@@ -57,7 +67,6 @@ defineProps({page: {type: String, required: true}});
         <template #mcp><IntegrationsPage /></template>
         <template #organization>
             <PhoneDesktopNotice v-if="onPhone" message="The organization screen opens on the desktop." />
-            <SharedRoles v-else-if="route.shared" />
             <OrganizationPage v-else />
         </template>
         <template #role>

@@ -55,7 +55,6 @@ export const route = computed(() => {
         domain: params.get("domain") || "",
         role: params.get("role") || "",
         instance: params.get("instance") || "",
-        shared: params.get("roles") === "shared",
         install: params.get("install") || "",
         line: Number(params.get("line") || 0),
         at: params.get("at") || "",
@@ -73,7 +72,6 @@ export const href = {
     domain: (domain) => `#/organization?domain=${encodeURIComponent(domain)}`,
     role: (domain, role) => `#/organization?domain=${encodeURIComponent(domain)}&role=${encodeURIComponent(role)}`,
     rolePage: (domain, role, instance = "") => `#/role?${new URLSearchParams({domain, role, ...(instance ? {instance} : {})})}`,
-    sharedRoles: () => "#/organization?roles=shared",
     opened: (page, ref) => `${href.page(page)}?open=${ref}`,
 };
 
