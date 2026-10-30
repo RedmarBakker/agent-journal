@@ -280,7 +280,7 @@ def test_future_phase_pause_checkpoint_and_failed_phase_gate_do_not_advance(app:
         "future_phase": "grant_context_changed",
         "owner_pause": "plan_ineligible",
         "checkpoint": "grant_context_changed",
-        "failed_phase_tests": "phase_tests_unpassed",
+        "failed_phase_tests": "plan_ineligible",
     }[gate]
     assert receipt["status"] == "applied" and delivery is not None and delivery.data["status"] == "needs_owner" and delivery.data["reason"] == expected_reason, "post-commit revalidation records an owner handoff when a plan gate changes"
     with scope.environment(fixture.driver_environment.row_id):
