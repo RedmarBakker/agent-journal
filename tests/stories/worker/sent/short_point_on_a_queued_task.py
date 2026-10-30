@@ -14,8 +14,6 @@ def test_a_worker_whose_queued_task_comes_back_short_takes_that_task_in_hand_and
     story.agent_runs(story.agents.main, f"worker queue {story.agents.subject} {docs}")
     story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
     story.agent_proves(story.agents.subject, 2, "parser.py:30, test_names passes")
-    story.agent_clocks_out(story.agents.subject, "the parser is done")
-    story.agent_runs(story.agents.subject, "clock-in")
     story.agent_proves(story.agents.subject, 1, "docs.md:4, the docs name the parser")
     story.agent_clocks_out(story.agents.subject, "the docs are done")
     story.worker_run_ends_with_its_session(story.agents.subject, "the queue is done")

@@ -6,7 +6,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PlanWorkerDelivered(StateFixture):
-    """The worker on the whole plan proved and clocked out of both its tasks, one after the other, and its work waits for the agent's check."""
+    """The worker on the whole plan proved both its tasks, the second handed to it as the first was proved, and clocked out once, and its work waits for the agent's check."""
 
     stack = (Ready,)
 
@@ -14,7 +14,6 @@ class PlanWorkerDelivered(StateFixture):
 
     def steps(self, story) -> None:
         story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
-        story.agent_clocks_out(story.agents.workers.first(), "the first is done")
         story.agent_proves(story.agents.workers.first(), 1, "second.py:3, test_second passes")
         story.agent_clocks_out(story.agents.workers.first(), "the plan is done")
 

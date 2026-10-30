@@ -13,9 +13,8 @@ from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelive
 
 
 @story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_worker_on_a_plan_goes_on_to_the_next_task_without_reporting(story):
-    story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
-    result = story.agent_clocks_out(story.agents.workers.first(), "the first is done")
+def test_a_worker_on_a_plan_goes_on_to_the_next_task_as_it_proves_the_last_point_without_reporting(story):
+    result = story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
     result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_task(story.tasks.second, delegated=True)
