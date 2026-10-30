@@ -620,6 +620,7 @@
         "idle: queue it tasks or `journal worker complete",
         "if it is, carry on with the work in hand",
         "if it only waits for its tests, `journal task test",
+        "if merge stops, review, fix the issue and run `journal plan merge",
         "if too many wait, add a reviewer: `journal reviewer add`",
         "in chat, talk only of the user's work, never the journal's lines, hooks, skills, replies, or what you read, load or log",
         "in code, identifiers and text state literally what a thing is or does, in plain words, never in the voice",
