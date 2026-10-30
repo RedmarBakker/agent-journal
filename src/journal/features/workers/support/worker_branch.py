@@ -1,4 +1,3 @@
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -66,7 +65,7 @@ class WorkerBranch:
         return InnerRepositories(self.config.root).names()
 
     def brief_folders(self, brief: str) -> tuple[str, ...]:
-        return tuple(name for name in self.inner_folders() if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", brief, re.IGNORECASE))
+        return InnerRepositories(self.config.root).named_in(brief)
 
     def repositories(self, worker: Worker) -> list[WorkerRepository]:
         folder = self.folder(worker)

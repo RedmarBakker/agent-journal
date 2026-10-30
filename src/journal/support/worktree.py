@@ -51,11 +51,16 @@ class Worktree:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if self.path.exists() and not self.is_registered():
                 raise WorktreeFailure(self.name, f"{self.path} is there but git does not hold it as a worktree, so it is left as it is: move it away, or add it back with git worktree add")
-            if not self.path.is_dir():
+            if self.path.is_dir():
+                self.reused()
+            else:
                 self.added()
             self.shared()
             self.record_tip()
         return self.path
+
+    def reused(self) -> None:
+        return
 
     def record_tip(self) -> None:
         tip = self.local_branch() if self.path.is_dir() else ""

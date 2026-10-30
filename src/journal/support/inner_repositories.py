@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -14,6 +15,9 @@ class InnerRepositories:
     def names(self) -> tuple[str, ...]:
         is_repository = self.git(self.root, "rev-parse", "--git-dir").returncode == 0
         return tuple(sorted(child.name for child in self.root.iterdir() if self.is_inner(child, is_repository)))
+
+    def named_in(self, brief: str) -> tuple[str, ...]:
+        return tuple(name for name in self.names() if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", brief, re.IGNORECASE))
 
     def is_inner(self, child: Path, is_repository: bool) -> bool:
         if not child.is_dir() or child.is_symlink() or not (child / ".git").exists() or child.name == JOURNAL:

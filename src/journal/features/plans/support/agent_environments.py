@@ -37,9 +37,9 @@ class AgentEnvironments:
         starter = self.agents.environment_main_agent(environment_id)
         return starter.provider if starter and starter.provider else self.providers.default().name
 
-    def launched(self, environment: Environment, agent: Agent) -> None:
+    def launched(self, environment: Environment, agent: Agent, repositories: tuple[str, ...] | None = None) -> None:
         resume = self.providers.lookup(agent.provider).resume(agent.session) if agent.session else ()
-        self.launcher.start_in_worktree(environment.name, agent.provider, resume)
+        self.launcher.start_in_worktree(environment.name, agent.provider, resume, repositories)
 
     def is_running(self, environment: Environment) -> bool:
         return self.supervisor.runs(environment.row_id)

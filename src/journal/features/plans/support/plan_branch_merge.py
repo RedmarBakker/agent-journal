@@ -103,7 +103,10 @@ class PlanBranchMerge:
 
     def repositories(self, tree: Worktree) -> list[tuple[Path, Path, str, str]]:
         if isinstance(tree, WorkspaceWorktree):
-            return [(self.config.root / name, tree.path / name, name, name) for name in tree.repositories()]
+            inner = [(self.config.root / name, tree.path / name, name, name) for name in tree.repositories()]
+            if tree.project_repository:
+                inner.insert(0, (self.config.root, tree.path, "the project", ""))
+            return inner
         return [(self.config.root, tree.path, "the project", "")]
 
     def checked_tip(self, plan: Plan, tree: Worktree, checkout: Path, source: Path, label: str, prefix: str) -> str:

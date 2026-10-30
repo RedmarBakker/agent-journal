@@ -240,6 +240,9 @@ class Provider(ABC):
     def status_file(self, home: Path) -> ContextFile:
         return self._status_files.setdefault(home, ContextFile(home))
 
+    def estimated_cost(self, session: str, home: Path) -> float | None:
+        return self.status_file(home).estimated_cost(session)
+
     @abstractmethod
     def write_mcp(self, project: Path, servers: list[McpServer]) -> Path: ...
 

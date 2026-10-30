@@ -59,7 +59,7 @@ class Supervisors:
 def supervisors(app: App, monkeypatch) -> Supervisors:
     recorded = Supervisors()
     environments = app.container.get(Environments)
-    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda self, environment, agent, resume: recorded.launched(environment, agent, resume))
+    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda self, environment, agent, resume, repositories=None: recorded.launched(environment, agent, resume))
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: environments.find(environment_id).name in recorded.running)
 
     def stopped(self, environment_id: int) -> None:

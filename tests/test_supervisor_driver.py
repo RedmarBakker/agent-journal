@@ -66,7 +66,7 @@ class DriverProcesses:
 @pytest.fixture
 def driver_processes(app: App, monkeypatch) -> DriverProcesses:
     processes = DriverProcesses(app)
-    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, agent, resume: processes.start(environment, agent, resume))
+    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, agent, resume, repositories=None: processes.start(environment, agent, resume))
     monkeypatch.setattr(SupervisorLink, "runs", lambda _self, environment_id: environment_id in processes.running)
     monkeypatch.setattr(SupervisorLink, "stop", lambda _self, environment_id: processes.stop(environment_id))
     monkeypatch.setattr(SupervisorLink, "type", lambda *_args, **_kwargs: None)

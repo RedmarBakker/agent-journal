@@ -1961,7 +1961,9 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   main environment delegates while each plan environment advances its own plan. The plan's chat is its environment's
   chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. When a solo Plan agent finishes,
   the main agent reviews and merges `worktree-plan-<n>` with `journal plan merge <n>`; the journal checks the branch and
-  removes its worktree after the merge.
+  removes its worktree after the merge. Solo sessions add the provider-reported status-line estimate through the
+  reset-aware UsageLedger; their worktrees include the inner repositories named in the plan and task text, or every
+  inner repository when none is named, and merge finds the checkouts actually present.
 - A plan's owner (task 44) is the owner of its environment, or for a hub plan the owner of this machine's environment
   that drives it (`features/plans/support/plan_owners.py`), named by `plan show` and on the plan page. Only its owner
   approves it: a colleague is refused by ColleagueWriteGuard, which names the owner, and a Plan agent by the approval

@@ -19,8 +19,8 @@ class AgentLauncher:
     def start(self, environment: str, agent: str) -> int:
         return self.launched(environment, [agent, "--env", environment, *DETACHED])
 
-    def start_in_worktree(self, environment: str, agent: str, resume: tuple[str, ...]) -> int:
-        WorkspaceWorktree.chosen(self.config.root, environment).created()
+    def start_in_worktree(self, environment: str, agent: str, resume: tuple[str, ...], repositories: tuple[str, ...] | None = None) -> int:
+        WorkspaceWorktree.chosen(self.config.root, environment, repositories).created()
         return self.launched(environment, [agent, "--env", environment, "--worktree", environment, *DETACHED, "--skip", "--", *resume])
 
     def launched(self, environment: str, arguments: list[str]) -> int:

@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 from journal.providers.support.agent_status import AgentStatus
@@ -28,6 +29,16 @@ class ContextFile:
 
     def model(self, session: str) -> str:
         return self.status(session).get("model", {}).get("display_name", "")
+
+    def estimated_cost(self, session: str) -> float | None:
+        status = self.status(session)
+        if status.get("session_id") != session:
+            return None
+        cost = status.get("cost")
+        if not isinstance(cost, dict):
+            return None
+        amount = cost.get("total_cost_usd")
+        return float(amount) if isinstance(amount, (int, float)) and not isinstance(amount, bool) and math.isfinite(float(amount)) and amount >= 0 else None
 
     def effort(self, session: str) -> str:
         return self.status(session).get("effort", {}).get("level", "")

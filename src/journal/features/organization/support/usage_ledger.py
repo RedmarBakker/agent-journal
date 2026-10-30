@@ -83,6 +83,10 @@ class UsageLedger:
         )
         return self.record(plan_id, seat, native_session, reading, observed_at, expected_seats)
 
+    def record_session_estimate(self, plan_id: int, seat: str, native_session: str, cumulative_usd: float, observed_at: float, source: str) -> UsageEstimate:
+        reading = UsageReading(cumulative_usd, source, "native-session estimate", native_session, {}, "one native session", "fresh", "estimated")
+        return self.record(plan_id, seat, native_session, reading, observed_at)
+
     def record(self, plan_id: int, seat: str, native_session: str, reading: UsageReading, observed_at: float,
                expected_seats: int | None = None) -> UsageEstimate:
         with self._lock:

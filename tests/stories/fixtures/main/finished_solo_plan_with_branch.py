@@ -21,7 +21,7 @@ class FinishedSoloPlanWithBranch(StateFixture):
         root, plan = story.app.config.root, self.plans.first
         story.git_in(root, "config", "user.name", "Story")
         story.git_in(root, "config", "user.email", "story@example.com")
-        story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent: WorkspaceWorktree.chosen(root, environment.name).created())
+        story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=None: WorkspaceWorktree.chosen(root, environment.name, repositories).created())
         story.agent_runs(story.agents.main, f"plan start {plan}")
         environment = story.app.container.get(Environments).existing(f"plan-{plan}")
         session = "plan-agent-session"

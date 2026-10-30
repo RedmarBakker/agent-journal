@@ -1596,7 +1596,7 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
 @pytest.mark.parametrize(("rig_on_path", "installed"), [(False, ""), (True, "0.7.4")])
 def test_a_solo_plan_agent_starts_when_openrig_is_missing_or_wrong(app, monkeypatch, rig_on_path, installed):
     launches = []
-    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, provider, resume: launches.append((environment, provider, resume)))
+    monkeypatch.setattr(AgentLauncher, "start_in_worktree", lambda _self, environment, provider, resume, repositories=None: launches.append((environment, provider, resume)))
     which = shutil.which
     monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda program, *args, **kwargs: ("/usr/bin/rig" if rig_on_path else None) if program == "rig" else which(program, *args, **kwargs))
     if rig_on_path:
