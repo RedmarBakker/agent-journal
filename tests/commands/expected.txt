@@ -1240,6 +1240,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
+created: message 56
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1436,7 +1437,7 @@ workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
 workers.pool_profiles =   (the user sets it)
 workers.allowed_models = claude reviewer: sonnet | claude verifier: sonnet | codex reviewer: gpt-6.1-sol | codex verifier: gpt-6.1-sol
-workers.organization_folder = 'test-organization'  (the user sets it)
+workers.organization_folder = ''  (the user sets it)
 workers.organization_version = ''  (the user sets it)
 workers.default_plan_mode = 'organization'  (the user sets it)
 workers.organization_plan_profile = 'organization-plan-review'  (the user sets it)
@@ -1518,7 +1519,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 9
+created: setting 8
 
 $ agent: journal environment list
 exit 0
@@ -1656,12 +1657,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 10
+created: setting 9
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 11
+created: setting 10
 
 $ agent: journal skill list
 exit 0
