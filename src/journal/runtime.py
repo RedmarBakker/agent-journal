@@ -90,7 +90,7 @@ class Runtime:
         self.bus.add_answer_listener(RowEvent, self.container.get(RowEventDelivery), Blocking.NEXT_DECISION)
         for researcher_listener in (ResearcherStart, ResearcherEnd, ResearchersClosed):
             self.bus.add_answer_listener(researcher_listener.event_type(), self.container.get(researcher_listener), Blocking.NEXT_DECISION)
-        self.bus.listen(Created, Creations())
+        self.bus.add_answer_listener(Created, Creations(), Blocking.ANSWER)
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
         self.container.get(TeamWrites).listen()
         self.bus.listen(Synced, self.container.get(PulledSettings))
