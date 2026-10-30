@@ -1,5 +1,8 @@
 import shlex
 
+from journal.features.shell.support.shell_record import ShellRecord
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_part import CommandPart
 from journal.support.caller import Caller
 from tests.observation import Observation
 from tests.simulation.simulator import Simulator
@@ -38,6 +41,21 @@ class AgentSession:
         seen = self.simulator.run(argv, self.caller)
         self.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
         return seen
+
+    def commit(self, subject: str) -> Observation:
+        line = f"git commit -m {shlex.quote(subject)}"
+        call, use = {"command": line, "description": "Commit the task's part"}, self.next_tool_use_id()
+        held = self.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=use)
+        if held.is_refused():
+            return held
+        root = self.simulator.app.config.root
+        chain = f"sim-commit-{self.caller.agent_session}-{self.calls}"
+        self.simulator.ledger.committed(subject, int(self.simulator.source.seconds()))
+        record = self.simulator.app.container.get(ShellRecord)
+        record.start(chain, line, root / ".journal" / "runs" / chain, self.caller, ran_in=str(root))
+        record.finish_part(chain, CommandPart.plain(line, self.simulator.app.container.get(CommandClassifier)), 0, 0.1, "", [], self.caller)
+        record.foreground_end(chain, 0, self.caller)
+        return self.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
 
     def next_tool_use_id(self) -> str:
         self.calls += 1

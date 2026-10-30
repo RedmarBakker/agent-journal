@@ -1,10 +1,7 @@
 import random
 import re
 
-from journal.features.shell.support.shell_record import ShellRecord
 from journal.support.caller import Caller
-from journal.support.command_classifier import CommandClassifier
-from journal.support.command_part import CommandPart
 from tests.observation import Observation
 from tests.simulation.job_lengths import JobLengths
 from tests.simulation.agent_session import AgentSession
@@ -65,18 +62,7 @@ class MainAgent:
         return self.tool("Bash", {"command": line, "description": "Write the part"}, {"stdout": "", "stderr": "", "interrupted": False})
 
     def commit(self, task: int) -> Observation:
-        line = f"git commit -m 'the part of task {task}'"
-        self.simulator.ledger.committed(f"the part of task {task}", int(self.simulator.source.seconds()))
-        caller = self.session.caller
-        call, use = {"command": line, "description": "Commit the task's part"}, self.session.next_tool_use_id()
-        held = self.session.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=use)
-        if held.is_refused():
-            return held
-        record, chain, root = self.simulator.app.container.get(ShellRecord), f"sim-commit-{self.session.calls}", self.simulator.app.config.root
-        record.start(chain, line, root / ".journal" / "runs" / chain, caller, ran_in=str(root))
-        record.finish_part(chain, CommandPart.plain(line, self.simulator.app.container.get(CommandClassifier)), 0, 0.1, "", [], caller)
-        record.foreground_end(chain, 0, caller)
-        return self.session.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
+        return self.session.commit(f"the part of task {task}")
 
     def remedy_action(self, world: World) -> Observation:
         return self.command(world.remedies.pop(0)) if world.remedies else self.read_action(world)

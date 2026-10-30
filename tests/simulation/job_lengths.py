@@ -12,4 +12,8 @@ class JobLengths:
     def seconds(self) -> float:
         if not self.scenario.job_minutes:
             return self.scenario.worker_seconds
-        return self.chance.choice(self.scenario.job_minutes) * 60
+        return self.seconds_from(self.scenario.job_minutes, self.chance)
+
+    @staticmethod
+    def seconds_from(minutes: tuple[float, ...], chance: random.Random) -> float:
+        return chance.choice(minutes) * 60

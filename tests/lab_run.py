@@ -10,22 +10,31 @@ import stat
 import pytest
 
 from journal.features.organization.support.hub_traffic_audit import HubTrafficFinding
+from journal.features.organization.support.organization import Organization
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.models.plan_mode import PlanMode
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
-from tests.lab.measurement import Measurement
+from tests.lab.actors.domain_agent_actor import DomainAgentActor
 from tests.lab.batch import Batch
 from tests.lab.batch_runner import BatchRunner
+from tests.lab.business_type import BusinessType
 from tests.lab.design import Design
+from tests.lab.lab_journal import LabJournal
+from tests.lab.lab_scenario import LabScenario
+from tests.lab.measurement import Measurement
 from tests.lab.network_reading import NETWORK_METRICS, NetworkReading, nearest_rank
+from tests.lab.primary_role_route import PrimaryRoleRoute
 from tests.lab.run_reading import RUN_METRICS, SETUP_CHECKS, RunReading
 from tests.lab.run_record import RunRecord
 from tests.lab.run_request import RunRequest
 from tests.lab.scenario_pin import ScenarioPin
 from tests.lab.simulation_caps import SimulationCaps
+from tests.simulation.shrinker import Shrinker
+from tests.simulation.trace_entry import TraceEntry
+from tests.simulation.trace_file import TraceFile
 
 
 RUN_METRIC_CONTRACT = {
@@ -78,6 +87,29 @@ def lab_task_prerequisites(scenario, scenario_rows) -> dict[int, tuple[int, ...]
         for phase in scenario.phases
         for task in phase["tasks"]
     }
+
+
+def lab_behaviour_profile(agent_kind, model_tier, line_follow, escalation, handoff_error, out_of_route, out_of_worktree):
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.simulation.scenarios import JOB_DECILES
+
+    def observations(rate):
+        if not 0 <= rate <= 1:
+            raise ValueError("a test profile rate is between zero and one")
+        count = round(rate * 100)
+        return (True,) * count + (False,) * (100 - count)
+
+    samples = {
+        "job_length_minutes": tuple(value for value in JOB_DECILES for _ in range(10)),
+        "send_back_count": (0,) * 70 + (1,) * 22 + (2,) * 5 + (3,) * 3,
+        "line_followed": observations(line_follow),
+        "escalated": observations(escalation),
+        "handoff_error": observations(handoff_error),
+        "outside_route": observations(out_of_route),
+        "outside_worktree": observations(out_of_worktree),
+    }
+    refs = {metric: (f"synthetic://lab-test/{agent_kind}/{model_tier}/{metric}",) for metric in samples}
+    return BehaviourProfile.fit(agent_kind, model_tier, samples, refs)
 
 
 def test_a_lab_journal_loads_its_scenario_and_replaces_process_and_openrig_calls(tmp_path, monkeypatch):
@@ -217,6 +249,249 @@ def test_an_organization_plan_agent_hands_tasks_to_domains_and_cannot_take_a_rol
         refused = agent.take_role("engineering_lead")
         assert refused.answer[0] != 0
         assert agent.active_role == ""
+
+
+def test_a_behaviour_profile_uses_measured_week_samples_for_one_agent_and_tier():
+    import random
+
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.simulation.scenarios import JOB_DECILES, SEND_BACK_SHARES
+
+    profile = lab_behaviour_profile("domain", "sonnet", 0.8, 0.8, 0.8, 0.8, 0.8)
+    same = lab_behaviour_profile("domain", "sonnet", 0.8, 0.8, 0.8, 0.8, 0.8)
+    first_random, same_random = random.Random(31), random.Random(31)
+
+    assert (profile.agent_kind, profile.model_tier) == ("domain", "sonnet")
+    assert profile.metrics["job_length_deciles_minutes"]["value"] == JOB_DECILES
+    assert profile.metrics["send_back_shares"]["value"] == SEND_BACK_SHARES
+    assert [profile.job_seconds(first_random) for _ in range(3)] == [same.job_seconds(same_random) for _ in range(3)]
+    assert profile.follows_line(random.Random(1))
+    assert profile.escalates(random.Random(1))
+    assert profile.misses_handoff(random.Random(1))
+    assert profile.routes_outside(random.Random(1))
+    assert profile.writes_outside_worktree(random.Random(1))
+    with pytest.raises(ValueError, match="observations must be true or false"):
+        BehaviourProfile.fit("domain", "sonnet", {"line_followed": (1.1,)}, {"line_followed": ("synthetic://invalid",)})
+
+
+def test_a_domain_agent_routes_by_contract_or_its_sampled_route_error(tmp_path, monkeypatch):
+    from journal.features.organization.support.organization import Organization
+    from tests.lab.actors.domain_agent_actor import DomainAgentActor
+    from tests.lab.business_type import BusinessType
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        domain = lab.app.container.get(Organization).contracts().domain("engineering")
+        followed = lab_behaviour_profile("domain", "sonnet", 1.0, 1.0, 0.0, 0.0, 0.0)
+        errant = lab_behaviour_profile("domain", "sonnet", 1.0, 1.0, 0.0, 1.0, 0.0)
+        agent = DomainAgentActor(lab.simulator, domain, "main", followed, 4)
+        assert not agent.session_start().is_refused()
+        assert agent.route("a product change") == "engineering_lead"
+        assert agent.follows_line()
+        assert agent.escalates()
+
+        careless = DomainAgentActor(lab.simulator, domain, "main", errant, 4)
+        assert careless.route("a product change") in domain.roles
+        assert careless.route("a product change") != "engineering_lead"
+        ignores_route = lab_behaviour_profile("domain", "sonnet", 0.0, 0.0, 0.0, 0.0, 0.0)
+        inattentive = DomainAgentActor(lab.simulator, domain, "main", ignores_route, 4)
+        assert inattentive.route("a product change") != "engineering_lead"
+
+
+def test_a_role_writer_records_work_commit_and_proof_while_a_reader_sends_a_report(tmp_path, monkeypatch):
+    from journal.features.organization.support.organization import Organization
+    from journal.models.support.ref import Ref
+    from journal.models.worker import Worker
+    from journal.repositories.environments import Environments
+    from journal.repositories.proofs import Proofs
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    from journal.support.caller import Caller
+    from tests.lab.actors.role_actor import RoleActor
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.lab.business_type import BusinessType
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        contracts = lab.app.container.get(Organization).contracts()
+        role = contracts.role("software_engineer")
+        environment_id = lab.app.container.get(Environments).lookup("main").id
+        scope = lab.app.container.get(Scope)
+        with scope.environment(environment_id):
+            task = lab.app.container.get(Tasks).find(lab.scenario_rows["task_ids"]["restore_service_health"])
+            worker = lab.app.container.get(Workers).save(Worker(
+                environment_id=task.environment_id,
+                name="Software engineer",
+                brief=task.brief,
+                role=role.id,
+                contract=contracts.version,
+                plan_id=lab.scenario_rows["plan_id"],
+                session="lab-role-writer",
+                worktree=True,
+            ), Actor.system())
+            lab.app.container.get(Tasks).handover(task, Ref.build(worker), Actor.system())
+            writer = RoleActor(
+                lab.simulator,
+                role,
+                Caller.worker("main", worker.id, worker.session, "claude"),
+                lab_behaviour_profile("role", "sonnet", 0.8, 0.0, 0.0, 0.0, 0.0),
+                11,
+            )
+            assert not writer.session_start().is_refused()
+            assert not writer.write("src/recovery.py", "RECOVERED = True\n").is_refused()
+            assert not writer.commit("record recovery").is_refused()
+            assert writer.prove(1, "src/recovery.py:1").answer[0] == 0
+            assert lab.simulator.ledger.commits[-1][1] == "record recovery"
+            assert lab.simulator.ledger.lines() == 1
+            assert [proof.point for proof in lab.app.container.get(Proofs).task_proofs(task)] == [1]
+
+        reader = RoleActor(
+            lab.simulator,
+            contracts.role("product_manager"),
+            Caller.agent("main", "lab-role-reader", "claude"),
+            lab_behaviour_profile("role", "sonnet", 0.8, 0.0, 0.0, 0.0, 0.0),
+            12,
+        )
+        assert not reader.session_start().is_refused()
+        assert reader.report("The customer impact is scoped.").answer[0] == 0
+
+
+def test_a_role_receives_a_handoff_with_the_profiled_error_and_worktree_behavior(tmp_path, monkeypatch):
+    from journal.support.caller import Caller
+    from journal.features.organization.support.organization import Organization
+    from tests.lab.actors.role_actor import RoleActor
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.lab.business_type import BusinessType
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        role = lab.app.container.get(Organization).contracts().role("software_engineer")
+        profile = lab_behaviour_profile("role", "sonnet", 0.0, 0.0, 1.0, 0.0, 1.0)
+        actor = RoleActor(lab.simulator, role, Caller.agent("main", "lab-role-careless", "claude"), profile, 5)
+        assert not actor.session_start().is_refused()
+        received = actor.receive_handoff({"health report": "stable", "logs": "empty"})
+
+        assert len(received) == 1
+        assert len(actor.missed_inputs) == 1
+        written = actor.write("src/recovery.py", "RECOVERED = True\n")
+        assert not written.is_refused()
+        assert lab.simulator.ledger.pending["../src/recovery.py"] == 1
+
+
+def test_the_outside_world_answers_due_questions_and_the_user_can_be_away(tmp_path, monkeypatch):
+    import random
+
+    from journal.repositories.questions import Questions
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
+    from journal.support.caller import Caller
+    from tests.lab.actors.outside_world_actor import OutsideWorldActor
+    from tests.lab.behaviour_profile import BehaviourProfile
+    from tests.lab.business_type import BusinessType
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+    from tests.simulation.user_actor import UserActor
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home")
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        caller = Caller.agent("main", "lab-questioner", "claude")
+        lab.simulator.hook("SessionStart", session=caller.session, environment=caller.environment, source="startup")
+        for party in ("customer", "insurer", "court"):
+            asked = lab.simulator.run(["question", "ask", f"What does the {party} report?"], caller)
+            assert asked.answer[0] == 0
+        scope = lab.app.container.get(Scope)
+        main = lab.app.container.get(Environments).lookup("main")
+        with scope.environment(main.id):
+            questions = lab.app.container.get(Questions).open()
+        profile = lab_behaviour_profile("outside_world", "external", 0.8, 0.0, 0.0, 0.0, 0.0)
+        outside = OutsideWorldActor(lab.simulator, profile, 3)
+        due = [
+            outside.answer_after(question.id, f"The {party} confirms recovery.", party)
+            for party, question in zip(("customer", "insurer", "court"), questions)
+        ]
+        assert all(moment > lab.simulator.source.seconds() for moment in due)
+        assert outside.release_due() == ()
+        lab.simulator.advance(max(due) - lab.simulator.source.seconds())
+        released = outside.release_due()
+        assert len(released) == 3 and all(result.answer[0] == 0 for result in released)
+        assert [party for party, _, _ in outside.released] == ["customer", "insurer", "court"]
+        with scope.environment(main.id):
+            assert [lab.app.container.get(Questions).find(question.id).answer for question in questions] == [
+                "The customer confirms recovery.", "The insurer confirms recovery.", "The court confirms recovery.",
+            ]
+
+        asked = lab.simulator.run(["question", "ask", "Can the control change proceed?"], caller)
+        assert asked.answer[0] == 0
+        with scope.environment(main.id):
+            approval = lab.app.container.get(Questions).open()[0]
+
+        user = UserActor(lab.simulator, random.Random(2), 3600, 1)
+        user.away_for(1)
+        assert user.is_away()
+        assert user.maybe_message() is None
+        assert user.approve(approval.id) is None
+        lab.simulator.advance(60)
+        assert not user.is_away()
+        assert user.approve(approval.id).answer[0] == 0
+        assert user.maybe_message().answer[0] == 0
+
+
+def test_a_planted_domain_route_fault_is_found_shrunk_and_replayed_from_its_file(tmp_path, monkeypatch):
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    request = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
+    seed = 1035
+
+    with LabJournal(request, scenario, business, monkeypatch) as lab:
+        domain = lab.app.container.get(Organization).contracts().domain("engineering")
+        invariant = PrimaryRoleRoute(domain.id, domain.routing[0].role)
+
+        def route_trace(actions, out_of_route_rate, trace_seed=seed):
+            profile = lab_behaviour_profile("domain", "sonnet", 1.0, 1.0, 0.0, out_of_route_rate, 0.0)
+            actor = DomainAgentActor(lab.simulator, domain, "main", profile, trace_seed)
+            trace = []
+            for index, action in enumerate(actions, 1):
+                if action != "route":
+                    raise ValueError(f"unknown simulated Domain action: {action}")
+                role = actor.route("a product change")
+                trace.append(TraceEntry(index * 30, f"domain:{domain.id}", f"route:{role}", False, (), status=200))
+            return trace
+
+        actions = ["route", "route"]
+        broken_trace = route_trace(actions, 1.0)
+        assert invariant.violated(broken_trace)
+        assert not invariant.violated(route_trace(["route"], 0.0))
+
+        shrunk = Shrinker(lambda remaining: route_trace(remaining, 1.0), invariant).shrunk(actions)
+        assert shrunk == ["route"]
+        trace_path = TraceFile(tmp_path / "traces").written(scenario.id, seed, "PrimaryRoleRoute", broken_trace, shrunk)
+        replay = json.loads(trace_path.read_text(encoding="utf-8"))
+        assert (replay["scenario"], replay["seed"], replay["broken"], replay["actions"]) == (
+            scenario.id, seed, "PrimaryRoleRoute", shrunk,
+        )
+        replayed_trace = route_trace(replay["actions"], 1.0, replay["seed"])
+        assert invariant.violated(replayed_trace)
 
 
 def test_a_fully_observed_empty_count_is_zero():

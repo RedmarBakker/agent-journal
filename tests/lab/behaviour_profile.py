@@ -1,10 +1,12 @@
 import math
+import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
 from tests.lab.business_type import freeze
-
+from tests.simulation.job_lengths import JobLengths
+from tests.simulation.scenarios import JOB_DECILES, SEND_BACK_SHARES
 
 PROFILE_VERSION = "behaviour-profile-v1"
 MINIMUM_OBSERVATIONS = 30
@@ -53,8 +55,6 @@ class BehaviourProfile:
 
     @classmethod
     def from_history(cls) -> "BehaviourProfile":
-        from tests.simulation.scenarios import JOB_DECILES, SEND_BACK_SHARES
-
         source = ("tests/simulation/scenarios.py:9-11",)
         metrics = {
             "job_length_deciles_minutes": cls.measurement(JOB_DECILES, "historical_baseline", None, source, "Measured worker job lengths in minutes."),
@@ -94,7 +94,7 @@ class BehaviourProfile:
         if count < MINIMUM_OBSERVATIONS:
             return cls.measurement(None, "insufficient_data", count, refs,
                                    f"At least {MINIMUM_OBSERVATIONS} observations are required to fit this metric.")
-        return cls.measurement(estimate, "calibrated", count, refs, "Fitted from observed real-run events.")
+        return cls.measurement(estimate, "calibrated", count, refs, "Fitted from observed events.")
 
     @staticmethod
     def measurement(value: object, status: str, count: int | None,
@@ -134,3 +134,51 @@ class BehaviourProfile:
                 raise ValueError("send-back profile needs three descending shares between zero and one")
         elif type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError(f"{metric} profile needs a rate between zero and one")
+
+    def estimated(self, metric: str) -> object:
+        estimate = self.metrics[metric]
+        if estimate["status"] not in {"calibrated", "historical_baseline"} or estimate["value"] is None:
+            raise ValueError(f"behaviour profile metric {metric} has no usable estimate")
+        return estimate["value"]
+
+    @property
+    def job_length_deciles(self) -> tuple[float, ...]:
+        return cast(tuple[float, ...], self.estimated("job_length_deciles_minutes"))
+
+    @property
+    def line_follow_rate(self) -> float:
+        return cast(float, self.estimated("followed_line_rate"))
+
+    @property
+    def escalation_rate(self) -> float:
+        return cast(float, self.estimated("escalation_rate"))
+
+    @property
+    def handoff_error_rate(self) -> float:
+        return cast(float, self.estimated("handoff_error_rate"))
+
+    @property
+    def out_of_route_rate(self) -> float:
+        return cast(float, self.estimated("outside_route_rate"))
+
+    @property
+    def out_of_worktree_rate(self) -> float:
+        return cast(float, self.estimated("outside_worktree_rate"))
+
+    def job_seconds(self, chance: random.Random) -> float:
+        return JobLengths.seconds_from(self.job_length_deciles, chance)
+
+    def follows_line(self, chance: random.Random) -> bool:
+        return chance.random() < self.line_follow_rate
+
+    def escalates(self, chance: random.Random) -> bool:
+        return chance.random() < self.escalation_rate
+
+    def misses_handoff(self, chance: random.Random) -> bool:
+        return chance.random() < self.handoff_error_rate
+
+    def routes_outside(self, chance: random.Random) -> bool:
+        return chance.random() < self.out_of_route_rate
+
+    def writes_outside_worktree(self, chance: random.Random) -> bool:
+        return chance.random() < self.out_of_worktree_rate
