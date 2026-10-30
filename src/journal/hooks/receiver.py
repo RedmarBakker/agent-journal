@@ -110,7 +110,7 @@ class Receiver:
         return Decision()
 
     def answer_recorded(self, entry: Entry, decision: Decision, hook: Hook) -> Entry:
-        return self.entries.save(entry.with_merged("data", {} if decision.allowed else {"refused": decision.reason}), Actor.agent(hook.session))
+        return self.entries.save(entry.with_merged("data", decision.recorded()), Actor.agent(hook.session))
 
     def measure_stored(self, entry: Entry, hook: Hook) -> None:
         if not hook.started_ms:

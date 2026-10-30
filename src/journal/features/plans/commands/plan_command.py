@@ -54,6 +54,7 @@ class PlanCommand(Command):
         addition.add_argument("title")
         addition.add_argument("--brief", default="")
         addition.add_argument("--first", action="store_true", help="put it before the tasks the plan has")
+        addition.add_argument("--phase", type=int, default=0, help="the phase it goes under, by its number from 1, in the same step")
         brief = self.verb(verbs, "brief", "set a plan's goal, what is true when it is done")
         brief.add_argument("n", type=int)
         brief.add_argument("text")
@@ -123,12 +124,16 @@ class PlanCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
+        phases = [self.numbered_phase(plan, args.phase)] if args.phase else []
         previous = self.plans.plan_tasks(plan) if args.first else []
         task = self.tasks.save(Task(environment_id=plan.environment_id, title=args.title, brief=args.brief), caller.actor)
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
-        print(f"task {task.row_id} added to plan {plan.row_id}{' first' if args.first else ''}")
+        for phase in phases:
+            self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
+        placed = "".join(f", under phase {args.phase}" for _ in phases)
+        print(f"task {task.row_id} added to plan {plan.row_id}{' first' if args.first else ''}{placed}")
         return 0
 
     def relink(self, task: Task, plan: Plan, caller: Caller) -> None:

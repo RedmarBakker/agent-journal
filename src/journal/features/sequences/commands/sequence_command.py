@@ -36,6 +36,7 @@ class SequenceCommand(Command):
         self.verb(verbs, "follow", "take the step in hand up, and resume a paused run")
         self.verb(verbs, "next", "the step in hand is done; the next one, or the end")
         self.verb(verbs, "pause", "set the run aside, its blocks quiet until it is followed again").add_argument("--why", required=True)
+        self.verb(verbs, "delegate", "hand the writing of the row the run is about to subagents: its blocks quiet while they write it, until it is followed again").add_argument("--why", required=True)
         abandon = self.verb(verbs, "abandon", "give the run up, its remaining steps undone; the user is informed")
         abandon.add_argument("--why", required=True)
         abandon.add_argument("--sure", action="store_true", help="go through, once the steps it skips are read")
@@ -108,9 +109,17 @@ class SequenceCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        self.current_run(caller)
+        current = self.current_run(caller)
+        if current.has_edit_lock():
+            raise Rejection(f"write {current.subject} first, or hand it to subagents: `journal sequence delegate --why \"<who>\"`")
         run = self.running.pause(caller.agent_session, self.scope.id, args.why)
         print(f"sequence {run.sequence_id} paused at step {run.step + 1}: {args.why}. `journal sequence follow` resumes it")
+        return 0
+
+    def delegate(self, args: Namespace, caller: Caller) -> int:
+        self.current_run(caller)
+        run = self.running.pause(caller.agent_session, self.scope.id, f"delegated: {args.why}")
+        print(f"sequence {run.sequence_id} delegated at step {run.step + 1}: {args.why}; edits go on while they write it. `journal sequence follow` takes it back")
         return 0
 
     def abandon(self, args: Namespace, caller: Caller) -> int:

@@ -17,7 +17,7 @@ PLAN_BUILDING = Sequence(
     steps=(
         SequenceStep(title="Agree on the goal", instructions=PLAIN_WRITING + "Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`", file_edits_allowed=False),
         SequenceStep(title="Add the phases", instructions="Add the plan's phases in order with `journal plan phase <plan n> \"<title>\" --when \"<complete when>\"`, and `--checkpoint` where the user should look before it goes on", file_edits_allowed=False),
-        SequenceStep(title="File the tasks", instructions="File the tasks with `journal plan add <plan n> \"<title>\" --brief \"<done when>\"` and put each under its phase with `journal plan todos <plan n> <phase> <tasks>`; one task per step a person could check", file_edits_allowed=False),
+        SequenceStep(title="File the tasks", instructions="File each task straight under its phase with `journal plan add <plan n> \"<title>\" --brief \"<done when>\" --phase <k>`; one task per step a person could check", file_edits_allowed=False),
         SequenceStep(title="Mark the plan ready", instructions="When every phase has its tasks, `journal plan ready <plan n>` and tell the user in one line it is ready on the plan page. Only they approve it; you are told when they do, and `journal plan start <plan n>` then, never before", file_edits_allowed=False),
     ),
 )

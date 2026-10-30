@@ -2,6 +2,18 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.5
+
+- In auto mode the agent may stop with tasks open only by waiting or by saying it is stuck, and a stuck agent now stops with its tasks left open. A stop held only for the closing words after a reply no longer counts towards the five in a row that stop a looping agent.
+- A task set aside with edits no test run has checked asks whether it only waits for its tests, and how to move it to testing.
+- A web address in a chat bubble is a link that opens it.
+- The chat keeps following the newest bubble unless you scroll up yourself; typing, clicking or scrolling inside a code block no longer stops it.
+- A question the agent asks can name its recommended choice, which comes first and is marked as the agent's recommendation.
+- `journal plan add --phase` files a task under its phase at once, and the plan building steps use it.
+- While the agent writes a plan itself, the plan building cannot be paused to edit files; `journal sequence delegate` hands the writing to subagents and lets edits through meanwhile.
+- In the task list, an open task of a plan shows under Planned, never under Open, whether or not the plan is started.
+- The viewer tests and the whole suite show their progress on their cards.
+
 ## 4.68.4
 
 - When every reviewer of a plan is back, the agent is told to put their findings in and then mark the plan ready with what the round changed; the plan no longer sits in review because nothing named that step.

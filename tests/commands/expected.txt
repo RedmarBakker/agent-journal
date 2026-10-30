@@ -1051,6 +1051,10 @@ $ agent: journal sequence pause --why 'the tag waits'
 exit 0
 sequence 2 paused at step 2: the tag waits. `journal sequence follow` resumes it
 
+$ agent: journal sequence delegate --why 'two planners write it'
+exit 0
+sequence 2 delegated at step 2: two planners write it; edits go on while they write it. `journal sequence follow` takes it back
+
 $ agent: journal sequence follow
 exit 0
 sequence 2, step 2: Put each finding into the plan: a new task with `journal plan add <plan n> "<title>" --brief "<done when>"` placed with `journal plan todos <plan n> <phase> <tasks>`, or a wider brief on the task it belongs to with `journal task edit <n> --brief "<brief>"`. File edits wait until this step is done; plan, task, report and reading commands go through. run `journal sequence next` when done
@@ -1805,7 +1809,6 @@ tasks.log_where_it_stands  [tasks]  {{edits}} edits since you logged {{name|cap=
 tasks.next_task_started  [tasks]  task {{n}} started. carry on with it
 tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, work on task {{n}}; you are informed when the wait ends
 tasks.no_stop_while_waiting  [tasks]  {{what|cap=24}} still runs ({{left|cap=16}}). do not stop; carry on with task {{n}} until it ends
-tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open: you are not stuck. work on them, or `journal await "<what you wait for>" --output <n>`
 tasks.output_polled  [tasks]  do not poll output {{n}}. wait for it: `journal await "<what>" --output {{n}}`
 tasks.park_the_wait  [tasks]  {{what|cap=18}} has about {{seconds}} seconds left, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
@@ -1813,6 +1816,7 @@ tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why|cap=50}}.
 tasks.paused_task_while_waiting  [tasks]  task {{n}} is paused; it could go on while you wait for {{what}}: `journal task resume {{n}}`
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks|cap=51}}. resume one that can go on: `journal task resume <n>`
 tasks.paused_wait_ended  [tasks]  task {{n}}'s wait is over: {{reason|cap=61}}. run `journal task resume {{n}}`
+tasks.paused_with_untested_edits  [tasks]  task {{n}} was paused with edits no test run has checked. if it only waits for its tests, `journal task test {{n}}`
 tasks.paused_work_to_choose  [tasks]  paused: {{tasks|cap=15}}{{blocked}}. `journal task resume <n>`, or `journal task skip-paused` to take the open task
 tasks.stop_polling  [tasks]  you ran {{command|cap=50}} {{times}} times in a row. stop polling; wait for it
 tasks.task_arrived  [tasks]  task {{n}} came here from environment {{source}}, {{state}}. read it with `journal task show {{n}}`

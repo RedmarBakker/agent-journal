@@ -61,8 +61,8 @@ by you, approved by them, and then followed: finishing one task starts the next 
 - `journal plan phase <n> "<title>" --when "<complete when>"` adds a phase, `--checkpoint` where the user
   should review before the plan continues. A checkpoint stops the plan only when auto mode is off; in auto mode the plan
   continues straight on.
-- `journal plan add <n> "<task title>" --brief "<done when>"` files a task; `journal plan todos <n> <phase> <tasks…>`
-  puts tasks under a phase by its number from 1.
+- `journal plan add <n> "<task title>" --brief "<done when>" --phase <k>` files a task straight under its phase, by its number
+  from 1; `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase.
 - `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
   A builder or a solo agent has one started plan: starting or resuming one pauses the others, and a switch out of the
