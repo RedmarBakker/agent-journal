@@ -15207,6 +15207,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     app.container.get(IdBlocks).add("links", 800000, 800100)
     app.container.get(IdBlocks).add("messages", 800000, 800100)
     app.container.get(IdBlocks).add("proofs", 800000, 800100)
+    app.container.get(IdBlocks).add("workers", 800000, 800100)
     assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 
