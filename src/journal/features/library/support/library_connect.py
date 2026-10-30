@@ -38,11 +38,11 @@ class LibraryConnect:
         joining.move_root(joined)
         return connection
 
-    def renewed_connection(self, email: str, password: str) -> LibraryConnection:
-        connection = self.account.connection()
-        login = self.account_login(TeamUrl.parse(connection.address), email, password, self.link)
+    def renewed_connection(self, account: LibraryAccount, email: str, password: str) -> LibraryConnection:
+        connection = account.connection()
+        login = self.account_login(TeamUrl.parse(connection.address), email, password, self.link.bound(account))
         renewed = LibraryConnection(connection.key, connection.address, login.token, login.device_id, login.account_id, login.name, login.role, connection.team)
-        self.account.write(renewed)
+        account.write(renewed)
         return renewed
 
     def login(self, url: TeamUrl, summary: LibraryAnswer, email: str, name: str, password: str, link: LibraryLink) -> LoginAnswer:

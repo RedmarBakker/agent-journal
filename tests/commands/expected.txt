@@ -2670,20 +2670,24 @@ options:
 
 $ user: journal team login --help
 exit 0
-usage: journal team login [-h] --email EMAIL [--password PASSWORD]
+usage: journal team login [-h] [--team TEAM] --email EMAIL
+                          [--password PASSWORD]
 
 options:
   -h, --help           show this help message and exit
+  --team TEAM          the team it acts on; needed when this journal is
+                       connected to several
   --email EMAIL
   --password PASSWORD  filled in by the journal command's own prompt; never
                        type it on a command line
 
 $ user: journal team status --help
 exit 0
-usage: journal team status [-h]
+usage: journal team status [-h] [--team TEAM]
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the one team to show
 
 $ user: journal team disconnect --help
 exit 0
@@ -2691,74 +2695,90 @@ usage: journal team disconnect [-h] [--team TEAM]
 
 options:
   -h, --help   show this help message and exit
-  --team TEAM  the team to disconnect; needed with several teams
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team invite --help
 exit 0
-usage: journal team invite [-h] email
+usage: journal team invite [-h] [--team TEAM] email
 
 positional arguments:
   email
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team devices --help
 exit 0
-usage: journal team devices [-h]
+usage: journal team devices [-h] [--team TEAM]
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team revoke --help
 exit 0
-usage: journal team revoke [-h] device
+usage: journal team revoke [-h] [--team TEAM] device
 
 positional arguments:
   device
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team people --help
 exit 0
-usage: journal team people [-h]
+usage: journal team people [-h] [--team TEAM]
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team password --help
 exit 0
-usage: journal team password [-h] --old OLD --new NEW
+usage: journal team password [-h] [--team TEAM] --old OLD --new NEW
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
   --old OLD
   --new NEW
 
 $ user: journal team remove --help
 exit 0
-usage: journal team remove [-h] account
+usage: journal team remove [-h] [--team TEAM] account
 
 positional arguments:
   account
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal team reset --help
 exit 0
-usage: journal team reset [-h] account
+usage: journal team reset [-h] [--team TEAM] account
 
 positional arguments:
   account
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal library publish --help
 exit 0
-usage: journal library publish [-h] [--note NOTE] [--description DESCRIPTION]
+usage: journal library publish [-h] [--team TEAM] [--note NOTE]
+                               [--description DESCRIPTION]
                                {sequence,template,profile,reader,skill,document,file,plan}
                                reference
 
@@ -2770,13 +2790,15 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --team TEAM           the team it acts on; needed when this journal is
+                        connected to several
   --note NOTE           what this version changes, for whoever imports it
   --description DESCRIPTION
                         what the item is for; its title when left out
 
 $ user: journal library list --help
 exit 0
-usage: journal library list [-h] [--search SEARCH] [item_type]
+usage: journal library list [-h] [--team TEAM] [--search SEARCH] [item_type]
 
 positional arguments:
   item_type        one type of item: sequence, template, profile, reader,
@@ -2784,22 +2806,27 @@ positional arguments:
 
 options:
   -h, --help       show this help message and exit
+  --team TEAM      the team it acts on; needed when this journal is connected
+                   to several
   --search SEARCH  words to find in the item's name or description
 
 $ user: journal library show --help
 exit 0
-usage: journal library show [-h] item_type name
+usage: journal library show [-h] [--team TEAM] item_type name
 
 positional arguments:
   item_type
   name
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal library import --help
 exit 0
-usage: journal library import [-h] [--version VERSION] [--accept]
+usage: journal library import [-h] [--team TEAM] [--version VERSION]
+                              [--accept]
                               {sequence,template,profile,reader,skill,document,file,plan}
                               name
 
@@ -2809,13 +2836,15 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --team TEAM           the team it acts on; needed when this journal is
+                        connected to several
   --version VERSION
   --accept              write a sequence whose triggers and allowed commands,
                         or a reader whose pattern or script, you have read
 
 $ user: journal library update --help
 exit 0
-usage: journal library update [-h] [--replace]
+usage: journal library update [-h] [--team TEAM] [--replace]
                               {sequence,template,profile,reader,skill,document,file}
                               name
 
@@ -2825,22 +2854,26 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --team TEAM           the team it acts on; needed when this journal is
+                        connected to several
   --replace             take the latest version over your edits
 
 $ user: journal library withdraw --help
 exit 0
-usage: journal library withdraw [-h] item_type name
+usage: journal library withdraw [-h] [--team TEAM] item_type name
 
 positional arguments:
   item_type
   name
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
 
 $ user: journal library delete --help
 exit 0
-usage: journal library delete [-h] item_type name number
+usage: journal library delete [-h] [--team TEAM] item_type name number
 
 positional arguments:
   item_type
@@ -2848,4 +2881,6 @@ positional arguments:
   number
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help   show this help message and exit
+  --team TEAM  the team it acts on; needed when this journal is connected to
+               several
