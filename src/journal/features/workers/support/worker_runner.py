@@ -6,6 +6,7 @@ import time
 import subprocess
 import threading
 
+from journal.events.rows.worker_session_bound import WorkerSessionBound
 from journal.supervisor_link import SupervisorLink
 from journal.support.lockout_option import LOCKOUT_OPTION
 from journal.config import Config
@@ -72,7 +73,11 @@ class WorkerRunner:
             self.seats.start(worker, actor, self.instructed(worker), self.finish_seat)
             return
         provider = self.providers.lookup(worker.provider)
-        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume)), actor)
+        session = provider.worker_session(worker.resume)
+        bound = worker.with_(session=session)
+        if session and not worker.session:
+            bound = bound.with_event(WorkerSessionBound(environment_id=worker.environment_id))
+        worker = self.workers.save(bound, actor)
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session, self.roles.effort(worker)), *provider.worker_settings_flags(self.hook_settings(worker))]
         threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
 

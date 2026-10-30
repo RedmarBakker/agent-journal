@@ -1,3 +1,5 @@
+import pytest
+
 from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.reviewing.states.reviewing import Reviewing
@@ -7,6 +9,8 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.reviewer.reviewer_at_work import ReviewerAtWork
+
+pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 152 (R04: Persist execution outcomes, waiting intervals and delivery history).")
 
 
 @story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)

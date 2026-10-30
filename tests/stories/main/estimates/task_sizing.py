@@ -1,3 +1,5 @@
+import pytest
+
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.states.external_wait import ExternalWait
@@ -7,6 +9,8 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
+
+pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 151 (R03: Record builder sizes and estimate revisions).")
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)

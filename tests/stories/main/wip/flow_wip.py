@@ -1,3 +1,5 @@
+import pytest
+
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
@@ -13,6 +15,8 @@ from tests.stories.fixtures.main.testing_task import TestingTask as TaskInTestin
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelivered
 from tests.stories.fixtures.worker.plan_worker import PlanWorker
+
+pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 160 (W01: Apply shared ready ordering and WIP ceilings).")
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)

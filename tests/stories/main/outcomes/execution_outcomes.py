@@ -1,3 +1,5 @@
+import pytest
+
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
@@ -12,6 +14,8 @@ from tests.stories.fixtures.main.testing_task import TestingTask as TaskInTestin
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelivered
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
+
+pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 152 (R04: Persist execution outcomes, waiting intervals and delivery history).")
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)

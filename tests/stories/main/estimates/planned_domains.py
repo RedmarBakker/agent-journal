@@ -1,8 +1,12 @@
+import pytest
+
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
+
+pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
