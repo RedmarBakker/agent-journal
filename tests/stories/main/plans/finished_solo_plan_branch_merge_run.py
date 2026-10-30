@@ -5,7 +5,6 @@ from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.agent_role import AgentRole
@@ -31,28 +30,28 @@ def finished_solo_plan_with_a_branch(story, monkeypatch):
     story.git_in(change.parent, "add", change.name)
     story.git_in(change.parent, "-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "-m", "finish plan change")
     story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.first} --how done")
-    story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
-    return tree
+    finished = story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
+    return tree, finished
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_finished_solo_plan_waits_for_the_main_agent_to_merge_its_branch(story, monkeypatch):
-    tree = finished_solo_plan_with_a_branch(story, monkeypatch)
+    tree, finished = finished_solo_plan_with_a_branch(story, monkeypatch)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_agent_told(story.agents.main, PlansNudges.PLAN_MERGE_READY, n=story.plans.first)
+    finished.expect_agent_told(story.agents.main, PlansNudges.PLAN_MERGE_READY, n=story.plans.first)
     merged = story.agent_runs(story.agents.main, f"plan merge {story.plans.first}")
     merged.expect_command_passed()
     merged.expect_command_text(f"plan {story.plans.first}'s work merged as")
     story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
     story.expect_no_project_file(".claude/worktrees/plan-1")
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(story, monkeypatch):
-    tree = finished_solo_plan_with_a_branch(story, monkeypatch)
+    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
     settings = tree.path / ".claude" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text(json.dumps({
@@ -73,26 +72,26 @@ def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(st
     story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
     story.expect_no_project_file(".claude/worktrees/plan-1")
     story.expect_no_project_file(".claude/settings.json")
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story, monkeypatch):
-    tree = finished_solo_plan_with_a_branch(story, monkeypatch)
+    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
     leftover = tree.path / "uncommitted.txt"
     leftover.write_text("still being worked on\n")
     story.observed("the Plan agent leaves an uncommitted file", None, None)
     story.agent_runs(story.agents.main, f"plan merge {story.plans.first}").expect_command_refused()
     story.expect_no_project_file("PLAN-AGENT-SMOKE.md")
     story.expect_project_file_is(".claude/worktrees/plan-1/uncommitted.txt", "still being worked on\n")
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(story, monkeypatch):
-    tree = finished_solo_plan_with_a_branch(story, monkeypatch)
+    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
     settings = tree.path / ".claude" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('{"theme": "dark"}\n')
@@ -100,13 +99,13 @@ def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(stor
     story.agent_runs(story.agents.main, f"plan merge {story.plans.first}").expect_command_refused()
     story.expect_no_project_file("PLAN-AGENT-SMOKE.md")
     story.expect_project_file_is(".claude/worktrees/plan-1/.claude/settings.json", '{"theme": "dark"}\n')
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_conflict_leaves_the_finished_solo_plan_worktree(story, monkeypatch):
-    tree = finished_solo_plan_with_a_branch(story, monkeypatch)
+    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
     project_file = story.app.config.root / "PLAN-AGENT-SMOKE.md"
     project_file.write_text("the project version\n")
     story.git_in(project_file.parent, "add", project_file.name)
@@ -115,7 +114,7 @@ def test_a_conflict_leaves_the_finished_solo_plan_worktree(story, monkeypatch):
     story.agent_runs(story.agents.main, f"plan merge {story.plans.first}").expect_command_refused()
     story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "the project version\n")
     story.expect_project_file_is(".claude/worktrees/plan-1/PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)

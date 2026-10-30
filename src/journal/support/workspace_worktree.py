@@ -49,7 +49,7 @@ class WorkspaceWorktree(Worktree):
             worktree_repositories.append(repository)
 
     def uncommitted(self) -> list[str]:
-        return [f"{repository}/{line[3:]}" for repository in self.repositories() if (self.path / repository).is_dir() for line in self.inner_git(repository, "status", "--porcelain").stdout.splitlines() if line.strip()]
+        return [f"{repository}/{line[3:]}" for repository in self.repositories() if (self.path / repository).is_dir() for line in self.inner_git(repository, "status", "--porcelain", "--untracked-files=all").stdout.splitlines() if line.strip()]
 
     def removed(self) -> None:
         for repository in self.repositories():

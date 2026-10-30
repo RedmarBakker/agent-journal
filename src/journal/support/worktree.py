@@ -114,7 +114,7 @@ class Worktree:
             self.git("worktree", "remove", "--force", str(self.path))
 
     def uncommitted(self) -> list[str]:
-        return [line[3:] for line in self.run_git("status", "--porcelain").stdout.splitlines() if line.strip()]
+        return [line[3:] for line in self.run_git("status", "--porcelain", "--untracked-files=all").stdout.splitlines() if line.strip()]
 
     def removed(self) -> None:
         self.record_tip()
