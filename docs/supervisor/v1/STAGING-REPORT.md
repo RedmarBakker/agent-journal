@@ -22,6 +22,14 @@ No provider key has been read or used, and no live Gateway or provider request h
 
 If the user allows an available OpenClaw program, the run must use only the pinned model and high thinking route, route provider calls through the loopback meter, and record the selected API-key profile and redacted actual usage. The meter's durable 24,000/8,000/8 limits keep the standard Anthropic token-charge ceiling below $1 before tax or account-specific billing changes.
 
+## Task 213 live smoke gate
+
+The selected native SecretRun launcher was not built or proposed, and no live run was attempted. The current staging profile is an artifact for an operator-provisioned installation, not a self-contained local launch bundle. Compose requires a writer image revision, journal address, tenant id, pre-created Gateway and restore directories, a validated OpenClaw config, and a directory containing the other tenant credentials (`compose.json`). SecretRun supplies the key on stdin but deliberately runs with only a filtered `PATH`, language and temporary-home variables (`src/journal/features/secrets/support/secret_run.py`). The disposable scripted fixtures do not leave those tenant installation inputs behind.
+
+The checked-in runtime contract points OpenClaw MCP at `/opt/journal-supervisor/bin/journal-supervisor-bridge` (`src/supervisor_bridge/contracts.py`), while the Gateway service in `compose.json` only mounts its state and the read-only hint spool plus its two config files. It does not package or mount that bridge executable. Without it, the pinned Gateway cannot reach the supervisor tools or the metering proxy, so a native wrapper around Compose alone cannot complete the admitted chain or yield trustworthy metered usage.
+
+No launcher was offered to the user for approval because it could not complete the requested run with the available profile. Secret 1 remains unread, no service was started, and there is no live route, token usage or cost to report. The blocker is the missing self-contained disposable launch bundle and the missing Gateway bridge package; staging acceptance must supply both before a one-dollar smoke can be proposed safely.
+
 ## Not done
 
 - The one real Anthropic smoke run capped at USD 1 has not run. Secret 1 remains untouched pending a usable direct OpenClaw program and the user's explicit allow.
