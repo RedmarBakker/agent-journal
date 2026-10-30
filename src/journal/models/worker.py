@@ -160,8 +160,8 @@ class Worker(Helper):
     def ready(self, time: float) -> "Worker":
         return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
 
-    def delivered(self, time: float) -> "Worker":
-        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
+    def delivered(self, time: float, task_id: int = 0) -> "Worker":
+        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), task_id=task_id, ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
     def review_requested(self, time: float, report: str) -> "Worker":
         return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))

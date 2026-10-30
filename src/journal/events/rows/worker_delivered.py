@@ -6,8 +6,9 @@ from journal.events.rows.row_resolved import RowResolved
 
 @dataclass(frozen=True, kw_only=True)
 class WorkerDelivered(RowResolved):
-    """A worker handed in its work with a proof for each point of its brief."""
+    """A worker handed in its work with a proof for each point of its brief, on the task it finished."""
 
     feature_name = "workers"
 
     worker: WorkerMention
+    task_id: int = 0

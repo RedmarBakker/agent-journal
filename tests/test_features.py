@@ -6346,8 +6346,10 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
             todos.appended(task, text, Actor.worker(1))
         assert [(item.position, item.text) for item in todos.task_items(task)] == [(1, "write the grammar"), (2, "write the test"), (3, "run it")], "the to-do items are kept in order"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace")
-    moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (worker.delivered(2.0), WorkerDelivered, "clocked out"), (worker.merged(7, 3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
+    delivered = worker.delivered(2.0, 7)
+    moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (delivered, WorkerDelivered, "clocked out"), (worker.merged(7, 3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
     assert all(isinstance(moved.events[-1], type_name) and moved.state == state for moved, type_name, state in moves), "each state change of a worker carries its event"
+    assert delivered.events[-1].task_id == 7, "the clock-out carries the task whose report the journal filed"
 
 
 def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_tests_its_change_touches_run_too(app: App, monkeypatch):

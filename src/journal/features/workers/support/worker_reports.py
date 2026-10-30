@@ -30,9 +30,10 @@ class WorkerReports:
         return message
 
     def delivered(self, worker: Worker, text: str, actor: Actor) -> None:
-        self.posted(worker, text, actor)
+        message = self.posted(worker, text, actor)
         current, time = self.workers.find(worker.row_id), self.time_source.moment().timestamp()
-        self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
+        delivered = current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time, message.data["task"])
+        self.workers.save(delivered, actor)
 
     def moved_task(self, worker: Worker) -> int:
         return next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0) if worker.is_queue_advanced() else 0
