@@ -1,4 +1,3 @@
-import queue
 import threading
 import types
 from collections.abc import Iterable
@@ -11,15 +10,18 @@ from journal.http.server import Server
 from journal.http.share_server import ShareServer
 from journal.support.listener_queue import ListenerQueue
 
-THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner, threading.local, threading.Thread, threading.Event, queue.Queue)
-"""What runs the journal rather than remembers for it: its threads, sockets, pool and queues, and what each thread keeps for itself, are left as they are between tests."""
+THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner, threading.local)
+"""What runs the journal rather than remembers for it: its threads, sockets and pool, and what each thread keeps for itself, are left as they are between tests."""
+
+OWN_MODULES = ("journal.", "supervisor.", "tests.")
+"""Whose objects keep a journal's state: the journal's and the tests', never the standard library's, whose locks, threads and pools are left as they run."""
 
 PLAIN = (type, types.FunctionType, types.MethodType, types.ModuleType, Enum)
 """What has a __dict__ but keeps no state of a journal's."""
 
 
 class ServiceMemory:
-    """What a journal's services remember, taken once and put back on demand: every service's fields, and those of every object it holds, in a field or inside a dict, list, set or tuple, with each container copied down to the objects it holds, so nothing a test changes inside them reaches the next."""
+    """What a journal's services remember, taken once and put back on demand: every service's fields, and those of every object of the journal's own it holds, in a field or inside a dict, list, set or tuple, with each container copied down to the objects it holds, so nothing a test changes inside them reaches the next."""
 
     def __init__(self, services: Iterable[object]) -> None:
         self.fields: dict[int, tuple[object, dict[str, object]]] = {}
@@ -48,7 +50,7 @@ class ServiceMemory:
 
     @staticmethod
     def remembers(instance: object) -> bool:
-        return hasattr(instance, "__dict__") and not isinstance(instance, THREADED + PLAIN)
+        return hasattr(instance, "__dict__") and type(instance).__module__.startswith(OWN_MODULES) and not isinstance(instance, THREADED + PLAIN)
 
     @classmethod
     def remembered(cls, instance: object) -> dict[str, object]:
