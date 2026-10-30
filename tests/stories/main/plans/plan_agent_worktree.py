@@ -66,6 +66,9 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
             for environment in environments.working()
         ]
 
+    def running_environments(supervisor, candidates):
+        return [candidate for candidate in candidates if candidate.row_id in running]
+
     def supervise(launch, choice):
         folder = Path(launch.launch_file(choice, StatusLine(root))["front"]["folder"])
         branch = folder / ".plan-agent-branch"
@@ -84,6 +87,7 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
     monkeypatch.setattr(WorkspaceWorktree, "created", created)
     monkeypatch.setattr(BranchHolders, "checkout_branch", checkout_branch)
     monkeypatch.setattr(SupervisorLink, "runs", lambda supervisor, environment_id: environment_id in running)
+    monkeypatch.setattr(SupervisorLink, "running", running_environments)
     monkeypatch.setattr(Menu, "environments", environment_rows)
     monkeypatch.setattr(Menu, "journal", lambda menu, *arguments: "")
     monkeypatch.setattr(Launch, "supervise", supervise)
@@ -96,9 +100,9 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
     monkeypatch.setattr(AgentLauncher, "launched", launched)
 
     story.user_opens(f"/journal/plans/{plan}")
-    story.user_presses(f"/journal/plans/{plan}/start", {})
-    story.expect_viewer_passed()
-    story.expect_viewer_shows("state", "started")
+    result = story.user_presses(f"/journal/plans/{plan}/start", {})
+    result.expect_viewer_passed()
+    result.expect_viewer_shows("state", "started")
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)

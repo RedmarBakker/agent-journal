@@ -103,7 +103,7 @@ def seeded(app, owner_id: int = 1) -> Fixture:
 @pytest.fixture
 def authority_fixture(app, monkeypatch):
     fixture = seeded(app)
-    monkeypatch.setattr(fixture.authority.agents, "is_running", lambda environment: True)
+    monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, environment: True)
     yield fixture
     fixture.authority.secrets_store.drop(fixture.credentials)
 
@@ -148,7 +148,7 @@ def grant_rows(entries: Entries) -> int:
 def test_bad_service_credentials_never_fall_back_to_local_person(app, authority_fixture, monkeypatch):
     fixture = authority_fixture
     identity = app.container.get(Identity)
-    monkeypatch.setattr(identity, "build", lambda *_: pytest.fail("supervisor auth must decide before local-person fallback"))
+    monkeypatch.setattr(Identity, "build", lambda *_: pytest.fail("supervisor auth must decide before local-person fallback"))
     auth = app.container.get(SupervisorRequestAuth)
     before = app.container.get(Entries).global_last_id()
     secrets_before = fixture.authority.secrets_store.values()
@@ -369,7 +369,7 @@ def test_revocation_after_admission_stops_apply(app, authority_fixture, monkeypa
     assert revoked.value.status == 403, "a principal admitted before revocation cannot pass the apply-time grant check"
 
     identity = app.container.get(Identity)
-    monkeypatch.setattr(identity, "build", lambda *_: pytest.fail("revoked service credentials must fail before identity fallback"))
+    monkeypatch.setattr(Identity, "build", lambda *_: pytest.fail("revoked service credentials must fail before identity fallback"))
     request = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/apply", {"Content-Type": "application/json", "X-Journal-Supervisor-Token": token}), b'{"action_id":"private"}', identity, app.container.get(SupervisorRequestAuth))
     assert request.auth_error.status == 403 and request.body == {}, "revocation blocks a later apply request before any receipt/evidence is returned"
 
@@ -528,7 +528,7 @@ def test_bad_bridge_credential_over_http_changes_nothing(app, authority_fixture,
     admitted(fixture, "bounded_write")
     entries = app.container.get(Entries)
     before = entries.global_last_id()
-    monkeypatch.setattr(app.container.get(Identity), "build", lambda *_: pytest.fail("bridge auth must reject before local-person fallback"))
+    monkeypatch.setattr(Identity, "build", lambda *_: pytest.fail("bridge auth must reject before local-person fallback"))
     with app.container.get(Scope).environment(fixture.owner_environment.row_id):
         before_priorities = app.container.get(Plans).find(fixture.plan.row_id).priorities
     server = app.container.call(Server)

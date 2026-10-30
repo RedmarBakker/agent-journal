@@ -70,7 +70,6 @@ def driver_processes(app: App, monkeypatch) -> DriverProcesses:
     monkeypatch.setattr(SupervisorLink, "runs", lambda _self, environment_id: environment_id in processes.running)
     monkeypatch.setattr(SupervisorLink, "stop", lambda _self, environment_id: processes.stop(environment_id))
     monkeypatch.setattr(SupervisorLink, "type", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(SupervisorLink, "type_whole", lambda *_args, **_kwargs: None)
     return processes
 
 
@@ -324,7 +323,7 @@ def test_unavailable_or_incompatible_driver_requires_owner_evidence(app: App, no
         count += 1
         if count == 2:
             if driver_change == "unavailable":
-                monkeypatch.setattr(authority.agents, "is_running", lambda _environment: False)
+                monkeypatch.setattr(type(authority.agents), "is_running", lambda _self, _environment: False)
             else:
                 agents = app.container.get(Agents)
                 with context["scope"].environment(fixture.driver_environment.row_id):

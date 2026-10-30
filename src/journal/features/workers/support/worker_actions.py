@@ -108,6 +108,8 @@ class WorkerActions:
             raise Rejection(f"worker {worker.id}, {worker.name}, is retired: only the agent that dispatched you brings it back")
         if worker.dispatcher != writer.dispatcher:
             raise Rejection(f"worker {worker.id}, {worker.name}, is another agent's: `journal worker peers` lists yours")
+        if refusal := self.routes.refusal(writer, worker):
+            raise Rejection(refusal)
         if not self.tasks.holder_task_ids(Ref.build(worker)):
             raise Rejection(f"worker {worker.id}, {worker.name}, has no task: you message only a peer that works on one")
         refusal = self.routes.refusal(writer, worker)

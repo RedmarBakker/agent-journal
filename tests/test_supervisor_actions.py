@@ -86,7 +86,7 @@ def maintenance_context_with_held_diagnostic(app, monkeypatch):
 
 
 def _admitted_maintenance_context(app, monkeypatch, fixture, mode):
-    monkeypatch.setattr(fixture.authority.agents, "is_running", lambda _environment: True)
+    monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
     grant, token, principal = authority_admitted(fixture, mode)
     entries = app.container.get(Entries)
     control_entries = app.container.get(SupervisorEntries)

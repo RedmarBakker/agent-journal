@@ -61,7 +61,7 @@ def boot():
 @pytest.fixture
 def supervisor_fixture(app, monkeypatch):
     fixture = seeded(app)
-    monkeypatch.setattr(fixture["authority"].agents, "is_running", lambda _: True)
+    monkeypatch.setattr(type(fixture["authority"].agents), "is_running", lambda _self, _environment: True)
     yield fixture
     fixture["authority"].secrets_store.drop(fixture["credentials"])
 
@@ -227,7 +227,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
             check = checks.find(fixture["check"].row_id)
             started = app.container.get(TimeSource).seconds()
             check = checks.rewritten(check, actor, lambda row: row.started(started, 0))
-        monkeypatch.setattr(runner, "executed", lambda *args, text=output: FinishedRun(True, text))
+        monkeypatch.setattr(CheckRunner, "executed", lambda _self, *args, text=output: FinishedRun(True, text))
         runner.finished(check, started, actor, object(), tmp_path / "missing-report.json")
 
     with scope.environment(PROJECT):
@@ -237,7 +237,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
     assert all(row.data["observation"]["facts"]["output_sha256"] == hashlib.sha256(row.data["observation"]["facts"]["output_excerpt"].encode()).hexdigest() for row in evidence), "the evidence hash covers its redacted copied excerpt"
 
     settings = app.container.get(SettingRows)
-    monkeypatch.setattr(settings, "integer", lambda _: 0)
+    monkeypatch.setattr(SettingRows, "integer", lambda _self, _option: 0)
     app.container.get(RecordTrim).tick(app.container.get(TimeSource).seconds())
     backup = tmp_path / "journal-backup.db"
     app.container.get(JournalBackup).write(backup)
@@ -254,7 +254,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
         grant_row = restored_entries.selected_globally(restored_entries.query().filter(entry_type="SupervisorGrant").filter_json("data->grant_id", grant["grant_id"]).order_descending("id").limit(1))[0]
     assert [row.data["observation"]["facts"]["output_excerpt"] for row in reversed(copied)] == list(outputs), "trimmed evidence remains distinguishable in a restored journal backup"
     restored_authority = restored.container.get(SupervisorAuthority)
-    monkeypatch.setattr(restored_authority.agents, "is_running", lambda _: True)
+    monkeypatch.setattr(type(restored_authority.agents), "is_running", lambda _self, _environment: True)
     restored_grant = restored_authority._public_grant(grant_row)
     restored_principal = restored_authority._principal(restored_grant)
     response = restored.container.get(SupervisorObservations).observe(restored_principal, {
@@ -300,7 +300,7 @@ def test_stopped_or_faulted_check_is_not_pass(app, supervisor_fixture, monkeypat
         check = checks.find(fixture["check"].row_id)
         fault_start = app.container.get(TimeSource).seconds()
         check = checks.rewritten(check, actor, lambda row: row.started(fault_start, 0))
-    monkeypatch.setattr(runner, "executed", lambda *_: FinishedRun(False, "missing executable", "the command is not there"))
+    monkeypatch.setattr(CheckRunner, "executed", lambda _self, *_: FinishedRun(False, "missing executable", "the command is not there"))
     runner.finished(check, fault_start, actor, object(), tmp_path / "missing-report.json")
 
     with scope.environment(fixture["owner_environment"].row_id):
@@ -368,7 +368,7 @@ def test_cursor_recovers_all_committed_observations_after_lost_hints(app, superv
 def test_observe_rejects_second_tenant_run_without_rows(app, supervisor_fixture, monkeypatch):
     first_fixture = supervisor_fixture
     second_fixture = seeded(app, owner_id=2)
-    monkeypatch.setattr(second_fixture["authority"].agents, "is_running", lambda _: True)
+    monkeypatch.setattr(type(second_fixture["authority"].agents), "is_running", lambda _self, _environment: True)
     first_grant, first_token, _ = enrolled(first_fixture)
     second_grant, _, _ = enrolled(second_fixture)
     other_run = stored_run(app, second_grant, run_ref="other-tenant-run", epoch=2)
@@ -476,7 +476,7 @@ def test_record_trim_retains_protected_receipts_and_evidence(app, supervisor_fix
             idempotency="test:receipt:1"), actor)
         ordinary = app.container.get(Entries).recorded(Entry(environment_id=PROJECT, entry_type="ordinary", actor=fixture["owner"], data={"detail": "trim me"}, idempotency="test:ordinary"), fixture["owner"])
     settings = app.container.get(SettingRows)
-    monkeypatch.setattr(settings, "integer", lambda _: 0)
+    monkeypatch.setattr(SettingRows, "integer", lambda _self, _option: 0)
     app.container.get(RecordTrim).tick(app.container.get(TimeSource).seconds())
     with app.container.get(Scope).environment(PROJECT):
         entries = app.container.get(Entries)

@@ -132,7 +132,7 @@ class Launch:
 
     def prepare_worktree(self, choice: Choice) -> None:
         worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
-        if worktree.name in {TEAM_CHAT, self.default_environment()}:
+        if worktree.name == self.default_environment():
             return
         if self.is_worktree_launch(worktree):
             worktree.created()

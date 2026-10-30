@@ -1083,7 +1083,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
         def save(self, row, actor):
             return row
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments), app.container.get(TimeSource))
 
     def ask(number):
         with app.container.get(Scope).environment(1):
@@ -1237,7 +1237,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
@@ -1339,7 +1339,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     def fresh():
         started.clear(), gates.clear(), results.clear(), stops.clear()
         gates.update({n: threading.Event() for n in range(1, 5)})
-        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", environment_id=1)
@@ -1431,7 +1431,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
         (folders[name] / "tests").mkdir(parents=True)
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_RUNS.key, 3)
     results = {}
 
@@ -1507,7 +1507,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             going.pop()
             yield outcome
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
     user_set(app, WorkersOptions.TEST_RUNS.key, 1)
@@ -2272,6 +2272,7 @@ def test_worker_seat_finish_serializes_generation_check_and_mutation_with_dispat
 
     actions = object.__new__(WorkerActions)
     actions.runner = runner
+    actions.workers = workers
     actions.local = lambda _worker_id: current[0]
 
     def relaunch(worker, brief, _dispatcher, actor, move):
@@ -2995,9 +2996,10 @@ def test_a_newer_release_is_installed_on_its_own_only_when_the_setting_is_on(app
 
 def test_the_updater_asks_for_a_new_release_as_often_as_the_setting_says(app: App):
     source = Source("v4.0.0")
-    updating = updating_with(app, source, Installer(), auto=False)
     user_set(app, "updates.check_minutes", 5)
     first = timing.time() + 60
+    updating = updating_with(app, source, Installer(), auto=False)
+    updating._next_check_at = first
     for time, asked in ((first, 1), (first + 299, 1), (first + 300, 2)):
         updating.tick(time)
         ending = timing.time() + 30

@@ -68,7 +68,6 @@ def supervisors(app: App, monkeypatch) -> Supervisors:
 
     monkeypatch.setattr(SupervisorLink, "stop", stopped)
     monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: None)
-    monkeypatch.setattr(SupervisorLink, "type_whole", lambda self, environment_id, flagged, following: None)
     return recorded
 
 
