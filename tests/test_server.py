@@ -940,7 +940,7 @@ def test_a_chat_lists_its_last_fifty_messages_and_the_rest_on_scrolling_up(tmp_p
 
 def test_the_profiles_page_lists_the_agents_folder_and_saves_a_profile_as_claude_reads_it(server):
     status, read = call(server, "GET", "/journal/profiles")
-    shipped = ["journal-debugger", "journal-plan-reviewer", "journal-planner", "journal-researcher"]
+    shipped = ["journal-debugger", "journal-medior", "journal-plan-reviewer", "journal-planner", "journal-researcher", "journal-senior"]
     assert status == 200 and [p["name"] for p in read["profiles"]] == shipped, "a journal writes the profiles it ships when it boots"
     status, saved = call(server, "POST", "/journal/profiles/critic", {"description": "Reads a design through one lens.", "tools": "Read, Grep", "model": "sonnet", "codex_model": "gpt-6", "body": "You are a critic.\n\nSay what is wrong."})
     assert status == 200 and saved["name"] == "critic" and saved["shipped"] is False and saved["path"] == ".claude/agents/critic.md"

@@ -272,7 +272,7 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     assert (top()["state"], top()["data"]["role"], top()["data"]["task_id"]) == (
         "role_work", "keeper", step_task.row_id
     ), "the Role is pushed with the plan task it took on"
-    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
+    status, history = get_answer(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
     assert status == 200 and history["current_role"] == "keeper", "the solo plan reports the Role its Plan agent acts as now"
     assert [(step["role"], step["task"], step["title"]) for step in history["steps"]] == [("keeper", step_task.row_id, step_task.title)], "each Role step is linked to its plan task"
     from journal.http.sharing.shared_data import SharedData
@@ -295,7 +295,7 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     console.run(["environment", "overview"], lead)
     assert top()["state"] == "role_work" and len(guided()) > 1, "after a compaction it is the Role it was, told its guidance again"
     assert console.run(["role", "done"], lead).code == 0 and top()["state"] != "role_work", "the step's end pops it"
-    status, history = got(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
+    status, history = get_answer(app, f"/journal/plans/{plan}/roles", {"X-Journal-Env": "main"})
     assert status == 200 and history["current_role"] == "" and len(history["steps"]) == 1, "a finished Role leaves the timeline and no longer appears as current"
 
 

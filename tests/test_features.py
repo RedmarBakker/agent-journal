@@ -356,6 +356,8 @@ def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked
     check = app.container.get(Checks).rows()[-1]
     marker.write_text("")
     app.container.get(CheckRunner).run(check, Actor.system())
+    assert plans.find(1).state == "blocked", "a passing check remains blocked until its queued listener runs"
+    app.runtime().deferred.drain()
     assert plans.find(1).state == "started" and any("plan 1 is open again: check" in line for line in keystrokes), "the passing check opens the plan and the agent is told"
 
 
@@ -443,8 +445,9 @@ def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_
     assert [t.id for t in tasks.blocked_without_wait()] == [], "a task waiting on a check is not a blocked task nothing opens by itself"
     marker.write_text("")
     runner.run(checks.find(1), Actor.system())
-    assert tasks.find(1).state == "open" and any("task 1 is open again: the check 1 it waited on is done" in line for line in keystrokes), "the passing check opens the task and the agent is told"
+    assert tasks.find(1).state == "blocked", "a passing check remains blocked until its queued listener runs"
     app.runtime().deferred.drain()
+    assert tasks.find(1).state == "open" and any("task 1 is open again: the check 1 it waited on is done" in line for line in keystrokes), "the passing check opens the task and the agent is told"
     assert checks.numbered([1]) == [] and checks.find(2).wait_target, "a passed wait's check is deleted once its task opens, and the one still waited on stays"
 
 
@@ -953,11 +956,11 @@ def test_a_refused_subagent_is_not_shown_and_one_never_answered_ends_with_its_tu
     rows = lambda: [row for row in app.container.get(Subagents).session_subagents("s7")]
     transmit("SessionStart", source="startup")
     transmit("PreToolUse", tool_name="Agent", tool_input={"description": "no model named", "prompt": "read"}, tool_use_id="t-refused")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "cut off", "prompt": "read", "model": "haiku"}, tool_use_id="t-cut")
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "in the background", "prompt": "read", "model": "haiku"}, tool_use_id="t-bg")
+    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "cut off", "prompt": "read", "model": "sonnet"}, tool_use_id="t-cut")
+    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "in the background", "prompt": "read", "model": "sonnet"}, tool_use_id="t-bg")
     transmit("PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a7"}, tool_use_id="t-bg")
     assert [r.task for r in rows()] == ["cut off", "in the background"], "a dispatch the journal refused never ran"
-    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "no such model", "prompt": "read", "model": "haiku"}, tool_use_id="t-failed")
+    transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "no such model", "prompt": "read", "model": "sonnet"}, tool_use_id="t-failed")
     transmit("PostToolUseFailure", tool_name="Agent", tool_input={}, error="Model 'haiku-9' not found", tool_use_id="t-failed")
     assert [(r.is_running(), r.state, r.reason) for r in rows()][-1] == (False, "failed", "Model 'haiku-9' not found"), "a dispatch the tool could not run is failed with the tool's error"
     transmit("Stop")
@@ -3535,16 +3538,15 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter():
     from journal.support.actor import Actor
 
     runner = object.__new__(WorkerRunner)
-    started = []
-
     class Seats:
-        @staticmethod
-        def applies(worker):
+        def __init__(self):
+            self.started = []
+
+        def applies(self, worker):
             return True
 
-        @staticmethod
-        def start(worker, actor, prompt, ended):
-            started.append((worker, actor, prompt, ended))
+        def start(self, worker, actor, prompt, ended):
+            self.started.append((worker, actor, prompt, ended))
 
     seats = Seats()
     runner.seats = seats
@@ -3553,8 +3555,8 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter():
     worker = Worker(name="Ada Lovelace", brief="write the patch", role="builder", plan_id=8)
     assert runner.seats is seats and runner.seats.applies(worker) and worker.role == "builder" and worker.plan_id == 8
     WorkerRunner.start(runner, worker, Actor.system())
-    assert len(started) == 1 and started[0][0] == worker and started[0][1] == Actor.system()
-    assert "write the patch" in started[0][2] and started[0][3] == runner.finish_seat
+    assert len(seats.started) == 1 and seats.started[0][0] == worker and seats.started[0][1] == Actor.system()
+    assert "write the patch" in seats.started[0][2] and seats.started[0][3] == runner.finish_seat
 
 
 def test_a_codex_seat_process_is_reused_through_the_seat_runner_instead_of_the_claude_inbox(app: App):
@@ -5170,13 +5172,18 @@ def test_dispatches_past_the_most_at_once_wait(app: App):
     refused = dispatched(console, ["Ada Byron", "write the lexer", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     assert refused.code == 1 and has_nudge(refused.error, WorkersNudges.WORKER_OVERFLOW, out=1), "a worker past the most out at once is refused"
     app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=1), Actor.user(1))
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the hooks", "prompt": "map", "subagent_type": "journal-researcher", "model": "haiku"})[0] == 200, "the first under a most of one passes: the start being judged is not counted among the running"
+    first = {"description": "map the hooks", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
+    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=first, tool_use_id="t-1")[0] == 200, "the first under a most of one passes: the start being judged is not counted among the running"
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=first, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
     hook(app, "SubagentStart", agent_id="a1", agent_type="Explore")
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the routes", "prompt": "map", "subagent_type": "journal-researcher", "model": "haiku"})
+    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the routes", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
     assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SUBAGENT_OVERFLOW, running=1), "a subagent past the most at once is held"
     app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=2), Actor.user(1))
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the views", "prompt": "map", "subagent_type": "journal-researcher", "model": "haiku"})[0] == 200, "one running and a second passes a most of two"
-    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the tests", "prompt": "map", "subagent_type": "journal-researcher", "model": "haiku"})
+    second = {"description": "map the views", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
+    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=second, tool_use_id="t-2")[0] == 200, "one running and a second passes a most of two"
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=second, tool_response={"isAsync": True, "agentId": "a2"}, tool_use_id="t-2")
+    hook(app, "SubagentStart", agent_id="a2", agent_type="Explore")
+    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the tests", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
     assert status == 409 and "2 subagents are running" in body["error"], "two running and a third is held"
 
 
@@ -7047,12 +7054,12 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
         app.container.get(Messages).save(message.with_(data={**message.data, "dock_at": timing.time() - 1}), Actor.system())
     end(auto)
     ended = card(auto).data
-    assert ended["docked"] is True and ended["auto_docked"] is True and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
+    assert ended["docked"] is True and not ended.get("pinned") and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Docking).pin_message(card(auto), Actor.user(1))
     end(auto)
     opened = card(auto).data
-    assert opened["docked"] is True and not opened["auto_docked"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
+    assert opened["docked"] is True and opened["pinned"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
     kept = run("kept")
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Docking).pin_message(card(kept), Actor.user(1))
@@ -7430,7 +7437,7 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     hook(app, "SessionStart")
     console, workers, runner = app.console(), app.container.get(Workers), app.container.get(WorkerRunner)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    assert "Guidance of medior." in runner.instructed(started[-1]), "a fresh worker is told its Role's guidance first"
+    assert "You are a software engineer. Follow the task brief, extend the existing implementation, and leave the result ready for review." in runner.instructed(started[-1]), "a fresh worker gets its profile instructions first"
     console.run(["worker", "report", "1", "the clock runs"], Caller.agent("main", "w1", "claude"))
     workers.save(workers.find(1).with_(resume="sess-1", began=timing.time() - 3600, pid=99999), USER.actor)
     console.run(["worker", "send", "1", "the escapement"], AGENT)
@@ -7988,7 +7995,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     sent = console.run(["worker", "send", "1", "the next part", "--model", "opus"], AGENT)
     assert sent.code == 0, sent.error
     again = started[-1]
-    assert again.model == "opus" and again.role == "medior" and again.resume == "w-1", "the next job runs on the model named, in its last session"
+    assert again.model == "opus" and again.profile == "journal-medior" and again.resume == "w-1", "the next job runs on the model named, in its last session"
     assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
     listed = console.run(["worker", "list"], AGENT).text
     assert "on opus, $0.00 at API prices, sent back 0 times on this task" in listed, listed
@@ -15139,7 +15146,7 @@ def test_a_teammate_may_not_approve_or_pause_a_plan_in_a_colleagues_environment_
     plans = app.container.get(Plans)
     with app.container.get(Scope).environment(home.row_id):
         plan = plans.save(Plan(title="ship the organization"), Actor.user(ada.row_id))
-        for refused in (lambda: plans.user_approved(plan, Actor.user(bob.row_id)), lambda: plans.cancel(plan, Actor.user(bob.row_id))):
+        for refused in (lambda: plans.user_approved(plan, Actor.user(bob.row_id)), lambda: plans.user_cancelled(plan, Actor.user(bob.row_id))):
             with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
                 refused()
         assert plans.find(plan.row_id).state.value == "draft", "none of Bob's moves changed the plan"
