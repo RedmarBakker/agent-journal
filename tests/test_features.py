@@ -7304,3 +7304,13 @@ def test_runs_started_together_prune_each_old_output_once_and_every_start_return
         [thread.start() for thread in threads]
         [thread.join() for thread in threads]
     assert not failures and len(started) == 48, f"every start returns its row though another prunes beside it: {failures[:1]}"
+
+
+def test_a_running_turn_whose_output_row_is_gone_no_longer_counts_as_running(app: App):
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.test_turn import TestTurn
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    with app.container.get(Scope).environment(MAIN):
+        rows = app.container.get(TurnRows)
+        rows.save(TestTurn(environment_id=1, worker=1, ids="tests/test_a.py", command="pytest tests/test_a.py", folder=".").started(1.0).backgrounded(987654), Actor.system())
+        assert app.container.get(TestTurns).running() == [], "an output kept no longer ended long ago, so its turn holds no run"

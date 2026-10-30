@@ -218,7 +218,9 @@ class TestTurns:
                 self.run_turn(turn, caller, turn.environment_id)
 
     def running(self) -> list[TestTurn]:
-        return [turn for turn in self.turns.running() if turn.output == 0 or not self.outputs.find(turn.output).ended]
+        turns = self.turns.running()
+        unended = self.outputs.unended_among([turn.output for turn in turns if turn.output])
+        return [turn for turn in turns if turn.output == 0 or turn.output in unended]
 
     def result(self, turn: TestTurn, text: str) -> str:
         lines = [line for line in text.splitlines() if not line.startswith(EXIT)]

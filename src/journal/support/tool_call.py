@@ -51,6 +51,10 @@ class ToolCall:
     def journal_text(self, noun: str) -> str:
         return " ".join(part.text for part in self.parts if part.journal_noun == noun)
 
+    @property
+    def is_journal_line(self) -> bool:
+        return self.is_journal or any(part.is_journal for part in self.parts) and all(part.is_journal or part.is_folder_change or part.classification.is_read for part in self.parts)
+
     def is_journal_noun(self, noun: str) -> bool:
         return bool(self.parts) and all(part.journal_noun == noun for part in self.parts)
 
