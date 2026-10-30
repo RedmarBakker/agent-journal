@@ -35,6 +35,12 @@ class Collections(ScopedRepository[Collection]):
         for link in self.links.all_matching(source=Ref.build(collection), target=ref, link_type=MEMBER_LINK):
             self.links.delete(link, actor)
 
+    def dissolved(self, collection: Collection, actor: Actor) -> None:
+        with self.connection.transaction():
+            for link in self.links.all_matching(source=Ref.build(collection), link_type=MEMBER_LINK):
+                self.links.delete(link, actor)
+            self.delete(collection, actor)
+
     def owned(self, owner: Model, title: str, actor: Actor) -> Collection:
         existing = self.owner_collection(owner)
         if existing:

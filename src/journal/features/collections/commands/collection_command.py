@@ -35,6 +35,7 @@ class CollectionCommand(Command):
         title_change = self.verb(verbs, "rename", "name a collection again")
         title_change.add_argument("n", type=int)
         title_change.add_argument("title")
+        self.verb(verbs, "delete", "delete a collection; the rows in it stay").add_argument("n", type=int)
 
     def create(self, args: Namespace, caller: Caller) -> int:
         collection = self.collections.save(Collection(title=args.title, abstract=args.abstract), caller.actor)
@@ -69,6 +70,12 @@ class CollectionCommand(Command):
     def rename(self, args: Namespace, caller: Caller) -> int:
         collection = self.collections.save(self.collections.find(args.n).with_(title=args.title), caller.actor)
         print(f"collection {collection.id} is now: {collection.title}")
+        return 0
+
+    def delete(self, args: Namespace, caller: Caller) -> int:
+        collection = self.collections.find(args.n)
+        self.collections.dissolved(collection, caller.actor)
+        print(f"collection {collection.id} is deleted; its rows stay")
         return 0
 
     def row(self, text: str) -> Ref:

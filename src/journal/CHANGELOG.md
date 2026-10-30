@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.6
+
+- A collection can be deleted with journal collection delete; the rows in it stay.
+
 ## 4.69.5
 
 - A supervisor stopped without closing its connection is named once in the chat, since your messages then reach the agent only at its next step.
