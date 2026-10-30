@@ -1525,6 +1525,11 @@ health.boot_seconds = 60
 health.hook_health_seconds = 3
 health.backup_minutes = 15
 health.backup_count = 2
+estimates.mode = 'off'  (the user sets it)
+estimates.sprint_length_days = 14  (the user sets it)
+estimates.size_scale = 1 | 2 | 3 | 5 | 8 | 13  (the user sets it)
+estimates.forecast_trials = 10000  (the user sets it)
+estimates.forecast_horizon_sprints = 6  (the user sets it)
 
 $ agent: journal settings show tasks.auto
 exit 0
