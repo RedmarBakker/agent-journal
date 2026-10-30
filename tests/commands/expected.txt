@@ -1603,6 +1603,7 @@ journal-messages     Read and answer the user's messages and ask the user questi
 journal-plans        Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap
 journal-sequences    Follow a sequence of steps one at a time; load it when a sequence is run or written
 journal-workers      Send a worker to write a bounded job and wait for its report; load it before dispatching one
+journal-work-modes   The builder, the orchestrator and solo, and what each is told by its fitness measures; load it when the work mode or its fitness comes up
 journal-checks       Scripts that pass or fail about the project; load it when a check is created, run or fails
 journal-shell        How the journal runs your shell commands: in parts, timed, and in the background past the limit
 journal-secrets      Keys and logins the agent uses without seeing them; load it when a task needs a key, a login or a site you must be logged in to

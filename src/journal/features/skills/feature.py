@@ -57,7 +57,8 @@ lists the verbs.
 - **sequence**, **skill**: steps to follow, and these files.
 - **worker**: an agent that writes for you, on one task: it clocks in, proves each point of the task's brief and
   clocks out; you check each proof with `journal worker check`, send a short one back, and take the work in with
-  `journal worker merge`.
+  `journal worker merge` (the workers skill). Your work mode, builder, orchestrator or solo, and its fitness are the
+  work-modes skill's.
 - **shell**: a long command moves to the background; read any output by its number with `journal output read <n> --tail 20` (or --grep, --summary, --all);
   `journal reader add` stores a reader that picks the lines worth seeing.
 - **alias**: `journal alias add <name> "<line>" --reader <reader>` names a command line; `journal <name> [args]` runs it

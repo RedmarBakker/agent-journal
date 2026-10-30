@@ -3151,6 +3151,17 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
+def test_the_work_modes_skill_holds_the_mode_and_fitness_paragraphs_and_the_workers_skill_stays_short(app: App):
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    workers, modes, journal = (registry.skill(name) for name in ("workers", "work-modes", "journal"))
+    assert "The work mode is the bottom state of your stack" in modes.body and "Your fitness is worked out" in modes.body, "the work-modes skill holds the mode and fitness paragraphs"
+    assert "The work mode is the bottom state" not in workers.body and "Your fitness is worked out" not in workers.body, "the workers skill no longer holds them"
+    assert set(modes.keywords) == {"orchestrator", "builder", "solo", "fitness"} and set(modes.required_states) == {"orchestrating", "soloing"}
+    assert len(workers.body.strip().splitlines()) < 70, f"the workers skill is {len(workers.body.strip().splitlines())} lines"
+    assert "the workers skill" in journal.body and "work-modes skill" in journal.body, "the journal map names both"
+
+
 def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_button_is_in_the_same_words(app: App):
     from journal.features.pins.support.pin_and_button_text import PinAndButtonText
     from journal.features.registry import Registry

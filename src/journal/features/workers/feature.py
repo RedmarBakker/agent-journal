@@ -122,16 +122,42 @@ class Workers(Feature[WorkersData]):
 
     nudges = (WorkersNudges.BUILDER_CODE_SHARE_LINE, WorkersNudges.BUILDER_QUEUE_LINE, WorkersNudges.BUILDER_WORKER_LINE, WorkersNudges.OPEN_WORK_WAIT_LINE, WorkersNudges.ORCHESTRATOR_QUEUE_LINE, WorkersNudges.ORCHESTRATOR_WAIT_LINE, WorkersNudges.ORCHESTRATOR_HANDOUT_LINE, WorkersNudges.ORCHESTRATOR_REPORT_LINE, WorkersNudges.ORCHESTRATOR_DISPATCH_LINE, WorkersNudges.WAIT_MISSING, WorkersNudges.WAIT_TEXT, WorkersNudges.UNMOVED_TASKS, WorkersNudges.UNLINKED_TASKS, WorkersNudges.PRIORITIES, WorkersNudges.UNBLOCKER_QUEUED, WorkersNudges.QUEUE_RELATED, WorkersNudges.MODEL_OVERPOWERED, WorkersNudges.MODEL_UNDERPOWERED, WorkersNudges.TEST_RUN_FAILED, WorkersNudges.WORKER_KEEPS_FAILING, WorkersNudges.MODE_REFUSAL, WorkersNudges.PLACE_OPENED, WorkersNudges.PLACE_CLOSED, WorkersNudges.WORKER_GIT_REFUSAL, WorkersNudges.TEST_QUEUE, WorkersNudges.BUILD_QUEUE, WorkersNudges.COMMAND_KIND_REFUSAL, WorkersNudges.SUBAGENT_COMMAND_REFUSAL, WorkersNudges.EDIT_LOCK, WorkersNudges.WORK_READY, WorkersNudges.RUN_UNFINISHED, WorkersNudges.BRANCH_KEEPS_CLASHING, WorkersNudges.USER_CLOSURE, WorkersNudges.OUTPUT_UNFINISHED, WorkersNudges.OUTPUT_END, WorkersNudges.OPEN_TODOS, WorkersNudges.WORKER_REPORTED, WorkersNudges.WORKER_STOPPED_UNREPORTED, WorkersNudges.UNREAD_WORKER_REPORTS, WorkersNudges.SUBAGENT_OVERFLOW, WorkersNudges.PLACES_FULL, WorkersNudges.WORKER_OVERFLOW, WorkersNudges.WORKER_FILE, WorkersNudges.SUBAGENT_REUSE, WorkersNudges.WORKER_KNOWS_FILES, WorkersNudges.IDLE_CAP, WorkersNudges.REUSE_QUESTION, WorkersNudges.SILENT_WORKER, WorkersNudges.WORKER_LOG_DUE, WorkersNudges.PROOF_REJECTED, WorkersNudges.PROOF_REJECTED_REPEAT, WorkersNudges.PROOF_REJECTED_OFTEN, WorkersNudges.COSTLY_SHAPED_WORK, WorkersNudges.ORCHESTRATE, WorkersNudges.STARTED_PLANS, WorkersNudges.PLAN_STALLED, WorkersNudges.SUITE_BROKEN, WorkersNudges.WORKER_LIMITED, WorkersNudges.MEMORY_WARNING, WorkersNudges.DELIVERED_WAITING, WorkersNudges.ACTIVE_WORKERS, WorkersNudges.TASK_DELEGATION, WorkersNudges.SOLO_DISPATCH, WorkersNudges.ORCHESTRATOR_MODE, WorkersNudges.SOLO_MODE, WorkersNudges.BLOCKED_CHECK, WorkersNudges.IDLE_WORKER, WorkersNudges.RELEASE_REFUSED)
 
+    other_skills = (Skill("work-modes", 'The builder, the orchestrator and solo, and what each is told by its fitness measures; load it when the work mode or its fitness comes up', """
+# Work modes
+
+- The work mode is the bottom state of your stack. """ + WorkModeBriefs.teaching() + """ The user sets it
+  with the plan bar's buttons. The builder and the orchestrator are told by their measures, each line naming
+  one action: the builder to write the task itself while its own share of the code is low, to take in the oldest worker
+  while the worker queue stands high and to merge a worker before handing out more while too many are active; the
+  orchestrator to clear the oldest worker while the queue stands high, to check a worker that waited too long, to hand
+  out the next task while too little is handed out or a place stands idle, and to queue a worker more tasks while its
+  workers report too often.
+  The orchestrator is asked at each phase start of a started plan, and every workers.priorities_minutes after its last
+  answer, which open task unblocks the most others or itself, and whether the queues are in that order; it answers with
+  `journal plan priorities '<the order and why>'`, kept on the plan. A task that says it unblocks the orchestrator (a
+  permission, access, a credential) is named at once when it is queued behind others.
+- Your fitness is worked out from the measures of your work mode, minute by minute, on the work and the load, never on
+  tool counts: the builder by its own share of the code, the worker queue held high and its workers active at once; the
+  orchestrator by the worker queue held high, the wait of its oldest worker, its own share of the landed code, the minutes
+  a place stood free and its first reports per merged task; every mode by how long your oldest message waits. Each
+  measure fails past one level and passes again only back at another, and a failing one says its one line naming one
+  action, only in the pressure bands (low, normal, high on the worker queue) where it may speak. A worker queue failing
+  past workers.write_block_minutes makes your writes wait until you clear the oldest worker. With the fitness warnings
+  switch off the measures are still worked out and shown, and nothing of them reaches you. The status bar's fitness
+  opens every measure with its range and state.
+""", keywords=('orchestrator', 'builder', 'solo', 'fitness'), required_states=('orchestrating', 'soloing')),)
+
     skill = Skill("workers", 'Send a worker to write a bounded job and wait for its report; load it before dispatching one', """
 # Workers
 
 A subagent only reads. A worker writes: code in a worktree of its own, a document, a change.
 
-- Queue first. In builder and orchestrator mode the way to hand out work is several related tasks on one worker that
-  reports once, at the end of its queue: dispatch or send it the first task, then queue it the rest with
-  `journal worker queue <n> <task> [<task>...]`. A worker reports, and its tests run, only once no task of its queue is
-  left, so a queue interrupts you once. A dispatch or a send of a single task while other tasks of its plan wait to be handed out is told once to
-  queue them, naming them and the line that does it. This holds whether the fitness measures are on or off. A whole approved
+- Queue first. In builder and orchestrator mode hand out work as several related tasks on one worker that reports once,
+  at the end of its queue: dispatch or send it the first task, then queue it the rest with `journal worker queue <n>
+  <task> [<task>...]`. A worker reports, and its tests run, only once no task of its queue is left, so a queue interrupts
+  you once. A queued task is delegated to that worker at once, never offered to you, blocked or paused; when its work is
+  merged you are given the next with the line that sends it, and releasing the worker opens them again. A dispatch or a
+  send of a single task while other tasks of its plan wait is told once to queue them. A whole approved
   plan, or one phase of it, goes to one worker with `--plan <n>` or `--plan <n> --phase <k>` in place of `--task`: its open
   and paused tasks are queued to it in the plan's order, the plan becomes delegated, the worker tests the way the plan's
   testing template says and reports once, at the plan's or phase's end or where it cannot go on. Prefer it to dispatching a
@@ -150,26 +176,11 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   links the main checkout's folders, `--copies vendor` gives the worker copies of its own (always copy composer's vendor:
   its autoloader loads classes from where vendor really is, so through a link the tests would run the main checkout's
   code), and `--no-libraries` gives none, for a job that changes the libraries. Each applies in every inner repository too.
-  The project's own commands around the creation of a worktree are settings: `journal settings show workers.preparation_commands`,
-  `workers.completion_commands` and `workers.worktree_step`, which you may set with `journal settings set`.
-- The work mode is the bottom state of your stack. """ + WorkModeBriefs.teaching() + """ The user sets it
-  with the plan bar's buttons. The builder and the orchestrator are told by their measures, each line naming
-  one action: the builder to write the task itself while its own share of the code is low, to take in the oldest worker
-  while the worker queue stands high and to merge a worker before handing out more while too many are active; the
-  orchestrator to clear the oldest worker while the queue stands high, to check a worker that waited too long, to hand
-  out the next task while too little is handed out or a place stands idle, and to queue a worker more tasks while its
-  workers report too often.
-  The orchestrator is asked at each phase start of a started plan, and every workers.priorities_minutes after its last
-  answer, which open task unblocks the most others or itself, and whether the queues are in that order; it answers with
-  `journal plan priorities '<the order and why>'`, kept on the plan. A task that says it unblocks the orchestrator (a
-  permission, access, a credential) is named at once when it is queued behind others.
-- A worker works a turn on its task: it clocks in with `journal clock-in`, maintains its own list with `journal todo`,
-  proves each point of the brief with `journal proof <point> "<file:line, and the test>"` or says why not with
-  `--not-done`, and clocks out with `journal clock-out "<report>"`, its one report. At clock-out the journal
-  commits its work and asks the plugins about it, rebases it, runs the tests it names in the queue of test runs, and
-  asks the plugins again before it reaches you; a plugin's hold or a failing test goes straight back to the worker.
-  You are informed when it clocks in, and once when its work is ready to check, which is only work that passed all
-  of that; your stops name the work still waiting.
+  The settings workers.preparation_commands, workers.completion_commands and workers.worktree_step hold the project's own commands around the creation of a worktree.
+- A worker clocks in, keeps its own `journal todo` list, proves each point of the brief with `journal proof <point>
+  "<file:line, and the test>"` (or `--not-done` and why) and clocks out with one report. At clock-out the journal commits
+  its work, asks the plugins, rebases it and runs the tests it names; a plugin's hold or a failing test goes straight back
+  to the worker. You are told when it clocks in and once when its work is ready to check; your stops name what waits.
 - A worker, a reviewer, a verifier and a subagent each run only the journal verbs their helper file names
   (src/journal/helpers/), and hear only what that file allows; any other verb is refused, naming the file.
 - `journal worker wait <n> [<n>...]` waits until they have clocked out; stopping is fine while you wait.
@@ -180,33 +191,20 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   once with its card, step 1/5 to 5/5, while the plugins judge it; wait on its output as on any command.
 - A worker whose run ends without clocking out still owns its task: send it again with `journal worker send <n>`, or
   release the task with `journal worker release <n>`, refused while tasks it completed wait for the merge unless
-  `--drop`, which opens them again. `journal worker list` shows every worker, and the subagents you
-  started with their state and task.
+  `--drop`, which opens them again.
 - A worker that runs past 60 minutes is stopped and its report says so (setting workers.timeout_minutes, 0 for no limit).
 - Related work goes back to the worker that knows it: `journal worker send <n> "<next job>"` gives a worker that
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
   Never dispatch a new worker for work one already out has done part of.
   `--model <model>` or `--profile <profile>` sends it the job on another model, in the same session and worktree: a stronger
   one for a worker sent back three times on one task, a cheaper one for one spending much on work of a settled shape.
-  `journal worker list` names each worker's model, its spend so far and its send-backs on its task.
-- Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
-  Each is delegated to that worker at once, so it is never offered to you, nor blocked or paused; when its work is merged
-  you are given the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
+  `journal worker list` shows every worker and the subagents you started: state, task, model, spend and send-backs.
 - A worker with a task still queued clocks out of each task, which waits for the merge, and goes straight on to the next
-  in its queue in the same session, with no test run and telling you nothing; it reports, and its tests run, once no task
-  is left, a blocked task next in its queue or a point proved not done ending the queue there. Check a finished
+  in its queue in the same session, with no test run and telling you nothing; proving the last point of a task hands it
+  the next. It reports, and its tests run, once no task is left, a blocked task next in its queue or a point proved not
+  done ending the queue there. Check a finished
   task's points with `journal worker check <n> <point> --task <task>` (`--short` puts the worker back on it), and one
-  merge takes every completed task in, refused while any point is unchecked. First reports per merged task are one of
-  the orchestrator's fitness measures.
-- Your fitness is worked out from the measures of your work mode, minute by minute, on the work and the load, never on
-  tool counts: the builder by its own share of the code, the worker queue held high and its workers active at once; the
-  orchestrator by the worker queue held high, the wait of its oldest worker, its own share of the landed code, the minutes
-  a place stood free and its first reports per merged task; every mode by how long your oldest message waits. Each
-  measure fails past one level and passes again only back at another, and a failing one says its one line naming one
-  action, only in the pressure bands (low, normal, high on the worker queue) where it may speak. A worker queue failing
-  past workers.write_block_minutes makes your writes wait until you clear the oldest worker. With the fitness warnings
-  switch off the measures are still worked out and shown, and nothing of them reaches you. The status bar's fitness
-  opens every measure with its range and state.
+  merge takes every completed task in, refused while any point is unchecked.
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.
 - A dispatch whose brief names files an idle worker touched is refused, naming that worker and its send line; add
