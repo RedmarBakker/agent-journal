@@ -143,6 +143,10 @@ class Plans(ScopedRepository[Plan]):
     def task_counts(self, plans: list[Plan]) -> dict[int, int]:
         return self.links.target_counts(plans, PLAN_LINK)
 
+    def uncancelled_count(self, task_ids: list[int]) -> int:
+        cancelled = self.tasks.counted(self.tasks.query().filter_listed("id", task_ids).filter(state=TaskState.CANCELLED)) if task_ids else 0
+        return len(task_ids) - cancelled
+
     def unclosed_phase_tasks(self, phase: Phase) -> list[Task]:
         ids = [ref.id for ref in self.links.sources(phase, PHASE_LINK)]
         return self.tasks.selected(self.tasks.query().filter_listed("id", ids).filter_unlisted("state", [TaskState.COMPLETED, TaskState.CANCELLED]).order("id"))

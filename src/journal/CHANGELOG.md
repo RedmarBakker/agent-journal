@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.4
+
+- A plan's card counts its tasks without the cancelled ones, so a plan with a cancelled phase can show as done.
+
 ## 4.69.3
 
 - The Team page's connect form sends what you type: its text boxes carried nothing back to the form, so every connect was refused as empty.
