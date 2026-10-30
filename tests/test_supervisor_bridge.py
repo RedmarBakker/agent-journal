@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from shutil import copytree
 from types import SimpleNamespace
+from traceback import extract_tb
 from urllib.request import Request, urlopen
 
 import pytest
@@ -1069,7 +1070,8 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
             try:
                 return apply_maintenance(principal, request)
             except Exception as error:
-                maintenance_errors.append(f"{type(error).__name__}: {error}")
+                frames = [(frame.name, frame.filename.rsplit("/", 1)[-1], frame.lineno) for frame in extract_tb(error.__traceback__)]
+                maintenance_errors.append((type(error).__name__, str(error), frames))
                 raise
 
         maintenance.apply_maintenance = tracked_maintenance_apply
