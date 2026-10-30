@@ -124,6 +124,9 @@ class Plan(Scoped, Commentable):
     def unblocked(self, reason: str, time: float) -> "Plan":
         return self.moved(PlanState.STARTED).with_(block_reason="").with_event(PlanReopened(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
 
+    def is_resolved(self) -> bool:
+        return self.state.is_closed()
+
     def is_blocked(self) -> bool:
         return self.state == PlanState.BLOCKED
 

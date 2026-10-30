@@ -280,7 +280,7 @@ class TaskCommand(Command):
         task = self.readable(int(args.n), caller)
         print(f"""task {task.row_id}: {task.title}
 state: {task.state}
-{self.place(task)}
+{self.place(task)}{self.wait_line(task)}
 {self.briefing.whole(task)}""")
         return 0
 
@@ -323,9 +323,18 @@ state: {task.state}
             print(f"and {closed} done or cancelled: journal task list --all")
         return 0
 
-    @staticmethod
-    def task_lines(tasks: list[Task]) -> str:
-        return "\n".join(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]") for task in tasks)
+    def wait_line(self, task: Task) -> str:
+        reason = self.tasks.reason(task)
+        return f"\nwaiting on: {reason}" if reason else ""
+
+    def task_lines(self, tasks: list[Task]) -> str:
+        return "\n".join(self.task_line(task) for task in tasks)
+
+    def task_line(self, task: Task) -> str:
+        reason = self.tasks.reason(task)
+        priority = "" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]"
+        wait = f"  [waiting on: {reason}]" if reason else ""
+        return f"{task.id:>4}  {task.state:<8} {task.title}{priority}{wait}"
 
     def _name_next(self, closed: Task) -> None:
         next_task = self.next_tasks.holder_task(closed)

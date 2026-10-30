@@ -21,6 +21,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
+from journal.repositories.rows import Rows
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 from journal.models.agent import ENDED_STATE
@@ -50,13 +51,14 @@ class Tasks(ScopedRepository[Task]):
 
     model = Task
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource, rows: Rows) -> None:
         super().__init__(connection, bus, scope, time_source)
+        self.row_reader = rows
         self.links, self.checks = links, checks
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 
     def open_waits(self, row: Task | Plan) -> list[Ref]:
-        return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.waiting(ref).is_resolved()]
+        return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.is_wait_resolved(ref)]
 
     def waits_reach(self, start: Ref, goal: Ref) -> bool:
         viewed, todo = set(), [start]
@@ -73,13 +75,18 @@ class Tasks(ScopedRepository[Task]):
     def waiting(self, ref: Ref) -> Task | Question | Check:
         return self.awaitable[ref.type].find(ref.id)
 
+    def is_wait_resolved(self, ref: Ref) -> bool:
+        if ref.type == Plan.table():
+            return PlanState(self.row_reader.row_state(ref)).is_closed()
+        return self.waiting(ref).is_resolved()
+
     def waiting_ids(self, tasks: list[Task]) -> set[int]:
         return set(self.open_wait_refs(tasks))
 
     def open_wait_refs(self, tasks: list[Task]) -> dict[int, list[Ref]]:
         waits: dict[int, list[Ref]] = {}
         for link in self.links.model_links("source", tasks, WAIT_LINK):
-            if not self.waiting(link.target).is_resolved():
+            if not self.is_wait_resolved(link.target):
                 waits.setdefault(link.source.id, []).append(link.target)
         return waits
 

@@ -10,25 +10,27 @@ from journal.repositories.checks import Checks
 from journal.features.tasks.support.wait_checks import WaitChecks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
+from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks, WAIT_LINK
 
 
 class Waits:
-    """What a blocked task or plan waits on, as the command line names it: a question or task by --on, a command by --until; each a row the wait links to, and opens it once resolved; once it is open, its waits are released and the checks its block made deleted."""
+    """What a blocked task or plan waits on, as the command line names it: a question, task or plan by --on, a command by --until; each a row the wait links to, and opens it once resolved; once it is open, its waits are released and the checks its block made deleted."""
 
-    def __init__(self, tasks: Tasks, questions: Questions, checks: Checks, links: Links, wait_checks: WaitChecks) -> None:
+    def __init__(self, tasks: Tasks, questions: Questions, checks: Checks, links: Links, wait_checks: WaitChecks, plans: Plans) -> None:
+        self.plans = plans
         self.tasks, self.questions, self.checks, self.links, self.wait_checks = tasks, questions, checks, links, wait_checks
 
     @staticmethod
     def arguments(parser: ArgumentParser, subject: str) -> None:
-        parser.add_argument("--on", action="append", default=[], metavar="question:N|task:N", help=f"a question or task it waits on; the {subject} is open again when that is answered or closed; to wait on the user, ask a question and name it here")
+        parser.add_argument("--on", action="append", default=[], metavar="question:N|task:N|plan:N", help=f"a question, task or plan it waits on; the {subject} is open again when that is answered or closed; to wait on the user, ask a question and name it here")
         parser.add_argument("--until", default="", metavar="COMMAND", help=f"a shell command that passes once the wait is over, such as a check that a pull request is merged; run every --every minutes, it opens the {subject} when it passes")
         parser.add_argument("--every", type=int, default=2, help="minutes between two runs of the --until command")
 
     @staticmethod
     def refuse_unnamed(reason: str, enabled: list[str], deadline: str) -> None:
         if not reason and not enabled and not deadline:
-            raise Rejection("say what it waits on: --on question:N or --on task:N, --until \"<command>\", or a reason in words")
+            raise Rejection("say what it waits on: --on question:N, --on task:N or --on plan:N, --until \"<command>\", or a reason in words")
 
     def created(self, enabled: list[str], deadline: str, all_items: int, topic: str, actor: Actor) -> list[Ref]:
         refs = [self.wait_targets(text) for text in enabled]
@@ -42,10 +44,11 @@ class Waits:
 
     def wait_targets(self, text: str) -> Ref:
         type_name, _, number = text.partition(":")
-        if type_name not in ("question", "task") or not number.isdigit():
-            raise Rejection(f"--on takes question:N or task:N, not {text}")
+        targets = {"question": self.questions, "task": self.tasks, "plan": self.plans}
+        if type_name not in targets or not number.isdigit():
+            raise Rejection(f"--on takes question:N, task:N or plan:N, not {text}")
         ref = Ref(f"{type_name}s", int(number))
-        (self.questions if type_name == "question" else self.tasks).find(ref.id)
+        targets[type_name].find(ref.id)
         return ref
 
     def released(self, row: Model, actor: Actor) -> None:

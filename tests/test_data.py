@@ -40,6 +40,7 @@ from journal.support.missing_row import MissingRow
 from journal.repositories.checks import Checks
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
+from journal.repositories.rows import Rows
 from journal.support.scope_missing import ScopeMissing
 from journal.features.voices.voices_options import VoicesOptions
 from journal.features.workers.workers_options import WorkersOptions
@@ -58,7 +59,7 @@ class Heard(Listener[ModelEvent]):
 
 
 def tasks_of(connection, bus, scope) -> Tasks:
-    return Tasks(connection, bus, scope, Links(connection, bus, TimeSource()), Questions(connection, bus, scope, TimeSource()), Checks(connection, bus, TimeSource()), TimeSource())
+    return Tasks(connection, bus, scope, Links(connection, bus, TimeSource()), Questions(connection, bus, scope, TimeSource()), Checks(connection, bus, TimeSource()), TimeSource(), Rows(connection))
 
 
 class SayNo(Listener[Creating]):
@@ -202,7 +203,6 @@ def test_a_title_is_one_line_of_eighty_characters_without_a_colon_and_an_old_one
     from journal.support.actor import Actor
     from journal.models.task import Task
     from journal.support.rejection import Rejection
-    from journal.repositories.tasks import Tasks
     tasks = tasks_of(connection, bus, scope)
     with pytest.raises(Rejection, match="at most 80 characters"):
         tasks.save(Task(environment_id=1, title="x" * 81), Actor.system())

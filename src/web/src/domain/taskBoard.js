@@ -7,7 +7,7 @@ import {NORMAL_PRIORITY} from "./taskPriority.js";
 export const STATUS_PREFIXES = {...GROUPS, done: "Completed"};
 // Tasks in progress, the agent's and the workers', come first; a task with a worker is grouped by its own state, the worker marked beside it.
 export const STATUS_ORDER = ["started", "testing", "blocked", "asked", "paused", "open", "planned", "done"];
-const WAIT_KINDS = {tasks: "task", questions: "question", checks: "command"};
+const WAIT_KINDS = {tasks: "task", plans: "plan", questions: "question", checks: "command"};
 
 export const statusOf = (task) => (isClosed(task) ? "done" : groupOf(task));
 
@@ -22,6 +22,7 @@ export function waitOf(task) {
 
 const WAIT_LINES = {
     task: (w) => `Blocked by task ${w.id}`,
+    plan: (w) => `Blocked by plan ${w.id}`,
     question: (w) => `Waiting on question ${w.id}`,
     command: () => "Waiting for a command to pass",
     reason: (w) => `Blocked: ${w.why}`,
