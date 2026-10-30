@@ -42,7 +42,7 @@ class TasksNudges:
     WAIT_PAUSED_TASK = Nudge("tasks", "paused_task_while_waiting", "while you wait for {{what}}, resume paused task {{n}}: `journal task resume {{n}}`", "", repeat=Timeout.seconds(0))
     WAIT_NEXT_TASK = Nudge("tasks", "next_task_while_waiting", "while you wait for {{what}}, work on task {{n}}; you are informed when the wait ends", "", repeat=Timeout.seconds(0))
     WAIT_STOP = Nudge("tasks", "no_stop_while_waiting", "{{what|cap=24}} still runs ({{left|cap=16}})", "do not stop; carry on with task {{n}} until it ends", repeat=Timeout.seconds(0))
-    WAIT_SWITCH_REFUSAL = Nudge("tasks", "await_switches_task", "{{what|cap=16}} runs {{left}}, too long to wait", "work on task {{n}} meanwhile: `journal task start {{n}}`", repeat=Timeout.seconds(0))
+    WAIT_SWITCH_REFUSAL = Nudge("tasks", "await_switches_task", "{{what|cap=16}} runs {{left}}: too long", "work on task {{n}} meanwhile: `journal task start {{n}}`", repeat=Timeout.seconds(0))
     WAIT_REFUSAL = Nudge("tasks", "await_only_what_ends_soon", "{{what|cap=24}} runs {{left}}, too long to wait", "carry on with task {{n}}; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_REASON_REQUEST = Nudge("tasks", "await_needs_its_reason", "{{what|cap=16}} runs {{left}}; to wait anyway, say why", "add --why \"<why>\" to the await", repeat=Timeout.seconds(0))
     WAIT_REASON_LINE = Nudge("tasks", "await_with_its_reason", "waiting because {{why|cap=48}}", "do any open work that does not depend on it meanwhile", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
