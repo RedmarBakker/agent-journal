@@ -76,3 +76,4 @@ src/web/node_modules/
 
 # written by journal install with this machine's paths
 .claude/settings.json
+/.claude/settings.local.json
