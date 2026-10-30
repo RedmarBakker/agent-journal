@@ -6,6 +6,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from journal.features.supervisor.support.admissions import MAX_OBSERVATION_AGE
+from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
+from journal.features.supervisor.support.supervisor_episode_qualification import OBSERVATION_ENTRY, SupervisorEpisodeQualification
 from journal.models.check import Check
 from journal.models.entry import Entry
 from journal.events.rows.check_completed import CheckCompleted
@@ -20,7 +22,6 @@ from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
 from journal.supervisor_principal import SupervisorPrincipal
 
-OBSERVATION_ENTRY = "SupervisorObservation"
 PAGE_SIZE = 100
 OUTPUT_CHARACTERS = 16_384
 EVIDENCE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
@@ -32,9 +33,13 @@ class SupervisorObservations:
     """Captures check evidence with its result and reads bounded, grant-scoped observation pages."""
 
     def __init__(self, authority: SupervisorAuthority, entries: Entries, control_entries: SupervisorEntries,
-                 scope: Scope, masks: Masks, time_source: TimeSource) -> None:
+                 scope: Scope, masks: Masks, time_source: TimeSource,
+                 episode_qualification: SupervisorEpisodeQualification,
+                 action_reports: SupervisorActionReports) -> None:
         self.authority, self.entries, self.control_entries = authority, entries, control_entries
         self.scope, self.masks, self.time_source = scope, masks, time_source
+        self.episode_qualification = episode_qualification
+        self.action_reports = action_reports
 
     def completed(self, check: Check, event: CheckCompleted, started: float, fault: str) -> None:
         self._capture(check, event.check_id, started, event.time, event.passed, event.output, fault, False)
@@ -47,6 +52,9 @@ class SupervisorObservations:
         grant = self.authority.revalidate(principal)
         run, installation_epoch = self._run(principal, grant, request)
         snapshot = self.authority.observation_snapshot(principal, installation_epoch)
+        qualification = self.episode_qualification.qualify(grant, installation_epoch)
+        snapshot = {**snapshot, "episode_qualification": qualification,
+            "progress_watermark_ms": qualification["progress_watermark_ms"]}
         page = self._page(grant, installation_epoch, request["cursor"])
         return {
             "protocol_version": 1,
@@ -88,6 +96,13 @@ class SupervisorObservations:
                 found.append(rows[0])
         return found
 
+    def record_episode_attempt(self, principal: SupervisorPrincipal, episode_id: str, attempt_id: str) -> dict[str, Any]:
+        return self.episode_qualification.record_attempt(principal, episode_id, attempt_id)
+
+    def episode_qualification(self, principal: SupervisorPrincipal, installation_epoch: int) -> dict[str, Any]:
+        grant = self.authority.revalidate(principal)
+        return self.episode_qualification.qualify(grant, installation_epoch)
+
     @staticmethod
     def _qualifying_action_evidence(entry: Entry, grant: dict[str, Any], installation_epoch: int, now_ms: int) -> bool:
         data = entry.data
@@ -122,6 +137,10 @@ class SupervisorObservations:
                 install = installation[0].data if installation else {}
                 epoch = install.get("epoch", grant["scope"]["installation_epoch"])
                 if not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 1:
+                    continue
+                if (install.get("installation_epoch_rotated") is True
+                        and (install.get("management_writes_enabled") is not True
+                             or install.get("restore_review_required") is True)):
                     continue
                 self._record(check, candidate, context, epoch, started, completed, passed, output, fault, stopped, install)
 
@@ -200,8 +219,10 @@ class SupervisorObservations:
             "observation": observation,
         }
         key = f"supervisor:observation:{grant['grant_id']}:{epoch}:{observation_id}"
-        self.control_entries.recorded(Entry(environment_id=PROJECT, entry_type=OBSERVATION_ENTRY,
+        stored = self.control_entries.recorded(Entry(environment_id=PROJECT, entry_type=OBSERVATION_ENTRY,
             actor=EVIDENCE_ACTOR, data=data, idempotency=key), EVIDENCE_ACTOR)
+        self.episode_qualification.qualify(grant, epoch)
+        self.action_reports.measure(grant, stored)
 
     def _next_generation(self, grant: dict[str, Any], check_id: int, epoch: int) -> int:
         rows = self.entries.supervisor_records(
@@ -221,6 +242,10 @@ class SupervisorObservations:
             run = runs[0]
             data = run.data
             installation = installation_rows[0].data
+            if (installation.get("installation_epoch_rotated") is True
+                    and (installation.get("management_writes_enabled") is not True
+                         or installation.get("restore_review_required") is True)):
+                raise SupervisorFailure(403, "supervisor management writes await owner review")
             epoch = data.get("installation_epoch")
             current_epoch = installation.get("epoch")
             current_runs = self.entries.supervisor_records(

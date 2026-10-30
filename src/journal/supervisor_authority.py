@@ -25,7 +25,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
 from journal.repositories.plans import PHASE_LINK, PHASE_TASK_LINK, PLAN_AGENT_LINK, PLAN_LINK, Plans
-from journal.repositories.scope import BOUND_LINK, Scope
+from journal.repositories.scope import BOUND_LINK, PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.repositories.templates import Templates
 from journal.support.actor import Actor
@@ -149,10 +149,17 @@ class SupervisorAuthority:
                     context = self._eligible(replacement_plan, replacement_owner)
                     self._expected_context(replacement, context)
                     grant = self._grant(replacement, replacement_plan, context, owner_id, current["grant_id"], next_version)
+                    installation = self._latest_installation(current["scope"]["tenant_id"])
+                    if installation and installation.data.get("restore_review_required") is True:
+                        self._restore_review(request["change"].get("restore_review"), installation)
+                    elif "restore_review" in request["change"]:
+                        raise SupervisorFailure(409, "there is no restored installation to review")
                     token = secrets.token_urlsafe(32)
                     rotated_name = self._credential_name(grant["grant_id"], next_version)
                     self.secrets_store.put(rotated_name, token)
                     self._record_grant(grant, token, rotated_name, context, actor)
+                    if installation and installation.data.get("restore_review_required") is True:
+                        self._record_owner_review(installation, grant, owner_id, actor)
         except BaseException:
             if rotated_name:
                 self.secrets_store.drop([rotated_name])
@@ -160,6 +167,44 @@ class SupervisorAuthority:
         if old_name:
             self.secrets_store.drop([old_name])
         return grant, token
+
+    def restore_installation(self, actor: Actor, grant_id: str) -> Entry:
+        with self.entries.writing():
+            entry = self._latest_entry(grant_id)
+            if entry is None:
+                raise SupervisorFailure(403, "supervisor request is not authorized")
+            grant = self._public_grant(entry)
+            plan = self._plan(grant["plan_id"])
+            owner_id = self._owner(actor, plan)
+            if owner_id != grant["owner_user_id"]:
+                raise SupervisorFailure(403, "supervisor request is not authorized")
+            prior = self._latest_installation(grant["scope"]["tenant_id"])
+            prior_data = prior.data if prior else {}
+            prior_epoch = prior_data.get("epoch", grant["scope"]["installation_epoch"])
+            if type(prior_epoch) is not int or prior_epoch < 1:
+                raise SupervisorFailure(409, "the supervisor installation epoch is unavailable")
+            installation_id = prior_data.get("installation_id") or uuid.uuid4().hex
+            epoch = max(prior_epoch, grant["scope"]["installation_epoch"]) + 1
+            evidence_watermark = self._evidence_watermark(grant["scope"]["tenant_id"], grant_id)
+            actor = Actor.user(owner_id)
+            data = {
+                "tenant_id": grant["scope"]["tenant_id"],
+                "grant_id": grant_id,
+                "installation_id": installation_id,
+                "epoch": epoch,
+                "installation_epoch_rotated": True,
+                "management_writes_enabled": False,
+                "restore_review_required": True,
+                "evidence_watermark_ms": evidence_watermark,
+                "evidence_rpo_gap_ms": None,
+                "evidence_rpo_gap_reason": "restore_point_time_unavailable" if evidence_watermark is not None else "no_retained_evidence",
+                "restore_owner_id": owner_id,
+                "restored_at_ms": self._now_ms(),
+            }
+            return self.control_entries.recorded(Entry(
+                environment_id=PROJECT, entry_type="SupervisorInstallation", actor=actor, data=data,
+                idempotency=f"supervisor:restore:{grant['scope']['tenant_id']}:{installation_id}:{epoch}",
+            ), actor)
 
     def authenticate(self, token: str) -> SupervisorPrincipal:
         if not token or len(token) > 512:
@@ -248,6 +293,11 @@ class SupervisorAuthority:
             raise SupervisorFailure(403, "the supervisor grant is no longer current")
         if plan_id is not None and plan_id != grant["plan_id"]:
             raise SupervisorFailure(403, "the supervisor grant does not cover that reference")
+        if installation := self._latest_installation(grant["scope"]["tenant_id"]):
+            if (installation.data.get("installation_epoch_rotated") is True
+                    and (installation.data.get("management_writes_enabled") is not True
+                         or installation.data.get("restore_review_required") is True)):
+                raise SupervisorFailure(403, "supervisor management writes await owner review")
         return entry, grant
 
     def _enrolled_checks_current(self, grant: dict[str, Any]) -> bool:
@@ -270,6 +320,8 @@ class SupervisorAuthority:
             grant = self._public_grant(entry)
             if (grant["revoked"] or grant["mode"] == "disabled" or grant["valid_until_ms"] <= self._now_ms()
                     or not entry.data.get("_credential_sha256")):
+                continue
+            if not self.installation_accepts_management(grant["owner_user_id"]):
                 continue
             enrolled = next((item for item in grant["checks"] if item["check_id"] == check.row_id), None)
             if enrolled is None or self._check_revision(check) != enrolled["expected_revision"]:
@@ -304,8 +356,23 @@ class SupervisorAuthority:
             plan_revision = self._plan_revision(plan, phases)
             phase_revision = self._phase_revision(plan, phase_state) if phase_state else ""
             tasks = self.plans.plan_tasks(plan)
+            phase_ids = {
+                task.row_id: state.phase.row_id
+                for state in phases
+                for task in self.plans.phase_tasks(state.phase)
+            }
+            waits = self.plans.tasks.open_wait_refs(tasks)
             task_facts = [
-                {"id": task.row_id, "state": task.state.value, "revision": self._digest(self._task_values(task))}
+                {
+                    "id": task.row_id,
+                    "state": task.state.value,
+                    "revision": self._digest(self._task_values(task)),
+                    "updater": task.updater.stamp if task.updater else "",
+                    "phase_id": phase_ids.get(task.row_id),
+                    "delegated": task.delegated,
+                    "waits": [{"table": ref.type, "id": ref.id} for ref in waits.get(task.row_id, ())],
+                    "holder": self._ref_value(holder) if (holder := self.plans.tasks.task_holder(task.row_id)) else None,
+                }
                 for task in tasks[:100]
             ]
             phase = {"id": phase_state.phase.row_id, "number": phase_state.number, "revision": phase_revision} if phase_state else None
@@ -314,6 +381,14 @@ class SupervisorAuthority:
                 "reviewers": plan.reviewers,
                 "revision": self._digest({"state": plan.state.value, "reviewers": plan.reviewers, "updated_at": self._date(plan.updated_at)}),
             }
+            gates = {
+                "explicit_owner_pause": plan.state == PlanState.PAUSED,
+                "reserved_checkpoint": bool(self.plans.checkpoint_plans(plan)),
+                "ended_drive": self.bindings.is_ended(plan),
+                "pending_owner_decision": plan.state == PlanState.REVIEWING,
+                "unpassed_phase_commands": list(self.phase_testing.unpassed(plan))[:20],
+            }
+            started = self.plans.started_task(plan)
         with self.scope.environment(grant["driver_environment_id"]):
             agent = self.agents.agent(plan)
             environment = self.agents.environment(plan)
@@ -325,6 +400,9 @@ class SupervisorAuthority:
             "phase": phase,
             "tasks": task_facts,
             "review": review,
+            "gates": gates,
+            "driver_state": agent.state if agent else "",
+            "started_task_id": started.row_id if started else None,
             "binding_revision": binding_revision,
         }
 
@@ -521,6 +599,14 @@ class SupervisorAuthority:
             "wait_target": check.wait_target, "retired": check.is_retired,
         })
 
+    def priority_action_revision(self, plan: Plan) -> str:
+        return self._digest({
+            "priorities": plan.priorities,
+            "priorities_at": plan.priorities_at,
+            "priorities_phase": plan.priorities_phase,
+            "updated_at": self._date(plan.updated_at),
+        })
+
     def check_action_revision(self, check: Check) -> str:
         return self._digest({
             "enrollment_revision": self._check_revision(check), "interval": float(check.interval),
@@ -528,6 +614,7 @@ class SupervisorAuthority:
             "last_run_at": self._date(check.last_run_at), "last_duration": check.last_duration,
             "last_output": self._digest(check.last_output), "last_fault": self._digest(check.last_fault),
             "last_report": self._digest(check.last_report), "progress": self._digest(check.progress),
+            "updated_at": self._date(check.updated_at),
         })
 
     def diagnostic_template(self, grant: dict[str, Any]) -> Template:
@@ -623,14 +710,69 @@ class SupervisorAuthority:
 
     def _scope(self, owner_id: int, environment_id: int) -> dict[str, Any]:
         project_id = self.secrets_store.project_id()
+        tenant_id = f"owner:{owner_id}"
+        installation = self._latest_installation(tenant_id)
+        epoch = INSTALLATION_EPOCH
+        if installation and installation.data.get("installation_epoch_rotated") is True:
+            candidate = installation.data.get("epoch")
+            if type(candidate) is int and candidate >= 1:
+                epoch = candidate
         return {
-            "tenant_id": f"owner:{owner_id}",
+            "tenant_id": tenant_id,
             "project_id": project_id,
             "environment_id": environment_id,
             "manager_id": MANAGER_ID,
             "writer_node_id": project_id,
-            "installation_epoch": INSTALLATION_EPOCH,
+            "installation_epoch": epoch,
         }
+
+    def _latest_installation(self, tenant_id: str) -> Entry | None:
+        with self.scope.environment(PROJECT):
+            rows = self.entries.supervisor_records("SupervisorInstallation", last=1, tenant_id=tenant_id)
+        return rows[0] if rows else None
+
+    def _evidence_watermark(self, tenant_id: str, grant_id: str) -> int | None:
+        with self.scope.environment(PROJECT):
+            rows = self.entries.supervisor_records(
+                "SupervisorObservation", last=100, tenant_id=tenant_id, grant_id=grant_id,
+            )
+        values = [row.data["committed_at_ms"] for row in rows if type(row.data.get("committed_at_ms")) is int]
+        return max(values) if values else None
+
+    def installation_accepts_management(self, owner_id: int) -> bool:
+        installation = self._latest_installation(f"owner:{owner_id}")
+        return not installation or installation.data.get("installation_epoch_rotated") is not True or (
+            installation.data.get("management_writes_enabled") is True
+            and installation.data.get("restore_review_required") is not True
+        )
+
+    def _record_owner_review(self, installation: Entry, grant: dict[str, Any], owner_id: int, actor: Actor) -> None:
+        data = {
+            **installation.data,
+            "grant_id": grant["grant_id"],
+            "grant_version": grant["grant_version"],
+            "management_writes_enabled": True,
+            "restore_review_required": False,
+            "owner_reviewed_by": owner_id,
+            "owner_reviewed_at_ms": self._now_ms(),
+        }
+        self.control_entries.recorded(Entry(
+            environment_id=PROJECT, entry_type="SupervisorInstallation", actor=actor, data=data,
+            idempotency=(f"supervisor:restore-reviewed:{grant['scope']['tenant_id']}:{data['installation_id']}"
+                         f":{data['epoch']}:{grant['grant_version']}"),
+        ), actor)
+
+    def _restore_review(self, review: dict[str, Any] | None, installation: Entry) -> None:
+        data = installation.data
+        unavailable = data.get("evidence_watermark_ms") is None or data.get("evidence_rpo_gap_ms") is None
+        expected = {
+            "epoch": data.get("epoch"),
+            "evidence_watermark_ms": data.get("evidence_watermark_ms"),
+            "evidence_rpo_gap_ms": data.get("evidence_rpo_gap_ms"),
+            "accept_unavailable_evidence": unavailable,
+        }
+        if review != expected:
+            raise SupervisorFailure(409, "the restored evidence and RPO gap require owner review")
 
     def _owner(self, actor: Actor, plan: Plan) -> int:
         owner_id = self.owners.number(plan)
@@ -769,7 +911,21 @@ class SupervisorAuthority:
         if change["kind"] == "revoke":
             change = cls._object(change, {"kind"})
         else:
-            change = cls._object(change, {"kind", "enrollment"})
+            if not isinstance(change, dict) or set(change) not in ({"kind", "enrollment"}, {"kind", "enrollment", "restore_review"}):
+                raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
+            if "restore_review" in change:
+                review = cls._object(change["restore_review"], {
+                    "epoch", "evidence_watermark_ms", "evidence_rpo_gap_ms", "accept_unavailable_evidence",
+                })
+                cls._integer(review["epoch"], 1)
+                for field in ("evidence_watermark_ms", "evidence_rpo_gap_ms"):
+                    if review[field] is not None:
+                        cls._integer(review[field], 0)
+                if type(review["accept_unavailable_evidence"]) is not bool:
+                    raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
+                change = {**change, "restore_review": dict(review)}
+            else:
+                change = cls._object(change, {"kind", "enrollment"})
         return {**body, "grant_id": grant_id, "change": dict(change)}
 
     @staticmethod

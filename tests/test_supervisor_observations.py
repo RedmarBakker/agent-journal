@@ -14,6 +14,7 @@ from journal.features.checks.support.check_runner import CheckRunner
 from journal.features.checks.support.finished_run import FinishedRun
 from journal.features.record.jobs.record_trim import RecordTrim
 from journal.features.supervisor.support.supervisor_observations import EVIDENCE_RETENTION_MS, OBSERVATION_ENTRY, SupervisorObservations
+from journal.features.supervisor.support.supervisor_episode_qualification import SupervisorEpisodeQualification
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.http.controllers.supervisor import SupervisorController
 from journal.http.support.identity import Identity
@@ -381,6 +382,91 @@ def test_observe_rejects_second_tenant_run_without_rows(app, supervisor_fixture,
     response = observed(app, first_token, {"protocol_version": 1, "run_id": other_run.data["run_ref"], "installation_epoch": 2, "fence": 7, "cursor": None})
     assert response.status == 403 and set(response.body) == {"error"}, "a valid grant cannot read another tenant's run"
     assert first_grant["scope"]["tenant_id"] != second_grant["scope"]["tenant_id"] and app.container.get(Entries).global_last_id() == before, "scope is derived from the credential and the rejected read changes no row"
+
+
+def test_own_notes_do_not_reset_stall_or_create_feedback_episode(app, supervisor_fixture):
+    fixture = supervisor_fixture
+    grant, _, principal = enrolled(fixture)
+    stored_run(app, grant, epoch=2)
+    observations = app.container.get(SupervisorObservations)
+    time_source = app.container.get(TimeSource)
+    scope = app.container.get(Scope)
+    check = fixture["check"]
+    first_time = time_source.seconds()
+    first = CheckCompleted(environment_id=fixture["owner_environment"].row_id, time=first_time,
+        check_id=check.row_id, title=check.title, passed=False, output="health check still fails",
+        prior_failure=False, wait_target=False, failure_reported_at=0)
+    with scope.environment(fixture["owner_environment"].row_id):
+        observations.completed(check, first, first_time - 1, "")
+        plans = app.container.get(Plans)
+        tasks = app.container.get(Tasks)
+        plan = plans.find(fixture["plan"].row_id)
+        actor = Actor.plugin("journal-supervisor")
+        plans.save(plan.prioritised("Review the health check", grant["current_phase"]["number"], first_time), actor)
+        note = tasks.save(Task(environment_id=fixture["owner_environment"].row_id, title="Read-only diagnostic",
+            brief="Inspect existing evidence only"), actor)
+        plans.place_task_in_phase(note, plan, fixture["phase"], actor)
+
+    initial = observations.episode_qualification(principal, 2)
+    second_time = first_time
+    second = CheckCompleted(environment_id=fixture["owner_environment"].row_id, time=second_time,
+        check_id=check.row_id, title=check.title, passed=False, output="health check still fails",
+        prior_failure=True, wait_target=False, failure_reported_at=0)
+    with scope.environment(fixture["owner_environment"].row_id):
+        observations.completed(check, second, second_time - 1, "")
+    repeated = observations.episode_qualification(principal, 2)
+    assert initial["status"] == repeated["status"] == "actionable_stall"
+    assert repeated["episode_id"] == initial["episode_id"] and repeated["progress_watermark_ms"] == initial["progress_watermark_ms"]
+
+
+def test_two_attempts_escalate_once_without_further_writes(app, supervisor_fixture):
+    fixture = supervisor_fixture
+    grant, _, principal = enrolled(fixture)
+    stored_run(app, grant, epoch=2)
+    observations = app.container.get(SupervisorObservations)
+    time_source = app.container.get(TimeSource)
+    check = fixture["check"]
+    now = time_source.seconds()
+    event = CheckCompleted(environment_id=fixture["owner_environment"].row_id, time=now, check_id=check.row_id,
+        title=check.title, passed=False, output="health check failed", prior_failure=False,
+        wait_target=False, failure_reported_at=0)
+    with app.container.get(Scope).environment(fixture["owner_environment"].row_id):
+        observations.completed(check, event, now - 1, "")
+    episode = observations.episode_qualification(principal, 2)
+    first = observations.record_episode_attempt(principal, episode["episode_id"], "attempt-one")
+    second = observations.record_episode_attempt(principal, episode["episode_id"], "attempt-two")
+    with app.container.get(Scope).environment(PROJECT):
+        escalations = app.container.get(Entries).supervisor_records(
+            "SupervisorEpisode", last=100, tenant_id=grant["scope"]["tenant_id"],
+            episode_id=episode["episode_id"], record_kind="escalation", status="needs_owner",
+        )
+        before = app.container.get(Entries).global_last_id()
+    third = observations.record_episode_attempt(principal, episode["episode_id"], "attempt-three")
+    with app.container.get(Scope).environment(PROJECT):
+        after = app.container.get(Entries).global_last_id()
+    assert first["attempt_count"] == 1 and first["status"] == "admitted"
+    assert second["attempt_count"] == 2 and second["status"] == "needs_owner"
+    assert third["status"] == "needs_owner" and third["attempt_count"] == 2
+    assert len(escalations) == 1 and after == before, "the journal escalates at the attempt bound once and admits no further write"
+
+
+def test_episode_qualification_separates_gates_and_busy_work_from_actionable_stalls(app):
+    qualification = app.container.get(SupervisorEpisodeQualification)
+    open_task = {"id": 1, "phase_id": 3, "state": "open", "delegated": False, "holder": None, "waits": []}
+    context = {"plan_state": "started", "phase": {"id": 3}, "tasks": [open_task],
+        "gates": {"explicit_owner_pause": False, "reserved_checkpoint": False, "ended_drive": False,
+            "pending_owner_decision": False, "unpassed_phase_commands": []}, "started_task_id": None}
+    cases = [
+        ({**context, "plan_state": "paused", "gates": {**context["gates"], "explicit_owner_pause": True}}, "paused"),
+        ({**context, "gates": {**context["gates"], "reserved_checkpoint": True}}, "owner_wait"),
+        ({**context, "tasks": [{**open_task, "waits": [{"table": "tasks", "id": 2}]}]}, "external_dependency"),
+        ({**context, "tasks": [{**open_task, "delegated": True}]}, "busy_worker"),
+        ({**context, "started_task_id": 1}, "busy_driver"),
+        (context, "actionable_stall"),
+    ]
+    assert [(qualification._stall_reason(candidate), expected) for candidate, expected in cases] == [
+        (expected, expected) for _, expected in cases
+    ]
 
 
 def test_record_trim_retains_protected_receipts_and_evidence(app, supervisor_fixture, monkeypatch):

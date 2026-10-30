@@ -35,6 +35,7 @@ SUPERVISOR_ENTRY_TYPES = (
     "SupervisorAction",
     "SupervisorActionDelivery",
     "SupervisorActionReceipt",
+    "SupervisorActionReport",
     "SupervisorActionState",
     "SupervisorCredential",
     "SupervisorEpisode",

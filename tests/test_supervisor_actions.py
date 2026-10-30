@@ -36,7 +36,11 @@ from journal.support.time_source import TimeSource
 from journal.features.supervisor.support.admissions import SupervisorAdmissions
 from journal.supervisor_failure import SupervisorFailure
 from tests.suite_app import SuiteApp
-from tests.test_supervisor_authority import admitted as authority_admitted, seeded as authority_seeded
+from tests.test_supervisor_authority import (
+    admitted as authority_admitted,
+    enrollment as authority_enrollment,
+    seeded as authority_seeded,
+)
 
 
 TOKEN = "supervisor-credential-for-tests"
@@ -703,3 +707,144 @@ def test_run_retries_stop_at_the_granted_cap(connection, bus, scope):
     assert admissions.retry_run(TOKEN, run["run_ref"], run["fence"], "retry-2")["data"]["retry_count"] == 2
     rejected = admissions.retry_run(TOKEN, run["run_ref"], run["fence"], "retry-3")
     assert rejected == {"status": "rejected", "reason": "retry_limit_exhausted"}
+
+
+def test_owner_edit_prevents_rollback_and_is_preserved(bounded_maintenance):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    original_interval = int(context["maintenance"].checks.find(fixture.check.row_id).interval)
+    request = maintenance_request(context, [
+        diagnostic_operation(context),
+        {"kind": "plan_priorities", "plan_id": context["grant"]["plan_id"], "text": "Supervisor priority"},
+        {"kind": "check_interval", "check_id": fixture.check.row_id, "interval_minutes": 5},
+    ])
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    diagnostic_id = next(item["id"] for item in receipt["data"]["affected_refs"] if item["table"] == "tasks")
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan = context["maintenance"].plans.find(fixture.plan.row_id)
+        context["maintenance"].plans.save(plan.prioritised("Owner priority", context["grant"]["current_phase"]["number"], context["time_source"].seconds()), fixture.owner)
+        diagnostic = context["maintenance"].tasks.find(diagnostic_id)
+        context["maintenance"].tasks.assign_holder(diagnostic, Ref.build(fixture.agent), Actor.system())
+
+    rollback = context["maintenance"].rollback(context["principal"], receipt["receipt_id"])
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan = context["maintenance"].plans.find(fixture.plan.row_id)
+        diagnostic = context["maintenance"].tasks.find(diagnostic_id)
+        phase_tasks = context["maintenance"].plans.phase_tasks(fixture.phase)
+        check = context["maintenance"].checks.find(fixture.check.row_id)
+    assert rollback["data"]["status"] == "applied"
+    assert rollback["report"]["rollback"]["status"] == "needs_owner"
+    assert rollback["report"]["rollback"]["reason"] == "owner_edit_preserved"
+    assert plan.priorities == "Owner priority", "conditional rollback preserves the current owner value"
+    assert int(check.interval) == original_interval, "conditional rollback restores an unchanged permitted field"
+    assert diagnostic in phase_tasks and context["maintenance"].tasks.task_holder(diagnostic_id) == Ref.build(fixture.agent), "rollback never removes or unassigns the diagnostic task"
+    assert any(field["field"] == "interval" and field["status"] == "rolled_back"
+               for field in rollback["report"]["rollback"]["fields"])
+
+
+def test_restart_readback_finishes_applied_receipt_without_reapply(bounded_maintenance, monkeypatch):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    maintenance = context["maintenance"]
+    request = maintenance_request(context, [diagnostic_operation(context)], "restart-readback")
+    original_reconcile = maintenance.reconcile_receipt
+    monkeypatch.setattr(maintenance, "reconcile_receipt", lambda *_: (_ for _ in ()).throw(RuntimeError("restart before receipt readback")))
+    with pytest.raises(RuntimeError, match="restart before receipt readback"):
+        maintenance.apply_maintenance(context["principal"], request)
+
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        task_ids_before = {task.row_id for task in maintenance.plans.plan_tasks(fixture.plan)}
+    monkeypatch.setattr(maintenance, "reconcile_receipt", original_reconcile)
+    receipt = maintenance.receipt(context["principal"], request["action_id"])
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        task_ids_after = {task.row_id for task in maintenance.plans.plan_tasks(fixture.plan)}
+    assert receipt["status"] == "applied" and receipt["data"]["verification"] == "verified"
+    with context["scope"].environment(PROJECT):
+        stored = context["entries"].supervisor_records("SupervisorActionReceipt", last=1, action_id=request["action_id"])[0]
+    assert receipt["receipt_id"] == stored.row_id
+    assert task_ids_after == task_ids_before, "receipt recovery reads back the committed diagnostic without applying it a second time"
+
+
+def test_restore_new_epoch_rejects_old_callbacks_until_owner_reenables(bounded_maintenance):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    authority = fixture.authority
+    grant = context["grant"]
+    request = maintenance_request(context, [diagnostic_operation(context)], "before-owner-review")
+    authority.restore_installation(fixture.owner, grant["grant_id"])
+    with pytest.raises(SupervisorFailure):
+        context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(PROJECT):
+        disabled = context["entries"].supervisor_records("SupervisorInstallation", last=1, tenant_id=grant["scope"]["tenant_id"])[0]
+        assert disabled.data["management_writes_enabled"] is False
+        assert disabled.data["evidence_watermark_ms"] is not None
+        assert disabled.data["evidence_rpo_gap_ms"] is None
+        assert disabled.data["evidence_rpo_gap_reason"] == "restore_point_time_unavailable"
+
+    replacement = {
+        "protocol_version": 1,
+        "grant_id": grant["grant_id"],
+        "expected_grant_version": grant["grant_version"],
+        "change": {"kind": "replace", "enrollment": authority_enrollment(fixture, "bounded_write")},
+    }
+    before_review = context["entries"].global_last_id()
+    with pytest.raises(SupervisorFailure, match="evidence and RPO gap require owner review"):
+        authority.change(fixture.owner, replacement)
+    assert context["entries"].global_last_id() == before_review, "reenabling requires an explicit evidence review and does not write on refusal"
+    replacement["change"]["restore_review"] = {
+        "epoch": disabled.data["epoch"],
+        "evidence_watermark_ms": disabled.data["evidence_watermark_ms"],
+        "evidence_rpo_gap_ms": disabled.data["evidence_rpo_gap_ms"],
+        "accept_unavailable_evidence": True,
+    }
+    current, token = authority.change(fixture.owner, replacement)
+    principal = authority.authenticate(token)
+    with context["scope"].environment(PROJECT):
+        enabled = context["entries"].supervisor_records("SupervisorInstallation", last=1, tenant_id=grant["scope"]["tenant_id"])[0]
+    assert current["grant_version"] == grant["grant_version"] + 1 and principal.scope["installation_epoch"] == disabled.data["epoch"]
+    assert enabled.data["management_writes_enabled"] is True and enabled.data["owner_reviewed_at_ms"] > 0
+    with pytest.raises(SupervisorFailure):
+        authority.authenticate(context["token"])
+
+
+def test_applied_receipt_measures_check_and_task_evidence_separately(bounded_maintenance):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    maintenance = context["maintenance"]
+    request = maintenance_request(context, [diagnostic_operation(context),
+        {"kind": "plan_priorities", "plan_id": context["grant"]["plan_id"], "text": "Check evidence then inspect the diagnostic"}],
+        "independent-evidence")
+    receipt = maintenance.apply_maintenance(context["principal"], request)
+    assert receipt["status"] == "applied" and receipt["data"]["verification"] == "verified"
+    assert receipt["data"]["outcome"] == "unmeasured"
+    diagnostic_id = next(item["id"] for item in receipt["data"]["affected_refs"] if item["table"] == "tasks")
+
+    start = context["time_source"].seconds()
+    observations = maintenance.observations
+    check = maintenance.checks.find(fixture.check.row_id)
+    passed = CheckCompleted(environment_id=fixture.owner_environment.row_id, time=start + 1,
+        check_id=check.row_id, title=check.title, passed=True, output="health check passed",
+        prior_failure=True, wait_target=False, failure_reported_at=0)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        observations.completed(check, passed, start, "")
+    after_check = maintenance.receipt(context["principal"], request["action_id"])
+    assert after_check["status"] == "applied" and after_check["data"]["outcome"] == "useful_evidence"
+    assert after_check["report"]["outcome_evidence"]["checks"][0]["check_id"] == fixture.check.row_id
+    assert not after_check["report"]["outcome_evidence"]["tasks"]
+
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        diagnostic = maintenance.tasks.find(diagnostic_id)
+        maintenance.tasks.save(diagnostic.started(datetime.fromtimestamp(start + 2, timezone.utc)), Actor.agent(fixture.agent.session))
+        check = maintenance.checks.find(fixture.check.row_id)
+        failed = CheckCompleted(environment_id=fixture.owner_environment.row_id, time=start + 3,
+            check_id=check.row_id, title=check.title, passed=False, output="health check still fails",
+            prior_failure=True, wait_target=False, failure_reported_at=0)
+        observations.completed(check, failed, start + 2, "")
+    after_task = maintenance.receipt(context["principal"], request["action_id"])
+    with context["scope"].environment(PROJECT):
+        stored = context["entries"].supervisor_records("SupervisorActionReceipt", last=1,
+            action_id=request["action_id"])[0]
+    assert after_task["data"]["status"] == stored.data["status"] == "applied"
+    assert stored.data["verification"] == "pending" and stored.data["outcome"] == "unmeasured"
+    assert after_task["data"]["verification"] == "verified" and after_task["data"]["outcome"] == "useful_evidence"
+    assert after_task["report"]["outcome_evidence"]["tasks"][0]["task_id"] == diagnostic_id
