@@ -4,13 +4,12 @@ from journal.features.workers.support.work_mode_briefs import WorkModeBriefs
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.briefed_task import BriefedTask
+from tests.stories.fixtures.main.orchestrator_open_task import OrchestratorOpenTask
 
 
-@story(BriefedTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(OrchestratorOpenTask, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_switching_to_builder_sends_the_one_mode_line_and_mode_show_prints_the_builders_brief(story):
     story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
-    story.agent_reads(story.agents.subject)
     story.expect_agent_told(story.agents.subject, PlansNudges.BUILDER_MODE)
     story.agent_runs(story.agents.subject, "mode show")
     story.expect_command_passed()
