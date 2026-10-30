@@ -721,6 +721,38 @@ def test_missing_batch_pair_makes_the_comparison_inconclusive_and_stays_in_holm_
     assert incomplete["results"][0]["missing_pair_reasons"][-1]["reason"] == "run result is missing from the frozen batch"
 
 
+@pytest.mark.parametrize(
+    "name,kind,direction,minimum,ratio_formula,denominator_rule",
+    (
+        ("handoff_latency_median_minutes", "continuous", "lower", 0.1, None, None),
+        ("queue_fairness_jain", "continuous", "higher", 0.01, "Jain index of service starts per eligible backlogged minute", "no eligible demand or all-zero starts is not_applicable; unknown exposure is missing"),
+        ("expectations_met_share", "continuous", "higher", 0.01, "met expectations / required expectations", "zero required expectations is not_applicable; unknown requirements are missing"),
+        ("goal_reached", "binary", "higher", 1.0, None, None),
+    ),
+)
+def test_each_first_trial_stays_inconclusive_without_its_primary_reading(
+    tmp_path, name, kind, direction, minimum, ratio_formula, denominator_rule,
+):
+    from tests.lab.comparison import Comparison
+    from tests.lab.metric_rule import MetricRule
+
+    primary = MetricRule(
+        name, kind, direction, "primary", minimum,
+        ratio_formula=ratio_formula, zero_unknown_denominator_rule=denominator_rule,
+    )
+    plan = comparison_plan((primary,))
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    records = comparison_records(batch, home, lambda _design, _seed: {})
+
+    result = Comparison(batch, home, records, plan).analyze()
+
+    assert result["recommendation"] == "inconclusive"
+    assert result["results"][0]["metric"] == name
+    assert result["results"][0]["analysis"]["missing_pair_count"] > 0
+    assert result["confirmatory_family"]["members"][result["results"][0]["family_member"]]["p_value"] is None
+
+
 def test_known_unmet_goal_at_a_cap_remains_a_failure_with_its_terminal_reason(tmp_path):
     from tests.lab.comparison import Comparison
 
