@@ -225,8 +225,12 @@ export function valid(layout, views = VIEWS) {
     return [...tabs, ...loose].every((v) => views.includes(v)) && new Set(tabs).size === tabs.length;
 }
 
+// a window added in a release, and the window whose pane it joins in a layout stored before it existed
+const JOINING_VIEWS = {plans: "tasks"};
+
 // a stored layout brought up to the views this release has: a view that no longer exists leaves its pane, and with whole a view the
-// layout does not yet place joins the first pane, so a release that adds or drops a view keeps the user's arrangement
+// layout does not yet place joins the first pane, so a release that adds or drops a view keeps the user's arrangement; a window new
+// since the layout was stored joins its neighbour's pane once, and the layout remembers the views it has known so a closed one stays closed
 export function adapted(layout, views, whole = false) {
     if (!layout || !layout.tree || !layout.panes || !Number.isInteger(layout.next)) return layout;
     const ids = leaves(layout.tree);
@@ -234,7 +238,17 @@ export function adapted(layout, views, whole = false) {
     const placed = [...ids.flatMap((id) => (panes[id] ? panes[id].tabs : [])), ...floating(layout).map((f) => f.view), ...elsewhere(layout).map((f) => f.view)];
     const missing = whole ? views.filter((view) => !placed.includes(view)) : [];
     if (missing.length && panes[ids[0]]) panes[ids[0]] = {...panes[ids[0]], tabs: [...panes[ids[0]].tabs, ...missing]};
-    return {...layout, panes, floats: floating(layout).filter((f) => views.includes(f.view)), away: elsewhere(layout).filter((f) => views.includes(f.view))};
+    joinNewViews(panes, ids, views, placed, layout.known || []);
+    return {...layout, panes, known: views, floats: floating(layout).filter((f) => views.includes(f.view)), away: elsewhere(layout).filter((f) => views.includes(f.view))};
+}
+
+function joinNewViews(panes, ids, views, placed, known) {
+    Object.entries(JOINING_VIEWS)
+        .filter(([view]) => views.includes(view) && !known.includes(view) && !placed.includes(view))
+        .forEach(([view, neighbour]) => {
+            const id = ids.find((each) => panes[each] && panes[each].tabs.includes(neighbour));
+            if (id) panes[id] = {...panes[id], tabs: [...panes[id].tabs, view]};
+        });
 }
 
 const kept = (layout, tree, panes, next) => ({
