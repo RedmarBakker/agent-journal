@@ -139,6 +139,13 @@ class StoryChecks:
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
 
+    def expect_message_buttons(self, n: int, buttons: list[dict]) -> None:
+        shown = self.api_row("messages", n).get("data", {}).get("buttons", [])
+        assert shown == buttons, f"message {n} carries the buttons {shown}, not {buttons}"
+
+    def expect_newest_message(self, n: int) -> None:
+        assert self.newest("messages") == n, f"the newest message is {self.newest('messages')}, not {n}: another was sent"
+
     def expect_no_hook_duration(self) -> None:
         assert not HOOK_DURATION.search(self.last_step.user_line()), f"the hook's answer shows a duration though the setting is off: {self.last_step.user_line()}"
 
@@ -260,7 +267,7 @@ class StoryChecks:
         return [state["name"] for state in reversed(self.api_row("agents", max(agents))["stack"])] if agents else []
 
     def newest(self, table: str) -> int:
-        return max(row["id"] for row in get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"])
+        return max((row["id"] for row in get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]), default=0)
 
     def api_row(self, table: str, n: int) -> dict:
         rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]

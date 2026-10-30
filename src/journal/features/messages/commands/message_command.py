@@ -5,6 +5,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.models.author import Author
 from journal.models.message import Message
+from journal.models.support.message_button import MessageButton
 from journal.support.voice_key import VoiceKey
 from journal.models.support.ref import Ref
 from journal.config import Config
@@ -41,6 +42,8 @@ class MessageCommand(Command):
         transmit.add_argument("--reply-to", type=int, default=None)
         transmit.add_argument("--file", action="append", default=[], metavar="PATH", help="a file the user downloads, shown under the message, a picture inline; repeat it for more files")
         transmit.add_argument("--confirm", action="store_true", help="send a second reply to a message already answered")
+        transmit.add_argument("--button", action="append", default=[], metavar="'LABEL|ADDRESS|WHAT IT DOES'", help="a button under the message that opens a web address in a new tab; repeat it for more")
+        transmit.add_argument("--form-button", action="append", default=[], metavar="'LABEL|ADDRESS|WHAT IT DOES|NAME=VALUE...'", help="a button under the message that posts a form with these hidden fields to a web address, as GitHub's app manifest flow takes one; repeat it for more")
         chart = self.verb(verbs, "flowchart", "draw a flowchart in the chat, which opens large in a dialog")
         chart.add_argument("title", help="what the flowchart shows, in the user's words")
         chart.add_argument("--edge", action="append", default=[], metavar="ARROW", help="one arrow, 'From -> To' or 'From -> To: label'; repeat it for each arrow, the first arrow's start being the top")
@@ -66,12 +69,13 @@ class MessageCommand(Command):
     def send(self, args: Namespace, caller: Caller) -> int:
         author = Author.build(caller.actor)
         files = self.files.read(args.file)
+        buttons = [*(MessageButton.link(line) for line in args.button), *(MessageButton.form(line) for line in args.form_button)]
         if args.reply_to and author == Author.AGENT:
-            return self.reply(self.messages.find(args.reply_to), args, caller, files)
+            return self.reply(self.messages.find(args.reply_to), args, caller, files, buttons)
         waiting = self.messages.unanswered() if author == Author.AGENT else []
         if len(waiting) == 1:
-            return self.reply(waiting[0], args, caller, files)
-        draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})
+            return self.reply(waiting[0], args, caller, files, buttons)
+        draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {}).with_buttons(buttons)
         message = self.files.attached(self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor), files, caller.actor)
         print(f"message {message.id} sent")
         return 0
@@ -81,7 +85,7 @@ class MessageCommand(Command):
         print(f"flowchart {message.id} drawn")
         return 0
 
-    def reply(self, answered: Message, args: Namespace, caller: Caller, files: dict[str, bytes]) -> int:
+    def reply(self, answered: Message, args: Namespace, caller: Caller, files: dict[str, bytes], buttons: list[MessageButton]) -> int:
         key = VoiceKey.create("reply", str(answered.row_id), args.text.strip())
         if self.messages.sent_with(key):
             print(f"message {answered.id} already has this reply in the chat: not sent again")
@@ -90,7 +94,7 @@ class MessageCommand(Command):
         if older is not None and not args.confirm:
             print(DUPLICATE_REPLY_LINE.format(n=answered.id, reply=older.id))
             return 1
-        message = self.files.attached(self.messages.save(Message.answer(answered, args.text).with_(idempotency=key), caller.actor), files, caller.actor)
+        message = self.files.attached(self.messages.save(Message.answer(answered, args.text).with_buttons(buttons).with_(idempotency=key), caller.actor), files, caller.actor)
         self.messages.read(answered, caller.actor, self._tool_use(caller))
         print(f"message {message.id} sent")
         return 0
