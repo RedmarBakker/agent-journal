@@ -2,6 +2,12 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.3
+
+- The journal's hooks for Claude Code are written into this machine's own settings, .claude/settings.local.json, which the setup keeps out of git, and taken out of the shared .claude/settings.json. A settings file one machine committed named its own paths, so on every other machine the hooks did nothing and the journal never heard the agent: it could not wake a stopped agent with a message.
+- Every start brings the templates and sequences the journal ships to exactly the current set: one it ships no more is taken away, an older copy of a shipped one you never changed is taken away, and the current ones are written fresh. Your own are never touched.
+- The launch menu asks whether to set the project's other hooks aside every time, also when you carry on an earlier conversation.
+
 ## 4.68.2
 
 - "Update, then start" in the launch menu asks once: the launcher waits until the running journal has installed the new version, saying it installs, before it starts again on it. It started again at once on the old code and offered the same update a second time.

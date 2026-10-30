@@ -49,6 +49,7 @@ from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
 from tests.stories.builder.step_result import StepResult
 from journal.http.support.project_check import PROJECT_HEADER
+from journal.models.template import Template
 
 # the longest a story waits on a background run, and how often it looks
 RUN_END_TIMEOUT_SECONDS, RUN_END_POLL_SECONDS = 15, 0.1
@@ -570,6 +571,14 @@ class AgentSteps:
         shipped = next(template for template in templates.all() if template.title == title)
         templates.save(shipped.with_(brief=brief), Actor.system())
         return self.observed("an older journal wrote a shipped template", None, None)
+
+    def an_older_journal_left_a_copy_of_the_template(self, title: str, brief: str) -> StepResult:
+        self.app.container.get(Templates).save(Template(title=title, brief=brief), Actor.user(1))
+        return self.observed("an older journal left a copy of a shipped template, written as the user", None, None)
+
+    def an_older_journal_shipped_the_template(self, title: str, brief: str) -> StepResult:
+        self.app.container.get(Templates).save(Template(title=title, brief=brief), Actor.system())
+        return self.observed("an older journal shipped a template this one no longer ships", None, None)
 
     def an_older_journal_wrote_the_sequence(self, title: str, steps: tuple) -> StepResult:
         sequences = self.app.container.get(Sequences)
