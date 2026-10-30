@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from journal.engine.clock import Clock
+from journal.support.time_source import TimeSource
 from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.providers.codex import Codex
 from tests.agent_hooks import pass_time, silent_tick
@@ -33,6 +34,9 @@ class TimeSteps:
     def time_travel(self, seconds: float = 0, minutes: float = 0) -> StepResult:
         pass_time(self.app, seconds + minutes * 60)
         return self.observed(f"the clock moves on {seconds + minutes * 60} seconds", None, None)
+
+    def local_time_after(self, minutes: float) -> str:
+        return datetime.fromtimestamp(self.app.container.get(TimeSource).seconds() + minutes * 60).strftime("%Y-%m-%d %H:%M")
 
     def clock_ticks(self, seconds: float) -> StepResult:
         pass_time(self.app, seconds)
