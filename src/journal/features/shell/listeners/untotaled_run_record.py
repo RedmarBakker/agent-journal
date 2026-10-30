@@ -36,7 +36,7 @@ class UntotaledRunRecord(AgentListener[Ticked]):
 
     def has_no_bar(self, output: CommandOutput) -> bool:
         view = self.views.view(output)
-        return bool(view.lines) and not view.fraction
+        return bool(view.lines) and not view.figure
 
     @staticmethod
     def count_pattern(output: CommandOutput) -> str:

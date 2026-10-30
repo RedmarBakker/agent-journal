@@ -411,6 +411,16 @@ class AgentSteps:
         self.observed(f"agent has a background run {line.split()[0]}", None, None)
         return output.row_id
 
+    def recorded_run_ends(self, output: int) -> StepResult:
+        with self.app.container.get(Scope).environment(1):
+            outputs = self.app.container.get(CommandOutputs)
+            run = outputs.find(output)
+            files = OutputFiles(Path(run.folder))
+            files.ended_with(0, 0)
+            files.finish(0)
+            outputs.save(run.ended_with(0, self.app.container.get(TimeSource).seconds()), Actor.system())
+        return self.observed("the background run ends", None, None)
+
     def is_output_ended(self, output: int) -> bool:
         with self.app.container.get(Scope).environment(1):
             return bool(self.app.container.get(CommandOutputs).find(output).ended)

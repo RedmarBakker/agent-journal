@@ -16,7 +16,8 @@ from urllib.request import Request as HttpRequest, urlopen
 import pytest
 
 from shell_verbs import ShellVerbs
-from worker_dispatch import dispatched, tokenless_run
+from worker_dispatch import dispatched, started_run, tokenless_run
+from journal.repositories.workers import Workers
 
 from journal.support.listener_queue import ListenerQueue
 from journal.events.listener import Listener
@@ -35,6 +36,7 @@ from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
+from journal.support.agent_token import AgentToken
 from journal.models.plugin import Plugin as PluginRow
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.repositories.plugins import Plugins as PluginRows
@@ -1974,7 +1976,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
     dispatched(app.console(), ["Lady Lovelace", "say hello", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     user_set(app, WorkersOptions.TIMEOUT.key, 0.005)
     worker = app.container.get(Workers).find(1)
-    app.container.get(WorkerRunner).run(worker, ["sh", "-c", "echo half done; sleep 30"], A.agent("s1"))
+    started_run(app.container.get(WorkerRunner), app.container.get(Workers), worker, ["sh", "-c", "echo half done; sleep 30"], A.agent("s1"))
     ended = app.container.get(Workers).find(1)
     assert ended.state == WorkerState.UNFINISHED and "stopped after" in ended.run_end and "half done" in ended.run_end, "stopped at its limit, it keeps what it printed as the end of its run, its task still held"
 
@@ -3874,7 +3876,7 @@ def test_a_worker_stopped_at_the_usage_limit_waits_for_it_and_goes_on_by_itself_
     with app.container.get(Scope).environment(MAIN):
         workers = app.container.get(Workers)
         worker = workers.save(workers.find(1).with_(token_hash="h", resume="lovelace-session"), Actor.system())
-        runner.run(worker, ["sh", "-c", "echo \"You've hit your session limit · resets 8:10am\""], Actor.agent("s1"))
+        started_run(runner, app.container.get(Workers), worker, ["sh", "-c", "echo \"You've hit your session limit · resets 8:10am\""], Actor.agent("s1"))
         waiting = workers.find(1)
         assert waiting.state == WorkerState.LIMITED and waiting.resumes_at > timing.time(), "the run is marked waiting for the usage limit, never ended without clocking out"
         assert timing.strftime("%H:%M", timing.localtime(waiting.resumes_at)) == "08:10", "the reset time is read from the provider's line"
@@ -3907,7 +3909,7 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
     runner, tasks = app.container.get(WorkerRunner), app.container.get(Tasks)
     with app.container.get(Scope).environment(MAIN):
         workers = app.container.get(Workers)
-        runner.run(workers.find(1), ["sh", "-c", "echo I gave up early"], Actor.agent("s1"))
+        started_run(runner, app.container.get(Workers), workers.find(1), ["sh", "-c", "echo I gave up early"], Actor.agent("s1"))
         lovelace = workers.find(1)
         assert lovelace.state == WorkerState.UNFINISHED and "I gave up early" in lovelace.run_end, "a run that ends before clock in keeps what it printed as the end of its run"
         assert tasks.holder(tasks.find(1)) == Ref(Worker.table(), 1), "and its task stays held"
@@ -3968,7 +3970,7 @@ def test_a_new_workers_run_that_ends_never_merges_its_work(app: App, monkeypatch
     commit = ["sh", "-c", "echo x > piece.txt && git add piece.txt && git -c user.email=t@t -c user.name=t commit -qm piece && echo written"]
     with app.container.get(Scope).environment(MAIN):
         workers = app.container.get(Workers)
-        runner.run(workers.find(1), commit, Actor.agent("s1"))
+        started_run(runner, app.container.get(Workers), workers.find(1), commit, Actor.agent("s1"))
         subprocess.run(commit, cwd=app.container.get(WorkerBranch).place(workers.find(2)), capture_output=True, timeout=30)
         runner.finish(workers.save(workers.find(2).with_(token_hash="h").delivered(1.0), Actor.system()), 0, Actor.agent("s1"))
         assert git("rev-parse", "HEAD").stdout.strip() == head and not (root / "piece.txt").exists(), "neither run's end, unfinished or clocked out, moves the project's head"
@@ -4125,7 +4127,7 @@ def test_a_workers_session_is_kept_as_it_prints_it_and_never_taken_from_the_disp
     said = tmp_path / "said"
     os.mkfifo(said)
     printed = f"""echo '{{"type": "system", "session_id": "worker-session"}}'; {fifo_line(said)}; echo '{{"type": "result", "result": "hello said", "session_id": "worker-session"}}'"""
-    running = threading.Thread(target=runner.run, args=(workers.find(1), ["sh", "-c", printed], Actor.agent("s1")))
+    running = threading.Thread(target=started_run, args=(runner, workers, workers.find(1), ["sh", "-c", printed], Actor.agent("s1")))
     running.start()
     end = timing.monotonic() + 3
     while timing.monotonic() < end and workers.find(1).resume != "worker-session":
@@ -4135,7 +4137,7 @@ def test_a_workers_session_is_kept_as_it_prints_it_and_never_taken_from_the_disp
     running.join(10)
     assert workers.find(1).state == WorkerState.UNFINISHED and workers.find(1).resume == "worker-session", "its session is kept when its run ends"
     dispatched(console, ["Mr. Babbage", "say nothing", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    runner.run(workers.find(2), ["sh", "-c", f"echo '{{}}' >> '{dispatcher}'; echo plain words"], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), workers.find(2), ["sh", "-c", f"echo '{{}}' >> '{dispatcher}'; echo plain words"], Actor.agent("s1"))
     assert workers.find(2).resume == "" and dispatcher.is_file(), "a worker in the project's own folder never takes the newest transcript there, which is the dispatcher's"
 
 
@@ -4359,7 +4361,7 @@ def test_a_stopped_worker_is_revived_by_send_in_its_last_session_and_its_own_wor
     revived = started[-1]
     command = Claude().worker_command(runner.instructed(revived), revived.model, revived.resume, revived.session)
     assert revived.is_running() and command[2] == "the boiler" and command[-2:] == ["--resume", "sess-1"], "the new job is the first turn of its last session"
-    runner.run(revived, ["sh", "-c", "pwd -P"], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), revived, ["sh", "-c", "pwd -P"], Actor.agent("s1"))
     assert str(app.container.get(WorkerBranch).place(revived).resolve()) in workers.find(1).run_end, "it runs again in the same worktree"
 
 
@@ -4384,7 +4386,7 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     resumed = workers.find(1)
     assert (resumed.began, resumed.pid) == (0.0, 0) and runner.instructed(resumed) == "the escapement", "the old run's clock and process go with it, and the resumed prompt is the job alone"
     user_set(app, WorkersOptions.TIMEOUT.key, 0.05)
-    runner.run(resumed, ["sh", "-c", "echo the escapement ticks"], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), resumed, ["sh", "-c", "echo the escapement ticks"], Actor.agent("s1"))
     assert workers.find(1).run_end == "the escapement ticks", "the time limit counts from the new run, not the first"
 
 
@@ -5254,6 +5256,20 @@ def test_a_resumed_worker_whose_worktree_was_removed_gets_every_inner_worktree_b
     assert proved_and_out(app, caller, "platform/totals.php:1").code == 0
     merged = checked_and_merged(app)
     assert merged.code == 0 and (root / "platform" / "totals.php").is_file(), merged.error
+
+
+def test_a_worktree_worker_s_run_is_handed_the_worker_with_its_repositories_already_stored(app: App, monkeypatch):
+    """GitHub issue 44: the run's thread saved the worker it was handed, taken before the repositories were stored, and a lost race left them empty."""
+    workspace_made(app, ("platform",))
+    handed = []
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: handed.append((worker.repositories, worker.branch)))
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["task", "create", "the job", "--brief", "platform totals"], AGENT)
+    dispatched = console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
+    assert dispatched.code == 0, dispatched.error
+    assert handed == [(("platform",), handed[0][1])] and handed[0][1], f"the run was handed {handed}"
+    assert worker_row(app).repositories == ("platform",)
 
 
 def test_after_a_merge_every_repository_keeps_the_worker_branch_and_worktree_moved_up_to_the_merged_tip(app: App, monkeypatch):
@@ -6406,7 +6422,6 @@ def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorde
     from journal.models.verifier_state import VerifierState
     from journal.repositories.reader_reports import ReaderReports
     from journal.repositories.verifiers import Verifiers
-    from journal.support.agent_token import AgentToken
     monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
     hook(app, "SessionStart")
     console, reports, verifiers, token = app.console(), app.container.get(ReaderReports), app.container.get(Verifiers), AgentToken("the verifier's token")

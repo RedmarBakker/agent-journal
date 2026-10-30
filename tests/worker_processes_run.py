@@ -1,5 +1,7 @@
 # Runs workers as real processes (a shell in the worker's place, a sleeping process for a live session), so it is not in the default run: python3 -m pytest -q tests/worker_processes_run.py
 """What a worker's real run leaves behind: the marks of its dispatch, its end, a stop and a release, and the marks of each later moment."""
+from worker_dispatch import started_run
+from journal.repositories.workers import Workers
 import time as timing
 from pathlib import Path
 
@@ -37,10 +39,10 @@ def test_a_workers_dispatch_mark_stays_and_each_later_standing_is_a_new_mark(app
     marks = lambda n: [m.text for m in messages.scoped() if str(m.data.get("key", "")).startswith(f"worker:{n}:")]
     assert card(1).text == "Lady Lovelace: started on claude sonnet" and card(1).data["detail"] == "a job for Lady Lovelace" and card(1).data["shows"] == "workers"
     runner, workers = app.container.get(WorkerRunner), app.container.get(Workers)
-    runner.run(workers.find(1), ["sh", "-c", 'echo "the footer is fixed"; test -n "$JOURNAL_ACTOR_TOKEN" || exit 9; test "$JOURNAL_ROOT" = "$0" || exit 8', str(app.config.root)], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), workers.find(1), ["sh", "-c", 'echo "the footer is fixed"; test -n "$JOURNAL_ACTOR_TOKEN" || exit 9; test "$JOURNAL_ROOT" = "$0" || exit 8', str(app.config.root)], Actor.agent("s1"))
     first_hash = workers.find(1).token_hash
-    runner.run(workers.find(2), ["sh", "-c", "echo broken >&2; exit 3"], Actor.agent("s1"))
-    runner.run(workers.find(3), ["sh", "-c", "true"], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), workers.find(2), ["sh", "-c", "echo broken >&2; exit 3"], Actor.agent("s1"))
+    started_run(runner, app.container.get(Workers), workers.find(3), ["sh", "-c", "true"], Actor.agent("s1"))
     assert first_hash == "" and workers.find(3).token_hash == "", "a run carries its token in its process, and the token is cleared when the run ends without clocking out"
     console.run(["worker", "stop", "3"], AGENT)
     assert card(1).text == "Lady Lovelace: started on claude sonnet", "the dispatch mark stays as it went out"

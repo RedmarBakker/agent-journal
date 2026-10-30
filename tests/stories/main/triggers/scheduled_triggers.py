@@ -38,7 +38,7 @@ def test_a_trigger_every_so_many_minutes_tells_its_line_each_time_and_stops_afte
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_trigger_on_a_cron_line_tells_its_line_at_each_time_it_names_until_its_end(story):
-    story.agent_runs(story.agents.subject, f"trigger schedule '{CHECK}' --cron '*/30 * * * *' --until '{story.local_time_after(45)}'")
+    story.agent_runs(story.agents.subject, f"trigger schedule '{CHECK}' --cron '*/30 * * * *' --until '{story.local_time_after(30)}'")
     result = story.agent_runs(story.agents.subject, "trigger list")
     result.expect_command_text("next at")
     result = story.clock_ticks(30 * MINUTE_SECONDS)

@@ -1,5 +1,7 @@
 """Phase five: the machine. A write in Idle is refused with how to declare work; after task start a stop says carry on, once; done makes the agent idle again; stuck pauses and a tool use lifts it; the state survives a new server."""
 
+from worker_dispatch import started_run
+from journal.repositories.workers import Workers
 import re
 import json
 from pathlib import Path
@@ -1524,7 +1526,7 @@ def orchestrated(app: App) -> None:
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
     for n in (1, 2, 3):
-        app.container.get(WorkerRunner).run(workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
+        started_run(app.container.get(WorkerRunner), app.container.get(Workers), workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
     assert stack() == ["orchestrating", "orchestrating_plan"], "the last report pops the wait and the orchestrator is back on its plan"
     for n in (1, 2, 3):
         assert console.run(["worker", "complete", str(n)], AGENT).code == 0
