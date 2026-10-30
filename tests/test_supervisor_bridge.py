@@ -911,8 +911,10 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
             state, config_path,
             health_probe=lambda: proxy_server.thread.is_alive() and proxy_server.server.fileno() >= 0,
         )
+        hook_calls = []
 
         def scripted_hook(run):
+            hook_calls.append(run)
             hook, _headers = hook_request(run)
             assert hook["agentId"] == "supervisor" and hook["deliver"] is False
             assert hook["sessionMode"] == "isolated" and hook["model"] == "anthropic/claude-sonnet-5"
@@ -1003,6 +1005,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
             result.status, result.reason, state.snapshot(),
         )
         active = state.active_run()
+        assert hook_calls == [active]
         snapshot = state.snapshot()
         assert active is not None and snapshot["receipt"]["verification"] == "verified"
         assert snapshot["usage_settlement"] == "settled"
