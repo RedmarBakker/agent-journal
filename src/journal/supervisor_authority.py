@@ -228,10 +228,18 @@ class SupervisorAuthority:
                 plan = self._plan(grant["plan_id"])
             except SupervisorFailure:
                 continue
-            if (check.environment_id != plan.environment_id or self.owners.number(plan) != grant["owner_user_id"]
+            driver_environment_id = self.bindings.environment_id(plan)
+            if (self.owners.number(plan) != grant["owner_user_id"]
+                    or driver_environment_id != grant["driver_environment_id"]
                     or grant["scope"] != self._scope(grant["owner_user_id"], grant["driver_environment_id"])):
                 continue
-            candidates.append({"grant": grant, "binding_revision": entry.data.get("_expected_binding_revision", "")})
+            with self.scope.environment(driver_environment_id):
+                agent = self.agents.agent(plan)
+                environment = self.agents.environment(plan)
+            binding_revision = self._binding_revision(plan, agent, environment) if agent and environment else ""
+            if not binding_revision or binding_revision != entry.data.get("_expected_binding_revision"):
+                continue
+            candidates.append({"grant": grant, "binding_revision": binding_revision})
         return candidates
 
     def observation_context(self, grant: dict[str, Any]) -> dict[str, Any]:

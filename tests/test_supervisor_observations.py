@@ -228,7 +228,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
     actor = Actor.plugin("check-runner")
     outputs = ("first committed result", "second committed result")
     for output in outputs:
-        with scope.environment(fixture["check"].environment_id):
+        with scope.environment(fixture["owner_environment"].row_id):
             check = checks.find(fixture["check"].row_id)
             started = app.container.get(TimeSource).seconds()
             check = checks.rewritten(check, actor, lambda row: row.started(started, 0))
@@ -238,7 +238,7 @@ def test_check_evidence_survives_latest_result_overwrite(app, supervisor_fixture
     with scope.environment(PROJECT):
         evidence = app.container.get(Entries).supervisor_records(OBSERVATION_ENTRY, last=10, grant_id=grant["grant_id"], grant_version=grant["grant_version"])
     assert [row.data["observation"]["facts"]["output_excerpt"] for row in reversed(evidence)] == list(outputs), "each run has its own copied result after the check row is overwritten"
-    assert evidence[0].data["observation"]["scope"]["environment_id"] == fixture["driver_environment"].row_id and fixture["check"].environment_id == fixture["owner_environment"].row_id, "the observation follows its credential-bound driver scope while retaining the owner-environment check reference"
+    assert evidence[0].data["observation"]["scope"]["environment_id"] == fixture["driver_environment"].row_id and fixture["plan"].environment_id == fixture["owner_environment"].row_id != fixture["driver_environment"].row_id, "the observation follows its credential-bound driver scope while retaining its owner-environment plan context"
     assert all(row.data["observation"]["facts"]["output_sha256"] == hashlib.sha256(row.data["observation"]["facts"]["output_excerpt"].encode()).hexdigest() for row in evidence), "the evidence hash covers its redacted copied excerpt"
 
     settings = app.container.get(SettingRows)
@@ -278,7 +278,7 @@ def test_rolled_back_check_write_has_no_observation(app, supervisor_fixture):
     observations = app.container.get(SupervisorObservations)
     scope = app.container.get(Scope)
     actor = Actor.plugin("check-runner")
-    with scope.environment(fixture["check"].environment_id):
+    with scope.environment(fixture["owner_environment"].row_id):
         check = checks.find(fixture["check"].row_id)
         started = app.container.get(TimeSource).seconds()
         result = check.started(started, 0).completed(False, "rolled-back output", app.container.get(TimeSource).moment(), 1, None, "", started)
@@ -301,14 +301,14 @@ def test_stopped_or_faulted_check_is_not_pass(app, supervisor_fixture, monkeypat
     runner = app.container.get(CheckRunner)
     scope = app.container.get(Scope)
     actor = Actor.plugin("check-runner")
-    with scope.environment(fixture["check"].environment_id):
+    with scope.environment(fixture["owner_environment"].row_id):
         check = checks.find(fixture["check"].row_id)
         fault_start = app.container.get(TimeSource).seconds()
         check = checks.rewritten(check, actor, lambda row: row.started(fault_start, 0))
     monkeypatch.setattr(runner, "executed", lambda *_: FinishedRun(False, "missing executable", "the command is not there"))
     runner.finished(check, fault_start, actor, object(), tmp_path / "missing-report.json")
 
-    with scope.environment(fixture["check"].environment_id):
+    with scope.environment(fixture["owner_environment"].row_id):
         check = checks.find(fixture["check"].row_id)
         stopped_start = app.container.get(TimeSource).seconds()
         check = checks.rewritten(check, actor, lambda row: row.started(stopped_start, 2_147_483_647))
@@ -331,10 +331,10 @@ def test_evidence_reads_are_bounded_and_redacted(app, supervisor_fixture):
     secret_name = "SUPERVISOR_OBSERVATION_TEST"
     secrets = app.container.get(SecretValues)
     secrets.put(secret_name, secret)
-    event = CheckCompleted(environment_id=check.environment_id, time=completed, check_id=check.row_id,
+    event = CheckCompleted(environment_id=fixture["owner_environment"].row_id, time=completed, check_id=check.row_id,
         title=check.title, passed=False, output=("x" * 20_000) + secret, prior_failure=False,
         wait_target=False, failure_reported_at=0)
-    with app.container.get(Scope).environment(check.environment_id), app.container.get(Checks).writing():
+    with app.container.get(Scope).environment(fixture["owner_environment"].row_id), app.container.get(Checks).writing():
         app.container.get(SupervisorObservations).completed(check, event, started, "")
     run = stored_run(app, grant, epoch=1)
     response = observed(app, token, {"protocol_version": 1, "run_id": run.data["run_ref"], "installation_epoch": 1, "fence": 7, "cursor": None})
