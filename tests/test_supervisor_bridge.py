@@ -1035,6 +1035,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "applied": applied,
                 "usage_settlement": state.snapshot()["usage_settlement"],
                 "last_error": state.snapshot()["last_error"],
+                "service_errors": service_errors,
             }
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
             assert applied_receipt["verification"] == "verified", {
@@ -1047,6 +1048,17 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
             return HookAcknowledgement("scripted-model-run")
 
         bridge = SupervisorBridge(service, state, proof, SimpleNamespace(send=scripted_hook))
+            service_errors = []
+            call_service = bridge.call_service
+
+            def tracked_service_call(call, *arguments):
+                try:
+                    return call_service(call, *arguments)
+                except Exception as error:
+                    service_errors.append(f"{type(error).__name__}: {error}")
+                    raise
+
+            bridge.call_service = tracked_service_call
         result = bridge.reconcile("timer")
         app.runtime().deferred.drain()
         status, answer = posted(app, "/hooks/codex", {
