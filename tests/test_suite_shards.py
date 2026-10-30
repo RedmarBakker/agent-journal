@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 
+from tests.service_memory import ServiceMemory
 from tests.shard_deal import ShardDeal
 
 
@@ -41,3 +42,32 @@ def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_
     assert suite.vm_stat_available(vm_stat) == 16384 * 32, "macOS: the free, inactive and speculative pages"
     assert suite.meminfo_available("MemTotal:  1000 kB\nMemAvailable:   512 kB\n") == 512 * 1024, "Linux: MemAvailable"
     assert "only 600 MB of memory is free" in suite.memory_line(2, 600 * 2**20), "the run says why it took fewer"
+
+
+class Turn:
+    def __init__(self) -> None:
+        self.count = 0
+
+
+class Tracker:
+    def __init__(self) -> None:
+        self.turns = {"main": Turn()}
+        self.lines = {"main": ["read"]}
+        self.agents = (Turn(),)
+
+
+def test_a_service_put_back_forgets_what_a_test_changed_inside_the_objects_and_lists_it_holds():
+    tracker = Tracker()
+    turn = tracker.turns["main"]
+    memory = ServiceMemory([tracker])
+    tracker.turns["main"].count = 3
+    tracker.lines["main"].append("wrote")
+    tracker.agents[0].count = 2
+    tracker.turns["worker"] = Turn()
+    memory.put_back()
+    assert tracker.turns == {"main": turn} and turn.count == 0, "an object held in a dict is put back as it stood"
+    assert tracker.lines == {"main": ["read"]}, "a list inside a dict is put back as it stood"
+    assert tracker.agents[0].count == 0, "an object held in a tuple is put back as it stood"
+    tracker.lines["main"].append("wrote again")
+    memory.put_back()
+    assert tracker.lines == {"main": ["read"]}, "a second put back still has what was taken, never what the last test changed"
