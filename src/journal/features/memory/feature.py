@@ -83,4 +83,4 @@ What you keep in mind lasts only as long as you keep judging it worth keeping.
   after it has come back. A condition is JSON: `{"count": "<table>", "where": {"<field>": <value or [values]>},
   "is" | "at_least" | "at_most": <number>}`, several joined as `{"all": [...]}` or `{"any": [...]}`.
 - Read this skill before any `journal memory`, `rule` or `reminder` command: those commands wait until you have.
-""", keywords=('memory', 'memories', 'remember', 'rule', 'rules', 'reminder'), required_states=('weighing_memories',), commands=('memory', 'rule', 'reminder'))
+""", keywords=('memory', 'memories', 'remember', 'reminder'), required_states=('weighing_memories',), commands=('memory', 'rule', 'reminder'))

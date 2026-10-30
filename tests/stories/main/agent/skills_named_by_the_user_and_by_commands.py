@@ -10,6 +10,8 @@ from tests.stories.fixtures.main.skills_feature import SkillsFeature
 
 PINS_KEYWORD, PINS_NOUN = Pins.skill.keywords[0], Pins.skill.commands[0]
 FLOWCHART_PHRASE = next(keyword for keyword in FlowchartsFeature.skill.keywords if " " in keyword)
+# words of everyday work that once made a skill due and name no subject of the journal's
+EVERYDAY_PROMPT = "send the footer to review, decide on the design options and choose the steps"
 
 
 @story(SkillsFeature, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -64,6 +66,15 @@ def test_a_skills_word_of_two_words_in_a_prompt_is_matched_as_a_phrase(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     story.agent_reads_a_skill(story.agents.subject, FlowchartsFeature.skill.folder)
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_allowed()
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(SkillsFeature, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_prompt_of_everyday_words_that_name_no_subject_makes_no_skill_due(story):
+    result = story.agent_is_prompted(story.agents.subject, EVERYDAY_PROMPT)
+    result.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
