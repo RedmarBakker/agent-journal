@@ -347,7 +347,7 @@ def test_current_phase_and_reserved_gates_are_rechecked(app, authority_fixture, 
     monkeypatch.setattr(fixture.authority.phase_testing, "unpassed", lambda plan: ("pytest",))
     with pytest.raises(SupervisorFailure) as testing:
         fixture.authority.revalidate(testing_principal)
-    assert testing.value.status == 403, "an unpassed phase test is a hard gate on every revalidation"
+    assert testing.value.status == 409, "an unpassed phase test is a hard gate on every revalidation"
 
     monkeypatch.setattr(phase_testing, "unpassed", original_unpassed)
     app.container.get(PlanBindings).end(fixture.plan, "driver binding ended", actor)
