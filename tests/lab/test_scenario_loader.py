@@ -5,6 +5,7 @@ import pytest
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from tests.lab.lab_scenario import LabScenario
 from tests.lab.scenario_loader import ScenarioLoader
@@ -110,15 +111,16 @@ state = "owner_pending"
     plans, tasks = app.container.get(Plans), app.container.get(Tasks)
     plan = plans.find(loaded["plan_id"])
     assert plan.state == PlanState.APPROVED
-    assert [phase.title for phase in plans.plan_phases(plan)] == [phase["title"] for phase in scenario.phases]
-    for phase, phase_spec in zip(plans.plan_phases(plan), scenario.phases, strict=True):
-        assert [task.row_id for task in plans.phase_tasks(phase)] == [loaded["task_ids"][item["id"]] for item in phase_spec["tasks"]]
-    assert scenario.phases[1]["tasks"][0]["prerequisites"] == ("specify",)
+    with app.container.get(Scope).environment(plan.environment_id):
+        assert [phase.title for phase in plans.plan_phases(plan)] == [phase["title"] for phase in scenario.phases]
+        for phase, phase_spec in zip(plans.plan_phases(plan), scenario.phases, strict=True):
+            assert [task.row_id for task in plans.phase_tasks(phase)] == [loaded["task_ids"][item["id"]] for item in phase_spec["tasks"]]
+        assert scenario.phases[1]["tasks"][0]["prerequisites"] == ("specify",)
 
-    expectation = scenario.expected[0]
-    task_id = loaded["task_ids"][expectation.target]
-    assert tasks.find(task_id).state == TaskState.OPEN
-    assert not expectation.matches(tasks.find(task_id))
-    outcome = app.run_without_server(["task", "complete", str(task_id), "--how", "Release verified"], USER_CALLER)
-    assert outcome.code == 0, outcome.error
-    assert expectation.matches(tasks.find(task_id))
+        expectation = scenario.expected[0]
+        task_id = loaded["task_ids"][expectation.target]
+        assert tasks.find(task_id).state == TaskState.OPEN
+        assert not expectation.matches(tasks.find(task_id))
+        outcome = app.run_without_server(["task", "complete", str(task_id), "--how", "Release verified"], USER_CALLER)
+        assert outcome.code == 0, outcome.error
+        assert expectation.matches(tasks.find(task_id))
