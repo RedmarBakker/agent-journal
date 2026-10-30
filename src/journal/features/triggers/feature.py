@@ -8,6 +8,7 @@ from journal.features.triggers.listeners.watch_prompt import WatchPrompt
 from journal.features.triggers.listeners.watch_message import WatchMessage
 from journal.features.triggers.listeners.watch_tool import WatchTool
 from journal.features.triggers.listeners.trigger_card import TriggerCard
+from journal.features.triggers.listeners.fire_due_triggers import FireDueTriggers
 from journal.features.triggers.triggers_conduct import TriggersConduct
 from journal.features.triggers.support.triggers_data_reader import TriggersDataReader
 from journal.features.triggers.support.triggers_data import TriggersData
@@ -20,9 +21,9 @@ class Triggers(Feature[TriggersData]):
     card_families = (CardFamily("triggers", "Triggers", "bolt", JOURNAL),)
     card_types = (CardTypeEntry(CardType.TRIGGERS, "Triggers", "triggers"),)
     title = "Triggers"
-    help = "Words you choose, and what the journal does when one comes up."
+    help = "Words you choose, and what the journal does when one comes up; or a time, once or again and again, when the journal sends the agent a line."
     commands = (TriggerCommand,)
-    listeners = (WatchPrompt, WatchTool, WatchMessage, TriggerCard)
+    listeners = (WatchPrompt, WatchTool, WatchMessage, TriggerCard, FireDueTriggers)
     data = (TriggersDataReader,)
     conduct = (TriggersConduct,)
 

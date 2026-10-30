@@ -14,7 +14,7 @@ class Faults(Feature):
     title = "Slow requests"
     default = False
     help = "A request that spends more points than its budget is a fault: a row loaded, a write and a started kilobyte loaded are a point each, so a costly answer is found whatever the machine is doing. These are tools for developing the journal itself, so this switch starts off in every project; while it is off nothing is timed, listed or counted, whatever the switches under it are set to. They gather in one mark in the chat, each route with its worst points and how often, and the agent is told in one line how many gathered, once ten have or thirty seconds pass without another, and again only once the set minutes have passed. It stays quiet while the journal starts or updates."
-    options = (FaultsOptions.HOOK_LINE_COPY, FaultsOptions.HOOK_TIME_COPY, FaultsOptions.REPORT, FaultsOptions.REQUEST, FaultsOptions.EDIT_BUDGET, FaultsOptions.REPEAT, FaultsOptions.LOADS, FaultsOptions.JOBS, FaultsOptions.STALL_STACKS, FaultsOptions.STAGE_TIMING, FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING)
+    options = (FaultsOptions.PERFORMANCE, FaultsOptions.REPORT, FaultsOptions.REQUEST, FaultsOptions.EDIT_BUDGET, FaultsOptions.REPEAT, FaultsOptions.LOADS, FaultsOptions.STALL_STACKS, FaultsOptions.STAGE_TIMING, FaultsOptions.JOBS, FaultsOptions.INTERNAL, FaultsOptions.HOOK_LINE_COPY, FaultsOptions.HOOK_TIME_COPY, FaultsOptions.EARLY_VIEWER_WRITE_WARNING)
     nudges = (FaultsNudges.SLOW_REQUESTS, FaultsNudges.SLOW_JOB, FaultsNudges.EARLY_VIEWER_WRITE)
     listeners = (SlowJobNotice, SlowRequestsCard, TransitionCounts)
     seeds = (StaleTestRunFiles,)

@@ -12,6 +12,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Claude)
+@setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_switched_off(story):
     result = story.agent_reads(story.agents.subject)
@@ -24,6 +25,7 @@ def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_swi
 
 @story(NewSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Claude)
+@setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_refusal(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
@@ -34,6 +36,7 @@ def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_r
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @provider(Codex)
+@setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
 def test_a_codex_stop_shows_its_duration_to_the_user_alone(story):
     result = story.agent_stops(story.agents.subject)

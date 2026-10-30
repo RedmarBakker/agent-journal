@@ -145,7 +145,7 @@ class Receiver:
         if not writers:
             return decision
         self.deferred.add(partial(self.fault_log.reported, f"listener {name} before the hook's answer", UndeferredViewerWrite(f"{name} updated the viewer through {', '.join(writers)} before the hook answered")))
-        if not self.settings.option(FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING):
+        if not self.settings.option(FaultsOptions.EARLY_VIEWER_WRITE_WARNING):
             return decision
         line = self.nudger.deliver(event.agent, FaultsNudges.EARLY_VIEWER_WRITE.create(listener=name, writers=", ".join(writers)))
         return decision.merged(Decision.allowed_with(line)) if line else decision

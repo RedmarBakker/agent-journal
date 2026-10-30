@@ -61,10 +61,10 @@ class WorkerRunner:
             return self._locks.setdefault(worker_id, threading.Lock())
 
     def start(self, worker: Worker, actor: Actor) -> None:
-        provider = self.providers.lookup(worker.provider)
-        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume)), actor)
+        provider, token = self.providers.lookup(worker.provider), AgentToken.random()
+        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume), token_hash=token.digest()), actor)
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session), *provider.worker_settings_flags(self.hook_settings(worker))]
-        threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
+        threading.Thread(target=self.run_scoped, args=(worker, command, actor, token), name=f"worker-{worker.id}", daemon=True).start()
 
     def hook_settings(self, worker: Worker) -> Path:
         folder = self.branch.place(worker)
@@ -78,13 +78,11 @@ class WorkerRunner:
             return worker.brief
         return "\n\n".join(part for part in (self.profiles.worker_instructions(worker.profile), self.libraries.note(worker), worker.brief) if part)
 
-    def run_scoped(self, worker: Worker, command: list[str], actor: Actor) -> None:
+    def run_scoped(self, worker: Worker, command: list[str], actor: Actor, token: AgentToken) -> None:
         with self.scope.environment(worker.environment_id):
-            self.run(worker, command, actor)
+            self.run(worker, command, actor, token)
 
-    def run(self, worker: Worker, command: list[str], actor: Actor) -> None:
-        token = AgentToken.random()
-        worker = self.workers.save(worker.with_(token_hash=token.digest()), actor)
+    def run(self, worker: Worker, command: list[str], actor: Actor, token: AgentToken) -> None:
         environ = self.worker_variables(worker, token)
         output, err = self.outputs(worker)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +92,7 @@ class WorkerRunner:
         except OSError as error:
             self.reports.file(worker, f"could not start: {error}", actor)
             return
-        worker = self.workers.save(worker.running_as(process.pid, self.time_source.seconds()), actor)
+        worker = self.workers.save(self.workers.find(worker.row_id).running_as(process.pid, self.time_source.seconds()), actor)
         self.supervisor.group(worker.environment_id, process.pid)
         self.finish(worker, self.waited(worker, process, actor), actor)
 

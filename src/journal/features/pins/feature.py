@@ -26,8 +26,16 @@ class Pins(Feature[PinsData]):
     skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
 # Pinned links
 
-Whenever you point the user at something outside the journal, a design, a hosted page, a document, any link they
-will open again, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
+A pin and a button are two different things.
+
+- A pin is a note left on the user's desk: something ready that they must see when they come back hours later, after
+  the chat has moved on, as a note someone left you: your pull request is ready, your design is ready. Pin it above the
+  chat: `journal notice create "<what is ready>" --link "<url>" --label "Open the design"`. It stays until the user
+  closes it.
+- A button is an action for now: open this page, start this, send this form. It goes under your message
+  (`journal message send` with `--button` or `--form-button`, the messages skill) and moves on with the chat.
+- Something ready that the user also acts on now gets both: the button in the message, and the pin for when they
+  come back.
 A document or a report docks itself at the bottom of the chat when it is created, by you or the user, and stays
 until the user closes it. Any other row of the journal you want to keep in view, a plan or a task, is docked there with
 `journal plan dock 12`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with

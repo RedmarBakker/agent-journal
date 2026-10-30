@@ -17,7 +17,7 @@ CARD_DELAY_SECONDS = 3.0
 
 @dataclass(frozen=True)
 class CommandOutput(Scoped):
-    """A shell line the runner ran, numbered by its row: the agent's own command, the folder holding each part's output, the folder it ran in, and, once it was moved to the background, how it ended, whether the journal's restart cut it off, and whether its agent watches it through a reader, whether its agent has read it since it ended, and what its reader picked from it at its end; an end a standing wait names is informed by the wait's own end. Lines about it name only its number."""
+    """A shell line the runner ran, numbered by its row: the agent's own command, the folder holding each part's output, the folder it ran in, and, once it was moved to the background, how it ended, whether the journal's restart cut it off, and whether its agent watches it through a reader, whether its agent has read it since it ended, and what its reader picked from it at its end, and the revision of its reader it was asked to show a count for; an end a standing wait names is informed by the wait's own end. Lines about it name only its number."""
 
 
     chain: str = ""
@@ -37,6 +37,7 @@ class CommandOutput(Scoped):
     summary: str | None = None
     is_quiet_named: bool = False
     is_total_asked: bool = False
+    reader_revision: float = 0.0
     is_complete_reported: bool = False
     invalid_reason: str | None = None
 
@@ -56,8 +57,8 @@ class CommandOutput(Scoped):
     def backgrounded(self) -> "CommandOutput":
         return self.with_(moved=True)
 
-    def total_requested(self, time: float) -> "CommandOutput":
-        return self.with_(is_total_asked=True).with_event(OutputTotalMissing(environment_id=self.environment_id, time=time, run_session=self.session))
+    def total_requested(self, time: float, reader_revision: float, count_pattern: str) -> "CommandOutput":
+        return self.with_(is_total_asked=True, reader_revision=reader_revision).with_event(OutputTotalMissing(environment_id=self.environment_id, time=time, run_session=self.session, count_pattern=count_pattern))
 
     def silence_recorded(self, time: float, silence_seconds: int) -> "CommandOutput":
         return self.with_(is_quiet_named=True).with_event(SilentOutputFound(environment_id=self.environment_id, time=time, run_session=self.session, silence_seconds=silence_seconds))

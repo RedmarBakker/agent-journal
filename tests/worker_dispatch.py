@@ -16,3 +16,10 @@ def tokenless_run(runner, worker, command: list[str], actor) -> None:
     with output.open("w") as printed, err.open("w") as faults:
         code = subprocess.run(command, cwd=runner.branch.place(worker), stdout=printed, stderr=faults, timeout=60).returncode
     runner.finish(worker, code, actor)
+
+
+def started_run(runner, workers, worker, command: list[str], actor) -> None:
+    """A worker's run as its start hands it over: the token stored on its row first, as the start stores it, then its command run."""
+    from journal.support.agent_token import AgentToken
+    token = AgentToken.random()
+    runner.run(workers.save(workers.find(worker.row_id).with_(token_hash=token.digest()), actor), command, actor, token)

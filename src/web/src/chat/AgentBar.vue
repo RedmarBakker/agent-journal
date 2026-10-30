@@ -9,6 +9,7 @@ import SwitchCase from "../kit/SwitchCase.vue";
 import AgentBarViews from "./AgentBarViews.vue";
 import AgentControls from "./AgentControls.vue";
 import AgentFacts from "./AgentFacts.vue";
+import AgentLines from "../layout/AgentLines.vue";
 import AgentJobs from "./AgentJobs.vue";
 import AgentMenu from "./AgentMenu.vue";
 import AgentPresets from "./AgentPresets.vue";
@@ -64,6 +65,9 @@ function openSkills() {
         <AgentFacts :data="data" :open="open" @toggle="toggle" />
         <template v-if="data">
             <div class="agent-actions">
+                <template v-if="data.session">
+                    <AgentLines :session="data.session" />
+                </template>
                 <AgentBarViews :open="open" @toggle="toggle" />
             </div>
         </template>

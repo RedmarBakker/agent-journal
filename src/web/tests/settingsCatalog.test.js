@@ -155,6 +155,37 @@ test("a feature switched off shows its switch alone, and switched on shows the s
     expect(keys({features: {faults: true}})).toEqual([["faults", "switch"], ["faults:terminal_hook_lines", "switch"], ["faults:report", "switch"]]);
 });
 
+test("a group switch hides its settings and those beneath them, and the developer switch hides another feature's setting under it", () => {
+    const option = (key, name, more = {}) => ({key, name, title: name, abstract: `About ${name}`, option_type: "switch", default: true, unit: "", choices: [], provider: "", main_switch: "", ...more});
+    const spec = {
+        features: [
+            {
+                name: "faults",
+                title: "Developer features",
+                help: "Tools for developing the journal.",
+                default: false,
+                options: [
+                    option("faults.performance", "performance", {main_switch: "features.faults"}),
+                    option("faults.report", "report", {main_switch: "faults.performance"}),
+                    option("faults.budget.request", "request", {main_switch: "faults.report", option_type: "number", default: 30}),
+                ],
+            },
+            {name: "client_errors", title: "Viewer errors", help: "The viewer's errors.", default: true, fixed: true, options: [option("client_errors.report", "report", {main_switch: "features.faults"})]},
+        ],
+        groups: [
+            {key: "faults", title: "Developer features", line: "Tools.", section: "Agent", tab: "agent", lead: "faults"},
+            {key: "client_errors", title: "Viewer errors", line: "Errors.", section: "Agent", tab: "agent", lead: "client_errors"},
+        ],
+    };
+    const rows = (settings, n) => groupRows(catalog(spec, settings)[0].groups[n]);
+    const keys = (settings, n) => rows(settings, n).map((row) => row.key);
+    expect(keys({features: {faults: true}}, 0)).toEqual(["faults", "faults:performance", "faults:report", "faults:request"]);
+    expect(rows({features: {faults: true}}, 0).map((row) => Boolean(row.indent)), "the group's settings sit indented under its switch").toEqual([false, false, true, true]);
+    expect(keys({features: {faults: true}, faults: {performance: false}}, 0), "the group switch off hides what is under it, and what is under that").toEqual(["faults", "faults:performance"]);
+    expect(keys({features: {faults: false}}, 1), "the developer switch off hides the viewer errors setting of another feature").not.toContain("client_errors:report");
+    expect(keys({features: {faults: true}}, 1)).toContain("client_errors:report");
+});
+
 describe("the manifest's features", () => {
     const option = (name, kind, more = {}) => ({key: `workers.${name}`, name, title: name, abstract: `About ${name}`, option_type: kind, default: null, unit: "", choices: [], provider: "", read_by: [], ...more});
     const spec = {

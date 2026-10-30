@@ -1,5 +1,6 @@
 from journal.features.client_errors.client_errors_nudges import ClientErrorsNudges
 from journal.features.client_errors.client_errors_options import ClientErrorsOptions
+from journal.features.faults.faults_options import FaultsOptions
 from journal.features.client_errors.support.client_errors_data_reader import REMINDER_TOOL_USES
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
@@ -46,4 +47,14 @@ def test_clearing_the_viewer_errors_ends_the_reminders(story):
     result.expect_command_text("cleared")
     result = story.agent_reads(story.agents.subject, count=REMINDER_TOOL_USES + 1)
     result.expect_agent_not_told(story.agents.subject, ClientErrorsNudges.UNHANDLED)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@setting(ClientErrorsOptions.REPORT, True)
+@setting(FaultsOptions.DEVELOPER, False)
+def test_with_the_developer_features_off_the_agent_hears_nothing_of_the_viewers_errors_whatever_their_own_setting(story):
+    story.viewer_logs_a_console_error("z is null", "at Baz.vue:5")
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, ClientErrorsNudges.LOGGED)
     story.expect_stack(story.agents.subject, Ready)

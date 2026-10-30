@@ -31,9 +31,16 @@ if grep -q '"hook_event_name": *"SessionStart"' "$sent"; then
     version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$root/.journal/src/journal/version.py" 2>/dev/null)
     mkdir -p "$root/.journal/runtime" && printf 'SessionStart %s\n' "$version" > "$root/.journal/runtime/session-version"
 fi
-# Every hook gets its answer within two seconds or goes on without the journal: no boot is waited for, no tool is held,
-# and the miss is noted in bypass.log for the journal to say once it is back. A journal that hangs never holds the agent.
-ANSWER_SECONDS=2
+# Every hook gets its answer within its own time or goes on without the journal: a tool waits 5 seconds, the user's prompt 8,
+# a stop 10, a session start 15, which may wait on a boot; the miss is noted in bypass.log for the journal to say once it is back.
+# A journal that hangs never holds the agent longer than that.
+event=$(sed -n 's/.*"hook_event_name": *"\([A-Za-z]*\)".*/\1/p' "$sent" | head -1)
+case "$event" in
+    UserPromptSubmit) ANSWER_SECONDS=8 ;;
+    Stop|SubagentStop) ANSWER_SECONDS=10 ;;
+    SessionStart) ANSWER_SECONDS=15 ;;
+    *) ANSWER_SECONDS=5 ;;
+esac
 post() {
     curl -s --connect-timeout 1 --max-time "$ANSWER_SECONDS" -o "$body" -w '%{http_code}' -X POST "http://127.0.0.1:$port/hooks/$agent" \
         -H "Content-Type: application/json" \
@@ -52,7 +59,6 @@ if [ -n "$port" ]; then status=$(post) || status=0; else status=0; fi
 went_around() {
     printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$root/.journal/runtime/bypass.log"
     [ "$agent" = claude ] || return 0
-    event=$(sed -n 's/.*"hook_event_name": *"\([A-Za-z]*\)".*/\1/p' "$sent" | head -1)
     case "$event" in PreToolUse|PostToolUse|UserPromptSubmit|SessionStart) ;; *) return 0 ;; esac
     line="[journal] The journal did not answer within $ANSWER_SECONDS seconds, so this went through unchecked. Investigate now: curl -s http://127.0.0.1:$port/journal/health should answer 200, and runtime/server.log in .journal says why it does not."
     if [ -f "$root/src/journal/hooks/hook.sh" ]; then

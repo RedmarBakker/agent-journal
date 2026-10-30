@@ -9,13 +9,8 @@ import Segmented from "../kit/Segmented.vue";
 import Spinner from "../kit/Spinner.vue";
 import {relativeText} from "../format/relativeText.js";
 import {store} from "../state/store.js";
-import {barPlans, foldedPlans} from "../domain/plans.js";
 import {heldTask, lineOf, named, queued, SILENT, silentIn, stateOf, wordOf} from "../domain/agentState.js";
 import {FULLSCREEN_KEYS} from "../platform/fullscreen.js";
-import PlanMore from "./PlanMore.vue";
-import PlanStrip from "./PlanStrip.vue";
-import {stripped} from "../composables/planStrip.js";
-import PSection from "./PSection.vue";
 
 import {computed, ref, watch} from "vue";
 import Dot from "../kit/Dot.vue";
@@ -27,7 +22,6 @@ import Icon from "../kit/Icon.vue";
 import Toast from "../kit/Toast.vue";
 import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
-import AgentLines from "./AgentLines.vue";
 import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkerActivity, useWorkers} from "../composables/workers.js";
 import {useEveryReviewer} from "../composables/reviewers.js";
@@ -36,7 +30,6 @@ import {newestFirst, reviewerEntry} from "../domain/agentEntries.js";
 import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
-import {runPlan} from "../actions/work.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
 const reported = computed(() => stateOf(agent.value));
@@ -211,18 +204,6 @@ const sentence = computed(() => {
     return {head: now.slice(0, cut), tail: now.slice(cut)};
 });
 watch(line, (now, before) => (was.value = before || ""));
-const bars = computed(() => barPlans(rows("plans")));
-const others = computed(() => foldedPlans(rows("plans")));
-const error = ref("");
-
-async function runBar(p) {
-    error.value = "";
-    try {
-        await runPlan(p);
-    } catch (e) {
-        error.value = e.message;
-    }
-}
 </script>
 
 <template>
@@ -284,9 +265,6 @@ async function runBar(p) {
                     >
                         {{ fitnessShown }}
                     </button>
-                </template>
-                <template v-if="agent?.session">
-                    <AgentLines :session="agent.session" />
                 </template>
                 <template v-if="load">
                     <span :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">{{ load.rho.toFixed(2) }}</span>
@@ -369,16 +347,6 @@ async function runBar(p) {
                     />
                 </MenuPanel>
             </template>
-            <template v-if="bars.length">
-                <Btn
-                    kind="icon"
-                    :class="['statusbar-strip', {on: stripped}]"
-                    v-tip:strip="stripped ? {title: 'Show every plan', line: 'Gives each started plan its own row again.'} : {title: 'Fold the plans', line: 'Shows every started plan as one thin strip.'}"
-                    @click.stop="stripped = !stripped"
-                >
-                    <Icon name="plan" />
-                </Btn>
-            </template>
             <Btn
                 kind="icon"
                 class="statusbar-square"
@@ -392,24 +360,6 @@ async function runBar(p) {
     </div>
     <template v-if="waitingOpen && waitingNow">
         <WaitingPanel :waiting="waitingNow" :anchor="waitingAnchor" @close="waitingOpen = false" />
-    </template>
-    <template v-if="stripped && bars.length">
-        <PlanStrip :plans="bars">
-            <PlanMore :plans="others" />
-        </PlanStrip>
-    </template>
-    <template v-else>
-        <TransitionGroup name="planbar">
-            <PSection
-                v-for="bar in bars"
-                :key="bar.id"
-                :p="bar"
-                :error="error"
-                @run-bar="runBar"
-                @failed="error = $event"
-            />
-        </TransitionGroup>
-        <PlanMore :plans="others" />
     </template>
     <Toast :toast="toast" @done="toast = null" />
 </template>
@@ -466,10 +416,6 @@ async function runBar(p) {
     position: relative;
     flex: none;
     margin-right: 8px;
-}
-
-.statusbar-strip.on {
-    color: var(--accent-text);
 }
 
 .statusbar-pause.paused {

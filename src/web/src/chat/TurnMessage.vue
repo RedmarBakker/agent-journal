@@ -6,6 +6,7 @@ import {store} from "../state/store.js";
 import {computed, ref} from "vue";
 import ChoiceCard from "../resource/ChoiceCard.vue";
 import Attachments from "./Attachments.vue";
+import MessageButtons from "./MessageButtons.vue";
 import TurnHeader from "./TurnHeader.vue";
 import TurnQuote from "./TurnQuote.vue";
 import TurnParent from "./TurnParent.vue";
@@ -178,6 +179,9 @@ async function drop() {
             </template>
             <template v-if="turn.kind === 'message'">
                 <ChoiceCard :message="turn" />
+            </template>
+            <template v-if="turn.data?.buttons?.length">
+                <MessageButtons :message="turn" />
             </template>
             <template v-if="files.length">
                 <Attachments :message="turn" @grew="emit('grew')" />

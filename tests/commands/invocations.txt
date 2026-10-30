@@ -193,6 +193,7 @@ agent sequence abandon --why "not today" --sure
 agent sequence dock 2
 agent sequence undock 2
 agent trigger create "deploy,ship it" "Read the deploy steps first" --do nudge
+agent trigger schedule "Look at the import errors" --every 60 --times 3
 agent trigger list
 agent trigger dock 1
 agent trigger undock 1

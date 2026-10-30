@@ -6,7 +6,7 @@ import {clock} from "../format/time.js";
 import Icon from "../kit/Icon.vue";
 import MenuPanel from "../kit/MenuPanel.vue";
 
-// the latest lines the journal sent this agent, opened from the status bar beside its points
+// the latest lines the journal sent this agent, opened from the agent's band beside its context
 const LATEST = 150;
 const props = defineProps({session: {type: String, required: true}});
 const open = ref(false);

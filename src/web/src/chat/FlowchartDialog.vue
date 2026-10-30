@@ -39,6 +39,8 @@ function wheel(event) {
 }
 
 function grab(event) {
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
     dragging = {x: event.clientX - view.value.x, y: event.clientY - view.value.y};
     frame.value.setPointerCapture?.(event.pointerId);
 }
@@ -112,6 +114,8 @@ onMounted(fit);
     background: var(--bg);
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .flowchart-frame:active {

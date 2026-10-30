@@ -15,7 +15,7 @@ const commentless = (r) => !(r.comments_on || r.on || []).length;
 const bar = (ref, direction) => {
     const {table, id} = refParts(ref);
     const r = byRef(ref);
-    return {key: `${direction}${ref}`, ref, direction, icon: meta(table).icon, title: r ? titleOf(r) : `${meta(table).title} ${id}`, age: r ? age(updatedAt(r)) : ""};
+    return {key: `${direction}${ref}`, ref, direction, icon: meta(table).icon, kind: `${meta(table).title} ${id}`, title: r ? titleOf(r) : "", age: r ? age(updatedAt(r)) : ""};
 };
 const rows = computed(() => {
     const members = (props.resource.members || []).filter(shown).map((r) => bar(r, "member"));
@@ -44,6 +44,7 @@ const open = (ref) => {
                 <template v-for="r in g.rows" :key="r.key">
                     <button type="button" class="bar" @click="open(r.ref)">
                         <Icon :name="r.icon" :size="13" />
+                        <span class="bar-kind">{{ r.kind }}</span>
                         <span class="bar-title">{{ r.title }}</span>
                         <span class="bar-age">{{ r.age }}</span>
                     </button>
@@ -85,6 +86,12 @@ const open = (ref) => {
 .bar .ico {
     flex: none;
     color: var(--text-3);
+}
+
+.bar-kind {
+    flex: none;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
 }
 
 .bar-title {

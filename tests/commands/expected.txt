@@ -1075,9 +1075,14 @@ $ agent: journal trigger create 'deploy,ship it' 'Read the deploy steps first' -
 exit 0
 trigger 1: deploy, ship it -> nudge
 
+$ agent: journal trigger schedule 'Look at the import errors' --every 60 --times 3
+exit 0
+trigger 2: nudge, next at <time>
+
 $ agent: journal trigger list
 exit 0
    1  nudge    deploy, ship it: Read the deploy steps first
+   2  nudge    next at <time>: Look at the import errors
 
 $ agent: journal trigger dock 1
 exit 0
@@ -1414,16 +1419,18 @@ plugins.hold_window_ms = 2000
 plugins.clock_out_window_seconds = 180
 plugins.holds_in_a_row = 5
 plugins.passed_over_minutes = 3
-faults.terminal_hook_lines = False
-faults.terminal_hook_times = False
+faults.performance = False
 faults.report = False
 faults.budget.request = False
 faults.budget.write = False
 faults.repeat_minutes = False
 faults.count_loads = False
-faults.jobs = False
 faults.stall_stacks = False
 faults.stage_times = False
+faults.jobs = False
+faults.internal_feedback = False
+faults.terminal_hook_lines = False
+faults.terminal_hook_times = False
 faults.undeferred_viewer_writes = False
 faults.sentry_dsn = ''  (the user sets it)
 client_errors.report = False
@@ -1777,6 +1784,7 @@ shell.project_path_refused  [shell]  do not use this project's absolute path; yo
 shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines; {{cap}} show at each end. read it by offset and limit, or grep the line you need
 shell.reader_report_dismissal_refuted  [shell]  you dismissed a report that was right: {{verdicts|cap=200}}. fix the reader: `journal reader add <name> --pattern <regex>`
 shell.reader_report_raised  [shell]  reader report {{n}}: a reader showed a run poorly. see the fix with `journal reader report {{n}}`
+shell.run_count_without_a_bar  [shell]  output {{n}} prints a count its card draws no bar for. give its reader `--progress '{{pattern}}'`
 shell.run_counts_without_a_total  [shell]  output {{n}} prints no total, so it has no progress bar. give its reader a `--progress` pattern such as `(\d+)/(\d+)`
 shell.run_stands_at_100_percent  [shell]  output {{n}} at 100% for {{seconds}} seconds. read `journal output read {{n}}`; give its reader a pattern for that step
 shell.silent_run_streams  [shell]  output {{n}} buffers: silent for {{seconds}} seconds. run it with `stdbuf -oL`, `python -u` or its streaming flag
@@ -1914,7 +1922,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-292 nudges
+293 nudges
 
 $ agent: journal worker list
 exit 0
