@@ -6,6 +6,8 @@ from journal.features.tasks.support.task_holders import TaskHolders
 from journal.features.tasks.support.waits import Waits
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
+from journal.http.listing import Listing
+from journal.http.row_list import RowList
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.caller import Caller
@@ -48,8 +50,13 @@ class TaskController(Controller[Task]):
                  "waits": [str(ref) for ref in waits.get(t.row_id, [])], "held_by": self.task_holders.name(task_holders[t.row_id]) if t.row_id in task_holders else "",
                  "work": WorkerTaskView.built(t, todos.get(t.row_id, []), proofs.get(t.row_id, []))} for t in rows]
 
-    def index_page(self, rows: list[Task]) -> list[dict]:
-        return self.shown_page(rows)
+    def listed(self, listing: Listing) -> RowList:
+        if listing.ids:
+            return super().listed(listing)
+        listing, query = listing.capped(self.page_rows), self.list_query()
+        with self.repository.listing():
+            page = self.list_page(listing, query)
+        return RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(query))
 
     def update(self, request: Request) -> Response:
         row = self.repository.find(request.number("id"))
