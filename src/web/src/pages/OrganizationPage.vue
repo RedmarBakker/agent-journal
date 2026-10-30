@@ -21,15 +21,24 @@ const roleProblem = ref("");
 const folder = computed(() => organization.value?.folder ?? store.settings?.workers?.organization_folder ?? "");
 const commit = computed(() => organization.value?.commit || "");
 const domains = computed(() => organization.value?.domains || []);
-const communicationEdges = computed(() => domains.value.flatMap((domain) => [
-    ...(domain.edges || []).map((edge) => ({source: `Domain ${domain.title}`, kind: edge.kind, target: `domain:${edge.to}`, about: edge.about})),
-    ...(domain.roles || []).flatMap((role) => (role.edges || []).map((edge) => ({source: `Role ${domain.title} / ${role.title}`, kind: edge.kind, target: `role:${domain.id}/${edge.to}`, about: edge.about}))),
+const declaredEdges = computed(() => domains.value.flatMap((domain) => [
+    ...(domain.edges || []).map((edge) => ({sourceId: `domain:${domain.id}`, targetId: `domain:${edge.to}`, source: `Domain ${domain.title}`, kind: edge.kind, target: `domain:${edge.to}`, about: edge.about})),
+    ...(domain.roles || []).flatMap((role) => (role.edges || []).map((edge) => ({sourceId: `role:${domain.id}/${role.id}`, targetId: `role:${domain.id}/${edge.to}`, source: `Role ${domain.title} / ${role.title}`, kind: edge.kind, target: `role:${domain.id}/${edge.to}`, about: edge.about}))),
 ]));
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === route.value.domain) || null);
+const communicationEdges = computed(() => {
+    if (!selectedDomain.value) return [];
+    const domainId = `domain:${selectedDomain.value.id}`;
+    const rolePrefix = `role:${selectedDomain.value.id}/`;
+    return declaredEdges.value.filter((edge) =>
+        edge.sourceId === domainId || edge.targetId === domainId ||
+        edge.sourceId.startsWith(rolePrefix) || edge.targetId.startsWith(rolePrefix));
+});
 const problems = computed(() => organization.value?.problems || []);
 const counts = computed(domainCounts);
 
 const roleInstances = (domain, role) => counts.value[domain]?.roles?.[role.id]?.instances ?? role.instances ?? 0;
+const activePlans = (domain) => counts.value[domain.id]?.plansActive ?? domain.plans_active ?? 0;
 const running = (domain) => domain.roles.reduce((total, role) => total + roleInstances(domain.id, role), 0);
 
 async function readRole() {
@@ -119,26 +128,25 @@ onMounted(() => readFolder());
                 </ul>
             </section>
 
-            <section v-if="!route.domain && communicationEdges.length" class="communication-edges" aria-label="Declared communication edges">
-                <h2>Declared communication edges</h2>
-                <div class="communication-edges-table">
-                    <table>
-                        <thead><tr><th scope="col">From</th><th scope="col">Kind</th><th scope="col">To</th><th scope="col">About</th></tr></thead>
-                        <tbody>
-                            <tr v-for="(edge, index) in communicationEdges" :key="`${edge.source}:${edge.kind}:${edge.target}:${index}`" data-communication-edge>
-                                <td>{{ edge.source }}</td><td class="communication-edge-kind">{{ edge.kind }}</td><td>{{ edge.target }}</td><td>{{ edge.about }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
             <EmptyState v-if="!folder && !domains.length && !problems.length" class="organization-empty" title="No organization folder is set">
                 Set the organization folder in Settings to show its domains and Roles here.
             </EmptyState>
 
             <section v-else-if="selectedDomain" class="organization-domain-page">
                 <button type="button" class="organization-all-domains" @click="openOrganization">All domains</button>
+                <section v-if="communicationEdges.length" class="communication-edges" :data-domain="selectedDomain.id" :aria-label="`Declared communication edges in ${selectedDomain.title}`">
+                    <h2>Declared communication edges</h2>
+                    <div class="communication-edges-table">
+                        <table>
+                            <thead><tr><th scope="col">From</th><th scope="col">Kind</th><th scope="col">To</th><th scope="col">About</th></tr></thead>
+                            <tbody>
+                                <tr v-for="(edge, index) in communicationEdges" :key="`${edge.source}:${edge.kind}:${edge.target}:${index}`" data-communication-edge>
+                                    <td>{{ edge.source }}</td><td class="communication-edge-kind">{{ edge.kind }}</td><td>{{ edge.target }}</td><td>{{ edge.about }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
                 <OrganizationPlanBoard :domains="[selectedDomain]" />
             </section>
 
@@ -161,6 +169,12 @@ onMounted(() => readFolder());
                         <span>Model: {{ modelLine(domain.models) }}</span>
                     </div>
                     <div class="role-list">
+                        <div class="domain-agent-row" :data-domain-agent="domain.id">
+                            <span class="role-name">Domain agent</span>
+                            <span>Cardinality: One per active plan</span>
+                            <span>Model: {{ modelLine(domain.models) }}</span>
+                            <span>Running now: {{ activePlans(domain) ? "Yes" : "No" }}</span>
+                        </div>
                         <button
                             v-for="role in domain.roles"
                             :key="role.id"
@@ -173,7 +187,7 @@ onMounted(() => readFolder());
                             <span>Cardinality: {{ cardinalityLine(role.cardinality) }}</span>
                             <span>Writes files: {{ role.writes ? "Yes" : "No" }}</span>
                             <span>Model: {{ modelLine(role.models) }}</span>
-                            <span>Running: {{ roleInstances(domain.id, role) }}</span>
+                            <span>Running now: {{ roleInstances(domain.id, role) ? "Yes" : "No" }} ({{ roleInstances(domain.id, role) }})</span>
                         </button>
                     </div>
                 </article>
@@ -421,6 +435,17 @@ onMounted(() => readFolder());
     border-top: 1px solid var(--border);
 }
 
+.domain-agent-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(160px, 1.25fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+    font-size: 11.5px;
+}
+
 .role-row {
     display: grid;
     grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(92px, 0.8fr) minmax(160px, 1.25fr) auto;
@@ -463,7 +488,8 @@ onMounted(() => readFolder());
 }
 
 @media (max-width: 900px) {
-    .role-row {
+    .role-row,
+    .domain-agent-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -492,7 +518,8 @@ onMounted(() => readFolder());
         gap: 4px;
     }
 
-    .role-row {
+    .role-row,
+    .domain-agent-row {
         grid-template-columns: minmax(0, 1fr);
     }
 }

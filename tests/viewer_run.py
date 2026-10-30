@@ -109,7 +109,7 @@ SETS = {
         "tests/flowchart.test.js",
     ),
     "organization_counts": ("tests/organizationCounts.test.js",),
-    "organization_page": ("tests/organizationPage.test.js",),
+    "organization_page": ("tests/organizationPage.test.js", "tests/organizationSidebar.test.js"),
     "organization_communication": ("tests/planCommunicationTimeline.test.js", "tests/organizationPage.test.js"),
     "organization_home": ("tests/homePlanBoard.test.js", "tests/organizationBoard.test.js", "tests/homeBoard.test.js"),
     "board_page": ("tests/boardPage.test.js", "tests/organizationSidebar.test.js", "tests/organizationBoard.test.js"),

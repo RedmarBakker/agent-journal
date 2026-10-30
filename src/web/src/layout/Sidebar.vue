@@ -116,6 +116,12 @@ function point(e) {
                     @toggle="fold('organization')"
                 >
                     <a
+                        :class="['item', 'organization-overview', {on: route.page === 'organization' && !route.shared && !route.domain}]"
+                        :href="href.organization()"
+                    >
+                        <span class="label">All domains</span>
+                    </a>
+                    <a
                         :class="['item', 'organization-shared-roles', {on: route.page === 'organization' && route.shared}]"
                         :href="href.sharedRoles()"
                     >

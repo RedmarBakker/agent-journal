@@ -50,6 +50,35 @@ const organization = (sha = commit) => ({
             title: "Sales lead",
             cardinality: "journal",
             writes: false,
+            edges: [{kind: "delegates_to", to: "account-manager", about: "A review returns the decision"}],
+            models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
+            instances: 0,
+            queued: 0,
+        }],
+    }, {
+        id: "support",
+        title: "Support",
+        icon: "🎧",
+        description: "Resolve customer issues.",
+        board: {planned: "Ready", in_progress: "Working", in_review: "Review", done: "Complete"},
+        edges: [{kind: "escalates_to", to: "sales", about: "A customer request needs a recommendation"}],
+        plans: [],
+        models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
+        roles: [{
+            id: "customer-care",
+            title: "Customer care",
+            cardinality: "many",
+            writes: false,
+            edges: [{kind: "delegates_to", to: "support-lead", about: "Unrelated support handoff"}],
+            models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
+            instances: 0,
+            queued: 0,
+        }, {
+            id: "support-lead",
+            title: "Support lead",
+            cardinality: "journal",
+            writes: false,
+            edges: [{kind: "delegates_to", to: "customer-care", about: "Unrelated support handoff"}],
             models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
             instances: 0,
             queued: 0,
@@ -75,7 +104,7 @@ const detail = {
     models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
     guidance: "## How to work\n\nListen first, then explain the recommendation.",
 };
-const countRow = (instances) => ({id: 1, name: "sales", roles: {"account-manager": {instances, queued: 0}}, plans_active: 1});
+const countRow = (instances, plansActive = 1) => ({id: 1, name: "sales", roles: {"account-manager": {instances, queued: 0}}, plans_active: plansActive});
 
 async function until(done) {
     for (let n = 0; n < 100 && !done(); n++) await new Promise((settle) => setTimeout(settle, 10));
@@ -109,26 +138,25 @@ test("the Organization page reads its real folder, shows contract problems, and 
     expect(api.organization).toHaveBeenCalledOnce();
     expect(host.textContent).toContain(folder);
     expect(host.textContent).toContain(commit);
-    expect(host.querySelector(".contract-problems").nextElementSibling.classList.contains("communication-edges")).toBe(true);
-    const edgeRows = [...host.querySelectorAll("[data-communication-edge]")];
-    expect(edgeRows).toHaveLength(2);
-    expect(edgeRows[0].textContent).toContain("Domain Sales");
-    expect(edgeRows[0].textContent).toContain("escalates_to");
-    expect(edgeRows[0].textContent).toContain("domain:support");
-    expect(edgeRows[0].textContent).toContain("A blocker outside sales");
-    expect(edgeRows[1].textContent).toContain("Role Sales / Account manager");
-    expect(edgeRows[1].textContent).toContain("delegates_to");
-    expect(edgeRows[1].textContent).toContain("role:sales/sales-lead");
+    expect(host.querySelectorAll(".domain-card")).toHaveLength(2);
+    expect(host.querySelector("[data-domain-agent='sales']").textContent).toContain("Domain agent");
+    expect(host.querySelector("[data-domain-agent='sales']").textContent).toContain("Cardinality: One per active plan");
+    expect(host.querySelector("[data-domain-agent='sales']").textContent).toContain("Running now: Yes");
+    expect(host.querySelector("[data-domain-agent='support']").textContent).toContain("Running now: No");
+    expect(host.querySelectorAll(".role-row")).toHaveLength(4);
+    expect([...host.querySelectorAll(".role-row")].every((row) => row.textContent.includes("Cardinality:") && row.textContent.includes("Running now:"))).toBe(true);
+    expect(host.querySelectorAll("[data-communication-edge]")).toHaveLength(0);
     expect(host.textContent).toContain("Cardinality: One per plan");
     expect(host.textContent).toContain("Writes files: No");
     expect(host.textContent).toContain("Model: Claude: sonnet · Codex: gpt-6.1-sol · Effort: xhigh");
     expect(host.textContent).toContain("Running: 3");
 
-    heldCounts = [countRow(4)];
+    heldCounts = [countRow(4, 0)];
     store.booted = true;
     takeEntries([{id: 9, entry_type: "updated", data: {table: "domain_counts", id: 1, joins: []}}]);
     await until(() => host.textContent.includes("Running: 4"));
     expect(host.textContent).toContain("Running: 4");
+    expect(host.querySelector("[data-domain-agent='sales']").textContent).toContain("Running now: No");
 
     host.querySelector('[aria-label="Open Account manager"]').click();
     await until(() => document.body.textContent.includes("Listen first, then explain the recommendation."));
@@ -162,11 +190,33 @@ test("a domain route opens its own four phase plan board", async () => {
     app.mount(host);
     await until(() => host.querySelector('[data-domain="sales"] .organization-plan-card'));
 
-    const board = host.querySelector('[data-domain="sales"]');
+    const board = host.querySelector('.organization-domain-board[data-domain="sales"]');
     expect(host.querySelector(".organization-domain-page")).not.toBeNull();
     expect(board.querySelectorAll(".organization-board-lane")).toHaveLength(4);
     expect(board.querySelector('[data-phase="in_progress"] h3').textContent).toContain("Working");
     expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("1 of 2 done");
     expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("Waits on: Role work");
     expect(host.querySelector('button.organization-all-domains').textContent).toContain("All domains");
+});
+
+test("a domain view shows only communication edges touching its Domain agent or Roles", async () => {
+    location.hash = "#/organization?domain=sales";
+    await until(() => route.value.domain === "sales");
+
+    const host = document.body.appendChild(document.createElement("div"));
+    const app = createApp({render: () => h(OrganizationPage)});
+    app.mount(host);
+    await until(() => host.querySelectorAll("[data-communication-edge]").length === 4);
+
+    const edges = [...host.querySelectorAll("[data-communication-edge]")];
+    expect(edges).toHaveLength(4);
+    expect(edges.map((edge) => edge.textContent).join(" ")).toContain("A blocker outside sales");
+    expect(edges.map((edge) => edge.textContent).join(" ")).toContain("A decision needs approval");
+    expect(edges.map((edge) => edge.textContent).join(" ")).toContain("A customer request needs a recommendation");
+    expect(edges.map((edge) => edge.textContent).join(" ")).toContain("A review returns the decision");
+    expect(edges.map((edge) => edge.textContent).join(" ")).not.toContain("Unrelated support handoff");
+    expect(edges.every((edge) => edge.closest("[data-domain='sales']"))).toBe(true);
+
+    app.unmount();
+    host.remove();
 });

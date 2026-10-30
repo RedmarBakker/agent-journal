@@ -116,6 +116,11 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(organization.domains).toHaveLength(13);
     expect(organization.domains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(50);
     expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(13);
+    const organizationOverview = host.querySelector('a.organization-overview[href="#/organization"]');
+    expect(organizationOverview.textContent).toContain("All domains");
+    location.hash = organizationOverview.getAttribute("href");
+    await until(() => organizationOverview.classList.contains("on"));
+    expect(organizationOverview.classList.contains("on")).toBe(true);
     const sharedRoles = host.querySelector('a[href="#/organization?roles=shared"]');
     expect(sharedRoles.textContent).toContain("Shared Roles");
     location.hash = sharedRoles.getAttribute("href");
