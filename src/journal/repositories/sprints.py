@@ -10,6 +10,7 @@ from journal.models.sprint import Sprint
 from journal.models.sprint_change import SprintChange
 from journal.models.sprint_commitment import SprintCommitment
 from journal.models.sprint_state import SprintState
+from journal.features.organization.support.organization import Organization
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.domain_rows import DomainRows
@@ -39,10 +40,11 @@ class Sprints(ScopedRepository[Sprint]):
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource, settings: SettingRows,
                  plans: Plans, tasks: Tasks, domains: DomainRows, links: Links, commitments: SprintCommitments,
-                 changes: SprintChanges) -> None:
+                 changes: SprintChanges, organization: Organization) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.settings, self.plans, self.tasks, self.domains = settings, plans, tasks, domains
         self.links, self.commitments, self.changes = links, commitments, changes
+        self.organization = organization
 
     def create(self, starts_on: str, timezone_name: str, actor: Actor) -> Sprint:
         self.owner(actor)
@@ -169,9 +171,22 @@ class Sprints(ScopedRepository[Sprint]):
                 "tasks": [self.task_snapshot(task) for task in tasks], "due_constraint": None, "capacity_assumptions": None}
 
     def task_snapshot(self, task: Task) -> dict:
-        domains = self.domains.domain_names(task)
+        domain_name = self.domains.planned_domain_name(task)
+        domain = self.organization.contracts().domain(domain_name) if domain_name else None
+        definition = domain.definition_of_done if domain else None
         return {"id": task.row_id, "title": task.title, "brief": task.brief, "size": None,
-                "domain": domains[0] if domains else None, "criteria_version": None, "depends_on": None}
+                "domain": domain_name, "criteria_version": definition.version if definition else None,
+                "definition_of_done": definition.data() if definition else None, "depends_on": None}
+
+    def committed_task_snapshot(self, plan: Plan, task_id: int) -> dict | None:
+        periods = [self.find(ref.id) for ref in self.links.sources(plan, SPRINT_PLAN)]
+        for sprint in sorted(periods, key=lambda row: row.starts_at, reverse=True):
+            commitments = [self.commitments.find(ref.id) for ref in self.links.targets(sprint, SPRINT_COMMITMENT)]
+            for commitment in commitments:
+                task = next((row for row in commitment.snapshot.get("tasks", ()) if row.get("id") == task_id), None)
+                if task is not None:
+                    return task
+        return None
 
     def record_commitment(self, sprint: Sprint, plan: Plan, actor: Actor) -> SprintCommitment:
         commitment = self.commitments.save(SprintCommitment(environment_id=sprint.environment_id, snapshot=self.plan_snapshot(plan)), actor)

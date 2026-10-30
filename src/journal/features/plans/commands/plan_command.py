@@ -6,6 +6,7 @@ from journal.support.caller import Caller
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_branch_merge import PlanBranchMerge
 from journal.features.plans.support.plan_owners import PlanOwners
+from journal.features.organization.support.organization import Organization
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
@@ -21,6 +22,7 @@ from journal.models.plan_mode import PlanMode
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
+from journal.repositories.domain_rows import DomainRows
 from journal.repositories.messages import Messages
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
@@ -45,10 +47,10 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge) -> None:
         self.time_source, self.logs = time_source, logs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
-        self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
+        self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
         self.rounds, self.taking, self.plan_testing = rounds, taking, testing
         self.settings, self.statuses, self.phase_testing = settings, statuses, phase_testing
         self.branch_merge = branch_merge
@@ -61,6 +63,7 @@ class PlanCommand(Command):
         addition.add_argument("n", type=int)
         addition.add_argument("title")
         addition.add_argument("--brief", default="")
+        addition.add_argument("--domain", default="")
         addition.add_argument("--first", action="store_true", help="put it before the tasks the plan has")
         addition.add_argument("--phase", type=int, default=0, help="the phase it goes under, by its number from 1, in the same step")
         brief = self.verb(verbs, "brief", "set a plan's goal, what is true when it is done")
@@ -140,10 +143,14 @@ class PlanCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
+        if args.domain and self.organization.contracts().domain(args.domain) is None:
+            raise Rejection(f"domain {args.domain!r} is not in the organization contract")
         phases = [self.numbered_phase(plan, args.phase)] if args.phase else []
         previous = self.plans.plan_tasks(plan) if args.first else []
         task = self.tasks.save(Task(environment_id=plan.environment_id, title=args.title, brief=args.brief), caller.actor)
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
+        if args.domain:
+            self.domains.task_tied(task, args.domain, caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
         for phase in phases:

@@ -3,14 +3,16 @@ from pathlib import Path
 
 from journal.features.organization.support.board_phases import BoardPhases
 from journal.features.organization.support.contract_problem import ContractProblem
+from journal.features.organization.support.definition_of_done import DefinitionOfDone
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.edge_reader import EdgeReader
+from journal.features.organization.support.evidence_requirement import EvidenceRequirement
 from journal.features.organization.support.model_reader import ModelReader
 from journal.features.organization.support.routing_rule import RoutingRule
 from journal.features.organization.support.toml_fields import TomlFields
 from journal.models.board_phase import BoardPhase
 
-KEYS = ("id", "title", "icon", "description", "outcome", "responsible", "not_responsible", "roles", "skills", "model", "guidance", "edges", "routing", "board")
+KEYS = ("id", "title", "icon", "description", "outcome", "responsible", "not_responsible", "roles", "skills", "model", "guidance", "edges", "routing", "board", "definition_of_done")
 GUIDANCE = "AGENTS.md"
 PHASES = tuple(phase.value for phase in BoardPhase)
 
@@ -42,7 +44,24 @@ class DomainReader:
                 fields.problem("skills", f'"{skill}" is not the id of a skill; list the name of a skill folder')
         models = self.models.read(fields, False)
         return Domain(domain_id, fields.text("title"), fields.text("icon"), fields.text("description"), fields.text("outcome"), fields.texts("responsible"), fields.texts("not_responsible"), fields.listed("roles"), skills, models,
-                      self.guidance(fields, folder), self.edges.read(fields), self.routing(fields), self.board(fields))
+                      self.guidance(fields, folder), self.edges.read(fields), self.routing(fields), self.board(fields), self.definition_of_done(fields))
+
+    @staticmethod
+    def definition_of_done(fields: TomlFields) -> DefinitionOfDone | None:
+        if "definition_of_done" not in fields.data:
+            return None
+        table = fields.table("definition_of_done")
+        table.unknown(("criterion", "evidence", "target"))
+        criterion, evidence_name, target = table.text("criterion"), table.text("evidence"), table.text("target")
+        try:
+            evidence = EvidenceRequirement(evidence_name)
+        except ValueError:
+            table.problem("evidence", "must be production_deployment, published_output, verified_output or accepted_output")
+            evidence = None
+        if evidence == EvidenceRequirement.PRODUCTION_DEPLOYMENT and target != "production":
+            table.problem("target", "production_deployment evidence must name the production environment")
+        fields.absorbed(table)
+        return DefinitionOfDone(criterion, evidence, target) if evidence is not None and not table.problems else None
 
     @staticmethod
     def guidance(fields: TomlFields, folder: Path) -> str:

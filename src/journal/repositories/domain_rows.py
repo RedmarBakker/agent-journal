@@ -21,12 +21,14 @@ from journal.support.time_source import TimeSource
 
 DOMAIN_LINK = "belongs_to_domain"
 DOMAIN_AGENT_LINK = "domain_agent"
+PLANNED_DOMAIN_LINK = "planned_domain"
+DOMAIN_HISTORY_LINK = "domain_history"
 BOARD_LINKS = {phase: f"on_board_{phase.value}" for phase in BoardPhase}
 REVIEWS = (Check.table(), Question.table())
 
 
 class DomainRows(Repository[DomainRow]):
-    """The organization's domains that tasks were handed to, the same for every environment; the link that ties a task to the domain of the Role it was handed to, one domain per task, the last Role's; and the link from a plan to each domain's board that names the phase it stands in there."""
+    """The organization domains that tasks are planned for and handed to, retaining the first planned domain and later handoffs; and each plan's domain-board phase."""
 
     model = DomainRow
 
@@ -37,8 +39,17 @@ class DomainRows(Repository[DomainRow]):
     def task_tied(self, task: Task, name: str, actor: Actor) -> Link:
         with self.writing():
             domain = Ref.build(self.named(name, actor))
-            for link in self.links.all_matching(source=Ref.build(task), link_type=DOMAIN_LINK):
-                if link.target != domain:
+            source = Ref.build(task)
+            planned = self.links.targets(task, PLANNED_DOMAIN_LINK)
+            current = self.links.targets(task, DOMAIN_LINK)
+            if not planned:
+                first = current[-1] if current else domain
+                self.links.linked(source, first, PLANNED_DOMAIN_LINK, actor)
+                if current:
+                    self.links.linked(source, first, DOMAIN_HISTORY_LINK, actor)
+            if not current or current[-1] != domain:
+                self.links.save(Link(source=source, target=domain, link_type=DOMAIN_HISTORY_LINK), actor)
+                for link in self.links.all_matching(source=source, link_type=DOMAIN_LINK):
                     self.links.delete(link, actor)
             return self.links.linked(Ref.build(task), domain, DOMAIN_LINK, actor)
 
@@ -49,6 +60,14 @@ class DomainRows(Repository[DomainRow]):
 
     def domain_names(self, task: Task) -> list[str]:
         return [row.name for row in self.numbered(ref.id for ref in self.links.targets(task, DOMAIN_LINK))]
+
+    def planned_domain_name(self, task: Task) -> str | None:
+        planned = self.links.targets(task, PLANNED_DOMAIN_LINK)
+        domain = planned[0] if planned else next(iter(self.links.targets(task, DOMAIN_LINK)), None)
+        return self.find(domain.id).name if domain else None
+
+    def domain_history(self, task: Task) -> list[str]:
+        return [self.find(ref.id).name for ref in self.links.targets(task, DOMAIN_HISTORY_LINK)]
 
     def domain_tasks(self, name: str) -> list[Task]:
         rows = self.all_matching(name=name)

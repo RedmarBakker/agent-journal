@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from journal.features.organization.support.board_phases import BoardPhases
+from journal.features.organization.support.definition_of_done import DefinitionOfDone
 from journal.features.organization.support.edge import Edge
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
@@ -25,6 +26,7 @@ class Domain:
     edges: tuple[Edge, ...]
     routing: tuple[RoutingRule, ...]
     board: BoardPhases = BoardPhases()
+    definition_of_done: DefinitionOfDone | None = None
 
     def has_role(self, role_id: str) -> bool:
         return role_id in self.roles

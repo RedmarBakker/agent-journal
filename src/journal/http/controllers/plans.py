@@ -4,6 +4,7 @@ from journal.models.plan_state import PlanState
 from journal.db.query import Query
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
+from journal.features.organization.support.organization import Organization
 from journal.features.tasks.active_task import ActiveTask
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
@@ -20,9 +21,11 @@ from journal.models.plan_mode import PlanMode
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
+from journal.repositories.domain_rows import DomainRows
 from journal.repositories.messages import Messages
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.tasks import Tasks
+from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
 CLOSED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed())
@@ -34,9 +37,9 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, team: PlanTeam, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, outline: PlanOutline, timeline: PlanTimeline, team: PlanTeam, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages) -> None:
         self.time_source, self.messages = time_source, messages
-        self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
+        self.repository, self.tasks, self.links, self.domains, self.organization, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, domains, organization, outline, timeline, taking, rounds
         self.team_view = team
         self.plan_testing = testing
 
@@ -70,8 +73,13 @@ class PlanController(Controller[Plan]):
 
     def add_task(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
+        domain = request.body.get("domain", "")
+        if domain and (not isinstance(domain, str) or self.organization.contracts().domain(domain) is None):
+            raise Rejection(f"domain {domain!r} is not in the organization contract")
         task = self.tasks.save(Task(environment_id=plan.environment_id, title=request.body.get("title", ""), brief=request.body.get("brief", "")), request.actor)
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), request.actor)
+        if domain:
+            self.domains.task_tied(task, domain, request.actor)
         return Response.json(task, 201)
 
     def review(self, request: Request) -> Response:

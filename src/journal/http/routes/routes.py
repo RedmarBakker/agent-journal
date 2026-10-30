@@ -31,6 +31,7 @@ from journal.http.controllers.domain_counts import DomainCountController
 from journal.http.controllers.organization import OrganizationController
 from journal.http.controllers.reader_measures import ReaderMeasureController
 from journal.http.controllers.plans import PlanController
+from journal.http.controllers.plan_delivery import PlanDeliveryController
 from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
 from journal.http.controllers.profiles import ProfileController
@@ -174,6 +175,7 @@ class Routes:
     def work(self, router: Router) -> None:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
+        delivery = get(PlanDeliveryController)
         self.resource(router, "tasks", tasks)
         self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
@@ -192,6 +194,8 @@ class Routes:
         router.get(f"{API}/plans/{{id}}/roles", plans.role_history)
         router.get(f"{API}/plans/{{id}}/team", plans.team)
         router.post(f"{API}/plans/{{id}}/tasks", plans.add_task)
+        router.get(f"{API}/plans/{{id}}/delivery", delivery.show)
+        router.post(f"{API}/plans/{{id}}/delivery", delivery.record)
         router.post(f"{API}/plans/{{id}}/testing", plans.testing)
         router.post(f"{API}/plans/{{id}}/mode", plans.mode)
         router.get(f"{API}/plan-testing", plans.testing_templates)
