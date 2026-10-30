@@ -1,3 +1,4 @@
+from journal.features.shell.support.output_view import OutputView
 import json
 import re
 from enum import Enum
@@ -187,6 +188,18 @@ class StoryChecks:
         shown = self.api_row("messages", n).get("data") or {}
         fields = {name: shown.get(name) for name in data}
         assert fields == data, f"card {n} holds {fields}, not {data}"
+
+    def run_cards(self, output: int) -> list[dict]:
+        return [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == OutputView.key(output)]
+
+    def expect_run_card_titled(self, output: int, title: str) -> None:
+        titles = [row.get("text") for row in self.run_cards(output)]
+        assert titles[-1:] == [title], f"the card of output {output} is titled {titles}, not {title!r}"
+
+    def expect_run_card_saying(self, output: int, line: str) -> None:
+        cards = self.run_cards(output)
+        data = (cards[-1].get("data") or {}) if cards else {}
+        assert line in (data.get("detail"), *data.get("lines", ())), f"the card of output {output} holds {data}, not the line {line!r}"
 
     def expect_tool_input_changed(self, **fields) -> None:
         changed = (self.verdict.body.get("hookSpecificOutput") or {}).get("updatedInput") or {} if self.verdict else {}

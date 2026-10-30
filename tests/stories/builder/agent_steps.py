@@ -505,6 +505,10 @@ class AgentSteps:
         path.write_text(text)
         self.observed(f"the project holds {name}", None, None)
 
+    def project_script_holding(self, name: str, text: str) -> None:
+        self.project_file_holding(name, text)
+        (self.app.config.root / name).chmod(0o755)
+
     def agent_processes_sampled(self, agent: StoryAgent, usage: ProcessUsage) -> None:
         agent = self.app.container.get(Agents).session_agent(self.main_session())
         self.app.container.get(ProcessUsageStore).replaced({(agent.environment_id, agent.session): usage}, {})

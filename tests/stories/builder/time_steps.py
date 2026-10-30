@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from journal.engine.clock import Clock
+from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.providers.codex import Codex
 from tests.agent_hooks import pass_time, silent_tick
 
@@ -38,6 +39,12 @@ class TimeSteps:
         self.app.container.get(Clock).tick(self.app.container.get(Clock).held_at)
         self.app.runtime().deferred.drain()
         self.observed(f"the clock ticks {seconds} seconds later", None, None)
+
+    def running_commands_are_read_again(self, seconds: float) -> None:
+        pass_time(self.app, seconds)
+        self.app.container.get(WatchRefresh).tick(self.app.container.get(Clock).held_at)
+        self.app.runtime().deferred.drain()
+        self.observed(f"the running commands are read again {seconds} seconds later", None, None)
 
     def context_reaches(self, percent: int) -> None:
         if self.provider == Codex.name:
