@@ -2220,7 +2220,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     assert status == 200, "the orchestrator's own suite goes at once while a turn waits: the budget gates only workers' turns"
     budget = app.console().run(["tests", "budget", "1", "10"], AGENT)
     assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TEST_ID_LIMIT) == 10
-    page = got(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
+    page = get_answer(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
     assert (page["test_runs"], page["tests_per_run"]) == (1, 10), "the Settings page shows the budget the command set"
     assert next(row for row in settings.project_rows() if row.key == WorkersOptions.TEST_RUNS.key).updater == AGENT.actor, "written with the caller as its actor"
     gates[101].set()

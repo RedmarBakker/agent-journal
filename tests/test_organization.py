@@ -907,7 +907,7 @@ def test_the_real_organization_folder_loads_domains_roles_and_many_plans(app):
     from journal.repositories.scope import Scope
     from journal.repositories.tasks import PLAN_LINK, Tasks
     from journal.support.actor import Actor
-    from tests.in_process import got
+    from tests.in_process import get_answer
     from tests.user_settings import user_set
     user_set(app, "workers.organization_folder", REAL_FOLDER)
     contracts = app.container.get(Organization).reload()
@@ -926,7 +926,7 @@ def test_the_real_organization_folder_loads_domains_roles_and_many_plans(app):
             task = tasks.save(Task(environment_id=1, title=f"Load task {number + 1}"), actor)
             links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
             domains.task_tied(task, domain_id, actor)
-    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
     visible_roles = sum(len(domain["roles"]) for domain in shown["domains"])
     assert status == 200 and Path(shown["folder"]).resolve() == Path(REAL_FOLDER).resolve() and len(shown["domains"]) == 13 and visible_roles == len(contracts.roles), "the viewer answer carries every valid Role from the real folder's 13 domains"
     loaded_domain = next(domain for domain in shown["domains"] if domain["id"] == domain_id)
@@ -2031,7 +2031,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     from journal.repositories.tasks import PLAN_LINK, Tasks
     from journal.repositories.workers import Workers
     from journal.support.actor import Actor
-    from tests.in_process import answered, got
+    from tests.in_process import answered, get_answer
     fixture, organization = loaded(app, tmp_path)
     git = lambda *args: InnerRepositories.git(fixture.root, "-c", "user.name=Test", "-c", "user.email=test@example.com", *args)
     assert git("init", "-q").returncode == 0
@@ -2060,7 +2060,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         workers.save(workers.find(keeper.id).with_(adopted=True, state="released"), actor)
         assert {row.name: row.roles for row in counts.all_matching()}["beta"] == {"keeper": {"instances": 0, "queued": 0}}, "an instance that is released stops being counted, and so does its queue"
         assert {row.name: row.plans_active for row in counts.all_matching()}["beta"] == 0, "and beta's plan is no longer active once its task is done"
-    status, shown = got(app, "/journal/organization", env)
+    status, shown = get_answer(app, "/journal/organization", env)
     assert shown["folder"] == str(fixture.root) and shown["commit"] == commit, "the page answer names the actual folder and the commit it reads"
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
     beta = next(domain for domain in shown["domains"] if domain["id"] == "beta")
@@ -2068,11 +2068,11 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     assert alpha["edges"] == [{"kind": "escalates_to", "to": "beta", "about": "a blocker"}]
     assert builder_role["edges"] == [{"kind": "delegates_to", "to": "scout", "about": "what to look up"}], "the organization response carries the domain and Role declarations used by the edge table"
     assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
-    status, builder_contract = got(app, "/journal/organization/roles/alpha/builder", env)
+    status, builder_contract = get_answer(app, "/journal/organization/roles/alpha/builder", env)
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
     assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "state": "draft", "active": True, "tasks": [built.id, looked.id], "done": 0, "waits_on": "Role work", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "with the counts and the board of plans"
     assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "state": "draft", "active": False, "tasks": [kept.id], "done": 1, "waits_on": "", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "the same plan has a separate card in beta's phase with only beta's progress"
-    listed = got(app, "/journal/domain_counts", env)[1]["rows"]
+    listed = get_answer(app, "/journal/domain_counts", env)[1]["rows"]
     assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"
     status, reloaded = answered(app, "POST", "/journal/organization/reload", b"{}", env)
     assert status == 200 and reloaded["version"] == shown["version"]
@@ -2100,7 +2100,7 @@ def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(
     from journal.repositories.scope import Scope
     from journal.repositories.tasks import PLAN_LINK, Tasks
     from journal.support.time_source import TimeSource
-    from tests.in_process import got
+    from tests.in_process import get_answer
 
     loaded(app, tmp_path)
     plans, tasks, links, domains = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows))
@@ -2115,7 +2115,7 @@ def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(
         now = app.container.get(TimeSource).seconds()
         app.container.get(UsageLedger).observe(reported.id, "builder@release", "native-session", 2.375, now)
 
-    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
     cards = {plan["title"]: plan for plan in alpha["plans"]}
     assert status == 200 and cards["reported cost"]["estimated_api_cost_usd"] == 2.375, "the card carries the recorded estimated API cost"
@@ -2227,7 +2227,7 @@ def test_home_plan_board_lists_every_plan_with_its_recorded_cost_cap_and_schedul
     from journal.repositories.templates import Templates
     from journal.support.actor import Actor
     from journal.support.time_source import TimeSource
-    from tests.in_process import got
+    from tests.in_process import get_answer
     from tests.user_settings import user_set
 
     loaded(app, tmp_path)
@@ -2249,7 +2249,7 @@ def test_home_plan_board_lists_every_plan_with_its_recorded_cost_cap_and_schedul
         scheduled = templates.save(Template(title="Nightly report", targets=(PLAN_TARGET,)).scheduled(TemplateSchedule.DAILY), actor)
         next_start = scheduled.schedule.next_start(scheduled.update_time, app.container.get(TimeSource).moment()).isoformat()
 
-    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
     cards = {plan["title"]: plan for plan in shown["plans"]}
     assert status == 200 and set(cards) == {"Domain plan", "Solo plan without a domain", "Waiting for approval"}, "Home includes each plan once, including plans with no domain Role work"
     assert cards["Domain plan"]["estimated_api_cost_usd"] == 2.375 and cards["Domain plan"]["cost_cap_usd"] == 5.0

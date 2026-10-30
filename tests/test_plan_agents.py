@@ -26,7 +26,7 @@ from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.supervisor_reply import SupervisorReply
 from journal.supervisor_link import SupervisorLink
-from tests.in_process import got, posted
+from tests.in_process import get_answer, posted
 from tests.nudge_lines import nudge_reached
 from tests.organization_fixture import OrganizationFixture
 from tests.test_features import booted, hook
@@ -119,7 +119,7 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
     [first_agent] = agents.global_matching(id=plans.agent_id(plans.find(first)))
     assert outline["chat"] == f"plan-{first}" and outline["plan_agent_last_action_at"] == first_agent.updated_at, "the plan's outline names its chat and when its agent last acted"
     assert f"Plan agent: environment plan-{first}, running" in app.console().run(["plan", "show", str(first)], AGENT).text, "plan show names the plan's environment and that its agent runs"
-    status, answer = got(app, "/journal/environments", {"X-Journal-Env": "main"})
+    status, answer = get_answer(app, "/journal/environments", {"X-Journal-Env": "main"})
     rows = {row["name"]: row for row in answer["rows"]}
     assert status == 200 and rows[f"plan-{first}"]["generated_for"] == "plan" and rows[f"plan-{first}"]["parent_key"] == main_key, "the environment list exposes authoritative generated and parent metadata"
 
@@ -153,7 +153,7 @@ def test_a_plans_timeline_includes_handoffs_and_refusals_from_its_plan_agents_ch
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Messages).recorded(Message.outgoing("unrelated", "not this plan", "main-session", "main"), Actor.agent("main-session"))
 
-    status, moments = got(app, f"/journal/plans/{plan}/timeline", {"X-Journal-Env": "main"})
+    status, moments = get_answer(app, f"/journal/plans/{plan}/timeline", {"X-Journal-Env": "main"})
     communication = [moment for moment in moments if moment["moment_type"] in ("handoff", "refused_send")]
     assert status == 200 and [(moment["moment_type"], moment["title"], moment["address"]) for moment in communication] == [
         ("handoff", "domain:alpha", "domain:alpha"), ("refused_send", "worker 13, Scout", "workers:13")
