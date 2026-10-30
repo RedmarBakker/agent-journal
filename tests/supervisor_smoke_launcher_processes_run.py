@@ -86,12 +86,12 @@ int main(int argc, char **argv) {
 }
 '''
     )
-    subprocess.run(
+    compiled = subprocess.run(
         [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", "-DSMOKE_RUN_SECONDS=1", str(SOURCE), "-o", str(executable)],
-        check=True,
         capture_output=True,
         text=True,
     )
+    assert compiled.returncode == 0, compiled.stderr
     subprocess.run(
         [compiler, "-std=c11", "-Wall", "-Wextra", "-O2", str(stub_source), "-o", str(docker_stub)],
         check=True,
