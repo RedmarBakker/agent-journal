@@ -61,7 +61,7 @@ def test_an_item_published_to_one_team_never_shows_under_the_other(story):
 
 @story(TwoTeamsConnected, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_library_command_with_two_teams_and_no_team_named_is_refused_naming_the_teams_and_the_option(story):
-    result = story.user_types("library list")
+    result = story.agent_runs(story.agents.subject, "library list")
     result.expect_command_refused()
     result.expect_command_text("--team")
     result.expect_command_text(FIRST)
@@ -79,7 +79,7 @@ def test_a_library_command_with_one_team_needs_no_team_named(story):
 
 @story(TwoTeamsConnected, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_library_command_naming_an_unknown_team_is_refused_with_that_name(story):
-    result = story.user_types("library list --team nowhere")
+    result = story.agent_runs(story.agents.subject, "library list --team nowhere")
     result.expect_command_refused()
     result.expect_command_text("nowhere")
     story.expect_stack(story.agents.subject, Ready)
