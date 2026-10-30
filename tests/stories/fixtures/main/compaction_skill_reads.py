@@ -4,11 +4,11 @@ from journal.features.tasks.states.working import Working
 from tests.stories.fixtures.main.compaction_skills import CompactionSkills
 from tests.stories.fixtures.state_fixture import StateFixture
 
-JOURNAL_SKILL, ETIQUETTE_SKILL = "journal", "journal-etiquette"
+JOURNAL_SKILL, ETIQUETTE_SKILL, MESSAGES_SKILL = "journal", "journal-etiquette", "journal-messages"
 
 
 class CompactionSkillReads(StateFixture):
-    """After the compaction the agent read both compaction skills, the overview still owed."""
+    """After the compaction the agent read the three compaction skills, the overview still owed."""
 
     stack = (Ready, Working, ReadingOverview)
 
@@ -17,6 +17,7 @@ class CompactionSkillReads(StateFixture):
     def steps(self, story) -> None:
         story.agent_reads_a_skill(story.agents.main, JOURNAL_SKILL)
         story.agent_reads_a_skill(story.agents.main, ETIQUETTE_SKILL)
+        story.agent_reads_a_skill(story.agents.main, MESSAGES_SKILL)
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready, Working, ReadingOverview)
