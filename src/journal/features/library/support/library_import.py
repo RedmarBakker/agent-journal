@@ -72,7 +72,7 @@ class LibraryImport(TeamBound):
 
     def template_row(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         template = TemplateBody.template(item.body)
-        row = self.templates.save(template.with_(title=self.free_title(template.title, bool(self.templates.matching(title=template.title)))), actor)
+        row = self.templates.save(template.with_(title=self.free_title(template.title, self.templates.matching(title=template.title))), actor)
         return self.joined_item(item, row, TemplateBody.text(row), actor)
 
     def joined_item(self, item: LibraryItem, row: Model, body: str, actor: Actor) -> LibraryItem:
@@ -80,8 +80,8 @@ class LibraryImport(TeamBound):
         return self.items.save(item.with_(body=body), actor)
 
     @staticmethod
-    def free_title(title: str, is_duplicate: bool) -> str:
-        return title + LIBRARY_TITLE_SUFFIX if is_duplicate else title
+    def free_title(title: str, rows: list[Model]) -> str:
+        return title + LIBRARY_TITLE_SUFFIX if rows else title
 
     def profile_file(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         profile = ProfileBody.profile(item.body)
@@ -122,7 +122,7 @@ class LibraryImport(TeamBound):
 
     def draft_plan(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         title = PlanBody.title(item.body)
-        plan = self.plans.save(Plan(title=self.free_title(title, bool(self.plans.matching(title=title)))), actor)
+        plan = self.plans.save(Plan(title=self.free_title(title, self.plans.matching(title=title))), actor)
         for outline in PlanBody.phases(item.body):
             phase = self.phases.save(Phase(environment_id=plan.environment_id, title=outline.title, completion_rule=outline.completion_rule, checkpoint=outline.checkpoint), actor)
             self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)
