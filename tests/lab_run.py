@@ -1,4 +1,4 @@
-"""Opt-in lab checks that exercise record contracts and child-process batch runs."""
+"""Opt-in lab checks for readings, batches, paired comparisons and child-process runs."""
 
 import json
 from dataclasses import asdict, replace
@@ -193,6 +193,7 @@ def lab_batch(batch_id="d" * 32, seeds=(11,)):
         SimulationCaps(max(len(seeds), 1), 2, 64 * 1024 * 1024, 180, 30, 60),
         "1",
         "1",
+        "e" * 64,
     )
 
 
@@ -312,6 +313,7 @@ def test_simulate_command_reads_a_pinned_recipe_and_uses_its_runner(tmp_path, ca
         "caps": asdict(batch.caps),
         "metric_schema_version": batch.metric_schema_version,
         "decision_rule_version": batch.decision_rule_version,
+        "decision_rule_digest": batch.decision_rule_digest,
     }
     path = tmp_path / "recipe.json"
     path.write_text(json.dumps(recipe))
@@ -333,4 +335,425 @@ def test_a_batch_deadline_before_start_records_aborted_work_and_no_setup_as_not_
     assert record["terminal_reason"] == "aborted"
     assert record["setup_minutes"]["status"] == "not_applicable"
     assert minutes["status"] == "not_applicable"
+
+
+def comparison_plan(metrics=None):
+    from tests.lab.comparison_plan import ComparisonPlan
+    from tests.lab.metric_rule import MetricRule
+
+    selected = metrics or (MetricRule("goal_reached", "binary", "higher", "primary", 10.0),)
+    return ComparisonPlan("decision-1", selected, 0.05, 8, 999, 100, 193)
+
+
+def comparison_batch(plan, seeds=tuple(range(6))):
+    return Batch(
+        "f" * 32,
+        (ScenarioPin("claim review", "insurance", "1", "a" * 64, 10),),
+        (
+            Design.from_mapping("A", {"hub_route_strategy": "legacy"}),
+            Design.from_mapping("B", {"hub_route_strategy": "strict"}),
+        ),
+        tuple(seeds),
+        "b" * 40,
+        "c" * 40,
+        "organization-1",
+        "d" * 64,
+        ("synthetic-tier",),
+        SimulationCaps(100, 2, 64 * 1024 * 1024, 180, 30, 60),
+        "1",
+        plan.decision_rule_version,
+        plan.digest,
+    )
+
+
+def comparison_records(batch, lab_home, values_by_run):
+    records = []
+    now = datetime(2026, 10, 30, 9, 0, tzinfo=timezone.utc)
+    reason = "paired comparison test evidence"
+    for request in batch.requests(lab_home):
+        run_values = values_by_run(request.design.name, request.seed)
+        run = RunReading.missing(reason, request.metric_schema_version)
+        network = NetworkReading.missing(reason, request.metric_schema_version)
+        for name, value in run_values.items():
+            if name in RUN_METRICS:
+                run = run.with_measurement(name, measurement(value))
+            else:
+                network = network.with_measurement(name, measurement(value))
+        records.append(RunRecord(
+            request.run_id, request.attempt, request.scenario.name, request.scenario.version,
+            request.scenario.business_type, request.design.digest, request.design.settings_digest,
+            request.seed, request.source_commit, request.organization_commit, request.provider,
+            request.model, True, request.metric_schema_version, now, now, "completed",
+            measurement(1.0), run, network,
+        ))
+    return tuple(records)
+
+
+def test_exact_mcnemar_reports_every_cell_and_no_discordance_is_not_evidence():
+    from tests.lab.paired_tests import PairedTests
+
+    result = PairedTests.mcnemar((True, False, True, False, False), (True, True, False, False, True))
+    assert result["cells"] == {
+        "a_success_b_success": 1,
+        "a_success_b_failure": 1,
+        "a_failure_b_success": 2,
+        "a_failure_b_failure": 1,
+    }
+    assert result["effect_percentage_points"] == 20.0
+    assert result["p_value"] == 0.5
+    no_discordance = PairedTests.mcnemar((True, False), (True, False))
+    assert no_discordance["status"] == "no_discordance"
+    assert no_discordance["p_value"] == 1.0
+
+
+def test_continuous_sign_flip_uses_paired_units_and_reports_degenerate_median_interval():
+    from tests.lab.paired_tests import PairedTests
+
+    result = PairedTests.continuous(
+        (2, 2, 2, 2, 2, 2), random_seed=7, permutation_draws=99,
+        exact_enumeration_cutoff=8, bootstrap_draws=100,
+        independent_unit="seed", null_value=0, alternative="greater",
+    )
+    assert result["effect_median"] == 2
+    assert result["test_statistic_mean"] == 2
+    assert result["p_value"] == 1 / 64
+    assert result["permutation"]["enumeration"] == "exact"
+    assert result["interval"]["status"] == "degenerate"
+    assert result["interval"]["lower"] == result["interval"]["upper"] == 2
+
+
+def test_sampled_sign_flips_use_the_declared_seed_and_plus_one_p_value():
+    from tests.lab.paired_tests import PairedTests
+
+    result = PairedTests.continuous(
+        (1, 2, 3, 4, 5, 6), random_seed=991, permutation_draws=50,
+        exact_enumeration_cutoff=2, bootstrap_draws=100,
+        independent_unit="seed",
+    )
+    assert result["permutation"]["enumeration"] == "sampled"
+    assert result["permutation"]["seed"] == 991
+    assert result["permutation"]["draws"] == 50
+    assert result["permutation"]["p_value_rule"] == "(extreme + 1) / (draws + 1)"
+    assert result["p_value"] > 0
+
+
+def test_missing_paired_readings_remain_unpassed_instead_of_being_dropped():
+    from tests.lab.paired_tests import PairedTests
+
+    result = PairedTests.continuous(
+        (1, 2, None), random_seed=7, permutation_draws=99,
+        exact_enumeration_cutoff=8, bootstrap_draws=100,
+        independent_unit="seed",
+    )
+    assert result["status"] == "incomplete"
+    assert result["missing_pair_count"] == 1
+    assert result["p_value"] is None
+
+
+def test_holm_correction_keeps_missing_tests_in_the_frozen_family():
+    from tests.lab.paired_tests import PairedTests
+
+    corrected = PairedTests.holm((("primary", 0.02), ("guard", None), ("subgroup", 0.03)), 0.05)
+    assert corrected["family_size"] == 3
+    assert corrected["members"]["primary"]["adjusted_p_value"] == 0.06
+    assert corrected["members"]["subgroup"]["adjusted_p_value"] == 0.06
+    assert corrected["members"]["guard"]["adjusted_p_value"] is None
+    assert not corrected["members"]["guard"]["passed"]
+
+
+def test_ratio_rules_require_a_formula_and_zero_or_unknown_denominator_behavior():
+    from tests.lab.metric_rule import MetricRule
+
+    with pytest.raises(ValueError, match="ratio metrics need a formula"):
+        MetricRule("critical_path_ratio", "continuous", "lower", "primary", 0.1)
+    rule = MetricRule(
+        "critical_path_ratio", "continuous", "lower", "primary", 0.1,
+        ratio_formula="minutes_to_done / pinned critical path minutes",
+        zero_unknown_denominator_rule="zero baseline is not_applicable; unknown baseline is missing",
+    )
+    assert rule.ratio_formula == "minutes_to_done / pinned critical path minutes"
+    assert rule.zero_unknown_denominator_rule.startswith("zero baseline")
+
+
+def test_comparison_pairs_pinned_a_b_runs_and_only_recommends_after_the_full_family_passes(tmp_path):
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    comparison = Comparison(
+        batch,
+        home,
+        comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"}),
+        plan,
+    )
+
+    result = comparison.analyze()
+
+    assert result["manifest_digest"] == batch.manifest(home)["content_digest"]
+    assert result["decision_rule_digest"] == plan.digest
+    assert result["recommendation"] == "keep_eligible"
+    assert result["action_taken"] is False
+    assert result["confirmatory_family"]["family_size"] == 1
+    row = result["results"][0]
+    assert row["analysis"]["cells"]["a_failure_b_success"] == 6
+    assert row["analysis"]["p_value"] == 1 / 64
+    assert row["holm"]["passed"]
+
+
+def test_comparison_rejects_run_evidence_that_does_not_match_its_frozen_design_pin(tmp_path):
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    records = comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"})
+
+    with pytest.raises(ValueError, match="pinned batch request"):
+        Comparison(batch, home, (replace(records[0], seed=999), *records[1:]), plan)
+
+
+def test_comparison_rejects_a_decision_rule_changed_after_the_batch_was_pinned(tmp_path):
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    records = comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"})
+
+    with pytest.raises(ValueError, match="frozen batch manifest"):
+        Comparison(batch, home, records, replace(plan, alpha=0.01))
+
+
+def test_missing_batch_pair_makes_the_comparison_inconclusive_and_stays_in_holm_family(tmp_path):
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    records = comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"})
+    incomplete = Comparison(batch, home, records[:-1], plan).analyze()
+
+    assert incomplete["recommendation"] == "inconclusive"
+    assert incomplete["confirmatory_family"]["family_size"] == 1
+    assert incomplete["confirmatory_family"]["members"][incomplete["results"][0]["family_member"]]["p_value"] is None
+    assert incomplete["results"][0]["missing_pair_reasons"][-1]["reason"] == "run result is missing from the frozen batch"
+
+
+def test_known_unmet_goal_at_a_cap_remains_a_failure_with_its_terminal_reason(tmp_path):
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    records = comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"})
+    candidate = next(record for record in records if record.design_digest == batch.designs[1].digest)
+    capped = replace(
+        candidate,
+        terminal_reason="capped",
+        reading=candidate.reading.with_measurement("goal_reached", measurement(False)),
+    )
+    evidence = tuple(capped if record.run_id == candidate.run_id else record for record in records)
+
+    result = Comparison(batch, home, evidence, plan).analyze()
+    row = result["results"][0]
+
+    assert row["terminal_reasons"]["B"]["capped"] == 1
+    assert row["analysis"]["cells"]["a_failure_b_failure"] == 1
+    assert row["analysis"]["p_value"] == 1 / 32
+
+
+def test_continuous_guard_tests_the_preregistered_harm_boundary_before_holm(tmp_path):
+    from tests.lab.comparison import Comparison
+    from tests.lab.metric_rule import MetricRule
+
+    plan = comparison_plan((
+        MetricRule("goal_reached", "binary", "higher", "primary", 10.0),
+        MetricRule("cost_units", "continuous", "lower", "guard", tolerated_harm=2.0),
+    ))
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    comparison = Comparison(batch, home, comparison_records(
+        batch, home,
+        lambda design, seed: {"goal_reached": design == "B", "cost_units": 10.0 if design == "A" else 11.5},
+    ), plan)
+
+    guard = next(row for row in comparison.analyze()["results"] if row["metric"] == "cost_units")
+    assert guard["analysis"]["null_value"] == -2.0
+    assert guard["analysis"]["p_value"] == 1 / 64
+    assert guard["holm"]["passed"]
+
+
+def test_seed_estimate_uses_pinned_exploratory_effect_spread_and_records_exact_capped_seeds():
+    from tests.lab.seed_estimate import SeedEstimate
+
+    estimate = SeedEstimate.from_pilot(
+        pilot_manifest_digest="a" * 64,
+        confirmatory_manifest_digest="b" * 64,
+        pilot_kind="exploratory",
+        metric="minutes_to_done",
+        expected_metric="minutes_to_done",
+        primary_kind="continuous",
+        pilot_units_by_scenario=(("claims", (-1.0, 0.0, 1.0, 2.0, 3.0, 1.0, 2.0, 4.0)),),
+        pilot_missing_units_by_scenario=(("claims", 0),),
+        scenario_names=("claims",),
+        models=("calibrated",),
+        pilot_seeds=tuple(range(1, 9)),
+        caps=SimulationCaps(1000, 2, 64 * 1024 * 1024, 180, 30, 60),
+        estimated_storage_bytes_per_run=64 * 1024,
+        estimated_run_seconds=1.0,
+        simulated_minutes_by_scenario=(("claims", 10),),
+        assumed_effect=2.0,
+        practical_minimum=0.5,
+        precision_target=0.5,
+        required_power=0.8,
+        alpha=0.05,
+        confirmatory_family_size=1,
+        bootstrap_draws=100,
+        random_seed=13,
+    )
+
+    assert estimate.status == "estimated"
+    assert estimate.pilot_manifest_digest == "a" * 64
+    assert estimate.required_seed_count >= 2
+    assert estimate.primary_power is not None
+    assert estimate.whole_keep_rule_probability is not None
+    assert estimate.seed_count_uncertainty is not None
+    assert estimate.seeds_by_scenario == (("claims", tuple(range(9, 9 + estimate.required_seed_count))),)
+
+
+def test_seed_estimate_returns_not_enough_history_instead_of_inventing_powered_seeds():
+    from tests.lab.seed_estimate import SeedEstimate
+
+    estimate = SeedEstimate.from_pilot(
+        pilot_manifest_digest=None,
+        confirmatory_manifest_digest="b" * 64,
+        pilot_kind="exploratory",
+        metric="minutes_to_done",
+        expected_metric="minutes_to_done",
+        primary_kind="continuous",
+        pilot_units_by_scenario=None,
+        pilot_missing_units_by_scenario=(("claims", 0),),
+        scenario_names=("claims",),
+        models=("calibrated",),
+        pilot_seeds=(),
+        caps=SimulationCaps(1000, 2, 64 * 1024 * 1024, 180, 30, 60),
+        estimated_storage_bytes_per_run=1024 * 1024,
+        estimated_run_seconds=1.0,
+        simulated_minutes_by_scenario=(("claims", 10),),
+        assumed_effect=2.0,
+        practical_minimum=0.5,
+        precision_target=0.5,
+        required_power=0.8,
+        alpha=0.05,
+        confirmatory_family_size=1,
+    )
+
+    assert estimate.status == "not_enough_history"
+    assert estimate.required_seed_count is None
+    assert estimate.seeds_by_scenario == ()
+    assert "separately budgeted exploratory pilot" in estimate.reason
+
+
+def test_binary_seed_estimate_uses_discordance_and_declines_a_run_count_above_approved_caps():
+    from tests.lab.seed_estimate import SeedEstimate
+
+    pairs = ((False, True), (True, False), (False, False), (True, True), (False, True), (False, False), (True, True), (True, False))
+    estimate = SeedEstimate.from_pilot(
+        pilot_manifest_digest="a" * 64,
+        confirmatory_manifest_digest="b" * 64,
+        pilot_kind="exploratory",
+        metric="goal_reached",
+        expected_metric="goal_reached",
+        primary_kind="binary",
+        pilot_units_by_scenario=(("claims", pairs),),
+        pilot_missing_units_by_scenario=(("claims", 0),),
+        scenario_names=("claims",),
+        models=("calibrated",),
+        pilot_seeds=tuple(range(1, 9)),
+        caps=SimulationCaps(10, 2, 1000, 180, 30, 60),
+        estimated_storage_bytes_per_run=10,
+        estimated_run_seconds=1.0,
+        simulated_minutes_by_scenario=(("claims", 10),),
+        assumed_effect=25,
+        practical_minimum=5,
+        precision_target=15,
+        required_power=0.8,
+        alpha=0.05,
+        confirmatory_family_size=1,
+        bootstrap_draws=100,
+        random_seed=13,
+    )
+
+    assert estimate.status == "cap_insufficient"
+    assert estimate.required_seed_count > estimate.cap_fitted_seed_count
+    assert estimate.cap_fitted_seed_count == 5
+    assert estimate.seeds_by_scenario == (("claims", tuple(range(9, 14))),)
+    assert dict(estimate.cap_limits)["max_runs_seed_capacity"] == 5
+
+
+def test_seed_estimate_uses_the_preregistered_continuous_guard_margin():
+    from tests.lab.guard_pilot import GuardPilot
+    from tests.lab.seed_estimate import SeedEstimate
+
+    primary = (("claims", (-1.0, 0.0, 1.0, 2.0, 3.0, 1.0, 2.0, 4.0)),)
+    guard_values = (("claims", (-2.0, -1.0, 0.0, 1.0, 2.0, 3.0, -1.0, 1.0)),)
+    common = {
+        "pilot_manifest_digest": "a" * 64,
+        "confirmatory_manifest_digest": "b" * 64,
+        "pilot_kind": "exploratory",
+        "metric": "minutes_to_done",
+        "expected_metric": "minutes_to_done",
+        "primary_kind": "continuous",
+        "pilot_units_by_scenario": primary,
+        "pilot_missing_units_by_scenario": (("claims", 0),),
+        "scenario_names": ("claims",),
+        "models": ("calibrated",),
+        "pilot_seeds": tuple(range(1, 9)),
+        "caps": SimulationCaps(1000, 2, 64 * 1024 * 1024, 180, 30, 60),
+        "estimated_storage_bytes_per_run": 64 * 1024,
+        "estimated_run_seconds": 1.0,
+        "simulated_minutes_by_scenario": (("claims", 10),),
+        "assumed_effect": 2.0,
+        "practical_minimum": 0.5,
+        "precision_target": 0.5,
+        "required_power": 0.8,
+        "alpha": 0.05,
+        "confirmatory_family_size": 2,
+        "guard_count": 1,
+        "bootstrap_draws": 100,
+        "random_seed": 13,
+    }
+    guard_seeds = (("claims", tuple(range(1, 9))),)
+    narrow = SeedEstimate.from_pilot(**common, guard_pilots=(GuardPilot("cost_units", 0.1, 0.2, guard_seeds, guard_values),))
+    wide = SeedEstimate.from_pilot(**common, guard_pilots=(GuardPilot("cost_units", 2.0, 0.2, guard_seeds, guard_values),))
+
+    assert narrow.guard_margins == (("cost_units", 0.1),)
+    assert narrow.required_seed_count > wide.required_seed_count
+    assert narrow.whole_keep_rule_probability is not None
+
+
+def test_lab_report_writes_pinned_analysis_to_the_batch_without_filing_a_journal_report(tmp_path):
+    from tests.lab.comparison import Comparison
+    from tests.lab.lab_report import LabReport
+
+    plan = comparison_plan()
+    batch = comparison_batch(plan)
+    home = tmp_path / "journal-lab"
+    batch_dir = home / "batches" / batch.batch_id
+    batch_dir.mkdir(parents=True)
+    os.chmod(batch_dir, 0o700)
+    comparison = Comparison(
+        batch,
+        home,
+        comparison_records(batch, home, lambda design, seed: {"goal_reached": design == "B"}),
+        plan,
+    )
+
+    report = LabReport.write(comparison)
+
+    assert report == comparison.report_path
+    assert report.stat().st_mode & 0o777 == 0o600
+    assert "Manifest digest:" in report.read_text()
+    assert "Action taken: no" in report.read_text()
 

@@ -24,6 +24,7 @@ class Batch:
     caps: SimulationCaps
     metric_schema_version: str
     decision_rule_version: str
+    decision_rule_digest: str
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[0-9a-f]{32}", self.batch_id):
@@ -48,6 +49,8 @@ class Batch:
             raise ValueError("the organization commit pin must be a full commit hash")
         if not re.fullmatch(r"[0-9a-f]{64}", self.organization_checksum):
             raise ValueError("the organization pin needs its full SHA-256 checksum")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.decision_rule_digest):
+            raise ValueError("the decision rule needs its full SHA-256 digest")
         if self.run_count > self.caps.max_runs:
             raise ValueError("the batch exceeds its declared run cap")
         if any(scenario.simulated_minutes > self.caps.max_simulated_minutes for scenario in self.scenarios):
@@ -72,6 +75,7 @@ class Batch:
             SimulationCaps(**recipe["caps"]),
             str(recipe["metric_schema_version"]),
             str(recipe["decision_rule_version"]),
+            str(recipe["decision_rule_digest"]),
         )
 
     def requests(self, lab_home: Path) -> tuple[RunRequest, ...]:
@@ -114,6 +118,7 @@ class Batch:
             },
             "metric_schema_version": self.metric_schema_version,
             "decision_rule_version": self.decision_rule_version,
+            "decision_rule_digest": self.decision_rule_digest,
             "caps": asdict(self.caps),
             "approval_scope": [],
         }
