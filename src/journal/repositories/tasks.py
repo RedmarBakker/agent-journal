@@ -20,6 +20,7 @@ from journal.models.task_state import TaskState
 from journal.models.plan_state import PlanState
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
+from journal.support.missing_row import MissingRow
 from journal.repositories.checks import Checks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
@@ -324,7 +325,9 @@ class Tasks(ScopedRepository[Task]):
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
         self.assign_holder(started, holder, actor)
         if holder is not None and holder.type == Agent.table():
-            agent = self.agents.find(holder.id)
+            agent = next(iter(self.agents.global_matching(id=holder.id)), None)
+            if agent is None:
+                raise MissingRow(self.agents.table, holder.id)
             started = started.with_events(tuple(replace(event, session=agent.session) if isinstance(event, TaskStarted) else event for event in started.events))
         return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
 

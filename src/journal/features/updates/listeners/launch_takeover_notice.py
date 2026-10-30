@@ -21,7 +21,7 @@ class LaunchTakeoverNotice(Listener[ServerReplaced]):
         for environment in self.supervisor.running(self.environments.all()):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
-            label = NOTICE.format(version=event.version, previous=event.previous)
-            self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardType.UPDATES)
-            if agent is not None:
-                self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())
+                label = NOTICE.format(version=event.version, previous=event.previous)
+                self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardType.UPDATES)
+                if agent is not None:
+                    self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())

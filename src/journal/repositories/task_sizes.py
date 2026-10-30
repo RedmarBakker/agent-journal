@@ -46,8 +46,9 @@ class TaskSizes(ScopedRepository[TaskSizeEstimate]):
         raise Rejection("task size history is immutable")
 
     def compose(self, plan: Plan, task: Task, value: object, actor: Actor) -> Task:
-        self.builder(plan, actor)
         size, version = self.scale.parse_with_version(value)
+        if size is not None:
+            self.builder(plan, actor)
         with self.writing():
             saved = self.tasks.save(task.with_(size=size), actor)
             self._append(saved, "planning_baseline", size, "plan composition", version, actor)

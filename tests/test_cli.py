@@ -41,7 +41,8 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
     finally:
         server.stop()
     assert outcome["code"] == 0 and "task 1 open" in outcome["text"]
-    assert app.container.get(Tasks).find(1).creator == Actor.agent("s-9")
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(Tasks).find(1).creator == Actor.agent("s-9")
 
 
 

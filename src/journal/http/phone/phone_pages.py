@@ -24,8 +24,9 @@ from journal.http.support.file_response import FileResponse
 from journal.http.support.request import ENVIRONMENT_HEADER, Request
 from journal.http.support.share_answer import ShareAnswer
 from journal.repositories.environments import Environments
-from journal.models.phone import Phone
 from journal.repositories.phones import Phones
+from journal.repositories.scope import Scope
+from journal.models.phone import Phone
 from journal.features.sharing.support.share_place import SharePlace
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
@@ -47,10 +48,10 @@ PHONE_REFUSAL = "a phone reaches only the pages its app uses, in its own environ
 class PhonePages:
     """What the tunnel's listener answers under /p/, as version 3 did: the phone page, its files, its service worker, its manifest and its icons, so the page installs on a phone as an app; the pairing, which sets the phone's cookie; and the phone's own data, read by that cookie alone."""
 
-    def __init__(self, config: Config, pairing: PhoneConnector, phones: Phones, tunnel: Tunnel, router: Router, environments: Environments, allow: PhoneAllowList, stacked: WebPush, waits: PhoneWaits, place: SharePlace, account: TeamAccount, time_source: TimeSource) -> None:
+    def __init__(self, config: Config, pairing: PhoneConnector, phones: Phones, tunnel: Tunnel, router: Router, environments: Environments, scope: Scope, allow: PhoneAllowList, stacked: WebPush, waits: PhoneWaits, place: SharePlace, account: TeamAccount, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.account = account
-        self.config, self.pairing, self.phones, self.tunnel, self.place = config, pairing, phones, tunnel, place
+        self.config, self.pairing, self.phones, self.tunnel, self.place, self.scope = config, pairing, phones, tunnel, place, scope
         self.router, self.environments, self.allow, self.push, self.waits = router, environments, allow, stacked, waits
 
     def get(self, request: PhoneRequest) -> ShareAnswer:
@@ -160,7 +161,10 @@ class PhonePages:
         time = self.time_source.moment()
         if not phone.is_active(time):
             return self.json(410, {"error": "this phone was disconnected" if phone.ended_at else "this phone's connection has run out"})
-        return self.phones.save(phone.visit(time), Actor.phone(phone.row_id)) if phone.is_presence_due(time) else phone
+        if not phone.is_presence_due(time):
+            return phone
+        with self.scope.environment(phone.environment_id):
+            return self.phones.save(phone.visit(time), Actor.phone(phone.row_id))
 
     def pass_along(self, request: PhoneRequest) -> ShareAnswer:
         phone = self.phone(request)
@@ -181,12 +185,16 @@ class PhonePages:
 
     def waiting(self, request: PhoneRequest) -> ShareAnswer:
         phone = self.phone(request)
-        return self.json(200, {"waiting": [{"ref": ref} for ref in self.waits.refs(phone)]}) if isinstance(phone, Phone) else phone
+        if not isinstance(phone, Phone):
+            return phone
+        with self.scope.environment(phone.environment_id):
+            return self.json(200, {"waiting": [{"ref": ref} for ref in self.waits.refs(phone)]})
 
     def subscribe(self, phone: Phone, endpoint: str) -> ShareAnswer:
         if not self.push.is_allowed(endpoint):
             return self.json(422, {"error": "a phone's notifications come only through Apple's, Google's, Mozilla's or Microsoft's push service"})
-        self.phones.save(phone.subscribed(endpoint, self.waits.refs(phone)), Actor.phone(phone.row_id))
+        with self.scope.environment(phone.environment_id):
+            self.phones.save(phone.subscribed(endpoint, self.waits.refs(phone)), Actor.phone(phone.row_id))
         return self.json(201, {"subscribed": True})
 
     def state(self, request: PhoneRequest) -> ShareAnswer:
@@ -194,7 +202,9 @@ class PhonePages:
         return self.json(200, asdict(self.data(phone))) if isinstance(phone, Phone) else phone
 
     def data(self, phone: Phone) -> PhoneData:
-        return PhoneData(phone.name, phone.row_id, phone.expires_at.isoformat(), self.environments.find(phone.environment_id).name, self.config.root.name, COLOR)
+        with self.scope.environment(phone.environment_id):
+            environment = self.environments.find(phone.environment_id)
+        return PhoneData(phone.name, phone.row_id, phone.expires_at.isoformat(), environment.name, self.config.root.name, COLOR)
 
     @staticmethod
     def json(status: int, body: dict, headers: dict | None = None) -> ShareAnswer:

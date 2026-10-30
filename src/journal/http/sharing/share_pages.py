@@ -46,27 +46,29 @@ class SharePages:
         share = self.opened(parts, authorization, place)
         if isinstance(share, ShareAnswer):
             return share
-        remainder = parts[2:]
-        if not remainder:
-            return self.page(share, address)
-        if remainder == ["data.json"]:
-            return ShareAnswer(200, json.dumps(self.data.build(share), cls=JsonOut).encode(), "application/json", APP_HEADERS)
-        if remainder[0] == "assets" and len(remainder) == 2:
-            return self.asset(remainder[1])
-        return self.missing(404)
+        with self.scope.environment(share.environment_id):
+            remainder = parts[2:]
+            if not remainder:
+                return self.page(share, address)
+            if remainder == ["data.json"]:
+                return ShareAnswer(200, json.dumps(self.data.build(share), cls=JsonOut).encode(), "application/json", APP_HEADERS)
+            if remainder[0] == "assets" and len(remainder) == 2:
+                return self.asset(remainder[1])
+            return self.missing(404)
 
     def post(self, path: str, comment: VisitorComment, authorization: str | None, place: str) -> ShareAnswer:
         parts = self.parts(path)
         share = self.opened(parts, authorization, place)
         if isinstance(share, ShareAnswer):
             return share
-        if parts[2:] != ["comment"]:
-            return self.missing(404)
-        try:
-            saved = self.comments.leave(share, comment.target_ref, comment.name, comment.text)
-        except Rejection as refused:
-            return ShareAnswer(409, json.dumps({"error": str(refused)}).encode(), "application/json")
-        return ShareAnswer(201, json.dumps(saved, cls=JsonOut).encode(), "application/json")
+        with self.scope.environment(share.environment_id):
+            if parts[2:] != ["comment"]:
+                return self.missing(404)
+            try:
+                saved = self.comments.leave(share, comment.target_ref, comment.name, comment.text)
+            except Rejection as refused:
+                return ShareAnswer(409, json.dumps({"error": str(refused)}).encode(), "application/json")
+            return ShareAnswer(201, json.dumps(saved, cls=JsonOut).encode(), "application/json")
 
     @staticmethod
     def parts(path: str) -> list[str]:
@@ -120,7 +122,8 @@ class SharePages:
         app = APP / APP_PAGE
         if not app.is_file():
             return self.missing(404)
-        self.shares.save(share.viewed(), Actor.system())
+        with self.scope.environment(share.environment_id):
+            self.shares.save(share.viewed(), Actor.system())
         return ShareAnswer(200, app.read_bytes(), headers=APP_HEADERS)
 
     @staticmethod

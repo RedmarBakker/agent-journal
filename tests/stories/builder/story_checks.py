@@ -273,9 +273,10 @@ class StoryChecks:
         self.expect_row("tasks", n, {"creator": f"agent:{self.session_of(agent)}"})
 
     def expect_report_about_task(self, report: int, task: int) -> None:
-        report_row = self.app.container.get(Reports).find(report)
-        task_ref = Ref.build(self.app.container.get(Tasks).find(task))
-        targets = self.app.container.get(Links).targets(report_row, Messages.SUBJECT_LINK)
+        with self.app.container.get(Scope).environment(1):
+            report_row = self.app.container.get(Reports).find(report)
+            task_ref = Ref.build(self.app.container.get(Tasks).find(task))
+            targets = self.app.container.get(Links).targets(report_row, Messages.SUBJECT_LINK)
         assert task_ref in targets, f"report {report} does not link to task {task}: {targets}"
 
     def expect_task_logged(self, n: int, part: str) -> None:

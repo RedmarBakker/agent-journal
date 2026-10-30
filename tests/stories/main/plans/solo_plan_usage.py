@@ -4,6 +4,7 @@ from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import BUILDER_MODE, story
 from tests.stories.fixtures.main.coordinating_plan_agent import CoordinatingPlanAgent
@@ -21,7 +22,8 @@ def test_a_solo_plan_records_its_plan_agent_session_cost(story):
     plan = story.plans.first
     story.agent_runs(story.agents.main, f"plan start {plan}")
     plans, agents = story.app.container.get(Plans), story.app.container.get(PlanAgents)
-    environment = agents.environment(plans.find(plan))
+    with story.app.container.get(Scope).environment(1):
+        environment = agents.environment(plans.find(plan))
     session = "plan-agent-cost-session"
     story.session_starts_in(environment.name, session)
     recorded_cost(story, session, 0.12)

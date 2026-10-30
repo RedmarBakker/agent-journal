@@ -57,7 +57,7 @@ class TaskDependencies:
             holder = self.tasks.holder(task)
             raise Rejection(f"task {task.id} is worker {holder.id if holder else 'unknown'}'s: revise planned prerequisites before the worker takes it")
         if task.started_at is not None or task.is_closed():
-            raise Rejection(f"planned prerequisites for task {task.id} must be set before it starts")
+            raise Rejection(f"task {task.id} prerequisites must be set before it starts")
         self.prerequisite_tasks(prerequisites)
         if task.row_id in prerequisites:
             raise Rejection("a task cannot depend on itself: that would close a cycle")

@@ -152,7 +152,11 @@ class StateMachine:
         return self.manual(agent, self.states.reset_stack(self.states.stack(agent)), actor, text)
 
     def compactions_ended(self) -> list[MachineReply]:
-        return [self.manual(agent, self.states.stack(agent).popped(), Actor.system(), JOURNAL_START) for agent in self.agents.global_state(Compacting.name)]
+        replies = []
+        for agent in self.agents.global_state(Compacting.name):
+            with self.scope.environment(agent.environment_id):
+                replies.append(self.manual(agent, self.states.stack(agent).popped(), Actor.system(), JOURNAL_START))
+        return replies
 
     def manual(self, agent: Agent, following: Stack, actor: Actor, text: str) -> MachineReply:
         machine_answer = self.hook_machine(self.states.stack(agent), following, self.top_state(), self.readers.agent_data(agent))

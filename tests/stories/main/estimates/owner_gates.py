@@ -70,7 +70,6 @@ def test_enabling_enforce_does_not_retroactively_strand_an_approved_started_plan
 
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@pytest.mark.xfail(strict=True, reason="Plan 4 task 155 (D02: Add baseline finish ranges and sprint probability).")
 def test_a_forecast_cannot_approve_start_or_dispose_of_a_plan(story):
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("status", "not enough history")
