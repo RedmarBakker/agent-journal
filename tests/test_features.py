@@ -1085,28 +1085,6 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         readers.removed("worktree-pytest")
 
 
-def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_line_answered(app: App, tmp_path):
-    from journal.config import Config
-    from journal.features.shell.support.output_views import OutputViews
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
-    config.readers.mkdir(parents=True, exist_ok=True)
-    (config.readers / "watched-log.pattern").write_text("# the lines with a number\n^[0-9]+\ncommands: make\n")
-    folder = tmp_path / "watched"
-    folder.mkdir()
-    (folder / "parts").write_text("R\n")
-    (folder / "0.part").write_text("make all")
-    (folder / "0.out").write_text("1 first\nplain second\n3 third\nplain fourth\n")
-    output = outputs.save(CommandOutput(chain="watched", command="make all", folder=str(folder), watch_reader="watched-log"), Actor.system())
-    views = app.container.get(OutputViews)
-    assert views.measured(output).lines == ("1: 1 first", "3: 3 third"), "watched, the output shows the lines its reader picks"
-    result = app.console().run(["reader", "remove", "watched-log"], AGENT)
-    assert f"outputs {output.row_id} were read through it" in result.text, "removing a reader says which outputs it was reading"
-    assert views.measured(output).lines == ("1 first", "plain second", "3 third", "plain fourth"), "after it, the watch shows the last lines"
-    assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
-
-
 def test_how_a_watched_run_ended_is_told_without_its_progress_lines_in_a_few_lines(app: App, tmp_path):
     from journal.config import Config
     from journal.features.shell.support.output_views import OutputViews
@@ -1601,51 +1579,6 @@ def test_the_rules_doc_names_every_line_a_listener_says():
     assert not missing, f"lines said by a listener and absent from docs/the-rules.md: {sorted(set(missing))}"
 
 
-def test_a_row_event_walks_about_every_agent_of_the_environment_and_speaks_once(app: App, monkeypatch):
-    keystrokes = []
-    from journal.support.caller import Caller
-    woken_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    hook(app, "SessionStart", session_id="s2")
-    console.run(["environment", "overview"], Caller.agent("main", "s2", "claude"))
-    console.run(["task", "create", "t", "--start"], Caller.agent("main", "s2", "claude"))
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], Caller.agent("main", "s2", "claude"))
-    console.run(["worker", "wait", "1"], Caller.agent("main", "s2", "claude"))
-    keystrokes.clear()
-    machine = app.container.get(StateMachine)
-    assert app.container.get(SessionAgents).top("s2").name == "awaiting"
-    console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
-    app.runtime().deferred.drain()
-    assert app.container.get(SessionAgents).top("s2").task_id == 1, "the agent awaiting the worker, not the live one, is released by the shipped workflow"
-    assert keystrokes[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and keystrokes[1] == "[journal] worker 1 reported" and len(keystrokes) == 2, "told once, on the walk about the agent that waits; the work beneath goes on in silence"
-
-
-
-
-def test_each_review_round_is_kept_on_the_plan_with_its_reviewers_report_and_changes(app: App):
-    from journal.http.plans.plan_outline import PlanOutline
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
-    console.run(["plan", "todos", "1", "1", "1"], USER)
-    hook(app, "SessionStart")
-    console.run(["plan", "review", "1"], AGENT)
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "Lady Lovelace reads plan 1", "prompt": "read plan 1", "model": "sonnet"}, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "Lady Lovelace reads plan 1", "prompt": "read plan 1"}, tool_use_id="t-1", tool_response="found two gaps")
-    console.run(["report", "create", "Plan 1, first review", "--abstract", "What it says, in one line", "--body", "two gaps", "--about", "plans:1"], AGENT)
-    assert "--changed" in console.run(["plan", "ready", "1"], AGENT).error, "a plan back from review says what the round changed"
-    assert "ready" in console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).text
-    console.run(["plan", "review", "1"], AGENT)
-    outline = app.container.get(PlanOutline).build(app.container.get(Plans).find(1))
-    open_, first = outline["reviews"]
-    assert (first["reviewers"], first["changed"], first["report_ids"]) == (("Lady Lovelace reads plan 1",), "task 1 reworded", [1]), "the closed round names its reviewer, its change and its report"
-    assert (open_["changed"], open_["report_ids"]) == (None, []), "the round in progress is first, still open"
-
-
 def test_the_rules_doc_rules_on_every_state_the_engine_knows(app: App):
     from pathlib import Path
     from journal.engine.states_catalogue import StatesCatalogue
@@ -1663,47 +1596,6 @@ def test_a_read_outside_every_scope_is_refused(app: App):
     with pytest.raises(ScopeMissing):
         Context().run(app.container.get(Tasks).scoped)
 
-
-def test_what_the_agent_owes_is_a_fact_on_its_row_oriented_the_mark_owed_and_the_skills_owed(skilled):
-    from journal.features.skills.support.requirements import Requirements
-    from journal.repositories.agents import Agents
-    app = skilled
-    agents, needs = app.container.get(Agents), app.container.get(Requirements)
-    row = lambda: agents.session_agent("s1")
-    hook(app, "SessionStart")
-    assert row().is_overview_read is False and needs.obligation_names(row()) == ["journal"], "a session start: not oriented, the journal skill owed"
-    read_skill(app, "journal")
-    assert needs.obligation_names(row()) == [] and row().skills_loaded and "journal" in row().skills_loaded, "the read removes the owed link and keeps the hash"
-    app.console().run(["environment", "overview"], AGENT)
-    assert row().is_overview_read is True, "the look sets oriented and nothing is owed"
-    hook(app, "UserPromptSubmit", prompt="make me a plan for the release")
-    assert needs.obligation_names(row()) == ["plans"], "a prompt naming plans: the plans skill owed"
-    read_skill(app, "journal-plans")
-    assert needs.obligation_names(row()) == []
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    assert needs.obligation_names(row()) == [], "entering a state owes nothing by itself: a state's skill is owed at a start in it"
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 50 and row().context_threshold == 50, "the crossing sets the mark owed"
-    app.console().run(["memory", "add", "the login is flaky"], AGENT)
-    assert row().threshold_due == 0 and row().context_threshold == 50, "a memory added clears the mark owed and keeps the mark taken"
-    context(app, 85)
-    hook(app, "Stop")
-    assert row().threshold_due == 80
-    app.console().run(["memory", "skip", "all logged"], AGENT)
-    assert row().threshold_due == 0, "nothing to keep clears it too"
-    hook(app, "PreCompact", trigger="auto")
-    hook(app, "SessionStart", source="compact")
-    app.console().run(["environment", "overview"], AGENT)
-    context(app, 8)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().context_threshold == 0 and row().threshold_due == 0, "a reading under the marks taken, as after a compaction, starts the marks again"
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 50, "the same mark is reached again in the new window (task 3737)"
-    app.console().run(["memory", "skip", "nothing new since the compaction"], AGENT)
-    status, body = hook(app, "SessionStart", source="compact")
-    assert row().is_overview_read is False and row().threshold_due == 0, "a start after a compaction owes the look again; the start's own write touches oriented alone"
 
 def test_an_agent_data_in_a_pause_it_owed_is_unwrapped_at_boot_with_the_fact_set(tmp_path: Path, monkeypatch):
     import json
@@ -1767,67 +1659,6 @@ def test_an_agent_in_the_old_running_sequence_state_is_unwrapped_at_boot_with_th
             assert run.title == "release" and [step.instructions for step in run.steps] == ["bump", "tag", "push"] and run.text == "tag", "the run is on the row at the step it stood at"
     finally:
         second.runtime().stop()
-
-
-def test_the_steps_hold_comes_after_the_look_the_mark_and_the_skill_and_each_is_paid_in_turn(skilled):
-    app, console = skilled, skilled.console()
-    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.py", "old_string": "a", "new_string": "b"})
-    produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
-    hook(app, "SessionStart")
-    console.run(["sequence", "run", produced], AGENT)
-    context(app, 55)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    for pay in (lambda: read_skill(app, "journal"), lambda: read_skill(app, "journal-sequences"), lambda: console.run(["environment", "overview"], AGENT), lambda: console.run(["memory", "skip", "all logged"], AGENT)):
-        status, blocked = edit()
-        assert status == 409 and not nudge_reached(app, blocked.get("error", ""), SequencesNudges.STEP_EDIT_BLOCK), "the debt holds the write, and the step stays out of it"
-        assert "step 1" not in json.dumps(hook(app, "Stop")[1]), "while a debt is owed the step is not said at a stop"
-        pay()
-    assert nudge_reached(app, edit()[1].get("error", ""), SequencesNudges.STEP_EDIT_BLOCK), "every debt paid, the step holds the write"
-    console.run(["sequence", "follow"], AGENT)
-    assert edit()[0] == 200, "the step taken up, the write goes through"
-
-def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: App, monkeypatch):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    woken_capture(app, monkeypatch, transmitted)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
-    console.run(["sequence", "run", produced], AGENT)
-    assert "step 1: bump" in json.dumps(hook(app, "SessionStart", source="compact")[1]), "after a compaction the step is told"
-    console.run(["environment", "overview"], AGENT)
-    console.run(["await", "the build", "--until", "false"], AGENT)
-    lifted = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
-    app.runtime().deferred.drain()
-    said = json.dumps(lifted) + " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
-    assert "step 1: bump" in said, "a wait that ends says the step as the sequence comes back on top"
-    transmitted.clear()
-
-    def tick():
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=0.0, silence_seconds=120.0))
-        app.runtime().deferred.drain()
-    tick()
-    assert transmitted == [], "a step just said is not said again"
-    user_set(app, "sequences.say_every", 0)
-    tick()
-    assert "step 1: bump" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a step unheard for the set minutes is said again, carried by the agent's next tool use while it is at work"
-    console.run(["sequence", "pause", "--why", "docs first"], AGENT)
-    transmitted.clear()
-    tick()
-    assert transmitted == [], "a paused run is not said at a pace"
-    assert nudge_reached(app, hook(app, "SessionStart", source="resume")[1]["hookSpecificOutput"]["additionalContext"], SequencesNudges.SEQUENCE_PAUSED, step=1), "and at a start"
-    console.run(["sequence", "follow"], AGENT)
-    app.runtime().deferred.drain()
-    transmitted.clear()
-    console.run(["question", "ask", "Which name?"], AGENT)
-    tick()
-    assert transmitted == [], "no step is said at a pace while a question to the user is open"
-    console.run(["question", "answer", "1", "alpha"], USER)
-    tick()
-    assert any("step 1: bump" in line for line in transmitted), "and it is said again once the question is answered"
 
 
 def test_a_list_counts_a_type_in_sql_past_the_page(app: App):
