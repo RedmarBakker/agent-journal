@@ -15,34 +15,34 @@ TASK_LIST = "journal task list"
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(BriefingOptions.OVERVIEW_COMMANDS, [TASK_LIST])
 def test_the_overview_runs_the_commands_the_setting_names(story):
-    story.agent_looks_at_the_overview(story.agents.subject)
-    story.expect_command_passed()
-    story.expect_command_line(TASK_LIST)
+    result = story.agent_looks_at_the_overview(story.agents.subject)
+    result.expect_command_passed()
+    result.expect_command_line(TASK_LIST)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_default_overview_shows_the_task_in_hand(story):
-    story.agent_looks_at_the_overview(story.agents.subject)
-    story.expect_command_line("the footer")
+    result = story.agent_looks_at_the_overview(story.agents.subject)
+    result.expect_command_line("the footer")
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_default_overview_shows_the_followed_plan(story):
-    story.agent_looks_at_the_overview(story.agents.subject)
-    story.expect_command_line(f"plan {story.plans.first}")
+    result = story.agent_looks_at_the_overview(story.agents.subject)
+    result.expect_command_line(f"plan {story.plans.first}")
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(BriefingOptions.OVERVIEW_COMMANDS, [])
 def test_an_overview_with_no_commands_still_counts_as_read(story):
-    story.agent_looks_at_the_overview(story.agents.subject)
-    story.expect_command_passed()
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_allowed()
+    result = story.agent_looks_at_the_overview(story.agents.subject)
+    result.expect_command_passed()
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

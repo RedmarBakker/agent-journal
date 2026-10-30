@@ -13,6 +13,3 @@ class RequestHead:
     def content_type(self) -> str:
         return self.headers.get("content-type", "")
 
-    @property
-    def cookie(self) -> str:
-        return self.headers.get("cookie", "")

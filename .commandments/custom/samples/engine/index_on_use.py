@@ -10,5 +10,5 @@ class StateSample:
         return tuple(method for name, method in getmembers(cls, isfunction) if name.startswith("on_"))
 
     @classmethod
-    def worked_out(cls) -> tuple:
+    def listener_methods(cls) -> tuple:
         return tuple(method for name, method in getmembers(cls, isfunction) if name.startswith("on_"))

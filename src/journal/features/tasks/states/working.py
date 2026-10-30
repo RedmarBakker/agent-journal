@@ -40,7 +40,6 @@ class Working(BaseState):
     active_at: float = 0.0
     log_requested: bool = False
     reminder_edits: int = 0
-    task_noun: str = "task"
 
     def activity_text(self) -> str:
         return self.focus
@@ -50,8 +49,8 @@ class Working(BaseState):
 
     def label(self) -> str:
         if self.task_id and self.focus:
-            return f"{self.task_noun} {self.task_id}, {self.focus}"
-        return f"{self.task_noun} {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
+            return f"task {self.task_id}, {self.focus}"
+        return f"task {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
 
     def logged(self, time: float) -> "Working":
         return replace(self, logged_at=time, edits=0, log_requested=False, reminder_edits=0)

@@ -1,7 +1,7 @@
 #!/bin/sh
-# Sets up a hosted team journal on this machine with Docker: asks for the project and the address, or reads them from
+# Sets up a team's library server on this machine with Docker: asks for the project and the address, or reads them from
 # TEAM_PROJECT and TEAM_ADDRESS without asking, as a GitHub Actions run does; starts the team server in a new volume and
-# prints its URL: the first journal to claim it there becomes its admin.
+# prints its URL: the first journal to connect to it becomes its admin.
 # Run it on the server with the copy each release carries, which pulls that release's team image:
 #   curl -fsSL https://github.com/jessegall/agent-journal/releases/latest/download/install.sh | sh
 # It listens on 8443 and 8080 unless TEAM_HTTPS_PORT and TEAM_HTTP_PORT say otherwise; a second project on the same host needs ports of its own, with the server's own
@@ -119,8 +119,8 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         -e TEAM_ADDRESS="$address" -e TEAM_CERTIFICATE="$certificate" "$IMAGE" >/dev/null
 
     if [ "$HTTPS_PORT" = "443" ]; then url="https://$address"; else url="https://$address:$HTTPS_PORT"; fi
-    # The team server answers /team to a client that names the journal's protocol once Caddy holds a certificate the client
-    # accepts; the hosted journal behind the other paths starts only once the team holds a journal.
+    # The team server answers /library to a client that names the journal's protocol once Caddy holds a certificate the
+    # client accepts.
     if [ -n "$certificate" ]; then
         step "Waiting for $url to answer over HTTPS with the server's own certificate, which an IP address gets: up to a minute."
     else
@@ -128,7 +128,7 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     fi
     tries=0
     # any answer of the team server counts, an older protocol's "upgrade first" (426) as much as a welcome (200)
-    until case "$(curl -s ${certificate:+-k} --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-Journal-Protocol: 1' "$url/team")" in 200|426) true ;; *) false ;; esac; do
+    until case "$(curl -s ${certificate:+-k} --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-Journal-Protocol: 1' "$url/library")" in 200|426) true ;; *) false ;; esac; do
         tries=$((tries + 1))
         if [ "$tries" -ge 30 ]; then
             echo "The server runs, but $url does not answer over HTTPS: the certificate for $address could not be got." >&2
@@ -141,10 +141,10 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
 
     echo
     echo "The team server for $project runs at $url."
-    echo "Claim it now from your journal, before anyone else reaches it: Settings, Team tab, Claim a server, with $url;"
-    echo "or journal team join $url. Whoever claims it first becomes the team's admin."
+    echo "Connect to it now from your journal, before anyone else reaches it: Settings, Library, with $url;"
+    echo "or journal library connect $url. Whoever connects first becomes the library's admin."
     echo
-    echo "Invite colleagues afterwards from the Team tab, or with journal team invite <email>: each gets a URL to join with."
+    echo "Invite colleagues afterwards from Settings, Library, or with journal library invite <email>."
 }
 
 main "$@"

@@ -15,8 +15,8 @@ def test_a_worker_compacting_is_held_and_then_back_at_its_work_still_clocked_in(
     story.compaction_begins()
     story.expect_stack(story.agents.subject, Void, WorkingTask, Compacting)
     story.compacted_session_starts()
-    story.agent_runs(story.agents.subject, "proof 1 'parser.py:12, test_reads passes'")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "proof 1 'parser.py:12, test_reads passes'")
+    result.expect_command_passed()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 

@@ -170,9 +170,6 @@ where a noun belongs ("Runs in this order"), or a placeholder where the value is
 more" on a card whose number is set). If a reader has to work out what a label means, the label
 is wrong.
 
-**Notes before memory.** NOTES.md holds what is decided and what is still open; update it
-when either changes, so the next session starts from the record and not from recall.
-
 ## Tests
 
 `journal suite` (scripts/suite.py) runs the whole of `tests/` in parallel shards, one per core but
@@ -200,8 +197,11 @@ assert appears in it; every assert lives inside an expect method of the builder.
 - **Filed by subject, then topic**: `tests/stories/<subject>/<topic>/<behaviour>.py`. The subject is the agent the
   story is about, `main`, `worker`, `subagent`, `reviewer` or `verifier`, read from the folder. Fixtures live in
   `tests/stories/fixtures/<subject>/`.
-- **Every step and agent check names its agent first, written out**: `story.agent_runs(story.agents.subject, "message read 4")`,
-  `story.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
+- **Every step and agent check names its agent first, written out**: `result = story.agent_runs(story.agents.subject, "message read 4")`,
+  `result.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
+- **A check of what a step brought is made on that step's result**: a step returns what it brought, the lines the
+  journal gave, the hook's verdict, the command's outcome or the viewer's answer, and the check is made on it,
+  `result = story.agent_writes(...)`, then `result.expect_refused(...)`; checks of rows and the stack stay on the story.
   `story.agents` holds the subject, the main agent, `workers.first()` and `workers.get(n)`, the same for reviewers and
   verifiers, and the subagent; there are no main_ or worker_ twins of a step.
 - **Its rows by kind**: the rows its fixture made are read on the story by kind and name, `story.tasks.started`,
@@ -236,7 +236,7 @@ nobody decided.
 `events/` (`models/` and `agent/`), `engine/` (the stack of states), `features/` (states, conduct,
 nudges, listeners, commands per subject), `hooks/`, `http/`, `console/`, `providers/`, `launcher/` (the
 picker and the launch file a supervisor starts from). `src/supervisor/` is a separate stdlib-only package that
-knows no journal concept: it runs the processes it is handed and answers its protocol. NOTES.md holds the decisions and what is still open.
+knows no journal concept: it runs the processes it is handed and answers its protocol.
 
 ## Dispatching subagents
 

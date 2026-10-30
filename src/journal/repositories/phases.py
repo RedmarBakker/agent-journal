@@ -6,4 +6,3 @@ PHASE_TASK_LINK = "phase_of"
 
 class Phases(ScopedRepository[Phase]):
     model = Phase
-    member_links = (PHASE_TASK_LINK,)

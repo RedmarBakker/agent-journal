@@ -15,6 +15,9 @@ class OrchestratingPlan(Delegation, FollowingPlan):
     name = "orchestrating_plan"
     title = "Orchestrating a plan"
 
+    def is_mode_bound(self) -> bool:
+        return True
+
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if self.task_id or self.checkpoint_pause:
             return super().on_stop(event, settings)

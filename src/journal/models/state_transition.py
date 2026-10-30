@@ -8,7 +8,6 @@ from journal.models.model import Model
 class StateTransition(Model):
     """One kind of change of an agent's stack, the state on top before, the state on top after and the event that caused it, with how many times it happened and when it was first and last seen; kept apart from the record, which trims its entries."""
 
-    shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False
 
     before_state: str = ""

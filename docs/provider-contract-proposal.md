@@ -485,7 +485,7 @@ The default suite keeps its existing coverage, including
 `test_every_session_start_reads_what_is_in_flight_before_any_other_write` and
 `test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show` in
 `tests/test_features.py`, the routing tests in `tests/test_cli.py` and `tests/test_supervisor.py`,
-and the Claude and Codex replay pairs in `tests/replays/`. They prove the journal's side; they are
+and the stories under `tests/stories/`. They prove the journal's side; they are
 not live tests.
 
 ### 6.2 Default-suite cases
@@ -693,8 +693,7 @@ whole, and revised sections 1 to 9 in place. Section 10 keeps every source, with
 
 1. **Three collaborators and an aggregate became one abstract `Provider`.** The draft's
    `Provider` only returned an `Installation`, a `Protocol` and a `Sessions`, which is a service
-   locator: every caller had to pick a part. The code already has the one place, `Provider`, and
-   `NOTES.md` records it as such; the fault is that it is not abstract and that its knowledge leaks.
+   locator: every caller had to pick a part. The code already has the one place, `Provider`; the fault is that it is not abstract and that its knowledge leaks.
    One class per provider, with support values per file, fits "one concept, one place".
 2. **`Sessions` was cut.** Its `submit`, `delivery`, `control`, `interrupt`, `terminate` and `status`
    restate what `SupervisorLink`, `TypedLines`, `ConfirmTyped`, `RetypeLost` and the supervisor

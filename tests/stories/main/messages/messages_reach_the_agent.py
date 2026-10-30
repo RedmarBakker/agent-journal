@@ -17,8 +17,8 @@ from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 
 @story(TwoUnreadMessages, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_two_unread_messages_are_named_by_number_at_the_stop(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGES, ns=f"{story.messages.first}, {story.messages.second}")
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGES, ns=f"{story.messages.first}, {story.messages.second}")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -26,8 +26,8 @@ def test_two_unread_messages_are_named_by_number_at_the_stop(story):
 def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
     third = story.user_sends_message("one more thing")
     fourth = story.user_sends_message("and the last one")
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.UNREAD_MESSAGES, count=len((story.messages.first, story.messages.second, third, fourth)))
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.UNREAD_MESSAGES, count=len((story.messages.first, story.messages.second, third, fourth)))
     story.expect_message(story.messages.first, author="user")
     story.expect_message(story.messages.second, author="user")
     story.expect_stack(story.agents.subject, Ready)
@@ -36,24 +36,24 @@ def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_message_read_is_not_named_again_at_the_stop(story):
     story.agent_replies(story.agents.subject, story.messages.first, "it is")
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(EndedSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_message_left_while_no_session_ran_is_named_at_the_next_start(story):
     message = story.user_sends_message("start with the header tomorrow")
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(EndedSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_message_is_named_when_the_user_resumes_the_session(story):
     message = story.user_sends_message("the header first")
-    story.agent_resumes_the_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
+    result = story.agent_resumes_the_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGE, n=message)
     story.expect_stack(story.agents.subject, Ready)
 
 

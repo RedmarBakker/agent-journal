@@ -2,7 +2,7 @@ from journal.events.blocking import Blocking
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.card_type_catalogue import AGENT, JOURNAL, WORK
+from journal.support.card_type_catalogue import AGENT, WORK
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.tasks.listeners.testing_run_end import TestingRunEnd
@@ -25,13 +25,10 @@ from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
-from journal.features.tasks.listeners.pulled_task_moves import PulledTaskMoves
 from journal.features.tasks.listeners.release_waits import ReleaseWaits
 from journal.features.tasks.listeners.task_move_cards import TaskMoveCards
 from journal.features.tasks.listeners.impasse_card import ImpasseCard
 from journal.features.tasks.listeners.reply_task_links import ReplyTaskLinks
-from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
-from journal.features.tasks.listeners.request_outcome_card import RequestOutcomeCard
 from journal.features.tasks.tasks_demands import TasksDemands
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
@@ -43,8 +40,8 @@ from journal.features.tasks.commands.worker_task_command import WorkerTaskComman
 
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
-    card_families = (CardFamily("tasks", "Tasks", "task", WORK), CardFamily("impasse", "Agent stuck", "warn", AGENT), CardFamily("requests", "Requests", "inbox", JOURNAL),)
-    card_types = (CardTypeEntry(CardType.TASK_MOVES, "Tasks started and completed", "tasks"), CardTypeEntry(CardType.TASK_PAUSES, "Tasks paused and blocked", "tasks"), CardTypeEntry(CardType.IMPASSE, "Agent stuck", "impasse"), CardTypeEntry(CardType.REQUESTS, "Requests filed for you", "requests"),)
+    card_families = (CardFamily("tasks", "Tasks", "task", WORK), CardFamily("impasse", "Agent stuck", "warn", AGENT))
+    card_types = (CardTypeEntry(CardType.TASK_MOVES, "Tasks started and completed", "tasks"), CardTypeEntry(CardType.TASK_PAUSES, "Tasks paused and blocked", "tasks"), CardTypeEntry(CardType.IMPASSE, "Agent stuck", "impasse"))
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)
@@ -54,13 +51,13 @@ class Tasks(Feature[TasksData]):
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (UnusedWaitChecks,)
-    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION), (PulledTaskMoves, Blocking.NEXT_DECISION))
-    listeners = (TestingRunEnd, PausedDeclineClearing, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard)
+    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION))
+    listeners = (TestingRunEnd, PausedDeclineClearing, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.STOPPED_WITH_WORK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_PAUSED_TASK, TasksNudges.TEST_FAILURE, TasksNudges.TESTING_SUGGESTION, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED, TasksNudges.TASK_ARRIVED)
+    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.STOPPED_WITH_WORK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_PAUSED_TASK, TasksNudges.TEST_FAILURE, TasksNudges.TESTING_SUGGESTION, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.TASKS_RELEASED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED, TasksNudges.TASK_ARRIVED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks

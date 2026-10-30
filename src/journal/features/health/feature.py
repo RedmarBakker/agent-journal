@@ -21,6 +21,6 @@ class Health(Feature[UncheckedWork]):
     seeds = (HookHealthSeed,)
     jobs = (DatabaseBackup,)
     commands = (SupervisionCommand,)
-    nudges = (HealthNudges.UNCHECKED_WORK,)
+    nudges = (HealthNudges.UNCHECKED_WORK, HealthNudges.PANIC_WATCH)
     data = (UncheckedWorkReader,)
     conduct = (HealthConduct,)

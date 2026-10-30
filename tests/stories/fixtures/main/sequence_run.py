@@ -17,5 +17,5 @@ class SequenceRun(StateFixture):
         story.agent_runs(story.agents.main, f"sequence run {self.sequences.first}")
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, SequencesNudges.PENDING_STEP, n=self.sequences.first, step=1)
+        story.last_step.expect_agent_told(story.agents.main, SequencesNudges.PENDING_STEP, n=self.sequences.first, step=1)
         story.expect_stack(story.agents.main, Ready, FollowingSequence)

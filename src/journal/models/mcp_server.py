@@ -1,5 +1,4 @@
-from typing import ClassVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from journal.models.model import Model
 
@@ -8,7 +7,6 @@ from journal.models.model import Model
 class McpServer(Model):
     """An MCP server the project's agents use: how to start or reach it, the key it needs, and its status when last checked."""
 
-    shared: ClassVar[bool] = False
 
     name: str = ""
     title: str = ""

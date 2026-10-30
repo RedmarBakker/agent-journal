@@ -7,7 +7,7 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.machine_load import MachineLoad
 from journal.support.time_source import TimeSource
 from tests.observation import Observation, Observer
-from tests.replay import typing_capture, hook_as
+from tests.agent_hooks import typing_capture, hook_as
 from tests.simulation.commit_ledger import CommitLedger
 
 START_SECONDS = 1_800_000_000.0

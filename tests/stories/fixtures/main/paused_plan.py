@@ -17,6 +17,6 @@ class PausedPlan(StateFixture):
         story.user_pauses_plan(self.plans.first)
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, PlansNudges.PLAN_POSTPONED, n=self.plans.first)
+        story.last_step.expect_agent_told(story.agents.main, PlansNudges.PLAN_POSTPONED, n=self.plans.first)
         story.expect_plan(self.plans.first, state=PlanState.PAUSED)
         story.expect_task(self.tasks.first, state=TaskState.PAUSED)

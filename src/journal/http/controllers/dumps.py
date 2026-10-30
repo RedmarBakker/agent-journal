@@ -1,6 +1,6 @@
 from journal.db.query import Query
 from journal.features.dumps.support.dump_filer import DumpFiler
-from journal.sync.attachments import Attachments
+from journal.features.messages.support.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request

@@ -21,8 +21,7 @@ The band is low, normal or high, per mode, on the smoothed worker queue:
 | Builder | 0.5 | 0.4 | 0.3 | 0.4 |
 
 A band stays at least 10 minutes; high is left once no worker item has waited 5 minutes and is never entered on a queue
-empty that long. Solo has no band. The numbers were chosen by `scripts/band_replay.py` over a week of history (NOTES,
-Fitness measures).
+empty that long. Solo has no band. The numbers were chosen by `scripts/band_replay.py` over a week of history.
 
 ## The measures
 

@@ -24,7 +24,6 @@ from journal.features.shell.support.shell_runner import EXIT
 from journal.support.response import Response
 from journal.engine.support.launch_files import LaunchFiles
 from journal.features.shell.support.background_commands import BackgroundCommands
-from journal.sync.team_accounts import TeamAccounts
 
 ACTOR_HEADER = "x-journal-actor"
 THREAD_HEADER = "x-journal-thread"
@@ -34,8 +33,8 @@ EXEC = "__journal_exec"
 class CliController:
     """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's. A background command's printed lines go out as they are printed, into the output its shell line writes, with its errors and exit line once it ends."""
 
-    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands, worker_lines: WorkerAliasLine, plain_lines: PlainAliasLine, registry: Registry) -> None:
-        self.accounts, self.background, self.registry = accounts, background, registry
+    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, background: BackgroundCommands, worker_lines: WorkerAliasLine, plain_lines: PlainAliasLine, registry: Registry) -> None:
+        self.background, self.registry = background, registry
         self.alias_lines = {WorkerAliasLine: worker_lines, PlainAliasLine: plain_lines}
         self.console, self.tokens, self.subagents, self.launches, self.providers, self.aliases = console, tokens, subagents, launches, providers, aliases
         self.identity = identity
@@ -101,6 +100,6 @@ class CliController:
         return self.console.run(argv, self.caller(variables, argv, request))
 
     def caller(self, variables: CallerVariables, argv: list[str], request: Request) -> Caller:
-        caller = (variables if self.launches.is_launch(variables.environment, variables.launch) else replace(variables, agent_shell=False)).caller(self.accounts.person_in(variables.environment))
+        caller = (variables if self.launches.is_launch(variables.environment, variables.launch) else replace(variables, agent_shell=False)).caller()
         subagent = self.subagents.subagent_session(caller, argv, request.headers.get(ACTOR_HEADER), request.headers.get(THREAD_HEADER))
         return caller if subagent is None else caller.subagent_caller(subagent)

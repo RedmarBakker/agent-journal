@@ -10,6 +10,6 @@ HELPER_LINES = ("tests turn tests/test_parser.py", "clock-in", "clock-out 'done'
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_main_agent_is_refused_every_verb_only_a_helper_runs(story):
     for line in HELPER_LINES:
-        story.agent_runs(story.agents.subject, line)
-        story.expect_command_refused()
+        result = story.agent_runs(story.agents.subject, line)
+        result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)

@@ -11,15 +11,15 @@ from tests.stories.fixtures.verifier.verifier_judging_dismissal import VerifierJ
 
 @story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_sound_verdict_ends_the_verifier_and_tells_the_agent_nothing_against_it(story):
-    story.agent_runs(story.agents.subject, f"verdict give {SOUND_VERDICT} 'the reader shows the one line the run printed'")
-    story.expect_command_passed()
-    story.expect_agent_not_told(story.agents.main, ShellNudges.REPORT_REFUTED)
+    result = story.agent_runs(story.agents.subject, f"verdict give {SOUND_VERDICT} 'the reader shows the one line the run printed'")
+    result.expect_command_passed()
+    result.expect_agent_not_told(story.agents.main, ShellNudges.REPORT_REFUTED)
     story.expect_stack(story.agents.subject, Void, Verifying, Ended)
 
 
 @story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_verdict_against_the_dismissal_tells_the_agent_its_dismissal_was_refuted(story):
-    story.agent_runs(story.agents.subject, f"verdict give {REFUTED_VERDICT} 'the reader hides the line the run printed'")
-    story.expect_command_passed()
-    story.expect_agent_told(story.agents.main, ShellNudges.REPORT_REFUTED)
+    result = story.agent_runs(story.agents.subject, f"verdict give {REFUTED_VERDICT} 'the reader hides the line the run printed'")
+    result.expect_command_passed()
+    result.expect_agent_told(story.agents.main, ShellNudges.REPORT_REFUTED)
     story.expect_stack(story.agents.subject, Void, Verifying, Ended)

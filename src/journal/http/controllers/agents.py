@@ -7,13 +7,10 @@ from journal.features.pausing.agent_pause import AgentPause
 from journal.features.schedules.job_stop import JobStop
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.http.agents.agent_activity import AgentActivity
-from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_JOB_STOP, AGENT_PAUSE, AGENT_RESUME, AGENT_SHELL, AgentBarWrites
+from journal.http.agents.agent_bar_writes import AgentBarWrites
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.controllers.controller import Controller
 from journal.features.edits.support.image_files import ImageFiles
-from journal.http.counts import Counts
-from journal.http.listing import Listing
-from journal.http.row_list import RowList
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.http.support.sandboxed_file_response import SandboxedFileResponse
@@ -24,11 +21,7 @@ from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.edits import Edits
-from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.environments import Environments
-from journal.models.environment import Environment
-from journal.sync.hosts import Hosts
-from journal.sync.remote_agents import RemoteAgents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from journal.support.time_source import TimeSource
@@ -43,18 +36,11 @@ class AgentController(Controller[Agent]):
     repository: Agents
 
     def __init__(self, agents: Agents, activity: AgentActivity, supervisor: SupervisorLink, terminal_lines: TerminalLines, edits: Edits, scope: Scope, environments: Environments,
-                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, job_stop: JobStop, writes: AgentBarWrites, hosts: Hosts, owners: EnvironmentOwners, remote: RemoteAgents, time_source: TimeSource) -> None:
+                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, job_stop: JobStop, writes: AgentBarWrites, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.repository, self.activity, self.supervisor, self.terminal_lines, self.file_edits, self.scope = agents, activity, supervisor, terminal_lines, edits, scope
         self.environments, self.providers, self.running, self.config, self.pausing, self.job_stop = environments, providers, active, config, pausing, job_stop
-        self.writes, self.hosts, self.owners, self.remote = writes, hosts, owners, remote
-
-    def listed(self, listing: Listing) -> RowList:
-        environment = self.environment()
-        if self.hosts.is_host(environment):
-            return super().listed(listing)
-        rows = self.remote.rows(environment, self.time_source.seconds())
-        return RowList(rows=rows, is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0))
+        self.writes = writes
 
     def open_rows(self, query: Query) -> Query:
         return query.filter_unequal("state", ENDED_STATE)
@@ -80,8 +66,6 @@ class AgentController(Controller[Agent]):
 
     def shell(self, request: Request) -> Response:
         command = request.body.get("command", "").strip()
-        if command and not self.hosts.is_host(self.environment()):
-            return self.host_request(request, AGENT_SHELL, {"command": command})
         if command:
             self.writes.shell(self.repository.find(request.number("id")), command)
         return Response.json({"queued": bool(command)})
@@ -93,8 +77,6 @@ class AgentController(Controller[Agent]):
 
     def control(self, request: Request) -> Response:
         action, value = request.body.get("action", ""), request.body.get("value", "")
-        if not self.hosts.is_host(self.environment()):
-            return self.host_request(request, AGENT_CONTROL, {"action": action, "value": value})
         self.writes.control(self.repository.find(request.number("id")), action, value)
         return Response.json({"queued": True})
 
@@ -125,43 +107,19 @@ class AgentController(Controller[Agent]):
         return SandboxedFileResponse(mimetypes.guess_type(file.name)[0] or "application/octet-stream", file.read_bytes())
 
     def session(self, id: int) -> str:
-        environment = self.environment()
-        if self.hosts.is_host(environment):
-            return self.repository.find(id).session
-        sessions = [row["session"] for row in self.remote.rows(environment, self.time_source.seconds()) if row["id"] == id]
-        if not sessions:
-            raise Rejection(f"agent {id} is not running in {environment.name}")
-        return sessions[0]
+        return self.repository.find(id).session
 
     def terminal(self, request: Request) -> Response:
-        if not self.hosts.is_host(self.environment()):
-            return Response.json(self.remote.terminal(self.environment(), request.number("id"), request.queried("after"), self.time_source.seconds()))
         return Response.json(self.terminal_lines.lines(self.repository.find(request.number("id")), request.queried("after")))
 
     def pause(self, request: Request) -> Response:
-        if not self.hosts.is_host(self.environment()):
-            return self.host_request(request, AGENT_PAUSE, {})
         return Response.json(self.shown(self.pausing.pause(self.repository.find(request.number("id")), request.actor)))
 
     def resume(self, request: Request) -> Response:
-        if not self.hosts.is_host(self.environment()):
-            return self.host_request(request, AGENT_RESUME, {})
         return Response.json(self.shown(self.pausing.resume(self.repository.find(request.number("id")), request.actor)))
 
     def stop_job(self, request: Request) -> Response:
-        if not self.hosts.is_host(self.environment()):
-            return self.host_request(request, AGENT_JOB_STOP, {"job_id": request.params["job"]})
         self.job_stop.stop(self.repository.find(request.number("id")), request.params["job"], request.actor)
-        return Response.json({"asked": True})
-
-    def environment(self) -> Environment:
-        return self.environments.find(self.scope.id)
-
-    def host_request(self, request: Request, type_name: str, body: dict) -> Response:
-        environment = self.environment()
-        if self.owners.owner_number(environment.row_id) != request.actor.number():
-            raise Rejection(f"the agent in {environment.name} is {self.owners.owner_name(environment.row_id)}'s: only they change it")
-        self.hosts.ask(environment, type_name, {"agent_id": request.number("id"), **body}, request.actor)
         return Response.json({"asked": True})
 
     def skip_step(self, request: Request) -> Response:

@@ -13,6 +13,5 @@ class VerifierHelper(Helper):
     first_state = Verifying
     features = (Verification, PluginsFeature)
     commands = (
-        (VerdictCommand, "give"),
-        (VerdictCommand, "model"),
+        (VerdictCommand, ("give", "model")),
     )

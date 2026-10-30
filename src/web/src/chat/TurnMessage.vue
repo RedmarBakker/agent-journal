@@ -25,7 +25,6 @@ import {quoted} from "../format/quote.js";
 import {reportOf} from "../domain/report.js";
 import {EARLIER, answered} from "../domain/thread.js";
 import {pendingRow} from "../domain/placeholders.js";
-import {colleagueColour} from "../domain/people.js";
 import {focusTurn, laidOut} from "../platform/view.js";
 import {optimistic} from "../sync/rows.js";
 import {growHeight} from "./arrival.js";
@@ -53,8 +52,7 @@ const fromMainQuote = computed(
         `Message ${props.turn.id} ${props.turn.data.sent_to ? `to ${props.turn.data.sent_to}` : `from ${props.turn.data.peer || "the main agent"}`}`
 );
 const opening = computed(() => Boolean(props.turn.data?.opening));
-const colleague = computed(() => colleagueColour(props.turn.creator, store.people));
-const mine = computed(() => props.turn.who === "user" && !colleague.value);
+const mine = computed(() => props.turn.who === "user");
 const reactions = computed(() => {
     const seen = {};
     for (const r of rowsOf("reactions").filter((r) => r.message_id === props.turn.id)) (seen[r.emoji] ||= []).push(r.author);
@@ -114,7 +112,6 @@ async function drop() {
             'thread-turn',
             {
                 mine,
-                colleague,
                 incoming: received && !sent,
                 report,
                 ask: turn.kind === 'question',
@@ -125,7 +122,6 @@ async function drop() {
             },
         ]"
         :data-ref="turn.key"
-        :style="colleague ? {'--person-colour': colleague} : null"
         :data-figure-agent="turn.who === 'agent' ? '' : null"
         @mouseleave="picking = false"
     >
@@ -155,9 +151,6 @@ async function drop() {
                 :task-id="turn.data.task || reportedTask?.id || 0"
                 :text="report.text"
             />
-        </template>
-        <template v-if="turn.who === 'colleague'">
-            <p class="thread-who">{{ (turn.data || {}).colleague }}</p>
         </template>
         <div
             v-show="bubbled && !opening && !report && !fromMain"
@@ -259,10 +252,6 @@ async function drop() {
     background: color-mix(in srgb, var(--accent) 17%, var(--bg));
 }
 
-.thread-turn.colleague .thread-bubble {
-    background: color-mix(in srgb, var(--person-colour) 13%, var(--bg));
-}
-
 .thread-turn.report .thread-bubble {
     border-left: 3px solid color-mix(in srgb, var(--tone-work) 55%, transparent);
     background: color-mix(in srgb, var(--tone-work) 6%, var(--bubble));
@@ -303,15 +292,6 @@ async function drop() {
 .thread-results :deep(svg) {
     width: 13px;
     height: 13px;
-}
-
-/* a colleague's name above their message, in their own colour */
-.thread-who {
-    margin: 0 0 3px;
-    padding: 0 2px;
-    color: var(--person-colour);
-    font-size: 11px;
-    font-weight: 500;
 }
 
 .thread-ask-label {

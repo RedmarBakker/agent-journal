@@ -14,17 +14,9 @@ from tests.stories.fixtures.main.started_plan import StartedPlan
 def test_a_plan_given_whole_to_a_worker_is_delegated_and_not_started_for_the_agent(story):
     story.agent_dispatches_worker_on_plan(story.agents.subject, "Lady Lovelace", story.plans.first)
     story.expect_plan(story.plans.first, state=PlanState.DELEGATED)
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_plan(story.plans.first, state=PlanState.DELEGATED)
     story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
-
-
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_plan_with_one_task_given_to_a_worker_while_the_agent_holds_another_stays_started(story):
-    story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.second)
-    story.expect_plan(story.plans.first, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, state=TaskState.STARTED)
-    story.expect_stack(story.agents.subject, Ready, FollowingPlan, ExternalWait)

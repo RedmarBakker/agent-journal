@@ -16,12 +16,12 @@ from journal.models.alias import Alias
 from journal.features.aliases.support.plain_alias_line import PlainAliasLine
 
 class Helper(Role):
-    """What one helper is and may do, said in its own file alone: its role, the state its stack starts with over Void, the features turned on whole for it (the conduct, listeners and data each gives its role), the listeners turned on alone, and the command verbs it runs, each a command and one of its verbs; nothing else of the journal reaches it."""
+    """What one helper is and may do, said in its own file alone: its role, the state its stack starts with over Void, the features turned on whole for it (the conduct, listeners and data each gives its role), the listeners turned on alone, and the command verbs it runs, each command once with its verbs; nothing else of the journal reaches it."""
 
     role: ClassVar[AgentRole]
     first_state: ClassVar[type[BaseState]] = Void
     features: ClassVar[tuple[type[Feature], ...]] = ()
-    commands: ClassVar[tuple[tuple[type[Command], str], ...]] = ()
+    commands: ClassVar[tuple[tuple[type[Command], tuple[str, ...]], ...]] = ()
     listeners: ClassVar[tuple[type[Listener], ...]] = ()
 
     @classmethod
@@ -30,7 +30,7 @@ class Helper(Role):
 
     @classmethod
     def runs(cls, command: type[Command], verb: str) -> bool:
-        return (command, verb) in cls.commands
+        return any(listed is command and verb in verbs for listed, verbs in cls.commands)
 
     @classmethod
     def conducts(cls, features: tuple[type[Feature], ...]) -> tuple[type[Conduct], ...]:

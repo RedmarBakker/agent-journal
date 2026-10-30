@@ -20,7 +20,7 @@ class BranchHolders:
         return subprocess.run(["git", "-C", str(folder), "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, timeout=GIT_SECONDS).stdout.strip()
 
     def branch_environments(self, environment: Environment) -> dict[str, str]:
-        active = [candidate for candidate in self.supervisor.running(self.environments.working()) if candidate.row_id != environment.row_id]
+        active = [candidate for candidate in self.supervisor.running(self.environments.rows()) if candidate.row_id != environment.row_id]
         return {branch: candidate.name for candidate in active if (branch := self.checkout_branch(candidate))}
 
     def start_refusal(self, environment: Environment) -> str:

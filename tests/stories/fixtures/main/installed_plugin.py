@@ -19,4 +19,4 @@ class InstalledPlugin(StateFixture):
         story.user_types(f"plugin install {ECHO} --yes")
 
     def expected(self, story) -> None:
-        story.expect_command_text(f"installed {self.plugins.first}, on")
+        story.last_step.expect_command_text(f"installed {self.plugins.first}, on")

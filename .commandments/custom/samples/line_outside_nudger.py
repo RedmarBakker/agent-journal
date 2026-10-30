@@ -5,6 +5,7 @@ class Greeter:
         self.nudger, self.supervisor, self.nudge = nudger, supervisor, nudge
 
     def typed(self, environment_id: int) -> None:
+        # @sin LineOutsideNudgerDetector
         self.supervisor.type(environment_id, self.nudge.rendered())
 
     def delivered(self, agent, environment_id: int) -> None:

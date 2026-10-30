@@ -14,8 +14,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_memory_added_at_the_mark_is_shown_at_the_next_session_start(story):
     story.agent_adds_memory(story.agents.subject, "the footer links go in a list", HEAVIEST)
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -23,16 +23,16 @@ def test_a_memory_added_at_the_mark_is_shown_at_the_next_session_start(story):
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reminder_is_shown_at_the_next_session_start(story):
     story.agent_runs(story.agents.subject, "reminder create 'check the footer on a phone'")
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_REMINDERS)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_REMINDERS)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(CompactedMemories, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_memory_that_faded_out_is_not_shown_again_and_a_heavier_one_is(story):
     story.agent_looks_at_the_overview(story.agents.subject)
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, BriefingNudges.ENVIRONMENT_MEMORIES)
     story.expect_row_absent("memories", story.memories.light)
     story.expect_row("memories", story.memories.heavy, {"weight": HEAVIEST - 1})
     story.expect_stack(story.agents.subject, Ready)

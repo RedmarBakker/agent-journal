@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from journal.db.connection import Connection
 from journal.events.bus import Bus
@@ -14,7 +14,6 @@ from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
 from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.time_source import TimeSource
 
 
@@ -27,6 +26,10 @@ NEWEST_SHOWN = 2000
 WAITING_HOURS = 24
 # the most cards of running commands docked above a chat, which the viewer reads apart from the chat's pages
 DOCKED_CARD_COUNT = 50
+
+
+# how a message with no files keeps its files column
+EMPTY_FILES_VALUES = ["[]", ""]
 
 
 class Messages(ScopedRepository[Message]):
@@ -42,17 +45,12 @@ class Messages(ScopedRepository[Message]):
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, time_source: TimeSource) -> None:
-        self.owners = owners
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, time_source: TimeSource) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.reactions, self.links = reactions, links
 
     def save(self, row: Message, actor: Actor) -> Message:
         authored = self._placed(row.authored(actor.agent_session()))
-        if authored.is_unsaved_user_message() and self.owners.is_commenter(actor, authored.environment_id):
-            authored = authored.commented(self.owners.person_name(actor.number()), actor.number())
-        if authored.is_unsaved_user_message() and self.owners.is_teammate(actor, authored.environment_id):
-            authored = authored.with_merged("data", {Message.TEAMMATE: self.owners.person_name(actor.number())})
         if authored.is_new:
             self.check_chat(authored)
         return super().save(authored, actor)
@@ -60,16 +58,6 @@ class Messages(ScopedRepository[Message]):
     def check_chat(self, message: Message) -> None:
         if message.author == Author.SYSTEM and not message.data.get("kind"):
             raise Rejection("a system message has its kind, so the chat knows what it shows")
-
-    def unread_comments(self) -> list[Message]:
-        return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
-
-    def side_thread(self) -> list[Message]:
-        return self.newest(self.query().filter(thread=MessageThread.PEOPLE))
-
-    def fold_target(self, card: Message, cutoff_at: datetime) -> list[Message]:
-        newest = self.selected_globally(self.main_chat().filter(environment_id=card.environment_id).order_descending("id").limit(1))
-        return [message for message in newest if message.takes_fold(card, cutoff_at)]
 
     def main_chat(self) -> Query:
         return self.query().filter(thread=MessageThread.MAIN)
@@ -83,6 +71,9 @@ class Messages(ScopedRepository[Message]):
     def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[Message]:
         chat = self.search_rows(self.main_chat(), terms, limit)
         return [*chat, *self.search_rows(self.query().filter_unlisted("thread", (MessageThread.MAIN,)), terms, limit - len(chat))] if len(chat) < limit else chat
+
+    def with_files(self) -> list[Message]:
+        return self.selected(self.query().filter_unlisted("files", EMPTY_FILES_VALUES).order_descending("id"))
 
     def unread(self) -> list[Message]:
         return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))
@@ -175,7 +166,7 @@ class Messages(ScopedRepository[Message]):
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
 
     def unviewed(self) -> int:
-        return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at")) + self.counted(self.main_chat().filter(author=Author.COLLEAGUE).filter_json("data->viewed", 0))
+        return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at"))
 
     def visitor_messages(self, share_id: int) -> list[Message]:
         return self.selected(self.query().filter_json("data->share", share_id).order("id"))
@@ -187,7 +178,7 @@ class Messages(ScopedRepository[Message]):
         return list(reversed(self.selected(self.query().filter_prefix("data->key", "commit:").filter_greater_equal("created_at", start).filter_less("created_at", end).order_descending("id").limit(last))))
 
     def message_count(self) -> int:
-        return self.stored_matching_count(self.query().filter_listed("author", [Author.USER.value, Author.AGENT.value, Author.COLLEAGUE.value]))
+        return self.stored_matching_count(self.query().filter_listed("author", [Author.USER.value, Author.AGENT.value]))
 
     def keyed(self, key: str, actor: Actor) -> list[Message]:
         return self.selected(self.query().filter_json("data->key", key).filter(creator=actor))
@@ -228,10 +219,6 @@ class Messages(ScopedRepository[Message]):
     def recent(self, last: int) -> list[Message]:
         return self.window(self.main_chat(), last)
 
-    def exchanges(self, last: int) -> list[Message]:
-        chat = self.main_chat().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter(author=Author.AGENT).filter_present("reply_target"))
-        return self.window(chat, last)
-
     def comments_query(self) -> Query:
         return self.comment_query(self.link_query.filter(link_type=self.COMMENT_LINK))
 
@@ -250,10 +237,6 @@ class Messages(ScopedRepository[Message]):
         return list(reversed(rows))
 
     def read(self, message: Message, actor: Actor, tool_use: int) -> Message:
-        if self.owners.is_colleague(actor, message.environment_id):
-            return message
-        if message.is_comment() and actor.can_read_comments():
-            return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
         return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use, self.commented_writing(message)), actor)
 
     def commented_writing(self, message: Message) -> str | None:

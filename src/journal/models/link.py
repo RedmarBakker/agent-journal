@@ -7,14 +7,10 @@ from journal.models.support.ref import Ref
 
 @dataclass(frozen=True, kw_only=True)
 class Link(Model):
-    """A relation between any two rows. Models declare no relations themselves; every one is a row here, with a kind that says what it means. A deleted row takes its links with it, but for a copy's link to the row it was copied from and an attachment's link from the document attached, which stay to show their source removed."""
+    """A relation between any two rows. Models declare no relations themselves; every one is a row here, with a kind that says what it means. A deleted row takes its links with it."""
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "link_type"}
 
-    COPY_SOURCE: ClassVar[str] = "copied_from"
-    ATTACHMENT: ClassVar[str] = "attached_to"
-    SURVIVING_SOURCE: ClassVar[tuple[str, ...]] = (ATTACHMENT,)
-    SURVIVING_TARGET: ClassVar[tuple[str, ...]] = (COPY_SOURCE,)
 
     source: Ref
     target: Ref

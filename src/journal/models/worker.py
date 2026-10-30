@@ -73,7 +73,6 @@ class Worker(Helper):
     dispatcher: str | None = None
     resume: str = ""
     adopted: bool = False
-    device: str = ""
     began: float = 0.0
     recovered_session: str = ""
     touched_paths: tuple[str, ...] | None = None
@@ -84,8 +83,6 @@ class Worker(Helper):
     silence: WorkerSilence = WorkerSilence(SILENCE)
     moves: WorkerMoves = WorkerMoves()
     branch: str = ""
-    pool_request: int = 0
-    base: str = ""
     edited_task: int = 0
     review_pending: bool = False
     failing_runs: int = 0
@@ -244,9 +241,6 @@ class Worker(Helper):
     def finished(self, time: float, reason: str) -> "Worker":
         retired = self.moved("retired", time).with_(adopted=True, retire_reason=reason).with_event(WorkerRetired(environment_id=self.environment_id, time=time, worker=self.mention()))
         return retired.stopped(time, reason) if self.is_running() else retired
-
-    def is_device(self, device: str) -> bool:
-        return self.device == device
 
     def is_running(self) -> bool:
         return self.state in (WorkerState.DISPATCHED, WorkerState.READY)

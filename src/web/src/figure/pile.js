@@ -63,7 +63,7 @@ export const VOICE_FACES = {
 };
 
 // The clip every voice plays when the agent puts one of these faces on a message, beside its own
-export const EVERY_VOICE_FACES = {"🙏": "thanks"};
+export const EVERY_VOICE_FACES = {"🙏": "thanks", "😠": "tantrum", "😡": "tantrum"};
 
 // the look the eyes take on at a face the user puts on a message, which is aimed at the figure, so it always answers
 const USER_FACES = {
@@ -117,7 +117,7 @@ export const PILE = [
         {...showpiece(clip("bug_smash", 2)), toward: "", onto: false},
         clip("nod", 2),
     ]),
-    ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
+    ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), clip("tantrum", 3), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [clip("nod", 2), nothing(2)]),
     // a sin the commandments plugin found repented: now and then a halo over the head and a serene, holy look
     ...at("sin_fixed", {cooldown: 300}, [clip("halo", 1), nothing(2)]),
@@ -136,17 +136,17 @@ export const PILE = [
     ...at("read_message", {cooldown: 30}, [gaze("read", 3), nothing(1)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
     ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [clip("nod", 2), nothing(9)]),
-    // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes;
+    // a bar the figure was eager for has ended, as its card says: it celebrates, fumes, or loses its temper in its own voice's tantrum;
     // either holds, playing to its end whatever comes, as the eagerness before it does (figure.js eager)
     ...at("bar_done", {holds: true}, celebrations()),
-    ...at("bar_failed", {holds: true}, [clip("fume", 1)]),
+    ...at("bar_failed", {holds: true}, [clip("fume", 1), clip("tantrum", 3)]),
     // standing still or thinking, it glances aside now and then, at uneven times, so standing still is never the same loop
     ...at("standing", {cooldown: 12}, [clip("look_left", 2), clip("look_right", 2), clip("look_up", 1), nothing(40)]),
     // landing from a launch it very rarely trips and falls to its knees
     ...at("launched", {cooldown: 300}, [clip("tumble", 3), nothing(47)]),
     // a break from the hammering now and then
     ...at("building", {cooldown: 30}, [clip("wipe_brow", 4), clip("look_left", 1), clip("look_right", 1), nothing(69)]),
-    ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), nothing(2)]),
+    ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), clip("tantrum", 2), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
     // while the agent thinks, the thinking act, at most once in 30 to 60 seconds, and nothing of thinking between plays; its two parts

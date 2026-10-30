@@ -12,7 +12,6 @@ class Entry(Scoped):
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "entry_type"}
 
-    shared: ClassVar[bool] = False
 
     timeline_visible: ClassVar[bool] = False
 

@@ -63,6 +63,8 @@ test("a memories mark opens to two groups shut until clicked: the memories still
     await flush();
     expect([...host.querySelectorAll(".memory-round-ref")].map((ref) => ref.textContent)).toEqual(["Memory 4", "Memory 5", "Memory 6"]);
     expect([...host.querySelectorAll(".memory-round-weight")].map((weight) => weight.textContent)).toEqual(["weight 4 to 3", "faded out at weight 0", "taken out"]);
+    expect(host.querySelector(".memory-round").textContent).not.toContain("the suite runs in shards");
+    expect([...host.querySelectorAll(".memory-round-row")].map((row) => row.textContent.replace(/\s+/g, " ").trim())).toEqual(["Memory 4 weight 4 to 3", "Memory 5 faded out at weight 0", "Memory 6 taken out"]);
 });
 
 test("a memories mark written before rounds were kept opens and says the round was not recorded", async () => {

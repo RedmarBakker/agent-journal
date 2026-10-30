@@ -17,7 +17,6 @@ class RowEvent(Event):
     row_id: int = 0
     session: str = ""
     actor: str = ""
-    bound_environment_ids: tuple[int, ...] = ()
     data: FeatureData = field(default_factory=lambda: FeatureData({}), compare=False)
 
     @property
@@ -36,14 +35,8 @@ class RowEvent(Event):
     def placed(self, environment_id: int, time: float, row_id: int, actor: str) -> "RowEvent":
         return replace(self, environment_id=self.environment_id or environment_id, time=self.time or time, row_id=self.row_id or row_id, actor=actor)
 
-    def with_bound_environments(self, environment_ids: tuple[int, ...]) -> "RowEvent":
-        return replace(self, bound_environment_ids=environment_ids)
-
     def with_environment(self, environment_id: int) -> "RowEvent":
-        return replace(self, environment_id=environment_id, bound_environment_ids=())
-
-    def environment_ids(self) -> tuple[int, ...]:
-        return (self.environment_id, *self.bound_environment_ids)
+        return replace(self, environment_id=environment_id)
 
     def is_users(self) -> bool:
         return bool(self.actor) and Actor.parse(self.actor).is_person()

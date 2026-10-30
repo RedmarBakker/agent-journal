@@ -72,7 +72,7 @@ class FollowingPlan(PlanWork):
             return self.none()
         started = event.data.part(PlansPart).started
         if started is None or event.task_id not in started.recent_tasks:
-            return self.push(Working(task_id=event.task_id, logged_at=event.time, task_noun=self.task_noun))
+            return self.push(Working(task_id=event.task_id, logged_at=event.time))
         return self.swap(replace(self, task_id=event.task_id, checkpoint_pause=False, phase=0, phase_held=False, logged_at=event.time, edits=0))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:

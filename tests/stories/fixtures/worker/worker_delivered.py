@@ -20,5 +20,5 @@ class WorkerDelivered(StateFixture):
 
     def expected(self, story) -> None:
         story.expect_worker(self.workers.first, state=WorkerState.DELIVERED)
-        story.expect_agent_told(story.agents.main, WorkersNudges.WORK_READY)
+        story.last_step.expect_agent_told(story.agents.main, WorkersNudges.WORK_READY)
         story.expect_stack(story.agents.workers.first(), Void)

@@ -12,8 +12,8 @@ MINE = {"hooks": [{"type": "command", "command": "echo mine"}]}
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_setup_wires_the_hooks_the_skills_and_the_law_and_keeps_the_projects_own_rules(story):
     story.project_file_holding("AGENTS.md", "# my project\n\nMy own rules.\n")
-    story.user_types("setup")
-    story.expect_command_text("hooks   .claude/settings.json")
+    result = story.user_types("setup")
+    result.expect_command_text("hooks   .claude/settings.json")
     story.expect_project_file(".claude/settings.json", "SessionStart", "MessageDisplay", "hook.sh claude")
     story.expect_project_file(".claude/skills/journal/SKILL.md", "journal worker merge")
     story.expect_project_file(".claude/skills/journal-workers/SKILL.md", "journal clock-in", "journal worker check")
@@ -39,8 +39,8 @@ def test_setup_run_twice_changes_nothing_the_second_time_and_keeps_the_users_own
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_setup_wires_codex_where_its_folder_exists(story):
     story.project_file_holding(".codex/config.toml", "")
-    story.user_types("setup")
-    story.expect_command_text("hooks   .codex/hooks.json")
+    result = story.user_types("setup")
+    result.expect_command_text("hooks   .codex/hooks.json")
     story.expect_stack(story.agents.subject, Ready)
 
 

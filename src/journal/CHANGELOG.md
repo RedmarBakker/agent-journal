@@ -2,6 +2,20 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.1
+
+- A launcher, a journal command, a shell line or a hook that finds another project's journal on its port no longer uses it: every request names its project, a journal refuses one that names another, and the launcher and the command treat that journal as none, so a launch never resumes another project's session.
+- The Attachments list on the Documents page shows every file attached to a message again; it only looked at the newest hundred messages.
+- An update waiting for running commands names them on the update cover, and the chat no longer logs errors while the cover is up.
+- The Slow requests section of the Developer tab has its own switch, off by default.
+- The sidebar's Plans item counts the open plans.
+- A stop with a started plan and a task in hand is held as it should be; it was let through.
+- A memory's weight may rise at a context mark, never fall, and the fade mark counts the memories it removed, one line each.
+- The paused task line during a wait comes once per task in hand instead of at every wait.
+- A mode change says the new mode and the command that shows what it asks.
+- A plugin's answer is read even when the journal holds more than a thousand open files.
+- A Codex worker's job is the first message of its chat, and a third await sent back is accepted with its reason.
+
 ## 4.68.0
 
 - The journal decides which of its work must come before a hook or a command answers: only what refuses, speaks or writes a row the agent's next step reads runs first; the rest, its measurements, logs and most marks, runs just after the answer, so hooks answer sooner.

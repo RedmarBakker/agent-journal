@@ -12,10 +12,8 @@ import StatusLabel from "../kit/StatusLabel.vue";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
 import {matches} from "../domain/settingsCatalog.js";
-import {colleagueOwner, isShared} from "../domain/people.js";
 
 const props = defineProps({query: {type: String, default: ""}});
-const hosted = computed(() => Boolean(store.people && store.people.hosted));
 const leftTrees = ref([]);
 const loadLeftTrees = async () => (leftTrees.value = (await api.leftWorktrees()).worktrees);
 onMounted(loadLeftTrees);
@@ -32,9 +30,7 @@ const envRows = computed(() =>
             state: envState(standing),
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
-            worktree: hosted.value ? "" : (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
-            shareable: Boolean(store.people.device) && standing.environment.environment_type === "local" && !colleagueOwner(standing.environment.id, store.people),
-            shared: isShared(standing.environment),
+            worktree: (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
         }))
         .filter((row) => matches(`${row.name} environment`, props.query))
         .sort((a, b) => here(b.name) - here(a.name) || a.name.localeCompare(b.name))
@@ -70,15 +66,6 @@ async function removeLeftTree(tree) {
     try {
         say(row, "done", (await api.removeLeftWorktree(tree.name)).line);
         await loadLeftTrees();
-    } catch (error) {
-        say(row, "refused", error.message);
-    }
-}
-
-async function share(row) {
-    try {
-        await (row.shared ? api.unshareEnvironment(row.id) : api.shareEnvironment(row.id));
-        say(row);
     } catch (error) {
         say(row, "refused", error.message);
     }
@@ -120,11 +107,6 @@ async function remove(row) {
                         <template v-else>
                             <template v-if="row.worktree">
                                 <Btn small :disabled="row.live" v-tip="row.live ? 'End the agent working in it to remove its worktree' : 'Remove this environment\'s worktree folder, keeping its branch'" @click="removeTree(row)">Remove worktree</Btn>
-                            </template>
-                            <template v-if="row.shareable">
-                                <Btn small v-tip="row.shared ? 'Show this environment only in your own sidebar again' : 'Show this environment in every team member\'s sidebar, its chat open to all'" @click="share(row)">
-                                    {{ row.shared ? "Stop sharing" : "Share with the team" }}
-                                </Btn>
                             </template>
                             <Btn
                                 kind="danger"

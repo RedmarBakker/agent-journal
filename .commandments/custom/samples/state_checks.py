@@ -26,14 +26,14 @@ class Activity:
         # @sin SessionPurityStateNameComparedDetector
         return mode in ("builder", "solo")
 
-    def command(self, words: list) -> bool:
+    def command(self, parts: list) -> bool:
         # @righteous SessionPurityStateNameComparedDetector
-        return words == ["journal", "stuck"]
+        return parts == ["journal", "impasse"]
 
     def resting(self, state) -> bool:
         # @sin SessionPurityStateTypeCheckedDetector
         return isinstance(state, Wait)
 
-    def asked(self, state) -> int:
+    def state_count(self, state) -> int:
         # @righteous SessionPurityStateTypeCheckedDetector
         return state.question_id()

@@ -10,7 +10,7 @@ from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.in_process import posted
-from tests.replay import TOOLS
+from tests.agent_hooks import TOOLS
 from tests.stories.builder.agent_steps import AgentSteps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.developer_steps import DeveloperSteps
@@ -20,6 +20,7 @@ from tests.stories.builder.time_steps import TimeSteps
 from tests.stories.builder.main_session import MAIN_SESSION
 from tests.stories.builder.worker_steps import WorkerSteps, worker_session
 from tests.stories.builder.setting_reads import SettingReads
+from tests.stories.builder.step_result import StepResult
 from tests.stories.builder.story_checks import StoryChecks
 from tests.stories.builder.story_rows import StoryRows
 from tests.stories.builder.user_steps import UserSteps
@@ -47,12 +48,15 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.viewer_status, self.viewer_answer = 0, {}
         self.closers: list = []
         self.typed: list[str] = []
+        self.typed_from = 0
         self.mode = BUILDER_MODE
+        self.last_step = StepResult(self, (), None, None, "", 0, 0, {})
 
     def reach(self, fixture: type[StateFixture]) -> None:
         self.fixture = self.copies.reached(self, fixture)
         self.observed("", None, None)
         self.path = [f"starts from {fixture.__name__}"]
+        self.typed_from = len(self.typed)
         self.stack_checked_at = -1
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
@@ -110,14 +114,16 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
     def helper_token(self, stamp: str) -> str:
         return next(launch[ACTOR_TOKEN] for launch in reversed(self.app.helper_launches) if launch.get(ACTOR) == stamp)
 
-    def record_command(self, action: str, outcome: Outcome) -> None:
-        self.observed(action, None, outcome)
+    def record_command(self, action: str, outcome: Outcome) -> StepResult:
+        return self.observed(action, None, outcome)
 
     def unread_settings(self) -> list[str]:
         return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]
 
-    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> None:
+    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> StepResult:
         self.said, steps = self.log.new_entries()
         self.line_keys |= {line.key for line in self.said}
         self.verdict, self.command = verdict, outcome
         self.path += [action, *steps] if action else list(steps)
+        self.last_step = StepResult(self, self.said, verdict, outcome, self.shell_text, self.shell_exit, self.viewer_status, self.viewer_answer)
+        return self.last_step

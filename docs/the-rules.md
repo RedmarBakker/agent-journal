@@ -175,4 +175,4 @@ One row per line the journal may say: the feature, the nudge key, its words with
 
 - Delivering the user's messages to the agent (DeliverMessage, TellInbox), running the agent's commands, the shell runner and its limits, holding every tool while the context compacts (Compacting), ending a session (Ended) and the one session per environment rule are the engine's: no state may change them.
 - What the agent owes the journal, the journal skill to read, the look at what is in flight and the decision at a context mark, is a fact on its row set by a feature's recording listener and held by that feature's conduct; SkillRead, LookTaken and MarkDecided pay the debt.
-- The replays under tests/replays are the record of what the states say; a record is re-frozen only where the conduct changed on purpose, with the reason in the task that changed it.
+- The stories under tests/stories are the record of what the states say: every behaviour that drives the agent is a story, written before its code.

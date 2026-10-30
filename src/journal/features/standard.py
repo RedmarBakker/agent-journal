@@ -4,6 +4,7 @@ from journal.features.checks.feature import Checks
 from journal.features.edits.feature import EditsFeature
 from journal.features.etiquette.feature import Etiquette
 from journal.features.client_errors.feature import ClientErrors
+from journal.features.error_reports.feature import ErrorReports
 from journal.features.faults.feature import Faults
 from journal.features.phone.feature import PhoneFeature
 from journal.features.git.feature import Git
@@ -46,12 +47,12 @@ from journal.features.suggestions.feature import SuggestionsFeature
 from journal.features.record.feature import Record
 from journal.features.health.feature import Health
 from journal.features.voices.feature import Voices
-from journal.features.team.feature import TeamFeature
+
 from journal.features.library.feature import LibraryFeature
 
 
 class Standard:
     """The features the journal ships with, in the order they register."""
 
-    FEATURES = (Skills, Briefing, Memory, Tasks, Messages, Questions, Plans, Sequences, PausingFeature, Usage, Workers, Laws, Triggers, Checks, Shell, Verification, ReviewingFeature, AliasesFeature, Thinking, Mcp, Secrets, Sharing, Delivery, TemplatesFeature, ReportsFeature, DocsFeature, CollectionsFeature, FlowchartsFeature, DumpsFeature, Pins, Etiquette, Voices, Profiles, Git, EditsFeature, PluginsFeature, Faults, ClientErrors, PhoneFeature, MigrationFeature, MentionsFeature, SearchFeature, Updates, SuggestionsFeature, TeamFeature, LibraryFeature, Schedules, Hydration, Record, Health)
+    FEATURES = (Skills, Briefing, Memory, Tasks, Messages, Questions, Plans, Sequences, PausingFeature, Usage, Workers, Laws, Triggers, Checks, Shell, Verification, ReviewingFeature, AliasesFeature, Thinking, Mcp, Secrets, Sharing, Delivery, TemplatesFeature, ReportsFeature, DocsFeature, CollectionsFeature, FlowchartsFeature, DumpsFeature, Pins, Etiquette, Voices, Profiles, Git, EditsFeature, PluginsFeature, Faults, ErrorReports, ClientErrors, PhoneFeature, MigrationFeature, MentionsFeature, SearchFeature, Updates, SuggestionsFeature, LibraryFeature, Schedules, Hydration, Record, Health)
 

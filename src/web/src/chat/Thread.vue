@@ -52,7 +52,6 @@ import PlanCard from "./PlanCard.vue";
 import {planCardChoice} from "../state/planCardChoice.js";
 import {seconds} from "../domain/row.js";
 import {ui} from "../state/ui.js";
-import {useColleague} from "../composables/colleague.js";
 import {approveWithMessage} from "../actions/plans.js";
 
 const scroller = ref(null);
@@ -508,7 +507,6 @@ watch(
     },
     {immediate: true}
 );
-const {colleague, me} = useColleague();
 
 </script>
 
@@ -527,7 +525,7 @@ const {colleague, me} = useColleague();
             <UpdateOverlay :key="updateView.id" />
         </template>
         <template v-if="outputOpen">
-            <OutputDialog :key="outputOpen" :n="outputOpen" :owner="colleague" @close="outputOpen = 0" />
+            <OutputDialog :key="outputOpen" :n="outputOpen" @close="outputOpen = 0" />
         </template>
         <template v-if="chatOpen">
             <div :class="['thread-write', {hidden: feeding}]">
@@ -554,8 +552,8 @@ const {colleague, me} = useColleague();
                 </template>
                 <template v-if="!scope.chat || scope.chat.send">
                     <Compose
-                        :placeholder="colleague ? `Comment as ${me}` : 'Message the agent'"
-                        :submit="colleague ? 'Comment' : 'Send'"
+                        :placeholder="'Message the agent'"
+                        submit="Send"
                         :send="post"
                         :waiting="waitingNow"
                         :quote="quote.text"

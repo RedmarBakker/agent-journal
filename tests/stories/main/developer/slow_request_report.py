@@ -20,8 +20,8 @@ def test_reads_of_fresh_rows_over_their_points_budget_are_reported_to_the_agent_
         story.user_sends_message(f"note {number} on the footer")
         story.user_opens(MESSAGES_ROUTE)
     story.time_travel(seconds=CHECK_INTERVAL_SECONDS)
-    story.user_opens(MESSAGES_ROUTE)
-    story.expect_agent_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS, route=f"GET {MESSAGES_ROUTE}")
+    result = story.user_opens(MESSAGES_ROUTE)
+    result.expect_agent_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS, route=f"GET {MESSAGES_ROUTE}")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -32,10 +32,10 @@ def test_with_the_report_off_nothing_is_told_while_the_requests_are_still_listed
     for _ in range(GATHERED):
         story.user_opens(MESSAGES_ROUTE)
     story.time_travel(seconds=CHECK_INTERVAL_SECONDS)
-    story.user_opens(MESSAGES_ROUTE)
-    story.expect_agent_not_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS)
-    story.agent_runs(story.agents.subject, "developer slowest")
-    story.expect_command_text(MESSAGES_ROUTE)
+    result = story.user_opens(MESSAGES_ROUTE)
+    result.expect_agent_not_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS)
+    result = story.agent_runs(story.agents.subject, "developer slowest")
+    result.expect_command_text(MESSAGES_ROUTE)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -47,6 +47,6 @@ def test_a_points_budget_of_none_reports_no_request(story):
     for _ in range(GATHERED):
         story.user_opens(MESSAGES_ROUTE)
     story.time_travel(seconds=CHECK_INTERVAL_SECONDS)
-    story.user_opens(MESSAGES_ROUTE)
-    story.expect_agent_not_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS)
+    result = story.user_opens(MESSAGES_ROUTE)
+    result.expect_agent_not_told(story.agents.subject, FaultsNudges.SLOW_REQUESTS)
     story.expect_stack(story.agents.subject, Ready)

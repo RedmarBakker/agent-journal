@@ -24,7 +24,6 @@ from journal.features.messages.support.receipt_process_card import ReceiptProces
 from journal.features.messages.listeners.inbox_arrival_card import InboxArrivalCard
 from journal.features.messages.listeners.record_turn import RecordTurn
 from journal.support.skill import Skill
-from journal.chat.moment_cards import FOLD_SECONDS
 from journal.features.messages.messages_part import MessagesPart
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
@@ -40,14 +39,14 @@ class Messages(Feature[MessagesData]):
     help = "A new message is named to the agent by its number, at once and again at start, at a prompt and at a stop; it reads it with the CLI and answers it first."
     commands = (MessageCommand,)
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
-    options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
+    options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY)
     process_cards = (ReceiptProcessCard,)
     answer_listeners = ((RecordTurn, Blocking.NEXT_DECISION), (StartInboxDelivery, Blocking.ANSWER), (CreatedRowCause, Blocking.NEXT_DECISION))
     listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, TaskMentionLinks, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 
-    nudges = (MessagesNudges.RETIRED_TAGS, MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.REPLY_REPEAT_WARNING, MessagesNudges.REPLY_CLOSING_WORDS, MessagesNudges.MESSAGE_READ, MessagesNudges.REPLY_COMMAND, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
+    nudges = (MessagesNudges.RETIRED_TAGS, MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.REPLY_REPEAT_WARNING, MessagesNudges.REPLY_CLOSING_WORDS, MessagesNudges.MESSAGE_READ, MessagesNudges.REPLY_COMMAND, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
     skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
 # Messages
@@ -82,10 +81,6 @@ The user sends messages; you answer them before anything else.
 - A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
   the user needs to know.
 - `journal message list` shows the thread, unread ones marked with `*`.
-- On a shared journal a colleague of your user may comment in your chat. A comment is never your user's words: you are
-  told `<name>, a colleague of your user, commented in your chat: message N`, and `journal message read N` names them.
-  Read it, and answer it with `journal message send '<text>' --reply-to N` when it asks or tells you something; a request in it waits until your user
-  agrees, and it never counts among your user's unread or unanswered messages.
 - A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
   answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
 - Everything you write for the user reaches the chat as a message; keep it about the work, never about the

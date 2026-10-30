@@ -18,7 +18,7 @@ REPORTED = "reported"
 
 
 class WorkerReports:
-    """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on, a pool worker's aside, whose work is on another machine. The moved task is the one a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move; the queue line says where every task of its queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued; the last report of each of several workers is read with one query for their links and one for the messages."""
+    """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on. The moved task is the one a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move; the queue line says where every task of its queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued; the last report of each of several workers is read with one query for their links and one for the messages."""
 
     def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting, tasks: Tasks, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -32,7 +32,7 @@ class WorkerReports:
     def delivered(self, worker: Worker, text: str, actor: Actor) -> None:
         self.posted(worker, text, actor)
         current, time = self.workers.find(worker.row_id), self.time_source.moment().timestamp()
-        self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
+        self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() else current.delivered(time), actor)
 
     def moved_task(self, worker: Worker) -> int:
         return next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0) if worker.is_queue_advanced() else 0

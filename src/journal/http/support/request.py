@@ -62,10 +62,6 @@ class Request:
         return float(value) if value else default
 
     @property
-    def cookie(self) -> str:
-        return self.headers.get("cookie", "")
-
-    @property
     def host(self) -> str:
         return self.headers.get("host", "")
 

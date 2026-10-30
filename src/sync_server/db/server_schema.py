@@ -60,6 +60,17 @@ MIGRATIONS = (
     CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, item_type TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, publisher_id INTEGER NOT NULL, created_at REAL NOT NULL, withdrawn_at REAL NOT NULL DEFAULT 0, UNIQUE (item_type, name));
     CREATE TABLE item_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, number INTEGER NOT NULL, body TEXT NOT NULL, body_hash TEXT NOT NULL, lowest_version TEXT NOT NULL, note TEXT NOT NULL, publisher_id INTEGER NOT NULL, published_at REAL NOT NULL, completed_at REAL NOT NULL DEFAULT 0, UNIQUE (item_id, number));
     """,
+    """
+    DROP TABLE IF EXISTS changes;
+    DROP TABLE IF EXISTS rows;
+    DROP TABLE IF EXISTS id_blocks;
+    DROP TABLE IF EXISTS id_floors;
+    DROP TABLE IF EXISTS push_results;
+    DROP TABLE IF EXISTS leases;
+    DROP TABLE IF EXISTS host_requests;
+    DROP TABLE IF EXISTS pool_capacities;
+    DELETE FROM team_details WHERE name NOT IN ('key', 'name');
+    """,
 )
 
 

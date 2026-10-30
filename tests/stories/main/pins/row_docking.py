@@ -8,8 +8,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_row_docks_above_the_chat_by_noun_and_number_in_either_order_once(story):
     notes = story.agent_creates_briefed_task(story.agents.subject, "write the notes", "what and where")
-    story.agent_runs(story.agents.subject, f"task {notes} dock")
-    story.expect_command_text(f"Task {notes}: write the notes docked above the chat")
+    result = story.agent_runs(story.agents.subject, f"task {notes} dock")
+    result.expect_command_text(f"Task {notes}: write the notes docked above the chat")
     story.agent_runs(story.agents.subject, f"task dock {notes}")
     story.expect_docked_cards(f"Task {notes}: write the notes")
     story.expect_stack(story.agents.subject, Ready)
@@ -17,9 +17,9 @@ def test_a_row_docks_above_the_chat_by_noun_and_number_in_either_order_once(stor
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_row_that_does_not_exist_is_named_when_asked_to_dock(story):
-    story.agent_runs(story.agents.subject, "task 12 dock")
-    story.expect_command_refused()
-    story.expect_command_text("12")
+    result = story.agent_runs(story.agents.subject, "task 12 dock")
+    result.expect_command_refused()
+    result.expect_command_text("12")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -27,9 +27,9 @@ def test_a_row_that_does_not_exist_is_named_when_asked_to_dock(story):
 def test_an_undocked_row_leaves_the_chat_and_cannot_be_undocked_again(story):
     notes = story.agent_creates_task(story.agents.subject, "write the notes")
     story.agent_runs(story.agents.subject, f"task dock {notes}")
-    story.agent_runs(story.agents.subject, f"task undock {notes}")
-    story.expect_command_text(f"Task {notes}: write the notes undocked")
+    result = story.agent_runs(story.agents.subject, f"task undock {notes}")
+    result.expect_command_text(f"Task {notes}: write the notes undocked")
     story.expect_docked_cards()
-    story.agent_runs(story.agents.subject, f"task {notes} undock")
-    story.expect_command_text("is not docked")
+    result = story.agent_runs(story.agents.subject, f"task {notes} undock")
+    result.expect_command_text("is not docked")
     story.expect_stack(story.agents.subject, Ready)

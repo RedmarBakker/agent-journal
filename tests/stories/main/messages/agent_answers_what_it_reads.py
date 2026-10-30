@@ -23,8 +23,8 @@ def test_a_message_read_and_not_answered_is_asked_about_before_tools_wait(story)
     message = story.user_sends_message("is the footer done?")
     story.agent_reads_message(story.agents.subject, message)
     story.agent_consumes(story.agents.subject, MessagesOptions.ANSWER_REQUEST_LIMIT)
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.UNANSWERED_COUNTDOWN, messages=message)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.UNANSWERED_COUNTDOWN, messages=message)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -34,21 +34,21 @@ def test_every_tool_waits_after_the_set_uses_until_the_agent_replies(story):
     message = story.user_sends_message("is the footer done?")
     story.agent_reads_message(story.agents.subject, message)
     story.agent_consumes(story.agents.subject, MessagesOptions.TOOL_BLOCK_LIMIT)
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=message)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=message)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
-    story.agent_replies(story.agents.subject, message, "it is")
-    story.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_REPEAT_WARNING, n=message)
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_replies(story.agents.subject, message, "it is")
+    result.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_REPEAT_WARNING, n=message)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reaction_instead_of_a_reply_lifts_the_hold(story):
     story.agent_reacts(story.agents.subject, story.messages.first, "👍")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -58,20 +58,20 @@ def test_one_reply_to_a_group_of_messages_read_together_lifts_the_hold(story):
     first = story.user_sends_message("is the footer done?")
     second = story.user_sends_message("and the header?")
     story.agent_runs(story.agents.subject, "message unread")
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=f"{first}, {second}")
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=f"{first}, {second}")
     story.agent_replies(story.agents.subject, second, "both are done")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_under_the_hold_goes_through(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.messages.first)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.messages.first)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
@@ -83,8 +83,8 @@ def test_the_hold_leaves_the_task_in_hand_as_it_was(story):
     story.agent_reads(story.agents.subject)
     story.expect_stack(story.agents.subject, Ready, Working, DemandBlock)
     story.agent_replies(story.agents.subject, message, "nearly")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -97,8 +97,8 @@ def test_the_hold_over_a_plan_returns_to_the_plan(story):
     story.agent_reads(story.agents.subject)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan, DemandBlock)
     story.agent_replies(story.agents.subject, message, "one task in")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
@@ -108,8 +108,8 @@ def test_the_hold_over_a_plan_returns_to_the_plan(story):
 def test_a_message_the_agent_never_read_never_holds_its_tools(story):
     story.user_sends_message("is the footer done?")
     story.agent_consumes(story.agents.subject, MessagesOptions.TOOL_BLOCK_LIMIT)
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
@@ -119,8 +119,8 @@ def test_a_worker_is_never_held_for_the_agents_messages(story):
     story.agent_clocks_in(story.agents.workers.get(worker))
     message = story.user_sends_message("is the parser done?")
     story.agent_reads_message(story.agents.subject, message)
-    story.agent_runs(story.agents.workers.get(worker), "todo list")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.workers.get(worker), "todo list")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
@@ -133,6 +133,6 @@ def test_a_reply_to_a_later_message_leaves_the_first_one_owed(story):
     later = story.user_sends_message("and the header?")
     story.agent_reads_message(story.agents.subject, later)
     story.agent_replies(story.agents.subject, later, "the header is next")
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=first)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=first)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)

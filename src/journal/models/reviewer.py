@@ -11,7 +11,6 @@ from journal.support.rejection import Rejection
 class Reviewer(Helper):
     """An agent the journal sends itself, in orchestrator mode with the reviewer on, to review a clocked-out worker's work and report on each point to the agent that sent the worker; never a worker, and it never merges: its program and model, its session, the hash of the token its run proves itself with, its process, and whether it is reviewing, reported or was added and waits idle for the next review, ended without a report, or was retired."""
 
-    shared: ClassVar[bool] = False
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
 
     helper_type: str = "reviewer"

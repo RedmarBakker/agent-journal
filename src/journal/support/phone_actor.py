@@ -18,9 +18,6 @@ class PhoneActor(Actor):
     def can_move_worker_tasks(self) -> bool:
         return True
 
-    def can_read_comments(self) -> bool:
-        return True
-
     def can_disconnect_phone(self) -> bool:
         return True
 

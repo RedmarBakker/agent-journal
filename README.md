@@ -35,8 +35,8 @@ session picks up where the last one left off.
   was checked, and plugins such as Code Commandments that judge the code as it is written.
 - **Secrets the agent never sees.** You fill in keys and logins in the viewer; the agent hands a secret to the program
   that needs it, and the value is masked in what the program prints.
-- **A journal for your team.** A team server keeps everyone's journal in step: a task one person files appears in every
-  journal, and the Team chat is shared. See [The shared journal](docs/shared-journal.md).
+- **A library for your team.** A small server holds the sequences, templates, profiles, readers, skills, documents and
+  plan outlines your people publish; each journal imports them and updates them. See [The library](docs/library.md).
 - **Share links.** Open one document, report or plan to someone outside the team with a read-only link, once you
   accept it in the chat; they can read it and leave comments.
 
@@ -62,14 +62,14 @@ version 3 journal, keeps it whole in `.journal/version-3`, installs version 4, a
 everything across: to-dos become tasks, and plans, documents and the rest come across as they are. From version 3.3.7
 on, `journal upgrade --to 4 --yes` does the same, and first checks that Python 3.14 and git are installed.
 
-### Hosting a team server
+### Hosting a library server
 
 On a machine you reach over ssh with a key, from your project:
 
     journal remote install root@203.0.113.5
 
-It installs Docker where it is missing, starts the team server and the team's hosted journal there, and prints the
-address and the line your team joins with. Run it in your own terminal, since it may ask for the project's name.
+It installs Docker where it is missing, starts the library server there, and prints the address your team connects
+to. Run it in your own terminal, since it may ask for the project's name.
 
 ### Windows
 
@@ -89,7 +89,7 @@ is kept in `.journal/journal.db`, a SQLite database beside your code.
   from the source.
 - [The cycle](docs/the-cycle.md): how the journal speaks to the agent, hook by hook.
 - [Plugins](docs/plugins.md): how to write a plugin that hears the journal's events and answers them.
-- [The shared journal](docs/shared-journal.md): hosting a team server and joining one.
+- [The library](docs/library.md): hosting a library server, connecting to it, publishing and importing.
 
 ## License
 

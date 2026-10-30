@@ -34,9 +34,7 @@ const RELEASE = {key: "release", label: "Release its task", title: "The task is 
 // without clocking out, a job, a stop or completing for one idle with its report, and a job for one closed.
 const ACTIONS_OF = {running: [STOP, COMPLETE], ready: [MERGE], unfinished: [SEND, RELEASE], reported: [SEND, STOP, COMPLETE]};
 
-// A worker another machine runs is acted on only there, so this machine offers none of its actions.
-export function workerActions(row, device = "") {
-    if ((row.device || "") !== device) return [];
+export function workerActions(row) {
     const state = workerState(row);
     return ACTIONS_OF[state] || [SEND];
 }
@@ -80,7 +78,6 @@ export function workerActivity(row, agent = null) {
     if (state === "reported") return queuedWords(row);
     if (state === "unfinished") return WORKER_WORDS.unfinished;
     if (row.state === "waiting for the usage limit") return "Waiting for the usage limit";
-    if (row.pool_request && !row.device) return "Waiting for a machine to take it";
     if ((row.runs || []).includes("testing")) return "Running its tests";
     return agent && agent.tool_running && agent.doing ? `Working: ${agent.doing}` : "Working on its task";
 }

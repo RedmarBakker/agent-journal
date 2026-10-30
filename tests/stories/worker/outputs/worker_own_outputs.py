@@ -14,8 +14,8 @@ POLLED_OUTPUT = 1
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_may_list_its_outputs(story):
-    story.agent_runs(story.agents.subject, "output list")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "output list")
+    result.expect_command_passed()
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
@@ -24,8 +24,8 @@ def test_a_worker_may_list_its_outputs(story):
 @setting(FOREGROUND_OPTION, 1)
 def test_a_worker_stopping_with_its_own_output_running_is_refused_with_its_number(story):
     output = story.agent_runs_a_command(story.agents.subject, f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, WorkersNudges.OUTPUT_UNFINISHED, n=output)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, WorkersNudges.OUTPUT_UNFINISHED, n=output)
     story.background_run_ends(output)
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

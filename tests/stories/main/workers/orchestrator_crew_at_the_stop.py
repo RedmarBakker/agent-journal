@@ -13,15 +13,15 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 @story(OrchestratorWorkerDelivered, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_stop_with_work_waiting_to_be_checked_is_refused(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, WorkersNudges.DELIVERED_WAITING)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, WorkersNudges.DELIVERED_WAITING)
     story.expect_stack(story.agents.subject, Orchestrating)
 
 
 @story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_builder_stop_with_work_waiting_to_be_checked_is_not_held_for_it(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, WorkersNudges.DELIVERED_WAITING)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.DELIVERED_WAITING)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -29,15 +29,15 @@ def test_a_builder_stop_with_work_waiting_to_be_checked_is_not_held_for_it(story
 @story(OrchestratorWorker, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_that_waits_on_its_worker_may_stop(story):
     story.agent_runs(story.agents.subject, f"worker wait {story.agents.workers.first()}")
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, WorkersNudges.ACTIVE_WORKERS)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.ACTIVE_WORKERS)
     story.expect_stack(story.agents.subject, Orchestrating, ExternalWait)
 
 
 @story(OrchestratorWorker, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_an_orchestrator_stop_with_a_worker_out_is_held_once(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, WorkersNudges.ACTIVE_WORKERS, numbers=str(story.agents.workers.first()))
-    story.agent_stops_again(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, WorkersNudges.ACTIVE_WORKERS, numbers=str(story.agents.workers.first()))
+    result = story.agent_stops_again(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Orchestrating)

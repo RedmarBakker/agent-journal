@@ -15,8 +15,8 @@ FIRST_MARK = MemoryThresholds.CONTEXT[0]
 
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagents_context_reading_never_asks_anyone_to_weigh_memories(story):
-    story.agent_consumes_context(story.agents.subject, FIRST_MARK)
-    story.expect_agent_not_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION)
+    result = story.agent_consumes_context(story.agents.subject, FIRST_MARK)
+    result.expect_agent_not_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION)
     story.expect_stack(story.agents.main, Ready)
     story.expect_stack(story.agents.subject, Void, Researching)
 
@@ -25,7 +25,7 @@ def test_a_subagents_context_reading_never_asks_anyone_to_weigh_memories(story):
 def test_a_subagents_tool_use_never_ends_the_main_agents_wait(story):
     story.agent_runs(story.agents.main, "task create 'the footer' --start")
     story.agent_runs(story.agents.main, "await 'the build of the footer' --until false")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.main, Ready, Working, ExternalWait)
     story.expect_stack(story.agents.subject, Void, Researching)

@@ -25,7 +25,6 @@ from journal.helpers.role_listeners import RoleListeners
 from journal.events.bus import Bus
 from journal.events.queued_bus import QueuedBus
 from journal.runtime import Runtime
-from journal.sync.team_writes import TeamWrites
 from journal.features.registry import Registry
 from journal.features.standard import Standard
 from journal.engine.support.data_readers import DataReaders
@@ -84,7 +83,6 @@ class App:
         return self.container.get(Console)
 
     def run_without_server(self, argv: list[str], caller: Caller) -> Outcome:
-        self.container.get(TeamWrites).listen()
         outcome = self.console().run(argv, caller)
         self.container.get(ListenerQueue).drain()
         return outcome

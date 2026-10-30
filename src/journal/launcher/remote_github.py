@@ -6,7 +6,7 @@ from journal.version import VERSION
 
 WORKFLOW = Path(".github") / "workflows" / "agent-journal-server.yml"
 RUNNER_LABEL = "agent-journal"
-WORKFLOW_TEXT = """# Installs this project's team server, with its hosted journal, on your own server through a self-hosted GitHub runner
+WORKFLOW_TEXT = """# Installs this project's library server on your own server through a self-hosted GitHub runner
 # installed there with the label {label}, so no SSH is needed. Run it from the Actions tab, Agent journal server, Run
 # workflow; its log prints the server's URL, which the first journal to reach claims. Written by journal remote github init.
 name: Agent journal server
@@ -43,11 +43,11 @@ STEPS = """wrote {workflow}. Next:
      --labels {label} to ./config.sh, then sudo ./svc.sh install and sudo ./svc.sh start so it keeps running.
   2. Commit and push {workflow}.
   3. In the repository's Actions tab, run Agent journal server with the server's address. Its log prints the URL and
-     how to claim it: open the URL, or journal team join <url>."""
+     how to connect to it: journal library connect <url>."""
 
 
 class RemoteGithub:
-    """journal remote github init: writes into the project a GitHub Actions workflow that installs the team server, with its hosted journal, on the user's own server through a self-hosted runner there, so no SSH is needed, and says how to register the runner and run it."""
+    """journal remote github init: writes into the project a GitHub Actions workflow that installs the library server on the user's own server through a self-hosted runner there, so no SSH is needed, and says how to register the runner and run it."""
 
     def __init__(self, root: Path, replacing: bool) -> None:
         self.root, self.replacing = root, replacing

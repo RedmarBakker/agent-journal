@@ -1,10 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from journal.events.agent.session_started import SessionStarted
 from journal.features.memory.support.closed_rows import ClosedRows
 from journal.models.memory import Memory
-from journal.models.environment import Environment
-from journal.models.message import Message
 from journal.repositories.agents import Agents
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.memories import Memories
@@ -16,15 +14,13 @@ from journal.repositories.tasks import Tasks
 from journal.support.time_source import TimeSource
 
 TAKEOVER_WINDOW = timedelta(days=1)
-HISTORY_MESSAGES = 10
-HISTORY_CHARACTERS = 200
 
 
 INTERRUPTION_WINDOW = timedelta(minutes=30)
 
 
 class StartLines:
-    """What the start block names, worked out here once: when another session worked here lately, the rules and reminders numbered, the memories still shown by number and weight, heaviest first, each naming the rows its text names that have closed or gone since so the agent checks it still holds, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
+    """What the start block names, worked out here once: when another session worked here lately, the rules and reminders numbered, the memories still shown by number and weight, heaviest first, each naming the rows its text names that have closed or gone since so the agent checks it still holds, what waits."""
 
     def __init__(self, agents: Agents, rules: Rules, memories: Memories, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource, closed_rows: ClosedRows) -> None:
         self.time_source, self.closed_rows = time_source, closed_rows
@@ -60,15 +56,6 @@ class StartLines:
     def waiting(self) -> str:
         counts = {"tasks": self.tasks.open_count(), "messages": self.messages.unread_count(), "questions": self.questions.open_count()}
         return ", ".join(f"{n} {name}" for name, n in counts.items() if n)
-
-    def team_history(self, environment: Environment) -> str:
-        if not environment.is_session():
-            return ""
-        return " | ".join(f"{self.writer(m)}: {m.text[:HISTORY_CHARACTERS]}" for m in self.messages.exchanges(HISTORY_MESSAGES))
-
-    @staticmethod
-    def writer(message: Message) -> str:
-        return message.data.get(Message.TEAMMATE, str(message.author))
 
     @staticmethod
     def numbered(texts) -> str:

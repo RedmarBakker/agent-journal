@@ -20,13 +20,12 @@ class ReviewerHelper(Helper):
     first_state = Reviewing
     features = (ReviewingFeature, PluginsFeature)
     commands = (
-        (DocCommand, "show"),
-        (MemoryCommand, "list"),
-        (OutputCommand, "read"),
-        (ReportCommand, "show"),
-        (ReviewCommand, "record"),
-        (RuleCommand, "list"),
-        (RuleCommand, "read"),
-        (SearchCommand, "find"),
-        (TaskCommand, "show"),
+        (DocCommand, ("show",)),
+        (MemoryCommand, ("list",)),
+        (OutputCommand, ("read",)),
+        (ReportCommand, ("show",)),
+        (ReviewCommand, ("record",)),
+        (RuleCommand, ("list", "read")),
+        (SearchCommand, ("find",)),
+        (TaskCommand, ("show",)),
     )

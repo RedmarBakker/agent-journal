@@ -17,5 +17,5 @@ class CompactedTask(StateFixture):
         story.compacted_session_starts()
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, BriefingNudges.OVERVIEW_FIRST)
+        story.last_step.expect_agent_told(story.agents.main, BriefingNudges.OVERVIEW_FIRST)
         story.expect_stack(story.agents.main, Ready, Working, ReadingOverview)

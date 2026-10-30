@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
 import json
 import os
 import sys
@@ -38,6 +38,8 @@ def answer(line: dict) -> str:
         return json.dumps({"v": 1, "answer": "refuse", "reason": f"echo holds the merge of {data.get('branch')}: {', '.join(data.get('files'))}"})
     if line["event"] == "idle":
         return json.dumps({"v": 1, "answer": "refuse", "reason": "echo holds the stop"})
+    if line["event"] == "prompt_submitted" and "guide" in json.dumps(data):
+        return json.dumps({"v": 1, "require_skills": ["echo-guide", "echo-guide", "echo-missing"]})
     if line["event"] == "prompt_submitted":
         return json.dumps({"v": 1, "answer": "tell", "tell": "echo heard your prompt"})
     if line["event"] == "tasks.created":

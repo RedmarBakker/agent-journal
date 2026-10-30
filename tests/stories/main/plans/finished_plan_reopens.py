@@ -12,8 +12,8 @@ from tests.stories.fixtures.main.finished_plan import FinishedPlan
 @story(FinishedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_added_to_a_finished_plan_reopens_it_and_plan_start_takes_it_up(story):
     added = story.user_adds_plan_task(story.plans.first, "the footer links")
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_REOPENED, n=story.plans.first)
-    story.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_STALLED)
+    story.last_step.expect_agent_told(story.agents.subject, PlansNudges.PLAN_REOPENED, n=story.plans.first)
+    story.last_step.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_STALLED)
     story.expect_task(added, state=TaskState.OPEN)
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
     story.expect_plan(story.plans.first, state=PlanState.STARTED)

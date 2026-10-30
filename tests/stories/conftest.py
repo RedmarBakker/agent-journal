@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.replay import typing_capture, pinned_clock
+from tests.agent_hooks import typing_capture, pinned_clock
 from tests.stories.builder.coverage_gaps import CoverageGaps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.path_overlay import PathOverlay
@@ -17,10 +17,17 @@ from tests.test_features import booted
 from journal.app import App
 from journal.config import Config
 from journal.providers.support.helper_runner import HelperRunner
+from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.models.worker import Worker
+from journal.providers.claude import Claude
+from journal.support.actor import Actor
+from tests.stories.builder.worker_steps import worker_session
 from journal.support.agent_role import AgentRole
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.features.faults.support.story_transitions import StoryTransitions
 from journal.features.registry import Registry
+from tests.template_copy import copied
+from tests.shared_journal import SharedJournal
 
 OVERLAYS = pytest.StashKey[dict[str, PathOverlay]]()
 SCENARIOS_RUN = pytest.StashKey[int]()
@@ -40,18 +47,28 @@ def pytest_configure(config) -> None:
     config.stash[SEEDINGS] = []
 
 
-@pytest.fixture(scope="module")
-def boot():
-    return story_booted
+@pytest.fixture(scope="session")
+def journal(tmp_path_factory, template_journal: Path) -> SharedJournal:
+    """The one journal every story of this run's process plays in, put back after each story, so the fixtures it seeds are seeded once for the process and every story file starts from their copies."""
+    with pytest.MonkeyPatch.context() as patch:
+        app = story_booted(copied(template_journal, tmp_path_factory.mktemp("stories")), patch)
+        yield SharedJournal(app)
+        app.runtime().stop()
 
 
 def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead."""
+    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead; a worker's program is never started either, though a worker on Claude is given its session at launch, as the real launch gives it one."""
     launches: list[dict[str, str]] = []
     patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
     app = booted(root, patch)
+    patch.setattr(WorkerRunner, "start", worker_session_given)
     app.helper_launches = launches
     return app
+
+
+def worker_session_given(runner: WorkerRunner, worker: Worker, actor: Actor) -> None:
+    if worker.provider == Claude.name:
+        runner.workers.save(worker.with_(session=worker.resume or worker_session(worker.id)), actor)
 
 
 def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:
@@ -63,7 +80,7 @@ def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:
     patch.delenv("AGENT_JOURNAL_SECRETS", raising=False)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def copies(request):
     fixture_copies = FixtureCopies()
     request.config.stash[SEEDINGS].append(fixture_copies)
@@ -116,6 +133,12 @@ def pytest_generate_tests(metafunc) -> None:
 def pytest_runtest_makereport(item, call):
     report = (yield).get_result()
     setattr(item, f"rep_{report.when}", report)
+
+
+def pytest_terminal_summary(terminalreporter) -> None:
+    seeded = sum(len(fixture_copies.seedings) for fixture_copies in terminalreporter.config.stash.get(SEEDINGS, []))
+    if seeded:
+        terminalreporter.write_line(f"story fixtures seeded: {seeded}")
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:

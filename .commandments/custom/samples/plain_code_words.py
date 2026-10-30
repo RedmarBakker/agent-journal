@@ -7,6 +7,7 @@ class Said:
     """The words of the line."""
 
     # @sin PoeticMethodNameDetector
+    # @sin SentenceMethodNameDetector
     # @sin DocstringInMethodDetector
     def about(self, n: int) -> str:
         """Fills the blanks."""
@@ -30,7 +31,7 @@ class Nudge:
 
 
     # @sin PoeticParameterNameDetector
-    def say(self, said: str) -> str:
+    def line(self, said: str) -> str:
         # @sin PoeticVariableNameDetector
         meaning = said
         # @sin PoeticVariableNameDetector

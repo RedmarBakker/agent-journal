@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
+from journal.events.rows.released_tasks import ReleasedTasks
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.link import Link
@@ -21,6 +22,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
+from journal.repositories.rows import Rows
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 from journal.models.agent import ENDED_STATE
@@ -49,15 +51,15 @@ class Tasks(ScopedRepository[Task]):
     """A completed task sent back short is the one in hand again, and the task the worker reported on waits for the merge in its place; the tasks a worker held before the one it holds, every task it ever held, those it completed and those queued for it are read from their own links alone, in the order it took them."""
 
     model = Task
-    member_links = (PLAN_LINK,)
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource, rows: Rows) -> None:
         super().__init__(connection, bus, scope, time_source)
+        self.row_reader = rows
         self.links, self.checks = links, checks
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 
     def open_waits(self, row: Task | Plan) -> list[Ref]:
-        return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.waiting(ref).is_resolved()]
+        return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.is_wait_resolved(ref)]
 
     def waits_reach(self, start: Ref, goal: Ref) -> bool:
         viewed, todo = set(), [start]
@@ -74,13 +76,18 @@ class Tasks(ScopedRepository[Task]):
     def waiting(self, ref: Ref) -> Task | Question | Check:
         return self.awaitable[ref.type].find(ref.id)
 
+    def is_wait_resolved(self, ref: Ref) -> bool:
+        if ref.type == Plan.table():
+            return PlanState(self.row_reader.row_state(ref)).is_closed()
+        return self.waiting(ref).is_resolved()
+
     def waiting_ids(self, tasks: list[Task]) -> set[int]:
         return set(self.open_wait_refs(tasks))
 
     def open_wait_refs(self, tasks: list[Task]) -> dict[int, list[Ref]]:
         waits: dict[int, list[Ref]] = {}
         for link in self.links.model_links("source", tasks, WAIT_LINK):
-            if not self.waiting(link.target).is_resolved():
+            if not self.is_wait_resolved(link.target):
                 waits.setdefault(link.source.id, []).append(link.target)
         return waits
 
@@ -203,9 +210,6 @@ class Tasks(ScopedRepository[Task]):
     def current(self, agent: Agent) -> Task | None:
         return self.holder_task(Ref.build(agent))
 
-    def is_driven(self, task: Task) -> bool:
-        return Ref.build(task) in self.scope.bound()
-
     def holder_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
         tasks = self.selected(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
@@ -315,8 +319,10 @@ class Tasks(ScopedRepository[Task]):
         return self.find(task_id)
 
     def release(self, holder: Ref, actor: Actor) -> None:
-        self.freed(holder, CURRENT_TASK_LINK, actor)
-        self.freed(holder, FINISHED_LINK, actor)
+        self.freed(holder, (CURRENT_TASK_LINK, FINISHED_LINK), actor)
+
+    def release_all(self, holder: Ref, actor: Actor) -> None:
+        self.freed(holder, (CURRENT_TASK_LINK, FINISHED_LINK, QUEUED_LINK), actor)
 
     def finish_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         self.release_task(holder, task_id, actor)
@@ -349,14 +355,20 @@ class Tasks(ScopedRepository[Task]):
         return [link.source for link in queue_links]
 
     def unqueued(self, holder: Ref, actor: Actor) -> None:
-        self.freed(holder, QUEUED_LINK, actor)
+        self.freed(holder, (QUEUED_LINK,), actor)
 
-    def freed(self, holder: Ref, type_name: str, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, link_type=type_name):
+    def freed(self, holder: Ref, link_types: tuple[str, ...], actor: Actor) -> None:
+        freed = []
+        for link in (link for type_name in link_types for link in self.links.all_matching(source=holder, link_type=type_name)):
             self.links.delete(link, actor)
-            for task in self.matching(id=link.target.id, delegated=True):
-                if not task.state.is_closed():
-                    self.save(task.released(self.time_source.moment().timestamp()), actor)
+            freed += [task for task in self.matching(id=link.target.id, delegated=True) if not task.state.is_closed()]
+        group = ReleasedTasks(holder.id, tuple(task.row_id for task in freed), self.common_plan(freed))
+        for i, task in enumerate(freed):
+            self.save(task.released(self.time_source.moment().timestamp(), group if i == 0 else None), actor)
+
+    def common_plan(self, tasks: list[Task]) -> int:
+        plans = {tuple(ref.id for ref in self.links.targets(task, PLAN_LINK)) for task in tasks}
+        return plans.pop()[0] if len(plans) == 1 and len(next(iter(plans))) == 1 else 0
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]

@@ -1,7 +1,7 @@
 
 from journal.db.query import Query
-from journal.features.messages.support.hub_mentions import HubMentions
-from journal.sync.attachments import Attachments
+from journal.features.messages.support.mentions import Mentions
+from journal.features.messages.support.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
@@ -13,13 +13,9 @@ from journal.support.response import Response
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.agents import Agents
-from journal.repositories.environments import Environments
-from journal.sync.host_desk import HostDesk
-from journal.sync.hosts import Hosts
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
-from journal.support.message_thread import MessageThread
 from journal.http.support.comment_target import REPLIED, CommentTarget
 from journal.http.support.message_reference import MessageReference
 from journal.models.link import Link
@@ -27,12 +23,12 @@ from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 
 class MessageController(Controller[Message]):
-    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it, and then found by the key the page sent it with once the host has made it."""
+    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user."""
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions, links: Links, targets: CommentTarget, references: MessageReference) -> None:
-        self.agents, self.environments, self.hosts, self.mentions, self.links, self.targets, self.references = agents, environments, hosts, mentions, links, targets, references
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, links: Links, targets: CommentTarget, references: MessageReference) -> None:
+        self.agents, self.links, self.targets, self.references = agents, links, targets, references
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
@@ -79,16 +75,12 @@ class MessageController(Controller[Message]):
     def shown_page(self, rows: list[Message]) -> list[dict]:
         filed, commented, unanswered = self.repository.linked(Messages.SUBJECT_LINK, [m.row_id for m in rows]), self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows]), {m.id for m in self.repository.unanswered()}
         return [{**ModelFields.build(m), "answered": m.id not in unanswered, "filed": [ref.id for ref in filed.get(m.row_id, [])],
-                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in self.mentions.found(m.text)]} for m in rows]
+                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in Mentions.found(m.text)]} for m in rows]
 
     def store(self, request: Request) -> Response:
         if request.body.get("on"):
             return self.comment(self.targets.checked(request.body["on"]), request)
         message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=request.body.get("idempotency", ""))
-        environment = self.environments.find(self.repository.scope.id)
-        if not self.hosts.is_host(environment):
-            self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
-            return Response.json({"idempotency": message.idempotency, "notice": self.hosts.waiting_notice(environment)}, 202)
         referred = [self.references.checked(reference) for reference in request.body.get("refers", [])]
         posted = self.repository.posted(message, request.actor)
         for target in referred:
@@ -107,13 +99,6 @@ class MessageController(Controller[Message]):
     def sent(self, request: Request) -> Response:
         messages = self.repository.sent_with(request.params["key"])
         return Response.json(self.shown(messages[0])) if messages else Response.absent(f"no message is made with the key {request.params['key']} yet")
-
-    def side_thread(self, request: Request) -> Response:
-        return Response.json([self.shown(message) for message in self.repository.side_thread()])
-
-    def side_post(self, request: Request) -> Response:
-        message = Message(author=Author.USER, thread=MessageThread.PEOPLE, text=request.body.get("text", ""))
-        return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
 
     def read(self, request: Request) -> Response:
         return Response.json(self.shown(self.repository.read(self.repository.find(request.number("id")), request.actor, self._tool_use())))

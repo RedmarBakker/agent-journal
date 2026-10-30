@@ -15,7 +15,6 @@ class Secret(Model):
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "secret_type"}
 
-    shared: ClassVar[bool] = False
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
     title: str = ""

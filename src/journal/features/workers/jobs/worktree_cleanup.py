@@ -19,7 +19,7 @@ class WorktreeCleanup(Job):
         self.workers, self.branch, self.actions, self.environments, self.scope, self.settings = workers, branch, actions, environments, scope, settings
 
     def tick(self, time: float) -> None:
-        for environment in self.environments.working():
+        for environment in self.environments.rows():
             with self.scope.environment(environment.row_id):
                 for worker in self.workers.with_worktree():
                     self.cleaned(worker, time)

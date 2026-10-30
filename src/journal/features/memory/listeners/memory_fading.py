@@ -1,10 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from journal.events.agent.compacting import Compacting
 from journal.events.agent_listener import AgentListener
 from journal.chat.moment_cards import MomentCards
+from journal.features.memory.support.memory_ends import MemoryEnds
 from journal.features.memory.support.memory_owners import MemoryOwners
 from journal.models.memory import Memory
+from journal.models.support.ref import Ref
 from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
 from journal.support.card_type import CardType
@@ -15,23 +17,24 @@ ROUND = "round"
 
 
 class MemoryFading(AgentListener[Compacting]):
-    """A compaction of an agent, the main agent or a worker, lowers every one of its own memories still shown by one, as the system, and says so in one card in the chat that keeps the round: each memory still shown and each faded to nought with its weight before and after, and each removed since the last round; a subagent's compaction fades none."""
+    """A compaction of an agent, the main agent or a worker, removes the memories tied to a task or plan that is closed, then lowers every one of its own memories still shown by one, as the system, and says so in one card in the chat that keeps the round: each memory still shown and each faded to nought with its weight before and after, and each removed since the last round; a subagent's compaction fades none."""
 
-    def __init__(self, memories: Memories, owners: MemoryOwners, scope: Scope, cards: MomentCards, messages: Messages) -> None:
-        self.memories, self.owners, self.scope, self.cards, self.messages = memories, owners, scope, cards, messages
+    def __init__(self, memories: Memories, owners: MemoryOwners, scope: Scope, cards: MomentCards, messages: Messages, ends: MemoryEnds) -> None:
+        self.memories, self.owners, self.scope, self.cards, self.messages, self.ends = memories, owners, scope, cards, messages, ends
 
     def handle(self, event: Compacting) -> None:
         if event.subagent:
             return
         with self.scope.environment(event.environment_id):
             owner = self.owners.agent_owner(event.agent)
+            self.ends.tied_closed(owner, event.time)
             lowered_memories = self.memories.fade_all(owner, Actor.system())
-            removed = self.memories.removed_recent(owner, self.last_round_at(event.session))
-        if lowered_memories:
+            removed = self.memories.removed_recent(owner, self.round_moment(event.session))
+        if lowered_memories or removed:
             visible_count = len([memory for memory in lowered_memories if memory.is_visible()])
-            self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)
+            self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories) + len(removed)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)
 
-    def last_round_at(self, session: str) -> datetime | None:
+    def round_moment(self, session: str) -> datetime | None:
         latest = self.messages.newest_session_moment(str(CardType.MEMORIES), session, ROUND)
         return latest.created_at if latest else None
 

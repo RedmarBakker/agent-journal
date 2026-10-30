@@ -11,12 +11,12 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_a_line_run_the_set_times_is_offered_as_an_alias_once_on_the_last_and_not_before(story):
     for _ in range(ALIAS_RUNS - 1):
         story.agent_runs_in_the_shell(story.agents.subject, "make build site")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
-    story.agent_runs_in_the_shell(story.agents.subject, "make build site")
-    story.expect_allowed()
-    story.expect_agent_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
-    story.agent_runs_in_the_shell(story.agents.subject, "make build site")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    story.last_step.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "make build site")
+    result.expect_allowed()
+    result.expect_agent_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "make build site")
+    result.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -24,7 +24,7 @@ def test_a_line_run_the_set_times_is_offered_as_an_alias_once_on_the_last_and_no
 def test_a_journal_command_run_again_and_again_is_never_offered_as_an_alias(story):
     for _ in range(ALIAS_RUNS):
         story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    story.last_step.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -32,7 +32,7 @@ def test_a_journal_command_run_again_and_again_is_never_offered_as_an_alias(stor
 def test_a_read_run_again_and_again_is_never_offered_as_an_alias(story):
     for _ in range(ALIAS_RUNS):
         story.agent_runs_in_the_shell(story.agents.subject, "cat src/app.py")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    story.last_step.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -40,5 +40,5 @@ def test_a_read_run_again_and_again_is_never_offered_as_an_alias(story):
 def test_a_line_of_one_word_is_never_offered_as_an_alias(story):
     for _ in range(ALIAS_RUNS):
         story.agent_runs_in_the_shell(story.agents.subject, "pwd")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
+    story.last_step.expect_agent_not_told(story.agents.subject, ShellNudges.ALIAS_SUGGESTION)
     story.expect_stack(story.agents.subject, Ready)

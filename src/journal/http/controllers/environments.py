@@ -10,30 +10,20 @@ from journal.supervisor_link import SupervisorLink
 from journal.config import Config
 from journal.http.support.model_fields import ModelFields
 from journal.support.worktree import Worktree
-from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.rejection import Rejection
-from journal.features.team.support.start_rule import StartRule
+from journal.features.git.support.start_rule import StartRule
 from journal.features.git.support.worktree_removal import WorktreeRemoval
-from journal.features.git.support.worktree_hosts import WorktreeHosts
-from journal.features.team.support.environment_sharing import EnvironmentSharing
-from journal.db.query import Query
-from journal.sync.hosting import Hosting
-from journal.sync.team_account import TeamAccount
 
 
 class EnvironmentController(Controller[Environment]):
-    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, the environment shared with the team or taken back, or removed with everything in it; the project's stored conversations are listed for the form; a hosted journal of a team on the hub lists only what the team shares, its hub, its sessions and the environments shared with it, never one of its own."""
+    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, or removed with everything in it; the project's stored conversations are listed for the form."""
 
     repository: Environments
 
-    def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing, hosts: WorktreeHosts, hosting: Hosting, account: TeamAccount) -> None:
+    def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, starts: StartRule,
+                 hydration: SessionHydration, removal: WorktreeRemoval) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
-        self.owners, self.starts, self.hydration, self.removal, self.sharing, self.hosts = owners, starts, hydration, removal, sharing, hosts
-        self.hosting, self.account = hosting, account
-
-    def list_query(self) -> Query:
-        return self.repository.team_query() if self.hosting.is_hosted() and self.account.is_on_hub() else super().list_query()
+        self.starts, self.hydration, self.removal = starts, hydration, removal
 
     def index_page(self, rows: list[Environment]) -> list[dict]:
         return self.shown_page(rows)
@@ -42,8 +32,7 @@ class EnvironmentController(Controller[Environment]):
         return [{**ModelFields.build(row), "worktree": self.worktree_badge(row)} for row in rows]
 
     def worktree_badge(self, environment: Environment) -> str:
-        host = self.hosts.host_machine(environment)
-        return f"worktree on {host}" if host else next(iter(Worktree(self.config.root, environment.name).badges()), "")
+        return next(iter(Worktree(self.config.root, environment.name).badges()), "")
 
     def store(self, request: Request) -> Response:
         name, session = request.body.get("name", "").strip(), request.body.get("session", "")
@@ -60,7 +49,7 @@ class EnvironmentController(Controller[Environment]):
 
     def launch(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
-        refusal = self.starts.refusal(environment, request.actor.number())
+        refusal = self.starts.refusal(environment)
         if refusal:
             raise Rejection(refusal)
         self.launcher.start(environment.name, request.body.get("agent", "claude"))
@@ -68,17 +57,8 @@ class EnvironmentController(Controller[Environment]):
 
     def stop(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
-        refusal = self.owners.write_refusal(request.actor, environment)
-        if refusal:
-            raise Rejection(refusal)
         self.supervisor.stop(environment.row_id)
         return Response.json(environment)
-
-    def share(self, request: Request) -> Response:
-        return Response.json(self.sharing.shared(self.repository.find(request.number("id")), request.actor))
-
-    def unshare(self, request: Request) -> Response:
-        return Response.json(self.sharing.unshared(self.repository.find(request.number("id")), request.actor))
 
     def worktree_removal(self, request: Request) -> Response:
         return Response.json({"line": self.removal.removed(self.repository.find(request.number("id")).name)})

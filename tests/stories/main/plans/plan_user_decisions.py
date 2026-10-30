@@ -14,8 +14,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_users_approval_is_told_to_the_agent(story):
-    story.user_approves_plan(story.plans.first)
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_APPROVED, n=story.plans.first)
+    result = story.user_approves_plan(story.plans.first)
+    result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_APPROVED, n=story.plans.first)
     story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
@@ -34,10 +34,10 @@ def test_the_agent_cancelling_its_plan_cancels_the_open_tasks_and_frees_the_stac
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_the_user_cancelled_and_its_tasks_are_shown_with_the_closed_ones(story):
     story.user_cancels_plan(story.plans.first)
-    story.user_opens("/journal/plans?closed=1")
-    story.expect_viewer_rows("rows", "state", ["cancelled"])
-    story.user_opens(f"/journal/tasks?closed=1&ids={story.tasks.first},{story.tasks.second}")
-    story.expect_viewer_rows("rows", "state", ["cancelled", "cancelled"])
+    result = story.user_opens("/journal/plans?closed=1")
+    result.expect_viewer_rows("rows", "state", ["cancelled"])
+    result = story.user_opens(f"/journal/tasks?closed=1&ids={story.tasks.first},{story.tasks.second}")
+    result.expect_viewer_rows("rows", "state", ["cancelled", "cancelled"])
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -58,9 +58,9 @@ def test_a_cancelled_plan_is_shown_with_its_phases_and_their_tasks(story):
     notes, tag, loose = (story.user_adds_plan_task(plan, title) for title in ("write the notes", "tag it", "loose end"))
     story.agent_runs(story.agents.subject, f"plan todos {plan} 1 {notes} {tag}")
     story.user_cancels_plan(plan)
-    story.user_opens(f"/journal/plans?closed=1&ids={plan}")
-    story.expect_viewer_part(("rows", 0, "phases", 0, "task_ids"), [notes, tag])
-    story.expect_viewer_part(("rows", 0, "unphased_task_ids"), [loose])
+    result = story.user_opens(f"/journal/plans?closed=1&ids={plan}")
+    result.expect_viewer_part(("rows", 0, "phases", 0, "task_ids"), [notes, tag])
+    result.expect_viewer_part(("rows", 0, "unphased_task_ids"), [loose])
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -87,5 +87,5 @@ def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(sto
     story.agent_runs(story.agents.subject, f"plan todos {story.plans.first} 1 {tables}")
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     comment = story.user_approves_plan_with_a_comment(story.plans.first, "go, but keep it small")
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_APPROVED_WITH_COMMENT, n=story.plans.first, comment=comment)
+    story.last_step.expect_agent_told(story.agents.subject, PlansNudges.PLAN_APPROVED_WITH_COMMENT, n=story.plans.first, comment=comment)
     story.expect_stack(story.agents.subject, Ready)

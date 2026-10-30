@@ -14,6 +14,7 @@ class Napping(BaseState):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return self.unchanged()
 
+    # @sin LifecycleHandlerNotFirstDetector
     def on_enter(self, typist: Typist) -> None:
         typist.pause()
 

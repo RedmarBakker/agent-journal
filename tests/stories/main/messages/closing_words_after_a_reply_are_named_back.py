@@ -10,7 +10,7 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 def test_closing_words_after_a_reply_in_the_same_turn_are_named_back_once_at_the_stop(story):
     story.agent_is_prompted(story.agents.subject, "is the footer done?")
     reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "the footer is done")
-    story.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_REPEAT_WARNING, n=story.messages.first, reply=reply)
+    story.last_step.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_REPEAT_WARNING, n=story.messages.first, reply=reply)
     story.expect_message(reply, author="agent", reply_target=story.messages.first)
     story.agent_closes_its_turn(story.agents.subject, "next I start the header")
     story.agent_closes_its_turn(story.agents.subject, "and then the logo")

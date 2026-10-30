@@ -18,7 +18,7 @@ class PlanReturn(StateFixture):
         story.agent_runs(story.agents.main, f"plan return {self.plans.first} yes")
 
     def expected(self, story) -> None:
-        story.expect_command_passed()
+        story.last_step.expect_command_passed()
         story.expect_plan(self.plans.first, state=PlanState.STARTED)
         story.expect_task(self.tasks.outside, state=TaskState.STARTED)
         story.expect_stack(story.agents.main, Ready, FollowingPlan, Working)

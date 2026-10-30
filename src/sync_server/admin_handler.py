@@ -6,17 +6,14 @@ from sync_server.devices import Devices
 from sync_server.invitation_answer import InvitationAnswer
 from sync_server.invitations import Invitations
 from sync_server.server_clock import ServerClock
-from sync_server.departure import Departure
-from sync_server.team_details import TeamDetails
-from sync_server.team_summary import TeamSummary
 from sync_server.password_answer import PasswordAnswer
 
 
 class AdminHandler:
-    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, reset a person's password to a new one to pass on, pin the team to a journal version, which the team's own hosted journal may do too, and say whether a journal must run exactly it."""
+    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, and reset a person's password to a new one to pass on."""
 
-    def __init__(self, devices: Devices, accounts: Accounts, invitations: Invitations, clock: ServerClock, details: TeamDetails, departure: Departure) -> None:
-        self.devices, self.accounts, self.invitations, self.clock, self.details, self.departure = devices, accounts, invitations, clock, details, departure
+    def __init__(self, devices: Devices, accounts: Accounts, invitations: Invitations, clock: ServerClock) -> None:
+        self.devices, self.accounts, self.invitations, self.clock = devices, accounts, invitations, clock
 
     def invite(self, token: str, email: str) -> InvitationAnswer:
         self.devices.admin(token)
@@ -31,26 +28,6 @@ class AdminHandler:
         self.devices.admin(token)
         return self.devices.revoke(device_id, self.clock.time())
 
-    def pin(self, token: str, version: str) -> TeamSummary:
-        self.devices.version_pinner(token)
-        self.details.record_version(version)
-        return self.details.answer()
-
-    def allow(self, token: str, rule: str) -> TeamSummary:
-        self.devices.admin(token)
-        self.details.record_versions(rule)
-        return self.details.answer()
-
-    def moved_to_hub(self, token: str) -> TeamSummary:
-        self.devices.admin(token)
-        self.details.record_on_hub()
-        return self.details.answer()
-
-    def tie(self, token: str, tied: bool) -> TeamSummary:
-        self.devices.admin(token)
-        self.details.record_repository_tie(tied)
-        return self.details.answer()
-
     def password_reset(self, token: str, account_id: int) -> PasswordAnswer:
         self.devices.admin(token)
         password = PasswordAnswer.generated()
@@ -58,8 +35,7 @@ class AdminHandler:
         return password
 
     def remove(self, token: str, account_id: int) -> Account:
-        admin = self.devices.admin(token)
-        self.departure.left(account_id, f"user:{admin.id}")
+        self.devices.admin(token)
         removed = self.accounts.remove(account_id, self.clock.time())
         self.devices.revoke_person(account_id, self.clock.time())
         return removed

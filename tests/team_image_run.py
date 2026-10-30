@@ -3,6 +3,7 @@ import json
 import ssl
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -10,8 +11,6 @@ from sync_server.protocol import PROTOCOL, PROTOCOL_HEADER
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE = "agent-journal-team:test"
-# the commit the image is built from, which the hosted journal's first install records
-COMMIT = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30).stdout.strip()
 NAME = "agent-journal-team-image-test"
 VOLUME = "agent-journal-team-image-test"
 PORT = 8443
@@ -22,6 +21,20 @@ START_SECONDS = 20
 
 def docker(*arguments: str, seconds: int = 120) -> str:
     return subprocess.run(["docker", *arguments], capture_output=True, text=True, check=True, timeout=seconds).stdout.strip()
+
+
+def unverified_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
+    return context
+
+
+def status(path: str, headers: dict) -> int:
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"https://localhost:{PORT}{path}", headers=headers), timeout=10, context=unverified_context()) as answer:
+            return answer.status
+    except urllib.error.HTTPError as refused:
+        return refused.code
 
 
 def login(device_name: str) -> dict:
@@ -39,14 +52,17 @@ def login(device_name: str) -> dict:
             time.sleep(0.5)
 
 
-def test_the_image_answers_a_login_over_https_and_keeps_its_data_across_a_restart():
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
+def test_the_image_answers_a_login_and_the_library_over_https_turns_every_other_path_away_and_keeps_its_data_across_a_restart():
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
     docker("volume", "create", VOLUME)
     try:
         docker("run", "-d", "--name", NAME, "-e", "TEAM_ADDRESS=localhost", "-p", f"{PORT}:443", "-v", f"{VOLUME}:/data", IMAGE)
         time.sleep(2)
         docker("exec", NAME, "python", "-c", f"from pathlib import Path; from sync_server.account import ADMIN; from sync_server.team_server import TeamServer; TeamServer(Path('/data/team')).accounts.create('ada@example.com', 'Ada', '{PASSWORD}', ADMIN, 1.0)")
         assert login("first")["name"] == "Ada"
+        assert status("/library", SPOKEN) == 200, "the library answers through Caddy"
+        assert status("/library", {}) == 404, "a path without the journal's protocol header is turned away at the proxy"
+        assert [status(path, SPOKEN) for path in ("/pull", "/team", "/sign-in", "/")] == [404] * 4, "and so is every path that is not the team server's"
         docker("restart", NAME)
         assert login("after the restart")["device_id"] == 2, "the account and the first device are still there"
     finally:
@@ -54,25 +70,20 @@ def test_the_image_answers_a_login_over_https_and_keeps_its_data_across_a_restar
         subprocess.run(["docker", "volume", "rm", VOLUME], capture_output=True, timeout=60)
 
 
-def test_the_host_setup_starts_a_server_on_a_fresh_volume_whose_admin_logs_in_and_whose_code_joins():
-    import hashlib
+def test_the_host_setup_starts_a_server_on_a_fresh_volume_and_the_first_journal_to_connect_becomes_its_admin():
     import re
 
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
     environment = {"PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin", "HOME": str(Path.home()), "TEAM_IMAGE": IMAGE, "TEAM_SETUP_STDIN": "1", "TEAM_HTTPS_PORT": str(PORT), "TEAM_HTTP_PORT": "8480"}
-    answers = "\n".join(["Setup Test", "Ada", "ada@example.com", PASSWORD, PASSWORD, "127.0.0.1"]) + "\n"
+    answers = "\n".join(["Setup Test", "127.0.0.1"]) + "\n"
     try:
         setup = subprocess.run(["sh", str(ROOT / "host" / "install.sh")], input=answers, capture_output=True, text=True, env=environment, timeout=300)
         assert setup.returncode == 0, setup.stderr
-        line = re.search(r"journal team join (\S+) --code (\S+) --fingerprint (\S+)", setup.stdout)
+        line = re.search(r"journal library connect (\S+)", setup.stdout)
         assert line and line.group(1) == f"https://127.0.0.1:{PORT}", setup.stdout
-        unverified = ssl.create_default_context()
-        unverified.check_hostname, unverified.verify_mode = False, ssl.CERT_NONE
-        with urllib.request.urlopen(f"{line.group(1)}/root.crt", timeout=10, context=unverified) as answer:
-            assert hashlib.sha256(ssl.PEM_cert_to_DER_cert(answer.read().decode())).hexdigest() == line.group(3), "the fingerprint is the authority the server serves"
-        accept = urllib.request.Request(f"{line.group(1)}/accept", data=json.dumps({"code": line.group(2), "email": "ada@example.com", "name": "Ada", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "laptop"}).encode(), headers=SPOKEN)
-        with urllib.request.urlopen(accept, timeout=10, context=unverified) as answer:
-            assert json.loads(answer.read())["account_id"] == 1, "the admin's code logs the admin's journal in"
+        install = urllib.request.Request(f"{line.group(1)}/install", data=json.dumps({"email": "ada@example.com", "name": "Ada", "password": PASSWORD, "device_name": "laptop"}).encode(), headers=SPOKEN)
+        with urllib.request.urlopen(install, timeout=10, context=unverified_context()) as answer:
+            assert json.loads(answer.read())["account_id"] == 1, "the first journal to connect becomes the admin"
         again = subprocess.run(["sh", str(ROOT / "host" / "install.sh")], input=answers, capture_output=True, text=True, env=environment, timeout=120)
         assert again.returncode == 1 and "set up here already" in again.stderr
     finally:
@@ -81,7 +92,7 @@ def test_the_host_setup_starts_a_server_on_a_fresh_volume_whose_admin_logs_in_an
 
 
 def test_a_running_servers_backup_restores_into_a_new_container_that_answers_the_same_rows(tmp_path):
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
     restored = "agent-journal-team-restored-test"
     docker("volume", "create", VOLUME)
     docker("volume", "create", restored)
@@ -107,63 +118,3 @@ def test_a_running_servers_backup_restores_into_a_new_container_that_answers_the
     finally:
         subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
         subprocess.run(["docker", "volume", "rm", VOLUME, restored], capture_output=True, timeout=60)
-
-
-def test_the_hosted_address_signs_a_person_in_and_shows_the_teams_tasks():
-    import http.cookiejar
-    import re
-
-    from sync_server.protocol import MIGRATION_HEADER, VERSION_HEADER
-
-    version = re.search(r'VERSION = "(.*)"', (ROOT / "src" / "journal" / "version.py").read_text()).group(1)
-    migration = max(int(re.search(r"number: ClassVar\[int\] = (\d+)", path.read_text()).group(1)) for path in (ROOT / "src" / "journal" / "db" / "migrations").glob("*.py") if "number: ClassVar" in path.read_text())
-    print("building the team image", flush=True)
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
-    subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
-    subprocess.run(["docker", "volume", "rm", VOLUME], capture_output=True, timeout=60)
-    docker("volume", "create", VOLUME)
-    unverified = ssl.create_default_context()
-    unverified.check_hostname, unverified.verify_mode = False, ssl.CERT_NONE
-    try:
-        print("starting the team server", flush=True)
-        docker("run", "-d", "--name", NAME, "-e", "TEAM_ADDRESS=localhost", "-p", f"{PORT}:443", "-v", f"{VOLUME}:/data", IMAGE)
-        time.sleep(2)
-        docker("exec", NAME, "python", "-c", f"from pathlib import Path; from sync_server.account import ADMIN; from sync_server.team_server import TeamServer; TeamServer(Path('/data/team')).accounts.create('ada@example.com', 'Ada', '{PASSWORD}', ADMIN, 1.0)")
-        token = login("a member's journal")["token"]
-        stamped = {"created_at": "2026-10-23T08:00:00+00:00", "updated_at": "2026-10-23T08:00:00+00:00"}
-        rows = [{"row_table": "environments", "row": 1, "fields": {"name": "main", **stamped}, "changed_at": {"name": 1.0}}, {"row_table": "tasks", "row": 7, "fields": {"title": "pushed by a member", "environment_id": 1, **stamped}, "changed_at": {"title": 1.0, "environment_id": 1.0}}]
-        upload = urllib.request.Request(f"https://localhost:{PORT}/upload", data=json.dumps({"rows": rows, "highest": {"environments": 1, "tasks": 7}, "repository": "abc", "version": version, "migration": migration}).encode(), headers={**SPOKEN, MIGRATION_HEADER: str(migration), VERSION_HEADER: version, "Authorization": f"Bearer {token}"})
-        urllib.request.urlopen(upload, timeout=10, context=unverified).read()
-        jar = http.cookiejar.CookieJar()
-        browser = urllib.request.build_opener(urllib.request.HTTPSHandler(context=unverified), urllib.request.HTTPCookieProcessor(jar))
-        boundary = "journalform"
-        form = "".join(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n" for name, value in (("email", "ada@example.com"), ("password", PASSWORD))).encode() + f"--{boundary}--\r\n".encode()
-        print("waiting for the hosted journal to join and serve", flush=True)
-        deadline = time.monotonic() + START_SECONDS
-        while True:
-            try:
-                browser.open(urllib.request.Request(f"https://localhost:{PORT}/sign-in", data=form, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}), timeout=10).read()
-                break
-            except OSError:
-                if time.monotonic() > deadline:
-                    raise
-                time.sleep(2)
-        people = json.loads(browser.open(urllib.request.Request(f"https://localhost:{PORT}/journal/people", headers={"X-Journal-Env": "main"}), timeout=10).read())
-        assert people["me"] == 1, "the hosted address signs Ada in as Ada"
-        tasks = browser.open(urllib.request.Request(f"https://localhost:{PORT}/journal/tasks", headers={"X-Journal-Env": "main"}), timeout=10).read().decode()
-        assert "pushed by a member" in tasks, "and shows the task a member pushed"
-        browser.open(urllib.request.Request(f"https://localhost:{PORT}/journal/messages", data=json.dumps({"text": "posted from a browser"}).encode(), headers={"X-Journal-Env": "main", "Content-Type": "application/json"}), timeout=10).read()
-        copy = urllib.request.Request(f"https://localhost:{PORT}/copy", headers={**SPOKEN, MIGRATION_HEADER: str(migration), VERSION_HEADER: version, "Authorization": f"Bearer {token}"})
-        deadline = time.monotonic() + 3
-        while not any(row["row_table"] == "messages" and row["fields"].get("text") == "posted from a browser" for row in json.loads(urllib.request.urlopen(copy, timeout=10, context=unverified).read())["rows"]):
-            assert time.monotonic() < deadline, "a message posted at the hosted address reaches the team server"
-            time.sleep(1)
-        [posted] = [row for row in json.loads(urllib.request.urlopen(copy, timeout=10, context=unverified).read())["rows"] if row["row_table"] == "messages" and row["fields"].get("text") == "posted from a browser"]
-        assert posted["fields"]["creator"] == "user:1", "stamped as the person who signed in, so every other journal names them"
-        assert urllib.request.urlopen(urllib.request.Request(f"https://localhost:{PORT}/team", headers=SPOKEN), timeout=10, context=unverified).status == 200, "while the team server's own paths still reach it"
-    except AssertionError:
-        print("\n".join(line for line in subprocess.run(["docker", "logs", NAME], capture_output=True, text=True, timeout=60).stderr.splitlines() + subprocess.run(["docker", "logs", NAME], capture_output=True, text=True, timeout=60).stdout.splitlines() if '"logger"' not in line))
-        raise
-    finally:
-        subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
-        subprocess.run(["docker", "volume", "rm", VOLUME], capture_output=True, timeout=60)

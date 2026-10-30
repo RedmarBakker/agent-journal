@@ -1,9 +1,9 @@
 from declaring.groups import Grouping, Section
 
 # @sin PlainSettingsGroupTitleDetector
-THIS = Grouping("This project", "Settings for the whole project", Section.SYSTEM)
+PROJECT_GROUP = Grouping("This project", "Settings for the whole project", Section.SYSTEM)
 # @sin PlainSettingsGroupTitleDetector
-THE = Grouping("The agent", "How the agent works", Section.AGENT)
+AGENT_GROUP = Grouping("The agent", "How the agent works", Section.AGENT)
 # @sin PlainSettingsGroupTitleDetector
 VERB = Grouping("Shut down", "Stop the journal", Section.SYSTEM)
 # @righteous PlainSettingsGroupTitleDetector

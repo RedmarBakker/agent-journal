@@ -1,9 +1,6 @@
 from argparse import Namespace
 from dataclasses import replace
 
-from journal.console.support.hub_choice import HubChoice
-from journal.console.support.hub_rows import HubRows
-from journal.support.row_labels import RowLabels
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
@@ -24,8 +21,6 @@ from journal.repositories.phases import Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
-from journal.sync.hub_drives import HubDrives
-from journal.support.row_destination import RowDestination
 from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.work_mode import WorkMode
@@ -43,18 +38,17 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, time_source: TimeSource, logs: TaskLogs) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, time_source: TimeSource, logs: TaskLogs) -> None:
         self.time_source, self.logs = time_source, logs
         self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
-        self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
-        self.settings, self.drives, self.statuses, self.phase_testing, self.destination = settings, drives, statuses, phase_testing, destination
+        self.rounds, self.taking, self.plan_testing = rounds, taking, testing
+        self.settings, self.statuses, self.phase_testing = settings, statuses, phase_testing
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
         creation.add_argument("title")
         creation.add_argument("--brief", default="")
-        creation.add_argument("--team", default="", help="make it in the hub of the joined team of this name")
         addition = self.verb(verbs, "add", "add a task to a plan, after the ones it has")
         addition.add_argument("n", type=int)
         addition.add_argument("title")
@@ -111,11 +105,7 @@ class PlanCommand(Command):
         Waits.arguments(block, "plan")
         self.verb(verbs, "unblock", "what the plan waited on came: it is started again").add_argument("n", type=int)
         self.verb(verbs, "cancel", "a plan cancelled, with the tasks that are its alone; one another live plan contains stays").add_argument("n", type=int)
-        driving = self.verb(verbs, "drive", "follow a hub plan from this environment: it and its tasks read as this environment's, and no other environment or machine drives it until you release it")
-        driving.add_argument("n", type=int)
-        driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
-        self.verb(verbs, "release", "let a hub plan you drive go, so anyone may drive it").add_argument("n", type=int)
-        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for every started plan")
+        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, or current for every started plan")
         self.verb(verbs, "list", "every plan here")
         priorities = self.verb(verbs, "priorities", "the order the started plan's open work goes in, and why: what unblocks the most others or you first")
         priorities.add_argument("order")
@@ -127,9 +117,8 @@ class PlanCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
             raise Rejection("the user writes the plans here: Orchestrator may write plans is off, so ask them for one")
-        with self.hub.hub_scope(args.team):
-            plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
-        print(f"{self.labels.name('plan', plan)} {plan.state}")
+        plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
+        print(f"plan {plan.row_id} {plan.state}")
         return 0
 
     def add(self, args: Namespace, caller: Caller) -> int:
@@ -139,7 +128,7 @@ class PlanCommand(Command):
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
-        print(f"{self.labels.name('task', task)} added to {self.labels.name('plan', plan)}{' first' if args.first else ''}{self.destination.phrase(task)}")
+        print(f"task {task.row_id} added to plan {plan.row_id}{' first' if args.first else ''}")
         return 0
 
     def relink(self, task: Task, plan: Plan, caller: Caller) -> None:
@@ -265,15 +254,6 @@ class PlanCommand(Command):
         print(f"plan {plan.id} open again: `journal plan start {plan.id}` goes on with it")
         return 0
 
-    def drive(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.find(args.n)
-        print(self.drives.drive_line(self.drives.takeover(plan, caller.actor) if args.take_over else self.drives.drive(plan, caller.actor)))
-        return 0
-
-    def release(self, args: Namespace, caller: Caller) -> int:
-        print(self.drives.release_line(self.drives.release(self.plans.find(args.n), caller.actor)))
-        return 0
-
     def allow_tests(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.save(self.plans.find(args.n).with_test_run_allowed(), caller.actor)
         current = self.tasks.holder_task(self.taking.holder(caller))
@@ -338,7 +318,7 @@ class PlanCommand(Command):
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:
-        return self.current() if args.n == CURRENT else self.shown(self.plans.find(self.hub_rows.number(args.n)))
+        return self.current() if args.n == CURRENT else self.shown(self.plans.find(int(args.n)))
 
     def current(self) -> int:
         started = self.statuses.started()

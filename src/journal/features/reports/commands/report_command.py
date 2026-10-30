@@ -1,6 +1,5 @@
 import re
 from argparse import Namespace
-from datetime import datetime, timezone
 from pathlib import Path
 
 from journal.console.command import Command
@@ -16,7 +15,6 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
 from journal.support.no_action_reason import NoActionReason
-from journal.support.row_destination import RowDestination
 from journal.support.time_source import TimeSource
 
 ROW = re.compile(r"^[a-z_]+:\d+$")
@@ -25,9 +23,9 @@ ROW = re.compile(r"^[a-z_]+:\d+$")
 class ReportCommand(Command):
     noun = "report"
 
-    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, destination: RowDestination, time_source: TimeSource) -> None:
+    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, time_source: TimeSource) -> None:
         self.time_source = time_source
-        self.reports, self.links, self.gathering, self.destination = reports, links, gathering, destination
+        self.reports, self.links, self.gathering = reports, links, gathering
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a report: what was checked or researched now")
@@ -63,10 +61,10 @@ class ReportCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         body = Path(args.file).read_text() if args.file else args.body
         rows = self.mentioned_rows(args.about)
-        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, abstract=args.abstract, body=body, unfinished=args.part), caller.actor)
+        report = self.reports.save(Report(title=args.title, abstract=args.abstract, body=body, unfinished=args.part), caller.actor)
         for row in rows:
             self.links.save(Link(source=Ref.build(report), target=row, link_type=Messages.SUBJECT_LINK), caller.actor)
-        print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
+        print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else ""))
         return 0
 
     def update(self, args: Namespace, caller: Caller) -> int:

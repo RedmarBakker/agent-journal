@@ -20,7 +20,7 @@ AGENT_REQUIRED = "no agent runs this: only an agent's own session can"
 
 @dataclass(frozen=True)
 class Caller:
-    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker, a verifier or a reviewer by its number, its session when its program names one, and its provider, or a subagent of any of these; its role says which helper runs it, the main agent's role standing for the main agent, the user and a plugin alike, and its session role the role of the agent whose session it runs in, a subagent's being its parent's, and the person is the user's account number on a shared journal."""
+    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker, a verifier or a reviewer by its number, its session when its program names one, and its provider, or a subagent of any of these; its role says which helper runs it, the main agent's role standing for the main agent, the user and a plugin alike, and its session role the role of the agent whose session it runs in, a subagent's being its parent's."""
 
     environment: str
     session: str | None = None
@@ -31,7 +31,6 @@ class Caller:
     reviewer_number: int | None = None
     subagent: bool = False
     subagent_session: str = ""
-    person: int = LOCAL_USER
     agent_row: Agent | None = None
 
     def holder_ref(self) -> Ref | None:
@@ -106,7 +105,7 @@ class Caller:
         if self.is_reviewer():
             return Actor.reviewer(self.reviewer_number)
         if self.session is None:
-            return Actor.user(self.person)
+            return Actor.user(LOCAL_USER)
         return Actor.subagent(self.session, self.subagent_session) if self.subagent else Actor.agent(self.session)
 
     @property
