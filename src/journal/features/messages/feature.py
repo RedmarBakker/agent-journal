@@ -75,8 +75,8 @@ The user sends messages; you answer them before anything else.
   you read and leave unanswered holds your very next tool call that is not a journal command or a look at its files: a word
   first, then the work. A reaction to a message answers it too.
   `read due, message N: K` and `reply due, message N: K` count the tool uses K left before that wait.
-- After a compaction, a new start or a takeover, `journal environment overview` shows what is in flight, the latest
-  messages among it, and must be run before any other write; `journal message recent` shows the latest messages alone.
+- `journal message recent` shows the latest messages; after a compaction the overview, which the journal skill teaches,
+  shows them among what is in flight.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
 - A button is an action for now: when the user must open a web address outside the journal, start something there or
   send a form to one, put a button under your message instead of asking them to visit it, and never build a page of
@@ -90,6 +90,4 @@ The user sends messages; you answer them before anything else.
 - `journal message list` shows the thread, unread ones marked with `*`.
 - A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
   answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
-- Everything you write for the user reaches the chat as a message; keep it about the work, never about the
-  journal's own commands.
 """, keywords=('message', 'messages', 'inbox', 'reply'), commands=('message',), events=(MessageArrived,))
