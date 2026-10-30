@@ -5970,7 +5970,7 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
 
 
 def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_and_a_reader_add_tries_two_runs_at_once(app: App, tmp_path):
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     from types import SimpleNamespace
     from journal.support.listener_queue import ListenerQueue
     from journal.features.faults.support.developer_tally import DeveloperTally

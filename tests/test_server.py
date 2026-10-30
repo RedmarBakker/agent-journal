@@ -151,7 +151,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     server = suite_server(app)
     try:
         developer = lambda: call(server, "GET", "/journal/developer")[1]
@@ -693,6 +693,10 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
         assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "testing_suggestion_minutes", "testing_suggestion_tool_uses", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
         assert all(f in matched for f in ("messages", "shell", "voices")) and "kanban" not in matched, "version 3's leftovers are gone"
         assert "faults" in matched, "slow requests are a setting in every project, off by default and switched on where the journal develops itself"
+        faults = next(f for f in manifest["features"] if f["name"] == "faults")
+        assert not faults["fixed"] and faults["default"] is False and not any(o["key"] in ("faults.developer", "faults.sentry_dsn") for o in faults["options"]), "slow requests have the one switch, off by default, and no Sentry setting"
+        reports = next(f for f in manifest["features"] if f["name"] == "error_reports")
+        assert reports["fixed"] and [o["key"] for o in reports["options"]] == ["faults.sentry_dsn"], "the Sentry address is a setting of its own feature, always on"
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"
         assert {g["key"] for g in manifest["groups"]} == {*matched, "project"}, "one group per feature, and the System tab's own"
         status, tree = call(server, "POST", "/journal/settings", {"tasks": {"log_after": 60}})
@@ -1652,7 +1656,7 @@ def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between
 def test_a_fault_is_sent_to_the_sentry_the_setting_names_and_to_none_while_it_is_empty(app: App):
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
-    from journal.features.faults.jobs.sentry_sender import SentrySender
+    from journal.features.error_reports.jobs.sentry_sender import SentrySender
     from tests.user_settings import user_set
     received = []
 

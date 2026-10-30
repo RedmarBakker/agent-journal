@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timezone
 
 from journal.engine.job import Job
-from journal.features.faults.faults_options import FaultsOptions
-from journal.features.faults.support.sentry_address import SentryAddress
+from journal.features.error_reports.error_reports_options import ErrorReportsOptions
+from journal.features.error_reports.support.sentry_address import SentryAddress
 from journal.repositories.setting_rows import SettingRows
 from journal.support.fault_log import FaultLog
 from journal.support.recorded_fault import RecordedFault
@@ -27,7 +27,7 @@ class SentrySender(Job):
 
     def tick(self, time: float) -> None:
         faults = self.faults.drained()
-        dsn = str(self.settings.option(FaultsOptions.SENTRY_DSN)).strip()
+        dsn = str(self.settings.option(ErrorReportsOptions.SENTRY_DSN)).strip()
         if not dsn or not faults:
             return
         try:

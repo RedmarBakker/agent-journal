@@ -249,7 +249,7 @@ def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App
 
 
 def test_the_developer_numbers_are_kept_in_memory_and_written_to_no_row(app: App):
-    user_set(app, "faults.developer", True)
+    user_set(app, "features.faults", True)
     import time
     from journal.db.connection import Connection
     connection = app.container.get(Connection)

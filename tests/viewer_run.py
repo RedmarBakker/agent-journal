@@ -112,6 +112,9 @@ SETS = {
         "tests/otherServer.test.js",
         "tests/forceUpdate.test.js",
     ),
+    "settings_catalog": (
+        "tests/settingsCatalog.test.js",
+    ),
     "sidebar_counts": (
         "tests/sidebarCounts.test.js",
         "tests/collectionsNavigation.test.js",
