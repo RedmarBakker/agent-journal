@@ -33,6 +33,7 @@ def test_the_agent_may_run_an_installed_plugins_program_but_never_write_to_its_f
     story.expect_refused(story.agents.subject, PluginsNudges.PLUGIN_FILE_OWNERSHIP)
     story.agent_runs_in_the_shell(story.agents.subject, f"{installed}/bin/judge --changes > /tmp/judged.txt 2>&1")
     story.expect_allowed()
+    story.expect_plugin_given(story.plugins.first, "PYTHONDONTWRITEBYTECODE", is_given=True)
     story.agent_runs_in_the_shell(story.agents.subject, f"echo hi > {installed}/run.py")
     story.expect_refusal_text("plugin's files")
     story.agent_runs_in_the_shell(story.agents.subject, f"rm -rf {installed}")
