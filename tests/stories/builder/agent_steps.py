@@ -378,6 +378,12 @@ class AgentSteps:
         (self.app.container.get(PluginFolders).folder(installed) / MANIFEST).write_text(text)
         self.observed(f"the manifest of plugin {plugin} is written over", None, None)
 
+    def plugin_secret(self, plugin: str) -> int:
+        return next(row["settings"]["token"]["secret"] for row in get_answer(self.app, "/journal/plugins", MAIN)[1]["rows"] if row["name"] == plugin)
+
+    def secret_variable(self, secret: int) -> str:
+        return self.api_row("secrets", secret)["fields"][0]["variable"]
+
     def plugin_number(self, plugin: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/plugins", {"X-Journal-Env": "main"})[1]["rows"] if row["name"] == plugin)
 

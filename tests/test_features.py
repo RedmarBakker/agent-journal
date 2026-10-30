@@ -1944,24 +1944,6 @@ def test_a_plugin_upgrade_keeps_the_files_the_plugin_built_and_an_upgrade_to_the
     assert not (built.parent.parent / "old-script.py").exists(), "while a file the old source shipped and the new one dropped is removed"
 
 
-def test_a_plugins_filled_secret_is_given_to_it_only_once_the_user_allows_it(app: App):
-    from journal.features.plugins.support.plugin_runner import PluginRunner
-    from journal.repositories.plugins import Plugins
-    from journal.repositories.secrets import Secrets
-    from journal.support.secret_values import SecretValues
-    console, plugins = app.console(), app.container.get(Plugins)
-    console.run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
-    plugin = plugins.lookup("echo")
-    secret = app.container.get(Secrets).find(plugin.settings["token"]["secret"])
-    assert (plugin.settings["mode"], plugin.settings["repeat"]) == ("", 1) and secret.proposed == ("plugin:echo",), "defaults set, and a secret asked for, proposed for the plugin"
-    variable = secret.fields[0]["variable"]
-    app.container.get(SecretValues).put(variable, "tok_0123456789abcdef")
-    runner = app.container.get(PluginRunner)
-    assert variable not in runner.environment(plugins.lookup("echo"), "main"), "a filled secret is not given until the user allows it"
-    app.container.get(Secrets).save(secret.with_(programs=("plugin:echo",)), Actor.user(1))
-    assert runner.environment(plugins.lookup("echo"), "main")[variable] == "tok_0123456789abcdef"
-
-
 def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_it_brings(app: App, tmp_path):
     from journal.features.plugins.support.manifest_reader import ManifestReader
     from journal.support.rejection import Rejection
@@ -1974,33 +1956,6 @@ def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_i
         reader.read(folder)
     assert str(refused.value) == f"later needs journal 99.0.0 or newer; this journal is {VERSION}", "an install hears the version it needs, not a key it cannot know"
     assert reader.least_journal(folder) == "99.0.0", "an upgrade reads the minimum alone, so an older journal passes the release by"
-
-
-
-
-
-def test_the_plugins_page_previews_installs_lists_configures_and_removes(app: App):
-    from journal.repositories.plugins import Plugins
-    port = app.server().port
-
-    def api(method, path, body=None):
-        request = HttpRequest(f"http://127.0.0.1:{port}/journal/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=10) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    folder = str(Path(__file__).parent / "plugins" / "echo")
-    status, preview = api("POST", "plugins/preview", {"source": folder})
-    assert status == 200 and preview["name"] == "echo" and {"item_type": "holds", "label": "before the agent continues", "command": "tool_starting, prompt_submitted"} in preview["rows"]
-    status, produced = api("POST", "plugins", {"source": folder})
-    assert status == 201 and produced["name"] == "echo"
-    row = api("GET", "plugins")[1]["rows"][0]
-    mode = next(s for s in row["schema"] if s["key"] == "mode")
-    assert (row["name"], row["status"], row["manifest"]["holds"], mode["setting_type"], "secret" in row["settings"]["token"]) == ("echo", "on", [{"event": "tool_starting", "window_ms": 0}, {"event": "prompt_submitted", "window_ms": 0}], "choice", True)
-    assert api("POST", f"plugins/{produced['id']}/configure", {"key": "repeat", "value": "4"})[0] == 200 and app.container.get(Plugins).lookup("echo").settings["repeat"] == 4
-    assert api("POST", f"plugins/{produced['id']}/disable", {})[0] == 200 and api("GET", "plugins")[1]["rows"][0]["status"] == "off"
-    assert api("POST", f"plugins/{produced['id']}/remove", {})[0] == 200 and app.container.get(Plugins).all() == []
 
 
 
@@ -2066,27 +2021,6 @@ def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app
     assert secrets.active() == [] and secrets.stale_retired(datetime.now(timezone.utc) + timedelta(days=1)) == [missing]
 
 
-def test_the_agent_is_kept_out_of_the_secrets_and_the_mcp_keys(app: App, tmp_path, monkeypatch):
-    from journal.support.secret_values import SecretValues
-    monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    values = app.container.get(SecretValues).path
-    keys = tmp_path / "home" / ".journal" / "keys"
-    refused = lambda tool, value: hook(app, "PreToolUse", tool_name=tool, tool_input=value)[0] == 409
-    assert refused("Read", {"file_path": str(values)})
-    assert refused("Bash", {"command": f"cat {values.parent}/*.env"})
-    assert refused("Bash", {"command": "cat ~/.config/agent-journal/secrets/x.env"})
-    assert refused("Grep", {"pattern": "KEY", "path": str(keys)})
-    climbed = "../" * len(app.config.root.resolve().parts) + str(keys.resolve()).lstrip("/") + "/x.json"
-    assert refused("Read", {"file_path": climbed}), "a path that climbs into the keys is refused too"
-    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "a.py")})[0] == 200
-    assert "`journal secret run <n> -- <program>`" in hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(values)})[1]["error"]
-
-
 def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):
     import json as j
     from journal.features.secrets.seeds.secret_files import SecretFiles
@@ -2103,19 +2037,6 @@ def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):
     assert len(rows) == 1, "brought in once, however often the journal boots"
     flespi = rows[0]
     assert flespi.title == "flespi" and flespi.secret_type == "api key" and flespi.filled == ("key",) and flespi.programs == ("curl",) and flespi.brief == "The flespi token, used with curl." and flespi.used_at is not None and not flespi.waiting()
-
-
-def test_the_agent_is_told_when_the_user_allows_a_program(app: App, monkeypatch):
-    from journal.models.secret import Secret
-    from journal.repositories.secrets import Secrets
-    transmitted = []
-    woken_capture(app, monkeypatch, transmitted)
-    hook(app, "SessionStart")
-    secret = app.container.get(Secrets).save(Secret(title="Github", proposed=("gh",)), Actor.agent("s1"))
-    viewer(app, f"secrets/{secret.id}", {"programs": ["gh"], "proposed": []})
-    app.runtime().deferred.drain()
-    carried = str(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert any(nudge_reached(app, line, SecretsNudges.SECRET_PROGRAM_GRANT, n=1, programs="gh") for line in [*transmitted, carried]), "the agent is told, woken when it stopped or on its next hook"
 
 
 def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_taken_back(app: App, tmp_path, monkeypatch):
