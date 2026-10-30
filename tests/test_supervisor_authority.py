@@ -43,6 +43,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
 from journal.supervisor_authority import GRANT_ENTRY, GRANT_FIELDS, RESERVED_OPERATIONS, SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
+from tests.test_features import booted
 
 
 @dataclass
@@ -58,6 +59,11 @@ class Fixture:
     check: Check
     template: Template
     credentials: list[str] = field(default_factory=list)
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 def seeded(app, owner_id: int = 1) -> Fixture:
