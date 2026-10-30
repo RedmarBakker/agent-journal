@@ -23,7 +23,11 @@ def test_a_plan_without_delivery_history_shows_not_enough_history_and_no_numeric
     result.expect_viewer_shows("probability_this_sprint", None)
     result.expect_viewer_shows("p50", None)
     result.expect_viewer_shows("p85", None)
-    result.expect_viewer_shows("missing_evidence", ["comparable delivery history", "observed capacity"])
+    result.expect_viewer_shows("unknown_sizes", [story.tasks.first, story.tasks.second])
+    result.expect_viewer_shows("unknown_domains", [story.tasks.first, story.tasks.second])
+    result.expect_viewer_shows("missing_evidence", [
+        "approved scope", "comparable cohort", "comparable delivery history", "observed capacity", "planned domain", "story points"
+    ])
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -82,10 +86,14 @@ def test_plan_and_sprint_forecasts_read_the_same_shared_delivery_projection(stor
 def test_a_missing_domain_and_size_cohort_does_not_choose_a_history_pool(story):
     settings = story.user_opens("/journal/settings")
     settings.expect_viewer_part(("estimates", "mode"), "off")
+    settings.expect_viewer_part(("estimates", "forecast_trials"), 10000)
+    settings.expect_viewer_part(("estimates", "forecast_horizon_sprints"), 6)
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("cohort_domain", None)
     result.expect_viewer_shows("cohort_size_unit", "story points")
     result.expect_viewer_shows("pooled_domains", [])
     result.expect_viewer_shows("probability_this_sprint", None)
-    result.expect_viewer_shows("missing_evidence", ["planned domain", "comparable delivery history"])
+    result.expect_viewer_shows("missing_evidence", [
+        "approved scope", "comparable cohort", "comparable delivery history", "observed capacity", "planned domain", "story points"
+    ])
     story.expect_stack(story.agents.subject, Ready)

@@ -11,5 +11,6 @@ class Estimates(Feature[object]):
     name = "estimates"
     title = "Plan estimates"
     help = "Fixed sprint calendars and delivery estimates for existing plans."
-    options = (EstimatesOptions.MODE, EstimatesOptions.SPRINT_LENGTH_DAYS, EstimatesOptions.SIZE_SCALE)
+    options = (EstimatesOptions.MODE, EstimatesOptions.SPRINT_LENGTH_DAYS, EstimatesOptions.SIZE_SCALE,
+               EstimatesOptions.FORECAST_TRIALS, EstimatesOptions.FORECAST_HORIZON_SPRINTS)
     listeners = (TaskOutcomeEvents, TaskOutcomeWaits, TaskOutcomeMerges, MergedDeliveryEvidence, FirstReadyTaskSizes)

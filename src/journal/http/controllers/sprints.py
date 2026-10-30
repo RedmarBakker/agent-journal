@@ -1,6 +1,7 @@
 from journal.http.support.request import Request
-from journal.repositories.sprints import Sprints
+from journal.repositories.delivery_forecasts import DeliveryForecasts
 from journal.repositories.sprint_outcome_metrics import SprintOutcomeMetrics
+from journal.repositories.sprints import Sprints
 from journal.support.rejection import Rejection
 from journal.support.response import Response
 
@@ -8,8 +9,8 @@ from journal.support.response import Response
 class SprintController:
     """The owner's fixed sprint periods, membership, frozen commitments and carry-over decisions."""
 
-    def __init__(self, sprints: Sprints, metrics: SprintOutcomeMetrics) -> None:
-        self.sprints, self.metrics = sprints, metrics
+    def __init__(self, sprints: Sprints, metrics: SprintOutcomeMetrics, forecasts: DeliveryForecasts) -> None:
+        self.sprints, self.metrics, self.forecasts = sprints, metrics, forecasts
 
     def index(self, request: Request) -> Response:
         return Response.json(self.sprints.index(request.actor))
@@ -19,6 +20,9 @@ class SprintController:
 
     def metrics_report(self, request: Request) -> Response:
         return Response.json(self.metrics.read(request.number("id"), request.actor))
+
+    def forecast(self, request: Request) -> Response:
+        return Response.json(self.forecasts.sprint(request.number("id"), request.actor))
 
     def store(self, request: Request) -> Response:
         sprint = self.sprints.create(self.text(request, "starts_on"), self.text(request, "timezone"), request.actor)
