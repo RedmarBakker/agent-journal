@@ -900,6 +900,7 @@ argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task
 $ agent: journal alias add greet 'echo hello' --about 'says hello'
 exit 0
 alias greet added: journal greet [args] runs echo hello
+created: alias 1
 
 $ agent: journal alias edit greet --line 'echo hi'
 exit 0
@@ -2025,11 +2026,12 @@ $ agent: journal worker dispatch --help
 exit 0
 usage: journal worker dispatch [-h] [--provider {claude,codex}]
                                --changes CHANGES [--tests TESTS] [--role ROLE]
-                               [--profile PROFILE] [--model MODEL] [--worktree]
-                               [--libraries LIBRARIES] [--copies COPIES]
-                               [--no-libraries] [--pool] [--needs-secrets]
-                               [--fresh] [--report REPORT [REPORT ...]]
-                               (--task TASK | --plan PLAN) [--phase PHASE]
+                               [--profile PROFILE] [--model MODEL]
+                               [--worktree] [--libraries LIBRARIES]
+                               [--copies COPIES] [--no-libraries] [--pool]
+                               [--needs-secrets] [--fresh]
+                               [--report REPORT [REPORT ...]] (--task TASK |
+                               --plan PLAN) [--phase PHASE]
                                name [brief]
 
 positional arguments:

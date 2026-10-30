@@ -27,6 +27,8 @@ class HubTrafficAudit:
 
     def findings(self) -> tuple[HubTrafficFinding, ...]:
         contracts = self.organization.contracts()
+        if contracts.is_empty():
+            return ()
         nodes = {edge.source for edge in contracts.containment()} | {edge.target for edge in contracts.containment()}
         aliases, role_prefixes = self.identities(contracts, nodes)
         transitions = {}
