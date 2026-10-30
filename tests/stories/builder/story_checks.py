@@ -61,7 +61,7 @@ class StoryChecks:
 
     def expect_docked_cards(self, *texts: str) -> None:
         now = self.app.container.get(TimeSource).seconds()
-        docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if self.is_shown_docked(row.get("data") or {}, now))
+        docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages?docked=1", MAIN)[1]["rows"] if self.is_shown_docked(row.get("data") or {}, now))
         assert docked == sorted(texts), f"the cards docked above the chat are {docked}, not {sorted(texts)}"
 
     def expect_plan_titles_in(self, environment: str, *titles: str) -> None:

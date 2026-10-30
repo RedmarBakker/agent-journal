@@ -24,7 +24,7 @@ CHAT_PAGE_ROWS = 400
 NEWEST_SHOWN = 2000
 # how long a message the agent read waits for its answer; one read longer ago never holds the agent
 WAITING_HOURS = 24
-# the most cards of running commands docked above a chat, which the viewer reads apart from the chat's pages
+# the most cards docked above a chat, active or with no time to leave, which the viewer reads apart from the chat's pages, so a card older than the chat's page still shows
 DOCKED_CARD_COUNT = 50
 
 
@@ -159,8 +159,10 @@ class Messages(ScopedRepository[Message]):
         return query
 
     def docked_cards(self, chat: Query) -> list[Message]:
-        running_cards = chat.filter_json("data->docked", True).filter_json("data->active", True)
-        return self.selected(running_cards.order_descending("id").limit(DOCKED_CARD_COUNT))
+        docked = chat.filter_json("data->docked", True)
+        progress_cards = self.selected(docked.filter_json("data->active", True).order_descending("id").limit(DOCKED_CARD_COUNT))
+        undated_cards = self.selected(docked.filter_null("data->undock_at").order_descending("id").limit(DOCKED_CARD_COUNT))
+        return sorted({card.id: card for card in progress_cards + undated_cards}.values(), key=lambda card: card.id, reverse=True)[:DOCKED_CARD_COUNT]
 
     def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))

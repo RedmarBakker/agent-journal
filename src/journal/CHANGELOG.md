@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.8
+
+- A docked document shows above the chat however old its card is: the list of docked cards now holds every docked card, not only those of running commands.
+
 ## 4.69.7
 
 - A row docked again after its card was taken down shows again; docking clears the old time it was taken down.
