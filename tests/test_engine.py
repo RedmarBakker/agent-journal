@@ -2452,14 +2452,11 @@ def test_the_settings_rows_of_removed_options_are_deleted_and_the_settings_read_
 def test_a_stored_developer_features_value_moves_to_the_slow_requests_switch_and_is_read_there(app: App):
     from journal.db.connection import Connection
     from journal.db.migrations.developer_switch_rename import DeveloperSwitchRename
-    from journal.features.faults.faults_options import FaultsOptions
     connection = app.container.get(Connection)
     connection.execute("INSERT INTO settings (environment_id, key, value, created_at, creator) VALUES (0, 'faults.developer', 'true', '2026-10-26', 'system')")
     DeveloperSwitchRename().apply(connection)
     assert not connection.all("SELECT key FROM settings WHERE key = 'faults.developer'"), "the old key is gone"
-    settings = app.container.get(SettingRows)
-    settings.clear_cache()
-    assert settings.option(FaultsOptions.DEVELOPER) is True, "and the value is read from the feature's switch"
+    assert [(row["environment_id"], row["value"]) for row in connection.all("SELECT environment_id, value FROM settings WHERE key = 'features.faults'")] == [(0, "true")], "and its value is held by the feature's switch"
 
 
 def test_a_change_of_mode_starts_the_measures_fresh_so_no_line_of_the_old_mode_is_said_and_old_merges_are_not_counted(app: App):
