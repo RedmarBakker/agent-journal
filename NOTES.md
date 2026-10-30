@@ -1959,8 +1959,9 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   its last session. A pause, a finish or an abandon stops it; a blocked plan keeps it. `features/plans/support/plan_agents.py`
   is the one place that knows a plan's agent; `WorkMode` answers for the scope environment's main agent's floor, so the
   main environment delegates while each plan environment advances its own plan. The plan's chat is its environment's
-  chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. Open: who merges
-  `worktree-plan-<n>` at the plan's end (decided: the main agent, through journal's merge; not built yet).
+  chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. When a solo Plan agent finishes,
+  the main agent reviews and merges `worktree-plan-<n>` with `journal plan merge <n>`; the journal checks the branch and
+  removes its worktree after the merge.
 - A plan's owner (task 44) is the owner of its environment, or for a hub plan the owner of this machine's environment
   that drives it (`features/plans/support/plan_owners.py`), named by `plan show` and on the plan page. Only its owner
   approves it: a colleague is refused by ColleagueWriteGuard, which names the owner, and a Plan agent by the approval
@@ -2100,8 +2101,7 @@ as before; with it on, the main chat remains beside the plans board.
   estimates say Not reported or Not measured, and seat and cost caps are changed in Settings by their owner. Stopping a
   Plan agent asks for confirmation. The new screens use server data rather than defining organization or Role facts in
   the viewer.
-- **Still open.** The communication graph is view-only; editing its edges is deferred. The main agent is to merge a plan's
-  worktree at the plan's end, but that merge is not built yet. Approval-required actions are not yet recognized from a
+- **Still open.** The communication graph is view-only; editing its edges is deferred. Approval-required actions are not yet recognized from a
   tool call. The `plans.plan_agents` switch remains for the rollout until the later phase that removes the old modes.
 
 

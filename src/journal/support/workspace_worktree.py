@@ -60,6 +60,18 @@ class WorkspaceWorktree(Worktree):
                 raise Rejection(f"the worktree {self.name} could not be removed: the repository {repository} answered {removal.stderr.strip()}")
         shutil.rmtree(self.path)
 
+    def removed_after_merge(self, allowed: list[str]) -> None:
+        leftover = set(self.uncommitted()) - set(allowed)
+        if leftover:
+            raise Rejection(f"the worktree {self.name} has uncommitted files: {', '.join(sorted(leftover)[:10])}")
+        for repository in self.repositories():
+            if not (self.path / repository).exists():
+                continue
+            removal = self.answered(["git", "-C", str(self.root / repository), "worktree", "remove", "--force", str(self.path / repository)])
+            if removal.returncode != 0:
+                raise Rejection(f"the worktree {self.name} could not be removed: the repository {repository} answered {removal.stderr.strip()}")
+        shutil.rmtree(self.path)
+
     def record_tip(self) -> None:
         return
 

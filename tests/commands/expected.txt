@@ -449,6 +449,10 @@ $ agent: journal plan cancel 1
 exit 0
 plan 1 cancelled, with tasks 3
 
+$ agent: journal plan merge 1
+exit 1
+plan 1 is cancelled: only a finished plan's work can be merged
+
 $ agent: journal question ask 'Which payment provider?' --options Stripe Mollie
 exit 0
 question 1 asked; waiting for the answer

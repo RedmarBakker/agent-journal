@@ -1308,6 +1308,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     from journal.events.agent.stop import Stop
     from journal.events.rows.plan_finished import PlanFinished
     from journal.events.rows.plan_started import PlanStarted
+    from journal.models.plan_mode import PlanMode
     from journal.events.rows.task_closed import TaskClosed
     from journal.events.rows.task_started import TaskStarted
     auto, manual = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_LIMIT.key: 50, TasksOptions.FIRST_DELAY.key: 25, TasksOptions.TASK_REMINDER_INTERVAL.key: 25}), SettingsValue({TasksOptions.AUTO.key: False})
@@ -1329,9 +1330,9 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     assert waits.refusal is None and has_nudge(waits.nudges[0].rendered(), PlansNudges.CHECKPOINT_PHASE_END, n=5, phase=2)
     assert checkpoint_pause.target.respond(SessionStarted(agent=EVENT_AGENT, time=40.0).with_data(of(plan)), auto).nudges[0].key == "plans.phase_complete_at_a_checkpoint"
     assert checkpoint_pause.target.respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Edit", input={}, operation=Claude().operation("Edit", {}), writes=True), time=41.0).with_data(of(plan)), auto).target == checkpoint_pause.target, "counts nothing at a checkpoint"
-    finished = following.respond(PlanFinished(environment_id=1, time=50.0, plan_id=5).with_data(of(None)), auto)
+    finished = following.respond(PlanFinished(environment_id=1, time=50.0, plan_id=5, mode=PlanMode.SOLO).with_data(of(None)), auto)
     assert finished.popped and [n.key for n in finished.nudges] == ["plans.plan_done"]
-    assert not following.respond(PlanFinished(environment_id=1, time=50.0, plan_id=6).with_data(of(plan)), auto).popped
+    assert not following.respond(PlanFinished(environment_id=1, time=50.0, plan_id=6, mode=PlanMode.SOLO).with_data(of(plan)), auto).popped
     pushed = PlansReady().respond(PlanStarted(environment_id=1, time=1.0, plan_id=5, task_id=7).with_data(of(plan)), auto)
     assert pushed.pushed == FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=1.0)
     owned = PlansReady().respond(TaskStarted(environment_id=1, time=2.0, task_id=3, title="t", plan_id=0).with_data(of(None)), auto)

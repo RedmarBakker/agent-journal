@@ -149,7 +149,7 @@ class Plan(Scoped, Commentable):
         return self.with_(is_dismissed=False)
 
     def finished(self, time: float) -> "Plan":
-        return self.moved(PlanState.FINISHED).with_event(PlanFinished(environment_id=self.environment_id, time=time, plan_id=self.row_id))
+        return self.moved(PlanState.FINISHED).with_event(PlanFinished(environment_id=self.environment_id, time=time, plan_id=self.row_id, mode=self.mode))
 
     def user_cancelled(self, time: float) -> "Plan":
         return self.moved(PlanState.CANCELLED).with_event(PlanAbandoned(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=True))

@@ -19,7 +19,7 @@ IGNORED_COPIES = (".claude/settings.json", ".codex/hooks.json", ".codex/agents",
 
 
 class Worktree:
-    """The git worktree a launch works in, at .claude/worktrees/<name> on the branch worktree-<name>, where Claude Code keeps its own: made when it is not there, and never removed by the journal or handed to the agent to remove. The kept tip only moves forward: a lost folder, or a branch moved back, never takes the last real tip away; a rename moves the folder, the branch and the kept tip together, whichever is still there; the project is checked before git is asked, each refusal with its cause and what to do; when its folder is gone only git's record of this worktree is dropped, since a prune would drop every other launch's whose folder is briefly away; it outlives its environment, which keeps it, and only the person removes it."""
+    """The git worktree where one launch works on branch worktree-<name>, shared with its project's journal and skills; it survives its environment and is removed only after a plan branch is merged or a person removes it."""
 
     def __init__(self, root: Path, name: str, git_seconds: float = GIT_SECONDS) -> None:
         self.root, self.name, self.git_seconds = root, name, git_seconds
@@ -119,6 +119,15 @@ class Worktree:
     def removed(self) -> None:
         self.record_tip()
         removal = self.git("worktree", "remove", str(self.path))
+        if removal.returncode != 0:
+            raise Rejection(f"the worktree {self.name} could not be removed: {removal.stderr.strip()}")
+
+    def removed_after_merge(self, allowed: list[str]) -> None:
+        leftover = set(self.uncommitted()) - set(allowed)
+        if leftover:
+            raise Rejection(f"the worktree {self.name} has uncommitted files: {', '.join(sorted(leftover)[:10])}")
+        self.record_tip()
+        removal = self.git("worktree", "remove", "--force", str(self.path))
         if removal.returncode != 0:
             raise Rejection(f"the worktree {self.name} could not be removed: {removal.stderr.strip()}")
 

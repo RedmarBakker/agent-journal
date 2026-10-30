@@ -11,11 +11,13 @@ from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_reviewed import PlanReviewed
 from journal.events.rows.plan_started import PlanStarted
+from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
+from journal.models.plan_mode import PlanMode
 from journal.features.plans.states.naming_test_commands import NamingTestCommands
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.plans.plans_part import PlansPart
@@ -23,7 +25,7 @@ from journal.features.plans.support.started_plan import StartedPlan
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied."""
+    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the main agent told when a solo Plan agent's branch is ready, the plan's next task named when it starts, the wait named when none can start, the testing template informed at a start or close, and reviewers told when their reports are ready."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         if not event.user_origin:
@@ -31,6 +33,11 @@ class PlansConduct(Conduct):
         if event.comment_id is None:
             return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id))
         return self.none(PlansNudges.PLAN_APPROVED_WITH_COMMENT.create(n=event.plan_id, comment=event.comment_id))
+
+    def on_plan_finished(self, event: PlanFinished, settings: Settings) -> Transition:
+        if not settings.option(PlansOptions.PLAN_AGENTS) or event.mode != PlanMode.SOLO:
+            return self.none()
+        return self.none(PlansNudges.PLAN_MERGE_READY.create(n=event.plan_id))
 
     def on_plan_reviewed(self, event: PlanReviewed, settings: Settings) -> Transition:
         return self.none(PlansNudges.REVIEW_ENTRY_REQUEST.create(n=event.plan_id, reports=PlansNudges.unread(event.data.part(PlansPart).review_reports)))

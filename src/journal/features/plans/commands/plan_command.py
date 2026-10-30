@@ -4,6 +4,7 @@ from dataclasses import replace
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.plans.support.plan_branch_merge import PlanBranchMerge
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
@@ -44,12 +45,13 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge) -> None:
         self.time_source, self.logs = time_source, logs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing = rounds, taking, testing
         self.settings, self.statuses, self.phase_testing = settings, statuses, phase_testing
+        self.branch_merge = branch_merge
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -97,6 +99,7 @@ class PlanCommand(Command):
         self.verb(verbs, "review", "reviewers are reading the plan: it cannot be approved until they are back and their findings are in it").add_argument("n", type=int)
         self.verb(verbs, "approve", "the user's word: the plan may start").add_argument("n", type=int)
         self.verb(verbs, "start", "follow an approved plan, or go on past a checkpoint: its next open task is started").add_argument("n", type=int)
+        self.verb(verbs, "merge", "merge a finished solo Plan agent's branch into the project and remove its worktree").add_argument("n", type=int)
         self.verb(verbs, "pause", "put a plan aside").add_argument("n", type=int)
         returning = self.verb(verbs, "return", "say whether you return to the plan you paused once the task you took up outside it is done")
         returning.add_argument("n", type=int)
@@ -254,6 +257,10 @@ class PlanCommand(Command):
         plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
+        return 0
+
+    def merge(self, args: Namespace, caller: Caller) -> int:
+        print(self.branch_merge.merge(args.n))
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:

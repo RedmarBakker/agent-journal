@@ -78,6 +78,7 @@ agent plan dock 1
 agent plan undock 1
 agent plan remove 1 4
 agent plan cancel 1
+agent plan merge 1
 agent question ask "Which payment provider?" --options "Stripe" "Mollie"
 agent question list
 agent question show 1

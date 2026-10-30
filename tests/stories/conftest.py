@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,9 +42,10 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 STORIES = Path(__file__).parent
 SUPPORT_FOLDERS = ("builder", "fixtures")
 collect_ignore = list(SUPPORT_FOLDERS)
-# a story file named *_run.py drives a process (git, a worker's worktree) and runs only when this variable asks for it
+# a story file named *_run.py drives a process and is excluded unless named or enabled here
 PROCESS_STORIES = "JOURNAL_PROCESS_STORIES"
-collect_ignore_glob = [] if os.environ.get(PROCESS_STORIES) else ["*/*/*_run.py"]
+requested_process_story = any(Path(argument.split("::", 1)[0]).name.endswith("_run.py") for argument in sys.argv[1:])
+collect_ignore_glob = [] if os.environ.get(PROCESS_STORIES) or requested_process_story else ["*/*/*_run.py"]
 
 
 def pytest_configure(config) -> None:
