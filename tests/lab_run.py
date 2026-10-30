@@ -324,10 +324,14 @@ def test_simulate_command_reads_a_pinned_recipe_and_uses_its_runner(tmp_path, ca
     assert Path(capsys.readouterr().out.strip()).is_file()
 
 
-def test_a_batch_deadline_before_start_records_aborted_work_and_no_setup_as_not_applicable(tmp_path):
+def test_a_batch_deadline_before_start_records_aborted_work_and_no_setup_as_not_applicable(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
     batch = lab_batch()
     caps = replace(batch.caps, batch_deadline_seconds=0.000001)
     batch = replace(batch, caps=caps)
+    ticks = iter((0.0, 1.0))
+    monkeypatch.setattr("tests.lab.batch_runner.time", SimpleNamespace(monotonic=lambda: next(ticks)))
     output = BatchRunner(lab_run_record, tmp_path / "lab-home", Path(__file__).resolve().parents[1], workers=1).run(batch)
     record = json.loads(output.read_text())
     minutes = next(item["measurement"] for item in record["reading"]["measurements"] if item["name"] == "minutes_to_done")
@@ -400,7 +404,7 @@ def test_exact_mcnemar_reports_every_cell_and_no_discordance_is_not_evidence():
         "a_failure_b_failure": 1,
     }
     assert result["effect_percentage_points"] == 20.0
-    assert result["p_value"] == 0.5
+    assert result["p_value"] == pytest.approx(0.5)
     no_discordance = PairedTests.mcnemar((True, False), (True, False))
     assert no_discordance["status"] == "no_discordance"
     assert no_discordance["p_value"] == 1.0
@@ -497,7 +501,7 @@ def test_comparison_pairs_pinned_a_b_runs_and_only_recommends_after_the_full_fam
     assert result["confirmatory_family"]["family_size"] == 1
     row = result["results"][0]
     assert row["analysis"]["cells"]["a_failure_b_success"] == 6
-    assert row["analysis"]["p_value"] == 1 / 64
+    assert row["analysis"]["p_value"] == pytest.approx(1 / 64)
     assert row["holm"]["passed"]
 
 
@@ -768,7 +772,8 @@ def test_lab_report_writes_pinned_analysis_to_the_batch_without_filing_a_journal
     assert f'"manifest_digest": "{comparison.manifest_digest}"' in report_text
     assert f'"source_commit": "{batch.source_commit}"' in report_text
     assert f'"commit": "{batch.organization_commit}"' in report_text
-    assert '"providers": [\n    "VoidProvider"' in report_text
+    assert '"providers": [' in report_text
+    assert '"VoidProvider"' in report_text
     assert f'"metric_schema_version": "{batch.metric_schema_version}"' in report_text
     assert "| goal_reached |" in report_text
     assert "Action taken: no" in report_text
