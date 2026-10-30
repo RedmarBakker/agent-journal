@@ -326,7 +326,7 @@ class SupervisorObservations:
         if daily:
             return self._skipped("budget_exhausted")
         latest = self.entries.supervisor_records(
-            "SupervisorRun", last=1, tenant_id=tenant_id, plan_id=grant["plan_id"],
+            "SupervisorRun", last=1, tenant_id=principal.scope["tenant_id"], plan_id=grant["plan_id"],
             node_id=principal.scope["writer_node_id"],
         )
         prior_fence = latest[0].data.get("fence") if latest else 0
