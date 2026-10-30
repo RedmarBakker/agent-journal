@@ -12,3 +12,4 @@ class WorkerDelivered(RowResolved):
 
     worker: WorkerMention
     task_id: int = 0
+    first_report: bool = False

@@ -6346,10 +6346,13 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
             todos.appended(task, text, Actor.worker(1))
         assert [(item.position, item.text) for item in todos.task_items(task)] == [(1, "write the grammar"), (2, "write the test"), (3, "run it")], "the to-do items are kept in order"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace")
-    delivered = worker.delivered(2.0, 7)
+    started = worker.dispatched(0.5)
+    delivered = started.delivered(2.0, 7)
+    returned = started.moved("sent back", 2.5).delivered(3.0, 7)
     moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (delivered, WorkerDelivered, "clocked out"), (worker.merged(7, 3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
     assert all(isinstance(moved.events[-1], type_name) and moved.state == state for moved, type_name, state in moves), "each state change of a worker carries its event"
-    assert delivered.events[-1].task_id == 7, "the clock-out carries the task whose report the journal filed"
+    assert (delivered.events[-1].task_id, delivered.events[-1].first_report) == (7, True), "the first clock-out carries its task and report position"
+    assert not returned.events[-1].first_report, "a return after a send-back is not a first report"
 
 
 def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_tests_its_change_touches_run_too(app: App, monkeypatch):
@@ -15203,6 +15206,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
     app.container.get(IdBlocks).add("links", 800000, 800100)
     app.container.get(IdBlocks).add("messages", 800000, 800100)
+    app.container.get(IdBlocks).add("proofs", 800000, 800100)
     assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 

@@ -132,6 +132,10 @@ class Worker(Helper):
     def job_start_time(self) -> float:
         return next((time for word, time in reversed(self.moves.steps) if word in JOB_STARTS), 0.0)
 
+    def is_first_report(self) -> bool:
+        moves = [word for word, _ in self.moves.steps if word in (*JOB_STARTS, REJECTION_MOVE)]
+        return bool(moves) and moves[-1] in JOB_STARTS
+
     def rejections(self) -> int:
         return self.moves.recent_count(REJECTION_MOVE, MERGED)
 
@@ -161,7 +165,7 @@ class Worker(Helper):
         return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def delivered(self, time: float, task_id: int = 0) -> "Worker":
-        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), task_id=task_id, ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
+        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), task_id=task_id, first_report=self.is_first_report(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
     def review_requested(self, time: float, report: str) -> "Worker":
         return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
