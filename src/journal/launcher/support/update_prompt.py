@@ -59,7 +59,7 @@ class UpdatePrompt:
 
     def installed_version(self) -> str:
         try:
-            version_line = INSTALLED_VERSION.search((self.config.home / "src" / "journal" / "version.py").read_text())
+            version_match = INSTALLED_VERSION.search((self.config.home / "src" / "journal" / "version.py").read_text())
         except OSError:
             return ""
-        return version_line.group(1) if version_line else ""
+        return version_match.group(1) if version_match else ""
