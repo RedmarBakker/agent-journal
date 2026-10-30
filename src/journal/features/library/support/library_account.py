@@ -42,8 +42,11 @@ class LibraryAccount(HubAccount):
         return self.connection().token
 
     def root_path(self) -> Path:
+        shared = self.folder() / SHARED_ROOT_FILE
+        if not self.is_connected():
+            return shared
         root = self.team_root_path()
-        return root if root.is_file() else self.folder() / SHARED_ROOT_FILE
+        return root if root.is_file() else shared
 
     def team_root_path(self) -> Path:
         return self.folder() / f"{self.key or self.path().stem}.crt"

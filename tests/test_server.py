@@ -905,7 +905,7 @@ def test_the_reuse_rules_are_said_in_the_workers_skill_law_four_and_the_settings
     from journal.features.workers.feature import Workers
     from journal.support.law_text import LawText
     skill = Workers.skill.body
-    assert all(words in skill for words in ("journal worker notify <n>", "reported, or was stopped", "--fresh", "workers.idle_kept", "--why", "journal worker peers", "journal subagent retire <n>")), "the skill says notify, send, the dispatch refusals, the reuse question, peers and subagent retire"
+    assert all(words in skill for words in ("journal worker notify <n>", "keeps its session, memory and worktree", "--fresh", "workers.idle_kept", "--why", "journal worker peers", "journal subagent retire <n>")), "the skill says notify, send, the dispatch refusals, the reuse question, peers and subagent retire"
     assert 'journal worker send <n> "<job>"' in LawText.BLOCK and "worker say" not in LawText.BLOCK
     workers = next(f for f in call(server, "GET", "/journal/manifest")[1]["features"] if f["name"] == "workers")
     assert {s["name"]: s["title"] for s in workers["options"]}["idle_kept"] == "Workers for reuse per profile", "the Settings page shows the cap in plain words"

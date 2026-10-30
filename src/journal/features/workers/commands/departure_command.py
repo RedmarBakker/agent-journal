@@ -54,7 +54,7 @@ class DepartureCommand(Command):
         task = self.tasks.find(holdings[0])
         following = self.advance.next_task(worker, task)
         if following is not None:
-            raise Rejection(f"you clock out once your queue is done: prove each point of task {task.id}, and as you prove its last the journal hands you task {following.id}")
+            raise Rejection(f"you clock out once your queue is done: prove task {task.id}, and its last proof hands you task {following.id}")
         missing = self.advance.unproved(task)
         if missing:
             raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof: `journal proof <point> \"<file:line and test>\"`")

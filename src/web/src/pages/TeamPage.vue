@@ -36,7 +36,7 @@ async function connected(team) {
     await attempt(load);
 }
 
-const disconnect = () => attempt(async () => (await api.disconnectTeam(leaving.value), (leaving.value = ""), (chosen.value = ""), await load()));
+const disconnect = () => attempt(async () => (await api.disconnectTeam(leaving.value), (leaving.value = ""), await load()));
 
 onMounted(() => attempt(load));
 </script>

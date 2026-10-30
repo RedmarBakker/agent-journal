@@ -32,5 +32,5 @@ def test_a_worker_with_a_task_still_queued_may_not_clock_out(story):
     story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
     result = story.agent_runs(story.agents.subject, "clock-out 'the parser is half done'")
     result.expect_command_refused()
-    result.expect_command_text(f"the journal hands you task {story.tasks.queued}")
+    result.expect_command_text(f"its last proof hands you task {story.tasks.queued}")
     story.expect_stack(story.agents.subject, Void, WorkingTask)
