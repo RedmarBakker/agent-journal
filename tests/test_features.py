@@ -3164,6 +3164,23 @@ def test_the_fiddly_skills_show_a_real_command_and_hold_one_rule_to_a_bullet_of_
         assert long == [], f"the {name} skill has bullets of more than four lines, more than one rule each: {long}"
 
 
+def test_the_skills_check_fails_on_a_skill_off_the_map_and_on_a_sentence_in_two_skills_and_passes_on_the_shipped_set():
+    import importlib.util
+    from dataclasses import replace
+    from journal.support.skill import Skill
+    spec = importlib.util.spec_from_file_location("skills_map", Path(__file__).resolve().parents[1] / "scripts" / "checks" / "skills_map.py")
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    shipped = check.shipped()
+    assert check.problems(shipped) == [], "the shipped skills pass"
+    sentence = "Every footer names the shop that sells the goods on its page."
+    unmapped = Skill("footers", "Write footers; load it when a footer changes", f"# Footers\n\n- {sentence}\n")
+    problems = check.problems([*shipped, unmapped])
+    assert any("footers skill" in problem for problem in problems), f"a skill off the map is named: {problems}"
+    echoed = [replace(skill, body=f"{skill.body}\n- {sentence}\n") if skill.name == "tasks" else skill for skill in [*shipped, unmapped]]
+    assert any(problem.startswith(("tasks and footers", "footers and tasks")) for problem in check.problems(echoed)), "a sentence in two skills is named"
+
+
 def test_every_skill_description_says_what_then_when_in_under_300_characters(app: App):
     from journal.features.registry import Registry
     from journal.features.skills.skills_options import SkillsOptions
