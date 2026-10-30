@@ -23,9 +23,9 @@ class SharedJournal:
         self.rows = sqlite3.connect(":memory:")
         with sqlite3.connect(app.config.database) as live:
             live.backup(self.rows)
-        self.team_databases = {path: self.database_copy(path) for path in files if os.path.basename(path) == TEAM_DATABASE}
         self.secrets = str(app.container.get(SecretValues).path)
         self.folders, files = self.tree()
+        self.team_databases = {path: self.database_copy(path) for path in files if os.path.basename(path) == TEAM_DATABASE}
         kept = [path for path in files if not self.is_database(path)] + ([self.secrets] if os.path.isfile(self.secrets) else [])
         self.files = {path: Path(path).read_bytes() for path in kept}
         self.stamps = {path: self.stamp(path) for path in kept}
