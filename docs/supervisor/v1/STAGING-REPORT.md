@@ -1,6 +1,6 @@
 # Task 112 local staging report
 
-**Status: scripted local chain verified; live API smoke and VM acceptance remain open.** Tenant enrollment remains disabled in `manifest.json`.
+**Status: prior scripted chain passed; the current controlled-loop test is blocked by task 214; live API smoke and VM acceptance remain open.** Tenant enrollment remains disabled in `manifest.json`.
 
 ## Controlled local probes
 
@@ -14,7 +14,7 @@ The fixture pins OpenClaw `2026.10.8`, source commit `dc2523e5a5c7a309517fd7fa83
 
 The proposed grant envelope is 24,000 input tokens, 8,000 output tokens and 8 provider requests. The proxy enforces the aggregate token and request ceilings across token-count calls, generations and retries. At Anthropic's published Claude Sonnet 5 rates ($2/M standard input, $10/M output and $4/M for one-hour cache writes), the token ceilings bound model-token charges to at most $0.176 per run, assuming all input is billed at the most expensive listed cache-write rate. This leaves room below the requested $1 ceiling; the API-key smoke must still confirm the real selected profile and returned usage. See [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 
-The latest focused journal test turns were output 6306 (21 passing selectors, including both planned staging selectors) and 6307 (2 passing authority/packaging selectors). Output 6304 also passed the controlled chain and three read-back/transport controls before the larger selection.
+After the cleanup, journal output 6558 ran the supervisor test selection across all nine supervisor test files, excluding the controlled-loop selector documented above. Result: 157 passed, 3 failed and 10 setup errors. The 10 errors were supervisor-driver setup failures caused by `MissingRow: no agents row 2`; the owner authority test failed with `ScopeMissing`; two process tests failed with `PermissionError: Operation not permitted` and a WorkerHelper verb-list mismatch. This is not a clean supervisor-set pass. The prior 21-selector and controlled-chain passes (outputs 6304 and 6306) predate the scoped-read revert and do not establish the current branch state.
 
 ## Live provider smoke
 
