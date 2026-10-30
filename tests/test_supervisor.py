@@ -479,13 +479,40 @@ def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_jou
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{VERSION}", f"v{major}.99.0", f"v{int(major) + 1}.0.0"])
     asked = tmp_path / "asked"
     (tmp_path / ".journal" / "src").mkdir(parents=True)
-    (tmp_path / ".journal" / "src" / "journal.sh").write_text(f'echo "$@" >> {asked}\n')
+    (tmp_path / ".journal" / "src" / "journal").mkdir()
+    (tmp_path / ".journal" / "src" / "journal.sh").write_text(f'echo "$@" >> {asked}\nprintf \'VERSION = "{major}.99.0"\\n\' > {tmp_path / ".journal" / "src" / "journal" / "version.py"}\n')
     answers = iter(["2", "1"])
     monkeypatch.setattr("builtins.input", lambda: next(answers))
     proposal = UpdatePrompt(Config(tmp_path), Screen(io.StringIO()), ReleaseSource(ReleaseCheckMemory(), TimeSource()))
     assert proposal.newest().version == f"{major}.99.0", "the newest of the same major, never the next major"
     assert not proposal.installed_newer() and not asked.exists(), "Start as it is installs nothing"
-    assert proposal.installed_newer() and asked.read_text() == "update\n", "Update runs journal update, the one route every update takes, before the journal starts"
+    assert proposal.installed_newer() and asked.read_text() == "update\n", "Update runs journal update, the one route every update takes, and starts once the new version is installed"
+
+
+def test_an_update_a_running_journal_installs_later_is_waited_for_before_the_launch_starts_again(tmp_path: Path, monkeypatch):
+    import io
+    import threading
+    from journal.config import Config
+    from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
+    from journal.features.updates.support.release_source import ReleaseSource
+    from journal.launcher.screen import Screen
+    from journal.launcher.support import update_prompt
+    from journal.launcher.support.update_prompt import UpdatePrompt
+    from journal.support.time_source import TimeSource
+    from journal.version import VERSION
+    major = VERSION.split(".")[0]
+    monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{VERSION}", f"v{major}.99.0"])
+    monkeypatch.setattr(update_prompt, "INSTALL_POLL_SECONDS", 0.05)
+    version_file = tmp_path / ".journal" / "src" / "journal" / "version.py"
+    version_file.parent.mkdir(parents=True)
+    version_file.write_text(f'VERSION = "{VERSION}"\n')
+    (tmp_path / ".journal" / "src" / "journal.sh").write_text("exit 0\n")
+    monkeypatch.setattr("builtins.input", lambda: "1")
+    out = io.StringIO()
+    timer = threading.Timer(0.3, lambda: version_file.write_text(f'VERSION = "{major}.99.0"\n'))
+    timer.start()
+    assert UpdatePrompt(Config(tmp_path), Screen(out), ReleaseSource(ReleaseCheckMemory(), TimeSource())).installed_newer(), "the launch starts again once the running journal has installed the release"
+    assert f"Installing {major}.99.0" in out.getvalue(), "and says it installs while it waits"
 
 
 def test_every_start_asks_to_skip_the_permission_prompts_with_skip_selected_even_when_carrying_on(tmp_path: Path, monkeypatch):

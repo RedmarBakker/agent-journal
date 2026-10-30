@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.68.2
+
+- "Update, then start" in the launch menu asks once: the launcher waits until the running journal has installed the new version, saying it installs, before it starts again on it. It started again at once on the old code and offered the same update a second time.
+
 ## 4.68.1
 
 - A launcher, a journal command, a shell line or a hook that finds another project's journal on its port no longer uses it: every request names its project, a journal refuses one that names another, and the launcher and the command treat that journal as none, so a launch never resumes another project's session.
