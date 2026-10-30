@@ -75,6 +75,13 @@ class Plans(ScopedRepository[Plan]):
         for link in [link for counterpart in [plan, *self.plan_phases(plan)] for link in self.links.connecting(task, counterpart)]:
             self.links.delete(link, actor)
 
+    def place_task_in_phase(self, task: Task, plan: Plan, phase: Phase, actor: Actor) -> None:
+        if not self.links.connecting(task, plan):
+            self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        for link in [link for counterpart in self.plan_phases(plan) for link in self.links.connecting(task, counterpart)]:
+            self.links.delete(link, actor)
+        self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), actor)
+
     def plan_states(self, task: Task) -> set[PlanState]:
         return {plan.state for plan in self.containing(task)}
 

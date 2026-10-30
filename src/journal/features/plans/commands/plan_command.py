@@ -26,7 +26,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
-from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
+from journal.repositories.plans import PLAN_LINK, PHASE_TASK_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -199,11 +199,7 @@ class PlanCommand(Command):
         phase = self.numbered_phase(plan, args.phase)
         for n in args.tasks:
             task = self.tasks.find(n)
-            if not self.links.connecting(task, plan):
-                self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
-            for link in [link for counterpart in self.plans.plan_phases(plan) for link in self.links.connecting(task, counterpart)]:
-                self.links.delete(link, caller.actor)
-            self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
+            self.plans.place_task_in_phase(task, plan, phase, caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} under phase {args.phase} of plan {plan.id}")
         return 0
 

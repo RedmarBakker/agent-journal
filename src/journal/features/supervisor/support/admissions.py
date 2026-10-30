@@ -28,10 +28,11 @@ def digest(value: str) -> str:
 
 def canonical(value: object) -> str | None:
     try:
-        text = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    except (TypeError, ValueError):
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False, ensure_ascii=False)
+        encoded = text.encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError):
         return None
-    return text if len(text.encode()) <= MAX_INTENT_BYTES else None
+    return text if len(encoded) <= MAX_INTENT_BYTES else None
 
 
 def parsed_time(value: object) -> datetime | None:
@@ -67,6 +68,18 @@ def decimal_amount(value: object) -> Decimal | None:
 def cost(input_tokens: int, output_tokens: int, input_rate: Decimal, output_rate: Decimal) -> Decimal:
     total = (Decimal(input_tokens) * input_rate + Decimal(output_tokens) * output_rate) / MILLION
     return total.quantize(MONEY_UNIT, rounding=ROUND_CEILING)
+
+
+def action_receipt_key(tenant_id: str, action_id: str) -> str:
+    return supervisor_key("action-receipt", tenant_id, action_id)
+
+
+def action_reuse_key(tenant_id: str, action_id: str, intent_hash: str) -> str:
+    return supervisor_key("action-reuse", tenant_id, action_id, intent_hash)
+
+
+def supervisor_key(kind: str, *parts: str) -> str:
+    return f"supervisor:{kind}:{digest(canonical(parts) or '')}"
 
 
 class SupervisorAdmissions:
@@ -671,7 +684,7 @@ class SupervisorAdmissions:
             return False
 
     def _key(self, kind: str, *parts: str) -> str:
-        return f"supervisor:{kind}:{digest(canonical(parts) or '')}"
+        return supervisor_key(kind, *parts)
 
     def _credential_key(self, token_hash: str) -> str:
         return f"supervisor:credential:{token_hash}"
@@ -689,7 +702,7 @@ class SupervisorAdmissions:
         return self._key("action", tenant_id, action_id)
 
     def _action_receipt_key(self, tenant_id: str, action_id: str) -> str:
-        return self._key("action-receipt", tenant_id, action_id)
+        return action_receipt_key(tenant_id, action_id)
 
     def _action_state_key(self, tenant_id: str, action_id: str, state: str) -> str:
         return self._key("action-state", tenant_id, action_id, state)

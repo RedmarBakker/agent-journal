@@ -175,16 +175,7 @@ class SupervisorAuthority:
         raise SupervisorFailure(403, "the supervisor service credential is invalid or revoked")
 
     def revalidate(self, principal: SupervisorPrincipal, plan_id: int | None = None) -> dict[str, Any]:
-        entry = self._latest_entry(principal.grant_id)
-        if entry is None:
-            raise SupervisorFailure(403, "the supervisor grant is no longer current")
-        grant = self._public_grant(entry)
-        if (grant["grant_version"] != principal.grant_version or grant["owner_user_id"] != principal.owner_user_id
-                or grant["scope"] != principal.scope or grant["revoked"] or grant["mode"] == "disabled"
-                or grant["valid_until_ms"] <= self._now_ms() or not entry.data.get("_credential_sha256")):
-            raise SupervisorFailure(403, "the supervisor grant is no longer current")
-        if plan_id is not None and plan_id != grant["plan_id"]:
-            raise SupervisorFailure(403, "the supervisor grant does not cover that reference")
+        entry, grant = self._active_grant(principal, plan_id)
         plan = self._plan(grant["plan_id"])
         if self.owners.number(plan) != grant["owner_user_id"]:
             raise SupervisorFailure(403, "the supervisor grant no longer matches its owner or plan")
@@ -196,20 +187,82 @@ class SupervisorAuthority:
                 or grant["current_phase"] != context["current_phase"]
                 or entry.data.get("_expected_binding_revision") != context["binding_revision"]):
             raise SupervisorFailure(403, "the supervisor grant no longer matches the current plan state")
+        if not self._enrolled_checks_current(grant):
+            raise SupervisorFailure(403, "the supervisor grant no longer matches its enrolled checks")
+        if self._template_revision(grant["diagnostic_template_id"]) != grant["diagnostic_template_revision"]:
+            raise SupervisorFailure(403, "the supervisor grant no longer matches its diagnostic template")
+        return grant
+
+    def action_context(self, principal: SupervisorPrincipal) -> tuple[dict[str, Any], dict[str, Any]]:
+        entry, grant = self._active_grant(principal)
+        plan = self._plan(grant["plan_id"])
+        owner_id = self.owners.number(plan)
+        if owner_id != grant["owner_user_id"]:
+            return grant, {"conflict_reason": "owner_changed"}
+        try:
+            context = self._eligible(plan, owner_id)
+        except SupervisorFailure:
+            return grant, {"conflict_reason": "plan_ineligible"}
+        if (grant["scope"] != self._scope(owner_id, context["driver_environment_id"])
+                or grant["driver_agent_id"] != context["agent"].row_id
+                or grant["driver_environment_id"] != context["driver_environment_id"]
+                or grant["driver_provider"] != context["agent"].provider
+                or grant["current_phase"] != context["current_phase"]
+                or entry.data.get("_expected_binding_revision") != context["binding_revision"]):
+            return grant, {"conflict_reason": "grant_context_changed"}
+        if not self._enrolled_checks_current(grant):
+            return grant, {"conflict_reason": "enrolled_check_changed"}
+        if self._template_revision(grant["diagnostic_template_id"]) != grant["diagnostic_template_revision"]:
+            return grant, {"conflict_reason": "diagnostic_template_changed"}
+        with self.scope.environment(plan.environment_id):
+            phase_state = next((state for state in self.plans.phase_states(context["plan"])
+                if state.number == context["current_phase"]["number"]), None)
+        return grant, {**context, "current_phase_row": phase_state.phase if phase_state else None}
+
+    def action_readback(self, principal: SupervisorPrincipal, phase_id: int, binding_revision: str) -> dict[str, Any]:
+        _, grant = self._active_grant(principal)
+        plan = self._plan(grant["plan_id"])
+        if self.owners.number(plan) != grant["owner_user_id"]:
+            raise SupervisorFailure(409, "the plan owner changed during supervisor maintenance")
+        context = self._eligible(plan, grant["owner_user_id"])
+        if (context["current_phase"]["phase_id"] != phase_id
+                or context["binding_revision"] != binding_revision):
+            raise SupervisorFailure(409, "the enrolled current phase or owner binding changed during supervisor maintenance")
+        if not self._enrolled_checks_current(grant):
+            raise SupervisorFailure(409, "an enrolled check changed during supervisor maintenance")
+        if self._template_revision(grant["diagnostic_template_id"]) != grant["diagnostic_template_revision"]:
+            raise SupervisorFailure(409, "the diagnostic template changed during supervisor maintenance")
+        with self.scope.environment(plan.environment_id):
+            phase_state = next((state for state in self.plans.phase_states(context["plan"])
+                if state.number == context["current_phase"]["number"]), None)
+        return {**context, "current_phase_row": phase_state.phase if phase_state else None}
+
+    def _active_grant(self, principal: SupervisorPrincipal, plan_id: int | None = None) -> tuple[Entry, dict[str, Any]]:
+        entry = self._latest_entry(principal.grant_id)
+        if entry is None:
+            raise SupervisorFailure(403, "the supervisor grant is no longer current")
+        grant = self._public_grant(entry)
+        if (grant["grant_version"] != principal.grant_version or grant["owner_user_id"] != principal.owner_user_id
+                or grant["scope"] != principal.scope or grant["revoked"] or grant["mode"] == "disabled"
+                or grant["valid_until_ms"] <= self._now_ms() or not entry.data.get("_credential_sha256")):
+            raise SupervisorFailure(403, "the supervisor grant is no longer current")
+        if plan_id is not None and plan_id != grant["plan_id"]:
+            raise SupervisorFailure(403, "the supervisor grant does not cover that reference")
+        return entry, grant
+
+    def _enrolled_checks_current(self, grant: dict[str, Any]) -> bool:
         for enrolled in grant["checks"]:
             try:
                 check = self._check(enrolled["check_id"])
             except SupervisorFailure:
-                raise SupervisorFailure(403, "the supervisor grant no longer matches its enrolled checks") from None
+                return False
             if (self._check_revision(check) != enrolled["expected_revision"]
                     or self._command_hash(check.command) != enrolled["command_sha256"]
                     or not self._whole_minutes(check.interval)
                     or not enrolled["minimum_interval_minutes"] <= int(check.interval) <= enrolled["baseline_interval_minutes"]
                     or check.is_retired or check.wait_target):
-                raise SupervisorFailure(403, "the supervisor grant no longer matches its enrolled checks")
-        if self._template_revision(grant["diagnostic_template_id"]) != grant["diagnostic_template_revision"]:
-            raise SupervisorFailure(403, "the supervisor grant no longer matches its diagnostic template")
-        return grant
+                return False
+        return True
 
     def observation_candidates(self, check: Check) -> list[dict[str, Any]]:
         candidates = []
@@ -295,7 +348,7 @@ class SupervisorAuthority:
                 check = self._check(enrolled["check_id"])
                 checks.append({
                     "check_id": check.row_id,
-                    "revision": self._check_revision(check),
+                    "revision": self.check_action_revision(check),
                     "command_sha256": self._command_hash(check.command),
                     "interval_minutes": int(check.interval),
                 })
@@ -448,6 +501,21 @@ class SupervisorAuthority:
             "id": check.row_id, "title": check.title, "brief": check.brief, "command": check.command,
             "wait_target": check.wait_target, "retired": check.is_retired,
         })
+
+    def check_action_revision(self, check: Check) -> str:
+        return self._digest({
+            "enrollment_revision": self._check_revision(check), "interval": check.interval,
+            "verdict": check.verdict(), "last_passed": check.last_passed, "last_stopped": check.last_stopped,
+            "last_run_at": self._date(check.last_run_at), "last_duration": check.last_duration,
+            "last_output": self._digest(check.last_output), "last_fault": self._digest(check.last_fault),
+            "last_report": self._digest(check.last_report), "progress": self._digest(check.progress),
+        })
+
+    def diagnostic_template(self, grant: dict[str, Any]) -> Template:
+        template = self._template(grant["diagnostic_template_id"])
+        if template is None or self._template_revision(grant["diagnostic_template_id"]) != grant["diagnostic_template_revision"]:
+            raise SupervisorFailure(409, "the diagnostic template changed; refresh its revision")
+        return template
 
     def _template_revision(self, template_id: str) -> str:
         template = self._template(template_id)

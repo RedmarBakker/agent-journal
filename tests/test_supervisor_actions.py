@@ -1,17 +1,31 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from uuid import uuid4
 
 import pytest
 
 from journal.config import Config
 from journal.db.connection import Connection
+from journal.events.rows.check_completed import CheckCompleted
+from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance, diagnostic_task_values
+from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.models.entry import Entry
+from journal.models.link import Link
+from journal.models.support.ref import Ref
+from journal.models.task import Task
+from journal.models.user import User
+from journal.models.worker import Worker
+from journal.repositories.checks import Checks
+from journal.repositories.environment_owners import OWNER
 from journal.repositories.environments import Environments
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
+from journal.repositories.plans import Plans
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
+from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
+from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.large_reads import LargeReads
 from journal.support.masks import Masks
@@ -20,11 +34,344 @@ from journal.support.secret_values import SecretValues
 from journal.support.stage_times import StageTimes
 from journal.support.time_source import TimeSource
 from journal.features.supervisor.support.admissions import SupervisorAdmissions
+from journal.supervisor_failure import SupervisorFailure
+from tests.suite_app import SuiteApp
+from tests.test_supervisor_authority import admitted as authority_admitted, seeded as authority_seeded
 
 
 TOKEN = "supervisor-credential-for-tests"
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
 MODEL = "test/model"
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return lambda root, patch: SuiteApp(Config(root, port=0))
+
+
+def maintenance_context(app, monkeypatch, mode="bounded_write"):
+    fixture = authority_seeded(app, owner_id=uuid4().int % 1_000_000 + 100)
+    return _admitted_maintenance_context(app, monkeypatch, fixture, mode)
+
+
+def maintenance_context_with_existing_diagnostic(app, monkeypatch):
+    fixture = authority_seeded(app, owner_id=uuid4().int % 1_000_000 + 100)
+    title, brief = diagnostic_task_values(fixture.template)
+    plans = app.container.get(Plans)
+    tasks = app.container.get(Tasks)
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        diagnostic = tasks.save(Task(environment_id=fixture.owner_environment.row_id, title=title, brief=brief), fixture.owner)
+        plans.place_task_in_phase(diagnostic, fixture.plan, fixture.phase, fixture.owner)
+    context = _admitted_maintenance_context(app, monkeypatch, fixture, "bounded_write")
+    context["existing_diagnostic"] = diagnostic
+    return context
+
+
+def maintenance_context_with_held_diagnostic(app, monkeypatch):
+    fixture = authority_seeded(app, owner_id=uuid4().int % 1_000_000 + 100)
+    title, brief = diagnostic_task_values(fixture.template)
+    plans = app.container.get(Plans)
+    tasks = app.container.get(Tasks)
+    links = app.container.get(Links)
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        diagnostic = tasks.save(Task(environment_id=fixture.owner_environment.row_id, title=title, brief=brief, delegated=True), fixture.owner)
+        plans.place_task_in_phase(diagnostic, fixture.plan, fixture.phase, fixture.owner)
+        worker = app.container.get(Workers).save(Worker(environment_id=fixture.owner_environment.row_id, name="maintenance holder", brief="hold diagnostic"), Actor.system())
+        links.save(Link(source=Ref.build(worker), target=Ref.build(diagnostic), link_type=CURRENT_TASK_LINK), Actor.system())
+    context = _admitted_maintenance_context(app, monkeypatch, fixture, "bounded_write")
+    context["held_diagnostic"] = diagnostic
+    return context
+
+
+def _admitted_maintenance_context(app, monkeypatch, fixture, mode):
+    monkeypatch.setattr(fixture.authority.agents, "is_running", lambda _environment: True)
+    grant, token, principal = authority_admitted(fixture, mode)
+    entries = app.container.get(Entries)
+    control_entries = app.container.get(SupervisorEntries)
+    scope = app.container.get(Scope)
+    time_source = app.container.get(TimeSource)
+    actor = principal.actor
+    now = datetime.fromtimestamp(time_source.seconds(), timezone.utc)
+    run_id = uuid4().hex
+    with scope.environment(PROJECT):
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorInstallation", actor=actor,
+            data={"tenant_id": principal.scope["tenant_id"], "grant_id": grant["grant_id"],
+                "installation_id": "maintenance-test", "epoch": principal.scope["installation_epoch"]},
+            idempotency=f"supervisor:installation:{principal.scope['tenant_id']}:maintenance-test"), actor)
+        run = control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorRun", actor=actor,
+            data={"tenant_id": principal.scope["tenant_id"], "grant_id": grant["grant_id"],
+                "grant_version": grant["grant_version"], "plan_id": grant["plan_id"],
+                "node_id": principal.scope["writer_node_id"], "episode_id": "episode-maintenance",
+                "run_ref": run_id, "installation_epoch": principal.scope["installation_epoch"],
+                "fence": 1, "lease_until": (now + timedelta(minutes=5)).isoformat(), "status": "admitted"},
+            idempotency=f"supervisor:run:{principal.scope['tenant_id']}:{run_id}"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorEpisode", actor=actor,
+            data={"tenant_id": principal.scope["tenant_id"], "plan_id": grant["plan_id"],
+                "episode_id": "episode-maintenance", "evidence_generation": 1,
+                "problem_fingerprint": "check:health:failed"},
+            idempotency=f"supervisor:episode:{principal.scope['tenant_id']}:{grant['plan_id']}:episode-maintenance"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorUsage", actor=actor,
+            data={"tenant_id": principal.scope["tenant_id"], "run_ref": run_id, "status": "known",
+                "turns": 1, "input_tokens": 100, "output_tokens": 50, "cost_usd": "0.000001", "overrun": False},
+            idempotency=f"supervisor:usage:{principal.scope['tenant_id']}:{run_id}"), actor)
+    observations = app.container.get(SupervisorObservations)
+    checks = app.container.get(Checks)
+    check = checks.find(fixture.check.row_id)
+    observed_at = time_source.seconds()
+    event = CheckCompleted(environment_id=fixture.owner_environment.row_id, time=observed_at,
+        check_id=check.row_id, title=check.title, passed=False, output="health check failed",
+        prior_failure=False, wait_target=False, failure_reported_at=0)
+    observations.completed(check, event, observed_at - 1, "")
+    with scope.environment(PROJECT):
+        evidence = entries.supervisor_records("SupervisorObservation", last=100,
+            grant_id=grant["grant_id"], grant_version=grant["grant_version"], check_id=check.row_id)
+    maintenance = SupervisorMaintenance(fixture.authority, observations, entries, control_entries,
+        app.container.get(Plans), app.container.get(Tasks), app.container.get(Links), checks,
+        scope, time_source)
+    return {"fixture": fixture, "grant": grant, "token": token, "principal": principal,
+        "run": run, "evidence": evidence[-1], "maintenance": maintenance,
+        "entries": entries, "scope": scope, "time_source": time_source}
+
+
+@pytest.fixture
+def bounded_maintenance(app, monkeypatch):
+    fixture = maintenance_context(app, monkeypatch)
+    yield fixture
+    fixture["fixture"].authority.secrets_store.drop(fixture["fixture"].credentials)
+
+
+@pytest.fixture
+def shadow_maintenance(app, monkeypatch):
+    fixture = maintenance_context(app, monkeypatch, "shadow")
+    yield fixture
+    fixture["fixture"].authority.secrets_store.drop(fixture["fixture"].credentials)
+
+
+@pytest.fixture
+def existing_diagnostic_maintenance(app, monkeypatch):
+    fixture = maintenance_context_with_existing_diagnostic(app, monkeypatch)
+    yield fixture
+    fixture["fixture"].authority.secrets_store.drop(fixture["fixture"].credentials)
+
+
+@pytest.fixture
+def held_diagnostic_maintenance(app, monkeypatch):
+    fixture = maintenance_context_with_held_diagnostic(app, monkeypatch)
+    yield fixture
+    fixture["fixture"].authority.secrets_store.drop(fixture["fixture"].credentials)
+
+
+def maintenance_request(context, operations, action_id=None):
+    fixture, grant, principal = context["fixture"], context["grant"], context["principal"]
+    authority = fixture.authority
+    current = authority.action_context(principal)[1]
+    expected = [
+        {"ref": {"table": "plans", "id": grant["plan_id"]}, "revision": current["plan_revision"]},
+        {"ref": {"table": "phases", "id": current["current_phase"]["phase_id"]},
+            "revision": current["current_phase"]["revision"]},
+    ]
+    for operation in operations:
+        if operation["kind"] == "check_interval":
+            check = context["maintenance"].checks.find(operation["check_id"])
+            expected.append({"ref": {"table": "checks", "id": check.row_id},
+                "revision": authority.check_action_revision(check)})
+    return {
+        "protocol_version": 1,
+        "run_id": context["run"].data["run_ref"],
+        "installation_epoch": principal.scope["installation_epoch"],
+        "fence": context["run"].data["fence"],
+        "grant_version": grant["grant_version"],
+        "episode_id": context["run"].data["episode_id"],
+        "action_id": action_id or f"action-{uuid4().hex}",
+        "observation_ids": [context["evidence"].data["observation_id"]],
+        "expected_revisions": expected,
+        "operations": operations,
+        "rationale": "A bounded maintenance test action.",
+    }
+
+
+def diagnostic_operation(context, evidence_ids=None):
+    grant = context["grant"]
+    return {"kind": "diagnostic_task", "plan_id": grant["plan_id"],
+        "phase_id": grant["current_phase"]["phase_id"],
+        "template_id": grant["diagnostic_template_id"],
+        "template_revision": grant["diagnostic_template_revision"],
+        "evidence_ids": evidence_ids or [context["evidence"].data["observation_id"]]}
+
+
+def test_bundle_uses_same_plan_current_phase_and_existing_diagnostic(existing_diagnostic_maintenance):
+    context = existing_diagnostic_maintenance
+    fixture = context["fixture"]
+    operations = [
+        diagnostic_operation(context),
+        {"kind": "plan_priorities", "plan_id": context["grant"]["plan_id"], "text": "Check the failure\nThen report the cause"},
+    ]
+    request = maintenance_request(context, operations)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        before_tasks = [task.row_id for task in context["maintenance"].plans.plan_tasks(fixture.plan)]
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan = context["maintenance"].plans.find(fixture.plan.row_id)
+        tasks = context["maintenance"].plans.plan_tasks(plan)
+        phase_tasks = context["maintenance"].plans.phase_tasks(fixture.phase)
+        current_phase = plan.current_phase(context["maintenance"].plans.phase_states(plan))
+    assert receipt["status"] == "applied"
+    assert receipt["data"]["verification"] == "verified"
+    assert plan.priorities == "Check the failure\nThen report the cause"
+    assert current_phase == context["grant"]["current_phase"]["number"]
+    assert context["existing_diagnostic"] in phase_tasks
+    assert {task.row_id for task in tasks} == set(before_tasks)
+    assert {("tasks", context["existing_diagnostic"].row_id), ("plans", fixture.plan.row_id),
+        ("phases", fixture.phase.row_id)} <= {
+            (item["table"], item["id"]) for item in receipt["data"]["affected_refs"]
+        }
+    assert [change["field"] for change in receipt["data"]["changes"]] == ["priorities"]
+
+
+def test_retried_maintenance_action_returns_its_receipt_without_adding_a_second_diagnostic(bounded_maintenance):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    request = maintenance_request(context, [diagnostic_operation(context)])
+    first = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        task_ids = {task.row_id for task in context["maintenance"].plans.plan_tasks(fixture.plan)}
+    retry = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        retry_task_ids = {task.row_id for task in context["maintenance"].plans.plan_tasks(fixture.plan)}
+    assert retry["duplicate"]
+    assert retry["receipt_id"] == first["receipt_id"]
+    assert retry["data"] == first["data"]
+    assert retry_task_ids == task_ids
+
+
+@pytest.mark.parametrize("edit", ("phase", "owner"))
+def test_phase_or_owner_edit_conflicts_entire_bundle(bounded_maintenance, edit):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    operations = [
+        {"kind": "plan_priorities", "plan_id": context["grant"]["plan_id"], "text": "Check the failure first"},
+        {"kind": "check_interval", "check_id": fixture.check.row_id, "interval_minutes": 5},
+    ]
+    request = maintenance_request(context, operations)
+    links = context["maintenance"].links
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan_before = context["maintenance"].plans.find(fixture.plan.row_id)
+        check_before = context["maintenance"].checks.find(fixture.check.row_id)
+        if edit == "phase":
+            context["maintenance"].plans.phases.save(fixture.phase.with_(title="Edited current phase"), fixture.owner)
+        else:
+            for link in links.matching(target=Ref.build(fixture.owner_environment), link_type=OWNER):
+                links.delete(link, Actor.system())
+            links.linked(Ref.build(User(id=2)), Ref.build(fixture.owner_environment), OWNER, Actor.system())
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan_after = context["maintenance"].plans.find(fixture.plan.row_id)
+        check_after = context["maintenance"].checks.find(fixture.check.row_id)
+    assert receipt["status"] == "conflicted"
+    assert plan_after.priorities == plan_before.priorities
+    assert check_after.interval == check_before.interval
+    assert not receipt["data"]["affected_refs"]
+    assert not receipt["data"]["changes"]
+
+
+def test_check_interval_changes_without_changing_command_or_result(bounded_maintenance):
+    context = bounded_maintenance
+    fixture = context["fixture"]
+    before = context["maintenance"].checks.find(fixture.check.row_id)
+    request = maintenance_request(context, [{
+        "kind": "check_interval", "check_id": before.row_id, "interval_minutes": 5,
+    }])
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    after = context["maintenance"].checks.find(before.row_id)
+    change = next(change for change in receipt["data"]["changes"] if change["field"] == "interval")
+    assert receipt["status"] == "applied"
+    assert after.interval == 5
+    assert after.command == before.command
+    assert (after.verdict(), after.last_passed, after.last_output, after.last_run_at, after.last_report,
+        after.last_duration, after.last_fault, after.failure_reported_at, after.last_stopped, after.progress) == (
+            before.verdict(), before.last_passed, before.last_output, before.last_run_at, before.last_report,
+            before.last_duration, before.last_fault, before.failure_reported_at, before.last_stopped, before.progress)
+    assert change["ref"] == {"table": "checks", "id": before.row_id}
+    assert change["before_revision"] == fixture.authority.check_action_revision(before)
+    assert change["after_revision"] == fixture.authority.check_action_revision(after)
+    assert {"table": "checks", "id": before.row_id} in receipt["data"]["affected_refs"]
+
+
+def test_held_tasks_and_disabled_operations_are_untouched(held_diagnostic_maintenance):
+    context = held_diagnostic_maintenance
+    fixture = context["fixture"]
+    held = context["held_diagnostic"]
+    request = maintenance_request(context, [diagnostic_operation(context)])
+    disabled = maintenance_request(context, [{"kind": "sequence", "sequence_id": "not-enabled"}])
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        tasks = context["maintenance"].plans.phase_tasks(fixture.phase)
+        held_after = context["maintenance"].tasks.find(held.row_id)
+    created = next(task for task in tasks if task.row_id != held.row_id and task.title == held.title)
+    assert receipt["status"] == "applied"
+    assert held_after.delegated and held_after.state == held.state and held_after.brief == held.brief
+    assert context["maintenance"].tasks.task_holder(held.row_id) is not None
+    assert context["maintenance"].tasks.task_holder(created.row_id) is None
+    phase_change = next(change for change in receipt["data"]["changes"] if change["field"] == "phase_link")
+    assert phase_change["ref"] == {"table": "tasks", "id": created.row_id}
+    assert phase_change["before_revision"] != phase_change["after_revision"]
+    before_ids = {task.row_id for task in tasks}
+    with context["scope"].environment(PROJECT):
+        receipts_before = context["entries"].supervisor_records(
+            "SupervisorActionReceipt", last=100, grant_id=context["grant"]["grant_id"],
+        )
+    for index, kind in enumerate(("sequence", "phrase_nudge", "project_reminder", "settings", "shell")):
+        disabled["action_id"] = f"disabled-{index}-{uuid4().hex}"
+        disabled["operations"] = [{"kind": kind, "value": "not-enabled"}]
+        with pytest.raises(SupervisorFailure) as denied:
+            context["maintenance"].apply_maintenance(context["principal"], disabled)
+        assert denied.value.status == 400
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        after_ids = {task.row_id for task in context["maintenance"].plans.phase_tasks(fixture.phase)}
+    with context["scope"].environment(PROJECT):
+        receipts_after = context["entries"].supervisor_records(
+            "SupervisorActionReceipt", last=100, grant_id=context["grant"]["grant_id"],
+        )
+    assert after_ids == before_ids
+    assert len(receipts_after) == len(receipts_before)
+
+
+def test_shadow_records_only_proposal_receipts_without_domain_writes(shadow_maintenance):
+    context = shadow_maintenance
+    fixture = context["fixture"]
+    operations = [
+        diagnostic_operation(context),
+        {"kind": "plan_priorities", "plan_id": context["grant"]["plan_id"], "text": "Check the failure first"},
+        {"kind": "check_interval", "check_id": fixture.check.row_id, "interval_minutes": 5},
+    ]
+    request = maintenance_request(context, operations)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan_before = context["maintenance"].plans.find(fixture.plan.row_id)
+        task_ids_before = {task.row_id for task in context["maintenance"].plans.plan_tasks(plan_before)}
+        phase_ids_before = {task.row_id for task in context["maintenance"].plans.phase_tasks(fixture.phase)}
+        check_before = context["maintenance"].checks.find(fixture.check.row_id)
+    with context["scope"].environment(PROJECT):
+        receipts_before = context["entries"].supervisor_records(
+            "SupervisorActionReceipt", last=100, grant_id=context["grant"]["grant_id"],
+        )
+    receipt = context["maintenance"].apply_maintenance(context["principal"], request)
+    with context["scope"].environment(fixture.owner_environment.row_id):
+        plan_after = context["maintenance"].plans.find(fixture.plan.row_id)
+        task_ids_after = {task.row_id for task in context["maintenance"].plans.plan_tasks(plan_after)}
+        phase_ids_after = {task.row_id for task in context["maintenance"].plans.phase_tasks(fixture.phase)}
+        check_after = context["maintenance"].checks.find(fixture.check.row_id)
+    with context["scope"].environment(PROJECT):
+        receipts_after = context["entries"].supervisor_records(
+            "SupervisorActionReceipt", last=100, grant_id=context["grant"]["grant_id"],
+        )
+    assert receipt["status"] == "proposed"
+    assert receipt["data"]["verification"] == "not_applied"
+    assert receipt["data"]["affected_refs"] == [] and receipt["data"]["changes"] == []
+    assert plan_after.priorities == plan_before.priorities
+    assert task_ids_after == task_ids_before and phase_ids_after == phase_ids_before
+    assert check_after.interval == check_before.interval
+    assert len(receipts_after) == len(receipts_before) + 1
+    assert receipts_after[0].data["status"] == "proposed"
 
 
 def supervisor_journal(connection, bus, scope, budget=None, prices=None):

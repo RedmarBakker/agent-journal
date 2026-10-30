@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from journal.features.supervisor.support.admissions import MAX_OBSERVATION_AGE
 from journal.models.check import Check
 from journal.models.entry import Entry
 from journal.events.rows.check_completed import CheckCompleted
@@ -23,6 +24,7 @@ OBSERVATION_ENTRY = "SupervisorObservation"
 PAGE_SIZE = 100
 OUTPUT_CHARACTERS = 16_384
 EVIDENCE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+MAX_ACTION_AGE_MS = MAX_OBSERVATION_AGE * 1000
 EVIDENCE_ACTOR = Actor.plugin("journal-supervisor")
 
 
@@ -53,6 +55,60 @@ class SupervisorObservations:
             "page": page,
             "server_now_ms": self._now_ms(),
         }
+
+    def action_run(self, principal: SupervisorPrincipal, grant: dict[str, Any], request: dict[str, Any]) -> tuple[Entry, int]:
+        run, epoch = self._run(principal, grant, {
+            "run_id": request["run_id"], "installation_epoch": request["installation_epoch"], "fence": request["fence"],
+        })
+        with self.scope.environment(PROJECT):
+            states = self.entries.supervisor_records(
+                "SupervisorRunState", last=1, tenant_id=principal.scope["tenant_id"], run_ref=request["run_id"],
+            )
+        if states and states[0].data.get("status") in ("complete", "conflicted", "rejected"):
+            raise SupervisorFailure(403, "supervisor run is not current")
+        return run, epoch
+
+    def action_evidence(self, principal: SupervisorPrincipal, grant: dict[str, Any], installation_epoch: int,
+                        observation_ids: list[str]) -> list[Entry]:
+        if len(observation_ids) != len(set(observation_ids)):
+            raise SupervisorFailure(400, "the supervisor action evidence is invalid")
+        now_ms = self._now_ms()
+        found = []
+        with self.scope.environment(PROJECT):
+            for observation_id in sorted(observation_ids):
+                rows = self.entries.supervisor_records(
+                    OBSERVATION_ENTRY, last=1, tenant_id=principal.scope["tenant_id"],
+                    project_id=principal.scope["project_id"], environment_id=principal.scope["environment_id"],
+                    manager_id=principal.scope["manager_id"], node_id=principal.scope["writer_node_id"],
+                    installation_epoch=installation_epoch, grant_id=grant["grant_id"],
+                    grant_version=grant["grant_version"], plan_id=grant["plan_id"], observation_id=observation_id,
+                )
+                if not rows or not self._qualifying_action_evidence(rows[0], grant, installation_epoch, now_ms):
+                    raise SupervisorFailure(403, "supervisor action evidence is not current")
+                found.append(rows[0])
+        return found
+
+    @staticmethod
+    def _qualifying_action_evidence(entry: Entry, grant: dict[str, Any], installation_epoch: int, now_ms: int) -> bool:
+        data = entry.data
+        observation = data.get("observation", {})
+        facts = observation.get("facts", {}) if isinstance(observation, dict) else {}
+        if not isinstance(facts, dict):
+            return False
+        captured = data.get("committed_at_ms")
+        enrolled = next((item for item in grant["checks"] if item["check_id"] == data.get("check_id")), None)
+        return bool(
+            enrolled and data.get("plan_id") == grant["plan_id"]
+            and data.get("grant_id") == grant["grant_id"] and data.get("grant_version") == grant["grant_version"]
+            and data.get("stopped") is False and facts.get("verdict") in ("failed", "faulted")
+            and data.get("command_sha256") == enrolled["command_sha256"] and facts.get("check_id") == data.get("check_id")
+            and type(captured) is int and 0 <= now_ms - captured <= MAX_ACTION_AGE_MS
+            and type(data.get("expires_at_ms")) is int and data["expires_at_ms"] > now_ms
+            and type(data.get("evidence_generation")) is int and data["evidence_generation"] > 0
+            and observation.get("observation_id") == data.get("observation_id")
+            and observation.get("plan_id") == grant["plan_id"]
+            and observation.get("scope") == {**grant["scope"], "installation_epoch": installation_epoch}
+        )
 
     def _capture(self, check: Check, check_id: int, started: float, completed: float, passed: bool,
                  output: str, fault: str, stopped: bool) -> None:
