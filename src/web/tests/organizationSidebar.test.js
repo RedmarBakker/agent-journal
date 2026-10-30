@@ -40,6 +40,7 @@ const organization = {
         roles: [
             {id: "many", title: "Many jobs", cardinality: "many", instances: 2, queued: 8},
             {id: "queue", title: "Queue", cardinality: "plan", instances: 1, queued: 3},
+            {id: "shared", title: "Shared editor", cardinality: "journal", instances: 1, queued: 3},
         ],
     }, ...Array.from({length: 12}, (_, index) => ({
         id: `domain-${index + 1}`,
@@ -55,13 +56,14 @@ const organization = {
         })),
     }))],
 };
-const countRow = (plans, manyInstances, manyQueued, queueInstances, queueQueued) => ({
+const countRow = (plans, manyInstances, manyQueued, queueInstances, queueQueued, sharedInstances = 0, sharedQueued = 0) => ({
     id: 9,
     name: "sales",
     plans_active: plans,
     roles: {
         many: {instances: manyInstances, queued: manyQueued},
         queue: {instances: queueInstances, queued: queueQueued},
+        shared: {instances: sharedInstances, queued: sharedQueued},
     },
 });
 
@@ -93,7 +95,7 @@ beforeEach(() => {
     store.rows.plans = [];
     store.rows.plugins = [];
     store.entries = [];
-    heldCounts = [countRow(1, 2, 8, 1, 3)];
+    heldCounts = [countRow(1, 2, 8, 1, 3, 1, 3)];
     api.list.mockReset().mockImplementation(async (table) => {
         const rows = table === "environments" ? environments : table === "domain_counts" ? heldCounts : [];
         return {rows, counts: {all: rows.length, open: rows.length, unread: 0}, is_last_page: true};
@@ -114,20 +116,14 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     await until(() => host.querySelector('a[href="#/organization?domain=sales"]') && hasLoaded("domain_counts"));
     expect(api.organization).toHaveBeenCalledOnce();
     expect(organization.domains).toHaveLength(13);
-    expect(organization.domains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(50);
+    expect(organization.domains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(51);
     expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(13);
     const organizationOverview = host.querySelector('a.organization-overview[href="#/organization"]');
     expect(organizationOverview.textContent).toContain("All domains");
     location.hash = organizationOverview.getAttribute("href");
     await until(() => organizationOverview.classList.contains("on"));
     expect(organizationOverview.classList.contains("on")).toBe(true);
-    const sharedRoles = host.querySelector('a[href="#/organization?roles=shared"]');
-    expect(sharedRoles.textContent).toContain("Shared Roles");
-    location.hash = sharedRoles.getAttribute("href");
-    await until(() => sharedRoles.classList.contains("on"));
-    expect(sharedRoles.classList.contains("on")).toBe(true);
-    location.hash = "#/organization";
-    await until(() => !sharedRoles.classList.contains("on"));
+    expect(host.querySelector(".organization-shared-roles")).toBeNull();
 
     const headers = [...host.querySelectorAll(".fold-head")].map((button) => button.textContent.trim());
     expect(headers.indexOf("Project")).toBeLessThan(headers.indexOf("Organization"));
@@ -141,23 +137,30 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(host.querySelector(".organization-role")).toBeNull();
 
     host.querySelector('button[aria-label="Show Roles in Sales"]').click();
-    await until(() => host.querySelectorAll(".organization-role").length === 2);
+    await until(() => host.querySelectorAll(".organization-role").length === 3);
     const roles = [...host.querySelectorAll(".organization-role")];
     const many = roles.find((link) => link.textContent.includes("Many jobs"));
     const queue = roles.find((link) => link.textContent.includes("Queue"));
+    const shared = roles.find((link) => link.textContent.includes("Shared editor"));
     expect(many.getAttribute("href")).toBe("#/role?domain=sales&role=many");
     expect(queue.getAttribute("href")).toBe("#/role?domain=sales&role=queue");
     expect(many.querySelector(".count").textContent).toBe("2");
     expect(many.querySelector(".count").title).toBe("2 running instances");
     expect(queue.querySelector(".count").textContent).toBe("4");
     expect(queue.querySelector(".count").title).toBe("4 queued jobs including the current job");
+    expect(shared.querySelector(".organization-role-shared").textContent).toBe("Shared across plans");
+    expect(shared.querySelector(".count").textContent).toBe("4");
+    expect(shared.querySelector(".count").title).toBe("4 queued jobs including the current job");
+    expect(many.querySelector(".organization-role-shared")).toBeNull();
+    expect(queue.querySelector(".organization-role-shared")).toBeNull();
 
-    heldCounts = [countRow(3, 4, 0, 2, 3)];
+    heldCounts = [countRow(3, 4, 0, 2, 3, 2, 5)];
     await takeEntries([{entry_type: "updated", data: {table: "domain_counts", id: 9, joins: []}}]);
-    await until(() => domain.querySelector(".count").textContent === "3" && many.querySelector(".count").textContent === "4" && queue.querySelector(".count").textContent === "5");
+    await until(() => domain.querySelector(".count").textContent === "3" && many.querySelector(".count").textContent === "4" && queue.querySelector(".count").textContent === "5" && shared.querySelector(".count").textContent === "7");
     expect(domain.querySelector(".count").textContent).toBe("3");
     expect(many.querySelector(".count").textContent).toBe("4");
     expect(queue.querySelector(".count").textContent).toBe("5");
+    expect(shared.querySelector(".count").textContent).toBe("7");
 
     const environmentGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
     const visibleEnvironments = [...environmentGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
@@ -171,7 +174,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     const domainToggles = [...host.querySelectorAll(".organization-domain-toggle")];
     domainToggles.filter((button) => button.getAttribute("aria-expanded") === "false").forEach((button) => button.click());
     await nextTick();
-    expect(host.querySelectorAll(".organization-role")).toHaveLength(50);
+    expect(host.querySelectorAll(".organization-role")).toHaveLength(51);
     const organizationHeader = [...host.querySelectorAll(".fold-head")].find((button) => button.textContent.trim() === "Organization");
     expect(organizationHeader.tagName).toBe("BUTTON");
     expect(organizationHeader.tabIndex).toBe(0);

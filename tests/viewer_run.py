@@ -127,6 +127,11 @@ SETS = {
         "tests/teamPages.test.js",
     ),
     "organization_sidebar": ("tests/organizationSidebar.test.js",),
+    "organization_role_sidebar": (
+        "tests/organizationRoutes.test.js",
+        "tests/organizationSidebar.test.js",
+        "tests/rolePage.test.js",
+    ),
     "organization_board": ("tests/organizationBoard.test.js",),
     "plan_agent_chat": ("tests/planAgents.test.js", "tests/planAgentChats.test.js", "tests/planAgentSection.test.js"),
     "plan_role_history": ("tests/planRoleHistory.test.js",),
@@ -153,12 +158,6 @@ SETS = {
         "tests/workerHome.test.js",
         "tests/workerInspector.test.js",
         "tests/transcript.test.js",
-    ),
-    "shared_roles": (
-        "tests/sharedRoles.test.js",
-        "tests/organizationRoutes.test.js",
-        "tests/organizationSidebar.test.js",
-        "tests/organizationPage.test.js",
     ),
     "phone_navigation": (
         "tests/phone.test.js",

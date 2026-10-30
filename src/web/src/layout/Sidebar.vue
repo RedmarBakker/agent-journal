@@ -116,16 +116,10 @@ function point(e) {
                     @toggle="fold('organization')"
                 >
                     <a
-                        :class="['item', 'organization-overview', {on: route.page === 'organization' && !route.shared && !route.domain}]"
+                        :class="['item', 'organization-overview', {on: route.page === 'organization' && !route.domain}]"
                         :href="href.organization()"
                     >
                         <span class="label">All domains</span>
-                    </a>
-                    <a
-                        :class="['item', 'organization-shared-roles', {on: route.page === 'organization' && route.shared}]"
-                        :href="href.sharedRoles()"
-                    >
-                        <span class="label">Shared Roles</span>
                     </a>
                     <template v-for="domain in domains" :key="domain.id">
                         <div class="organization-domain-row">
@@ -156,6 +150,7 @@ function point(e) {
                                 :aria-label="`${role.title}: ${roleCountTitle(domain, role)}`"
                             >
                                 <span class="label">{{ role.title }}</span>
+                                <span v-if="role.cardinality === 'journal'" class="organization-role-shared">Shared across plans</span>
                                 <span class="count" :title="roleCountTitle(domain, role)">{{ roleCount(domain, role) }}</span>
                             </a>
                         </template>
@@ -454,6 +449,15 @@ function point(e) {
 
 .organization-role {
     padding-left: 34px;
+}
+
+.organization-role-shared {
+    flex: none;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--sel);
+    color: var(--text-3);
+    font-size: 10px;
 }
 
 .env-row:hover :deep(.env-start) {
