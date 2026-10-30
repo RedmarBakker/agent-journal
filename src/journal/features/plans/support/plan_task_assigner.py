@@ -101,7 +101,7 @@ class PlanTaskAssigner:
             return "plan_not_started"
         if self.orchestrator.delegates_work():
             return "work_delegated"
-        if self.plans.checkpoint_plans(plan) is not None:
+        if self.checkpoint_blocks(plan):
             return "owner_checkpoint"
         if self.testing.unpassed(plan):
             return "phase_tests_unpassed"
@@ -113,7 +113,10 @@ class PlanTaskAssigner:
     def passes_checkpoints(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))
 
+    def checkpoint_blocks(self, plan: Plan) -> bool:
+        return self.plans.checkpoint_plans(plan) is not None and not self.passes_checkpoints()
+
     def following_task(self, plan: Plan) -> Task | None:
-        if self.plans.checkpoint_plans(plan) is not None:
+        if self.checkpoint_blocks(plan):
             return None
         return self.plans.following_task(plan)

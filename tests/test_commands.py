@@ -17,6 +17,7 @@ EXPECTED = FOLDER / "expected.txt"
 CALLERS = {"agent": AGENT, "user": USER}
 # what differs from one run to the next, put in a word of its own so the frozen output holds
 VARYING = (
+    (re.compile(r"\bcreated: (message|reaction) \d+\b"), r"created: \1 <n>"),
     (re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?([+-]\d{2}:\d{2}|Z)?"), "<time>"),
     (re.compile(r"\b\d{4}-\d{2}-\d{2}\b"), "<date>"),
     (re.compile(r"\b\d{1,2}:\d{2}(:\d{2})?\b"), "<clock>"),

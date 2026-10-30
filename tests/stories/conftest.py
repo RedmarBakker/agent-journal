@@ -20,7 +20,10 @@ from journal.providers.support.helper_runner import HelperRunner
 from journal.support.agent_role import AgentRole
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.features.faults.support.story_transitions import StoryTransitions
+from journal.features.updates.support.release_check import ReleaseCheck
+from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
 from journal.features.registry import Registry
+from journal.support.time_source import TimeSource
 
 OVERLAYS = pytest.StashKey[dict[str, PathOverlay]]()
 SCENARIOS_RUN = pytest.StashKey[int]()
@@ -49,6 +52,7 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead."""
     launches: list[dict[str, str]] = []
     patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
+    ReleaseCheckMemory().store(ReleaseCheck(TimeSource().seconds()))
     app = booted(root, patch)
     app.helper_launches = launches
     return app

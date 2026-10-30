@@ -89,7 +89,7 @@ task 2 open again
 $ agent: journal task dock 1
 exit 0
 Task 1: Write the footer docked above the chat
-created: message 11
+created: message <n>
 
 $ agent: journal task undock 1
 exit 0
@@ -266,7 +266,7 @@ exit 0
 $ agent: journal message react 1 '👍'
 exit 0
 👍 on message 1
-created: reaction 1
+created: reaction <n>
 
 $ agent: journal message tag --help
 exit 0
@@ -314,7 +314,7 @@ message 15 sent
 $ agent: journal message flowchart 'How a release goes out' --edge 'Suite -> Tag' --edge 'Tag -> Release: when the matrix passes'
 exit 0
 flowchart 16 drawn
-created: message 16
+created: message <n>
 
 $ agent: journal plan create 'The shop'"'"'s checkout' --brief 'A customer can pay'
 exit 0
@@ -445,7 +445,7 @@ plan 1 is shown on the plan card again
 $ agent: journal plan dock 1
 exit 0
 Plan 1: The shop's checkout docked above the chat
-created: message 23
+created: message <n>
 
 $ agent: journal plan undock 1
 exit 0
@@ -489,7 +489,7 @@ question 1 answered: Mollie
 $ agent: journal question dock 1
 exit 0
 Question 1 docked above the chat
-created: message 28
+created: message <n>
 
 $ agent: journal question undock 1
 exit 0
@@ -510,7 +510,7 @@ rule 1: Always round money to cents
 $ agent: journal rule dock 1
 exit 0
 Rule 1 docked above the chat
-created: message 30
+created: message <n>
 
 $ agent: journal rule undock 1
 exit 0
@@ -535,7 +535,7 @@ reminder 1: Run the tests before a commit
 $ agent: journal reminder dock 1
 exit 0
 Reminder 1 docked above the chat
-created: message 33
+created: message <n>
 
 $ agent: journal reminder undock 1
 exit 0
@@ -565,7 +565,7 @@ memory 1 weighs 6, memory 2 weighs 4
 $ agent: journal memory dock 1
 exit 0
 Memory 1 docked above the chat
-created: message 39
+created: message <n>
 
 $ agent: journal memory undock 1
 exit 0
@@ -793,7 +793,7 @@ template 1 schedule: none
 $ agent: journal template dock 1
 exit 0
 Template 1: Functional design docked above the chat
-created: message 45
+created: message <n>
 
 $ agent: journal template undock 1
 exit 0
@@ -848,7 +848,7 @@ check 1: The cart sums its lines
 $ agent: journal check dock 1
 exit 0
 Check 1: The cart sums its lines docked above the chat
-created: message 47
+created: message <n>
 
 $ agent: journal check undock 1
 exit 0
@@ -869,7 +869,7 @@ exit 0
 $ agent: journal notice dock 1
 exit 0
 Notice 1: The shop's design docked above the chat
-created: message 48
+created: message <n>
 
 $ agent: journal notice undock 1
 exit 0
@@ -1114,7 +1114,7 @@ sequence 2 abandoned
 $ agent: journal sequence dock 2
 exit 0
 Sequence 2: Applying a plan's reviews docked above the chat
-created: message 52
+created: message <n>
 
 $ agent: journal sequence undock 2
 exit 0
@@ -1131,7 +1131,7 @@ exit 0
 $ agent: journal trigger dock 1
 exit 0
 Trigger 1 docked above the chat
-created: message 53
+created: message <n>
 
 $ agent: journal trigger undock 1
 exit 0
@@ -1211,7 +1211,7 @@ exit 0
 $ agent: journal dump dock 1
 exit 0
 Dump 1: The call docked above the chat
-created: message 55
+created: message <n>
 
 $ agent: journal dump undock 1
 exit 0
@@ -1240,7 +1240,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 56
+created: message <n>
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
