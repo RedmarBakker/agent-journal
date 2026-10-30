@@ -21,6 +21,9 @@ from journal.models.scheduled_job import ScheduledJob
 from journal.models.alias import Alias
 from journal.models.dashboard_row import DashboardRow
 from journal.models.state_transition import StateTransition
+from journal.models.sprint import Sprint
+from journal.models.sprint_change import SprintChange
+from journal.models.sprint_commitment import SprintCommitment
 from journal.models.plan import Plan
 from journal.models.plan_review import PlanReview
 from journal.models.approval import Approval
@@ -64,5 +67,5 @@ from journal.models.organization_handoff import OrganizationHandoff
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition, Sprint, SprintCommitment, SprintChange)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))

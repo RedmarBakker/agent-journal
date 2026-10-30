@@ -63,6 +63,7 @@ from journal.http.controllers.client_errors import ClientErrorController
 from journal.http.controllers.voices import VoiceController
 from journal.http.controllers.subagents import SubagentController
 from journal.http.controllers.supervisor import SupervisorController
+from journal.http.controllers.sprints import SprintController
 from journal.http.controllers.verifiers import VerifierController
 from journal.http.controllers.reviewers import ReviewerController
 from journal.http.controllers.test_turns import TestTurnController
@@ -177,6 +178,15 @@ class Routes:
         self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
         self.resource(router, "plans", plans)
+        sprints = get(SprintController)
+        router.get(f"{API}/sprints", sprints.index)
+        router.get(f"{API}/sprints/{{id}}", sprints.show)
+        router.post(f"{API}/sprints", sprints.store)
+        router.post(f"{API}/sprints/{{id}}/calendar", sprints.calendar)
+        router.post(f"{API}/sprints/{{id}}/plans", sprints.assign)
+        router.post(f"{API}/sprints/{{id}}/start", sprints.start)
+        router.post(f"{API}/sprints/{{id}}/close", sprints.close)
+        router.post(f"{API}/sprints/{{id}}/carry", sprints.carry)
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)
         router.get(f"{API}/plans/{{id}}/timeline", plans.timeline)
         router.get(f"{API}/plans/{{id}}/roles", plans.role_history)
