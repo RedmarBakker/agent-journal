@@ -50,6 +50,7 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.workers_data import WorkersData
+from journal.features.workers.support.session_workers_data import SessionWorkersData
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.support.ref import Ref
@@ -705,10 +706,12 @@ def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_a
     contracts = organization.reload()
 
     def asked(role: str, tool: str, arguments: dict):
-        worker = Worker(environment_id=1, name="Ada Lovelace", brief="b", role=role)
+        worker = Worker(environment_id=1, name="Ada Lovelace", brief="b", role=role, session="role-session")
         call = Claude().call(tool, arguments, frozenset(), CLASSIFIER)
-        data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,) if role else ()), "organization": OrganizationData(contracts)})
-        return RoleConduct.on_tool_starting(Ready(), ToolStarting(call=call).with_data(data), Settings({}))
+        data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ()), "session_workers": SessionWorkersData((worker,) if role else ()), "organization": OrganizationData(contracts)})
+        agent = Agent(environment_id=1, session=worker.session, provider="claude")
+        event = ToolStarting(agent=agent, session=worker.session, environment_id=1, call=call).with_data(data)
+        return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
 
     assert asked("scout", "Write", {"file_path": "a.py", "content": "x"}).refusal == OrganizationNudges.ROLE_WRITES_NOTHING.create(role="scout"), "a Role without a write tool is refused a write"
     assert asked("builder", "Write", {"file_path": "a.py", "content": "x"}).refusal is None and asked("scout", "Read", {"file_path": "a.py"}).refusal is None, "a Role with one writes, and reading is not writing"
@@ -744,10 +747,12 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
 
     def attempt(command: str):
         data = FeatureData({
-            "workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,)),
+            "workers": WorkersData((), (), 0, (), Path("/w"), ()),
+            "session_workers": SessionWorkersData((worker,)),
             "organization": organization_data,
         })
-        event = ToolStarting(session=worker.session, environment_id=worker.environment_id, call=call_for(command)).with_data(data)
+        agent = Agent(environment_id=worker.environment_id, session=worker.session, provider=worker.provider)
+        event = ToolStarting(agent=agent, session=worker.session, environment_id=worker.environment_id, call=call_for(command)).with_data(data)
         return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
 
     def approval_for(command: str, action: ApprovalAction):
@@ -758,7 +763,7 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
     assert attempt("make deploy").refusal == deployment, "the deployment waits before any approval"
     listener = app.container.get(RoleRefusalReport)
     monkeypatch.setattr(listener.escalation, "report", lambda *args: None)
-    refusal = LineDelivered(session=worker.session, nudge=OrganizationNudges.ACTION_WAITS_FOR_USER.key, values={"action": ApprovalAction.PRODUCTION_DEPLOYMENT.value})
+    refusal = LineDelivered(agent=Agent(environment_id=worker.environment_id, session=worker.session, provider=worker.provider), session=worker.session, environment_id=worker.environment_id, nudge=OrganizationNudges.ACTION_WAITS_FOR_USER.key, values={"action": ApprovalAction.PRODUCTION_DEPLOYMENT.value})
     with scope.environment(1):
         listener.handle(refusal)
     approved = approval_for("make deploy", ApprovalAction.PRODUCTION_DEPLOYMENT)
@@ -818,13 +823,14 @@ def test_an_approval_is_bound_to_the_exact_tool_arguments_target_and_full_comman
     repository = app.container.get(Approvals)
     questions = app.container.get(Questions)
     organization_data = app.container.get(OrganizationDataReader).read(Agent(environment_id=worker.environment_id, session=worker.session))
-    data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,)), "organization": organization_data})
+    data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ()), "session_workers": SessionWorkersData((worker,)), "organization": organization_data})
 
     def call_for(tool: str, target: str):
         return Claude().call(tool, {"target": target}, frozenset(), CLASSIFIER)
 
     def attempt(call):
-        event = ToolStarting(session=worker.session, environment_id=worker.environment_id, call=call).with_data(data)
+        agent = Agent(environment_id=worker.environment_id, session=worker.session, provider=worker.provider)
+        event = ToolStarting(agent=agent, session=worker.session, environment_id=worker.environment_id, call=call).with_data(data)
         return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
 
     def approval_for(call):
@@ -880,7 +886,7 @@ def test_a_solo_role_rejects_an_excluded_mcp_tool_without_spending_approval_and_
     state = RoleWork(role="deployer", version=contracts.version)
 
     def attempt(call):
-        event = ToolStarting(session="solo-plan", environment_id=1, call=call).with_data(data)
+        event = ToolStarting(agent=Agent(environment_id=1, session="solo-plan", provider="claude"), session="solo-plan", environment_id=1, call=call).with_data(data)
         with scope.environment(1):
             return state.on_tool_starting(event, Settings({}))
 
@@ -1099,7 +1105,7 @@ def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tm
     runner.ledger = ledger
     runner.caps = Caps(Settings())
     runner.plans = SimpleNamespace(find=lambda _plan_id: plan,
-                                   postpone=lambda current, _actor: (order.append("pause"), paused.append(current)))
+                                   agent_postponed=lambda current, _actor: (order.append("pause"), paused.append(current)))
     runner.escalation = SimpleNamespace(cap_reached=lambda *_args: (order.append("notify"), notified.append(_args)))
     runner.providers = SimpleNamespace(lookup=lambda _provider: SimpleNamespace(
         status=lambda _session, _home: SimpleNamespace(windows=windows)))
@@ -1548,6 +1554,7 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
     runner.member = lambda _worker: member
 
     runner.monitor_existing(worker, identity, actor, finisher.finish_seat)
+    app.runtime().deferred.drain()
 
     current = workers.find(worker.row_id)
     assert current.run_end.startswith(f"seat failed: {expected}"), "boot recovery leaves a clear failure on the organization job"
@@ -1640,6 +1647,7 @@ def test_a_dead_seat_requeues_its_job_and_escalates_to_its_domain_agent(app, tmp
 
     seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
                  actor, finisher.finish_seat, worker.job_start_time())
+    app.runtime().deferred.drain()
 
     current = workers.find(worker.row_id)
     assert current.state == WorkerState.UNFINISHED and "ended without clocking out" in current.run_end
@@ -1664,6 +1672,7 @@ def test_a_stuck_seat_times_out_its_job_and_escalates_to_its_domain_agent(app, t
 
     seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
                  actor, finisher.finish_seat, worker.job_start_time())
+    app.runtime().deferred.drain()
 
     current = workers.find(worker.row_id)
     assert stopped and current.state == WorkerState.UNFINISHED and "without ending" in current.run_end
@@ -1694,6 +1703,7 @@ def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitor
     seat.member = lambda _worker: SimpleNamespace(openrig_version="0.7.5")
 
     seat.monitor_existing(worker, identity, actor, finisher.finish_seat)
+    app.runtime().deferred.drain()
 
     current = workers.find(worker.row_id)
     assert current.state == WorkerState.UNFINISHED and "seat failed:" in current.run_end
@@ -1847,6 +1857,7 @@ def test_a_task_handed_or_queued_to_a_role_is_tied_to_its_domain_and_each_domain
         tasks.queued(looked, Ref.build(builder), actor)
         tasks.queued(kept, Ref.build(keeper), actor)
         tasks.handover(loose, Ref.build(senior), actor)
+        app.runtime().deferred.drain()
         alpha, beta = domain_plans.of("alpha"), domain_plans.of("beta")
         assert [(line.plan.id, [task.id for task in line.tasks]) for line in alpha] == [(plan.id, [built.id, looked.id])], "the plan lists under alpha with alpha's tasks alone, the one handed to no Role left out"
         assert [(line.plan.id, [task.id for task in line.tasks]) for line in beta] == [(plan.id, [kept.id])], "the same plan lists under beta with beta's task alone"
@@ -1899,13 +1910,17 @@ def test_a_plan_stands_in_the_phase_each_domains_tasks_reached_on_that_domains_b
         builder, keeper = (workers.save(Worker(environment_id=1, name=name, brief="b", profile="journal-senior", role=role), actor) for name, role in (("Mr. Brunel", "builder"), ("Ms. Hopper", "keeper")))
         tasks.handover(built, Ref.build(builder), actor)
         tasks.handover(kept, Ref.build(keeper), actor)
+        app.runtime().deferred.drain()
         assert [line.phase() for line in (*domain_plans.of("alpha"), *domain_plans.of("beta"))] == [BoardPhase.PLANNED, BoardPhase.PLANNED], "a domain task exists in the plan and none is started"
         tasks.save(tasks.find(built.id).worker_started(now), actor)
         tasks.save(tasks.find(kept.id).worker_started(now), actor)
         workers.save(workers.find(keeper.id).with_(state=WorkerState.DELIVERED), actor)
+        app.runtime().deferred.drain()
         assert (domain_plans.of("alpha")[0].phase(), domain_plans.of("beta")[0].phase()) == (BoardPhase.IN_PROGRESS, BoardPhase.IN_REVIEW), "alpha's task is worked; beta's worker clocked out and its proofs wait to be checked"
         tasks.save(tasks.find(kept.id).completed(now, "kept"), actor)
+        app.runtime().deferred.drain()
         assert (domain_plans.of("alpha")[0].phase(), domain_plans.of("beta")[0].phase()) == (BoardPhase.IN_PROGRESS, BoardPhase.DONE), "beta is done with its task while alpha and a task of no domain are still open"
+    app.runtime().deferred.drain()
     assert [(n, domain, phase) for n, domain, phase in entered if n == plan.id] == [(plan.id, "alpha", BoardPhase.PLANNED), (plan.id, "beta", BoardPhase.PLANNED), (plan.id, "alpha", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_REVIEW), (plan.id, "beta", BoardPhase.DONE)], "each phase a plan enters on a board fires once, in order"
     shown = app.console().run(["organization", "plans"], Caller.agent("main", "s1", "claude")).text
     assert f"domain alpha: Alpha\n  plan {plan.id} the floors, Being built, active: task {built.id} started\ndomain beta: Beta\n  plan {plan.id} the floors, Done: task {kept.id} completed" in shown, "each board names the phase by its domain's own name"
@@ -1950,11 +1965,16 @@ def test_a_role_that_is_stuck_refused_or_ends_without_clocking_out_is_reported_t
         plans.agent_linked(plan, plan_agent, actor)
         builder, keeper, franklin = (workers.save(Worker(environment_id=1, name=name, brief="b", profile="journal-senior", role=role, plan_id=plan_id, session=session, dispatcher="s1"), actor)
                                      for name, role, plan_id, session in (("Mr. Brunel", "builder", plan.id, "w-brunel"), ("Ms. Hopper", "keeper", plan.id, "w-hopper"), ("Ms. Franklin", "keeper", 0, "w-franklin")))
-        app.container.get(RoleStuckReport).handle(ImpasseReport(reason="the schema is missing").placed("w-brunel", 1, "claude", None, 1.0))
+        brunel_agent = Agent(environment_id=1, session="w-brunel", provider="claude")
+        app.container.get(RoleStuckReport).handle(ImpasseReport(agent=brunel_agent, reason="the schema is missing").placed(brunel_agent, None, 1.0))
+        app.runtime().deferred.drain()
         assert escalated == [("domain-alpha", f"the Role builder of alpha is stuck: the schema is missing (worker {builder.id}, Mr. Brunel)")], "step one: a stuck Role is reported to its Domain agent"
-        app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "keeper"}).placed("w-hopper", 1, "claude", None, 2.0))
+        hopper_agent = Agent(environment_id=1, session="w-hopper", provider="claude")
+        app.container.get(RoleRefusalReport).handle(LineDelivered(agent=hopper_agent, nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "keeper"}).placed(hopper_agent, None, 2.0))
+        app.runtime().deferred.drain()
         assert escalated[-1] == ("plan-1", f"the Role keeper of beta was refused: your Role keeper has no write tool: change no file (worker {keeper.id}, Ms. Hopper)"), "step two: its Domain agent ended, a refused Role is reported to the Plan agent"
         workers.save(workers.find(franklin.id).unfinished(3.0, "stopped after 30 minutes without ending: (nothing printed)"), actor)
+        app.runtime().deferred.drain()
         cards = [message for message in app.container.get(Messages).all() if message.text == "Role reported to you"]
     assert len(escalated) == 2 and len(cards) == 1 and cards[0].data["lines"] == ["the Role keeper of beta ended without clocking out", "stopped after 30 minutes without ending: (nothing printed)", f"worker {franklin.id}, Ms. Franklin"] and cards[0].session == "s1", "step three: with no Domain agent running and no plan, a Role that timed out is reported to the user in its dispatcher's chat"
     assert ([ref.id for ref in links.targets(builder, ESCALATED_LINK)], [ref.id for ref in links.targets(keeper, ESCALATED_LINK)]) == ([domain_agent.id], [plan_agent.id]), "each report to an agent is a link from the worker to it"
@@ -2021,6 +2041,7 @@ def test_a_journal_role_queue_serves_a_second_plan_before_a_second_task_from_the
         tasks.handover(first, holder, actor)
         for task in (next_first, last_first, next_second):
             tasks.queued(task, holder, actor)
+        app.runtime().deferred.drain()
 
         queue = [task.id for task in tasks.queue(holder)]
         choice = workers.find(worker.id).report_choice
@@ -2148,11 +2169,13 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         tasks.handover(built, Ref.build(builder), actor)
         tasks.queued(looked, Ref.build(builder), actor)
         tasks.queued(kept, Ref.build(keeper), actor)
+        app.runtime().deferred.drain()
         rows = {row.name: row for row in counts.all_matching()}
         assert (rows["alpha"].plans_active, rows["alpha"].roles) == (1, {"scout": {"instances": 0, "queued": 0}, "builder": {"instances": 1, "queued": 1}}), "alpha: one plan active, the builder running with one task queued for it"
         assert (rows["beta"].plans_active, rows["beta"].roles) == (1, {"keeper": {"instances": 1, "queued": 1}})
         tasks.save(tasks.find(kept.id).completed(now, "kept"), actor)
         workers.save(workers.find(keeper.id).with_(adopted=True, state="released"), actor)
+        app.runtime().deferred.drain()
         assert {row.name: row.roles for row in counts.all_matching()}["beta"] == {"keeper": {"instances": 0, "queued": 0}}, "an instance that is released stops being counted, and so does its queue"
         assert {row.name: row.plans_active for row in counts.all_matching()}["beta"] == 0, "and beta's plan is no longer active once its task is done"
     status, shown = get_answer(app, "/journal/organization", env)

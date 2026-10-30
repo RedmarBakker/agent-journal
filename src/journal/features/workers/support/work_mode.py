@@ -1,7 +1,6 @@
 from journal.engine.base_state import BaseState
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.settings import Settings
-from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
@@ -21,7 +20,7 @@ class WorkMode:
         agent = self.agents.environment_main_agent(self.scope.id_default(NO_ENVIRONMENT))
         if agent is None:
             return self.catalogue.mode_state(settings)
-        return type(self.catalogue.floor(self.catalogue.stack(agent), settings, AgentRole.MAIN).states[0])
+        return type(self.catalogue.floor(self.catalogue.stack(agent), settings).states[0])
 
     def delegates_work(self) -> bool:
         return self.state().delegates_work()

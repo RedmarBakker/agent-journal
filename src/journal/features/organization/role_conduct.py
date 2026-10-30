@@ -5,7 +5,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.features.organization.organization_part import OrganizationPart
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.role_policy import RolePolicy
-from journal.features.workers.workers_part import WorkersPart
+from journal.features.workers.session_workers_part import SessionWorkersPart
 
 
 class RoleConduct(Conduct):
@@ -13,7 +13,7 @@ class RoleConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         organization = event.data.part(OrganizationPart)
-        worker_role = next(((worker, role) for worker in event.data.part(WorkersPart).session_workers if worker.role and (role := organization.contracts_at(worker.contract).role(worker.role))), None)
+        worker_role = next(((worker, role) for worker in event.data.part(SessionWorkersPart).session_workers if worker.role and (role := organization.contracts_at(worker.contract).role(worker.role))), None)
         worker, role = worker_role if worker_role else (None, None)
         refusal = RolePolicy().refusal(role, event.call) if role else None
         if refusal is None:

@@ -24,6 +24,7 @@ from journal.features.workers.support.worker_chat import WorkerChat
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
 from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
 from journal.models.model_tier import ModelTier
 from journal.providers.providers import Providers
 from journal.features.profiles.support.profile_files import ProfileFiles
