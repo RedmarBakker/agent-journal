@@ -131,6 +131,14 @@ class AgentSteps:
         answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "agent": True, "provider": self.provider}, MAIN)[1]
         self.record_command(f"a shell naming no session runs {' '.join(arguments[:2])}", Outcome(answer["code"], answer["text"], answer.get("error", "")))
 
+    def command_from_a_shell(self, line: str, headers: dict, body: dict) -> None:
+        arguments = shlex.split(line)
+        answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", **body}, {**MAIN, **headers})[1]
+        self.record_command(f"a shell runs {' '.join(arguments[:2])}", Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", "")))
+
+    def subagent_runs_in_the_shell(self, subagent: str, line: str) -> None:
+        self.hooked(self.agents.subject, f"a subagent runs in the shell {line.split()[0]}", "PreToolUse", agent_id=subagent, tool_name=self.tools.shell, tool_input={"command": line})
+
     def agent_reads(self, agent: StoryAgent, path: str = "a.py", count: int = 1) -> None:
         for _ in range(count):
             self.hooked(agent, "agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})

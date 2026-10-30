@@ -15,6 +15,7 @@ def test_what_went_around_the_journal_while_it_did_not_answer_is_told_once_at_th
     story.expect_allowed()
     story.expect_agent_told(story.agents.subject, HealthNudges.UNCHECKED_WORK)
     story.expect_answer_text("git status")
+    story.expect_chat_holds("The journal was too slow to check some of the agent's work")
     story.agent_reads(story.agents.subject)
     story.expect_agent_not_told(story.agents.subject, HealthNudges.UNCHECKED_WORK)
     story.expect_stack(story.agents.subject, Ready)

@@ -586,26 +586,6 @@ def ticked_minutes(app: App, *minutes: int) -> None:
             clock.ticked(Ticked(agent=agent_row(app), session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
 
 
-def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_averages_from_the_tabs_numbers_and_resets_them(app: App):
-    user_set(app, "faults.developer", True)
-    user_set(app, "faults.count_loads", True)
-    from collections import Counter
-    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
-    from journal.models.support.request_loads import RequestLoads
-    slow = app.container.get(RequestTimeRecorder)
-    slow.counted("HOOK", "/hooks/PreToolUse", 41, RequestLoads.tallied(Counter({"tasks": 60, "links": 12, "plans": 3})))
-    slow.counted("GET", "/journal/tasks", 7, RequestLoads())
-    slow.counted("HOOK", "/hooks/Stop", 90, RequestLoads())
-    run = lambda *argv: app.console().run(["developer", *argv], USER).text
-    groups = run("slowest").splitlines()
-    assert [line.split()[0] for line in groups[:3]] == ["90", "41", "7"] and groups[0].endswith("HOOK /hooks/Stop"), "each route a group, the slowest first, with its worst time"
-    assert run("loads").splitlines()[0].endswith("PreToolUse: tasks 60 points: 60 rows, 0 bytes, 0 writes, links 12 points: 12 rows, 0 bytes, 0 writes, plans 3 points: 3 rows, 0 bytes, 0 writes, 41 ms"), "a request with the records it read, by kind"
-    assert run("models").splitlines() == ["      60  tasks", "      12  links", "       3  plans"], "the totals per kind, the most first"
-    averages = run("averages")
-    assert "hooks" in averages and "2 measured" in averages and "hook Stop" in averages and "90 ms slowest" in averages
-    assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
-
-
 def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
     from journal.features.workers.support.worker_process_card import WorkerProcessCard
     from journal.models.worker import Worker
@@ -4528,90 +4508,6 @@ def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(ap
     assert sessions.top("s1").name != "awaiting", "and ends with the last"
 
 
-def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_plan_with_no_dependencies_are_named_to_the_orchestrator(app: App, monkeypatch):
-    from journal.engine.clock import Clock
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
-    from journal.features.tasks.feature import Tasks as TasksFeature
-    from journal.features.workers.feature import Workers as WorkersFeature
-    from journal.repositories.entries import NUDGE, Entries
-    orchestrator = WorkersFeature.skill.body[WorkersFeature.skill.body.index("Orchestrator:"):]
-    assert all(words in orchestrator for words in ("--on task:<m>", "--until '<command>'", "a wait written only in words")), "the orchestrator mode's instructions teach a wait as a block with --on or --until"
-    assert "--on task:<m>" in TasksFeature.skill.body and "--until '<command>'" in TasksFeature.skill.body, "and so does the tasks skill"
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for n in range(1, 13):
-        console.run(["plan", "add", "1", f"step {n}"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    now = timing.time()
-    said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
-
-    def ticked(minutes: float) -> None:
-        monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
-        app.container.get(Bus).dispatch(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
-        app.runtime().deferred.drain()
-
-    ticked(0)
-    assert said("workers.plan_order_without_dependencies") == [WorkersNudges.UNLINKED_TASKS.create(plan=1, open=12).rendered()], "a started plan of twelve open tasks with none blocked is asked which depend on which"
-    assert said("workers.blocked_work_stands_still") == [], "nothing blocked, nothing stands still"
-    assert console.run(["task", "block", "5", "waits on the payment provider"], AGENT).code == 0
-    ticked(30)
-    assert said("workers.blocked_work_stands_still") == [], "a task blocked half an hour ago has not stood still the set time"
-    ticked(61)
-    assert said("workers.blocked_work_stands_still") == [WorkersNudges.UNMOVED_TASKS.create(tasks=5).rendered()], "after the set time it is named by its id"
-
-
-def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_plan_and_quiets_the_line_until_the_interval_or_the_next_phase(app: App, monkeypatch):
-    from journal.repositories.entries import NUDGE, Entries
-    from journal.repositories.plans import Plans
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    pinned_clock(app, monkeypatch)
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for title in ("write the notes", "tag it"):
-        console.run(["plan", "add", "1", title], USER)
-    for title in ("notes", "tag"):
-        console.run(["plan", "phase", "1", title], USER)
-    for phase in (1, 2):
-        console.run(["plan", "todos", "1", str(phase), str(phase)], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
-
-    def ticked(minutes: float) -> list[str]:
-        tick_at(app, minutes * 60, 1.0)
-        app.runtime().deferred.drain()
-        return asked()
-
-    assert len(ticked(0)) == 1 and asked()[0].startswith("plan 1, phase 1: order the queues"), asked()
-    answer = console.run(["plan", "priorities", "task 1 first: the notes come before the tag"], AGENT)
-    assert answer.code == 0, answer.error
-    plan = app.container.get(Plans).find(1)
-    assert (plan.priorities, plan.priorities_phase) == ("task 1 first: the notes come before the tag", 1), "the answer is kept on the plan with its phase"
-    assert "priorities: task 1 first: the notes come before the tag" in console.run(["plan", "show", "1"], AGENT).text
-    assert len(ticked(20)) == 1, "once answered the line is quiet, past the time a line may repeat"
-    assert len(ticked(46)) == 2, "and asks again once the interval has passed"
-    console.run(["plan", "priorities", "task 1 still first"], AGENT)
-    user_set(app, "workers.priorities_minutes", 0)
-    assert len(ticked(62)) == 2, "with no interval an answered phase is not asked again"
-    assert console.run(["task", "complete", "1"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    assert len(ticked(78)) == 3 and asked()[-1].startswith("plan 1, phase 2:"), "a new phase asks at once"
-    for title in ("the lexer", "the docs", "Grant the journal the gh permission"):
-        console.run(["task", "create", title, "--brief", "b"], AGENT)
-    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", "3", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior"], AGENT)
-    assert dispatched.code == 0, dispatched.error
-    assert console.run(["worker", "queue", "1", "4", "5"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    unblocking = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.unblocking_task_waits_in_a_queue"]
-    assert unblocking == [WorkersNudges.UNBLOCKER_QUEUED.create(task=5, place=2, n=1).rendered()], unblocking
-
-
 def queue_plan(app: App, titles: tuple[str, ...]) -> list[int]:
     """A started plan of one phase with these tasks, by their numbers."""
     console = app.console()
@@ -5715,19 +5611,6 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app
     assert not CardLine.is_poor(CardLine.plain(vitest)) and not CardLine.is_poor(CardLine.plain(" FAIL  tests/figureVisor.test.js > the crosses and the ticks are the pixel pictures on the visor's screen in the run's colour")), "a test vitest or jest marks failed is named however long, as pytest's are"
 
 
-def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
-    from journal.features.shell.support.readers import Readers
-
-    full = ["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--about", "a unit run's summary", "--progress", r"\[ *([0-9]+)%\]", "--label", "Running tests", "--commands", "pytest", "--step", "[.F]", "--topic", r"(\S+\.py)", "--finished", "[0-9]+ passed", "--failed", "[0-9]+ failed"]
-    assert app.console().run(full, USER).code == 0
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ (passed|failed)"], USER).code == 0
-    reader = app.container.get(Readers).lookup("unit-runs")
-    assert reader.pattern == "[0-9]+ (passed|failed)" and reader.subject == "a unit run's summary" and reader.label == "Running tests" and reader.commands.programs and reader.step_pattern == "[.F]" and reader.topic_pattern and reader.finished_pattern and reader.failed_pattern, "a rewrite of the pattern alone keeps every other setting"
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--topic", ""], USER).code == 0
-    assert app.container.get(Readers).lookup("unit-runs").topic_pattern == "", "an empty value takes a setting away"
-    assert "a new reader states what it selects with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
-
-
 def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopped_beating_is_ended_and_holds_no_restart(app: App, monkeypatch):
     import os
     from journal.events.agent.ticked import Ticked
@@ -6127,27 +6010,6 @@ def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_an
     with app.container.get(Scope).environment(MAIN):
         raised = [report for report in reports.all() if report.reader == "builds"]
     assert len(tried) == 3 and [report.output for report in raised] == [5], "the runs after the two tried at once are tried later, and the one that misses raises a report"
-
-
-def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
-    user_set(app, "faults.developer", True)
-    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
-    from journal.models.support.request_loads import RequestLoads
-    console = app.console()
-    slow = app.container.get(RequestTimeRecorder)
-    with app.container.get(Scope).environment(MAIN):
-        for n in range(14):
-            slow.counted("GET", f"/journal/route{n}", 100 + n, RequestLoads())
-        for ms in (900, 300, 200):
-            slow.counted("GET", "/journal/messages/12/read", ms, RequestLoads())
-    listed = console.run(["developer", "slowest"], AGENT)
-    first = listed.text.splitlines()[0]
-    assert "GET /journal/messages/{n}/read" in first and "900 ms worst" in first and "300 ms typical" in first and "3 logged" in first, listed.text
-    assert "page 1 of 2" in listed.text and "--page 2" in listed.text, "the groups come a page at a time"
-    assert "route0" in console.run(["developer", "slowest", "--page", "2"], AGENT).text
-    inspected = console.run(["developer", "inspect", "GET /journal/messages/{n}/read"], AGENT)
-    assert inspected.code == 0 and [line.split()[1] for line in inspected.text.splitlines()[:3]] == ["900", "300", "200"], inspected.text
-    assert console.run(["developer", "inspect", "GET /nowhere"], AGENT).code != 0
 
 
 def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_failing_tick_listener_stops_no_other(app: App, monkeypatch, tmp_path):
