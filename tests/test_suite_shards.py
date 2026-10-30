@@ -21,12 +21,6 @@ def test_shards_are_dealt_longest_first_so_they_end_together_and_go_round_withou
     assert ShardDeal({}).shards(["a", "b", "c"], 2) == [["a", "c"], ["b"]], "with no times the tests go round"
 
 
-def test_a_run_of_the_simulators_files_runs_at_a_lower_priority_and_any_other_run_as_before():
-    suite = suite_script()
-    assert suite.scoped_command(["tests/simulation_run.py", "-k", "history"])[:3] == ["nice", "-n", "10"], "a sweep of the simulator runs under nice"
-    assert suite.scoped_command(["tests/test_cli.py"])[0] != "nice", "any other run is unchanged"
-
-
 def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dots(tmp_path):
     suite = suite_script()
     output = tmp_path / "shard.out"

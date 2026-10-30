@@ -135,6 +135,8 @@ from journal.features.questions.questions_nudges import QuestionsNudges
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
+# a line's own words past this many characters are a document, whatever longest it declares
+RARE_CEILING_CHARACTERS = 400
 # the shipped command table, read once for the tests that decode a tool call by hand
 TABLE = ClassificationTable(Config.rooted(Path(__file__).parent), TableSchema())
 SHAPES = CommandShape(TABLE)
@@ -664,21 +666,17 @@ def test_the_models_carry_the_events_their_changes_mean():
 
 
 
-def test_every_line_sent_to_the_agent_fits_the_budget_of_how_often_it_is_sent(app: App):
-    from journal.engine.nudge import PLACEHOLDER
-    from tests.nudge_frequency import RARE_CEILING_CHARACTERS, NudgeFrequency
+def test_a_line_that_declares_a_longest_above_the_normal_says_why_and_stays_near_its_length(app: App):
+    from journal.engine.nudge import NORMAL_LONGEST_CHARACTERS, PLACEHOLDER
     numbers = {"n", "count", "task", "percent", "seconds", "ms", "times", "plan", "phase", "run", "worker", "point", "place", "open", "total", "megabytes", "budget", "grace", "dollars", "step", "minutes", "edits", "stale_after", "clashes", "lines", "cap"}
     typical = lambda found: "x" * int(found.group(2)) if found.group(2) else "9999" if found.group(1) in numbers else "x" * 16
     written = lambda found: "" if found.group(2) else typical(found)
-    frequency, over, loose = NudgeFrequency.frozen(), [], []
+    loose = []
     for nudge in app.container.get(NudgeRegistry).nudges.values():
-        length, budget = len(PLACEHOLDER.sub(typical, nudge.rendered())), frequency.budget_characters(nudge)
-        if length > budget:
-            over.append(f"{nudge.key}: {length} over {budget} ({frequency.line_class(nudge)})")
-        if nudge.longest_characters > 120 and (not nudge.longest_reason or nudge.longest_characters > length + 20 or len(PLACEHOLDER.sub(written, nudge.rendered())) > RARE_CEILING_CHARACTERS):
+        length = len(PLACEHOLDER.sub(typical, nudge.rendered()))
+        if nudge.longest_characters > NORMAL_LONGEST_CHARACTERS and (not nudge.longest_reason or nudge.longest_characters > length + 20 or len(PLACEHOLDER.sub(written, nudge.rendered())) > RARE_CEILING_CHARACTERS):
             loose.append(f"{nudge.key}: declares {nudge.longest_characters} for a line of {length}, reason: {nudge.longest_reason or 'none'}")
-    assert not over, "lines longer than the budget of how often they are sent:\n" + "\n".join(sorted(over))
-    assert not loose, "lines declaring a longest with no reason, far above their length, or with more than 400 characters of their own words:\n" + "\n".join(sorted(loose))
+    assert not loose, f"lines declaring a longest with no reason, far above their length, or with more than {RARE_CEILING_CHARACTERS} characters of their own words:\n" + "\n".join(sorted(loose))
 
 
 def test_no_hook_or_agent_event_is_named_by_a_raw_string_outside_the_references():

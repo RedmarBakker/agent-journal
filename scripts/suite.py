@@ -34,9 +34,6 @@ DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
 # every test of the last sharded run with its seconds, slowest first, and how many of them the run's end names
 SLOWEST_FILE = ROOT / ".journal" / "runtime" / "suite-slowest.txt"
 SLOWEST_SHOWN = 20
-LOW_PRIORITY = ["nice", "-n", "10"]
-# a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
-SIMULATION_FILE = "simulation"
 MATRIX_OPTION = "--update-matrix"
 # the stories alone, sharded, with their overlay checked over every shard
 STORIES_OPTION = "--stories"
@@ -234,7 +231,7 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str,
 
 
 def scoped_command(arguments: list[str]) -> list[str]:
-    return [*(LOW_PRIORITY if any(SIMULATION_FILE in argument for argument in arguments) else []), *PYTEST, *arguments]
+    return [*PYTEST, *arguments]
 
 
 def scoped_run(arguments: list[str]) -> int:
