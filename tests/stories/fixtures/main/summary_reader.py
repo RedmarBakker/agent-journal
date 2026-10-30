@@ -9,13 +9,14 @@ TEST_RUN_STATUS = 1
 
 
 class SummaryReader(StateFixture):
-    """The agent at work added a reader of a test run's summary: story.readers.first."""
+    """The agent at work has a test run in the background that has printed nothing yet, and added a reader of a test run's summary: story.outputs.first and story.readers.first."""
 
     stack = (Ready,)
 
     parent = WorkingAgent
 
     def steps(self, story) -> None:
+        self.outputs.first = story.agent_has_a_background_run_printing(story.agents.main, TEST_RUN)
         self.readers.first = "summary-lines"
         story.agent_runs(story.agents.main, f"reader add {self.readers.first} --pattern '[0-9]+ (passed|failed)' --about 'the summary of a test run'")
 
