@@ -53,6 +53,15 @@ class TestTurns:
             runs.append((turn, self.run_turn(turn, caller, worker.environment_id)))
         return self.joined(runs)
 
+    def built(self, worker: Worker, caller: Caller) -> str:
+        command = str(self.settings.option(WorkersOptions.BUILD_COMMAND)).strip()
+        if not command:
+            raise Rejection(f"this project has no build command for workers: the user sets {WorkersOptions.BUILD_COMMAND.key}")
+        turn = self.open_turn(worker, "build", command, str(self.branch.place(worker)))
+        if not self.waited(turn):
+            return "your turn was taken back: nothing ran"
+        return self.result(turn, self.run_turn(turn, caller, worker.environment_id))
+
     def batches(self, ids: str) -> list[str]:
         parts = shlex.split(ids)
         tests = [shlex.join(parts[i:i + 2]) if parts[i] == "-k" else shlex.quote(parts[i]) for i in range(len(parts)) if i == 0 or parts[i - 1] != "-k"]

@@ -5,13 +5,12 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.worker.working_worker import WorkingWorker
+from tests.stories.fixtures.worker.queued_worker import QueuedWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(QueuedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_whose_queued_task_comes_back_short_takes_that_task_in_hand_and_proves_it_again(story):
-    docs = story.agent_creates_task(story.agents.main, "the docs")
-    story.agent_runs(story.agents.main, f"worker queue {story.agents.subject} {docs}")
+    docs = story.tasks.queued
     story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
     story.agent_proves(story.agents.subject, 2, "parser.py:30, test_names passes")
     story.agent_proves(story.agents.subject, 1, "docs.md:4, the docs name the parser")

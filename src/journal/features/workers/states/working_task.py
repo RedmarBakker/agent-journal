@@ -17,16 +17,17 @@ from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_options import WorkersOptions
+from journal.support.classification import BUILD, TEST_RUN
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.workers.session_workers_part import SessionWorkersPart
 
-TESTING_REFUSALS = {MERGER_TESTING: WorkersNudges.TEST_HANDOVER, TEST_BUDGET: WorkersNudges.TEST_BUDGET_REFUSAL, JOURNAL_TESTING: WorkersNudges.JOURNAL_TESTS_REFUSAL}
+KIND_REFUSALS = {TEST_RUN: WorkersNudges.TEST_QUEUE, BUILD: WorkersNudges.BUILD_QUEUE}
 
 
 @dataclass(frozen=True)
 class WorkingTask(BaseState):
-    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, its journal await and journal stuck push the wait and the stuck state over its work, and a quiet span past its length tells it to log."""
+    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs only the kinds of command the setting allows, a test or a build refused with the line to queue it with the journal, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, its journal await and journal stuck push the wait and the stuck state over its work, and a quiet span past its length tells it to log."""
 
     name = "working_task"
     title = "At work on its task"
@@ -38,9 +39,9 @@ class WorkingTask(BaseState):
             return self.refuse(WorkersNudges.EDIT_LOCK.create())
         if any(part.is_git for part in event.call.parts):
             return self.refuse(WorkersNudges.WORKER_GIT_REFUSAL.create())
-        tests = event.call.test_runs()
-        refusal = TESTING_REFUSALS.get(str(settings.value(WorkersOptions.TESTING)))
-        return self.refuse(refusal.create(command=tests[0])) if tests and refusal else self.none()
+        allowed = {kind.strip() for kind in str(settings.value(WorkersOptions.COMMAND_KINDS)).split(",")}
+        refused = next((part for part in event.call.parts if not part.is_journal and part.classification.command_type not in allowed), None)
+        return self.refuse(KIND_REFUSALS.get(refused.classification.command_type, WorkersNudges.COMMAND_KIND_REFUSAL).create(command=refused.text)) if refused else self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         unfinished = event.data.part(SessionWorkersPart).unfinished_outputs

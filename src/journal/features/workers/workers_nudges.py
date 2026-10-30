@@ -5,6 +5,10 @@ from journal.support.timeout import Timeout
 
 class WorkersNudges:
     EDIT_LOCK = Nudge("workers", "worktree_being_rebased", "the journal is rebasing your worktree; writes wait until it is done", "wait a moment, then write again", repeat=Timeout.seconds(0))
+    TEST_QUEUE = Nudge("workers", "queue_the_tests", "do not run {{command|cap=24}}; queue the tests", "`journal tests turn <test>`, single tests", repeat=Timeout.seconds(0))
+    BUILD_QUEUE = Nudge("workers", "queue_the_build", "do not run {{command|cap=24}}; queue the build", "`journal build`", repeat=Timeout.seconds(0))
+    COMMAND_KIND_REFUSAL = Nudge("workers", "workers_only_edit", "a worker only reads, searches and edits, not {{command|cap=24}}", "queue tests and builds with the journal", repeat=Timeout.seconds(0))
+    SUBAGENT_COMMAND_REFUSAL = Nudge("workers", "subagents_only_read", "a subagent only reads and searches, not {{command|cap=24}}", "", repeat=Timeout.seconds(0))
     WORKER_GIT_REFUSAL = Nudge("workers", "worker_runs_no_git", "never run git; the journal commits at clock-out", "on a clash, fix the files, then `journal clock-out \"<report>\"`", repeat=Timeout.seconds(0))
     TEST_BUDGET_REFUSAL = Nudge("workers", "tests_go_through_a_turn", "do not run {{command}} yourself", "run tests with `journal tests turn <test ids>`", repeat=Timeout.seconds(0))
     TEST_HANDOVER = Nudge("workers", "tests_are_handed_over", "do not run {{command|cap=27}}", "name each point's test and its command in the proof; the merging agent runs them", repeat=Timeout.seconds(0))

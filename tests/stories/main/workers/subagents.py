@@ -9,6 +9,7 @@ from journal.models.subagent_state import SubagentState
 from journal.support.card_outcome import CardOutcome
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.unanswered_message import UnansweredMessage
+from tests.stories.fixtures.main.ended_background_subagent import MAPPER, EndedBackgroundSubagent
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.subagent.started_subagent import RESEARCHER, StartedSubagent
 
@@ -43,13 +44,9 @@ def test_a_running_limit_of_zero_lets_every_subagent_through(story):
 
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EndedBackgroundSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_background_subagent_that_ended_reads_finished_then_runs_again_when_it_is_sent_a_message_and_is_counted_open(story):
-    story.agent_sends_subagent_in_the_background(story.agents.subject, RESEARCHER, "map the hooks", "a9")
-    story.expect_dispatch_card(active=True, state=SubagentState.ACTIVE.value, outcome=str(CardOutcome.RUNNING))
-    story.subagent_ends("a9")
-    story.expect_dispatch_card(active=False, state=SubagentState.FINISHED.value, outcome=str(CardOutcome.PASSED))
-    story.agent_messages_subagent(story.agents.subject, "a9", "one more")
+    story.agent_messages_subagent(story.agents.subject, MAPPER, "one more")
     result = story.user_opens("/journal/subagents")
     result.expect_viewer_rows("rows", "state", ["running"])
     result.expect_viewer_part(("counts", "open"), 1)

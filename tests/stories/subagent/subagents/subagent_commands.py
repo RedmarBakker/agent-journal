@@ -1,6 +1,7 @@
 from journal.engine.states.void import Void
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.states.researching import Researching
+from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -53,4 +54,14 @@ def test_a_subagent_may_not_send_a_worker(story):
 def test_a_verb_the_subagents_file_does_not_name_is_refused_naming_the_file(story):
     result = story.agent_runs(story.agents.subject, "panic pop")
     result.expect_command_text("a subagent may not run journal panic apply: ResearcherHelper")
+    story.expect_stack(story.agents.subject, Void, Researching)
+
+
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
+def test_a_subagent_reads_but_may_not_run_tests_builds_or_the_commandments(story):
+    story.agent_runs_in_the_shell(story.agents.subject, "grep -rn parse src").expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "python3 -m pytest tests/test_parser.py")
+    result.expect_refused(story.agents.subject, WorkersNudges.SUBAGENT_COMMAND_REFUSAL)
+    result = story.agent_runs_in_the_shell(story.agents.subject, ".journal/plugins/code-commandments/bin/commandments-release judge --changes")
+    result.expect_refused(story.agents.subject, WorkersNudges.SUBAGENT_COMMAND_REFUSAL)
     story.expect_stack(story.agents.subject, Void, Researching)

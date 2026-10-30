@@ -1382,6 +1382,7 @@ workers.preparation_commands =
 workers.completion_commands = 
 workers.built_paths = 
 workers.build_command = ''
+workers.command_kinds = 'read, search, edit'
 workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex journal-senior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex reviewer: gpt-5.6-sol, gpt-6.1-sol | codex verifier: gpt-5.6-sol, gpt-6.1-sol
 checks.repeat_minutes = 60
 shell.foreground = 15
@@ -1884,7 +1885,9 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  all places full. check worker {{n}} first to free one
 workers.plan_order_without_dependencies  [workers]  plan {{plan}}: {{open}} open tasks, none blocked. set what each waits on: `journal task block <n> --on task:<m>`
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
+workers.queue_the_build  [workers]  do not run {{command|cap=24}}; queue the build. `journal build`
 workers.queue_the_related_tasks  [workers]  queue tasks {{listed|cap=16}} of task {{task}}'s plan on {{worker}}: `journal worker queue {{n}} {{tasks|cap=16}}`
+workers.queue_the_tests  [workers]  do not run {{command|cap=24}}; queue the tests. `journal tests turn <test>`, single tests
 workers.release_waits_for_the_user  [workers]  {{line|cap=37}} waits for the user: "Orchestrator may release" is off. ask the user to release it
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: order the queues, most unblocking first: `journal plan priorities '<the order and why>'`
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause|cap=82}}
@@ -1892,6 +1895,7 @@ workers.send_it_to_an_idle_worker  [workers]  {{count}} of {{total}} {{profile}}
 workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers worked on this job's files: {{workers|cap=400}}. send the job to one, or add `--fresh` to the dispatch
 workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on this job's files: {{subagents|cap=400}}. send the job to one with SendMessage
 workers.started_plans  [workers]  started plans: {{plans|cap=400}}
+workers.subagents_only_read  [workers]  a subagent only reads and searches, not {{command|cap=24}}
 workers.suite_failed_after_merges  [workers]  suite output {{run}} failed after merging {{workers|cap=22}}. send it back: `journal worker send {{n}} "<what failed>"`
 workers.take_up_next_work  [workers]  you spent {{share}} of the last hour waiting while other work was open. take up task {{n}} while the run goes on
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
@@ -1918,8 +1922,9 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
+workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-293 nudges
+297 nudges
 
 $ agent: journal worker list
 exit 0
