@@ -3151,6 +3151,19 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
+def test_the_fiddly_skills_show_a_real_command_and_hold_one_rule_to_a_bullet_of_four_lines_at_most(app: App):
+    import re
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    for name, noun in (("messages", "message"), ("tasks", "task"), ("reports", "report"), ("workers", "worker")):
+        real = re.findall(rf"`journal {noun} [^`<]*\d[^`<]*`", registry.skill(name).body)
+        assert real, f"the {name} skill shows no real {noun} command, one with its values filled in"
+    for name in ("messages", "tasks", "workers"):
+        bullets = [bullet for block in registry.skill(name).body.split("\n\n") for bullet in re.split(r"\n(?=- )", block)]
+        long = [bullet.splitlines()[0][:60] for bullet in bullets if bullet.startswith("- ") and len(bullet.splitlines()) > 4]
+        assert long == [], f"the {name} skill has bullets of more than four lines, more than one rule each: {long}"
+
+
 def test_every_skill_description_says_what_then_when_in_under_300_characters(app: App):
     from journal.features.registry import Registry
     from journal.features.skills.skills_options import SkillsOptions
