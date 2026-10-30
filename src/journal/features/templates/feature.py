@@ -11,7 +11,7 @@ class TemplatesFeature(Feature):
     commands = (TemplateCommand,)
     seeds = (BuiltinTemplates,)
 
-    skill = Skill("templates", 'Load it when something is to be made from a template, or a template is written, or the user asks for a critique that names one', """
+    skill = Skill("templates", 'Make something from a template, or write one; load it when something is to be made from a template, a template is written, or the user asks for a critique that names one', """
 # Templates
 
 A template is written once and used many times: its brief holds the instructions you read before working on

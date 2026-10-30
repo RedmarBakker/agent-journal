@@ -64,7 +64,7 @@ class Shell(Feature[ShellData]):
 
     nudges = (ShellNudges.OPEN_OUTPUT_STOP, ShellNudges.JOURNAL_POLL, ShellNudges.SLEEP_LOOP_WAIT, ShellNudges.SLEEP_LINE_REFUSAL, ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.ALIASED_LINE, ShellNudges.MORE_SPECIFIC_ALIAS, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.PIPED_TEST_RUN, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.RUN_TOTAL_MISSING, ShellNudges.RUN_COUNT_UNSHOWN, ShellNudges.READER_DRAFT, ShellNudges.READER_HINT, ShellNudges.PARTIAL_FILE_READ, ShellNudges.FLAGGED_TITLE, ShellNudges.COMPLETE_PROGRESS_RUN, ShellNudges.SHARED_TITLE)
 
-    skill = Skill("shell", 'How the journal runs your shell commands: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias', """
+    skill = Skill("shell", 'Run shell commands through the journal: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias', """
 # Shell commands
 
 Every shell command you run goes through the journal's runner.

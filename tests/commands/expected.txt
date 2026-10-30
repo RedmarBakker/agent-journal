@@ -1596,26 +1596,26 @@ created: setting 8
 
 $ agent: journal skill list
 exit 0
-journal              The map of the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill
-journal-memory       Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark
+journal              Find your way in the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill
+journal-memory       Keep what matters beyond the context window: memories with a weight, rules and reminders; load it when the context reaches a mark or something must outlast it
 journal-tasks        Declare, log and finish the current work; load it when you start or are asked to
-journal-messages     Read and answer the user's messages and ask the user questions; load it when there are unread messages, before replying or before offering the user choices
+journal-messages     Read and answer the user's messages and ask the user questions; read at the start of every session, with the journal and etiquette skills
 journal-plans        Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap
 journal-sequences    Follow a sequence of steps one at a time; load it when a sequence is run or written
 journal-workers      Send a worker to write a bounded job and wait for its report; load it before dispatching one
-journal-work-modes   The builder, the orchestrator and solo, and what each is told by its fitness measures; load it when the work mode or its fitness comes up
-journal-checks       Scripts that pass or fail about the project; load it when a check is created, run or fails
-journal-shell        How the journal runs your shell commands: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias
-journal-secrets      Keys and logins the agent uses without seeing them; load it when a task needs a key, a login or a site you must be logged in to
-journal-templates    Load it when something is to be made from a template, or a template is written, or the user asks for a critique that names one
+journal-work-modes   Work as the builder, the orchestrator or solo, as its fitness measures tell it; load it when the work mode or its fitness comes up
+journal-checks       Write and run scripts that pass or fail about the project; load it when a check is created, run or fails
+journal-shell        Run shell commands through the journal: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias
+journal-secrets      Use keys and logins without seeing them; load it when a task needs a key, a login or a site you must be logged in to
+journal-templates    Make something from a template, or write one; load it when something is to be made from a template, a template is written, or the user asks for a critique that names one
 journal-reports      Put what was just checked or researched in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up
 journal-docs         Store lasting knowledge of the project in a document; load it when something should still be known next month
 journal-collections  Gather rows that belong together into a named collection; load it when rows of one subject or one effort are not grouped
 journal-flowcharts   Draw a flowchart in the chat, and know when one fits; load it when the user asks for a flowchart or a diagram, or a process with branches is easier to see than to read
 journal-dumps        File what the user dropped in a dump: sort the material by subject into rows of their own; load it when a dump arrives
-journal-pinned-links Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.
-journal-etiquette    How to behave in the chat with the user, and where the voice stops; read at the start of every session, with the journal skill
-journal-plugins      Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help
+journal-pinned-links Pin what the user must see on coming back and put a button under a message for an action now; load it when you point the user at a design, a page or anything else outside the journal
+journal-etiquette    Behave in the chat with the user and keep the journal's own mechanics out of it; read at the start of every session, with the journal skill
+journal-plugins      Work with the plugins the user installs, which receive the journal's events; load it when a plugin blocks you, its card or line appears, or a plugin would help
 
 $ agent: journal skill write --help
 exit 0

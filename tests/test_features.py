@@ -3151,11 +3151,15 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
-def test_every_skill_but_the_start_ones_says_when_to_load_it(app: App):
+def test_every_skill_description_says_what_then_when_in_under_300_characters(app: App):
     from journal.features.registry import Registry
     from journal.features.skills.skills_options import SkillsOptions
-    unclaused = [skill.name for skill in app.container.get(Registry).skills() if skill.name not in SkillsOptions.START_SKILLS.default and "load it" not in skill.description.lower()]
-    assert unclaused == [], f"these skills never say when to load them: {unclaused}"
+    skills = app.container.get(Registry).skills()
+    when = {skill.name: "; read at the start of every session" if skill.name in SkillsOptions.START_SKILLS.default else "; load it " for skill in skills}
+    unclaused = [skill.name for skill in skills if when[skill.name] not in skill.description or skill.description.startswith(("Load it", "How ", "The "))]
+    long = [skill.name for skill in skills if len(skill.description) >= 300]
+    assert unclaused == [], f"these skills do not say what they do, then when: {unclaused}"
+    assert long == [], f"these descriptions are 300 characters or more: {long}"
 
 
 def test_the_journal_skill_is_a_short_map_naming_every_skill_and_listing_no_commands(app: App):

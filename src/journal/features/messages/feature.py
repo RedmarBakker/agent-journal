@@ -49,7 +49,7 @@ class Messages(Feature[MessagesData]):
 
     nudges = (MessagesNudges.RETIRED_TAGS, MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.REPLY_REPEAT_WARNING, MessagesNudges.REPLY_CLOSING_WORDS, MessagesNudges.MESSAGE_READ, MessagesNudges.REPLY_COMMAND, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
-    skill = Skill("messages", "Read and answer the user's messages and ask the user questions; load it when there are unread messages, before replying or before offering the user choices", """
+    skill = Skill("messages", "Read and answer the user's messages and ask the user questions; read at the start of every session, with the journal and etiquette skills", """
 # Messages
 
 The user sends messages; you answer them before anything else.

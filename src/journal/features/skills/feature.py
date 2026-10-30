@@ -37,7 +37,7 @@ class Skills(Feature[SkillsData]):
 
     nudges = (SkillsNudges.SKILL_VIEWER_REQUEST, SkillsNudges.SKILL_READ_REQUEST, SkillsNudges.UNREAD_SKILL_STOP)
 
-    skill = Skill("journal", 'The map of the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill', """
+    skill = Skill("journal", 'Find your way in the journal: what it is, its basic ideas and which skill to read for what; read at the start of every session, with the etiquette skill', """
 # The journal
 
 The journal keeps this project's lasting state beside the code and tells you what to do at the moments you would

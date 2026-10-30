@@ -24,7 +24,7 @@ class Pins(Feature[PinsData]):
 
     nudges = (PinsNudges.LINK_PIN_REQUEST, PinsNudges.UNPINNED_CLAIM)
 
-    skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
+    skill = Skill("pinned-links", 'Pin what the user must see on coming back and put a button under a message for an action now; load it when you point the user at a design, a page or anything else outside the journal', """
 # Pinned links
 
 A pin and a button are two different things.
