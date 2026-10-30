@@ -3151,6 +3151,16 @@ def test_await_and_stuck_are_taught_once_in_the_tasks_skill_and_every_other_skil
         assert teaching == ["tasks"], f"{command} is taught in {teaching}, not in the tasks skill alone"
 
 
+def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_button_is_in_the_same_words(app: App):
+    from journal.features.pins.support.pin_and_button_text import PinAndButtonText
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    for sentence in ("A pin is a note left on the user's desk", "It stays until the user\n  closes it.", "A button is an action for now", "moves on with the chat.", "Something ready that the user also acts on now gets both"):
+        assert sentence in PinAndButtonText.BULLETS, f"the pin and button text no longer says {sentence!r}"
+    holding = [name for name in ("pinned-links", "messages") if PinAndButtonText.BULLETS in registry.skill(name).body]
+    assert holding == ["pinned-links", "messages"], f"only {holding} say what a pin and a button are"
+
+
 def test_a_blocks_waits_and_the_from_flag_are_taught_in_tasks_and_plans_and_messages_point_to_it(app: App):
     from journal.features.registry import Registry
     registry = app.container.get(Registry)

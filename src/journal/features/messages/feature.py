@@ -29,6 +29,7 @@ from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
 from journal.features.messages.messages_demands import MessagesDemands
 from journal.features.messages.listeners.unlinked_number_record import UnlinkedNumberRecord
+from journal.features.pins.support.pin_and_button_text import PinAndButtonText
 
 
 class Messages(Feature[MessagesData]):
@@ -95,12 +96,10 @@ A choice only the user can make is asked as a question, not written into a reply
   and act on it. A reply from the user in the chat answers it too.
 - `journal question list` shows what is open. Never offer choices in prose and continue; ask.
 
-## Buttons
+## Pins and buttons
 
-- A button is an action for now: when the user must open a web address outside the journal, start something there or
-  send a form to one, put a button under your message instead of asking them to visit it, and never build a page of
-  your own just to hold a button. Something ready that they should see when they come back later is a pin as well
-  (the pinned-links skill):
+""" + PinAndButtonText.BULLETS + """- When the user must open a web address outside the journal, start something there or send a form to one, put a
+  button under your message instead of asking them to visit it, and never build a page of your own just to hold a button:
   `--button 'Open the app settings|https://github.com/settings/apps|opens the settings in a new tab'` opens it, and `--form-button 'Create the app|<address>|sends the manifest to GitHub|manifest=<json>'` posts the hidden
   fields to it, as GitHub's app manifest flow takes one. The label says what happens, the third part a line on it. Never
   a button for a journal row: task 12 or plan 3 written in the text is a link already.
