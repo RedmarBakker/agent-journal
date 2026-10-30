@@ -7030,16 +7030,19 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
     from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
     from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
     from journal.models.reviewer_state import ReviewerState
+    from journal.models.task import Task
     from journal.models.worker import Worker
     from journal.repositories.reviewers import Reviewers
+    from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
         worker = workers.save(Worker(environment_id=MAIN, name="Lady Lovelace"), Actor.system())
+        task = app.container.get(Tasks).save(Task(environment_id=MAIN, title="review the parser", brief="Check the parser changes"), Actor.system())
         dispatch = app.container.get(ReviewerDispatch)
         added = dispatch.added(MAIN)
         with workers.writing():
-            sent = dispatch.sent(added, worker, "review the parser")
+            sent = dispatch.sent(added, worker, task, "review the parser")
             timing.sleep(0.5)
         deadline = timing.time() + 10
         while not reviewers.find(sent.id).pid and timing.time() < deadline:

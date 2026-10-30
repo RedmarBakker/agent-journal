@@ -11,8 +11,9 @@ from journal.models.author import Author
 from journal.models.model import Model
 from journal.models.state_transition import StateTransition
 from journal.models.task_log import TaskLog
+from journal.models.task_size_estimate import TaskSizeEstimate
 
-RECORD_ROWS = (Entry, CommandOutput, Link, TaskLog, StateTransition)
+RECORD_ROWS = (Entry, CommandOutput, Link, TaskLog, StateTransition, TaskSizeEstimate)
 RUN: ContextVar[CreationCapture | None] = ContextVar("creations", default=None)
 
 

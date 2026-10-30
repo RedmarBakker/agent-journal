@@ -232,7 +232,8 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture):
     change_response = app.container.get(Router).route(owner_change(change))
     revoked, raw_token = change_response.body, change_response.headers.get("X-Journal-Supervisor-Token")
     assert revoked["grant_version"] == 3 and revoked["revoked"] and revoked["mode"] == "disabled" and raw_token is None
-    assert app.container.get(Plans).find(fixture.plan.row_id).state == PlanState.STARTED, "enrollment and revocation do not approve, start, pause or resume a plan"
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        assert app.container.get(Plans).find(fixture.plan.row_id).state == PlanState.STARTED, "enrollment and revocation do not approve, start, pause or resume a plan"
     with app.container.get(Scope).environment(fixture.driver_environment.row_id):
         assert app.container.get(Agents).find(fixture.agent.row_id).state == "leading_plan", "enrollment and revocation do not start or resume the plan agent"
     with pytest.raises(SupervisorFailure):

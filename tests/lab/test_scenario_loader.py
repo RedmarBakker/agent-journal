@@ -4,6 +4,7 @@ import pytest
 
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -116,9 +117,12 @@ state = "owner_pending"
 
     loaded = ScenarioLoader(app).load(scenario)
     plans, tasks = app.container.get(Plans), app.container.get(Tasks)
-    plan = plans.find(loaded["plan_id"])
+    scope = app.container.get(Scope)
+    main = app.container.get(Environments).lookup("main")
+    with scope.environment(main.id):
+        plan = plans.find(loaded["plan_id"])
     assert plan.state == PlanState.APPROVED
-    with app.container.get(Scope).environment(plan.environment_id):
+    with scope.environment(plan.environment_id):
         assert [phase.title for phase in plans.plan_phases(plan)] == [phase["title"] for phase in scenario.phases]
         for phase, phase_spec in zip(plans.plan_phases(plan), scenario.phases, strict=True):
             assert [task.row_id for task in plans.phase_tasks(phase)] == [loaded["task_ids"][item["id"]] for item in phase_spec["tasks"]]

@@ -52,7 +52,8 @@ def test_scenario_loads_as_an_approved_plan_with_unmet_expectations(app, path):
         assert not plans.all()
 
     loaded = ScenarioLoader(app).load(scenario)
-    plan = plans.find(loaded["plan_id"])
+    with scope.environment(main.id):
+        plan = plans.find(loaded["plan_id"])
     assert plan.state == PlanState.APPROVED
 
     tasks = app.container.get(Tasks)
