@@ -54,3 +54,13 @@ def test_with_no_compaction_skills_set_a_write_is_told_only_the_overview(story):
     story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
+
+
+@story(CompactionSkills, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_task_finished_while_the_skills_are_owed_leaves_them_owed_until_they_are_read(story):
+    story.agent_looks_at_the_overview(story.agents.subject)
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how 'quick'")
+    story.expect_command_passed()
+    story.agent_writes(story.agents.subject, "footer.py")
+    story.expect_refused(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
+    story.expect_stack(story.agents.subject, Ready)

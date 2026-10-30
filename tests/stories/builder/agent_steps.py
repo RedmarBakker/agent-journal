@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -81,8 +82,9 @@ class AgentSteps:
     def agent_closes_its_turn(self, agent: StoryAgent, text: str) -> None:
         self.hooked(agent, "agent closes its turn", "MessageDisplay", delta=text, message_id=f"turn-{len(self.path)}", index=0, final=True)
 
-    def agent_has_written(self, agent: StoryAgent, text: str) -> None:
-        self.transcript_record(agent, {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}})
+    def agent_has_written(self, agent: StoryAgent, text: str, seconds_ago: float = 0) -> None:
+        written_at = datetime.fromtimestamp(self.app.container.get(Clock).held_at - seconds_ago, timezone.utc).isoformat().replace("+00:00", "Z")
+        self.transcript_record(agent, {"type": "assistant", "timestamp": written_at, "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}})
         self.observed(f"the {agent.role} writes a text block in its transcript", None, None)
 
     def agent_has_taken_a_queued_note(self, agent: StoryAgent, text: str) -> None:

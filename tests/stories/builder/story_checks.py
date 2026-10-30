@@ -206,8 +206,8 @@ class StoryChecks:
         lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
         assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
-    def expect_typed_nudge(self, nudge: Nudge, count: int = 1) -> None:
-        self.expect_typed_text(nudge.title.partition("{{")[0], count)
+    def expect_typed_nudge(self, nudge: Nudge, count: int = 1, **values) -> None:
+        self.expect_typed_text(nudge.cut(nudge.create(**values).rendered()) if values else nudge.title.partition("{{")[0], count)
 
     def expect_typed_text(self, part: str, count: int = 1) -> None:
         typed = " ".join(line.removeprefix(f"{JOURNAL_PREFIX} ") for line in self.typed[self.typed_from:])

@@ -715,32 +715,6 @@ def test_wispr_flow_is_among_the_suggested_mcp_services():
 
 
 
-def test_words_the_hooks_missed_are_swept_from_the_transcript_into_the_chat_once(app: App, monkeypatch, tmp_path):
-    import json as j
-    import time as timing
-    from datetime import datetime, timezone
-    from journal.events.bus import Bus
-    from journal.events.clock_ticked import ClockTicked
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    time = timing.time()
-    stamp = lambda seconds_ago: datetime.fromtimestamp(time - seconds_ago, timezone.utc).isoformat().replace("+00:00", "Z")
-    line_text = lambda text, ago: j.dumps({"type": "assistant", "timestamp": stamp(ago), "message": {"content": [{"type": "text", "text": text}]}}) + "\n"
-    transcript = tmp_path / "s1.jsonl"
-    transcript.write_text(line_text("Hello, Sir Jesse.", 60))
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: transcript if session == "s1" else None)
-    hook(app, "SessionStart")
-    with transcript.open("a") as file:
-        file.write(line_text("Missed by every hook.", 20) + line_text("Still the hooks' to bring.", 5))
-    bus, messages = app.container.get(Bus), app.container.get(Messages)
-    bus.dispatch_guarded(ClockTicked(time=time))
-    bus.dispatch_guarded(ClockTicked(time=time + 1))
-    agents = lambda: [m.text for m in messages.global_matching() if m.author == "agent"]
-    assert agents().count("Missed by every hook.") == 1 and "Still the hooks' to bring." not in agents(), "older words the hooks did not read are swept in once; the newest are left to the hooks"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert agents().count("Missed by every hook.") == 1 and agents().count("Still the hooks' to bring.") == 1, "the next hook reads on from past the swept words, never taking them again"
-
-
 def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_path):
     import json as j
     from journal.providers.codex import Codex
@@ -758,32 +732,6 @@ def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_
     assert Codex().worker_outcome(answered, "a long log of the run\n" * 500) == WorkerOutcome("the tests pass", "01a1549d-a1ac-75c3"), "a Codex worker's report is its answer, not its log"
 
 
-def test_words_written_before_a_tool_call_reach_the_chat_at_that_call_and_the_display_hook_adds_no_second(app: App, monkeypatch, tmp_path):
-    user_set(app, "messages.hold_after", 0)
-    import json as j
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    transcript = tmp_path / "s1.jsonl"
-    older = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Long ago."}]}}
-    first = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Starting up."}, {"type": "tool_use", "name": "Bash"}]}}
-    transcript.write_text(j.dumps(older) + "\n" + j.dumps(first) + "\n")
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: transcript if session == "s1" else None)
-    hook(app, "SessionStart")
-    messages = app.container.get(Messages)
-    texts = [m.text for m in messages.scoped() if m.author == "agent"]
-    assert "Starting up." in texts and "Long ago." not in texts, "the first look reads the turn in hand, the last line, and not the session's past"
-    app.console().run(["environment", "overview"], AGENT)
-    row = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Here, Sir Jesse, and writing."}, {"type": "tool_use", "name": "Write"}]}}
-    with transcript.open("a") as file:
-        file.write(j.dumps(row) + "\n")
-    hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    app.runtime().deferred.drain()
-    assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the words before the call reach the chat at that call"
-    hook(app, "MessageDisplay", message="Here, Sir Jesse, and writing.")
-    app.runtime().deferred.drain()
-    assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the display hook's copy of the same block is no second message"
-
-
 def test_the_edits_kept_are_the_newest_five_hundred(app: App):
     from journal.models.edit import Edit
     from journal.repositories.edits import EDIT_ROWS, Edits
@@ -792,54 +740,6 @@ def test_the_edits_kept_are_the_newest_five_hundred(app: App):
         edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
     assert edits.stored_count() == EDIT_ROWS, "the oldest go as new ones come"
     assert edits.rows()[0].path == "f2.py" and edits.rows()[-1].path == f"f{EDIT_ROWS + 1}.py", "the two oldest went"
-
-
-
-
-
-
-
-def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struck_fact_is_never_whispered(app: App, monkeypatch):
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    hook(app, "SessionStart")
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="record.kept", value=30), Actor.system())
-    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
-    console.run(["reminder", "create", "billing runs on the first of the month", "--keywords", "billing"], USER)
-    hook(app, "MessageDisplay", message="I will look at the login next.")
-    for n in range(40):
-        console.run(["task", "create", f"filler {n}"], AGENT)
-    hook(app, "MessageDisplay", message="Still on the login.")
-    app.runtime().deferred.drain()
-    assert len([line for line in keystrokes if "reminder 1 is about this" in line]) == 1, "the line said is remembered though forty row changes trimmed the record past it"
-    console.run(["reminder", "strike", "2"], USER)
-    hook(app, "MessageDisplay", message="Now the billing.")
-    app.runtime().deferred.drain()
-    assert not any("reminder 2 is about this" in line for line in keystrokes), "a struck reminder matches no keyword"
-
-
-def test_a_message_left_while_the_typed_whisper_waits_unseen_rides_its_prompt(app: App, monkeypatch):
-    from journal.support.typed_lines import TypedLines
-    typed = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: typed.append(fields.get("line", "")))
-    lines = app.container.get(TypedLines)
-    console = app.console()
-    hook(app, "SessionStart")
-    for line in list(typed):
-        lines.confirm(1, line)
-    app.container.get(SupervisorLink).resting(1)
-    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
-    hook(app, "MessageDisplay", message="I will look at the login next.")
-    app.runtime().deferred.drain()
-    assert "reminder 1 is about this" in typed[-1], "the whisper is typed and wakes the agent, and no prompt shows it arrived"
-    console.run(["message", "send", "are you there?"], USER)
-    app.runtime().deferred.drain()
-    assert not any("new message" in line for line in typed), "the message's line waits behind the whisper still unseen, and nothing more is typed"
-    carried = str(hook(app, "UserPromptSubmit", prompt=typed[-1])[1])
-    assert "new message" in carried, "the whisper's prompt carries the message"
-
-
 
 
 
@@ -1101,29 +1001,6 @@ def test_an_integration_is_a_suggested_mcp_server_installed_and_removed_with_the
     assert transmitted[-1]["verb"] == "type" and "mcp__linear__authenticate" in transmitted[-1]["line"], "the agent is asked to sign in through the server's own tool"
 
 
-def test_a_task_finished_while_a_skill_is_owed_leaves_the_debt_data_until_the_read(skilled):
-    from journal.features.skills.support.requirements import Requirements
-    from journal.repositories.agents import Agents
-    app = skilled
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    hook(app, "PreCompact")
-    hook(app, "SessionStart")
-    read_skill(app, "journal")
-    app.console().run(["environment", "overview"], AGENT)
-    needs, agents, machine = app.container.get(Requirements), app.container.get(Agents), app.container.get(StateMachine)
-    assert needs.obligation_names(agents.session_agent("s1")) == ["tasks"], "the tasks skill is owed at a start in work"
-    finished = app.console().run(["task", "complete", "1", "--how", "quick"], AGENT)
-    assert finished.code == 0, finished.error
-    assert app.container.get(SessionAgents).top("s1").name == "idle" and needs.obligation_names(agents.session_agent("s1")) == ["tasks"], "the task done, the agent is idle and still owes the read"
-    read_skill(app, "journal-tasks")
-    assert needs.obligation_names(agents.session_agent("s1")) == []
-
-
-
-
 def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
     import threading
     outs = {}
@@ -1149,44 +1026,6 @@ def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_
     assert triggers == {"Building a plan": [{"kind": "row", "moment": "plan.created"}], "Writing an update": [{"kind": "phrase", "text": "tldr"}, {"kind": "phrase", "text": "catch me up"}]}
     assert [row["action"] for row in connection.all("SELECT action FROM triggers")] == ["nudge"], "the rows that started a sequence are gone, the others stay"
     assert "trigger_event" not in {row["name"] for row in connection.all("PRAGMA table_info(sequences)")}
-
-
-
-
-
-
-
-
-def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved(app: App):
-    from journal.repositories.plans import Plans
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "the goal"], AGENT)
-    console.run(["sequence", "follow"], AGENT)
-    console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
-    console.run(["plan", "phase", "1", "Lay the floor"], AGENT)
-    console.run(["plan", "add", "1", "pour the slab"], AGENT)
-    console.run(["plan", "todos", "1", "1", "1"], AGENT)
-    console.run(["plan", "ready", "1"], AGENT)
-    assert console.run(["plan", "review", "1"], AGENT).code == 0
-    assert "is in review" in console.run(["plan", "approve", "1"], USER).error, "no approval while reviewers read it"
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "review plan 1", "prompt": "Read plan 1 and say what it misses.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u1")
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the plugins", "prompt": "Map version 3 plugins.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u2")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "map the plugins", "prompt": "Map version 3 plugins.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u2", tool_response={"isAsync": True, "agentId": "r2"})
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "review plan 1", "prompt": "Read plan 1 and say what it misses.", "subagent_type": "journal-researcher", "model": "sonnet"}, tool_use_id="u1", tool_response={"isAsync": True, "agentId": "r1"})
-    assert "1 reviewers still out" in console.run(["plan", "ready", "1"], AGENT).error
-    app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).reviewers == 1, "the plan the viewer reads counts its reviewer out"
-    hook(app, "SubagentStop", agent_id="r1")
-    app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).reviewers == 0, "the reviewer back, the plan says so without anything else changing it"
-    from journal.features.sequences.support.run_tracker import RunTracker
-    from journal.repositories.agents import Agents
-    reviewing = lambda: [run for run in app.container.get(RunTracker).runs(app.container.get(Agents).session_agent("s1")) if run.title == "Applying a plan's reviews"]
-    assert len(reviewing()) == 1 and reviewing()[0].subject == "plans:1", "the review start started the sequence that applies the reviews, about the plan, and only once"
-    assert console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).code == 0, "the reviewer back, its findings in, the plan is ready again"
-    assert console.run(["plan", "approve", "1"], USER).code == 0
 
 
 

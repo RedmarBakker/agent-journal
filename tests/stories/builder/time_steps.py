@@ -32,6 +32,13 @@ class TimeSteps:
         pass_time(self.app, seconds + minutes * 60)
         self.observed(f"the clock moves on {seconds + minutes * 60} seconds", None, None)
 
+    def clock_ticks(self, seconds: float) -> None:
+        pass_time(self.app, seconds)
+        self.app.runtime().deferred.drain()
+        self.app.container.get(Clock).tick(self.app.container.get(Clock).held_at)
+        self.app.runtime().deferred.drain()
+        self.observed(f"the clock ticks {seconds} seconds later", None, None)
+
     def context_reaches(self, percent: int) -> None:
         if self.provider == Codex.name:
             self.rollout_reports_context(self.scoped_session(), percent)
