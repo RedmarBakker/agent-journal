@@ -2765,7 +2765,6 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
-
 $ user: journal library publish --help
 exit 0
 usage: journal library publish [-h] [--note NOTE] [--description DESCRIPTION]
