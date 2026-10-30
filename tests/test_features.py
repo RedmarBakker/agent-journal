@@ -3302,6 +3302,7 @@ def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     app.container.get(SecretValues).put("GITHUB_KEY", "ghp_0123456789abcdef")
     line_text = app.container.get(PluginAgentRelay).decided(plugin, PromptSubmitted(agent=agent_row(app), prompt="x").placed(agent_row(app, "s1", 1, "claude"), 0.0, 0.0), PluginAnswer(answer="tell", message="[journal] stop now [!reply:3] ghp_0123456789abcdef"))
     assert line_text.context == "[plugin echo] (journal) stop now [!reply:3] [secret GITHUB_KEY]", "a plugin's words are its own, the journal's mark made plain and a secret masked"
+    deferred.drain()
     echo(app, hears=["messages.created"], holds=[])
     echo(app, "echo-two", hears=["messages.created"], holds=[])
     app.console().run(["message", "send", "hello"], AGENT)
