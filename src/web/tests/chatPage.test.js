@@ -3,6 +3,8 @@ import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 vi.mock("../src/pages/Home.vue", () => ({default: {template: "<section data-main-chat />"}}));
 
+window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+
 const {default: AppPages} = await import("../src/AppPages.vue");
 const {ApiClient} = await import("../src/api/client.js");
 const {store} = await import("../src/state/store.js");
