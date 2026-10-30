@@ -21,6 +21,7 @@ from sync_server.backup_handler import BackupHandler
 from sync_server.server_backups import ServerBackups
 from sync_server.item_file_place import ITEMS_FOLDER
 from sync_server.server_clock import ServerClock
+from sync_server.setup_code import SetupCode
 from sync_server.team_request_handler import TeamRequestHandler
 from sync_server.library import Library
 from sync_server.library_routes import LibraryRoutes
@@ -43,7 +44,8 @@ class TeamServer:
         self.details = TeamDetails(TeamDetailRows(self.store))
         self.devices = Devices(DeviceRows(self.store), FailedLoginRows(self.store), self.accounts)
         self.invitations = Invitations(self.store, InvitationRows(self.store), self.accounts)
-        self.logins = LoginHandler(self.devices, self.invitations, self.accounts, self.clock)
+        self.setup_code = SetupCode(data)
+        self.logins = LoginHandler(self.devices, self.invitations, self.accounts, self.clock, self.setup_code)
         self.files = FileStore(data / FILES)
         self.library = Library(self.store, ItemRows(self.store), ItemVersionRows(self.store), self.files)
         self.library_routes = LibraryRoutes(self)

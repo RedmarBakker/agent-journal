@@ -65,8 +65,8 @@ class LibraryLink:
     def file(self, item_type: str, name: str, number: int, file_name: str) -> bytes:
         return self.reached(self.account.address(), f"/items/{quote(item_type)}/{quote(name)}/{number}/files/{quote(file_name)}", None, FILE_SECONDS)
 
-    def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
+    def install(self, address: str, setup_code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
+        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name, "setup_code": setup_code}).encode()
         return LoginAnswer(**json.loads(self.reached(address, "/install", body, REQUEST_SECONDS)))
 
     def accept(self, address: str, code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:

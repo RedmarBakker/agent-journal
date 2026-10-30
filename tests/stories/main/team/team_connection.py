@@ -15,7 +15,7 @@ def test_a_journal_connects_to_one_team_by_its_password_sees_its_status_logs_in_
     result = story.agent_runs(story.agents.subject, f"team connect {team} --email {EMAIL} --name Ada --password '{PASSWORD}'")
     result.expect_command_text("as Ada, admin")
     result = story.agent_runs(story.agents.subject, "team status")
-    result.expect_command_text(f"team {team}, as Ada (admin)")
+    result.expect_command_text(f"team {story.team_addresses['team']}, as Ada (admin)")
     result = story.agent_runs(story.agents.subject, f"team connect {team} --email {EMAIL} --password x")
     result.expect_command_refused()
     result = story.agent_runs(story.agents.subject, f"team login --email {EMAIL} --password '{PASSWORD}'")
@@ -35,7 +35,7 @@ def test_the_user_connects_to_a_team_and_disconnects_through_the_viewer_without_
     result.expect_viewer_shows("name", "Ada")
     result.expect_viewer_shows("token", "")
     result = story.agent_runs(story.agents.subject, "team status")
-    result.expect_command_text(f"team {team}, as Ada (admin)")
+    result.expect_command_text(f"team {story.team_addresses['team']}, as Ada (admin)")
     result = story.user_presses("/journal/team/disconnect", {})
     result.expect_viewer_shows("connected", False)
     result = story.agent_runs(story.agents.subject, "team status")
@@ -49,4 +49,17 @@ def test_the_library_no_longer_connects_and_its_refusal_names_journal_team_conne
     result = story.agent_runs(story.agents.subject, f"library connect {team} --email {EMAIL} --name Ada --password '{PASSWORD}'")
     result.expect_command_refused()
     result.expect_command_text("journal team connect")
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_new_team_server_is_claimed_only_with_its_setup_code(story):
+    story.a_team_server_runs()
+    address = story.team_addresses["team"]
+    result = story.agent_runs(story.agents.subject, f"team connect {address} --email {EMAIL} --name Ada --password '{PASSWORD}'")
+    result.expect_command_refused()
+    result.expect_command_text("setup URL its log printed")
+    result = story.agent_runs(story.agents.subject, f"team connect '{address}/setup?code=guessed' --email {EMAIL} --name Ada --password '{PASSWORD}'")
+    result.expect_command_refused()
+    result.expect_command_text("claimed only with its setup code")
     story.expect_stack(story.agents.subject, Ready)

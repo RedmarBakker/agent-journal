@@ -479,7 +479,7 @@ def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_updat
     console, user = app.console(), Caller.user("main")
     sequences = app.container.get(Sequences)
     try:
-        assert console.run(["team", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        assert console.run(["team", "connect", f"{address}/setup?code={team.setup_code.current()}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
         number = console.run(["sequence", "create", "Lunch Break", "--steps", "eat"], user).text.split()[1].rstrip(":")
         assert console.run(["library", "publish", "sequence", number], user).code == 0
         assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0

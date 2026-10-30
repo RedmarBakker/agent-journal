@@ -7355,3 +7355,11 @@ def test_a_chain_shell_killed_from_outside_stops_its_heartbeat_though_its_pid_wa
     assert ChainWorker.is_shell_running([running]), "a running shell keeps the heartbeat"
     assert not ChainWorker.is_shell_running([running, killed]), "the chain's current shell, killed from another process, is asked of its own process, never of its pid, so the heartbeat stops"
     assert not ChainWorker.is_shell_running([]), "no shell started yet keeps no heartbeat"
+
+
+def test_a_setting_stored_twice_keeps_only_its_most_recently_changed_row_so_the_switch_turns_off(connection):
+    from journal.db.migrations.duplicate_settings_drop import DuplicateSettingsDrop
+    connection.execute("INSERT INTO settings (environment_id, key, value, created_at, creator, updated_at) VALUES (0, 'features.faults', 'false', '2026-10-20', 'user', '2026-10-30T17:57:31'), (0, 'features.faults', 'true', '2026-10-29', 'system', '2026-10-29T12:14:00'), (0, 'faults.performance', 'false', '2026-10-30', 'user', '2026-10-30T19:23:43')")
+    DuplicateSettingsDrop().apply(connection)
+    rows = sorted((row["key"], row["value"]) for row in connection.all("SELECT key, value FROM settings WHERE key IN ('features.faults', 'faults.performance')"))
+    assert rows == [("faults.performance", "false"), ("features.faults", "false")], "the switch the user turned off last is the one row left, and a setting stored once stays"

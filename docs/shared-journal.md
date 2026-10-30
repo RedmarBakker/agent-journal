@@ -27,7 +27,7 @@ server makes its own certificate, which a journal trusts on its first connect. A
 when the server is given 443 and 80 (journal remote install --https-port 443 --http-port 80). Everything the server
 keeps, its accounts, the items and their files, lives in one Docker volume. At the end it prints the server's URL.
 
-Connect to that URL first, before anyone else: the first journal to connect to a new server becomes its admin.
+The install prints the server's setup code once, with the line that claims it: `journal team connect "<url>/setup?code=<code>"` makes you its admin, and no journal can claim the server without the code. Read it again on the server while it has no admin with `docker exec <container> python -m sync_server setup-code --data /data/team`.
 
 Back up a running server with `docker exec agent-journal-<project> python -m sync_server backup --data /data/team`; the
 backup keeps the items' files beside the database.

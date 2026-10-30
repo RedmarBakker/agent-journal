@@ -139,12 +139,19 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         sleep 2
     done
 
+    code=$(docker exec "$name" cat /data/team/setup-code 2>/dev/null)
     echo
     echo "The team server for $project runs at $url."
-    echo "Connect to it now from your journal, before anyone else reaches it: Settings, Library, with $url;"
-    echo "or journal library connect $url. Whoever connects first becomes the library's admin."
+    if [ -n "$code" ]; then
+        echo "Its setup code, shown this once: $code"
+        echo "Claim it from your journal, which makes you its admin; no one can connect without this code:"
+        echo "    journal team connect \"$url/setup?code=$code\""
+        echo "Read it again on this machine while the server has no admin: docker exec $name python -m sync_server setup-code --data /data/team"
+    else
+        echo "It has its admin already: connect with your account, or with an invitation an admin shares."
+    fi
     echo
-    echo "Invite colleagues afterwards from Settings, Library, or with journal library invite <email>."
+    echo "Invite colleagues afterwards from the Team page, or with journal team invite <email>."
 }
 
 main "$@"

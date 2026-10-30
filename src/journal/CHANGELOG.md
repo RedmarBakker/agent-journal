@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.2
+
+- A new team server is claimed only with its setup code: the server makes it at its first start, the install prints it once with the line that claims it, `journal team connect "<url>/setup?code=<code>"`, and `python -m sync_server setup-code` reads it again on the server's own machine while it has no admin.
+- The Developer features switch turns off again: a setting stored twice, as this switch was after its rename, keeps only its last change. The agent bar's hook and request timings show only while performance monitoring is on.
+
 ## 4.69.1
 
 - A background command whose shell is killed from outside no longer stays running for ever: its heartbeat asks the shell process itself whether it still runs, never its process number, which a killed shell can still answer to. So it no longer counts as running and holds up an update's restart.

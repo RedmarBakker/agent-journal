@@ -46,7 +46,7 @@ class UserSteps:
     def a_team_server_runs(self, name: str = "team") -> str:
         address = self.team_server_started(name, 0)
         self.observed("a team server runs", None, None)
-        return address
+        return f"{address}/setup?code={self.team_server.setup_code.current()}"
 
     def team_server_started(self, name: str, port: int) -> str:
         folder = self.app.config.root / f"{name}-server"
