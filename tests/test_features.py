@@ -4817,20 +4817,6 @@ def test_a_workers_report_names_its_task_and_its_clock_out_writes_no_second_mark
         assert not [m for m in messages if m.text.endswith("finished, ready to check")], "the clock-out writes no second mark beside the report's card"
 
 
-def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(app: App):
-    from journal.features.workers.support.report_fit import ReportFit
-    from journal.features.workers.support.task_sizes import TaskSizes
-    from journal.models.support.report_choice import ReportChoice
-    from journal.models.task import Task
-    fit = ReportFit(app.container.get(TaskSizes))
-    small = [Task(title=f"small {n}", brief="1. one thing") for n in range(3)]
-    large = [Task(title=f"large {n}", brief="1. a\n2. b\n3. c\n4. d\n5. e") for n in range(4)]
-    assert fit.better(ReportChoice(1), small) == ReportChoice(0), "several small tasks reported each fit reporting at the queue's end"
-    assert fit.better(ReportChoice(0), large) == ReportChoice(2), "a long queue of large tasks reported at its end fits reporting every two"
-    assert fit.better(ReportChoice(5), small) == ReportChoice(0), "every five beyond three tasks fits the queue's end"
-    assert fit.better(ReportChoice(1), small[:1]) is None and fit.better(ReportChoice(0), small) is None, "a choice that fits is left alone"
-
-
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
     from journal.models.support.worker_moves import WorkerMoves
     from journal.models.worker import Worker
@@ -4862,7 +4848,7 @@ def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merg
     console = app.console()
     for title in ("the second job", "the third job"):
         console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    assert console.run(["worker", "queue", "1", "2", "3"], AGENT).code == 0
     for n in (1, 2, 3):
         committed(worktree, f"notes{n}.md", f"note {n}\n")
         proved_and_out(app, caller, f"notes{n}.md:1")
@@ -4912,7 +4898,7 @@ def queue_sent_back_short(app: App, monkeypatch):
     _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
     console = app.console()
     console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2", "--report", "queue"], AGENT).code == 0
+    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
     for n in (1, 2):
         committed(worktree, f"notes{n}.md", f"note {n}\n")
         proved_and_out(app, caller, f"notes{n}.md:1")

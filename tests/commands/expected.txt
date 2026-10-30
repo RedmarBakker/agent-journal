@@ -1356,9 +1356,6 @@ workers.place_floor = ''  (the user sets it)
 workers.place_ceiling = ''  (the user sets it)
 workers.weight_user_message = 3
 workers.weight_repeat_send_back = 1.5
-workers.small_task_points = 2
-workers.large_task_points = 5
-workers.long_queue_tasks = 4
 workers.held_still_minutes = 60
 workers.held_share = 0.4
 workers.unordered_plan_tasks = 10
@@ -1879,7 +1876,7 @@ workers.orchestrator_check_worker  [workers]  worker {{n}} has waited {{minutes}
 workers.orchestrator_clear_oldest  [workers]  the worker queue has been high for {{minutes}} minutes. clear worker {{n}}, the oldest, first
 workers.orchestrator_dispatched_under_load  [workers]  the worker queue is high and worker {{n}} waits. check and merge it next
 workers.orchestrator_hand_out  [workers]  hand out more of the work. {{handout}}
-workers.orchestrator_queue_more  [workers]  workers report every {{tasks|cap=21}} merges. queue more: `journal worker queue {{n}} <task> <task> --report queue`
+workers.orchestrator_queue_more  [workers]  workers report every {{tasks|cap=21}} merges. queue more: `journal worker queue {{n}} <task> <task>`
 workers.own_output_ended  [workers]  output {{n}} ended with code {{status}}. read it with `journal output read {{n}} --summary`
 workers.own_output_running  [workers]  output {{n}} still runs and ends when you stop. wait for it, then stop
 workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places|cap=28}} workers out at once
@@ -1887,7 +1884,7 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  all places full. check worker {{n}} first to free one
 workers.plan_order_without_dependencies  [workers]  plan {{plan}}: {{open}} open tasks, none blocked. set what each waits on: `journal task block <n> --on task:<m>`
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
-workers.queue_the_related_tasks  [workers]  queue tasks {{listed|cap=16}} of task {{task}}'s plan on {{worker}}: `journal worker queue {{n}} {{tasks|cap=16}} --report queue`
+workers.queue_the_related_tasks  [workers]  queue tasks {{listed|cap=16}} of task {{task}}'s plan on {{worker}}: `journal worker queue {{n}} {{tasks|cap=16}}`
 workers.release_waits_for_the_user  [workers]  {{line|cap=37}} waits for the user: "Orchestrator may release" is off. ask the user to release it
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: order the queues, most unblocking first: `journal plan priorities '<the order and why>'`
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause|cap=82}}
@@ -1945,8 +1942,7 @@ usage: journal worker dispatch [-h] [--provider {claude,codex}]
                                --changes CHANGES [--tests TESTS]
                                --profile PROFILE [--model MODEL] [--worktree]
                                [--libraries LIBRARIES] [--copies COPIES]
-                               [--no-libraries] [--fresh]
-                               [--report REPORT [REPORT ...]] (--task TASK |
+                               [--no-libraries] [--fresh] (--task TASK |
                                --plan PLAN) [--phase PHASE]
                                name [brief]
 
@@ -1986,10 +1982,6 @@ options:
                         changes the libraries themselves
   --fresh               a fresh worker even though one back already worked on
                         the same files
-  --report REPORT [REPORT ...]
-                        when it reports on a queue: queue (once its queue is
-                        empty, the default), each (after every task) or every
-                        <n> (after every n tasks)
   --task TASK           the task it works on: an open one with a brief, or the
                         one you hold; it is the worker's alone until merged or
                         released
@@ -2019,21 +2011,17 @@ options:
 
 $ agent: journal worker queue --help
 exit 0
-usage: journal worker queue [-h] [--report REPORT [REPORT ...]] [--first]
-                            n tasks [tasks ...]
+usage: journal worker queue [-h] [--first] n tasks [tasks ...]
 
 positional arguments:
   n
   tasks
 
 options:
-  -h, --help            show this help message and exit
-  --report REPORT [REPORT ...]
-                        when it reports from now: each, queue or every <n>;
-                        unnamed, its choice stays
-  --first               put the tasks at the head of the queue, in the order
-                        listed, taking one from another worker's queue if it
-                        is there, so the first is the next one sent
+  -h, --help  show this help message and exit
+  --first     put the tasks at the head of the queue, in the order listed,
+              taking one from another worker's queue if it is there, so the
+              first is the next one sent
 
 $ agent: journal worker notify --help
 exit 0

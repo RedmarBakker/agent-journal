@@ -179,7 +179,7 @@ class Routes:
         router.get(f"{API}/workers/activity", get(WorkerActivityController).recent)
         self.listed(router, "workers", get(WorkerController))
         self.listed(router, "subagents", get(SubagentController))
-        self.acts(router, "workers", get(WorkerController), "send", "message", "stop", "complete", "check", "short_check", "merge", "release", "report_choice")
+        self.acts(router, "workers", get(WorkerController), "send", "message", "stop", "complete", "check", "short_check", "merge", "release")
         router.get(f"{API}/workers/{{id}}/transcript", get(TranscriptController).worker_transcript)
         self.listed(router, "verifiers", get(VerifierController))
         self.listed(router, "reviewers", get(ReviewerController))

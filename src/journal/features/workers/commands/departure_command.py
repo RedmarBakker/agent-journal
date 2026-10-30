@@ -22,7 +22,6 @@ from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
-from journal.repositories.plans import Plans
 from journal.repositories.proofs import Proofs
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.task_logs import TaskLogs
@@ -32,17 +31,17 @@ from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
 
-TESTING_HELD = "your clock-out was held by a plugin before the journal rebased your work and ran your tests; fix what it found, then clock out again"
-DELIVERY_HELD = "your tests passed, but a plugin held your work before it reaches the agent that sent you; fix what it found, then clock out again, and the journal runs your tests again"
+TESTING_REFUSAL = "your clock-out was held by a plugin before the journal rebased your work and ran your tests; fix what it found, then clock out again"
+DELIVERY_REFUSAL = "your tests passed, but a plugin held your work before it reaches the agent that sent you; fix what it found, then clock out again, and the journal runs your tests again"
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later. A worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked; a blocked task next in the queue stops it too, and a point proved not done stops the queue so the worker reports at once."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker with a task still queued finishes this one instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, with no test run and no report: it reports, and its tests run, only once no task is left, a blocked task next in the queue or a point proved not done ending the queue there."""
 
     noun = "clock-out"
     default_verb = "record"
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner, plans: Plans) -> None:
-        self.assigner, self.plans = assigner, plans
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner) -> None:
+        self.assigner = assigner
         self.workers, self.tasks, self.proofs, self.reports, self.branch = workers, tasks, proofs, reports, branch
         self.turns, self.settings, self.logs, self.events, self.time_source, self.affected = turns, settings, logs, events, time_source, affected
 
@@ -62,7 +61,7 @@ class DepartureCommand(Command):
             raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof: `journal proof <point> \"<file:line and test>\"`")
         start_heads = self.branch.worktree_heads(worker)
         self.branch.commit_changes(worker, f"Task {task.id}: {task.title}")
-        self.plugin_check(WorkerClockingOut, worker, task, TESTING_HELD)
+        self.plugin_check(WorkerClockingOut, worker, task, TESTING_REFUSAL)
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"your work, rebased onto {self.branch.project_heads(worker)}, clashes: {clashing}; {REBASE_STEPS}, then clock out")
@@ -80,13 +79,12 @@ class DepartureCommand(Command):
         if worker.rebase_due:
             self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", self.time_source.moment().timestamp()), caller.actor)
         following = self.assigner.following(worker)
-        if self.is_journal_testing(worker) and self.is_phase_end(task, following):
-            self.tested(worker, task, args.tests, caller)
-        self.plugin_check(WorkerDelivering, worker, task, DELIVERY_HELD)
-        holder = Ref(Worker.table(), worker.id)
-        waiting = self.tasks.queue(holder)
-        if following is not None and self.continues_queue(worker, task, waiting):
+        if following is not None and self.continues_queue(task, self.tasks.queue(Ref(Worker.table(), worker.id))):
+            self.plugin_check(WorkerDelivering, worker, task, DELIVERY_REFUSAL)
             return self.advance_queue(worker, task, following, caller)
+        if self.is_journal_testing(worker):
+            self.tested(worker, task, args.tests, caller)
+        self.plugin_check(WorkerDelivering, worker, task, DELIVERY_REFUSAL)
         self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
@@ -97,12 +95,6 @@ class DepartureCommand(Command):
         refusals = self.events.worker_merging(self.branch.merging_event(event_class, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
             raise Rejection(refusal_heading + "\n" + "\n".join(refusals))
-
-    def is_phase_end(self, task: Task, following: Task | None) -> bool:
-        if following is not None and self.plans.share_phase(task, following):
-            print(f"task {following.id} is next in this phase: your tests run when you clock out of the phase's last task")
-            return False
-        return True
 
     def is_journal_testing(self, worker: Worker) -> bool:
         return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
@@ -123,16 +115,15 @@ class DepartureCommand(Command):
         print(f"the journal runs the tests that cover your changes and that you did not name too: {' '.join(missing)}")
         return f"{tests} && {self.turns.command(str(folder))} {shlex.join(missing)}"
 
-    def continues_queue(self, worker: Worker, task: Task, waiting: list[Task]) -> bool:
-        finished = len(self.tasks.finished_task_ids(Ref(Worker.table(), worker.id)))
-        return not (self.is_unfinished(task) or self.is_blocked(waiting) or worker.report_choice.is_report_due(finished, len(waiting)))
+    def continues_queue(self, task: Task, waiting: list[Task]) -> bool:
+        return bool(waiting) and not (self.is_unfinished(task) or self.is_blocked(waiting))
 
     def advance_queue(self, worker: Worker, task: Task, following: Task, caller: Caller) -> int:
         self.tasks.finish_holder_task(task.id, Ref(Worker.table(), worker.id), caller.actor)
         next_task = self.assigner.handed(worker, following, caller.actor)
         self.workers.save(self.workers.find(worker.id).queue_advanced(next_task.id, self.time_source.moment().timestamp()), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
-        print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")
+        print("work on it now in this session: prove each of its points and clock out again; the journal commits your work, and runs your tests once, when you clock out of your last task: name there the tests of every task")
         return 0
 
     @staticmethod

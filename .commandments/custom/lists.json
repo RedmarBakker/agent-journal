@@ -497,7 +497,6 @@
         "): `journal dump items",
         "); sum it up, start nothing: `journal dump propose",
         "--changed \"<what this round changed>\"`",
-        "<task> <task> --report queue`",
         "__authenticate`, then `complete_authentication`; tell the user",
         "` and act on it",
         "` and prove it again if you had",

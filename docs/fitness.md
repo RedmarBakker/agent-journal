@@ -34,7 +34,7 @@ empty that long. Solo has no band. The numbers were chosen by `scripts/band_repl
 | Orchestrator | Minutes the oldest worker waited | over 6 | at 6 | 3 | check worker n (normal, high) |
 | Orchestrator | Own share of the landed code, from two merges | over 0.3 | at 0.2 | 3 | hand out task n (low, normal) |
 | Orchestrator | Minutes a place stood free, smoothed | over 5 | at 4 | 3 | hand out task n (low, normal) |
-| Orchestrator | First reports per merged task, two hours | over 0.5 | at 0.34 | 2 | queue worker n more with --report queue |
+| Orchestrator | First reports per merged task, two hours | over 0.5 | at 0.34 | 2 | queue worker n more tasks |
 | Every mode | Minutes the oldest message waited | over 5 | at 5 | 3 | none: the messages feature's lines decide |
 
 Shown, not scored: tasks completed an hour, and for the orchestrator the share cleared oldest first and the share sent

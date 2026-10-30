@@ -12,7 +12,6 @@ from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
 from journal.features.workers.support.worked_task import WorkedTask
 from journal.features.workers.support.worker_task_view import WorkerTaskView
-from journal.models.support.report_choice import ReportChoice
 from journal.models.worker import Worker
 from journal.config import Config
 from journal.models.agent import Agent
@@ -47,9 +46,6 @@ class WorkerController(Controller[Worker]):
     def merge(self, request: Request) -> Response:
         self.actions.merge(request.number("id"), request.actor, MergeSteps.silent())
         return Response.json(self.shown(self.repository.find(request.number("id"))))
-
-    def report_choice(self, request: Request) -> Response:
-        return Response.json(self.shown(self.actions.set_report_choice(request.number("id"), ReportChoice.argument(str(request.body.get("choice", "each")).split()), request.actor)))
 
     def release(self, request: Request) -> Response:
         return Response.json(self.shown(self.actions.release(request.number("id"), request.actor)))

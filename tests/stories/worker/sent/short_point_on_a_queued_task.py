@@ -11,7 +11,7 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_whose_queued_task_comes_back_short_takes_that_task_in_hand_and_proves_it_again(story):
     docs = story.agent_creates_task(story.agents.main, "the docs")
-    story.agent_runs(story.agents.main, f"worker queue {story.agents.subject} {docs} --report queue")
+    story.agent_runs(story.agents.main, f"worker queue {story.agents.subject} {docs}")
     story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
     story.agent_proves(story.agents.subject, 2, "parser.py:30, test_names passes")
     story.agent_clocks_out(story.agents.subject, "the parser is done")

@@ -22,7 +22,6 @@ from journal.features.workers.support.merge_outcome import MergeOutcome
 from journal.features.workers.support.merge_statuses import MergeStatuses
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
-from journal.models.support.report_choice import ReportChoice
 from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
@@ -293,10 +292,6 @@ class WorkerActions:
 
     def worker_task(self, worker: Worker) -> Task:
         return self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
-
-    def set_report_choice(self, n: int, choice: ReportChoice, actor: Actor) -> Worker:
-        worker = self.workers.find(n)
-        return self.workers.save(worker.with_(report_choice=choice), actor)
 
     def release(self, n: int, actor: Actor) -> Worker:
         finished = self.tasks.finished_task_ids(Ref.build(self.workers.find(n)))
