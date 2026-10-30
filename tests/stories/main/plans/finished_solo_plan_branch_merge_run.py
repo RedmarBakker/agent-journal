@@ -1,45 +1,22 @@
 """Runs Git in a throwaway project to show a finished Plan agent's branch merged by the journal."""
 import json
 
-from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
-from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.models.plan_state import PlanState
-from journal.repositories.environments import Environments
 from journal.support.agent_role import AgentRole
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_marks import BUILDER_MODE, setting, story
+from tests.stories.fixtures.main.finished_solo_plan_with_branch import FinishedSoloPlanWithBranch
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 
 
-def finished_solo_plan_with_a_branch(story, monkeypatch):
-    story.project_is_a_git_repository()
-    root, plan = story.app.config.root, story.plans.first
-    story.git_in(root, "config", "user.name", "Story")
-    story.git_in(root, "config", "user.email", "story@example.com")
-    monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent: WorkspaceWorktree.chosen(root, environment.name).created())
-    story.agent_runs(story.agents.main, f"plan start {plan}")
-    environment = story.app.container.get(Environments).existing(f"plan-{plan}")
-    session = "plan-agent-session"
-    story.session_starts_in(environment.name, session)
-    story.agent_in_runs(story.agents.main, environment.name, session, f"plan start {plan}")
-    tree = WorkspaceWorktree.chosen(root, environment.name)
-    change = tree.path / "PLAN-AGENT-SMOKE.md"
-    change.write_text("completed solo plan change\n")
-    story.git_in(change.parent, "add", change.name)
-    story.git_in(change.parent, "-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "-m", "finish plan change")
-    story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.first} --how done")
-    finished = story.agent_in_runs(story.agents.main, environment.name, session, f"task complete {story.tasks.second} --how done")
-    return tree, finished
+def plan_worktree(story):
+    return WorkspaceWorktree.chosen(story.app.config.root, f"plan-{story.plans.first}")
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_finished_solo_plan_waits_for_the_main_agent_to_merge_its_branch(story, monkeypatch):
-    tree, finished = finished_solo_plan_with_a_branch(story, monkeypatch)
-    story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    finished.expect_agent_told(story.agents.main, PlansNudges.PLAN_MERGE_READY, n=story.plans.first)
+@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_finished_solo_plan_waits_for_the_main_agent_to_merge_its_branch(story):
     merged = story.agent_runs(story.agents.main, f"plan merge {story.plans.first}")
     merged.expect_command_passed()
     merged.expect_command_text(f"plan {story.plans.first}'s work merged as")
@@ -48,10 +25,9 @@ def test_a_finished_solo_plan_waits_for_the_main_agent_to_merge_its_branch(story
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(story, monkeypatch):
-    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
+@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(story):
+    tree = plan_worktree(story)
     settings = tree.path / ".claude" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text(json.dumps({
@@ -75,10 +51,9 @@ def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(st
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story, monkeypatch):
-    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
+@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story):
+    tree = plan_worktree(story)
     leftover = tree.path / "uncommitted.txt"
     leftover.write_text("still being worked on\n")
     story.observed("the Plan agent leaves an uncommitted file", None, None)
@@ -88,10 +63,9 @@ def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story, mo
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(story, monkeypatch):
-    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
+@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(story):
+    tree = plan_worktree(story)
     settings = tree.path / ".claude" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
     settings.write_text('{"theme": "dark"}\n')
@@ -102,10 +76,8 @@ def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(stor
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_conflict_leaves_the_finished_solo_plan_worktree(story, monkeypatch):
-    tree, _ = finished_solo_plan_with_a_branch(story, monkeypatch)
+@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_conflict_leaves_the_finished_solo_plan_worktree(story):
     project_file = story.app.config.root / "PLAN-AGENT-SMOKE.md"
     project_file.write_text("the project version\n")
     story.git_in(project_file.parent, "add", project_file.name)
