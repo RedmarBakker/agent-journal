@@ -489,7 +489,8 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
             "observation_ids": [evidence["observation_id"]],
             "expected_revisions": [
                 {"ref": {"table": "plans", "id": grant["plan_id"]}, "revision": snapshot["plan_revision"]},
-                {"ref": {"table": "phases", "id": snapshot["phase"]["id"]}, "revision": snapshot["phase"]["revision"]},
+                {"ref": {"table": "phases", "id": snapshot["current_phase"]["phase_id"]},
+                    "revision": snapshot["current_phase"]["revision"]},
             ],
             "operations": [{"kind": "plan_priorities", "plan_id": grant["plan_id"], "text": "Investigate the failed check"}],
             "rationale": "Record a bounded diagnostic priority.",
