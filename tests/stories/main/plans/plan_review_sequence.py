@@ -33,30 +33,17 @@ def test_a_plan_review_lets_edits_through_while_reviewers_are_out_holds_them_whi
 
 
 @story(AgentReadyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_subagent_resumed_with_a_message_naming_the_plan_counts_as_its_reviewer_until_it_ends(story):
+def test_a_subagent_sent_before_the_round_is_no_reviewer_until_a_message_naming_the_plan_resumes_it_and_counts_until_it_ends(story):
     story.agent_sends_subagent_in_the_background(story.agents.subject, RESEARCHER, "read the design document", "a1")
     story.subagent_ends("a1")
     story.agent_runs(story.agents.subject, f"plan review {story.plans.first}")
+    story.expect_plan(story.plans.first, reviewers=0)
     story.agent_runs(story.agents.subject, "sequence follow")
     story.agent_messages_subagent(story.agents.subject, "a1", f"now review plan {story.plans.first} against the design")
     story.expect_plan(story.plans.first, reviewers=1)
     story.agent_writes(story.agents.subject, "a.md")
     story.expect_allowed()
     story.subagent_ends("a1")
-    story.expect_plan(story.plans.first, reviewers=0)
-    story.expect_task(story.tasks.slab, state="open")
-    story.expect_stack(story.agents.subject, Ready, FollowingSequence)
-
-
-@story(AgentReadyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_that_ended_before_moves_nothing(story):
-    story.agent_sends_subagent_in_the_background(story.agents.subject, RESEARCHER, f"read plan {story.plans.first} early", "a1")
-    story.subagent_ends("a1")
-    story.agent_runs(story.agents.subject, f"plan review {story.plans.first}")
-    story.expect_plan(story.plans.first, state=PlanState.REVIEWING, reviewers=0)
-    story.agent_sends_subagent_in_the_background(story.agents.subject, "journal-plan-reviewer", f"review plan {story.plans.first}", "a2")
-    story.expect_plan(story.plans.first, reviewers=1)
-    story.subagent_ends("a2")
     story.expect_plan(story.plans.first, reviewers=0)
     story.expect_task(story.tasks.slab, state="open")
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)

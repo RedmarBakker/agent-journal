@@ -101,6 +101,13 @@ class AgentSteps:
         self.transcript_record(agent, {"type": "queue-operation", "operation": "enqueue", "content": content})
         self.observed(f"another session's agent sends the {agent.role} a message", None, None)
 
+    def a_claude_session_is_kept(self, session: str, prompt: str, reply: str) -> None:
+        folder = Claude.config_folder() / "projects" / Claude.folder_name(self.app.config.root)
+        folder.mkdir(parents=True, exist_ok=True)
+        rows = ({"type": "user", "message": {"content": prompt}, "timestamp": "2026-10-01T10:00:00Z"}, {"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}, "timestamp": "2026-10-01T10:01:00Z"})
+        (folder / f"{session}.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+        self.observed("a Claude Code session is kept in the project's folder", None, None)
+
     def transcript_record(self, agent: StoryAgent, record: dict) -> None:
         transcript = Claude.config_folder() / "projects" / Claude.folder_name(self.app.config.root) / f"{self.session_of(agent)}.jsonl"
         transcript.parent.mkdir(parents=True, exist_ok=True)

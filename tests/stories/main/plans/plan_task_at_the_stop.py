@@ -46,6 +46,7 @@ def test_an_idle_subagent_does_not_hide_the_plans_task_at_a_stop(story):
 def test_a_worker_out_on_the_next_task_does_not_hide_the_plans_task_at_a_stop(story):
     worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.second)
     story.expect_worker(story.agents.workers.get(worker), state=WorkerState.DISPATCHED)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)

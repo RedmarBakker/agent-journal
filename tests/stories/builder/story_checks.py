@@ -137,6 +137,10 @@ class StoryChecks:
         shown = [row.get(field) for row in self.viewer_answer]
         assert shown == values, f"the viewer was given {field} {shown}, not {values}"
 
+    def expect_viewer_rows_holding(self, key: str, field: str, value: object) -> None:
+        shown = [row.get(field) for row in self.viewer_answer.get(key, [])]
+        assert value in shown, f"the viewer was given {key} with {field} {shown}, none of them {value!r}"
+
     def expect_viewer_part(self, path: tuple, value: object) -> None:
         part = self.viewer_answer
         for key in path:

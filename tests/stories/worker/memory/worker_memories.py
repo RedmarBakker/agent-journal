@@ -66,3 +66,22 @@ def test_the_main_agents_decision_at_its_mark_leaves_the_worker_weighing_its_own
     story.agent_writes(story.agents.subject, "parser.py")
     story.expect_allowed()
     story.expect_stack(story.agents.subject, Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_worker_sent_its_next_job_is_shown_its_own_memories_at_clock_in_and_never_the_main_agents(story):
+    story.agent_runs(story.agents.main, f"memory add 'the main agent keeps the release notes' --weight {MEMORY_WEIGHT}")
+    story.agent_runs(story.agents.subject, f"memory add 'the parser reads tokens left to right' --weight {MEMORY_WEIGHT}")
+    own = story.created_number("memory")
+    story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
+    story.agent_proves(story.agents.subject, 2, "parser.py:30, test_names passes")
+    story.agent_clocks_out(story.agents.subject, "the parser is done")
+    story.worker_run_ends_with_its_session(story.agents.subject, "the parser is done")
+    story.agent_runs(story.agents.main, f"worker send {story.agents.subject} 'now the error messages'")
+    story.agent_resumes_the_session(story.agents.subject)
+    story.agent_clocks_in(story.agents.subject)
+    story.agent_has_run_printing(story.agents.subject, "journal clock-in", "")
+    story.expect_agent_told(story.agents.subject, MemoryNudges.WORKER_MEMORIES, memories=f"{own} (weight {MEMORY_WEIGHT}) the parser reads tokens left to right")
+    story.expect_answer_text("the parser reads")
+    story.expect_task(story.tasks.briefed, delegated=True)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)

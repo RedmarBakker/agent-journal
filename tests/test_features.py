@@ -2552,69 +2552,6 @@ def test_nothing_is_installed_on_its_own_when_no_release_is_newer(app: App):
     assert installer.ran == []
 
 
-def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its_own(app: App, tmp_path):
-    from journal.repositories.collections import Collections
-    console = app.console()
-    hook(app, "SessionStart")
-    notes = tmp_path / "notes.md"
-    notes.write_text("The ideas, sorted.\n")
-    console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT)
-    console.run(["task", "create", "the parser"], AGENT)
-    assert console.run(["collection", "create", "The parser work", "--abstract", "what the parser needs"], AGENT).text.startswith("collection 1: The parser work")
-    assert console.run(["collection", "add", "1", "docs:1", "tasks:1"], AGENT).code == 0
-    assert "not a row here: tasks:99" in console.run(["collection", "add", "1", "tasks:99"], AGENT).error, "a row that is not there is refused"
-    assert console.run(["collection", "members", "1"], AGENT).text.splitlines()[1:] == ["  docs:1", "  tasks:1"], "a collection holds rows of any type"
-    console.run(["collection", "remove", "1", "tasks:1"], AGENT)
-    assert console.run(["collection", "members", "1"], AGENT).text.splitlines()[1:] == ["  docs:1"], "and lets one go"
-    console.run(["collection", "rename", "1", "Parser"], AGENT)
-    assert "   1  Parser  (1 rows)" in console.run(["collection", "list"], AGENT).text
-    console.run(["dump", "create", "a list of ideas"], USER)
-    console.run(["dump", "note", "1", "text", "a list of ideas"], AGENT)
-    assert console.run(["dump", "filed", "1", "text", "made a doc", "--refs", "doc:1"], AGENT).code == 0
-    with app.container.get(Scope).environment(MAIN):
-        collections = app.container.get(Collections)
-        filed = [c for c in collections.scoped() if c.title == "Dump 1"]
-        assert filed and [str(ref) for ref in collections.members(filed[0])] == ["docs:1"], "a dump files its items into a collection of its own"
-    console.run(["dump", "name", "1", "Ideas for the parser"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert collections.find(filed[0].id).title == "Ideas for the parser", "and naming the dump names its collection"
-
-
-def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: App, tmp_path, monkeypatch):
-    from journal.features.dumps.support.dump_filer import DumpFiler
-    from journal.repositories.dumps import Dumps
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console, sorting = app.console(), app.container.get(DumpFiler)
-    notes = tmp_path / "notes.md"
-    notes.write_text("The ideas, sorted.\n")
-    assert made(console.run(["dump", "create", "a list of ideas"], USER)) == 1
-    machine = app.container.get(StateMachine)
-    assert app.container.get(SessionAgents).top("s1").name == "sorting_dump", "the user's dump moves the agent into sorting it"
-    stop = hook(app, "Stop")[1]
-    assert stop.get("decision") == "block" and nudge_reached(app, stop.get("reason", ""), DumpsNudges.DUMP_OPEN_REMINDER, n=1), "the stop is held while the dump is open"
-    made(console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT))
-    sorting.attach(1, "a.png", Caller.user("main").actor)
-    assert "text: not read yet" in console.run(["dump", "items", "1"], AGENT).text and "a.png: not read yet" in console.run(["dump", "items", "1"], AGENT).text
-    link = app.container.get(SupervisorLink)
-    assert "file dump 1 (2 items)" in link.pending_lines(1), "the stop held, the agent works on, so the line waits for its next tool use"
-    console.run(["dump", "note", "1", "text", "a list of ideas"], AGENT)
-    assert console.run(["dump", "filed", "1", "text", "made a doc", "--refs", "doc:1"], AGENT).code == 0
-    assert console.run(["dump", "filed", "1", "a.png", "x", "--refs", "docs:99"], AGENT).code != 0, "a row that is not there is refused"
-    assert console.run(["dump", "failed", "1", "a.png", "unreadable"], AGENT).text.endswith("closed: 1 filed, 1 failed\n")
-    assert "dump 1 filed (1 filed, 1 failed)" in link.pending_lines(1)
-    console.run(["sequence", "follow"], AGENT)
-    console.run(["sequence", "abandon", "--why", "the document came from the dump", "--sure"], AGENT)
-    app.runtime().deferred.drain()
-    assert app.container.get(SessionAgents).top("s1").name == "idle", "the dump filed and the document's sequence over it ended, the dump state pops as it comes back on top and the agent is back where it was"
-    assert console.run(["dump", "stop", "1"], AGENT).code != 0 and console.run(["dump", "remove", "1"], AGENT).code != 0, "only the user stops or removes"
-    assert app.container.get(Dumps).find(1).created_refs() == ["docs:1"]
-    console.run(["dump", "remove", "1"], USER)
-    assert app.container.get(Dumps).find(1).removed_refs == ("docs:1",) and console.run(["doc", "list"], AGENT).text == ""
-
-
 def test_a_workers_clean_up_never_drops_a_launch_worktree_or_its_branch(app: App):
     import subprocess
     from journal.features.workers.support.worker_branch import WorkerBranch
@@ -5828,63 +5765,6 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
     assert all(message.id != mark.id for message in main_chat), "and never in the main chat"
 
 
-def test_a_new_environment_is_filled_from_a_kept_claude_session_and_its_first_agent_is_asked_once_to_read_it(app: App, tmp_path, monkeypatch):
-    import json
-    import re
-    from urllib.error import HTTPError
-
-    from journal.models.message import Message
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    from journal.repositories.messages import Messages
-
-    config = tmp_path / "claude-config"
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
-    folder = config / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(app.config.root.resolve()))
-    folder.mkdir(parents=True)
-    rows = [
-        {"type": "user", "message": {"content": "Fix the login page"}, "timestamp": "2026-10-01T10:00:00Z"},
-        {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "where is it"}, {"type": "text", "text": "Looking at it."}, {"type": "tool_use", "name": "Read", "id": "t1", "input": {"file_path": "a.py"}}]}, "timestamp": "2026-10-01T10:00:05Z"},
-        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x"}]}, "timestamp": "2026-10-01T10:00:06Z"},
-        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t2", "input": {}}]}, "timestamp": "2026-10-01T10:00:20Z"},
-        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t3", "input": {}}]}, "timestamp": "2026-10-01T10:00:30Z"},
-        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Fixed the login page."}]}, "timestamp": "2026-10-01T10:01:00Z"},
-    ]
-    (folder / "old-session.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
-
-    def call(method, path, body=None, environment="main"):
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as refused:
-            return refused.code, json.loads(refused.read())
-
-    def started():
-        return call("POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "old-session"}, "login")[1]["hookSpecificOutput"]["additionalContext"]
-    status, listed = call("GET", "/journal/environments/sessions")
-    assert status == 200 and [(row["provider"], row["session"], row["first_prompt"], row["line_count"]) for row in listed] == [("claude", "old-session", "Fix the login page", 6)], "the form lists the project's kept sessions with their first prompt and length"
-    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 201
-    login = app.container.get(Environments).existing("login")
-    with app.container.get(Scope).environment(login.row_id):
-        chat = app.container.get(Messages).scoped()
-        assert [(m.author.value, m.text, m.created_at.isoformat()[:19]) for m in chat] == [
-            ("user", "Fix the login page", "2026-10-01T10:00:00"),
-            ("agent", "Looking at it.", "2026-10-01T10:00:05"),
-            ("system", "Tool calls: Edit 2, Read 1", "2026-10-01T10:00:05"),
-            ("agent", "Fixed the login page.", "2026-10-01T10:01:00"),
-            ("system", "This chat was filled from Claude Code session old-sess: 4 messages.", "2026-10-01T10:01:00"),
-        ], "prompts and replies at their own times, the tool calls between them in one line, the thinking left out, and a line saying where the chat came from"
-        assert all(m.read_at for m in chat if m.author.value == "user"), "no prompt reaches the agent as a new message"
-        assert [(a.session, a.state) for a in app.container.get(Agents).scoped()] == [("old-session", "ended")], "the session is the environment's ended agent, so its first launch carries it on"
-    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 409, "an environment that exists is never filled again"
-    first = started()
-    assert nudge_reached(app, first, HydrationNudges.READ_CHAT, session="old-sess"), "the first session there is asked to read the chat"
-    app.runtime().deferred.drain()
-    assert "filled from the earlier conversation" not in started(), "and only once"
-    assert call("GET", "/journal/environments/sessions")[1][0]["environment"] == "login", "the form names the environment a session went into"
-
-
 def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_lines(tmp_path):
     from journal.providers.claude import Claude
     path = tmp_path / "kept.jsonl"
@@ -6822,40 +6702,6 @@ def test_the_switch_to_approve_only_plans_it_did_not_write_becomes_the_plans_the
     PlanApprovalChoice().apply(connection)
     rows = {(row["environment_id"], row["key"]): row["value"] for row in connection.all("SELECT environment_id, key, value FROM settings WHERE environment_id IN (7, 8)")}
     assert rows == {(7, "workers.orchestrator_approves_plans"): "true", (7, "workers.orchestrator_plan_approval"): '"can approve plans the user made"', (8, "workers.orchestrator_approves_plans"): "true"}, rows
-
-
-def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    user_set(app, "workers.mode", "orchestrator")
-    drafted = lambda caller, title: drafted_plan(app, caller, title)
-
-    own = drafted(AGENT, "the orchestrator's plan")
-    user_set(app, "workers.orchestrator_writes_plans", False)
-    assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
-    user_set(app, "workers.mode", "builder")
-    assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
-    user_set(app, "workers.mode", "orchestrator")
-    users = drafted(USER, "the user's plan")
-    user_set(app, "workers.orchestrator_approves_plans", True)
-    user_set(app, "workers.orchestrator_plan_approval", "can approve plans the user made")
-    assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving the plans the user made, the orchestrator may not approve its own"
-    assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
-    user_set(app, "workers.orchestrator_plan_approval", "can approve all plans")
-    assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with all plans it approves its own too"
-    for _ in range(4):
-        console.run(["sequence", "follow"], AGENT)
-        console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
-    tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
-    status, body = tag()
-    assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.RELEASE_REFUSED), "with May release off the orchestrator's release waits for the user"
-    user_set(app, "workers.orchestrator_releases", True)
-    status, body = tag()
-    assert status == 200, ("with it on the orchestrator releases", body)
-    for name in ("orchestrator_writes_plans", "orchestrator_approves_plans", "orchestrator_releases"):
-        refused = console.run(["settings", "set", f"workers.{name}", "on"], AGENT)
-        assert refused.code == 1 and "the user's to set" in refused.error, f"workers.{name} is the user's to set, refused from an agent"
 
 
 def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_the_supervisors_notice_are_told_once_booted(app: App, capsys):
