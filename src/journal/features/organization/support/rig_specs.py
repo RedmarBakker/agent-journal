@@ -9,7 +9,7 @@ from journal.config import Config
 from journal.features.organization.support.contract_folder import ContractFolder
 from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.edge_kind import EdgeKind
-from journal.features.organization.support.rig_seats import RigSeats
+from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.seat import Seat
 from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.organization.support.skill_ids import SKILL_FILE, SkillIds
@@ -19,7 +19,10 @@ from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.repositories.setting_rows import SettingRows
+from journal.support.actor import Actor
+from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT
+from journal.support.rejection import Rejection
 
 OPENRIG_VERSION = "0.7.5"
 RIG_SPEC_VERSION = "0.2"
@@ -69,6 +72,41 @@ class RigSpecs:
 
     def write_shared(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> Path:
         return self.write_seats(rig, seats, links, cwd, workers, f"The journal's shared organization Roles in {rig}.")
+
+    def refresh_plan(self, rig: str, cwd: Path, environment: str, provider: Provider) -> Path:
+        seat = self.seats.plan_agent(rig, provider)
+        path, spec = self.read_rig_spec(rig)
+        pod, member = self.plan_member(spec)
+        try:
+            old = member["env"]
+            worker = SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), environment, seat.qualified, rig)
+        except (KeyError, ValueError) as failed:
+            raise Rejection(f"OpenRig Plan seat in rig {rig} has no actor token to preserve: {failed}") from failed
+        _, refreshed = self.member_fragment(rig, seat, cwd, worker)
+        member.update(refreshed)
+        self.write_pod_fragment(rig, pod)
+        self.written(path, spec).chmod(OWNER_ONLY)
+        return path
+
+    def read_rig_spec(self, rig: str) -> tuple[Path, dict]:
+        path = self.spec_folder(rig) / "rig.yaml"
+        try:
+            spec = json.loads(path.read_text())
+        except (OSError, ValueError) as failed:
+            raise Rejection(f"OpenRig spec for {rig} cannot be read at {path}: {failed}") from failed
+        if not isinstance(spec, dict):
+            raise Rejection(f"OpenRig spec for {rig} is not an object")
+        return path, spec
+
+    @staticmethod
+    def plan_member(spec: dict) -> tuple[dict, dict]:
+        pod = next((value for value in spec.get("pods", []) if isinstance(value, dict) and value.get("id") == PLAN_POD), None)
+        if pod is None:
+            raise Rejection(f"OpenRig spec has no Plan pod {PLAN_POD}")
+        member = next((value for value in pod.get("members", []) if isinstance(value, dict) and value.get("id") == PLAN_AGENT), None)
+        if member is None:
+            raise Rejection(f"OpenRig Plan pod has no member {PLAN_AGENT}")
+        return pod, member
 
     def write_seats(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker], summary: str) -> Path:
         folder = self.spec_folder(rig)

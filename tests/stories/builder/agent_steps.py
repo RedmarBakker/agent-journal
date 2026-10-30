@@ -15,6 +15,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.support.heartbeat import Heartbeat
 from journal.events.journal_updated import JournalUpdated
 from journal.events.announcer import Announcer
+from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.sequences import Sequences
 from journal.repositories.templates import Templates
@@ -30,7 +31,7 @@ from journal.features.shell.support.chain_worker import ChainWorker
 from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
-from journal.support.caller import Caller
+from journal.support.caller import Caller, ORGANIZATION_RIG
 from journal.support.option import Option
 from journal.support.plugin_tokens import PluginTokens
 from journal.features.plugins.support.manifest_reader import MANIFEST
@@ -138,12 +139,31 @@ class AgentSteps:
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
         rig = f"plan-{self.plans.first}"
-        token = f"story-seat-{rig}-{seat}"
-        answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "agent": True, "provider": self.provider,
-                                             "session": self.session_of(agent), "organization_seat": seat, "organization_rig": rig,
-                                             "actor_token": token}, MAIN)[1]
+        pod, member_name = self.organization_seat_address(seat)
+        runtime = self.app.container.get(SeatRuntime)
+        member = runtime.member(rig, pod, member_name, self.provider)
+        variables = self.organization_seat_variables(runtime, rig, pod, member_name)
+        answer = posted(self.app, "/cli", {"argv": arguments, "env": member.environment, "agent": True, "provider": member.provider,
+                                             "session": self.session_of(agent), "organization_seat": member.organization_seat,
+                                             "organization_rig": variables.get(ORGANIZATION_RIG, ""), "actor_token": member.token}, MAIN)[1]
         outcome = Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
         return self.record_command(f"agent runs {' '.join(arguments[:2])} from organization seat {seat}{', refused' if outcome.code else ''}", outcome)
+
+    @staticmethod
+    def organization_seat_address(seat: str) -> tuple[str, str]:
+        if seat == "plan":
+            return "plan", "plan-agent"
+        if seat.startswith("domain:"):
+            return seat.split(":", 1)[1], "domain-agent"
+        domain, role = seat.removeprefix("role:").split("/", 1)
+        return domain, role
+
+    @staticmethod
+    def organization_seat_variables(runtime: SeatRuntime, rig: str, pod: str, member_name: str) -> dict[str, str]:
+        spec = runtime.read_spec(rig)
+        pod_spec = next(value for value in spec["pods"] if value["id"] == pod)
+        member_spec = next(value for value in pod_spec["members"] if value["id"] == member_name)
+        return member_spec["env"]
 
     def command_from_a_shell_naming_no_session(self, line: str) -> StepResult:
         arguments = shlex.split(line)

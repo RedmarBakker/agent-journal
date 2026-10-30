@@ -13,8 +13,13 @@ from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
+from journal.repositories.plans import Plans
+from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
+from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.models.support.ref import Ref
 from tests.full_project import MAIN
 from tests.in_process import get_answer
@@ -244,6 +249,20 @@ class StoryChecks:
         with self.app.container.get(Scope).environment(1):
             names = self.app.container.get(DomainRows).domain_names(self.app.container.get(Tasks).find(task))
         assert names == [domain], f"task {task} is tied to {names}, expected {domain}"
+
+    def expect_plan_rig(self, plan_id: int, name: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            plans = self.app.container.get(Plans)
+            rig = self.app.container.get(Rigs).find(plans.rig_id(plans.find(plan_id)))
+        assert rig.name == name, f"plan {plan_id} uses rig {rig.name}, not {name}"
+
+    def expect_plan_seat_settings(self, rig: str) -> None:
+        runtime = self.app.container.get(SeatRuntime)
+        member = runtime.member(rig, PLAN_POD, PLAN_AGENT, self.provider)
+        variables = self.organization_seat_variables(runtime, rig, PLAN_POD, PLAN_AGENT)
+        assert member.organization_seat == "plan", f"plan seat has organization identity {member.organization_seat!r}"
+        assert member.root == str(self.app.config.root), f"plan seat reaches journal root {member.root}, not {self.app.config.root}"
+        assert variables.get(ORGANIZATION_RIG) == rig, f"plan seat has organization rig {variables.get(ORGANIZATION_RIG)!r}, not {rig}"
 
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()

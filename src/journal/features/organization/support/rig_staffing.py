@@ -46,6 +46,7 @@ class RigStaffing:
                 return
             if not self.runtime.rig_exists(rig.name):
                 raise Rejection(f"OpenRig rig {rig.name} for plan {plan.id} is not running")
+            self.specs.refresh_plan(rig.name, self.config.root, environment.name, self.providers.lookup(agent.provider))
             self.runtime.launch_node(rig.name, f"{PLAN_POD}.{PLAN_AGENT}")
             return
 
