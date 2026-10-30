@@ -35,6 +35,11 @@ def test_scenario_library_has_three_scenarios_per_business_type():
 def test_scenario_loads_as_an_approved_plan_with_unmet_expectations(app, path):
     scenario = LabScenario.read(path)
     assert scenario.business_type == path.parent.name
+    assert scenario.rubric["version"] == "business-plan-v1"
+    assert {criterion["id"] for criterion in scenario.rubric["criteria"]} == {
+        "artifact_quality", "decision_safety", "handoff_traceability",
+    }
+    assert sum(criterion["weight"] for criterion in scenario.rubric["criteria"]) == 100
     assert {event["kind"] for event in scenario.events} == EVENT_KINDS
     assert {expectation.table for expectation in scenario.expected} == EXPECTED_TABLES
     assert any(event["kind"] == "user_away" and event["payload"]["duration_minutes"] == 120 for event in scenario.events)

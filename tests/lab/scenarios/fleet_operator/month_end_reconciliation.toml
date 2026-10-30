@@ -96,6 +96,14 @@ target = "month_end_reconciliation"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_month_end_pack", "main_month_end_pack"] },
+  { id = "decision_safety", weight = 30, expectations = ["invoice_correction_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["invoice_review_task", "month_end_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 480
 [budget.real_caps]

@@ -142,6 +142,19 @@ def test_request_receipts_are_idempotent_and_cannot_change_after_settlement(tmp_
         caps.settle_request("request-1", "0.41", "completed")
 
 
+def test_zero_dollar_provider_charge_is_a_valid_settlement(tmp_path):
+    caps = RunCaps("run-1", run_caps(max_usd="1.00"), batch_caps(batch_max_usd="2.00"),
+                   tmp_path / "zero-charge.json", watchdog(), clock=lambda: 100)
+    caps.reserve_run()
+    caps.arm_watchdog()
+    caps.start_session("session-1")
+    caps.reserve_request("request-1", "session-1", maximum_usd="0.50")
+
+    caps.settle_request("request-1", "0.00", "completed")
+
+    assert caps.read()["runs"]["run-1"]["requests"]["request-1"]["actual_usd"] == "0.00"
+
+
 def test_a_provider_charge_over_its_reservation_stops_and_quarantines_the_batch(tmp_path):
     watcher = watchdog()
     caps = RunCaps("run-1", run_caps(max_usd="1.00"), batch_caps(batch_max_usd="2.00"),

@@ -6,6 +6,7 @@ from typing import cast
 
 from tests.lab.business_type import freeze
 from tests.lab.expectation import Expectation
+from tests.lab.scenario_rubric import CRITERIA, RUBRIC_VERSION
 
 SIZES = frozenset({1, 2, 3, 5, 8, 13})
 EVENT_KINDS = frozenset({"customer_message", "external_wait_released", "role_failure", "user_away", "approval_action"})
@@ -20,6 +21,7 @@ class LabScenario:
     phases: tuple[Mapping[str, object], ...]
     events: tuple[Mapping[str, object], ...]
     expected: tuple[Expectation, ...]
+    rubric: Mapping[str, object]
     budget: Mapping[str, object]
 
     @classmethod
@@ -28,6 +30,9 @@ class LabScenario:
         phases = cls.records(data, "phases")
         events = cls.records(data, "events")
         expected = cls.records(data, "expected")
+        rubric = data.get("rubric")
+        if not isinstance(rubric, dict):
+            raise ValueError("scenario rubric must be a table")
         budget = data.get("budget")
         if not isinstance(budget, dict):
             raise ValueError("scenario budget must be a table")
@@ -39,6 +44,7 @@ class LabScenario:
             tuple(cast(Mapping[str, object], freeze(phase)) for phase in phases),
             tuple(cast(Mapping[str, object], freeze(event)) for event in events),
             tuple(Expectation.read(item) for item in expected),
+            cast(Mapping[str, object], freeze(rubric)),
             cast(Mapping[str, object], freeze(budget)),
         )
 
@@ -85,6 +91,7 @@ class LabScenario:
         self.no_cycles(dependencies)
         self.validate_events()
         self.validate_expectations(set(task_ids))
+        self.validate_rubric()
         self.validate_budget()
 
     @staticmethod
@@ -138,6 +145,43 @@ class LabScenario:
         for item in self.expected:
             if item.table == "tasks" and item.target not in task_ids:
                 raise ValueError(f"expectation {item.id} names unknown task {item.target}")
+
+    def validate_rubric(self) -> None:
+        if self.rubric.get("version") != RUBRIC_VERSION:
+            raise ValueError(f"scenario rubric version must be {RUBRIC_VERSION}")
+        criteria = self.rubric.get("criteria")
+        if not isinstance(criteria, tuple) or not criteria:
+            raise ValueError("scenario rubric needs criteria")
+        expectation_tables = {item.id: item.table for item in self.expected}
+        criterion_ids, covered, total_weight = set(), set(), 0
+        for criterion in criteria:
+            if not isinstance(criterion, Mapping):
+                raise ValueError("scenario rubric criteria must be tables")
+            criterion_id = self.text(criterion, "id", "rubric criterion")
+            if criterion_id not in CRITERIA or criterion_id in criterion_ids:
+                raise ValueError(f"scenario rubric has an unknown or repeated criterion: {criterion_id}")
+            criterion_ids.add(criterion_id)
+            weight = criterion.get("weight")
+            if type(weight) is not int or weight <= 0:
+                raise ValueError(f"rubric criterion {criterion_id} needs a positive whole-number weight")
+            total_weight += weight
+            expectations = criterion.get("expectations")
+            if not isinstance(expectations, tuple) or not expectations or any(not isinstance(item, str) for item in expectations):
+                raise ValueError(f"rubric criterion {criterion_id} needs expectation ids")
+            if len(set(expectations)) != len(expectations):
+                raise ValueError(f"rubric criterion {criterion_id} repeats an expectation")
+            if covered.intersection(expectations):
+                raise ValueError("scenario rubric assigns an expectation to more than one criterion")
+            for expectation_id in expectations:
+                if expectation_id not in expectation_tables:
+                    raise ValueError(f"rubric criterion {criterion_id} names an unknown expectation: {expectation_id}")
+                if expectation_tables[expectation_id] not in CRITERIA[criterion_id]["tables"]:
+                    raise ValueError(f"rubric criterion {criterion_id} cannot score expectation {expectation_id}")
+            covered.update(expectations)
+        if total_weight != 100:
+            raise ValueError("scenario rubric criterion weights must sum to 100")
+        if covered != set(expectation_tables):
+            raise ValueError("scenario rubric criteria must cover every scenario expectation")
 
     def validate_budget(self) -> None:
         simulated = self.budget.get("simulated_minutes")

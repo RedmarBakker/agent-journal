@@ -66,13 +66,27 @@ class RunCaps:
         cls.money(value, field)
 
     @staticmethod
-    def money(value: object, field: str) -> Decimal:
+    def decimal_amount(value: object, field: str) -> Decimal:
         try:
             amount = Decimal(str(value))
         except (InvalidOperation, ValueError):
-            raise ValueError(f"{field} must be a positive finite USD amount") from None
-        if not amount.is_finite() or amount <= 0:
+            raise ValueError(f"{field} must be a finite USD amount") from None
+        if not amount.is_finite():
+            raise ValueError(f"{field} must be a finite USD amount")
+        return amount
+
+    @classmethod
+    def money(cls, value: object, field: str) -> Decimal:
+        amount = cls.decimal_amount(value, field)
+        if amount <= 0:
             raise ValueError(f"{field} must be a positive finite USD amount")
+        return amount
+
+    @classmethod
+    def actual_money(cls, value: object, field: str) -> Decimal:
+        amount = cls.decimal_amount(value, field)
+        if amount < 0:
+            raise ValueError(f"{field} must be a non-negative finite USD amount")
         return amount
 
     def reserve_run(self) -> dict[str, object]:
@@ -308,7 +322,7 @@ class RunCaps:
             request = self.run(data)["requests"].get(request_id)
             if not request:
                 raise ValueError("request must be reserved before it is settled")
-            actual = self.money(actual_usd, "actual_usd") if actual_usd is not None else None
+            actual = self.actual_money(actual_usd, "actual_usd") if actual_usd is not None else None
             reserved = Decimal(request["reserved_usd"]) if request["reserved_usd"] is not None else None
             if request["status"] != "reserved":
                 saved_actual = Decimal(request["actual_usd"]) if request.get("actual_usd") is not None else None

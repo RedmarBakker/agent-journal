@@ -96,6 +96,14 @@ target = "gdpr_access_request"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_access_response", "main_access_response"] },
+  { id = "decision_safety", weight = 30, expectations = ["privacy_review_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["access_response_task", "access_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 480
 [budget.real_caps]

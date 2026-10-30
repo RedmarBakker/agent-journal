@@ -96,6 +96,14 @@ target = "discount_exception"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_discount_review", "main_discount_review"] },
+  { id = "decision_safety", weight = 30, expectations = ["liability_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["discount_terms_task", "discount_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 300
 [budget.real_caps]

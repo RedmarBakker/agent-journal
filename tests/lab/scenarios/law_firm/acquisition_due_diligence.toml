@@ -96,6 +96,14 @@ target = "acquisition_due_diligence"
 field = "result"
 equals = "passed"
 
+[rubric]
+version = "business-plan-v1"
+criteria = [
+  { id = "artifact_quality", weight = 50, expectations = ["worktree_diligence_report", "main_diligence_report"] },
+  { id = "decision_safety", weight = 30, expectations = ["legal_decision_approval"] },
+  { id = "handoff_traceability", weight = 20, expectations = ["diligence_report_task", "diligence_hub_audit"] },
+]
+
 [budget]
 simulated_minutes = 600
 [budget.real_caps]

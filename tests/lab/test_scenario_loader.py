@@ -91,6 +91,13 @@ target = "verify"
 field = "state"
 equals = "completed"
 
+[rubric]
+version = "business-plan-v1"
+[[rubric.criteria]]
+id = "handoff_traceability"
+weight = 100
+expectations = ["release_verified"]
+
 [budget]
 simulated_minutes = 300
 [budget.real_caps]
