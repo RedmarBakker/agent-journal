@@ -19,7 +19,7 @@ class PlansNudges:
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}", repeat=Timeout.seconds(0), longest_characters=1540, longest_reason="it contains the brief of the next task")
     SUPERVISOR_WORK_AVAILABLE = Nudge("plans", "supervisor_work_available", "eligible plan work is available; the journal will assign it when you are free", repeat=Timeout.seconds(0))
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
-    PLAN_MERGE_READY = Nudge("plans", "solo_plan_branch_ready", "plan {{n}} is done; review then merge: `journal plan merge {{n}}`", "this merges its work into the project and removes its worktree", repeat=Timeout.seconds(0))
+    PLAN_MERGE_READY = Nudge("plans", "solo_plan_branch_ready", "plan {{n}} done; review, then merge: `journal plan merge {{n}}`", "this merges its work into the project and removes its worktree", repeat=Timeout.seconds(0))
     PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
