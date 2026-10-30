@@ -27,6 +27,10 @@ const organization = (sha = commit) => ({
     commit: sha,
     version: "contract-digest",
     problems: [{path: "domains/sales/roles/ghost/role.toml", rule: "role", message: "Add a role.toml file or remove this folder."}],
+    sprint_forecasts: [{
+        sprint: {id: 4, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [42]},
+        forecast: {as_of: "2026-10-30", status: "forecast", plan_forecasts: [{plan_id: 42, status: "forecast", p50: "2026-11-06", probability_this_sprint: 71, probability_next_sprint: 22, probability_later: 7, carry_over: 29, delivered_outcomes: 12, method_version: "baseline-v1", capacity_freshness: "fresh"}]},
+    }],
     domains: [{
         id: "sales",
         title: "Sales",
@@ -196,6 +200,8 @@ test("a domain route opens its own four phase plan board", async () => {
     expect(board.querySelector('[data-phase="in_progress"] h3').textContent).toContain("Working");
     expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("1 of 2 done");
     expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("Waits on: Role work");
+    expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("Likely finish");
+    expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("71% chance in Sprint 4");
     expect(host.querySelector('button.organization-all-domains').textContent).toContain("All domains");
 });
 

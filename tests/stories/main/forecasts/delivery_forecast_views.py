@@ -34,6 +34,6 @@ def test_a_merged_development_plan_remains_awaiting_deployment_in_all_forecast_v
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "delivery_status"), "awaiting deployment")
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "p50"), None)
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "probability_this_sprint"), plan.viewer_answer["probability_this_sprint"])
-    organization.expect_viewer_part(("domains", 0, "plans", 0, "id"), story.plans.first)
-    organization.expect_viewer_part(("domains", 0, "plans", 0, "story_points", "unknown_tasks"), 1)
+    organization.expect_viewer_part(("plans", 0, "id"), story.plans.first)
+    organization.expect_viewer_part(("plans", 0, "story_points", "unknown_tasks"), 1)
     story.expect_stack(story.agents.subject, Ready)
