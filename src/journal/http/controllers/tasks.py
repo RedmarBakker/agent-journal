@@ -49,6 +49,8 @@ class TaskController(Controller[Task]):
     def store(self, request: Request) -> Response:
         if "size" in request.body:
             raise Rejection("task size must be supplied while composing a plan task")
+        if any(name in request.body for name in ("after", "depends_on", "delivery_gate_for")):
+            raise Rejection("planned prerequisites and delivery gates must be supplied while composing a plan task")
         return super().store(request)
 
     def shown_page(self, rows: list[Task]) -> list[dict]:
@@ -69,6 +71,8 @@ class TaskController(Controller[Task]):
     def update(self, request: Request) -> Response:
         if "size" in request.body:
             raise Rejection("task size must use /journal/tasks/{id}/size to keep its estimate history")
+        if any(name in request.body for name in ("after", "depends_on", "delivery_gate_for")):
+            raise Rejection("planned prerequisites and delivery gates must use the plan dependency operation")
         row = self.repository.find(request.number("id"))
         changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name not in ("title", "brief")})
         rewritten = changed.edited(request.body.get("title", row.title), request.body.get("brief", row.brief), self.time().timestamp())
@@ -94,7 +98,7 @@ class TaskController(Controller[Task]):
     def start(self, request: Request) -> Response:
         if self.repository.task_worker_holdings({request.number("id")}):
             return Response.json(self.shown(self.repository.find(request.number("id"))))
-        task = self.repository.holder_started(self.repository.find(request.number("id")).started(self.time()), self.taking.holder(Caller.user(request.environment)), request.actor)
+        task = self.taking.start_as(self.repository.find(request.number("id")), Caller.user(request.environment), request.actor)
         return Response.json(self.shown(task))
 
     def finish(self, request: Request) -> Response:
@@ -116,7 +120,9 @@ class TaskController(Controller[Task]):
     def block(self, request: Request) -> Response:
         reason, enabled, deadline = request.body.get("why", ""), request.body.get("on", []), request.body.get("until", "")
         self.waits.refuse_unnamed(reason, enabled, deadline)
-        task = self.repository.save(self.repository.find(request.number("id")).blocked(reason, self.time()), request.actor)
+        task = self.repository.find(request.number("id"))
+        self.waits.validate(task, enabled)
+        task = self.repository.save(task.blocked(reason, self.time()), request.actor)
         self.waits.linked(task, enabled, deadline, request.body.get("every", 2), request.actor)
         return Response.json(self.shown(task))
 

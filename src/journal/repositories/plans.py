@@ -132,7 +132,9 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.selected_ids(self.plan_task_query(plan).order_descending("updated_at").order_descending("id").limit(count))
 
     def assignable_tasks(self, task_ids: list[int]) -> list[Task]:
-        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))}
+        candidates = self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))
+        blocked = self.tasks.unmet_dependency_ids(candidates)
+        assignable = {task.row_id: task for task in candidates if task.row_id not in blocked}
         return [assignable[n] for n in task_ids if n in assignable]
 
     def plan_task_ids(self, plan: Plan) -> list[int]:
@@ -261,7 +263,8 @@ class Plans(ScopedRepository[Plan]):
         return self.first_task(plan, TaskState.OPEN, self.startable_tasks(plan))
 
     def startable_tasks(self, plan: Plan) -> Query:
-        return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+        blocked = self.waiting_task_ids(plan) | self.tasks.unmet_dependency_ids(self.plan_tasks(plan))
+        return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def queued_tasks(self, plan: Plan) -> list[Task]:
         queued: list[Task] = []
@@ -274,7 +277,8 @@ class Plans(ScopedRepository[Plan]):
 
     def takeable_tasks(self, plan: Plan) -> Query:
         takeable = self.tasks.query().filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False)
-        return takeable.filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+        blocked = self.waiting_task_ids(plan) | self.tasks.unmet_dependency_ids(self.plan_tasks(plan))
+        return takeable.filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
         return self.first_planned(plan, candidates.filter(state=state))

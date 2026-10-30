@@ -245,6 +245,14 @@ class DeliveryRecords(ScopedRepository[DeliveryRecord]):
         if any(not self.execution_ready(task) for task in tasks):
             raise Rejection("delivery evidence cannot be accepted before the existing proof, review and merge gate")
 
+    def accepted_for_task(self, task: Task) -> bool:
+        return any(self.accepted(self.plans.find(ref.id), task) for ref in self.links.targets(task, PLAN_LINK) if ref.type == Plan.table())
+
+    def accepted(self, plan: Plan, task: Task) -> bool:
+        _domain, definition, version = self.policy(plan, task)
+        current = self.current_delivery(self.plan_records(plan), task)
+        return bool(self.mode() != "off" and self.execution_ready(task) and definition and current and current.state == "accepted" and current.policy_version == version)
+
     def execution_ready(self, task: Task) -> bool:
         if task.state != TaskState.COMPLETED:
             return False

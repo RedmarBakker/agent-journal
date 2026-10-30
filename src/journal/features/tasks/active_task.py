@@ -5,6 +5,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.support.rejection import Rejection
 from journal.models.worker import Worker
+from journal.support.actor import Actor
 from journal.repositories.agents import Agents
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
@@ -19,15 +20,19 @@ class ActiveTask:
         self.tasks, self.agents, self.clock, self.plans = tasks, agents, clock, plans
 
     def start(self, task: Task, caller: Caller) -> Task:
+        return self.start_as(task, caller, caller.actor)
+
+    def start_as(self, task: Task, caller: Caller, actor: Actor) -> Task:
         for plan in self.plans.unapproved(task):
             plan.task_startable(task.id)
+        self.tasks.require_prerequisites(task)
         holder = self.holder(caller)
-        self.tasks.guard_worker_task(task, holder, caller.actor)
+        self.tasks.guard_worker_task(task, holder, actor)
         if task.is_started() and self.tasks.holder(task) == holder:
             raise Rejection(f"task {task.id} is already in hand: it was started already")
         for plan in self.plans.unstarted_plans(task):
-            self.plans.resume_plan(plan, task, caller.actor)
-        return self.tasks.holder_started(task.started(self.time_source.moment()), holder, caller.actor)
+            self.plans.resume_plan(plan, task, actor)
+        return self.tasks.holder_started(task.started(self.time_source.moment()), holder, actor)
 
     def paused_current(self, task: Task, caller: Caller) -> Task | None:
         holder = self.holder(caller)

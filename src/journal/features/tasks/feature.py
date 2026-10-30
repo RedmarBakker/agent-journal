@@ -13,7 +13,8 @@ from journal.features.tasks.commands.impasse_command import ImpasseCommand
 from journal.features.tasks.commands.task_command import TaskCommand
 from journal.features.tasks.listeners.clear_waits import ClearWaits
 from journal.features.tasks.listeners.ended_agent_tasks import EndedAgentTasks
-from journal.features.tasks.listeners.wait_cycle_check import WaitCycleCheck
+from journal.features.tasks.listeners.delivery_gate_check import DeliveryGateCheck
+from journal.features.tasks.listeners.task_cycle_check import TaskCycleCheck
 from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.features.tasks.task_edit_conduct import TaskEditConduct
 from journal.support.agent_role import AgentRole
@@ -52,7 +53,7 @@ class Tasks(Feature[TasksData]):
     options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (UnusedWaitChecks,)
     answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION), (ClearWaits, Blocking.NEXT_DECISION))
-    listeners = (TestingRunEnd, PausedDeclineClearing, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
+    listeners = (TestingRunEnd, PausedDeclineClearing, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, TaskCycleCheck, DeliveryGateCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)

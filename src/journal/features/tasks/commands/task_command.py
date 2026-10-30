@@ -24,6 +24,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.task_sizes import TaskSizes
+from journal.repositories.task_dependencies import TaskDependencies
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.reports import Reports
 from journal.repositories.questions import Questions
@@ -47,13 +48,14 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.reports = check, reports
         self.task_sizes = task_sizes
+        self.task_dependencies = task_dependencies
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -93,6 +95,12 @@ class TaskCommand(Command):
         proposal.add_argument("n", type=int)
         proposal.add_argument("size", help="a value on the configured scale or unknown")
         proposal.add_argument("--reason", required=True, help="why the size should change")
+        dependency = self.verb(verbs, "depends", "set the planned tasks this task waits for until they are accepted")
+        dependency.add_argument("n", type=int)
+        prerequisite = dependency.add_mutually_exclusive_group(required=True)
+        prerequisite.add_argument("--on", type=int, action="append", default=[], help="a task that must be accepted first; repeat for more")
+        prerequisite.add_argument("--clear", action="store_true", help="remove every planned task prerequisite")
+        dependency.add_argument("--reason", required=True, help="why the task prerequisites changed")
         self.verb(verbs, "start", "take a task in hand").add_argument("n", type=int)
         log = self.verb(verbs, "log", "note where a task stands")
         log.add_argument("n", type=int)
@@ -151,6 +159,12 @@ class TaskCommand(Command):
     def propose_size(self, args: Namespace, caller: Caller) -> int:
         row = self.task_sizes.propose(args.n, args.size, args.reason, caller.actor)
         print(f"task {args.n} resize proposal {row.row_id}")
+        return 0
+
+    def depends(self, args: Namespace, caller: Caller) -> int:
+        self.task_dependencies.replace(args.n, args.on, args.reason, caller.actor)
+        action = "cleared" if args.clear else ", ".join(map(str, args.on))
+        print(f"task {args.n} planned prerequisites {action}")
         return 0
 
     @staticmethod
@@ -249,6 +263,7 @@ class TaskCommand(Command):
         holder = self.tasks.holder(task) if task.delegated and not args.force else None
         if holder is not None and holder.type == Worker.table():
             raise Rejection(f"task {args.n} is worker {holder.id}'s, mid-task: --force takes it from the worker; its commits stay")
+        self.waits.validate(task, args.on)
         task = self.tasks.save(task.paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
@@ -278,7 +293,9 @@ class TaskCommand(Command):
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
         self.check.refuse()
-        task = self.tasks.save(self.tasks.find(args.n).blocked(args.why, self._time()), caller.actor)
+        task = self.tasks.find(args.n)
+        self.waits.validate(task, args.on)
+        task = self.tasks.save(task.blocked(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         print(f"task {task.row_id} blocked, waiting on: {self.tasks.reason(task)}")
         return 0

@@ -26,6 +26,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.tasks import Tasks
 from journal.repositories.task_sizes import TaskSizes
+from journal.repositories.task_dependencies import TaskDependencies
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
@@ -38,12 +39,13 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, outline: PlanOutline, timeline: PlanTimeline, team: PlanTeam, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages, task_sizes: TaskSizes) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, outline: PlanOutline, timeline: PlanTimeline, team: PlanTeam, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
         self.time_source, self.messages = time_source, messages
         self.repository, self.tasks, self.links, self.domains, self.organization, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, domains, organization, outline, timeline, taking, rounds
         self.team_view = team
         self.plan_testing = testing
         self.task_sizes = task_sizes
+        self.task_dependencies = task_dependencies
 
     def open_rows(self, query: Query) -> Query:
         return query.filter_unlisted("state", CLOSED_PLAN_STATES)
@@ -75,6 +77,10 @@ class PlanController(Controller[Plan]):
 
     def add_task(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
+        after = request.body.get("after", [])
+        gate_target = request.body.get("delivery_gate_for", 0)
+        reason = request.body.get("reason", "")
+        self.task_dependencies.prepare_composition(plan, after, gate_target, reason, request.actor)
         domain = request.body.get("domain", "")
         if domain and (not isinstance(domain, str) or self.organization.contracts().domain(domain) is None):
             raise Rejection(f"domain {domain!r} is not in the organization contract")
@@ -82,7 +88,24 @@ class PlanController(Controller[Plan]):
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), request.actor)
         if domain:
             self.domains.task_tied(task, domain, request.actor)
+        self.task_dependencies.compose(task, after, gate_target, reason, request.actor)
         return Response.json(task, 201)
+
+    def dependencies(self, request: Request) -> Response:
+        plan = self.repository.find(request.number("id"))
+        if request.method == "GET":
+            return Response.json(self.task_dependencies.show(plan))
+        self.task_dependencies.authorize(plan, request.actor)
+        task = self.tasks.find(self.body_task_id(request.body))
+        self.task_dependencies.replace_in_plan(plan, task, request.body.get("prerequisites"), request.body.get("reason", ""), request.actor)
+        return Response.json(self.task_dependencies.show(plan))
+
+    @staticmethod
+    def body_task_id(body: dict) -> int:
+        task_id = body.get("task_id")
+        if not isinstance(task_id, int) or isinstance(task_id, bool) or task_id < 1:
+            raise Rejection("planned prerequisite changes need a task_id")
+        return task_id
 
     def review(self, request: Request) -> Response:
         return self.answered(self.rounds.begin(self.repository.find(request.number("id")), request.actor))

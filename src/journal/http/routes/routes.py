@@ -195,6 +195,8 @@ class Routes:
         router.post(f"{API}/sprints/{{id}}/close", sprints.close)
         router.post(f"{API}/sprints/{{id}}/carry", sprints.carry)
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)
+        router.get(f"{API}/plans/{{id}}/dependencies", plans.dependencies)
+        router.post(f"{API}/plans/{{id}}/dependencies", plans.dependencies)
         router.get(f"{API}/plans/{{id}}/timeline", plans.timeline)
         router.get(f"{API}/plans/{{id}}/roles", plans.role_history)
         router.get(f"{API}/plans/{{id}}/team", plans.team)

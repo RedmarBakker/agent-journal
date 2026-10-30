@@ -38,6 +38,11 @@ class Waits:
             refs.append(Ref.build(self.checks.save(Check(title=f"{topic} waits until this passes", command=deadline, interval=all_items, wait_target=True), actor)))
         return refs
 
+    def validate(self, row: Model, enabled: list[str]) -> None:
+        source = Ref.build(row)
+        for text in enabled:
+            self.tasks.require_acyclic_link(Link(source=source, target=self.wait_targets(text), link_type=WAIT_LINK))
+
     def linked(self, row: Model, enabled: list[str], deadline: str, interval: int, actor: Actor) -> None:
         for ref in self.created(enabled, deadline, interval, f"{row.table()[:-1]} {row.id}", actor):
             self.links.save(Link(source=Ref.build(row), target=ref, link_type=WAIT_LINK), actor)

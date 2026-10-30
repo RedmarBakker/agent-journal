@@ -37,6 +37,7 @@ from journal.support.time_source import TimeSource
 from journal.models.task_log import TaskLog
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.task_sizes import TaskSizes
+from journal.repositories.task_dependencies import TaskDependencies
 CURRENT = "current"
 
 
@@ -48,7 +49,7 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
         self.time_source, self.logs = time_source, logs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
@@ -56,6 +57,7 @@ class PlanCommand(Command):
         self.settings, self.statuses, self.phase_testing = settings, statuses, phase_testing
         self.branch_merge = branch_merge
         self.task_sizes = task_sizes
+        self.task_dependencies = task_dependencies
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -69,6 +71,9 @@ class PlanCommand(Command):
         addition.add_argument("--size", default="unknown", help="relative story points from the configured scale, or unknown")
         addition.add_argument("--first", action="store_true", help="put it before the tasks the plan has")
         addition.add_argument("--phase", type=int, default=0, help="the phase it goes under, by its number from 1, in the same step")
+        addition.add_argument("--after", type=int, action="append", default=[], help="a task that must be accepted first; repeat for more")
+        addition.add_argument("--delivery-gate-for", type=int, default=0, help="require accepted domain delivery evidence for this task before this task can complete")
+        addition.add_argument("--reason", default="", help="why this task depends on the named task or delivery")
         brief = self.verb(verbs, "brief", "set a plan's goal, what is true when it is done")
         brief.add_argument("n", type=int)
         brief.add_argument("text")
@@ -146,6 +151,7 @@ class PlanCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
+        self.task_dependencies.prepare_composition(plan, args.after, args.delivery_gate_for, args.reason, caller.actor)
         if args.domain and self.organization.contracts().domain(args.domain) is None:
             raise Rejection(f"domain {args.domain!r} is not in the organization contract")
         phases = [self.numbered_phase(plan, args.phase)] if args.phase else []
@@ -154,6 +160,7 @@ class PlanCommand(Command):
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
         if args.domain:
             self.domains.task_tied(task, args.domain, caller.actor)
+        self.task_dependencies.compose(task, args.after, args.delivery_gate_for, args.reason, caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
         for phase in phases:
@@ -275,7 +282,9 @@ class PlanCommand(Command):
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
-        plan = self.plans.save(self.plans.find(args.n).blocked(args.why, self.time_source.moment().timestamp()), caller.actor)
+        plan = self.plans.find(args.n)
+        self.waits.validate(plan, args.on)
+        plan = self.plans.save(plan.blocked(args.why, self.time_source.moment().timestamp()), caller.actor)
         self.waits.linked(plan, args.on, args.until, args.every, caller.actor)
         print(f"plan {plan.id} blocked, waiting on: {self.tasks.reason(plan)}")
         return 0

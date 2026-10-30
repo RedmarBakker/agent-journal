@@ -25,12 +25,15 @@ from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.agents import Agents
+from journal.repositories.repository import PAGE_ROWS
 from journal.repositories.rows import Rows
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 from journal.models.agent import ENDED_STATE
 
 WAIT_LINK = "waits_on"
+DEPENDENCY_LINK = "depends_on"
+DELIVERY_GATE_LINK = "delivery_gate_for"
 # a task waiting in testing links to the run that tests it
 TEST_LINK = "tested_by"
 CURRENT_TASK_LINK = "in_hand"
@@ -64,17 +67,46 @@ class Tasks(ScopedRepository[Task]):
     def open_waits(self, row: Task | Plan) -> list[Ref]:
         return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.is_wait_resolved(ref)]
 
-    def waits_reach(self, start: Ref, goal: Ref) -> bool:
+    def work_reaches(self, start: Ref, goal: Ref) -> bool:
         viewed, todo = set(), [start]
         while todo:
             ref = todo.pop()
             if ref == goal:
                 return True
-            if ref in viewed or ref.type != Task.table():
+            if ref in viewed:
                 continue
             viewed.add(ref)
-            todo += self.links.targets(self.find(ref.id), WAIT_LINK)
+            if ref.type == Task.table():
+                task = self.find(ref.id)
+                todo += self.links.targets(task, WAIT_LINK)
+                todo += self.links.targets(task, DEPENDENCY_LINK)
+                todo += self.links.targets(task, DELIVERY_GATE_LINK)
+            if ref.type == Plan.table():
+                todo += [link.target for link in self.links.ref_links("source", [ref], WAIT_LINK)]
+                todo += self.links.ref_sources(ref, PLAN_LINK)
         return False
+
+    def require_acyclic_link(self, link: Link) -> None:
+        if link.link_type in (WAIT_LINK, DEPENDENCY_LINK, DELIVERY_GATE_LINK) and self.work_reaches(link.target, link.source):
+            raise Rejection(f"{link.source} waiting on {link.target} would close a cycle that nothing could ever end")
+
+    def unmet_prerequisites(self, task: Task) -> list[Ref]:
+        links = self.links.source_links(task, DEPENDENCY_LINK)
+        targets = {row.row_id: row for row in self.numbered(link.target.id for link in links if link.target.type == Task.table())}
+        return [link.target for link in links if link.target.type != Task.table() or link.target.id not in targets or targets[link.target.id].state != TaskState.COMPLETED]
+
+    def unmet_dependency_ids(self, tasks: Sequence[Task]) -> set[int]:
+        if not tasks:
+            return set()
+        links = self.links.model_links("source", tasks, DEPENDENCY_LINK)
+        targets = {row.row_id: row for row in self.numbered(link.target.id for link in links if link.target.type == Task.table())}
+        return {link.source.id for link in links if link.target.type != Task.table() or link.target.id not in targets or targets[link.target.id].state != TaskState.COMPLETED}
+
+    def require_prerequisites(self, task: Task) -> None:
+        unmet = self.unmet_prerequisites(task)
+        if unmet:
+            waiting = ", ".join(str(ref) for ref in unmet)
+            raise Rejection(f"task {task.id} waits for planned prerequisites {waiting}; accept or merge them first")
 
     def waiting(self, ref: Ref) -> Task | Question | Check:
         return self.awaitable[ref.type].find(ref.id)
@@ -100,7 +132,9 @@ class Tasks(ScopedRepository[Task]):
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
         agent_query = Query.build(Agent).filter_unequal("state", ENDED_STATE).filter_unequal("id", holder.id)
         claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_name_column(self.links.query(), "source"))
-        return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).filter_absent(claimed_links).filter_absent(self.wait_links()))
+        tasks = self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).filter_absent(claimed_links).filter_absent(self.wait_links()))
+        blocked = self.unmet_dependency_ids(tasks)
+        return [task for task in tasks if task.row_id not in blocked]
 
     def wait_links(self) -> Query:
         return self.links.query().filter(link_type=WAIT_LINK).filter_ref("source", self.query())
@@ -181,10 +215,22 @@ class Tasks(ScopedRepository[Task]):
         return next(iter(self.next_open_tasks(1)), None)
 
     def next_open_tasks(self, count: int) -> list[Task]:
-        return self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).limit(count))
+        query = self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned())
+        return self.next_unblocked(query, count)
 
     def open_page_ids(self, rows: int) -> list[int]:
-        return self.selected_ids(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
+        return [task.row_id for task in self.next_unblocked(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES), rows)]
+
+    def next_unblocked(self, query: Query, count: int) -> list[Task]:
+        selected, offset = [], 0
+        while len(selected) < count:
+            batch = self.selected(query.limit(PAGE_ROWS).offset(offset))
+            if not batch:
+                break
+            blocked = self.unmet_dependency_ids(batch)
+            selected.extend(task for task in batch if task.row_id not in blocked)
+            offset += len(batch)
+        return selected[:count]
 
     def open_count(self) -> int:
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES))
