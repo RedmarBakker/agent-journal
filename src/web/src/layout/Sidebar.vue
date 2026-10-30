@@ -15,11 +15,12 @@ import {store} from "../state/store.js";
 import {useNavigation} from "../composables/navigation.js";
 import {rows} from "../sync/rows.js";
 import {pluginPages} from "../domain/pluginPages.js";
+import {ownEnvironments} from "../domain/hub.js";
 import {chatPlanLine} from "../domain/plans.js";
 import {domainCounts} from "../domain/organizationCounts.js";
 import {planAgents} from "../domain/planAgents.js";
 
-const envs = computed(() => rows("environments"));
+const envs = computed(() => ownEnvironments(rows("environments"), store.people));
 const pages = computed(() => pluginPages(rows("plugins")));
 const domains = computed(() => store.organization?.domains || []);
 const liveDomainCounts = computed(domainCounts);

@@ -197,8 +197,9 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
         db.execute("INSERT INTO messages (environment_id, author, text, created_at, updated_at, creator, updater) VALUES (1, 'user', 'old', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'user:1', 'user:1')")
     Schema(old, AllModels.MODELS).create()
     bus = Bus()
-    scope = Scope(Environments(old, bus, TimeSource()))
-    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus, TimeSource()), TimeSource()), Links(old, bus, TimeSource()), TimeSource()).find(1)
+    links = Links(old, bus, TimeSource())
+    scope = Scope(Environments(old, bus, TimeSource()), links)
+    message = Messages(old, bus, scope, Reactions(old, bus, scope, links, TimeSource()), links, TimeSource()).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
 
@@ -582,7 +583,8 @@ def test_registered_migrations_keep_unique_numbers_across_the_merged_migration_i
     from journal.db.migrations import MIGRATIONS
     numbers = {migration.number: type(migration).__name__ for migration in MIGRATIONS}
     assert len(numbers) == len(MIGRATIONS)
-    assert (numbers[76], numbers[77], numbers[78]) == ("BlankAbsenceNulls", "PlanModes", "SyncTablesDrop")
+    assert tuple(numbers[number] for number in range(78, 83)) == ("PoolDrop", "TeamColumnsDrop", "FoldSettingDrop", "BrowserSessionsDrop", "DeveloperSwitchRename")
+    assert (numbers[76], numbers[77], numbers[83]) == ("BlankAbsenceNulls", "PlanModes", "SyncTablesDrop")
 
 
 def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
