@@ -120,6 +120,12 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def run_session_count(self) -> int:
         return len(self.grouped_counts(self.query().filter(moved=True), "session"))
 
+    def has_total_request(self, reader: str, revision: float) -> bool:
+        return self.counted(self.query().filter(watch_reader=reader, is_total_asked=True, reader_revision=revision)) > 0
+
+    def total_request_candidates(self, session: str | None, latest_start: datetime) -> list[CommandOutput]:
+        return self.selected(self.query().filter(session=session, ended=False, is_total_asked=False).filter_unequal("watch_reader", "").filter_less("created_at", latest_start).order("id"))
+
     def running_watched(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).filter_alternatives(self.query().filter(is_watched=True), self.query().filter_unequal("watch_reader", "")).order("id"))
 

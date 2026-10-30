@@ -79,7 +79,8 @@ class ShellConduct(Conduct):
         return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings), run_title_check(self, event, settings)])
 
     def on_output_total_missing(self, event: OutputTotalMissing, settings: Settings) -> Transition:
-        return self.none(ShellNudges.RUN_TOTAL_MISSING.create(n=event.row_id)) if event.run_session == event.session else self.none()
+        nudge = ShellNudges.RUN_COUNT_UNSHOWN.create(n=event.row_id, pattern=event.count_pattern) if event.count_pattern else ShellNudges.RUN_TOTAL_MISSING.create(n=event.row_id)
+        return self.none(nudge) if event.run_session == event.session else self.none()
 
     def on_silent_output_found(self, event: SilentOutputFound, settings: Settings) -> Transition:
         return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.silence_seconds)) if event.run_session == event.session else self.none()

@@ -25,6 +25,11 @@ from journal.support.actor import Actor
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.repositories.command_outputs import CommandOutputs
+from journal.features.shell.support.output_files import OutputFiles
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_part import CommandPart
+from journal.models.command_output import CommandOutput
+from dataclasses import asdict
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
@@ -392,6 +397,19 @@ class AgentSteps:
         for runner in self.runner_threads:
             runner.join(RUN_END_TIMEOUT_SECONDS)
         return self.observed("the background run ends", None, None)
+
+    def agent_has_a_background_run_printing(self, agent: StoryAgent, line: str, *printed: str) -> int:
+        files = OutputFiles(self.app.config.home / "runtime" / "outputs" / f"story-{self.output_count() + 1}-{time.time_ns()}")
+        files.folder.mkdir(parents=True)
+        command = CommandPart.plain(line, self.app.container.get(CommandClassifier))
+        for name, text in {"line": line, "parts": "R--\n", "0.part": line, "0.command": json.dumps(asdict(command)), "0.out": "".join(f"{row}\n" for row in printed)}.items():
+            (files.folder / name).write_text(text)
+        files.moved()
+        with self.app.container.get(Scope).environment(1):
+            output = self.app.container.get(CommandOutputs).save(CommandOutput(chain=line, command=line, session=self.session_of(agent), folder=str(files.folder), ran_in=str(self.app.config.root), moved=True), Actor.system())
+        files.numbered(output.row_id)
+        self.observed(f"agent has a background run {line.split()[0]}", None, None)
+        return output.row_id
 
     def is_output_ended(self, output: int) -> bool:
         with self.app.container.get(Scope).environment(1):

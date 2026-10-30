@@ -1,5 +1,4 @@
 from journal.features.shell.jobs.watch_refresh import COMPLETE_WAIT_SECONDS
-from journal.features.shell.listeners.untotaled_run_record import TOTAL_WAIT_SECONDS
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.support.output_views import COMPLETE_UNENDED_LINE
 from journal.features.shell.support.silent_runs import SILENCE_SECONDS
@@ -24,20 +23,6 @@ def test_a_background_test_run_that_prints_nothing_is_told_once_to_stream_and_a_
     result.expect_agent_not_told(story.agents.subject, ShellNudges.SILENT_RUN_HINT, n=nap)
     result = story.agent_is_quiet_past(story.agents.subject, SILENCE_SECONDS)
     result.expect_agent_not_told(story.agents.subject, ShellNudges.SILENT_RUN_HINT)
-    story.background_run_ends(run)
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(FOREGROUND_OPTION, 1)
-def test_a_watched_test_run_printing_with_no_total_for_a_minute_is_told_once_to_print_one(story):
-    story.project_script_holding("dots/gotestsum", "#!/bin/sh\necho ........\nsleep 5\n")
-    run = story.agent_runs_a_command(story.agents.subject, "./dots/gotestsum -q")
-    story.agent_runs(story.agents.subject, f"output watch {run}")
-    result = story.agent_is_quiet_past(story.agents.subject, TOTAL_WAIT_SECONDS)
-    result.expect_agent_told(story.agents.subject, ShellNudges.RUN_TOTAL_MISSING, n=run)
-    result = story.agent_is_quiet_past(story.agents.subject, TOTAL_WAIT_SECONDS)
-    result.expect_agent_not_told(story.agents.subject, ShellNudges.RUN_TOTAL_MISSING)
     story.background_run_ends(run)
     story.expect_stack(story.agents.subject, Ready)
 
