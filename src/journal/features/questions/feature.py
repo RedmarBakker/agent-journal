@@ -3,7 +3,6 @@ from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
-from journal.support.skill import Skill
 from journal.features.questions.commands.question_command import QuestionCommand
 from journal.features.questions.listeners.question_card import QuestionCard
 from journal.features.questions.listeners.answer_card import AnswerCard
@@ -31,16 +30,3 @@ class Questions(Feature[QuestionsData]):
     data = (QuestionsDataReader,)
 
     nudges = (QuestionsNudges.QUESTION_ANSWERED, QuestionsNudges.QUESTION_CLOSED, QuestionsNudges.JOURNAL_QUESTION_TOOL)
-
-    skill = Skill("questions", 'Ask the user a question and wait for the answer; load it before offering the user choices', """
-# Questions
-
-A choice only the user can make is asked as a question, not written into a reply.
-
-- `journal question ask "<the question>" --options "a" "b" "c" --recommend "b"`, each choice quoted on its own so a comma stays inside it; you are then waiting, and stopping is fine.
-- Give your recommendation whenever you have one: `--recommend` names it word for word as one of the options, and it is put first and marked for the user.
-- Each option names who acts, the agent or the user, never I, we or you, which the reader cannot place.
-- The answer arrives as a line naming `journal question show <n>`: read it there, in full, with the messages linked to it,
-  and act on it. A reply from the user in the chat answers it too.
-- `journal question list` shows what is open. Never offer choices in prose and continue; ask.
-""", keywords=('question', 'questions'), required_states=('waiting',), commands=('question',))

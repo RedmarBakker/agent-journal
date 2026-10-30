@@ -48,7 +48,7 @@ class Messages(Feature[MessagesData]):
 
     nudges = (MessagesNudges.RETIRED_TAGS, MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.REPLY_REPEAT_WARNING, MessagesNudges.REPLY_CLOSING_WORDS, MessagesNudges.MESSAGE_READ, MessagesNudges.REPLY_COMMAND, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
-    skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
+    skill = Skill("messages", "Read and answer the user's messages and ask the user questions; load it when there are unread messages, before replying or before offering the user choices", """
 # Messages
 
 The user sends messages; you answer them before anything else.
@@ -78,6 +78,25 @@ The user sends messages; you answer them before anything else.
 - `journal message recent` shows the latest messages; after a compaction the overview, which the journal skill teaches,
   shows them among what is in flight.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
+- A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
+  the user needs to know.
+- `journal message list` shows the thread, unread ones marked with `*`.
+- A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
+  answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
+
+## Questions
+
+A choice only the user can make is asked as a question, not written into a reply.
+
+- `journal question ask "<the question>" --options "a" "b" "c" --recommend "b"`, each choice quoted on its own so a comma stays inside it; you are then waiting, and stopping is fine.
+- Give your recommendation whenever you have one: `--recommend` names it word for word as one of the options, and it is put first and marked for the user.
+- Each option names who acts, the agent or the user, never I, we or you, which the reader cannot place.
+- The answer arrives as a line naming `journal question show <n>`: read it there, in full, with the messages linked to it,
+  and act on it. A reply from the user in the chat answers it too.
+- `journal question list` shows what is open. Never offer choices in prose and continue; ask.
+
+## Buttons
+
 - A button is an action for now: when the user must open a web address outside the journal, start something there or
   send a form to one, put a button under your message instead of asking them to visit it, and never build a page of
   your own just to hold a button. Something ready that they should see when they come back later is a pin as well
@@ -85,9 +104,4 @@ The user sends messages; you answer them before anything else.
   `--button 'Open the app settings|https://github.com/settings/apps|opens the settings in a new tab'` opens it, and `--form-button 'Create the app|<address>|sends the manifest to GitHub|manifest=<json>'` posts the hidden
   fields to it, as GitHub's app manifest flow takes one. The label says what happens, the third part a line on it. Never
   a button for a journal row: task 12 or plan 3 written in the text is a link already.
-- A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
-  the user needs to know.
-- `journal message list` shows the thread, unread ones marked with `*`.
-- A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
-  answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
-""", keywords=('message', 'messages', 'inbox', 'reply'), commands=('message',), events=(MessageArrived,))
+""", keywords=('message', 'messages', 'inbox', 'reply', 'question', 'questions'), required_states=('waiting',), commands=('message', 'question'), events=(MessageArrived,))

@@ -1599,8 +1599,7 @@ exit 0
 journal              The journal, its commands and when each applies; read at the start of every session, with the etiquette skill
 journal-memory       Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark
 journal-tasks        Declare, log and finish the current work; load it when you start or are asked to
-journal-messages     Read and answer the user's messages; load it when there are unread messages or before replying
-journal-questions    Ask the user a question and wait for the answer; load it before offering the user choices
+journal-messages     Read and answer the user's messages and ask the user questions; load it when there are unread messages, before replying or before offering the user choices
 journal-plans        Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap
 journal-sequences    Follow a sequence of steps one at a time; load it when a sequence is run or written
 journal-workers      Send a worker to write a bounded job and wait for its report; load it before dispatching one
