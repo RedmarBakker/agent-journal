@@ -24,7 +24,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
-from journal.repositories.plans import PLAN_LINK, PHASE_TASK_LINK, Plans
+from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
