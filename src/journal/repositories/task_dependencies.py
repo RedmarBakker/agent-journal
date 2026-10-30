@@ -79,7 +79,7 @@ class TaskDependencies:
         for ref in refs:
             target = self.tasks.find(ref.id)
             if not self.delivery.accepted_for_task(target):
-                raise Rejection(f"task {gate.id} needs accepted evidence for task {target.id} before completion")
+                raise Rejection(f"task {gate.id} needs accepted delivery evidence for task {target.id} before completion")
 
     def validate_delivery_gate_target(self, task_id: int) -> None:
         if self.delivery.mode() == "off":
