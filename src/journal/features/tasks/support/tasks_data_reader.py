@@ -72,7 +72,7 @@ class TasksDataReader:
             "choosable_summary": lambda: ", ".join(f"task {task.id}" for task in self.assigner.choosable_work(agent)),
             "free_open": lambda: self.assigner.free_task() is not None,
             "paused_declined": lambda: agent.paused_declined,
-            "paused_lines_for_task": lambda: self.paused_lines(agent),
+            "task_paused_lines": lambda: self.paused_lines(agent),
             "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
