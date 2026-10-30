@@ -70,7 +70,7 @@ class MemoryCommand(Command):
         pairs = list(zip(memories, weights * len(memories) if len(weights) == 1 else weights))
         for memory, weight in pairs:
             if weight < memory.weight:
-                raise Rejection(f"memory {memory.id} weighs {memory.weight}, so {weight} is lower: a weight is kept or raised, never lowered. correct its words with `journal memory edit {memory.id} \"<text>\"`, or remove it if it is no longer true")
+                raise Rejection(f"memory {memory.id} weighs {memory.weight}: a weight is kept or raised, never lowered. correct its words with `journal memory edit {memory.id}`, or remove it")
         weighed = [self.memories.save(memory.reweighed(weight), caller.actor) for memory, weight in pairs]
         self.decisions.decided(caller)
         print(", ".join(f"memory {memory.id} weighs {memory.weight}" for memory in weighed))
