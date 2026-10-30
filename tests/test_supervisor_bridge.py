@@ -334,7 +334,9 @@ def test_offline_gateway_reconciliation_recovers_missed_events(tmp_path):
 
     assert journal.calls[0] == ("admit", "timer", "journal-cursor-7")
     assert journal.calls[1][0] == "observe"
-    assert journal.calls[1][1]["cursor"] == "journal-cursor-7"
+    assert journal.calls[1][1]["cursor"] is None
+    assert journal.calls[2][0] == "observe"
+    assert journal.calls[2][1]["cursor"] == "journal-cursor-7"
     assert response["page"]["observations"] == [observation]
     assert state.observation_cursor() == "journal-cursor-7"
 
@@ -502,7 +504,7 @@ def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path
     })
 
     assert applied["result"]["isError"] is False
-    assert [call[0] for call in journal.calls] == ["admit", "observe", "apply", "receipt"]
+    assert [call[0] for call in journal.calls] == ["admit", "observe", "observe", "apply", "receipt"]
     assert json.loads(applied["result"]["content"][0]["text"])["verification"] == "verified"
     assert state.observation_cursor() == "cursor-after-page"
     assert state.snapshot()["receipt"]["action_id"] == RUN["pending_action_id"]
