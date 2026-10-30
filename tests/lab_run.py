@@ -316,21 +316,9 @@ def test_simulate_command_reads_a_pinned_recipe_and_uses_its_runner(tmp_path, ca
     from tests.lab.__main__ import main
 
     batch = lab_batch()
-    recipe = {
-        "batch_id": batch.batch_id,
-        "scenarios": [asdict(scenario) for scenario in batch.scenarios],
-        "designs": [design.manifest() for design in batch.designs],
-        "seeds": list(batch.seeds),
-        "source_commit": batch.source_commit,
-        "organization_commit": batch.organization_commit,
-        "organization_version": batch.organization_version,
-        "organization_checksum": batch.organization_checksum,
-        "models": list(batch.models),
-        "caps": asdict(batch.caps),
-        "metric_schema_version": batch.metric_schema_version,
-        "decision_rule_version": batch.decision_rule_version,
-        "decision_rule_digest": batch.decision_rule_digest,
-    }
+    recipe = batch.manifest(tmp_path / "lab-home")
+    for key in ("content_digest", "root_map", "runs"):
+        recipe.pop(key)
     path = tmp_path / "recipe.json"
     path.write_text(json.dumps(recipe))
 
