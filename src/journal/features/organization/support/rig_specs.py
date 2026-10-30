@@ -97,10 +97,13 @@ class RigSpecs:
             if not agent.exists():
                 self.agent(agent, seat)
         value = self.pod(pod, seats, links, cwd, workers)
-        path = folder / "pods" / f"{pod}.json"
+        return self.write_pod_fragment(rig, value), value
+
+    def write_pod_fragment(self, rig: str, pod: dict) -> Path:
+        path = self.spec_folder(rig) / "pods" / f"{pod['id']}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.written(path, value).chmod(OWNER_ONLY)
-        return path, value
+        self.written(path, pod).chmod(OWNER_ONLY)
+        return path
 
     def spec_folder(self, rig: str) -> Path:
         return self.config.home / "runtime" / "rigs" / rig
@@ -165,7 +168,21 @@ class RigSpecs:
         if provider.openrig_permissions_field != "claude_permissions":
             raise ValueError(f"OpenRig permissions are not configured for {provider.name}")
         allow = [f"Read({cwd.resolve()}/**)"] if "Read" in seat.tools else []
-        allow.extend((f"Bash({self.command()} *)", "Bash(journal *)", *(tool for tool in seat.tools if tool != "Read")))
+        journal_command = os.path.relpath(self.command(), cwd.resolve())
+        journal_commands = tuple(dict.fromkeys(("journal", str(self.command()), journal_command)))
+        worker_verbs = ("send", "check", "merge")
+        worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in journal_commands for verb in worker_verbs)
+        scoped_commands = tuple(f"JOURNAL_ENV=* {command}" for command in journal_commands)
+        scoped_worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in scoped_commands for verb in worker_verbs)
+        scoped_task_commands = tuple(f"Bash({command} task *)" for command in scoped_commands)
+        scoped_proof_commands = tuple(
+            f"Bash({command} {noun} *)" for command in scoped_commands for noun in ("proof", "clock-out")
+        )
+        allow.extend((
+            f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
+            *(tool for tool in seat.tools if tool != "Read"),
+        ))
         return {"allow": allow, "deny": [*DENIED, *(() if seat.writes else EDIT_TOOLS)]}
 
     def command(self) -> Path:

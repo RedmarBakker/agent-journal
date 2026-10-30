@@ -24,6 +24,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
+from journal.support.caller import ACTOR
 from journal.support.process_check import ProcessCheck
 from journal.support.rejection import Rejection
 
@@ -138,6 +139,8 @@ class RigStaffing:
         links = self.seats.links(contracts, seats)
         pods = spec.setdefault("pods", [])
         pod = next((value for value in pods if value.get("id") == domain_seat.pod), None)
+        role_fragment = None
+        replace_role = False
         if pod is None:
             fragment, pod = self.specs.pod_fragment(
                 rig.name, domain_seat.pod, (domain_seat, role_seat), links,
@@ -152,9 +155,17 @@ class RigStaffing:
                 rig.name, role_seat, cwd,
                 self.seat_worker(role_seat, role_seat, worker, environment),
             )
-            if running:
-                self.runtime.add(rig.name, domain_seat.pod, fragment, self.specs.spec_folder(rig.name))
             pod.setdefault("members", []).append(member)
+            role_fragment = fragment
+        else:
+            index = next(index for index, member in enumerate(pod["members"]) if member.get("id") == role_seat.member)
+            previous = pod["members"][index]
+            assigned = self.seat_worker(role_seat, role_seat, worker, environment)
+            if previous.get("env", {}).get(ACTOR) != assigned.actor.stamp:
+                fragment, member = self.specs.member_fragment(rig.name, role_seat, cwd, assigned)
+                pod["members"][index] = member
+                role_fragment = fragment
+                replace_role = True
 
         edges = spec.setdefault("edges", [])
         for source, target in links:
@@ -166,8 +177,14 @@ class RigStaffing:
                 edge = self.specs.edge(source.logical_id(), target.logical_id())
                 if edge not in edges:
                     edges.append(edge)
+        if role_fragment:
+            self.specs.write_pod_fragment(rig.name, pod)
         self.specs.written(path, spec).chmod(OWNER_ONLY)
         if running:
+            if replace_role:
+                self.runtime.remove_node(rig.name, role_seat.logical_id())
+            if role_fragment:
+                self.runtime.add(rig.name, domain_seat.pod, role_fragment, self.specs.spec_folder(rig.name))
             for source, target in links:
                 self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
 

@@ -12,7 +12,7 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.role import Role
-from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime, SeatSession
+from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
@@ -255,7 +255,7 @@ class SeatRunner:
         fresh = self.is_journal_role(worker)
         session = self.runtime.session(member, worker.resume)
         if fresh:
-            self.launch_fresh(member, worker, identity, session)
+            self.launch_fresh(member, worker, identity)
             session = None
         if session is None:
             if worker.resume and not fresh:
@@ -294,10 +294,8 @@ class SeatRunner:
         role = self.role_for(worker)
         return bool(role and role.cardinality is Cardinality.JOURNAL)
 
-    def launch_fresh(self, member: SeatMember, worker: Worker, identity: SeatJobIdentity, session: SeatSession | None) -> None:
+    def launch_fresh(self, member: SeatMember, worker: Worker, identity: SeatJobIdentity) -> None:
         reason = f"journal worker {worker.id} starts task {identity.task_id or identity.started_at} with a fresh context"
-        if session is not None and ProcessCheck.is_running(session.pid):
-            self.runtime.stop(member.target, reason)
         self.runtime.launch(member, reason)
 
     def monitor(self, worker: Worker, identity: SeatJobIdentity, member: SeatMember, native_session: str,

@@ -26,7 +26,7 @@ SESSION_FIELDS = {
     "claude": ("sessionId", "session_id"),
     "codex": ("threadId", "thread_id", "conversation_id", "sessionId", "session_id"),
 }
-PID_FIELDS = ("pid", "processPid", "process_pid", "nativePid", "native_pid")
+PID_FIELDS = ("pid", "processPid", "process_pid", "nativePid", "native_pid", "observedPid")
 STATUS_FIELDS = ("sessionStatus", "session_status", "status")
 
 
@@ -215,7 +215,7 @@ class SeatRuntime:
         result = self.run("ps", "--nodes", "--full", "--json", "--rig", seat.rig, check=False)
         if result.returncode:
             return {}
-        rows = self.objects(self.object(result.stdout))
+        rows = self.objects(self.json_value(result.stdout))
         identifiers = {seat.target, seat.logical_id, f"{seat.pod}.{seat.member}", seat.member, f"{seat.pod}-{seat.member}"}
         return next((value for value in rows if any(str(value.get(key, "")) in identifiers for key in ("name", "id", "logicalId", "logical_id", "seat", "sessionName"))), {})
 
@@ -307,7 +307,7 @@ class SeatRuntime:
             cursor = next_cursor
 
     def launch(self, seat: SeatMember, reason: str) -> None:
-        self.run("seat", "launch", "--fresh", seat.target, "--reason", reason, "--operator", "journal", "--json")
+        self.run("seat", "launch", seat.target, "--fresh", "--stop", "--reason", reason, "--operator", "journal", "--json")
 
     def stop(self, seat: SeatMember | str, reason: str) -> None:
         target = seat.target if isinstance(seat, SeatMember) else seat
@@ -443,11 +443,15 @@ class SeatRuntime:
         return result
 
     @staticmethod
-    def object(output: str) -> dict:
+    def json_value(output: str) -> object:
         try:
-            value = json.loads(output)
+            return json.loads(output)
         except ValueError as failed:
             raise Rejection(f"OpenRig returned invalid JSON: {failed}") from failed
+
+    @staticmethod
+    def object(output: str) -> dict:
+        value = SeatRuntime.json_value(output)
         if not isinstance(value, dict):
             raise Rejection("OpenRig returned a JSON value other than an object")
         return value

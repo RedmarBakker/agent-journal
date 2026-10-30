@@ -221,7 +221,31 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert all({"Bash(rig send *)", "Bash(rig queue *)"}.issubset(member["claude_permissions"]["deny"]) for member in members.values()), "every seat denies direct sends and all queue mutation verbs, including create, handoff and inbox-drop"
     domain = members["domain-agent"]
     assert {"Edit", "Write"}.issubset(domain["claude_permissions"]["deny"])
+    journal_command = os.path.relpath(writer.command(), app.config.root)
+    worker_rules = {
+        f"Bash({command} worker {verb} *)"
+        for command in ("journal", str(writer.command()), journal_command)
+        for verb in ("send", "check", "merge")
+    }
+    assert worker_rules.issubset(domain["claude_permissions"]["allow"])
+    scoped_commands = tuple(f"JOURNAL_ENV=* {command}" for command in ("journal", str(writer.command()), journal_command))
+    scoped_rules = {
+        f"Bash({command} {noun} *)"
+        for command in scoped_commands
+        for noun in ("task", "proof", "clock-out", "worker send", "worker check", "worker merge")
+    }
+    assert scoped_rules.issubset(domain["claude_permissions"]["allow"])
+    assert {"Bash(rig send *)", "Bash(rig queue *)"}.issubset(domain["claude_permissions"]["deny"])
     assert path.stat().st_mode & 0o777 == 0o600, "the rig file holds worker tokens"
+
+    seats = writer.seats.seats(rig, contracts, ("alpha",), writer.providers.lookup("claude"))
+    domain_seat = next(seat for seat in seats if seat.member == "domain-agent")
+    alpha_seats = tuple(seat for seat in seats if seat.pod == domain_seat.pod)
+    links = writer.seats.links(contracts, seats)
+    _, pod = writer.pod_fragment(rig, domain_seat.pod, alpha_seats, links, app.config.root, worker_for)
+    pod_domain = next(member for member in pod["members"] if member["id"] == "domain-agent")
+    assert worker_rules.issubset(pod_domain["claude_permissions"]["allow"]), "an incrementally added Domain pod keeps the Journal worker commands"
+    assert {"Bash(rig send *)", "Bash(rig queue *)"}.issubset(pod_domain["claude_permissions"]["deny"]), "the incremental Domain pod keeps direct rig send and queue denied"
 
     agent = path.parent / "agents" / "alpha-planner"
     agent_spec = json.loads((agent / "agent.yaml").read_text())
@@ -1518,13 +1542,15 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     def execute(arguments, **kwargs):
         calls.append(arguments)
         if arguments[1:3] == ["seat", "status"]:
-            return subprocess.CompletedProcess(arguments, 0, json.dumps({"sessionStatus": "running", "threadId": "thread-9", "process": {"pid": 91}}), "")
+            return subprocess.CompletedProcess(arguments, 0, json.dumps({"session_status": "running"}), "")
         if arguments[1:2] == ["ps"]:
-            return subprocess.CompletedProcess(arguments, 0, json.dumps({"nodes": [{
-                "name": "alpha-builder@release", "threadId": "thread-9", "pid": 91,
+            return subprocess.CompletedProcess(arguments, 0, json.dumps([{
+                "logicalId": "alpha.builder",
+                "contextUsage": {"sessionId": "thread-9"},
+                "identityVerdict": {"evidence": {"observedPid": 91}},
                 "agentActivity": {"state": "running", "reason": "agent is working", "evidenceSource": "native_hook",
                                   "sampledAt": "2026-10-29T15:00:00Z", "evidence": None},
-            }]}), "")
+            }]), "")
         if arguments[1:] == ["--version"]:
             return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.5\n", "")
         if arguments[1:2] == ["send"]:
@@ -1539,6 +1565,11 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     assert (member.logical_id, member.target, member.provider, member.model, member.runtime) == ("alpha.builder", "alpha-builder@release", "codex", "gpt-6-luna", "codex")
     assert token.text == "seat-token"
     assert runtime.check_version() == "0.7.5"
+    reason = "journal worker 7 starts a fresh context"
+    runtime.launch(member, reason)
+    assert calls[-1] == ["rig", "seat", "launch", member.target, "--fresh", "--stop", "--reason", reason,
+                         "--operator", "journal", "--json"], "a fresh Role launch stops a stale live OpenRig seat"
+
     session = runtime.session(member)
     runtime.send(member, "write the patch")
     assert (session.pid, session.session, session.status) == (91, "thread-9", "running")
@@ -2101,22 +2132,16 @@ def test_a_journal_role_job_carries_its_queued_plan_and_task(app, tmp_path):
     assert identity.task_id == task.id and f"task {task.id} ({task.title}) in plan {second_plan.id} ({second_plan.title})" in prompt, "the seat receives both the task and its plan"
 
 
-def test_a_journal_role_job_stops_its_old_session_and_launches_a_fresh_context(app, monkeypatch):
+def test_a_journal_role_job_uses_a_fresh_openrig_launch(app, monkeypatch):
     calls = []
-
-    def run(_runtime, *arguments, check=True):
-        calls.append(arguments)
-        return subprocess.CompletedProcess(["rig", *arguments], 0, "{}", "")
-
-    monkeypatch.setattr(SeatRuntime, "run", run)
-    monkeypatch.setattr(seat_runner_module.ProcessCheck, "is_running", lambda _pid: True)
     worker = Worker(id=18, name="Ada Lovelace", role="scout")
     member = SimpleNamespace(target="alpha-scout@organization-1")
     identity = SeatJobIdentity.from_worker(worker, task_id=57, plan_id=3)
-    app.container.get(SeatRunner).launch_fresh(member, worker, identity, SimpleNamespace(pid=4321))
+    runner = app.container.get(SeatRunner)
+    runner.runtime.launch = lambda seat, reason: calls.append((seat, reason))
+    runner.launch_fresh(member, worker, identity)
 
-    assert calls[0][:3] == ("seat", "stop", member.target), "the previous conversation is stopped before another plan's job"
-    assert calls[1][:4] == ("seat", "launch", "--fresh", member.target) and "task 57" in calls[1][5], "the next job launches in a fresh OpenRig session with its task id"
+    assert calls == [(member, "journal worker 18 starts task 57 with a fresh context")], "the Role runner uses the fresh-stop OpenRig launch for its job"
 
 
 def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its_domain_agent(app, tmp_path, monkeypatch):
@@ -2155,23 +2180,32 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     monkeypatch.setattr(SeatRuntime, "run", run)
     runtime = app.container.get(SeatRuntime)
     launch_state = {"started": False}
+    seat_changes = []
 
     def launch(member, reason):
         launches.append((member, reason))
         launch_state["started"] = True
 
+    def remove_node(rig, logical_id):
+        seat_changes.append(("remove", rig, logical_id))
+        launch_state["started"] = False
+
+    def add_member(rig, pod, fragment, root):
+        seat_changes.append(("add", rig, pod, fragment.name))
+
     def session(_member, _native_session=""):
-        return SeatSession(4321, "role-session", "running", 10) if launch_state["started"] else None
+        return SeatSession(4320 + len(launches), f"role-session-{len(launches)}", "running", 10) if launch_state["started"] else None
 
     def send(member, prompt):
         sent.append((member, prompt))
-        status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "role-session"}, {
+        session_id = f"role-session-{len(launches)}"
+        status, answer = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": session_id}, {
             "X-Journal-Env": member.environment,
             "X-Journal-Actor": member.actor,
             "X-Journal-Actor-Token": member.token,
         })
         assert status == 200, answer
-        caller = Caller.worker(member.environment, worker.id, "role-session", member.provider)
+        caller = Caller.worker(member.environment, worker.id, session_id, member.provider)
         clocked_in = app.console().run(["clock-in", "record"], caller)
         assert clocked_in.code == 0, clocked_in.error
         app.container.get(WorkerReports).delivered(app.container.get(Workers).find(worker.id), "The note is written.", caller.actor)
@@ -2179,6 +2213,8 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     runtime.launch = launch
     runtime.session = session
     runtime.send = send
+    runtime.remove_node = remove_node
+    runtime.add = add_member
 
     actor = Actor.system()
     with app.container.get(Scope).environment(1):
@@ -2208,12 +2244,49 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         spec = json.loads((app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "rig.yaml").read_text())
         pod = next(pod for pod in spec["pods"] if pod["id"] == "alpha")
         role_member = next(member for member in pod["members"] if member["id"] == "planner")
+        pod_path = app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "pods" / "alpha.json"
+        first_pod = json.loads(pod_path.read_text())
+        first_pod_role = next(member for member in first_pod["members"] if member["id"] == "planner")
 
-    assert len(launches) == len(sent) == 1 and sent[0][0].actor == f"worker:{worker.id}", "Journal launches the generated Role session and sends its job to that seat"
+        first_worker_id = worker.id
+        first_role_actor = role_member["env"][ACTOR]
+        first_role_token = role_member["env"][ACTOR_TOKEN]
+        next_task = tasks.save(Task(environment_id=1, title="Write another note", brief="Write another short note."), actor)
+        links.save(Link(source=Ref.build(next_task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        next_worker = app.container.get(Workers).save(Worker(
+            environment_id=1, name="Ada Lovelace", brief="Write another short note.", role="planner",
+            contract=contracts.version, plan_id=plan.id, provider="claude", model="sonnet",
+            dispatcher="domain-session",
+        ).contacted(20), actor)
+        tasks.handover(next_task, Ref.build(next_worker), actor)
+        worker = next_worker
+        second_launched = app.container.get(WorkerLaunch).launched(next_worker, actor)
+        assert second_launched.state == WorkerState.DISPATCHED and len(threads) == 2
+        threads[1].target(*threads[1].args)
+
+        next_current = app.container.get(Workers).find(next_worker.id)
+        next_returned = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
+        spec = json.loads((app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "rig.yaml").read_text())
+        pod = next(pod for pod in spec["pods"] if pod["id"] == "alpha")
+        role_member = next(member for member in pod["members"] if member["id"] == "planner")
+        pod_fragment = json.loads(pod_path.read_text())
+        pod_role_member = next(member for member in pod_fragment["members"] if member["id"] == "planner")
+
+    assert len(launches) == len(sent) == 2 and sent[0][0].actor == f"worker:{first_worker_id}" and sent[1][0].actor == f"worker:{worker.id}", "Journal launches and sends each dispatched worker to the generated Role seat"
     assert "Write a short note." in sent[0][1] and current.state == WorkerState.DELIVERED, "the Role clocks in, receives its brief, and clocks out"
     assert not isinstance(returned, ExternalWait), "the Role's clock-out resolves the Domain agent's wait through its worker report"
+    assert next_current.state == WorkerState.DELIVERED and "another short note" in sent[1][1], "the rebound seat clocks in and returns the second worker's result"
+    assert not isinstance(next_returned, ExternalWait), "the second clock-out resolves the Domain agent's wait"
     assert pod["edges"] == [{"kind": "delegates_to", "from": "domain-agent", "to": "planner"}], "staffing keeps the Domain-to-Role hub route"
     assert {"Bash(rig send *)", "Bash(rig queue *)"}.issubset(role_member["claude_permissions"]["deny"]), "the Role seat keeps the direct-send and queue denials"
+    assert first_role_actor == f"worker:{first_worker_id}" and role_member["env"][ACTOR] == f"worker:{worker.id}", "the persistent plan Role member is rebound to the newly dispatched worker"
+    assert role_member["env"][ACTOR_TOKEN] != first_role_token, "rebinding generates a token for the new worker actor"
+    assert first_pod_role["env"][ACTOR] == f"worker:{first_worker_id}" and pod_role_member["env"][ACTOR] == f"worker:{worker.id}", "the incremental pod fragment tracks the Role actor as workers change"
+    assert pod_role_member["env"][ACTOR_TOKEN] == role_member["env"][ACTOR_TOKEN], "the pod fragment keeps the rebound Role token"
+    assert seat_changes == [
+        ("remove", f"plan-{plan.id}", "alpha.planner"),
+        ("add", f"plan-{plan.id}", "alpha", "alpha-planner.json"),
+    ], "the running Role node is replaced before the next worker starts"
 
 
 def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_no_job_to_a_second_instance(tmp_path, monkeypatch):
