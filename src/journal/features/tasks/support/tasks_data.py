@@ -39,7 +39,7 @@ class TasksData:
     choosable_summary: str = ""
     free_open: bool = False
     paused_declined: bool = False
-    paused_line_said: bool = False
+    paused_lines_for_task: int = 0
     command_lines: tuple[str, ...] = ()
     turn_finished: bool = False
     wake_count: int = 0

@@ -194,8 +194,8 @@ class Entries(ScopedRepository[Entry]):
     def nudge_count(self, session: str, keys: tuple[str, ...], tool_use: int) -> int:
         return self.counted(self.lines(session).filter_listed("data->key", keys).filter_greater_equal("data->tool_use", tool_use))
 
-    def is_line_said_in_task(self, session: str, key: str, task: int) -> bool:
-        return self.counted(self.lines(session).filter_json("data->key", key).filter_json("data->values->task", str(task))) > 0
+    def task_line_count(self, session: str, key: str, task: int) -> int:
+        return self.counted(self.lines(session).filter_json("data->key", key).filter_json("data->values->task", str(task)))
 
     def last_kind_id(self, session: str, type_name: str) -> int:
         return self.maximum(self.query().filter(entry_type=type_name, actor=Actor.agent(session)), "id", 0)
