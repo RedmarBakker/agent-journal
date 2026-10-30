@@ -30,9 +30,9 @@ class MemoryFading(AgentListener[Compacting]):
             self.ends.tied_closed(owner, event.time)
             lowered_memories = self.memories.fade_all(owner, Actor.system())
             removed = self.memories.removed_recent(owner, self.round_moment(event.session))
-        if lowered_memories:
+        if lowered_memories or removed:
             visible_count = len([memory for memory in lowered_memories if memory.is_visible()])
-            self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)
+            self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories) + len(removed)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)
 
     def round_moment(self, session: str) -> datetime | None:
         latest = self.messages.newest_session_moment(str(CardType.MEMORIES), session, ROUND)
