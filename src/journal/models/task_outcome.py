@@ -13,6 +13,8 @@ class TaskOutcome(Scoped):
     plan_id: int = 0
     domain_name: str = ""
     policy_version: str = ""
+    cohort_version: str = ""
+    cohort_key: str = ""
     occurred_at: float = 0.0
     planning_baseline_size: int | None = None
     planned_size: int | None = None

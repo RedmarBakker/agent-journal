@@ -45,6 +45,7 @@ from journal.support.time_source import TimeSource
 OUTCOME_TASK_LINK = "task_outcome_task"
 OUTCOME_PLAN_LINK = "task_outcome_plan"
 OUTCOME_DOMAIN_LINK = "task_outcome_domain"
+OUTCOME_COHORT_VERSION = "plan4-outcome-cohort-v1"
 
 
 class TaskOutcomes(ScopedRepository[TaskOutcome]):
@@ -74,21 +75,25 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
 
     def record_row_event(self, event: RowEvent) -> TaskOutcome | None:
         if isinstance(event, TaskStarted):
-            return self.record_fact(event.task_id, "task_started", event.time, {"prior_state": event.prior_state}, Actor.system(),
+            return self.record_fact(event.task_id, "task_started", event.time,
+                                    {"prior_state": event.prior_state, "source_actor": event.actor}, Actor.system(),
                                     self.key("task_started", event.task_id, event.time, event.actor, event.prior_state), event.plan_id)
         if isinstance(event, TaskClosed):
             kind = f"task_{event.outcome}"
-            return self.record_fact(event.task_id, kind, event.time, {"outcome": event.outcome, "worker_id": event.worker_id}, Actor.system(),
+            return self.record_fact(event.task_id, kind, event.time,
+                                    {"outcome": event.outcome, "worker_id": event.worker_id, "source_actor": event.actor}, Actor.system(),
                                     self.key(kind, event.task_id, event.time, event.actor, event.outcome, event.worker_id))
         if isinstance(event, TaskReopened):
-            return self.record_fact(event.task_id, "task_reopened", event.time, {"reason": event.reason}, Actor.system(),
+            return self.record_fact(event.task_id, "task_reopened", event.time,
+                                    {"reason": event.reason, "source_actor": event.actor}, Actor.system(),
                                     self.key("task_reopened", event.task_id, event.time, event.actor, event.reason))
         if isinstance(event, TaskWaitEnded):
-            return self.record_fact(event.task_id, "task_wait_ended", event.time, {"reason": event.reason}, Actor.system(),
+            return self.record_fact(event.task_id, "task_wait_ended", event.time,
+                                    {"reason": event.reason, "source_actor": event.actor}, Actor.system(),
                                     self.key("task_wait_ended", event.task_id, event.time, event.actor, event.reason))
         if isinstance(event, TaskTestFailed):
             return self.record_fact(event.task_id, "task_test_failed", event.time,
-                                    {"outcome": event.outcome, "output_id": event.output_id}, Actor.system(),
+                                    {"outcome": event.outcome, "output_id": event.output_id, "source_actor": event.actor}, Actor.system(),
                                     self.key("task_test_failed", event.task_id, event.time, event.actor, event.output_id, event.outcome))
         return self.record_worker_event(event)
 
@@ -98,30 +103,32 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
             delta = event.cost_dollars - event.before_dollars
             details = {"worker_id": event.worker.id, "model": event.model, "tier": event.tier.value,
                        "profile_tier": event.profile_tier.value, "before_dollars": event.before_dollars,
-                       "after_dollars": event.cost_dollars, "cost_delta": delta}
+                       "after_dollars": event.cost_dollars, "cost_delta": delta, "source_actor": event.actor}
             return self.record_fact(task_id, "worker_spent", event.time, details, Actor.system(),
                                     self.key("worker_spent", event.worker.id, event.time, event.model, event.tier.value,
                                              event.profile_tier.value, event.before_dollars, event.cost_dollars))
         if isinstance(event, WorkerLimited):
             task_id = self.worker_task(event.worker.id)
             return self.record_fact(task_id, "usage_limited", event.time,
-                                    {"worker_id": event.worker.id, "resumes_at": event.resumes_at}, Actor.system(),
+                                    {"worker_id": event.worker.id, "resumes_at": event.resumes_at, "source_actor": event.actor}, Actor.system(),
                                     self.key("usage_limited", event.worker.id, event.time, event.resumes_at))
         if isinstance(event, WorkerReady):
             task_id = self.worker_task(event.worker.id)
-            return self.record_fact(task_id, "usage_resumed", event.time, {"worker_id": event.worker.id}, Actor.system(),
+            return self.record_fact(task_id, "usage_resumed", event.time,
+                                    {"worker_id": event.worker.id, "source_actor": event.actor}, Actor.system(),
                                     self.key("usage_resumed", event.worker.id, event.time))
         if isinstance(event, WorkerTestFailed):
             task_id = self.worker_task(event.worker.id)
             return self.record_fact(task_id, "worker_test_failed", event.time,
-                                    {"worker_id": event.worker.id, "failed": event.failed, "runs": event.runs}, Actor.system(),
+                                    {"worker_id": event.worker.id, "failed": event.failed, "runs": event.runs,
+                                     "source_actor": event.actor}, Actor.system(),
                                     self.key("worker_test_failed", event.worker.id, event.time, event.failed, event.runs))
         if isinstance(event, WorkerReviewRequested):
             return self.record_fact(self.worker_task(event.worker.id), "review_started", event.time,
-                                    {"worker_id": event.worker.id, "report": event.report}, Actor.system(),
+                                    {"worker_id": event.worker.id, "report": event.report, "source_actor": event.actor}, Actor.system(),
                                     self.key("review_started", event.worker.id, event.time, event.report))
         if isinstance(event, WorkerReviewFailed):
-            kind, details = "review_failed", {"worker_id": event.worker.id, "outcome": event.outcome}
+            kind, details = "review_failed", {"worker_id": event.worker.id, "outcome": event.outcome, "source_actor": event.actor}
             return self.record_fact(event.task, kind, event.time, details, Actor.system(),
                                     self.key(kind, event.task, event.worker.id, event.time, event.outcome))
         if isinstance(event, WorkerReviewed):
@@ -131,7 +138,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
             undecided_points = [{"number": point.number, "reason": point.reason} for point in report.judged(PointVerdict.UNDECIDED)]
             kind = "review_sent_back" if short_points else "review_undecided" if undecided_points or report.is_undecided(len(task.points())) else "review_completed"
             details = {"worker_id": event.worker.id, "reviewer_id": event.reviewer, "report": event.report,
-                       "short_points": short_points, "undecided_points": undecided_points}
+                       "short_points": short_points, "undecided_points": undecided_points, "source_actor": event.actor}
             return self.record_fact(event.task, kind, event.time, details, Actor.system(),
                                     self.key(kind, event.task, event.worker.id, event.time, event.reviewer, event.report))
         if isinstance(event, WorkerReviewUndecided):
@@ -143,7 +150,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         if task is None:
             return None
         return self.record_fact(task.row_id, "user_wait_started", event.time,
-                                {"focus": event.focus, "end_refs": event.end_refs}, Actor.system(),
+                                {"focus": event.focus, "end_refs": event.end_refs, "source_actor": f"agent:{event.session}"}, Actor.system(),
                                 self.key("user_wait_started", task.row_id, event.session, event.time, event.focus, event.end_refs),
                                 agent_session=event.session)
 
@@ -153,14 +160,15 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         start = next((row for row in sorted(starts, key=lambda item: (item.occurred_at, item.row_id), reverse=True) if row.row_id not in closed), None)
         if start is None:
             return None
-        details = {"start_fact_id": start.row_id, "focus": start.details.get("focus", ""), "end_refs": start.details.get("end_refs", "")}
+        details = {"start_fact_id": start.row_id, "focus": start.details.get("focus", ""),
+                   "end_refs": start.details.get("end_refs", ""), "source_actor": f"agent:{event.session}"}
         return self.record_fact(start.task_id, "user_wait_ended", event.time, details, Actor.system(),
                                 self.key("user_wait_ended", start.row_id, event.session, event.time), agent_session=event.session)
 
     def record_merge(self, event: WorkerWorkMerged) -> TaskOutcome:
         return self.record_fact(event.task, "worker_work_merged", event.time,
                                 {"worker_id": event.worker, "worker_name": event.name, "lines": event.lines,
-                                 "merged_shas": list(event.merged_shas)}, Actor.system(),
+                                 "merged_shas": list(event.merged_shas), "source_actor": Actor.system().stamp}, Actor.system(),
                                 self.key("worker_work_merged", event.task, event.worker, event.time, event.merged_shas))
 
     def record_delivery(self, plan: Plan, tasks: list[Task], row: DeliveryRecord, actor: Actor) -> None:
@@ -195,9 +203,11 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
             scope_added = self.scope_added(plan, task, snapshot)
             capacity = self.sprints.plan_snapshot(plan).get("capacity_assumptions") if plan else None
             missing = self.missing_measurements(task, plan, domain_name, version, planned_size, capacity)
-            recorded_details = {**details, "capacity_assumptions": capacity, "missing_measurements": missing}
+            cohort = self.cohort_data(task, domain_name, version, snapshot, sizing, details)
+            recorded_details = {**details, "capacity_assumptions": capacity, "missing_measurements": missing, "cohort": cohort}
             row = self.save(TaskOutcome(environment_id=task.environment_id, kind=kind, event_key=event_key, task_id=task.row_id,
                                         plan_id=plan.row_id if plan else 0, domain_name=domain_name or "", policy_version=version,
+                                        cohort_version=OUTCOME_COHORT_VERSION, cohort_key=cohort["key"],
                                         occurred_at=occurred_at, planning_baseline_size=baseline_size, planned_size=planned_size,
                                         first_ready_size=first_ready, committed_size=committed_size,
                                         final_size=task.size, scope_added=scope_added, delivery_generation=delivery_generation,
@@ -214,9 +224,10 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         facts = self.facts(task_id)
         now = self.time_source.seconds() if as_of is None else as_of
         intervals = self.intervals(facts, now)
+        active_intervals = self.active_intervals(facts, now)
         execution = self.execution_status(facts)
         delivery = [row for row in facts if row.kind in ("delivery_accepted", "delivery_corrected", "delivery_reopened")]
-        delivery_status = delivery[-1].kind if delivery else "awaiting_delivery" if any(row.kind == "worker_work_merged" for row in facts) else "not_started"
+        delivery_status = delivery[-1].kind if delivery else "awaiting_delivery" if any(row.kind in ("task_completed", "worker_work_merged") for row in facts) else "not_started"
         delivered = delivery_status in ("delivery_accepted", "delivery_corrected")
         planned_size = next((row.planned_size for row in reversed(facts) if row.planned_size is not None), None)
         baseline_size = next((row.planning_baseline_size for row in reversed(facts) if row.planning_baseline_size is not None), None)
@@ -227,6 +238,8 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         capacity = next((row.details.get("capacity_assumptions") for row in reversed(facts) if row.details.get("capacity_assumptions") is not None), None)
         waits = [interval for interval in intervals if interval["kind"] in ("task_wait", "user_wait", "usage_limit", "review_wait", "delivery_wait")]
         credits = planned_size if delivered and scope_added is False else None
+        costs = [row for row in facts if row.kind == "worker_spent"]
+        has_delivery_wait = any(row.kind in ("task_completed", "worker_work_merged", "delivery_reopened", "delivery_accepted", "delivery_corrected") for row in facts)
         return {"task_id": task_id, "plan_id": self.plan_id(facts), "domain": self.domain_name(facts),
                 "policy_version": self.policy_version(facts), "execution_status": execution,
                 "artifact_accepted": any(row.kind == "worker_work_merged" for row in facts), "delivery_accepted": delivered,
@@ -235,14 +248,17 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
                 "committed_size": committed_size, "final_size": final_size, "scope_added": scope_added,
                 "capacity_assumptions": capacity, "missing_measurements": self.missing_from(facts),
                 "delivery_generations": [row.delivery_generation for row in delivery if row.delivery_generation],
-                "credited_points": credits, "cost_dollars": sum(row.details.get("cost_delta", 0.0) for row in facts if row.kind == "worker_spent"),
-                "worker_costs": [row.details for row in facts if row.kind == "worker_spent"],
+                "credited_points": credits,
+                "active_seconds": sum(row["duration_seconds"] for row in active_intervals) if any(row.kind == "task_started" for row in facts) else None,
+                "active_time_right_censored": any(row["end"] is None for row in active_intervals),
+                "cost_dollars": sum(row.details.get("cost_delta", 0.0) for row in costs) if costs else None,
+                "worker_costs": [row.details for row in costs],
                 "wait_intervals": intervals, "waiting_seconds": self.union_seconds(waits),
                 "task_wait_seconds": self.seconds_of(intervals, "task_wait"),
                 "user_wait_seconds": self.seconds_of(intervals, "user_wait"),
                 "usage_wait_seconds": self.seconds_of(intervals, "usage_limit"),
                 "review_wait_seconds": self.seconds_of(intervals, "review_wait"),
-                "delivery_wait_seconds": self.seconds_of(intervals, "delivery_wait")}
+                "delivery_wait_seconds": self.seconds_of(intervals, "delivery_wait") if has_delivery_wait else None}
 
     def intervals(self, facts: list[TaskOutcome], now: float) -> list[dict]:
         intervals: list[dict] = []
@@ -269,7 +285,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
                 self.open_interval(active, "review_wait", str(details.get("worker_id", "")), row.occurred_at, None)
             elif row.kind in ("review_completed", "review_failed", "review_sent_back", "review_undecided"):
                 self.close_interval(active, "review_wait", str(details.get("worker_id", "")), row.occurred_at, intervals)
-            elif row.kind in ("worker_work_merged", "delivery_reopened"):
+            elif row.kind in ("task_completed", "worker_work_merged", "delivery_reopened"):
                 self.open_interval(active, "delivery_wait", "", row.occurred_at, None)
             elif row.kind in ("delivery_accepted", "delivery_corrected"):
                 self.close_interval(active, "delivery_wait", "", row.occurred_at, intervals)
@@ -281,6 +297,21 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         statuses = {"task_started": "in_progress", "task_paused": "paused", "task_blocked": "blocked", "task_testing": "testing",
                     "task_completed": "completed", "task_cancelled": "cancelled", "task_reopened": "open", "task_test_failed": "paused"}
         return next((statuses[row.kind] for row in reversed(facts) if row.kind in statuses), "open")
+
+    def active_intervals(self, facts: list[TaskOutcome], now: float) -> list[dict]:
+        intervals: list[dict] = []
+        active_at: float | None = None
+        for row in facts:
+            if row.kind == "task_started" and active_at is None:
+                active_at = row.occurred_at
+            elif row.kind in ("task_paused", "task_blocked", "task_testing", "task_completed", "task_cancelled") and active_at is not None:
+                intervals.append({"start": active_at, "end": row.occurred_at,
+                                  "duration_seconds": max(0, row.occurred_at - active_at), "right_censored": False})
+                active_at = None
+        if active_at is not None:
+            intervals.append({"start": active_at, "end": None,
+                              "duration_seconds": max(0, now - active_at), "right_censored": True})
+        return intervals
 
     def task_plan(self, task: Task, plan_id: int = 0) -> Plan | None:
         if plan_id:
@@ -298,6 +329,14 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
         values = {"plan": plan, "domain": domain_name, "domain_policy_version": version,
                   "planned_size": planned_size, "final_size": task.size, "capacity_assumptions": capacity}
         return [name for name, value in values.items() if value is None or value == ""]
+
+    def cohort_data(self, task: Task, domain_name: str | None, version: str, snapshot: dict | None,
+                    sizing: dict, details: dict) -> dict:
+        history = sizing["history"]
+        size_version = snapshot.get("size_scale_version") if snapshot else history[0]["scale_version"] if history else sizing["current_scale_version"]
+        dimensions = {"environment_id": task.environment_id, "domain": domain_name, "size_scale_version": size_version,
+                      "criteria_version": version or None, "model": details.get("model"), "tier": details.get("tier")}
+        return {"version": OUTCOME_COHORT_VERSION, "key": self.cohort_key(dimensions), "dimensions": dimensions}
 
     def missing_from(self, facts: list[TaskOutcome]) -> list[str]:
         return sorted({name for row in facts for name in row.details.get("missing_measurements", ())})
@@ -348,3 +387,8 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
     def key(kind: str, *parts) -> str:
         encoded = json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
         return f"{kind}:{hashlib.sha256(encoded.encode()).hexdigest()}"
+
+    @staticmethod
+    def cohort_key(dimensions: dict) -> str:
+        encoded = json.dumps(dimensions, sort_keys=True, separators=(",", ":"))
+        return f"{OUTCOME_COHORT_VERSION}:{hashlib.sha256(encoded.encode()).hexdigest()}"

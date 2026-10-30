@@ -99,6 +99,14 @@ class StepChecks:
     def expect_viewer_text(self, part: str) -> None:
         assert self.viewer_status < 300 and part in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, not text holding {part!r}"
 
+    def expect_viewer_not_found_without(self, part: str) -> None:
+        assert self.viewer_status == 404 and part not in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, leaking {part!r} or not hiding the row"
+
+    def expect_viewer_downloads_json_equal(self, expected: dict) -> None:
+        downloaded = json.loads(self.viewer_answer["body"])
+        assert self.viewer_status < 300 and downloaded == expected, f"the exported history differs from the viewer's read: {downloaded}"
+        assert self.viewer_answer["content_type"].startswith("application/json") and "attachment;" in self.viewer_answer["headers"].get("Content-Disposition", ""), f"the history was not returned as a JSON download: {self.viewer_answer}"
+
     def expect_viewer_shows(self, name: str, value: object) -> None:
         assert self.viewer_answer.get(name) == value, f"the viewer was given {name} {self.viewer_answer.get(name)!r}, not {value!r}"
 

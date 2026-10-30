@@ -32,6 +32,7 @@ from journal.http.controllers.organization import OrganizationController
 from journal.http.controllers.reader_measures import ReaderMeasureController
 from journal.http.controllers.plans import PlanController
 from journal.http.controllers.plan_delivery import PlanDeliveryController
+from journal.http.controllers.plan_outcome_history import PlanOutcomeHistoryController
 from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
 from journal.http.controllers.profiles import ProfileController
@@ -198,6 +199,9 @@ class Routes:
         router.post(f"{API}/plans/{{id}}/tasks", plans.add_task)
         router.get(f"{API}/plans/{{id}}/delivery", delivery.show)
         router.post(f"{API}/plans/{{id}}/delivery", delivery.record)
+        history = get(PlanOutcomeHistoryController)
+        router.get(f"{API}/plans/{{id}}/outcomes", history.show)
+        router.get(f"{API}/plans/{{id}}/outcomes/export", history.export)
         router.post(f"{API}/plans/{{id}}/testing", plans.testing)
         router.post(f"{API}/plans/{{id}}/mode", plans.mode)
         router.get(f"{API}/plan-testing", plans.testing_templates)

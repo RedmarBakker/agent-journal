@@ -1,6 +1,7 @@
 import json
 
 from journal.http.router import Router
+from journal.http.support.file_response import FileResponse
 from journal.http.support.identity import Identity
 from journal.http.support.json_out import JsonOut
 from journal.http.support.request_reading import RequestReading
@@ -22,10 +23,22 @@ got = get_answer
 
 
 def answered(app, method: str, path: str, raw: bytes, headers: dict) -> tuple[int, dict]:
+    answer = routed(app, method, path, raw, headers)
+    return answer.status, json.loads(JsonOut.encoded(answer.body))
+
+
+def file_answer(app, path: str, headers: dict) -> tuple[int, dict]:
+    answer = routed(app, "GET", path, b"", headers)
+    if isinstance(answer, FileResponse):
+        return answer.status, {"content_type": answer.content_type, "headers": answer.headers(), "body": answer.body.decode("utf-8")}
+    return answer.status, json.loads(JsonOut.encoded(answer.body))
+
+
+def routed(app, method: str, path: str, raw: bytes, headers: dict):
     head = RequestReading.head(method, path, {"Content-Type": "application/json", **headers})
     request = RequestReading.read(head, raw, app.container.get(Identity), app.container.get(SupervisorRequestAuth))
     deferred = app.container.get(ListenerQueue)
     deferred.drain()
     answer = app.container.get(Router).route(request)
     deferred.drain()
-    return answer.status, json.loads(JsonOut.encoded(answer.body))
+    return answer

@@ -13,7 +13,7 @@ from journal.support.option import Option
 from sync_server.team_server import TeamServer
 from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
-from tests.in_process import answered, get_answer, posted
+from tests.in_process import answered, file_answer, get_answer, posted
 from tests.stories.builder.step_result import StepResult
 
 
@@ -153,6 +153,10 @@ class UserSteps:
     def user_opens(self, route: str) -> StepResult:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         return self.observed(f"user opens {route}", None, None)
+
+    def user_downloads(self, route: str) -> StepResult:
+        self.viewer_status, self.viewer_answer = file_answer(self.app, route, MAIN)
+        return self.observed(f"user downloads {route}", None, None)
 
     def user_opens_in(self, environment: str, route: str) -> StepResult:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, {"X-Journal-Env": environment})
