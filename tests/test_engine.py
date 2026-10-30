@@ -1564,14 +1564,17 @@ def orchestrated(app: App) -> None:
     waiting = stop()
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
-    for n in (1, 2, 3):
-        started_run(app.container.get(WorkerRunner), app.container.get(Workers), workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
+    with app.container.get(Scope).environment(MAIN):
+        for n in (1, 2, 3):
+            started_run(app.container.get(WorkerRunner), app.container.get(Workers), workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
     assert stack() == ["orchestrating", "orchestrating_plan"], "the last report pops the wait and the orchestrator is back on its plan"
     for n in (1, 2, 3):
         assert console.run(["worker", "complete", str(n)], AGENT).code == 0
         assert console.run(["task", "complete", str(n), "--how", "reviewed and merged"], AGENT).code == 0
     app.runtime().deferred.drain()
-    assert tasks.find(4).state == "open" and stack()[-1] == "orchestrating_plan", "the plan leaves its next open piece for a worker"
+    with app.container.get(Scope).environment(MAIN):
+        next_task = tasks.find(4)
+    assert next_task.state == "open" and stack()[-1] == "orchestrating_plan", "the plan leaves its next open piece for a worker"
     for n in range(4, 21):
         assert stop().get("decision") == "block", f"a stop with piece {n} and the rest open is refused, never allowed"
         assert console.run(["task", "start", str(n)], AGENT).code == 0

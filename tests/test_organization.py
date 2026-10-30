@@ -1686,13 +1686,14 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
     runner.workers = workers
     runner.runtime = runtime
     runner.config = SimpleNamespace(home=tmp_path)
-    runner.scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    runner.scope = app.container.get(Scope)
     runner.member = lambda _worker: member
 
     runner.monitor_existing(worker, identity, actor, finisher.finish_seat)
     app.runtime().deferred.drain()
 
-    current = workers.find(worker.row_id)
+    with app.container.get(Scope).environment(worker.environment_id):
+        current = workers.find(worker.row_id)
     assert current.run_end.startswith(f"seat failed: {expected}"), "boot recovery leaves a clear failure on the organization job"
     assert len(escalated) == 1 and expected in escalated[0][1], "the Domain agent receives the version refusal"
     assert session_calls == [] and not runner._active, "recovery refuses before attaching to a session and releases its monitor"
@@ -1722,7 +1723,9 @@ def test_a_solo_plan_agent_starts_when_openrig_is_missing_or_wrong(app, monkeypa
         started = console.run(["plan", "start", str(plan_id)], user)
         app.runtime().deferred.drain()
 
-    assert started.code == 0 and app.container.get(Plans).find(plan_id).mode == PlanMode.SOLO
+    with app.container.get(Scope).environment(1):
+        plan = app.container.get(Plans).find(plan_id)
+    assert started.code == 0 and plan.mode == PlanMode.SOLO
     assert launches == [(f"plan-{plan_id}", "claude", ())], "a solo Plan agent still starts without invoking the pinned OpenRig runtime"
 
 
@@ -1781,11 +1784,13 @@ def test_a_dead_seat_requeues_its_job_and_escalates_to_its_domain_agent(app, tmp
     seat = _seat_monitor(worker, workers, SimpleNamespace(session=lambda *_args: None), 101, 0)
     identity = SeatJobIdentity.from_worker(worker)
 
-    seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
-                 actor, finisher.finish_seat, worker.job_start_time())
+    with app.container.get(Scope).environment(worker.environment_id):
+        seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
+                     actor, finisher.finish_seat, worker.job_start_time())
     app.runtime().deferred.drain()
 
-    current = workers.find(worker.row_id)
+    with app.container.get(Scope).environment(worker.environment_id):
+        current = workers.find(worker.row_id)
     assert current.state == WorkerState.UNFINISHED and "ended without clocking out" in current.run_end
     assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "ended without clocking out" in escalated[0][1]
 
@@ -1806,11 +1811,13 @@ def test_a_stuck_seat_times_out_its_job_and_escalates_to_its_domain_agent(app, t
     seat.record_usage = lambda *_args: None
     identity = SeatJobIdentity.from_worker(worker)
 
-    seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
-                 actor, finisher.finish_seat, worker.job_start_time())
+    with app.container.get(Scope).environment(worker.environment_id):
+        seat.monitor(worker, identity, SimpleNamespace(target="alpha-builder@release"), worker.resume,
+                     actor, finisher.finish_seat, worker.job_start_time())
     app.runtime().deferred.drain()
 
-    current = workers.find(worker.row_id)
+    with app.container.get(Scope).environment(worker.environment_id):
+        current = workers.find(worker.row_id)
     assert stopped and current.state == WorkerState.UNFINISHED and "without ending" in current.run_end
     assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "without ending" in escalated[0][1]
 
@@ -1835,13 +1842,14 @@ def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitor
     seat.workers = workers
     seat.runtime = runtime
     seat.config = SimpleNamespace(home=tmp_path)
-    seat.scope = SimpleNamespace(environment=lambda _environment: nullcontext())
+    seat.scope = app.container.get(Scope)
     seat.member = lambda _worker: SimpleNamespace(openrig_version="0.7.5")
 
     seat.monitor_existing(worker, identity, actor, finisher.finish_seat)
     app.runtime().deferred.drain()
 
-    current = workers.find(worker.row_id)
+    with app.container.get(Scope).environment(worker.environment_id):
+        current = workers.find(worker.row_id)
     assert current.state == WorkerState.UNFINISHED and "seat failed:" in current.run_end
     assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "OpenRig --version failed" in escalated[0][1]
     assert calls[0][0] == ["rig", "--version"] and calls[0][1]["timeout"] == 30 and not seat._active

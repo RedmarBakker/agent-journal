@@ -134,7 +134,7 @@ class SeatRunner:
             raise Rejection(f"the contract for plan {worker.plan_id} no longer has Role {worker.role}")
         if not worker.plan_id:
             raise Rejection(f"worker {worker.id} has no plan for Role {worker.role}")
-        plan = self.plans.find(worker.plan_id)
+        plan = self.plans.global_matching(id=worker.plan_id)[0]
         rig_id = self.plans.rig_id(plan)
         if role.cardinality is not Cardinality.JOURNAL and not rig_id:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {worker.role}")
@@ -503,12 +503,13 @@ class SeatRunner:
 
     def fail(self, worker: Worker, identity: SeatJobIdentity, actor: Actor,
              ended: Callable[[Worker, SeatJobIdentity, int, Actor], None], failure: Exception) -> None:
-        if self.current_job(identity) is None:
-            return
-        error = self.config.home / "runtime" / "workers" / f"{worker.id}.err"
-        error.parent.mkdir(parents=True, exist_ok=True)
-        error.write_text(str(failure))
-        current = self.current_job(identity)
-        if current is not None:
-            self.finish_once(current, identity, ERROR_STATUS, actor, ended)
+        with self.scope.environment(worker.environment_id):
+            if self.current_job(identity) is None:
+                return
+            error = self.config.home / "runtime" / "workers" / f"{worker.id}.err"
+            error.parent.mkdir(parents=True, exist_ok=True)
+            error.write_text(str(failure))
+            current = self.current_job(identity)
+            if current is not None:
+                self.finish_once(current, identity, ERROR_STATUS, actor, ended)
 
