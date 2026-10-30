@@ -15196,6 +15196,8 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     user_set(app, "workers.mode", "orchestrator")
     user_set(app, "reviewing.reviewer", True)
     user_set(app, "workers.allowed_models", ["claude reviewer: haiku"])
+    for table in ("tasks", "links", "messages", "proofs", "workers"):
+        app.container.get(IdBlocks).add(table, 800000, 800100)
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
     console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
@@ -15208,10 +15210,6 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         worker = max(workers.scoped(), key=lambda row: row.id)
         workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
         app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
-    app.container.get(IdBlocks).add("links", 800000, 800100)
-    app.container.get(IdBlocks).add("messages", 800000, 800100)
-    app.container.get(IdBlocks).add("proofs", 800000, 800100)
-    app.container.get(IdBlocks).add("workers", 800000, 800100)
     assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 
@@ -15288,6 +15286,8 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     from journal.models.task import Task
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
+    for table in ("tasks", "messages", "links"):
+        app.container.get(IdBlocks).add(table, 800000, 800100)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
