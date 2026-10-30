@@ -1,3 +1,4 @@
+from journal.engine.states.ended import Ended
 from journal.features.workers.states.orchestrating import Orchestrating
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.workers_nudges import WorkersNudges
@@ -18,4 +19,4 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     result.expect_agent_told(story.agents.subject, WorkersNudges.PLAN_STALLED, n=story.plans.first)
     result = story.agent_stops(story.agents.subject)
     result.expect_agent_not_told(story.agents.subject, WorkersNudges.PLAN_STALLED)
-    story.expect_stack(story.agents.subject, Orchestrating, OrchestratingPlan)
+    story.expect_stack(story.agents.subject, Orchestrating, OrchestratingPlan, Ended)

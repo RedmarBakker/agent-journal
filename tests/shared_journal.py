@@ -9,6 +9,7 @@ from journal.db.connection import Connection
 from journal.features.shell.support.shell_runner import ShellRunner
 from journal.support.secret_values import SecretValues
 from tests.service_memory import ServiceMemory
+from sync_server.team_server import DATABASE as TEAM_DATABASE
 
 
 
@@ -22,6 +23,7 @@ class SharedJournal:
         self.rows = sqlite3.connect(":memory:")
         with sqlite3.connect(app.config.database) as live:
             live.backup(self.rows)
+        self.team_databases = {path: self.database_copy(path) for path in files if os.path.basename(path) == TEAM_DATABASE}
         self.secrets = str(app.container.get(SecretValues).path)
         self.folders, files = self.tree()
         kept = [path for path in files if not self.is_database(path)] + ([self.secrets] if os.path.isfile(self.secrets) else [])
@@ -46,8 +48,18 @@ class SharedJournal:
         self.memory.put_back()
         with sqlite3.connect(self.app.config.database) as live:
             self.rows.backup(live)
+        for path, rows in self.team_databases.items():
+            with sqlite3.connect(path) as live:
+                rows.backup(live)
         self.app.container.get(Connection).cache.cleared()
         self.put_back_files()
+
+    @staticmethod
+    def database_copy(path: str) -> sqlite3.Connection:
+        rows = sqlite3.connect(":memory:")
+        with sqlite3.connect(path) as live:
+            live.backup(rows)
+        return rows
 
     def settled(self) -> None:
         if self.app.runtime().deferred._thread:
@@ -88,4 +100,4 @@ class SharedJournal:
 
     def is_database(self, path: str) -> bool:
         name = os.path.basename(path)
-        return name == self.app.config.database.name or name.endswith(("-wal", "-shm", "-journal"))
+        return name in (self.app.config.database.name, TEAM_DATABASE) or name.endswith(("-wal", "-shm", "-journal"))
