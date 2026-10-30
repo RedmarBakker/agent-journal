@@ -75,7 +75,7 @@ export function headphoneCollidersOf(meshes) {
     const colliders = [], dynamic = [];
     for (const mesh of meshes) {
         if (!mesh.isSkinnedMesh || !mesh.name) continue;
-        const head = mesh.name === "head_shell", adornment = mesh.name.startsWith("ear_") || mesh.name.startsWith("homie_backwards_cap__");
+        const head = mesh.name === "head_shell", adornment = mesh.name.startsWith("homie_backwards_cap__");
         const sleeve = /^homie_hoodie__sleeve_([lr])$/.exec(mesh.name);
         const cloth = mesh.name === "homie_hoodie__body" || mesh.name === "homie_hoodie__folded_hood";
         if (!head && !adornment && !sleeve && !cloth) continue;

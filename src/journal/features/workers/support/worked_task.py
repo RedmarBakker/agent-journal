@@ -5,7 +5,7 @@ from journal.models.task import Task
 
 @dataclass(frozen=True)
 class WorkedTask:
-    """A task a worker held at some time as its page lists it: the number, the title and the state, in hand while the worker works on it, done once the worker finished it and its work is not merged yet, merged after, else the task's own state."""
+    """A task a worker held at some time as its page lists it: the number, the title and the state, done once the worker finished it and its work waits for the merge, whatever state the task row still holds, merged after, in hand while the worker works on it, else the task's own state."""
 
     id: int
     title: str
@@ -17,8 +17,8 @@ class WorkedTask:
 
     @staticmethod
     def state_word(task: Task, unmerged: list[int]) -> str:
-        if task.is_open() and task.delegated:
-            return "in hand"
-        if not task.is_completed():
-            return task.state.value
-        return "done" if task.id in unmerged else "merged"
+        if task.id in unmerged:
+            return "done"
+        if task.is_completed():
+            return "merged"
+        return "in hand" if task.is_open() and task.delegated else task.state.value

@@ -968,6 +968,10 @@ $ agent: journal output unwatch
 exit 0
 
 
+$ agent: journal output stop 1
+exit 1
+no command_outputs row 1
+
 $ agent: journal output undock --help
 exit 0
 usage: journal output undock [-h] n

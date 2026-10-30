@@ -175,6 +175,7 @@ agent output read --help
 agent output test --help
 agent output watch --help
 agent output unwatch
+agent output stop 1
 agent output undock --help
 agent await begin --help
 agent await clear --help

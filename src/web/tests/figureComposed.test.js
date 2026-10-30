@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {boxed} from "./support/figurePage.js";
+import {ACTS} from "../src/figure/acts.js";
 
 const {CLIPS, COMPOSED, LEGS, LOUNGE, Posing, turnsToViewer} = await import("../src/figure/figure.js");
 const {SEATED, turnStep} = await import("../src/figure/places.js");
@@ -13,7 +14,12 @@ const {write} = await import("./figurePage.js");
 
 const FIGURE = {size: 112, below: 0.05};
 const CONTACT_HANDS = new Set(["phone_call", "yawn", "sleep", "whistle", "sip", "enter", "salute", "wipe_brow"]);
-const contactHands = (clip) => clip.name === "groove" ? 2 : CONTACT_HANDS.has(clip.name) ? 1 : 0;
+const contactHands = (clip, t) => {
+    const call = ACTS.phone_call;
+    const u = t * clip.frames / (clip.frames - 1);
+    if (clip.name === "phone_call" && u > call.finger[0] && u < call.back[1]) return 2;
+    return clip.name === "groove" ? 2 : CONTACT_HANDS.has(clip.name) ? 1 : 0;
+};
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
 const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
 const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), heads: vectors(rig.heads), along: vectors(rig.along), eyes: rig.eyes.map((at) => new THREE.Vector3(...at))};
@@ -174,7 +180,7 @@ test("lounging, each unused hand lies flat beside the hips while contact gesture
                 const hips = at("hips");
                 // the floor line, carried up with the whole body by a clip that lifts it, as a startle does
                 const floor = LOUNGE.floor + hips.z - seated;
-                expect(inUse.size, `${voice} ${clip.name} uses only its contact hands`).toBeLessThanOrEqual(contactHands(clip));
+                expect(inUse.size, `${voice} ${clip.name} uses only its contact hands`).toBeLessThanOrEqual(contactHands(clip, t));
                 for (const [side, sign] of [["l", 1], ["r", -1]].filter(([side]) => !inUse.has(side))) {
                     const label = `${voice} ${clip.name} ${t} ${side}`;
                     const [wrist, fingers] = [at(`hand_${side}`), tip(`hand_${side}`)];
@@ -241,7 +247,7 @@ test("wherever it sits and leans on a hand, on an edge, lounging or sitting comp
                     }
                     expect(Math.abs(fingers.z - wrist.z), `${label} level`).toBeLessThan(0.05);
                 }
-                expect(pose.inUse.size, `${posture} ${voice} ${clip.name}: hands outside the contact gesture stay flat`).toBeLessThanOrEqual(contactHands(clip));
+                expect(pose.inUse.size, `${posture} ${voice} ${clip.name}: hands outside the contact gesture stay flat`).toBeLessThanOrEqual(contactHands(clip, 0.25));
                 // seated in any way, the tails hanging behind are sat on, never through the seat
                 for (const tail of BUTLER.satOn) expect(pose.stowed.has(tail), `${posture} ${clip.name} ${tail}`).toBe(true);
             }

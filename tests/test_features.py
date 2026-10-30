@@ -4875,20 +4875,6 @@ def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_las
     assert worker.job_start_time() == 100.0, "a move inside the queue is the same job going on, so a report at the queue's end is never a quick or tiny one for its last task alone"
 
 
-def test_a_worker_handed_its_next_queued_task_after_a_merge_starts_on_a_worktree_holding_the_latest_work(app: App, monkeypatch):
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    committed(worktree, "notes1.md", "note 1\n")
-    assert proved_and_out(app, caller, "notes1.md:1").code == 0
-    committed(app.config.root, "later.md", "merged on the project after the worker began\n")
-    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
-    merged = checked_and_merged(app)
-    assert merged.code == 0 and "it went straight on to task 2" in merged.text, merged.error
-    assert (worktree / "later.md").is_file() and (worktree / "notes1.md").is_file(), "the worktree holds the project's latest work and its own merged task before it starts the next"
-
-
 def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merge_then_takes_all_three(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
@@ -5058,31 +5044,6 @@ def test_a_run_printing_a_count_of_a_total_in_any_common_form_gets_a_progress_pa
     reader = Reader("counted", "the counted runs", ".", progress_pattern=progress, step_pattern=step)
     assert reader.progress(lines).fraction() == pytest.approx(fraction), "the guessed pattern reads the run's own fraction"
     assert "--progress" in ReaderJudge.progress_fix("a command", lines), "and the report's fix suggests a --progress pattern"
-
-
-def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
-    from journal.features.workers.support.worker_actions import WorkerActions
-    from journal.models.support.ref import Ref
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    committed(worktree, "notes.md", "the notes\n")
-    assert proved_and_out(app, caller, "notes.md:1").code == 0
-    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
-    gate = WorkerActions.merge_gate
-    def merged_beside(actions, event):
-        monkeypatch.setattr(WorkerActions, "merge_gate", gate)
-        assert console.run(["worker", "merge", "1"], AGENT).code == 0, "the run beside it merges while the first still waits on the plugins"
-    monkeypatch.setattr(WorkerActions, "merge_gate", merged_beside)
-    late = checked_and_merged(app)
-    assert late.code == 1 and "only a worker that has ended" in late.error, late.error
-    with app.container.get(Scope).environment(MAIN):
-        worker, tasks = app.container.get(Workers).find(1), app.container.get(Tasks)
-        assert worker.state == "dispatched" and worker.brief.startswith("Your next task, 2"), "the late run writes nothing: the worker stays on its next job"
-        assert tasks.find(1).state == "completed" and tasks.holder_task_ids(Ref("workers", 1)) == (2,)
 
 
 def test_a_workspace_worker_gets_worktrees_of_the_repositories_its_brief_names_as_whole_words_in_any_case(app: App, monkeypatch):
@@ -7366,3 +7327,22 @@ def test_a_running_turn_whose_output_row_is_gone_no_longer_counts_as_running(app
         rows = app.container.get(TurnRows)
         rows.save(TestTurn(environment_id=1, worker=1, ids="tests/test_a.py", command="pytest tests/test_a.py", folder=".").started(1.0).backgrounded(987654), Actor.system())
         assert app.container.get(TestTurns).running() == [], "an output kept no longer ended long ago, so its turn holds no run"
+
+
+def test_a_task_a_worker_finished_reads_done_on_its_page_until_the_merge_whatever_the_task_row_still_holds():
+    from journal.features.workers.support.worked_task import WorkedTask
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    started, waiting = Task(id=4508, title="a", state=TaskState.STARTED), Task(id=4530, title="b", state=TaskState.OPEN, delegated=True)
+    assert [WorkedTask.read(task, [4508, 4530]).state for task in (started, waiting)] == ["done", "done"], "finished and waiting for the merge reads done, a started row or a delegated open one alike"
+    assert WorkedTask.read(waiting, []).state == "in hand" and WorkedTask.read(Task(id=1, title="c", state=TaskState.COMPLETED), []).state == "merged"
+
+
+def test_a_subagent_takes_its_name_from_its_dispatch_and_its_job_from_each_new_message():
+    from journal.models.subagent import Subagent
+    subagent = Subagent(name=Subagent.dispatch_name("You are Mr. Faraday, an experimenter turned design reviewer. Review doc 1086."), task="Review doc 1086")
+    assert (subagent.name, subagent.title_words()) == ("Mr. Faraday", "Mr. Faraday: Review doc 1086"), "the name the law asks for, beside the job"
+    resumed = subagent.resumed(2.0, "New job, as Mr. Babbage, an engine designer. Write the modular design.", "Design the journal as an engine")
+    assert resumed.title_words() == "Mr. Babbage: Design the journal as an engine", "a new message names the job, and a new name when it gives one"
+    assert subagent.resumed(3.0, "Apply the two reviews to doc 1086.", "").title_words() == "Mr. Faraday: Review doc 1086", "a message with no name or summary keeps both"
+    assert Subagent(task="map the hooks").title_words() == "map the hooks" and Subagent.dispatch_name("map the hooks") is None, "a dispatch naming no one keeps its job alone"

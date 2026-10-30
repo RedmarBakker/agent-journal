@@ -249,6 +249,8 @@ class WorkerCommand(Command):
         return 0
 
     def send(self, args: Namespace, caller: Caller) -> int:
+        if args.task:
+            self.refused_in_review(self.workers.find(args.n))
         holdings = self.actions.task_holdings(args.n, args.task)
         if not args.task and not holdings:
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
@@ -257,6 +259,11 @@ class WorkerCommand(Command):
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
         return 0
+
+    @staticmethod
+    def refused_in_review(worker: Worker) -> None:
+        if worker.is_delivered():
+            raise Rejection(f"worker {worker.id}, {worker.name}, takes no new work while its work waits for its check and merge: check and merge it with journal worker merge {worker.id}, or give the job to another worker")
 
     def check(self, args: Namespace, caller: Caller) -> int:
         if args.short:
@@ -304,6 +311,7 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
+        self.refused_in_review(worker)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.drop_holder(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
@@ -402,7 +410,7 @@ class WorkerCommand(Command):
             print(self.standing_line(worker))
         subagents = [] if caller.session is None else self.subagents.running_session_subagents(caller.session)
         for subagent in subagents:
-            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
+            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.title_words()}")
         if not workers and not subagents:
             print("no worker or subagent to act on")
         return 0
@@ -416,7 +424,7 @@ class WorkerCommand(Command):
         if subagents:
             print("subagents this agent started:")
         for subagent in subagents:
-            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
+            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.title_words()}")
             if subagent.is_idle():
                 print(f"{'':>16}session: {subagent.session}")
         if any(subagent.is_idle() for subagent in subagents):

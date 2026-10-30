@@ -1,3 +1,4 @@
+import re
 from typing import ClassVar
 from journal.support.timeout import Timeout
 from journal.support.task_notification import TaskNotification
@@ -7,16 +8,19 @@ from journal.models.scoped import Scoped
 from journal.models.subagent_state import SubagentState
 
 CURRENT_SECONDS = 60.0
+# the name a dispatch gives its subagent as the law asks, its prompt opening You are Mr. Faraday, an experimenter
+NAME_PATTERN = re.compile(r"^\s*(?:New job, as |You are )([A-Z][^,\n]{1,60}),")
 
 
 @dataclass(frozen=True)
 class Subagent(Scoped):
-    """A subagent an agent dispatched: the dispatch entry it was loaded from, what it was asked to do, its type and model, its own session once known, its status, and the tool's error when the dispatch failed. Ended is a subagent from before the journal stored these rows whose end it never saw."""
+    """A subagent an agent dispatched: the dispatch entry it was loaded from, the name its dispatch gave it, the job in hand, the one a later message gave it replacing the first, what it was asked to do, its type and model, its own session once known, its status, and the tool's error when the dispatch failed. Ended is a subagent from before the journal stored these rows whose end it never saw."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("task", "brief")
     unshown_fields: ClassVar[tuple[str, ...]] = ("transcript_bytes",)
     dispatch: str = ""
     dispatcher: str = ""
+    name: str | None = None
     task: str = ""
     brief: str = ""
     agent_type: str = "subagent"
@@ -29,8 +33,13 @@ class Subagent(Scoped):
     reason: str = ""
     transcript_bytes: int = 0
 
+    @staticmethod
+    def dispatch_name(text: str) -> str | None:
+        match = NAME_PATTERN.match(text)
+        return match.group(1).strip() if match else None
+
     def title_words(self) -> str:
-        return self.task
+        return self.task if self.name is None else f"{self.name}: {self.task}"
 
     @property
     def latest_start_at(self) -> float:
@@ -61,8 +70,8 @@ class Subagent(Scoped):
     def failed(self, reason: str, time: float) -> "Subagent":
         return self.with_(state=SubagentState.FAILED, ended_at=time, reason=reason)
 
-    def resumed(self, time: float, job: str) -> "Subagent":
-        return self.with_(state=SubagentState.ACTIVE, ended_at=0.0, resumed_at=time, brief=f"{self.brief} {job}")
+    def resumed(self, time: float, job: str, summary: str) -> "Subagent":
+        return self.with_(state=SubagentState.ACTIVE, ended_at=0.0, resumed_at=time, brief=f"{self.brief} {job}", name=self.dispatch_name(job) or self.name, task=summary or self.task)
 
     def retired(self, time: float) -> "Subagent":
         return self.with_(state=SubagentState.RETIRED, ended_at=time)

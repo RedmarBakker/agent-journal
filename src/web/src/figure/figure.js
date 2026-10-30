@@ -15,6 +15,9 @@ import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
 import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
 import {HEADPHONES, dressHomie, headphoneContacts, headphoneGrip, headphonesAt, headphonesOf, moveHeadphones} from "./homie.js";
+import {withoutEars} from "./ears.js";
+import {TELEPHONE, phoneHand} from "./phonePlacement.js";
+export {TELEPHONE} from "./phonePlacement.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 import {transport} from "../api/transport.js";
@@ -2673,46 +2676,90 @@ function actHand(pose, stance, ready, at, turn = {}) {
     if (ready) emptyHand(pose);
 }
 
-// The call on the telephone (acts.js phone_call): how deep it bends to the telephone and how far it leans and nods into the bend, and how
-// far it nods while it talks, in the figure's units and degrees; where the receiver grille touches the head at rest, the handset leaning
-// back from upright and across toward the mouth; how far it tilts its head to the handset; how far above a hole of the
-// dial its finger's wrist is held, the finger reaching down into it; and how far in from the palm the handset's grip is held, its fingers
-// round the back of the grip: toward the head at the ear, under the palm as it takes the handset off the cradle
-export const CALL = {bend: 0.9, lean: 30, nod: 18, talkNod: 5, ear: [0.94, 0.05, 3.48], handsetLean: 50, tilt: 8, finger: 0.28, palm: 0.13, grip: 0.68, across: 0.2, arc: [0.28, -0.18, 0.25]};
+// The calling pose and grip, in figure units and degrees. The shared glove's measured support point `fingertip` touches the dial at
+// `dialTilt`; the wrist is solved from that surface contact. `palm` includes the handle's crown and the glove's depth, while `grip`
+// closes the fingers. The receiver grille follows the side of the bare head and the handset lifts along `arc`.
+export const CALL = {bend: 0.8, pickupBend: 0.4, lean: 30, nod: 18, talkNod: 5, ear: [0.94, 0.05, 3.48], handsetLean: 50, tilt: 8, finger: 0.742, fingertip: [0.733867, -0.000944, 0.006280], dialTilt: 20, restWrist: 40, palm: 0.38, grip: 0.68, across: 0.2, arc: [-0.065, 0.035, 0.35], seatedArc: [0.2, -0.155, -0.005], turn: 105};
 
 // a point on the telephone, `local` in its own axes (across, back, up from the middle of its base), the base standing at `base` in the
 // figure's, the whole telephone tipped `tip` degrees toward the viewer so its dial shows
-export function onPhoneAt(local, base) {
-    return local.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), radians(TELEPHONE.tip)).add(base);
+export function onPhoneAt(local, base, turn = 0) {
+    return local.clone().applyMatrix4(euler(TELEPHONE.tip, 0, turn)).add(base);
 }
 
-// The hand on `side` carried `k` of the way to put a finger in the dial at `hole`: the arm lined up with the hole from wherever the
-// shoulder is, the wrist CALL.finger back from it along that line and the hand pointing into it, or, a hole too near the shoulder for
-// the arm to fold so close, the hand tipped down into it from above as far as it must
-function fingerIn(pose, side, k, hole, elbow) {
+// A tilted finger touches the visible hole at its measured support point, with the rest of the glove outside the dial face.
+function dialFingerAt(side, hole, turn) {
+    const normal = fromSet(new THREE.Vector3(0, 1, 0).transformDirection(dialFrame())).transformDirection(euler(TELEPHONE.tip, 0, turn));
+    const along = normal.clone().negate().multiplyScalar(SIDES[side]);
+    const up = new THREE.Vector3(0, 0, 1).projectOnPlane(along).normalize();
+    const rotation = new THREE.Matrix4().makeBasis(along, up.clone().cross(along), up).multiply(euler(0, SIDES[side] * CALL.dialTilt, 0));
+    const [x, y, z] = CALL.fingertip;
+    const contact = new THREE.Vector3(SIDES[side] * x, y, z).applyMatrix4(rotation);
+    return {normal, rotation, wrist: hole.clone().sub(contact)};
+}
+
+function fingerIn(pose, side, k, hole, turn, chestTilt) {
+    const {normal, rotation, wrist} = dialFingerAt(side, hole, turn);
+    const elbow = new THREE.Vector3(1, -0.7, -0.1);
+    callHandTo(pose, side, 0, wrist, elbow);
+    const hand = `hand_${side}`;
+    if (!k) {
+        callWristFromSeat(pose, side, 0);
+        return;
+    }
+    // Keep the wrist's starting turn at the upright entry pose. Taking it from the bent torso every frame can reverse a shortest
+    // quaternion turn as it crosses 180 degrees. The hand aims before the final approach and stays aimed until clear on withdrawal.
+    const reference = new Posing(pose.rig);
+    breathe(reference, 0);
+    reference.bendAbove("chest", {y: chestTilt});
+    callHandTo(reference, side, 0, wrist, elbow);
+    const start = new THREE.Quaternion().setFromRotationMatrix(pose.posture === "composed" ? euler(-80, 0, 0) : new THREE.Matrix4().extractRotation(reference.matrix(hand)));
     const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
-    const along = hole.clone().sub(shoulder);
-    const [far, near] = [along.length(), pose.foldedReach(side) * 1.01];
-    along.normalize();
-    const tipped = far - CALL.finger >= near ? 0 : Math.acos(THREE.MathUtils.clamp((far ** 2 + CALL.finger ** 2 - near ** 2) / (2 * far * CALL.finger), -1, 1));
-    const down = new THREE.Vector3(0, 0, -1).projectOnPlane(along).normalize();
-    const way = along.multiplyScalar(Math.cos(tipped)).addScaledVector(down, Math.sin(tipped));
-    callHandTo(pose, side, k, pose.withinReach(side, hole.clone().addScaledVector(way, -CALL.finger), 0.97), elbow);
-    const pointing = pose.rig.along.get(`hand_${side}`).clone().transformDirection(pose.matrix(`hand_${side}`));
-    pose.aim(`hand_${side}`, pointing.lerp(way, k).normalize());
-    callWristFromSeat(pose, side, k);
+    const from = pose.head(hand, pose.matrix(hand)).sub(shoulder);
+    const target = pose.withinReach(side, wrist, 0.999).sub(shoulder);
+    const length = mix(from.length(), target.length(), k);
+    const direction = from.normalize();
+    const travel = new THREE.Quaternion().setFromUnitVectors(direction, target.normalize());
+    // A spherical reach stays outside the shoulder's folded limit; the small normal bow keeps the fingers above the dial surface.
+    const atTarget = shoulder.clone().add(direction.applyQuaternion(new THREE.Quaternion().slerp(travel, k)).multiplyScalar(length)).addScaledVector(normal, 0.15 * Math.sin(Math.PI * k));
+    const restPole = pose.posture === "composed" ? new THREE.Vector3(1, 0.3, 0) : HANGING_ELBOW.clone();
+    pose.reach(side, pose.withinReach(side, atTarget, 0.999), restPole.lerp(elbow, k));
+    const at = pose.head(hand, pose.matrix(hand));
+    const finish = new THREE.Quaternion().setFromRotationMatrix(rotation);
+    const turned = new THREE.Matrix4().makeRotationFromQuaternion(start.slerp(finish, callLift(k, [0, 0.8])));
+    pose.final.set(hand, translation(at).multiply(turned).multiply(translation(pose.rig.heads.get(hand).clone().negate())));
 }
 
-// A supported hand leaves its seat along the same reach it returns along.
+// The reaching hand rises outside the telephone before crossing above it; replacement retraces that arc.
 function callHandTo(pose, side, ready, target, elbow) {
-    if (pose.posture !== "composed") return handTo(pose, side, ready, target, elbow);
-    const resting = pose.withinReach(side, callRestingHand(pose, side), 0.97);
     const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
-    const from = resting.sub(shoulder);
-    const to = target.clone().sub(shoulder);
+    const resting = pose.posture === "composed" ? pose.withinReach(side, callRestingHand(pose, side), 0.97) : shoulder.clone().add(new THREE.Vector3(SIDES[side] * Math.cos(radians(HANG)), 0, -Math.sin(radians(HANG))).multiplyScalar(HANG_REACH));
+    const restPole = pose.posture === "composed" ? new THREE.Vector3(1, 0.3, 0) : HANGING_ELBOW.clone();
+    if (ready === 0 || ready === 1) {
+        pose.reach(side, pose.withinReach(side, ready ? target : resting, 0.999), ready ? elbow : restPole);
+        return;
+    }
+    // Interpolate radius separately, so the wrist cannot cross the shoulder's folded limit. Sampling distance along this spherical
+    // arc also prevents a speed spike where a normalised straight interpolation would pass close to the shoulder.
+    const from = resting.sub(shoulder), to = target.clone().sub(shoulder);
     const length = mix(from.length(), to.length(), ready);
-    const direction = from.normalize().lerp(to.normalize(), ready).normalize();
-    pose.reach(side, shoulder.addScaledVector(direction, length), new THREE.Vector3(1, 0.3, 0).lerp(elbow, ready));
+    const first = from.normalize();
+    const way = first.clone();
+    const travel = new THREE.Quaternion().setFromUnitVectors(way, to.normalize());
+    const course = new THREE.CatmullRomCurve3([first.clone(), new THREE.Vector3(SIDES[side] * 0.7, -0.35, 0.7).normalize(), to.clone()]);
+    const sphere = new THREE.Curve();
+    sphere.getPoint = (u) => course.getPoint(u).normalize();
+    way.copy(sphere.getPointAt(ready));
+    const at = shoulder.clone().addScaledVector(way, length);
+    // Transport the elbow's bend plane with the reach, then twist it to its final plane. Blending raw poles can pass through zero
+    // after projection and flip the elbow, even while the wrist moves continuously.
+    const mirror = (vector) => new THREE.Vector3(SIDES[side] * vector.x, vector.y, vector.z);
+    const initial = mirror(restPole).projectOnPlane(first).normalize();
+    const finish = mirror(elbow).projectOnPlane(to).normalize();
+    const atEnd = initial.clone().applyQuaternion(travel);
+    const twist = Math.atan2(to.dot(atEnd.clone().cross(finish)), atEnd.dot(finish));
+    const bend = initial.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(first, way)).applyAxisAngle(way, twist * ready);
+    pose.reach(side, pose.withinReach(side, at, 0.999), mirror(bend));
 }
 
 // A turned or leaning seated figure rests its free hand on its knee and its supporting hand on the floor.
@@ -2759,12 +2806,19 @@ const crownAt = (across) => TELEPHONE.base.height + bulge() + TELEPHONE.base.dom
 // where the handset's middle rests across the cradle's prongs, in the figure's axes against the telephone
 const cradled = () => fromSet(new THREE.Vector3(0, crownAt(TELEPHONE.cradle.apart) + TELEPHONE.cradle.height + TELEPHONE.handset.rest, TELEPHONE.cradle.at));
 
+// The right hand takes the symmetric receiver by the opposite end. Turning about its own vertical swaps the ends without
+// changing the resting shape; the tipped cradle's Euler turn therefore reverses its tip as well as adding half a turn of yaw.
+function cradledTurn(side, turn) {
+    const flipped = side === "r";
+    return {x: flipped ? -TELEPHONE.tip : TELEPHONE.tip, z: turn + (flipped ? 180 : 0)};
+}
+
 // a point `turned` degrees round the dial from its first hole, on the ring of holes, just over the dial's face, in the figure's axes
 // against the telephone
 export function dialHole(turned) {
     const {dial} = TELEPHONE;
     const angle = radians(dial.first - turned);
-    return fromSet(new THREE.Vector3(Math.cos(angle) * dial.ring, dial.face * 1.5, -Math.sin(angle) * dial.ring).applyMatrix4(dialFrame()));
+    return fromSet(new THREE.Vector3(Math.cos(angle) * dial.ring, dial.face * 1.75 + 0.003, -Math.sin(angle) * dial.ring).applyMatrix4(dialFrame()));
 }
 
 // the handset held at the ear on `side`: its long axis, ear cup up, leaning back from upright, and its cups' mouths toward the head, as
@@ -2796,119 +2850,218 @@ export function phoneArrival(u) {
     const act = ACTS.phone_call;
     const fell = span(u, ...act.drop);
     const settling = span(u, ...act.settle);
-    const wobble = settling > 0 && settling < 1 ? Math.sin(Math.PI * act.wobbles * settling) * (1 - settling) ** 2 : 0;
+    const wobble = settling > 0 && settling < 1 ? Math.sin(Math.PI * act.wobbles * settling) ** 3 * (1 - settling) ** 2 : 0;
     const leaving = span(u, ...act.goes);
     const arriving = span(u, ...act.poof);
     return {
         here: leaving < 0.5,
-        above: act.above * (1 - fell * fell),
+        above: act.above * (1 - callLift(fell, [0, 1])),
         squash: act.squash * wobble,
         puff: u >= act.goes[0] ? leaving : arriving < 1 ? 0.3 + 0.7 * arriving : null,
     };
 }
 
-// A call on an old desk telephone that appears on the floor before it: it bends and lifts the handset to its ear with its free hand, bends
-// again and dials with a finger of the other, the dial turning round to the stop and springing back as the finger leaves it, talks a while,
-// nodding, and bends to put the handset back on the cradle; then the telephone goes. Its coiled cord runs from the base to the mouthpiece.
-// Seated, it makes the call sitting (seatedCall).
+// Both postures pick up, dial, talk and replace the handset along the same eased phases. The seated set faces the reaching hand.
 function phone_call(pose, stance, t) {
     if (pose.posture !== "stand") return seatedCall(pose, stance, t);
-    const act = ACTS.phone_call;
-    const u = onceTime(t, act.frames);
     const side = freeSide(stance);
-    const dialler = side === "l" ? "r" : "l";
-    const bent = Math.max(
-        partOf(u, act.reach) * (1 - partOf(u, act.lift)),
-        partOf(u, act.finger) * (1 - partOf(u, act.back)),
-        partOf(u, [act.hang[0], (act.hang[0] + act.hang[1]) / 2]) * (1 - partOf(u, [act.hang[1], act.goes[0]])),
-    );
-    const lifted = callLift(u, act.lift) * (1 - callLift(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
-    const talking = span(u, ...act.talk);
-    const down = CALL.bend * bent;
-    crouch(pose, down);
-    breathe(pose, 0);
-    trunk(pose, {lean: CALL.lean * bent, nod: CALL.nod * bent + CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
-    pose.bendAbove("chest", {y: SIDES[side] * (stance.voice === "butler" ? 1.2 : 2) * lifted});
-    pose.putAway(...IN_HAND);
-    armsAtRest(pose, stance, [side, dialler]);
-    const reach = u >= act.reach[1] && u < act.hang[1] ? 1 : partOf(u, act.reach) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
-    const inHand = u >= act.reach[1] && u < act.hang[1];
-    const mouth = handsetHand(pose, side, {base: STANDING_PHONE, reach, lifted, inHand});
-    const turned = act.turn * partOf(u, act.dial) * (1 - partOf(u, act.back));
-    const finger = partOf(u, act.finger) * (1 - partOf(u, act.back));
-    fingerIn(pose, dialler, finger, onPhoneAt(dialHole(act.turn * partOf(u, act.dial)), STANDING_PHONE), new THREE.Vector3(-1, 0.2, -0.6));
-    eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
-    phoneProps(pose, {u, base: STANDING_PHONE, root: new THREE.Vector3(0, 0, -down), side, inHand, mouth, turned});
+    const base = new THREE.Vector3(SIDES[side] * TELEPHONE.at[0], TELEPHONE.at[1], 0);
+    callAt(pose, stance, onceTime(t, ACTS.phone_call.frames), side, base, -SIDES[side] * CALL.turn);
 }
 
-// The call made seated, wherever it sits, on an edge, a corner, a floor or a swing (acts.js phone_call seated): it stays seated as it was,
-// the telephone appearing on the seat's surface beside its hip on the side of the page `pose.phoneWay` names as it faces (1 the right,
-// -1 the left; perches.js phoneSide; at a corner, turned along the edge, the side toward the viewer), set in its own axes so it stands as
-// near and as clear of it whichever way it faces, and the hand on that side does it all, as the other cannot reach across, its arm
-// solved each frame from where the telephone and the head are: it dials with a finger sitting upright, never leaning away from the
-// other hand, whose shoulder would then lift it off its seat, then takes up the handset to its ear, talks, nodding, and puts it back;
-// the other hand stays as the seat has it
+// The set stands beside and behind the hip. A small lean lets the far hand reach its inward-facing dial.
 function seatedCall(pose, stance, t) {
     pose.kneesTogether();
-    const act = ACTS.phone_call;
-    const {finger, dial, back, reach: reaching, lift, beside, behind} = act.seated;
-    const u = onceTime(t, act.frames);
-    const side = pose.phoneWay * Math.cos(radians(pose.facing)) >= 0 ? "l" : "r";
+    const {beside, behind, turn} = ACTS.phone_call.seated;
+    const side = phoneHand(pose.facing, pose.phoneWay) > 0 ? "l" : "r";
     const base = new THREE.Vector3(SIDES[side] * beside, behind, POSTURES[pose.posture].drop * FRAMED_HEIGHT);
-    const dialling = partOf(u, finger) * (1 - partOf(u, back));
-    const lifted = callLift(u, lift) * (1 - callLift(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
-    const talking = span(u, ...act.talk);
-    breathe(pose, 0);
-    trunk(pose, {nod: CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
-    pose.bendAbove("chest", {y: SIDES[side] * (stance.voice === "butler" ? 1.6 : 2.6) * lifted});
-    pose.putAway(...IN_HAND);
-    armsAtRest(pose, stance, [side]);
-    pose.inUse.add(side);
-    const reach = u >= reaching[1] && u < act.hang[1] ? 1 : partOf(u, reaching) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
-    const inHand = u >= reaching[1] && u < act.hang[1];
-    const turned = act.turn * partOf(u, dial) * (1 - partOf(u, back));
-    const mouth = u < reaching[0] ? onPhoneAt(cradled().add(handsetMouth()), base) : handsetHand(pose, side, {base, reach, lifted, inHand});
-    if (u < reaching[0]) fingerIn(pose, side, dialling, onPhoneAt(dialHole(act.turn * partOf(u, dial)), base), new THREE.Vector3(1, 0.2, -0.6));
-    eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
-    phoneProps(pose, {u, base, root: pose.carried(new THREE.Vector3()), side, inHand, mouth, turned});
+    callAt(pose, stance, onceTime(t, ACTS.phone_call.frames), side, base, -SIDES[side] * turn);
 }
 
-// where the handset's mouthpiece is against its middle resting on the cradle, in the figure's axes against the telephone
-const handsetMouth = () => handsetGrille(-1);
+function callAt(pose, stance, u, side, base, turn) {
+    const act = ACTS.phone_call;
+    const standing = pose.posture === "stand";
+    const dialler = side === "l" ? "r" : "l";
+    const restBend = Math.max(
+        callLift(u, act.reach) * (1 - callLift(u, act.lift)),
+        callLift(u, [act.hang[0], (act.hang[0] + act.hang[1]) / 2]) * (1 - callLift(u, [act.hang[1], act.goes[0]])),
+    );
+    const finger = callLift(u, act.finger) * (1 - callLift(u, act.back));
+    const bent = Math.max(restBend, finger);
+    const lifted = callLift(u, act.lift) * (1 - callLift(u, act.hang));
+    const talking = span(u, ...act.talk);
+    // The high cradle needs only a shallow bend; reaching the lower dial uses the deeper crouch.
+    const down = standing ? Math.max(CALL.pickupBend * restBend, CALL.bend * finger) : 0;
+    const reach = callLift(u, act.reach) * (1 - callLift(u, [act.hang[1], act.goes[0]]));
+    crouch(pose, down);
+    breathe(pose, 0);
+    trunk(pose, {lean: standing ? CALL.lean * bent : -act.seated.backLean * bent * (1 - finger), nod: (standing ? CALL.nod * bent : 0) + CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
+    if (!standing) {
+        const supported = pose.posture === "composed" ? pose.leanWay * COMPOSED.lean.tilt * reach : 0;
+        pose.bendAbove("spine", {y: SIDES[side] * act.seated.lean * finger - supported});
+    }
+    const chestTilt = SIDES[side] * (stance.voice === "butler" ? 1.2 : 2);
+    pose.bendAbove("chest", {y: chestTilt * lifted});
+    const hole = onPhoneAt(dialHole(act.turn * partOf(u, act.dial)), base, turn);
+    if (standing && finger > 0) {
+        pose.lift("root", {y: -dialStep(pose.rig, side, hole, turn, chestTilt) * finger});
+        for (const foot of Object.keys(SIDES)) {
+            pose.step(foot, pose.rig.heads.get(`foot_${foot}`).clone(), new THREE.Vector3(0, -1, 0));
+            pose.face(`foot_${foot}`, {});
+        }
+    }
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, [side, dialler]);
+    if (!standing) {
+        pose.inUse.add(side);
+        if (finger > 0) pose.inUse.add(dialler);
+    }
+    const inHand = u >= act.reach[1] && u < act.hang[1];
+    const mouth = handsetHand(pose, side, {base, turn, reach, lifted, inHand});
+    const spring = [mix(act.back[0], act.back[1], act.release), act.back[1]];
+    const turned = act.turn * partOf(u, act.dial) * (1 - partOf(u, spring));
+    fingerIn(pose, dialler, finger, hole, turn, chestTilt);
+    // While crouching to the cradle, the idle wrist folds up so its fingers stay above the floor.
+    if (standing && restBend) pose.turn(`hand_${dialler}`, {y: -SIDES[dialler] * CALL.restWrist * restBend});
+    eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
+    phoneProps(pose, {u, base, turn, root: pose.carried(new THREE.Vector3()), side, inHand, mouth, turned});
+}
+
+// The standing hips move forward only far enough for a bent arm to reach each hole; the feet stay planted.
+function dialStep(rig, side, hole, turn, chestTilt) {
+    const reference = new Posing(rig);
+    reference.lift("root", {z: -CALL.bend});
+    breathe(reference, 0);
+    trunk(reference, {lean: CALL.lean, nod: CALL.nod, tilt: SIDES[side] * CALL.tilt});
+    reference.bendAbove("chest", {y: chestTilt});
+    const dialler = side === "l" ? "r" : "l";
+    const shoulder = reference.head(`upper_arm_${dialler}`, reference.standing(`upper_arm_${dialler}`));
+    const {wrist} = dialFingerAt(dialler, hole, turn);
+    const [upper, lower, hand] = ["upper_arm", "forearm", "hand"].map((name) => rig.heads.get(`${name}_${dialler}`));
+    const reach = (upper.distanceTo(lower) + lower.distanceTo(hand)) * 0.98;
+    const across = (shoulder.x - wrist.x) ** 2 + (shoulder.z - wrist.z) ** 2;
+    return Math.max(0, shoulder.y - wrist.y - Math.sqrt(Math.max(0, reach ** 2 - across)));
+}
+
+// The cord attaches to the outside of the mouthpiece, away from the gripping hand.
+const handsetMouth = () => new THREE.Vector3(-TELEPHONE.handset.length / 2 - TELEPHONE.handset.end[0], 0, -TELEPHONE.handset.drop - TELEPHONE.handset.end[1] * 0.45);
+
+// Carry the elbow's bend plane between the wrist directions at each receiver pose. Interpolating the original world-space poles
+// instead can pass through the reach axis, making the elbow reverse while the wrist remains continuous.
+function handsetElbow(side, first, current, last, fromPole, toPole, k) {
+    const mirror = (vector) => new THREE.Vector3(SIDES[side] * vector.x, vector.y, vector.z);
+    const initial = mirror(fromPole).projectOnPlane(first).normalize();
+    const finish = mirror(toPole).projectOnPlane(last).normalize();
+    const atEnd = initial.clone().applyQuaternion(new THREE.Quaternion().setFromUnitVectors(first, last));
+    const twist = Math.atan2(last.dot(atEnd.clone().cross(finish)), atEnd.dot(finish));
+    const bend = initial.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(first, current)).applyAxisAngle(current, twist * k);
+    return mirror(bend);
+}
+
+// The receiver's long axis rises first; its outward direction follows that axis before twisting to the final grip. This keeps the
+// mouthpiece below the hand while a seated caller stands the receiver upright and then tips it toward the ear.
+function seatedHandsetTurn(rest, held, lifted) {
+    const first = new THREE.Vector3(1, 0, 0).transformDirection(rest);
+    const last = new THREE.Vector3(1, 0, 0).transformDirection(held);
+    const travel = new THREE.Quaternion().setFromUnitVectors(first, last);
+    const moving = new THREE.Quaternion().slerp(travel, lifted);
+    const axis = first.clone().applyQuaternion(moving);
+    const outside = new THREE.Vector3(0, 0, 1).transformDirection(rest);
+    const atEnd = outside.clone().applyQuaternion(travel);
+    const finish = new THREE.Vector3(0, 0, 1).transformDirection(held);
+    const twist = Math.atan2(last.dot(atEnd.clone().cross(finish)), atEnd.dot(finish));
+    const normal = outside.applyQuaternion(moving).applyAxisAngle(axis, twist * lifted);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(axis, normal.clone().cross(axis), normal));
+}
 
 // The hand on `side` taking the handset off the cradle of the telephone standing at `base`, `reach` of the way to it, and holding it
 // `lifted` of the way to the ear, the palm behind the grip and the hand running up along the handset once it is `inHand`: the handset held
 // there, and where its mouthpiece is, for the cord
-function handsetHand(pose, side, {base, reach, lifted, inHand}) {
+function handsetHand(pose, side, {base, turn: phoneTurn, reach, lifted, inHand}) {
+    const standing = pose.posture === "stand";
     const atEar = handsetAtEar(side);
     const [x, y, z] = CALL.ear;
     const ear = new THREE.Vector3(SIDES[side] * x, y, z).applyMatrix4(pose.matrix("head"));
     const heldTurn = new THREE.Matrix4().extractRotation(pose.matrix("head")).multiply(atEar.basis);
     const held = ear.clone().sub(handsetGrille(1).applyMatrix4(heldTurn));
-    const rest = onPhoneAt(cradled(), base);
-    const rotation = new THREE.Quaternion().setFromRotationMatrix(euler(TELEPHONE.tip, 0, 0)).slerp(new THREE.Quaternion().setFromRotationMatrix(heldTurn), lifted);
+    const rest = onPhoneAt(cradled(), base, phoneTurn);
+    const cradleTurn = cradledTurn(side, phoneTurn);
+    const restTurn = euler(cradleTurn.x, 0, cradleTurn.z);
+    // Seated, first turn the receiver upright, keeping its mouthpiece and cord below the hand, then bring the upper cup to the ear.
+    // Each half eases to rest at that upright pose, without concentrating the turn into the middle of the already eased lift.
+    const upright = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0));
+    const half = lifted < 0.5 ? rise(lifted, 0, 0.5) : rise(lifted, 0.5, 1);
+    const rotation = standing ? new THREE.Quaternion().setFromRotationMatrix(restTurn).slerp(new THREE.Quaternion().setFromRotationMatrix(heldTurn), lifted) : lifted < 0.5 ? seatedHandsetTurn(restTurn, upright, half) : seatedHandsetTurn(upright, heldTurn, half);
     const turn = new THREE.Matrix4().makeRotationFromQuaternion(rotation);
     const outward = new THREE.Vector3(0, 0, 1).applyQuaternion(rotation);
     const arc = Math.sin(Math.PI * lifted) ** 2;
-    const origin = rest.clone().lerp(held, lifted).add(new THREE.Vector3(SIDES[side] * CALL.arc[0], CALL.arc[1], CALL.arc[2]).multiplyScalar(arc));
-    const palm = origin.clone().addScaledVector(outward, CALL.palm);
+    const [across, back, up] = standing ? CALL.arc : CALL.seatedArc;
+    const origin = rest.clone().lerp(held, lifted).add(new THREE.Vector3(SIDES[side] * across, back, up).multiplyScalar(arc));
+    // Roll the palm around the handle toward its shoulder at mid-lift, leaving space between the forearm and the lower cup.
+    const phi = radians((standing ? SIDES[side] * 15 * (1 - lifted) - SIDES[side] * 15 * arc : -SIDES[side] * 30 * arc) - SIDES[side] * 30 * lifted);
+    const normal = outward.clone().multiplyScalar(Math.cos(phi)).addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(rotation), Math.sin(phi));
+    const palmOffset = outward.clone().multiplyScalar(0.06).addScaledVector(normal, CALL.palm - 0.06);
+    const palm = origin.clone().add(palmOffset);
     const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
-    const fingers = palm.clone().sub(shoulder).normalize();
+    const angleAt = (frame, place, roll) => {
+        const axis = new THREE.Vector3(1, 0, 0).transformDirection(frame);
+        const out = new THREE.Vector3(0, 0, 1).transformDirection(frame);
+        const n = out.clone().multiplyScalar(Math.cos(roll)).addScaledVector(new THREE.Vector3(0, 1, 0).transformDirection(frame), Math.sin(roll));
+        const point = place.clone().addScaledVector(out, 0.06).addScaledVector(n, CALL.palm - 0.06).sub(shoulder);
+        return Math.atan2(point.dot(n.clone().cross(axis)), point.dot(axis));
+    };
+    // Stable end angles avoid the wrist reversing when its projected direction passes through zero during the lift.
+    const from = angleAt(restTurn, rest, 0);
+    const to = angleAt(heldTurn, held, -SIDES[side] * radians(30));
+    const difference = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    const angle = from + difference * lifted;
+    const axis = new THREE.Vector3(1, 0, 0).applyQuaternion(rotation);
+    const fingers = axis.clone().multiplyScalar(Math.cos(angle)).addScaledVector(normal.clone().cross(axis), Math.sin(angle));
     const hand = `hand_${side}`;
     const closed = ease(span(reach, 0.65, 1));
-    const elbow = new THREE.Vector3(1, pose.posture === "stand" ? 0.3 : -0.1, mix(-0.6, -0.12, lifted));
-    const solve = (wrist) => {
-        callHandTo(pose, side, reach, pose.withinReach(side, wrist, 0.97), elbow);
-        const pointing = pose.rig.along.get(hand).clone().transformDirection(pose.standing(hand));
-        pose.aim(hand, pointing.lerp(fingers, reach).normalize());
-        pose.roll(hand, SIDES[side] * 18 * reach * lifted);
-        callWristFromSeat(pose, side, reach);
-        pose.clench(side, mix(1, CALL.grip, closed));
-        return palm.clone().sub(pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).sub(pose.head(hand, pose.matrix(hand))));
-    };
-    solve(solve(solve(palm)));
-    if (!inHand) return onPhoneAt(cradled().add(handsetMouth()), base);
-    const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).addScaledVector(outward, -CALL.palm);
+    const share = mix(1, CALL.grip, closed);
+    const acrossHand = fingers.clone().multiplyScalar(SIDES[side]);
+    const handTurn = new THREE.Matrix4().makeBasis(acrossHand, normal.clone().cross(acrossHand), normal);
+    const offset = new THREE.Vector3(SIDES[side] * HAND.grip * share, HAND.forward, 0).applyMatrix4(handTurn);
+    const target = palm.clone().sub(offset);
+    let elbow = new THREE.Vector3(1, -0.65 + arc, mix(-0.1, -0.12, lifted) + 0.5 * arc);
+    if (!standing) {
+        // The three bend planes are anchored to the same physical wrist contacts as the receiver path, including the rolled palm.
+        const wristAt = (frame, place, roll, alongAngle) => {
+            const axis = new THREE.Vector3(1, 0, 0).transformDirection(frame);
+            const out = new THREE.Vector3(0, 0, 1).transformDirection(frame);
+            const n = out.clone().multiplyScalar(Math.cos(roll)).addScaledVector(new THREE.Vector3(0, 1, 0).transformDirection(frame), Math.sin(roll));
+            const fingers = axis.clone().multiplyScalar(Math.cos(alongAngle)).addScaledVector(n.clone().cross(axis), Math.sin(alongAngle));
+            const across = fingers.multiplyScalar(SIDES[side]);
+            const basis = new THREE.Matrix4().makeBasis(across, n.clone().cross(across), n);
+            return place.clone().addScaledVector(out, 0.06).addScaledVector(n, CALL.palm - 0.06).sub(new THREE.Vector3(SIDES[side] * HAND.grip * share, HAND.forward, 0).applyMatrix4(basis));
+        };
+        const middle = rest.clone().lerp(held, 0.5).add(new THREE.Vector3(SIDES[side] * across, back, up));
+        const firstDirection = wristAt(restTurn, rest, 0, from).sub(shoulder).normalize();
+        const middleDirection = wristAt(upright, middle, -SIDES[side] * radians(45), from + difference * 0.5).sub(shoulder).normalize();
+        const lastDirection = wristAt(heldTurn, held, -SIDES[side] * radians(30), to).sub(shoulder).normalize();
+        const currentDirection = target.clone().sub(shoulder).normalize();
+        const firstPole = new THREE.Vector3(1, -0.65, -0.1);
+        const middlePole = new THREE.Vector3(2, -1.15, -1.11);
+        const lastPole = new THREE.Vector3(1, -0.65, -0.12);
+        elbow = lifted < 0.5
+            ? handsetElbow(side, firstDirection, currentDirection, middleDirection, firstPole, middlePole, half)
+            : handsetElbow(side, middleDirection, currentDirection, lastDirection, middlePole, lastPole, half);
+    }
+    callHandTo(pose, side, reach, pose.withinReach(side, target, 0.999), elbow);
+    const wrist = pose.head(hand, pose.matrix(hand));
+    // As with the dialling hand, use the upright entry turn rather than a changing IK turn. Aim the palm before its final approach
+    // to the handle, and keep that turn until the hand is clear on withdrawal.
+    const reference = new Posing(pose.rig);
+    breathe(reference, 0);
+    callHandTo(reference, side, 0, target, elbow);
+    const start = new THREE.Quaternion().setFromRotationMatrix(pose.posture === "composed" ? euler(-80, 0, 0) : new THREE.Matrix4().extractRotation(reference.matrix(hand)));
+    const finish = new THREE.Quaternion().setFromRotationMatrix(handTurn);
+    const heldHand = new THREE.Matrix4().makeRotationFromQuaternion(start.slerp(finish, callLift(reach, [0, 0.7])));
+    pose.final.set(hand, translation(wrist).multiply(heldHand).multiply(translation(pose.rig.heads.get(hand).clone().negate())));
+    pose.clench(side, share);
+    if (!inHand) return rest.clone().add(handsetMouth().applyMatrix4(restTurn));
+    const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).sub(palmOffset);
     const angles = new THREE.Euler().setFromQuaternion(rotation, "ZYX");
     pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: THREE.MathUtils.radToDeg(angles.x), y: THREE.MathUtils.radToDeg(angles.y), z: THREE.MathUtils.radToDeg(angles.z)});
     pose.props.get("telephone_handset").at = grip.clone().applyMatrix4(pose.matrix(hand).clone().invert());
@@ -2918,11 +3071,15 @@ function handsetHand(pose, side, {base, reach, lifted, inHand}) {
 // The telephone at `u` of the call, its base standing at `base` in the figure's axes, `root` how far the root has moved from its place at
 // rest: whole from the first frame, dropping in out of its poof and settling, gone in the poof it leaves in; its dial turned `turned`
 // degrees, the handset on its cradle unless it is `inHand`, and its coiled cord from the base's side to the mouthpiece at `mouth`
-function phoneProps(pose, {u, base, root, side, inHand, mouth, turned}) {
+function phoneProps(pose, {u, base, turn, root, side, inHand, mouth, turned}) {
     const act = ACTS.phone_call;
-    const on = (local) => onPhoneAt(local, base).sub(root);
-    if (!inHand) pose.standProp("telephone_handset", on(cradled()).toArray(), {x: TELEPHONE.tip});
+    const on = (local) => onPhoneAt(local, base, turn).sub(root);
     const arrival = phoneArrival(u);
+    const scale = new THREE.Vector3(1 + arrival.squash / 2, 1 + arrival.squash / 2, 1 - arrival.squash);
+    const lift = new THREE.Vector3(0, 0, arrival.above);
+    const cradle = cradled().multiply(scale);
+    const resting = cradledTurn(side, turn);
+    if (!inHand) pose.standProp("telephone_handset", on(cradle).add(lift).toArray(), resting);
     const poof = arrival.puff ?? 0;
     if (poof > 0 && poof < 1) {
         pose.standProp("telephone_poof", on(new THREE.Vector3(0, 0, TELEPHONE.base.height / 2 + (u < act.goes[0] ? act.above : 0))).toArray());
@@ -2932,14 +3089,14 @@ function phoneProps(pose, {u, base, root, side, inHand, mouth, turned}) {
         pose.props.delete("telephone_handset");
         return;
     }
-    const lift = new THREE.Vector3(0, 0, arrival.above);
-    pose.standProp("telephone", on(new THREE.Vector3()).add(lift).toArray(), {x: TELEPHONE.tip});
+    pose.standProp("telephone", on(new THREE.Vector3()).add(lift).toArray(), {x: TELEPHONE.tip, z: turn});
     Object.assign(pose.props.get("telephone"), {squash: arrival.squash, dial: turned});
-    if (!inHand) pose.props.get("telephone_handset").at.add(lift).add(new THREE.Vector3(0, 0, -arrival.squash * cradled().z));
-    // the cord, from the base's side to the mouthpiece, against the root
+    // The cord prop cancels the root translation; its endpoints are already in the figure's fixed coordinates.
     pose.standProp("telephone_cord", root.clone().negate().toArray());
-    const end = inHand ? mouth : mouth.add(lift);
-    Object.assign(pose.props.get("telephone_cord"), {from: on(new THREE.Vector3(-SIDES[side] * TELEPHONE.base.width * 0.4, 0.25, TELEPHONE.base.height * 0.3)).add(lift), to: end.sub(root)});
+    const from = onPhoneAt(new THREE.Vector3(-TELEPHONE.base.width * 0.5 * (1 - TELEPHONE.base.narrow * 0.3), 0.18, TELEPHONE.base.height * 0.3).multiply(scale), base, turn).add(lift);
+    const to = inHand ? mouth : onPhoneAt(cradle, base, turn).add(handsetMouth().applyMatrix4(euler(resting.x, 0, resting.z))).add(lift);
+    const aside = new THREE.Vector3(SIDES[side] * (Math.max(Math.abs(from.x), Math.abs(to.x)) + 0.45), Math.min(from.y, to.y) - 0.12, Math.min(from.z, to.z) - 0.22);
+    Object.assign(pose.props.get("telephone_cord"), {from, to, aside});
 }
 
 // raises a sign with a question mark on a stick high over its head and waggles it
@@ -4598,7 +4755,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     scene.updateMatrixWorld(true);
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
-    const meshes = (DRESSES[voice] ?? ((each) => each))(found);
+    const meshes = (DRESSES[voice] ?? ((each) => each))(withoutEars(found));
     setScreenIn(meshes.find((mesh) => mesh.name === VISOR_MESH).geometry, meshes.filter(isHeadShell).map((mesh) => mesh.geometry));
     const screens = [];
     const visorHulls = [];
@@ -5332,35 +5489,6 @@ export function lightBulbOf(root) {
     };
 }
 
-// An old rotary desk telephone, drawn a size too large for the figure so it plainly reads as one: its place on the floor across and forward
-// of the feet, tipped `tip` degrees toward the viewer, with a footprint near square. Its body, seen from the side, stands `height` high and
-// `depth` deep: its front face slopes back from the floor at the front up to its brow, `brow` (forward of the middle and up), with the dial
-// set in it, its top runs back from there and its back comes down to the floor, every edge rounded by `round` and its top domed `dome`
-// higher in the middle; it is `width` across at the floor and `narrow` of that narrower at the top, nearly as tall as it is wide. The
-// dial is a cream plate `plate` round filling most of the front face, `face` thick, with marks round its rim for the numbers `marks` from
-// its middle, and on it a dark wheel `radius` round, its `holes` white finger holes `hole` round on a ring `ring` from the middle, the
-// first `first` degrees round from the right and the rest `spread` degrees on, a small label in the middle and a finger stop past the
-// last. On top, `at` back of the middle, two prongs `apart` from the middle and `height` high, each with a saddle for the handle. The
-// handset is a curved horn `length` long, its handle `grip` thick bending down `drop` at its ends into round ends, an ear piece and a
-// mouth piece, each a bulb `end` round and high with its grille underneath; it rests `rest` over the prongs, across the top with its
-// ends hanging past the sides. The cord is `cord` thick in `coils` turns `coil` round. The poof it comes and goes in
-// is `puffs` puffs of smoke `puff` round, bursting out from `from` to `to` of the figure's units about its middle. Each part is shaded and
-// outlined as the figure is, never flat.
-export const TELEPHONE = {
-    at: [0, -0.92],
-    tip: 10,
-    base: {width: 1.2, narrow: 0.18, depth: 0.85, height: 0.88, brow: [0.08, 0.8], round: 0.16, dome: 0.06},
-    dial: {plate: 0.42, face: 0.045, marks: 0.37, radius: 0.31, holes: 10, hole: 0.05, ring: 0.22, first: 60, spread: 290, label: 0.11},
-    cradle: {at: -0.14, apart: 0.3, post: 0.055, height: 0.13},
-    handset: {length: 1.4, grip: 0.085, drop: 0.15, end: [0.2, 0.15], rest: 0.06, grille: 1.52},
-    cord: 0.022, coils: 14, coil: 0.05,
-    poof: {puffs: 11, puff: 0.24, from: 0.5, to: 0.95},
-    colours: {body: 0xa8322d, face: 0xf1e6cf, wheel: 0x2b2e38, hole: 0xf4f2ed, mark: 0x2b2e38, label: 0xf4f2ed, grille: 0x2b2e38, smoke: 0xe6e3ee},
-};
-
-// where the telephone stands for a call standing: on the floor before the feet (TELEPHONE at)
-const STANDING_PHONE = new THREE.Vector3(TELEPHONE.at[0], TELEPHONE.at[1], 0);
-
 // a part shaded and outlined as the figure's own are (flatMaterial, outlineMaterial), for a prop that should read as solid
 function shadedPart(root, name, geometry, colour, at = [0, 0, 0]) {
     const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({color: colour}));
@@ -5432,7 +5560,7 @@ export function telephoneOf(set, handset, cord, poof) {
         shadedPart(wheel, `hole_${index}`, new THREE.CylinderGeometry(dial.hole, dial.hole, dial.face * 0.7, 12), colours.hole, [Math.cos(angle) * dial.ring, dial.face * 0.4, -Math.sin(angle) * dial.ring]);
     }
     shadedPart(face, "dial_label", new THREE.CylinderGeometry(dial.label, dial.label, dial.face * 1.6, 24), colours.label, [0, dial.face, 0]);
-    const stop = radians(dial.first + dial.spread + 22);
+    const stop = radians(dial.first - ACTS.phone_call.turn - 22);
     shadedPart(face, "dial_stop", new THREE.BoxGeometry(0.04, dial.face * 2.2, 0.1), colours.label, [Math.cos(stop) * (dial.radius + 0.02), dial.face * 1.2, -Math.sin(stop) * (dial.radius + 0.02)]);
     for (const sign of [1, -1]) {
         const top = crownAt(cradle.apart) + cradle.height;
@@ -5458,12 +5586,12 @@ export function telephoneOf(set, handset, cord, poof) {
     }
     set.userData.shape = ({squash, dial: turned}) => {
         body.scale.set(1 + squash / 2, 1 - squash, 1 + squash / 2);
-        wheel.rotation.y = radians(turned);
+        wheel.rotation.y = -radians(turned);
     };
     const coiled = shadedPart(cord, "cord", cordGeometry(new THREE.Vector3(), new THREE.Vector3(1, 0, 0)), colours.body);
-    cord.userData.shape = ({from, to}) => {
+    cord.userData.shape = ({from, to, aside}) => {
         coiled.geometry.dispose();
-        coiled.geometry = coiled.children[0].geometry = cordGeometry(from, to);
+        coiled.geometry = coiled.children[0].geometry = cordGeometry(from, to, aside);
         addHullNormals(coiled.geometry);
     };
     const {puffs, puff, from, to} = TELEPHONE.poof;
@@ -5480,20 +5608,27 @@ export function telephoneOf(set, handset, cord, poof) {
 
 // the telephone's coiled cord from `from` to `to`, points in the figure's own axes, sagging between them and wound round its path, as the
 // prop's own geometry (z up there is y)
-function cordGeometry(from, to) {
+function cordGeometry(from, to, aside) {
     const {cord, coils, coil} = TELEPHONE;
     const glb = (point) => new THREE.Vector3(point.x, point.z, -point.y);
     const [a, b] = [glb(from), glb(to)];
     const sag = a.clone().lerp(b, 0.5).add(new THREE.Vector3(0, -0.35 * a.distanceTo(b), 0));
-    const path = new THREE.QuadraticBezierCurve3(a, sag, b);
+    const path = aside ? new THREE.CubicBezierCurve3(a, glb(aside), glb(aside).lerp(b, 0.3), b) : new THREE.QuadraticBezierCurve3(a, sag, b);
+    // The drape is planar; its normal stays steady even where a tangent turns vertical.
+    const side = (aside ? glb(aside) : sag.clone()).sub(a).cross(b.clone().sub(a));
+    if (side.lengthSq() < 1e-12) {
+        side.copy(b).sub(a).cross(new THREE.Vector3(0, 1, 0));
+        if (side.lengthSq() < 1e-12) side.set(0, 0, 1);
+    }
+    side.normalize();
     const points = Array.from({length: coils * 8 + 1}, (_, index) => {
         const k = index / (coils * 8);
         const at = path.getPoint(k);
         const tangent = path.getTangent(k);
-        const side = new THREE.Vector3(0, 1, 0).cross(tangent).normalize();
         const up = tangent.clone().cross(side).normalize();
         const angle = 2 * Math.PI * coils * k;
-        return at.addScaledVector(side, Math.cos(angle) * coil).addScaledVector(up, Math.sin(angle) * coil);
+        const wound = coil * Math.sin(Math.PI * k) ** 0.5;
+        return at.addScaledVector(side, Math.cos(angle) * wound).addScaledVector(up, Math.sin(angle) * wound);
     });
     return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), coils * 16, cord, 6);
 }
@@ -6112,7 +6247,7 @@ export class Stage {
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
     // things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `walkWay` the
     // way it walks to meet the mallet's bug (bug_smash), `at` is where
-    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), `phoneWay` the side of the page a seated call's telephone stands on
+    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), `phoneWay` which mirrored telephone placement a seated call uses
     // (seatedCall), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
     draw(figure, clip, frame, facing, canvas, {blend = null, time = null, ...options} = {}) {

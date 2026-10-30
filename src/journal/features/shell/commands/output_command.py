@@ -14,8 +14,11 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.tasks import Tasks
 from journal.models.task import Task
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
+from journal.support.time_source import TimeSource
 
 END_LINES = 10
+# the code a stopped output ends with, the shell's own for a process killed
+STOPPED_STATUS = 137
 # the outputs a list shows unless asked for more, each row carrying its stored summary
 LISTED_OUTPUTS = 10
 
@@ -25,7 +28,8 @@ class OutputCommand(Command):
 
     noun = "output"
 
-    def __init__(self, outputs: CommandOutputs, readers: Readers, card: OutputProcessCard, tasks: Tasks, test_runs: TaskTestRuns) -> None:
+    def __init__(self, outputs: CommandOutputs, readers: Readers, card: OutputProcessCard, tasks: Tasks, test_runs: TaskTestRuns, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.outputs, self.readers, self.card, self.tasks, self.test_runs = outputs, readers, card, tasks, test_runs
 
     def arguments(self, verbs) -> None:
@@ -47,6 +51,7 @@ class OutputCommand(Command):
         watch.add_argument("--reader", default="", help="the reader whose lines are shown, by its name")
         watch.add_argument("--title", default="", help="what the card in the chat shows the run is doing, such as Running tests; never a bare name such as Tests")
         self.verb(verbs, "unwatch", "end the watch on your output")
+        self.verb(verbs, "stop", "stop a running output whose command hangs or whose process is gone: its processes are killed and it ends failed, with any wait on it").add_argument("n", type=int)
         tested = self.verb(verbs, "test", "the run that tests the tasks waiting in testing, every one or those named: when it passes they complete, when it fails they are in progress again")
         tested.add_argument("n", type=int)
         tested.add_argument("--tasks", type=int, nargs="+", default=[], help="only these tasks, by number")
@@ -150,6 +155,15 @@ class OutputCommand(Command):
         output = self.owned(args.n, caller)
         self.card.undocked(output, caller.actor)
         print(f"output {output.id}'s card undocked")
+        return 0
+
+    def stop(self, args: Namespace, caller: Caller) -> int:
+        output = self.owned(args.n, caller)
+        if output.ended:
+            raise Rejection(f"output {output.row_id} ended already: {self.state(output)}")
+        OutputFiles(Path(output.folder)).stop(f"stopped by journal output stop {output.row_id}")
+        self.outputs.save(output.ended_with(STOPPED_STATUS, self.time_source.moment().timestamp()), caller.actor)
+        print(f"output {output.row_id} stopped: its processes are killed and it ended failed with code {STOPPED_STATUS}")
         return 0
 
     def unwatch(self, args: Namespace, caller: Caller) -> int:
