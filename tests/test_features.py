@@ -35,6 +35,7 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.features.workers.support.work_mode import WorkMode
 from journal.repositories.id_blocks import IdBlocks
 from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
@@ -1221,6 +1222,8 @@ def test_plan_agents_instead_of_work_modes_sets_the_old_modes_conduct_aside_whil
     assert nudge_reached(app, dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "off, the builder's conduct refuses the dispatch it was not allowed"
     user_set(app, "plans.plan_agents", True)
     assert nudge_reached(app, use("a.py"), PlansNudges.COORDINATOR_MODE) and floor() == "coordinating_plans", "on, the floor coordinates the plans and says so once"
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(WorkMode).state().name == "coordinating_plans", "the listener's work mode reads the main agent's role-aware floor"
     assert not has_nudge(dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "and the builder's conduct is not heard"
     user_set(app, "workers.mode", "solo")
     assert floor() == "coordinating_plans" and not has_nudge(use("b.py"), WorkersNudges.SOLO_MODE), "the work mode set is not used while the switch is on"

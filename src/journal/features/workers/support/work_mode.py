@@ -20,7 +20,7 @@ class WorkMode:
         agent = self.agents.environment_main_agent(self.scope.id_default(NO_ENVIRONMENT))
         if agent is None:
             return self.catalogue.mode_state(settings)
-        return type(self.catalogue.floor(self.catalogue.stack(agent), settings).states[0])
+        return type(self.catalogue.floor(self.catalogue.stack(agent), settings, agent.role).states[0])
 
     def delegates_work(self) -> bool:
         return self.state().delegates_work()
