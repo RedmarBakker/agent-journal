@@ -121,6 +121,7 @@ class ExternalWait(Wait):
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
         work_lines = self.next_work_lines(event.data)
+        print('DEBUGTICK', event.time, self.started_at, self.next_task_reported, work_lines, flush=True)
         if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and work_lines:
             return self.swap(replace(self, next_task_reported=True), *work_lines)
         if self.reminder(tasks.wait_progress, event.time).is_elapsed(event.time):
