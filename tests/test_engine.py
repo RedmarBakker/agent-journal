@@ -505,6 +505,12 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     with scope.environment(1):
         workers.save(workers.find(worker.id).with_(edit_lock=True), Actor.system())
         assert workers.session_worker("w1")[0].edit_lock, "the worker's rebase lock is stored on its session row"
+    from journal.engine.support.data_readers import DataReaders
+    from journal.features.workers.session_workers_part import SessionWorkersPart
+    worker_agent = agents.session_agent("w1")
+    assert worker_agent.role == AgentRole.WORKER, "the hook stays in the worker's role"
+    session_worker = app.container.get(DataReaders).agent_data(worker_agent).part(SessionWorkersPart).session_workers[0]
+    assert session_worker.edit_lock, "the worker's state data includes its rebase lock"
     status, body = worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": "locked.py"})
     assert status == 409 and "the journal is rebasing your worktree" in body["error"], "a worker's writes wait while the journal rebases its worktree"
     with scope.environment(1):
