@@ -35,6 +35,7 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.repositories.id_blocks import IdBlocks
 from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
@@ -106,6 +107,7 @@ MAIN = 1
 from journal.models.agent import Agent
 
 EVENT_AGENT = Agent(environment_id=1, session="s1", provider="claude")
+WORKER_RUNNER_START = WorkerRunner.start
 
 
 def catch_typed(app: App, monkeypatch, keystrokes: list[str]) -> None:
@@ -3554,7 +3556,7 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter():
     runner.finish_seat = lambda *args: None
     worker = Worker(name="Ada Lovelace", brief="write the patch", role="builder", plan_id=8)
     assert runner.seats is seats and runner.seats.applies(worker) and worker.role == "builder" and worker.plan_id == 8
-    WorkerRunner.start(runner, worker, Actor.system())
+    WORKER_RUNNER_START(runner, worker, Actor.system())
     assert len(seats.started) == 1 and seats.started[0][0] == worker and seats.started[0][1] == Actor.system()
     assert "write the patch" in seats.started[0][2] and seats.started[0][3] == runner.finish_seat
 
@@ -5180,7 +5182,8 @@ def test_dispatches_past_the_most_at_once_wait(app: App):
     assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SUBAGENT_OVERFLOW, running=1), "a subagent past the most at once is held"
     app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.most_subagents", value=2), Actor.user(1))
     second = {"description": "map the views", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"}
-    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=second, tool_use_id="t-2")[0] == 200, "one running and a second passes a most of two"
+    status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input=second, tool_use_id="t-2")
+    assert status == 200, body
     hook(app, "PostToolUse", tool_name="Agent", tool_input=second, tool_response={"isAsync": True, "agentId": "a2"}, tool_use_id="t-2")
     hook(app, "SubagentStart", agent_id="a2", agent_type="Explore")
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "map the tests", "prompt": "map", "subagent_type": "journal-researcher", "model": "sonnet"})
@@ -15192,6 +15195,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         worker = max(workers.scoped(), key=lambda row: row.id)
         workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
         app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
+    app.container.get(IdBlocks).add("links", 800000, 800100)
     assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 
