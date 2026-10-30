@@ -97,7 +97,7 @@ class SupervisorObservations:
         return found
 
     def record_episode_attempt(self, principal: SupervisorPrincipal, episode_id: str, attempt_id: str) -> dict[str, Any]:
-        return self.episode_qualification.record_attempt(principal, episode_id, attempt_id)
+        return self.episode_qualifier.record_attempt(principal, episode_id, attempt_id)
 
     def episode_qualification(self, principal: SupervisorPrincipal, installation_epoch: int) -> dict[str, Any]:
         grant = self.authority.revalidate(principal)

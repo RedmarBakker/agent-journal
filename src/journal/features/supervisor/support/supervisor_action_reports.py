@@ -61,11 +61,12 @@ class SupervisorActionReports:
             return
         with self.scope.environment(PROJECT):
             receipts = self.entries.supervisor_records(
-                "SupervisorActionReceipt", last=100, tenant_id=grant["scope"]["tenant_id"],
-                grant_id=grant["grant_id"], grant_version=grant["grant_version"], status="applied",
+                "SupervisorActionReceipt", last=100, grant_id=grant["grant_id"],
+                grant_version=grant["grant_version"], status="applied",
             )
         for receipt in receipts:
-            self._measure_receipt(grant, receipt, observation)
+            if receipt.data.get("scope", {}).get("tenant_id") == grant["scope"]["tenant_id"]:
+                self._measure_receipt(grant, receipt, observation)
 
     def project(self, receipt: Entry, duplicate: bool = True) -> dict[str, Any]:
         verification_rows = self._reports(receipt, "verification")

@@ -229,7 +229,7 @@ class SupervisorAuthority:
                 or grant["driver_agent_id"] != context["agent"].row_id
                 or grant["driver_environment_id"] != context["driver_environment_id"]
                 or grant["driver_provider"] != context["agent"].provider
-                or grant["current_phase"] != context["current_phase"]
+                or not self._same_phase(grant["current_phase"], context["current_phase"])
                 or entry.data.get("_expected_binding_revision") != context["binding_revision"]):
             raise SupervisorFailure(403, "the supervisor grant no longer matches the current plan state")
         if not self._enrolled_checks_current(grant):
@@ -252,7 +252,7 @@ class SupervisorAuthority:
                 or grant["driver_agent_id"] != context["agent"].row_id
                 or grant["driver_environment_id"] != context["driver_environment_id"]
                 or grant["driver_provider"] != context["agent"].provider
-                or grant["current_phase"] != context["current_phase"]
+                or not self._same_phase(grant["current_phase"], context["current_phase"])
                 or entry.data.get("_expected_binding_revision") != context["binding_revision"]):
             return grant, {"conflict_reason": "grant_context_changed"}
         if not self._enrolled_checks_current(grant):
@@ -549,6 +549,10 @@ class SupervisorAuthority:
             and agent.stack[-1].get("state") == "working"
             and agent.stack[-1].get("data", {}).get("task_id", 0) > 0
         )
+
+    @staticmethod
+    def _same_phase(enrolled: dict[str, Any], current: dict[str, Any]) -> bool:
+        return enrolled.get("phase_id") == current.get("phase_id") and enrolled.get("number") == current.get("number")
 
     def _plan_revision(self, plan: Plan, phases) -> str:
         with self.scope.environment(plan.environment_id):
