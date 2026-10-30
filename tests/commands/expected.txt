@@ -401,6 +401,7 @@ exit 0
 $ agent: journal plan review 1
 exit 0
 plan 1 in review: put what the reviewers find straight into it, then journal plan ready 1
+created: plan review 1
 
 $ agent: journal plan ready 1 --changed 'nothing changed in review'
 exit 0
@@ -485,6 +486,7 @@ question 1: Which payment provider?  [Stripe / Mollie]
 $ user: journal question answer 1 Mollie
 exit 0
 question 1 answered: Mollie
+created: message <n>
 
 $ agent: journal question dock 1
 exit 0

@@ -23,7 +23,6 @@ THREADED = (Container, Connection, Server, ShareServer, ListenerQueue, JobRunner
 PLAIN = (type, types.FunctionType, types.MethodType, types.ModuleType, Enum)
 """What has a __dict__ but keeps no state of a journal's."""
 
-DATABASE_SUFFIXES = ("", "-wal", "-shm")
 
 
 class SharedJournal:
@@ -104,7 +103,8 @@ class SharedJournal:
         return status.st_mtime_ns, status.st_size
 
     def is_database(self, path: str) -> bool:
-        return os.path.basename(path) in {self.app.config.database.name + suffix for suffix in DATABASE_SUFFIXES}
+        name = os.path.basename(path)
+        return name == self.app.config.database.name or name.endswith(("-wal", "-shm", "-journal"))
 
     def remember(self, instance: object) -> None:
         if id(instance) in self.fields or not self.remembers(instance):
