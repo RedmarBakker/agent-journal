@@ -2199,7 +2199,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     with app.container.get(Scope).environment(1):
         domains = app.container.get(DomainRows)
         domains.task_tied(tasks.find(built.id), "beta", actor)
-            app.runtime().deferred.drain()
+        app.runtime().deferred.drain()
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 1, "beta": 1}, "alpha still holds the queued task"
         domains.task_tied(tasks.find(looked.id), "beta", actor)
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 0, "beta": 1}, "a task handed on to another domain's Role leaves the domain it came from at once"
