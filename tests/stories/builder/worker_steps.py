@@ -39,6 +39,13 @@ class WorkerSteps:
     def agent_clocks_out(self, agent: StoryAgent, report: str) -> None:
         self.agent_runs_cleanly(agent, f"clock-out '{report}'")
 
+    def worker_proves_its_point_again(self, agent: StoryAgent, point: int, proof: str) -> None:
+        self.agent_resumes_the_session(agent)
+        self.agent_clocks_in(agent)
+        self.agent_proves(agent, point, proof)
+        self.agent_clocks_out(agent, f"point {point} again: {proof}")
+        self.worker_run_ends_with_its_session(agent, proof)
+
     def worker_run_ends_with_its_session(self, agent: StoryAgent, report: str) -> None:
         self.agent_has_written(agent, report)
         self.worker_run_ends_printing(agent, json.dumps({"result": report, "session_id": self.session_of(agent)}))

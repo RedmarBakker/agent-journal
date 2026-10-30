@@ -301,6 +301,10 @@ class StoryChecks:
         given = json.loads((self.app.config.home / "plugin-data" / plugin / "environment.json").read_text())
         assert (variable in given) is is_given, f"plugin {plugin}'s program was {'not ' if is_given else ''}given {variable}"
 
+    def expect_chat_holds(self, text: str) -> None:
+        texts = [row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"]]
+        assert text in texts, f"the chat holds no message {text!r}: {texts}"
+
     def expect_agent_messages(self, count: int) -> None:
         agent_messages = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
         assert len(agent_messages) == count, f"the chat holds {len(agent_messages)} messages of the agent, not {count}"

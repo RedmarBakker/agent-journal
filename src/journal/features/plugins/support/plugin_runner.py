@@ -1,6 +1,6 @@
 import json
 import os
-import select
+import selectors
 import signal
 import socket
 import subprocess
@@ -78,17 +78,19 @@ class PluginRunner:
 
     def read_output(self, process: subprocess.Popen, window: float, report: Callable[[str], None] | None) -> str:
         deadline, lines, buffer = time.monotonic() + window, [], b""
-        while True:
-            wait_seconds = deadline - time.monotonic()
-            if wait_seconds <= 0 or not select.select([process.stdout], [], [], wait_seconds)[0]:
-                raise WindowMissed(f"it gave no answer within {window * 1000:.0f} ms, its hold window")
-            data = os.read(process.stdout.fileno(), READ_BYTES)
-            if not data:
-                break
-            *complete, buffer = (buffer + data).split(b"\n")
-            for line in complete:
-                lines.append(line.decode(errors="replace"))
-                self.report_status(lines[-1], report)
+        with selectors.DefaultSelector() as readable:
+            readable.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                wait_seconds = deadline - time.monotonic()
+                if wait_seconds <= 0 or not readable.select(wait_seconds):
+                    raise WindowMissed(f"it gave no answer within {window * 1000:.0f} ms, its hold window")
+                data = os.read(process.stdout.fileno(), READ_BYTES)
+                if not data:
+                    break
+                *complete, buffer = (buffer + data).split(b"\n")
+                for line in complete:
+                    lines.append(line.decode(errors="replace"))
+                    self.report_status(lines[-1], report)
         lines.append(buffer.decode(errors="replace"))
         try:
             process.wait(timeout=max(deadline - time.monotonic(), 0.001))

@@ -24,3 +24,14 @@ def test_a_struck_reminder_matches_no_keyword(story):
     story.agent_closes_its_turn(story.agents.subject, "Now the billing.")
     story.expect_typed_nudge(MemoryNudges.MEMORY_READ_REQUEST, count=0, noun="reminder", n=billing)
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_reminder_handed_over_by_the_start_after_a_compaction_is_not_typed_when_its_word_comes_up(story):
+    story.agent_runs(story.agents.subject, "reminder create 'run the suite before a push' --keywords push")
+    push = story.created_number("reminder")
+    story.context_is_compacted()
+    story.agent_looks_at_the_overview(story.agents.subject)
+    story.agent_closes_its_turn(story.agents.subject, "about to push")
+    story.expect_typed_nudge(MemoryNudges.MEMORY_READ_REQUEST, count=0, noun="reminder", n=push)
+    story.expect_stack(story.agents.subject, Ready)

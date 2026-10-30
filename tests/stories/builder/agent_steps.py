@@ -40,6 +40,7 @@ from journal.http.controllers.hooks import FIRING_HEADER, SILENCE_HEADER
 from journal.features.usage.support.process_usage_store import ProcessUsageStore
 from journal.support.process_usage import ProcessUsage
 from journal.repositories.agents import Agents
+from journal.support.researcher_session import ResearcherSession
 from journal.console.support.outcome import Outcome
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
@@ -94,6 +95,11 @@ class AgentSteps:
     def agent_has_taken_a_queued_note(self, agent: StoryAgent, text: str) -> None:
         self.transcript_record(agent, {"type": "queue-operation", "operation": "enqueue", "content": text})
         self.observed(f"the {agent.role}'s transcript records a note queued for it", None, None)
+
+    def another_session_sends(self, agent: StoryAgent, sender: str, text: str) -> None:
+        content = f'<cross-session-message from="uds:/tmp/cc-socks/1.sock" from-name="{sender}" from-mode="bypass">\n{text}\n</cross-session-message>'
+        self.transcript_record(agent, {"type": "queue-operation", "operation": "enqueue", "content": content})
+        self.observed(f"another session's agent sends the {agent.role} a message", None, None)
 
     def transcript_record(self, agent: StoryAgent, record: dict) -> None:
         transcript = Claude.config_folder() / "projects" / Claude.folder_name(self.app.config.root) / f"{self.session_of(agent)}.jsonl"
@@ -199,6 +205,13 @@ class AgentSteps:
     def agent_sends_subagent(self, agent: StoryAgent, role: str, job: str) -> None:
         self.hooked(agent, "agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_input={"subagent_type": role, "description": job, "task_name": job, "prompt": job, "model": SUBAGENT_MODEL})
 
+    def an_older_journal_left_the_subagent_on_void(self, subagent: str) -> None:
+        session = ResearcherSession.joined(self.main_session(), subagent)
+        with self.app.container.get(Scope).environment(1):
+            agents = self.app.container.get(Agents)
+            agents.save(agents.session_agent(session).with_(stack=({"state": "void", "data": {}},), state="void"), Actor.system())
+        self.observed("an older journal's end left the subagent's row resting on Void", None, None)
+
     def subagent_starts(self, subagent: str, role: str) -> None:
         self.hooked(self.agents.subject, "a subagent starts", "SubagentStart", agent_id=subagent, agent_type=role)
 
@@ -217,6 +230,15 @@ class AgentSteps:
         call = f"failing-{len(self.path)}"
         self.hooked(agent, "agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={"subagent_type": role, "description": job, "prompt": job, "model": SUBAGENT_MODEL})
         self.hooked(agent, "the subagent tool fails", "PostToolUseFailure", tool_name=self.tools.subagent, tool_use_id=call, tool_input={}, error=error)
+
+    def agent_schedules_a_job(self, agent: StoryAgent, job: str) -> None:
+        created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check", "recurring": True}
+        self.hooked(agent, "agent schedules a job", "PreToolUse", tool_name="CronCreate", tool_use_id=f"create-{job}", tool_input=created)
+        self.hooked(agent, "the job is scheduled", "PostToolUse", tool_name="CronCreate", tool_use_id=f"create-{job}", tool_input=created, tool_response=f"Scheduled recurring job {job} (7,22,37,52 * * * *). Session-only.")
+
+    def agent_deletes_the_job(self, agent: StoryAgent, job: str) -> None:
+        self.hooked(agent, "agent deletes a job", "PreToolUse", tool_name="CronDelete", tool_use_id=f"delete-{job}", tool_input={"id": job})
+        self.hooked(agent, "the job is deleted", "PostToolUse", tool_name="CronDelete", tool_use_id=f"delete-{job}", tool_input={"id": job}, tool_response=f"Cancelled job {job}.")
 
     def agent_messages_subagent(self, agent: StoryAgent, subagent: str, text: str) -> None:
         call, words = f"message-{subagent}", {"to": subagent, "message": text}
@@ -536,6 +558,12 @@ class AgentSteps:
         with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
             log.write(f"{int(self.app.container.get(TimeSource).seconds())} hook {self.provider}\n")
         self.observed("a hook went around the journal", None, None)
+
+    def a_shell_line_went_around_the_journal(self, line: str) -> None:
+        (self.app.config.home / "runtime").mkdir(parents=True, exist_ok=True)
+        with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
+            log.write(f"{int(self.app.container.get(TimeSource).seconds())} shell {line}\n")
+        self.observed("a shell line ran around the journal", None, None)
 
     def the_project_holds_a_file(self, path: str, data: bytes) -> None:
         (self.app.config.root / path).write_bytes(data)

@@ -7,6 +7,7 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.subagent.started_subagent import RESEARCHER
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -39,3 +40,12 @@ def test_a_turn_that_works_again_ends_the_usage_hold(story):
     story.agent_turn_fails_on_the_usage_limit(story.agents.subject)
     story.agent_reads(story.agents.subject)
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_running_subagent_is_cut_off_as_failed_when_the_agents_turn_fails_on_its_limit(story):
+    story.agent_sends_subagent_in_the_background(story.agents.subject, RESEARCHER, "review the plan", "ag-1")
+    story.agent_turn_fails_on_the_usage_limit(story.agents.subject)
+    story.user_opens("/journal/subagents")
+    story.expect_viewer_rows("rows", "state", ["failed"])
+    story.expect_stack(story.agents.subject, Ready, UsageLimited)

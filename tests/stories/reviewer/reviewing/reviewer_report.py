@@ -4,6 +4,7 @@ from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.reviewing.states.reviewing import Reviewing
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import ORCHESTRATOR_MODE
+from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.reviewer.reviewer_at_work import ReviewerAtWork
@@ -30,3 +31,12 @@ def test_only_the_reviewer_records_a_review(story):
     story.agent_runs(story.agents.main, "review record '1 passed. 2 passed.'")
     story.expect_command_refused()
     story.expect_stack(story.agents.subject, Void, Reviewing)
+
+
+@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+def test_a_report_with_a_short_point_sends_that_point_back_to_the_worker(story):
+    story.worker_run_ends_with_its_session(story.agents.workers.first(), "the parser is done")
+    story.agent_runs(story.agents.subject, "review record '1 passed. 2 short: the names of the rules are missing.'")
+    story.expect_command_passed()
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.DISPATCHED)
+    story.expect_stack(story.agents.subject, Void, Reviewing, Ended)
