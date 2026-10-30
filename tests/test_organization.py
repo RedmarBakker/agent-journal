@@ -259,6 +259,23 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
 
 
+def test_a_worker_role_can_run_rig_and_detached_commands_without_git_or_hub_sends(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "claude")
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "builder", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["builder"])
+    contracts = organization.reload()
+    writer = app.container.get(RigSpecs)
+    provider = writer.providers.lookup("claude")
+    seat = next(seat for seat in writer.seats.seats("plan-worker-58", contracts, ("alpha",), provider) if seat.role == "builder")
+
+    permissions = writer.permissions(provider, seat, app.config.root)
+
+    assert {"Bash(rig context *)", "Bash(nohup *)", "Bash(journal *)"}.issubset(permissions["allow"]), "a Role worker can inspect its rig and run a detached journal server"
+    assert "Bash" not in permissions["allow"], "command access stays limited to its task tools and the needed programs"
+    assert {"Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)"}.issubset(permissions["deny"]), "git and direct hub sends and queue changes remain refused"
+
+
 def test_generated_member_bash_environment_prefers_its_project_journal_command(app, tmp_path, monkeypatch):
     use_provider(app, monkeypatch, "claude")
     contracts = plan_contracts(app, tmp_path)
