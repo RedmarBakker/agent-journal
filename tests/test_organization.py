@@ -2202,12 +2202,15 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         app.runtime().deferred.drain()
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 1, "beta": 1}, "alpha still holds the queued task"
         domains.task_tied(tasks.find(looked.id), "beta", actor)
+        app.runtime().deferred.drain()
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 0, "beta": 1}, "a task handed on to another domain's Role leaves the domain it came from at once"
         queued = {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"]
         tasks.unqueued(Ref.build(builder), actor)
+        app.runtime().deferred.drain()
         assert queued == 1 and {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"] == 0, "a queue emptied is counted again"
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 1, "the active builder instance is still counted before deletion"
         workers.delete(workers.find(builder.id), actor)
+        app.runtime().deferred.drain()
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 0, "deleting an active instance immediately changes its domain's figure"
 
 
