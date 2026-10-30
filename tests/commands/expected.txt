@@ -486,7 +486,6 @@ question 1: Which payment provider?  [Stripe / Mollie]
 $ user: journal question answer 1 Mollie
 exit 0
 question 1 answered: Mollie
-created: message <n>
 
 $ agent: journal question dock 1
 exit 0

@@ -1,5 +1,6 @@
 from contextvars import ContextVar
 
+from journal.console.creation_capture import CreationCapture
 from journal.events.models.created import Created
 from journal.events.listener import Listener
 from journal.models.command_output import CommandOutput
@@ -11,26 +12,28 @@ from journal.models.state_transition import StateTransition
 from journal.models.task_log import TaskLog
 
 RECORD_ROWS = (Entry, CommandOutput, OutgoingChange, Link, TaskLog, StateTransition)
-RUN: ContextVar[list | None] = ContextVar("creations", default=None)
+RUN: ContextVar[CreationCapture | None] = ContextVar("creations", default=None)
 
 
 class Creations(Listener[Created]):
     """Every row made while a command runs, by the command or by what its events caused, so the agent is informed the name and number of each it may address next; the record's own rows, a link, a queued change, a log line, a count of a kind of stack change, are left out."""
 
     def handle(self, event: Created) -> None:
-        produced = RUN.get()
-        if produced is not None and not event.actor.is_system_actor() and not isinstance(event.model, RECORD_ROWS):
-            produced.append(event.model)
+        capture = RUN.get()
+        if capture is not None and not event.actor.is_system_actor() and not isinstance(event.model, RECORD_ROWS):
+            capture.record(event.model)
 
     @staticmethod
-    def begin() -> list[Model]:
-        produced: list[Model] = []
-        RUN.set(produced)
-        return produced
+    def begin() -> CreationCapture:
+        capture = CreationCapture()
+        RUN.set(capture)
+        return capture
 
     @staticmethod
-    def end() -> None:
+    def end(capture: CreationCapture) -> list[Model]:
+        produced = capture.close()
         RUN.set(None)
+        return produced
 
     @classmethod
     def line(cls, produced: list[Model], line_text: str) -> str:

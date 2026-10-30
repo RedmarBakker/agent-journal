@@ -129,7 +129,7 @@ class Console:
 
     def captured(self, argv: list[str], caller: Caller, output: io.StringIO, err: io.StringIO) -> Outcome:
         argv = self.with_verb(self.switched(argv, caller.role), caller.role)
-        produced = Creations.begin()
+        capture = Creations.begin()
         with CapturedStream.capture(output, err):
             try:
                 args = self.parser(caller.role).parse_args(argv)
@@ -143,7 +143,7 @@ class Console:
             except (MissingRow, Rejection) as refused:
                 print(refused, file=err)
                 code = 1
-        Creations.end()
+        produced = Creations.end(capture)
         trailer = Creations.line(produced, output.getvalue()) if produced else ""
         if trailer:
             output.write(trailer + "\n")
