@@ -1546,6 +1546,7 @@ def orchestrated(app: App) -> None:
     user_set(app, "workers.mode", "orchestrator")
     hook(app, "SessionStart")
     console, agents, tasks = app.console(), app.container.get(Agents), app.container.get(Tasks)
+    environment_id = agents.session_agent("s1").environment_id
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "create", "go live", "--brief", "twenty tasks"], USER)
     console.run(["plan", "phase", "1", "release", "--when", "all twenty done"], USER)
@@ -1554,7 +1555,7 @@ def orchestrated(app: App) -> None:
     console.run(["plan", "todos", "1", "1", *[str(n) for n in range(1, 21)]], USER)
     assert console.run(["plan", "ready", "1"], AGENT).code == 0 and console.run(["plan", "approve", "1"], USER).code == 0 and console.run(["plan", "start", "1"], AGENT).code == 0
     stack = lambda: [s["state"] for s in agents.session_agent("s1").stack]
-    with app.container.get(Scope).environment(1):
+    with app.container.get(Scope).environment(environment_id):
         assert stack() == ["orchestrating", "orchestrating_plan"] and tasks.find(1).state == "open", "the orchestrator's mode state and its plan state, every piece left open for workers"
     stop = lambda active=False: hook(app, "Stop", stop_hook_active=active)[1]
     first = stop()
@@ -1564,7 +1565,7 @@ def orchestrated(app: App) -> None:
     waiting = stop()
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
-    with app.container.get(Scope).environment(MAIN):
+    with app.container.get(Scope).environment(environment_id):
         for n in (1, 2, 3):
             started_run(app.container.get(WorkerRunner), app.container.get(Workers), workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
     assert stack() == ["orchestrating", "orchestrating_plan"], "the last report pops the wait and the orchestrator is back on its plan"
@@ -1572,7 +1573,7 @@ def orchestrated(app: App) -> None:
         assert console.run(["worker", "complete", str(n)], AGENT).code == 0
         assert console.run(["task", "complete", str(n), "--how", "reviewed and merged"], AGENT).code == 0
     app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
+    with app.container.get(Scope).environment(environment_id):
         next_task = tasks.find(4)
     assert next_task.state == "open" and stack()[-1] == "orchestrating_plan", "the plan leaves its next open piece for a worker"
     for n in range(4, 21):
