@@ -16,6 +16,12 @@ from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
+from tests.test_features import booted
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 def test_task_size_scale_versions_configuration_and_keeps_unknown_distinct_from_zero(app):

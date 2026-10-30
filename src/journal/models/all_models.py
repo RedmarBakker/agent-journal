@@ -46,6 +46,7 @@ from journal.models.phone import Phone
 from journal.models.phone_code import PhoneCode
 from journal.models.task import Task
 from journal.models.task_size_estimate import TaskSizeEstimate
+from journal.models.task_outcome import TaskOutcome
 from journal.models.template import Template
 from journal.models.task_log import TaskLog
 from journal.models.proof import Proof
@@ -69,5 +70,5 @@ from journal.models.organization_handoff import OrganizationHandoff
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskSizeEstimate, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition, Sprint, SprintCommitment, SprintChange, DeliveryRecord)
+    MODELS = (Environment, User, Agent, Task, TaskSizeEstimate, TaskOutcome, TaskLog, Plan, PlanReview, Approval, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, Alias, Proof, TestTurn, WorkerTodo, Collection, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount, LibraryItem, OrganizationHandoff, StateTransition, Sprint, SprintCommitment, SprintChange, DeliveryRecord)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))

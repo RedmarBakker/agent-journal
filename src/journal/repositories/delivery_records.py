@@ -24,6 +24,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.sprints import Sprints
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import WORKED_LINK, Tasks
+from journal.repositories.task_outcomes import TaskOutcomes
 from journal.repositories.workers import Workers
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
@@ -41,10 +42,12 @@ class DeliveryRecords(ScopedRepository[DeliveryRecord]):
     model = DeliveryRecord
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource, links: Links, plans: Plans, tasks: Tasks, domains: DomainRows,
-                 organization: Organization, owners: PlanOwners, sprints: Sprints, workers: Workers, settings: SettingRows) -> None:
+                 organization: Organization, owners: PlanOwners, sprints: Sprints, workers: Workers, settings: SettingRows,
+                 outcomes: TaskOutcomes) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.links, self.plans, self.tasks, self.domains = links, plans, tasks, domains
         self.organization, self.owners, self.sprints, self.workers, self.settings = organization, owners, sprints, workers, settings
+        self.outcomes = outcomes
 
     def show(self, plan_id: int) -> dict:
         plan = self.plans.find(plan_id)
@@ -267,6 +270,7 @@ class DeliveryRecords(ScopedRepository[DeliveryRecord]):
             self.links.linked(Ref.build(plan), Ref.build(row), PLAN_DELIVERY_LINK, actor)
             for task in tasks:
                 self.links.linked(Ref.build(row), Ref.build(task), DELIVERY_TASK_LINK, actor)
+            self.outcomes.record_delivery(plan, tasks, row, actor)
             return row
 
     def record_data(self, row: DeliveryRecord) -> dict:

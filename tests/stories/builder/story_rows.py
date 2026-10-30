@@ -1,5 +1,7 @@
 from tests.stories.fixtures.fixture_rows import FixtureRows
 from tests.stories.fixtures.state_fixture import StateFixture
+from journal.repositories.scope import Scope
+from journal.repositories.task_outcomes import TaskOutcomes
 
 
 class StoryRows:
@@ -50,3 +52,25 @@ class StoryRows:
     @property
     def memories(self) -> FixtureRows:
         return self.fixture.memories
+
+    def expect_task_outcome_kinds(self, task_id: int, *expected: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            kinds = [row.kind for row in self.app.container.get(TaskOutcomes).facts(int(task_id))]
+        position = 0
+        for kind in kinds:
+            if position < len(expected) and kind == expected[position]:
+                position += 1
+        assert position == len(expected), f"task {task_id} outcome history is {kinds}, not the ordered facts {expected}"
+
+    def expect_task_outcome_summary(self, task_id: int, **expected) -> None:
+        with self.app.container.get(Scope).environment(1):
+            summary = self.app.container.get(TaskOutcomes).summary(int(task_id))
+        fields = {name: summary.get(name) for name in expected}
+        assert fields == expected, f"task {task_id} outcome summary contains {fields}, not {expected}"
+
+    def expect_task_outcome_fact(self, task_id: int, kind: str, field: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            facts = self.app.container.get(TaskOutcomes).facts(int(task_id))
+        fact = next((row for row in facts if row.kind == kind), None)
+        value = getattr(fact, field, None) if fact else None
+        assert value not in (None, ""), f"task {task_id} has no {kind} fact with {field}: {facts}"

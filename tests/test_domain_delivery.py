@@ -23,6 +23,12 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from tests.organization_fixture import OrganizationFixture
+from tests.test_features import booted
+
+
+@pytest.fixture(scope="module")
+def boot():
+    return booted
 
 
 def test_definition_of_done_digest_changes_with_its_criterion_evidence_or_target():

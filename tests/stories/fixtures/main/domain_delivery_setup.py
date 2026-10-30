@@ -8,6 +8,8 @@ def setup_domain(story, fixture, folder_name: str, domain: str, definition: dict
     organization = OrganizationFixture(folder).write()
     organization.domain(domain, roles=[], **({"definition_of_done": definition} if definition else {}))
     story.user_sets(OrganizationOptions.FOLDER, str(folder))
+    result = story.user_presses("/journal/organization/reload", {})
+    result.expect_viewer_passed()
     story.user_sets(EstimatesOptions.MODE, "record")
     fixture.domain_folder = folder
 
