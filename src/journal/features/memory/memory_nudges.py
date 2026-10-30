@@ -6,7 +6,7 @@ YEAR_SECONDS = 365 * 86400.0
 
 
 class MemoryNudges:
-    CONTEXT_DECISION = Nudge("memory", "decide_at_the_mark", "writes wait at {{percent}}%: weigh {{count}} memories, `journal memory weigh <numbers> <weights>`, or `journal memory skip \"<why>\"`", "", repeat=Timeout.seconds(0))
+    CONTEXT_DECISION = Nudge("memory", "decide_at_the_mark", "writes wait at {{percent}}%: keep, raise or correct {{count}} memories, never lower one: `journal memory weigh <numbers> <weights>`, `journal memory edit <n> \"<text>\"`, or `journal memory skip \"<why>\"`", "", repeat=Timeout.seconds(0), longest_characters=240, longest_reason="it names keep, raise and correct with the command of each and the skip")
     DECISION_EDIT_BLOCK = Nudge("memory", "write_held_until_decided", "writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`", "")
     UNDECIDED_STOP = Nudge("memory", "stopped_at_mark", "stop held at {{percent}}% of context: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`", "", repeat=Timeout.seconds(0))
     CHECK_STALE_MEMORY = Nudge("memory", "check_stale_memory", "memories {{stale|cap=25}} are {{stale_after}}+ days old", "remove what is no longer true: `journal memory remove <numbers>`", repeat=Timeout.seconds(86400))
