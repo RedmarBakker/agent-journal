@@ -11,6 +11,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
 from journal.repositories.scope import PROJECT, Scope
+from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.support.actor import Actor
 from journal.support.large_reads import LargeReads
 from journal.support.masks import Masks
@@ -28,6 +29,7 @@ MODEL = "test/model"
 
 def supervisor_journal(connection, bus, scope, budget=None, prices=None):
     entries = Entries(connection, bus, scope, TimeSource())
+    control_entries = SupervisorEntries(entries)
     clock = [NOW]
     tenant_id, grant_id = "tenant-a", "grant-a"
     credential_hash = sha256(TOKEN.encode()).hexdigest()
@@ -64,9 +66,9 @@ def supervisor_journal(connection, bus, scope, budget=None, prices=None):
     }
     actor = Actor.user(1)
     with scope.environment(PROJECT):
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorCredential", actor=actor, data=credential, idempotency=f"supervisor:credential:{credential_hash}"), actor)
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorEnrollment", actor=actor, data={"tenant_id": tenant_id, "enrollment_id": "enrollment-1", "plan_id": "plan-1", "node_id": "node-1", "status": "active"}, idempotency="supervisor:enrollment:tenant-a:plan-1:node-1"), actor)
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data=grant, idempotency="supervisor:grant:tenant-a:grant-a:1"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorCredential", actor=actor, data=credential, idempotency=f"supervisor:credential:{credential_hash}"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorEnrollment", actor=actor, data={"tenant_id": tenant_id, "enrollment_id": "enrollment-1", "plan_id": "plan-1", "node_id": "node-1", "status": "active"}, idempotency="supervisor:enrollment:tenant-a:plan-1:node-1"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data=grant, idempotency="supervisor:grant:tenant-a:grant-a:1"), actor)
     admissions = SupervisorAdmissions(entries, prices or {MODEL: ("0.10", "0.20")}, lambda: clock[0])
     return admissions, entries, scope, clock, grant, credential_hash
 
@@ -176,7 +178,7 @@ def test_only_one_active_supervisor_can_claim_an_enrolled_plan_node(connection, 
     admissions, entries, scope, clock, _, _ = supervisor_journal(connection, bus, scope)
     actor = Actor.user(1)
     with scope.environment(PROJECT):
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data={"tenant_id": "tenant-a", "grant_id": "grant-b", "version": 1, "status": "active", "plan_id": "plan-1", "node_id": "node-1"}, idempotency="supervisor:grant:tenant-a:grant-b:1"), actor)
+        SupervisorEntries(entries).recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data={"tenant_id": "tenant-a", "grant_id": "grant-b", "version": 1, "status": "active", "plan_id": "plan-1", "node_id": "node-1"}, idempotency="supervisor:grant:tenant-a:grant-b:1"), actor)
     installation = admissions.start_installation(TOKEN, "boot-1")
     assert installation == {"status": "rejected", "reason": "active_supervisor_not_unique"}
     run = admissions.admit_run(TOKEN, 1, "timer", "event-1", observation(clock[0]))
@@ -192,7 +194,7 @@ def test_revocation_or_stale_fence_prevents_apply(connection, bus, scope, change
     if change == "revoke":
         actor = Actor.system()
         with scope.environment(PROJECT):
-            entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorRevocation", actor=actor, data={"tenant_id": "tenant-a", "credential_hash": credential_hash}, idempotency=f"supervisor:revoked:{credential_hash}"), actor)
+            SupervisorEntries(entries).recorded(Entry(environment_id=PROJECT, entry_type="SupervisorRevocation", actor=actor, data={"tenant_id": "tenant-a", "credential_hash": credential_hash}, idempotency=f"supervisor:revoked:{credential_hash}"), actor)
     else:
         clock[0] += timedelta(seconds=301)
         admissions.admit_run(TOKEN, run["epoch"], "timer", "event-2", observation(clock[0]))
