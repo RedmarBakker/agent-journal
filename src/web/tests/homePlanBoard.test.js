@@ -1,15 +1,12 @@
 import {createApp, h, nextTick} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
+import AppPages from "../src/AppPages.vue";
+import HomePlanBoard from "../src/pages/HomePlanBoard.vue";
 import {pageOf} from "../src/sync/paging.js";
-
-vi.mock("../src/pages/Home.vue", () => ({default: {template: "<section data-existing-home />"}}));
 
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
 
-const {default: AppPages} = await import("../src/AppPages.vue");
 const {api} = await import("../src/api/client.js");
-const {store} = await import("../src/state/store.js");
-const {organizationBoard} = await import("../src/state/organizationBoard.js");
 
 let app = null;
 let host = null;
@@ -24,16 +21,12 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-    store.people = {hosted: false};
-    store.settings = {plans: {plan_agents: false}};
-    organizationBoard.words = "";
-    organizationBoard.hideDone = false;
     vi.spyOn(api, "organization").mockResolvedValue({plans: [], scheduled_plans: [], domains: []});
 });
 
-function mount(page = "home") {
+function mount(component = HomePlanBoard, props = {}) {
     host = document.body.appendChild(document.createElement("div"));
-    app = createApp({render: () => h(AppPages, {page})});
+    app = createApp({render: () => h(component, props)});
     app.mount(host);
 }
 
@@ -42,16 +35,16 @@ async function until(done) {
     await nextTick();
 }
 
-test("with Plan agents off, Home does not mount the main chat", async () => {
-    mount();
-    await nextTick();
+test("the Board route keeps the separate plan board without the main chat", async () => {
+    mount(AppPages, {page: "board"});
+    await until(() => host.querySelector("[data-home-plan-board]"));
 
-    expect(host.querySelector("[data-existing-home]")).toBeNull();
-    expect(host.querySelector("[data-home-plan-board]")).toBeNull();
-    expect(api.organization).not.toHaveBeenCalled();
+    expect(host.querySelector(".home")).toBeNull();
+    expect(host.querySelector("[data-home-dashboard]")).toBeNull();
+    expect(api.organization).toHaveBeenCalledOnce();
 });
 
-test("with Plan agents on, Home keeps its plan dashboard without the main chat", async () => {
+test("the separate plan board keeps paging plans and scheduled next starts", async () => {
     const plans = Array.from({length: pageOf("plans") + 1}, (_, index) => ({
         id: index + 1,
         title: `Plan ${index + 1}`,
@@ -73,13 +66,12 @@ test("with Plan agents on, Home keeps its plan dashboard without the main chat",
         scheduled_plans: [{id: 900, title: "Nightly report", schedule: "daily", next_start: "2026-10-30T00:00:00+01:00"}],
         domains: [{id: "engineering", title: "Engineering", plans: [...plans, plans[0]]}],
     });
-    store.settings = {plans: {plan_agents: true}};
     mount();
     await until(() => host.querySelector('[data-plan-id="1"] .organization-plan-title'));
 
     expect(api.organization).toHaveBeenCalledOnce();
     expect(host.querySelector("[data-home-plan-board] h1").textContent).toBe("Plans");
-    expect(host.querySelector("[data-existing-home]")).toBeNull();
+    expect(host.querySelector(".home")).toBeNull();
     expect(host.querySelectorAll("[data-domain]")).toHaveLength(0);
     expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(pageOf("plans"));
     expect(host.querySelector(".paged-cards-controls span").textContent).toContain(`1–${pageOf("plans")} of ${pageOf("plans") + 1} plans`);

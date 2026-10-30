@@ -147,6 +147,10 @@ export class ApiClient {
         return this.get(this.here("/organization"));
     }
 
+    homeDashboard() {
+        return this.get(this.here("/home"));
+    }
+
     organizationRole(domain, role) {
         return this.get(this.here(`/organization/roles/${encoded(domain)}/${encoded(role)}`));
     }

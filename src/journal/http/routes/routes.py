@@ -10,6 +10,7 @@ from journal.http.controllers.entries import EntryController
 from journal.http.controllers.environments import EnvironmentController
 from journal.http.controllers.memories import MemoryController
 from journal.http.controllers.hooks import HookController
+from journal.http.controllers.home_dashboard import HomeDashboardController
 from journal.http.controllers.journal import JournalController
 from journal.http.controllers.mcp import McpController
 from journal.http.controllers.messages import MessageController
@@ -113,6 +114,7 @@ class Routes:
         router.post(f"{API}/developer/nudges/reset", get(NudgeCountController).reset)
         organization = get(OrganizationController)
         router.get(f"{API}/organization", organization.index)
+        router.get(f"{API}/home", get(HomeDashboardController).index)
         router.get(f"{API}/organization/roles/{{domain}}/{{role}}", organization.role_contract)
         router.post(f"{API}/organization/reload", organization.reload)
         self.listed(router, "domain_counts", get(DomainCountController))

@@ -5,7 +5,6 @@ import FilePage from "./pages/FilePage.vue";
 import AttachmentsPage from "./pages/AttachmentsPage.vue";
 import FilesPage from "./pages/FilesPage.vue";
 import GitPage from "./pages/GitPage.vue";
-import Home from "./pages/Home.vue";
 import Index from "./pages/Index.vue";
 import IntegrationsPage from "./pages/IntegrationsPage.vue";
 import OrganizationPage from "./pages/OrganizationPage.vue";
@@ -19,6 +18,9 @@ import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
+import RequestsPage from "./pages/RequestsPage.vue";
+import Home from "./pages/Home.vue";
+import HomeDashboard from "./pages/HomeDashboard.vue";
 import HomePlanBoard from "./pages/HomePlanBoard.vue";
 import PhoneDesktopNotice from "./phone/PhoneDesktopNotice.vue";
 import {onPhone} from "./platform/phone.js";
@@ -30,7 +32,10 @@ defineProps({page: {type: String, required: true}});
 
 <template>
     <SwitchCase :value="page">
-        <template #home><HomePlanBoard v-if="planAgents" /></template>
+        <template #home>
+            <HomePlanBoard v-if="planAgents" />
+            <HomeDashboard v-else />
+        </template>
         <template #board><HomePlanBoard /></template>
         <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>

@@ -34,8 +34,11 @@ class MergedWork:
 
     def job_edits(self, worker: Worker) -> list[Edit]:
         span = self.span(worker)
+        return self.job_edits_between(worker, span.start, span.end)
+
+    def job_edits_between(self, worker: Worker, start: float, end: float) -> list[Edit]:
         session = worker.conversation()
-        return self.edits.selected(self.edits.query().filter(session=session).filter_greater_equal("time", span.start).filter_less_equal("time", span.end).order("id")) if session else []
+        return self.edits.selected(self.edits.query().filter(session=session).filter_greater_equal("time", start).filter_less_equal("time", end).order("id")) if session else []
 
     @staticmethod
     def span(worker: Worker) -> JobSpan:

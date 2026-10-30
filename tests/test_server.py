@@ -3,6 +3,7 @@
 import json
 import time
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
@@ -19,11 +20,18 @@ from journal.config import Config
 from journal.features.organization.support.approval_action import ApprovalAction
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.support.actor import Actor
+from journal.models.author import Author
+from journal.models.edit import Edit
+from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.models.support.worker_moves import WorkerMoves
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
+from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
+from journal.repositories.messages import Messages
 from journal.repositories.query_plans import QueryPlans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -186,6 +194,38 @@ def test_the_viewer_pauses_blocks_and_unblocks_a_task_and_its_row_names_what_it_
     assert reason["block_reason"] == "the release is not out" and reason["waits"] == []
     opened = call(server, "POST", "/journal/tasks/3/unblock")[1]
     assert opened["state"] == "open" and opened["block_reason"] == ""
+
+
+def test_home_dashboard_reads_blocked_waits_and_recent_merge_edits(server, app):
+    blocked = call(server, "POST", "/journal/tasks", {"title": "Deploy"})[1]
+    waiting = call(server, "POST", "/journal/tasks", {"title": "Run the tests"})[1]
+    merged = call(server, "POST", "/journal/tasks", {"title": "Write migration"})[1]
+    call(server, "POST", f"/journal/tasks/{blocked['id']}/block", {"on": [f"task:{waiting['id']}"]})
+
+    ended = time.time()
+    started = ended - 60
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).save(Worker(
+            name="Feature Implementation", role="Feature Implementation", session="home-dashboard-worker",
+            branch="plan-8/release", state=WorkerState.MERGED, merged_at=ended, merged_task=merged["id"],
+            moves=WorkerMoves((("dispatched", started), ("merged", ended))),
+        ), Actor.system())
+        app.container.get(Edits).save(Edit(session=worker.session, path="src/release.py", time=ended - 5, added=12, removed=4), Actor.system())
+        app.container.get(Messages).save(Message(
+            author=Author.SYSTEM,
+            text=f"{worker.name}: work on task {merged['id']} merged",
+            data={"kind": "card", "row": str(Ref.build(worker)), "task": merged["id"], "shows": "workers"},
+        ), Actor.system())
+
+    status, dashboard = call(server, "GET", "/journal/home")
+    assert status == 200
+    blocked_row = next(row for row in dashboard["blocked_tasks"] if row["id"] == blocked["id"])
+    assert blocked_row["wait_reasons"] == [f'task {waiting["id"]}, "Run the tests"']
+    assert dashboard["latest_merges"] == [{
+        "task_id": merged["id"], "task_title": "Write migration", "plan_id": 0,
+        "branch": "plan-8/release", "worker": "Feature Implementation",
+        "merged_at": datetime.fromtimestamp(ended, timezone.utc).isoformat(), "added": 12, "removed": 4,
+    }]
 
 
 def test_a_project_files_bytes_are_served_with_their_media_type_and_nothing_outside_the_project(server):
