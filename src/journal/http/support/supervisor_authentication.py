@@ -13,6 +13,7 @@ OWNER_PATHS = frozenset({"/_supervisor/v1/enrollment", "/_supervisor/v1/enrollme
 SERVICE_PATHS = frozenset({
     "/_supervisor/v1/admit",
     "/_supervisor/v1/observe",
+    "/_supervisor/v1/usage",
     "/_supervisor/v1/apply",
     "/_supervisor/v1/receipt",
 })

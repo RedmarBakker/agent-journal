@@ -85,6 +85,7 @@ class Routes:
         router.post_unscoped("/_supervisor/v1/enrollment/change", supervisor.change)
         router.post_unscoped("/_supervisor/v1/admit", supervisor.admit)
         router.post_unscoped("/_supervisor/v1/observe", supervisor.observe)
+        router.post_unscoped("/_supervisor/v1/usage", supervisor.settle_usage)
         router.post_unscoped("/_supervisor/v1/apply", supervisor.apply)
         router.post_unscoped("/_supervisor/v1/receipt", supervisor.receipt)
         router.post("/hooks/{agent}", get(HookController).receive)

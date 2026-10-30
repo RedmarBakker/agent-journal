@@ -9,6 +9,7 @@ from supervisor_bridge.contracts import (
     RunReference,
     bounded_cursor,
     bounded_text,
+    nonnegative_integer,
     positive_integer,
     strict_object,
 )
@@ -103,7 +104,7 @@ class JsonHttpConnection:
 
 
 class SupervisorHttpClient:
-    """Only the four contract routes are available through the journal client."""
+    """Only the five fixed contract routes are available through the journal client."""
 
     def __init__(self, connection: JsonHttpConnection):
         self.connection = connection
@@ -135,11 +136,37 @@ class SupervisorHttpClient:
             "observation_ids", "expected_revisions", "operations", "rationale",
         })
         strict_object(request, fields, fields, "apply request")
-        return self.connection.post(ROUTES["apply"], request)
+        envelope = self.connection.post(ROUTES["apply"], request)
+        return self.canonical_receipt(envelope)
+
+    def settle_usage(self, run: RunReference, usage: dict) -> dict:
+        fields = frozenset({
+            "input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens",
+            "total_input_tokens", "provider_requests", "provider_retries",
+        })
+        strict_object(usage, fields, fields, "metered usage")
+        for key in fields:
+            nonnegative_integer(usage[key], key)
+        if (usage["provider_requests"] < 1 or usage["provider_retries"] > usage["provider_requests"]
+                or usage["total_input_tokens"] != usage["input_tokens"]
+                + usage["cache_creation_input_tokens"] + usage["cache_read_input_tokens"]):
+            raise TransportError("metered usage totals are inconsistent")
+        request = {"protocol_version": 1, "run_ref": run.to_dict(), "usage": dict(usage)}
+        result = self.connection.post(ROUTES["usage"], request, idempotency_key=run.run_id)
+        if (set(result) != {"status", "usage_id", "run_id", "fence", "usage_status", "duplicate"}
+                or result["status"] != "settled" or type(result["usage_id"]) is not int or result["usage_id"] < 1
+                or result["run_id"] != run.run_id or type(result["fence"]) is not int or result["fence"] != run.fence
+                or result["usage_status"] != "known" or type(result["duplicate"]) is not bool):
+            raise TransportError("journal did not settle known usage for the admitted run")
+        return result
 
     def receipt(self, action_id: str) -> dict:
         bounded_text(action_id, "action_id", 1, 256)
         envelope = self.connection.post(ROUTES["receipt"], {"protocol_version": 1, "action_id": action_id})
+        return self.canonical_receipt(envelope)
+
+    @staticmethod
+    def canonical_receipt(envelope: dict) -> dict:
         data = envelope.get("data")
         if (set(envelope) != RECEIPT_ENVELOPE_FIELDS or not isinstance(data, dict)
                 or type(envelope["receipt_id"]) is not int or envelope["receipt_id"] < 1

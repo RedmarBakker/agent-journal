@@ -1,6 +1,12 @@
 from typing import Any
 
-from journal.features.supervisor.support.admissions import action_receipt_key, action_reuse_key, canonical, digest
+from journal.features.supervisor.support.admissions import (
+    action_receipt_key,
+    action_reuse_key,
+    canonical,
+    digest,
+    supervisor_key,
+)
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
@@ -53,10 +59,55 @@ class SupervisorMaintenance:
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
         self._service_actor(principal)
-        result = self._apply_request(principal, request)
-        if result["status"] == "applied":
-            return self.reconcile_receipt(principal, request["action_id"])
-        return result
+        self._apply_request(principal, request)
+        return self.reconcile_receipt(principal, request["action_id"])
+
+    def settle_usage(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
+        request = self._usage_settlement_request(body)
+        self._service_actor(principal)
+        with self.scope.environment(PROJECT), self.entries.writing():
+            grant = self.authority.revalidate(principal)
+            run, epoch = self.observations.action_run(principal, grant, request["run_ref"])
+            expected = {
+                "run_id": run.data["run_ref"], "episode_id": run.data["episode_id"],
+                "pending_action_id": run.data["pending_action_id"], "grant_id": grant["grant_id"],
+                "grant_version": grant["grant_version"], "installation_epoch": epoch,
+                "fence": run.data["fence"],
+            }
+            if request["run_ref"] != expected:
+                raise SupervisorFailure(403, "metered usage is not for the current fenced run")
+            usage = request["usage"]
+            limits = grant["limits"]
+            overrun = (
+                usage["total_input_tokens"] > limits["max_input_tokens_per_turn"]
+                or usage["output_tokens"] > limits["max_output_tokens_per_turn"]
+                or usage["provider_requests"] > limits["max_provider_requests_per_turn"]
+            )
+            tenant_id = principal.scope["tenant_id"]
+            data = {
+                "tenant_id": tenant_id, "run_ref": run.data["run_ref"], "fence": run.data["fence"],
+                **usage, "overrun": overrun,
+            }
+            intent = canonical(data)
+            if intent is None:
+                raise SupervisorFailure(400, "metered usage report is too large")
+            key = supervisor_key("metered-usage", tenant_id, run.data["run_ref"])
+            prior = self.entries.keyed(key)
+            if prior:
+                if prior[0].data.get("intent") != intent:
+                    raise SupervisorFailure(409, "metered usage report changed for this run")
+                row, duplicate = prior[0], True
+            else:
+                status = "overrun" if overrun else "known"
+                row = self.control_entries.recorded(Entry(
+                    environment_id=PROJECT, entry_type="SupervisorUsage", actor=Actor.plugin(SUPERVISOR_ACTOR),
+                    data={**data, "intent": intent, "status": status}, idempotency=key,
+                ), Actor.plugin(SUPERVISOR_ACTOR))
+                duplicate = False
+            return {
+                "status": "settled", "usage_id": row.row_id, "run_id": run.data["run_ref"],
+                "fence": run.data["fence"], "usage_status": row.data["status"], "duplicate": duplicate,
+            }
 
     def _apply_request(self, principal: SupervisorPrincipal, request: dict[str, Any]) -> dict[str, Any]:
         with self.scope.environment(PROJECT), self.entries.writing():
@@ -303,9 +354,34 @@ class SupervisorMaintenance:
             rows = self.entries.supervisor_records(
                 "SupervisorUsage", last=1, tenant_id=grant["scope"]["tenant_id"], run_ref=run.data["run_ref"],
             )
-        if not rows or rows[0].data.get("status") != "known":
+        if not rows or rows[0].data.get("status") not in {"known", "overrun"}:
             return "usage_unknown"
-        return "usage_overrun" if rows[0].data.get("overrun") is True else ""
+        return "usage_overrun" if rows[0].data.get("status") == "overrun" or rows[0].data.get("overrun") is True else ""
+
+    @staticmethod
+    def _usage_settlement_request(body: object) -> dict[str, Any]:
+        run_fields = {
+            "run_id", "episode_id", "pending_action_id", "grant_id", "grant_version", "installation_epoch", "fence",
+        }
+        usage_fields = {
+            "input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens",
+            "total_input_tokens", "provider_requests", "provider_retries",
+        }
+        if (not isinstance(body, dict) or set(body) != {"protocol_version", "run_ref", "usage"}
+                or type(body["protocol_version"]) is not int or body["protocol_version"] != 1
+                or not isinstance(body["run_ref"], dict) or set(body["run_ref"]) != run_fields
+                or not isinstance(body["usage"], dict) or set(body["usage"]) != usage_fields):
+            raise SupervisorFailure(400, "the metered usage request is invalid")
+        run_ref, usage = body["run_ref"], body["usage"]
+        if (any(not isinstance(run_ref[key], str) or not 1 <= len(run_ref[key]) <= 256
+                for key in ("run_id", "episode_id", "pending_action_id", "grant_id"))
+                or any(type(run_ref[key]) is not int or run_ref[key] < 1
+                       for key in ("grant_version", "installation_epoch", "fence"))
+                or any(type(usage[key]) is not int or usage[key] < 0 for key in usage_fields)
+                or usage["provider_requests"] < 1 or usage["provider_retries"] > usage["provider_requests"]
+                or usage["total_input_tokens"] != usage["input_tokens"] + usage["cache_creation_input_tokens"] + usage["cache_read_input_tokens"]):
+            raise SupervisorFailure(400, "the metered usage request is invalid")
+        return {"run_ref": dict(run_ref), "usage": dict(usage)}
 
     def _capability_reason(self, grant: dict[str, Any], operations: list[dict[str, Any]]) -> str:
         if grant["mode"] == "shadow":

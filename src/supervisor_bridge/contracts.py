@@ -44,6 +44,7 @@ RUN_REFERENCE_KEYS = frozenset({
 ROUTES = {
     "admit": "/_supervisor/v1/admit",
     "observe": "/_supervisor/v1/observe",
+    "usage": "/_supervisor/v1/usage",
     "apply": "/_supervisor/v1/apply",
     "receipt": "/_supervisor/v1/receipt",
 }

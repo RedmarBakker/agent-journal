@@ -576,6 +576,41 @@ class StateStore:
             "provider_retries": metering["provider_retries"],
         }
 
+    def settlement_usage(self, run: RunReference) -> dict:
+        state = self.snapshot()
+        metering = state["metering"]
+        if (state["active_run"] != run.to_dict() or state["budget_gate"] != "verified"
+                or metering["run_ref"] != run.to_dict() or metering["limits"] is None
+                or metering["status"] not in {"known", "capped"}
+                or metering["pending_request"] is not None or metering["provider_requests"] < 1):
+            raise StateError("the admitted run has no complete provider usage to settle")
+        if (self.total_input_tokens(metering) > metering["limits"]["max_input_tokens_per_turn"]
+                or metering["output_tokens"] > metering["limits"]["max_output_tokens_per_turn"]
+                or metering["provider_requests"] > metering["limits"]["max_provider_requests_per_turn"]):
+            raise StateError("the provider usage exceeds the admitted run limits")
+        return self.usage_summary(metering)
+
+    def record_usage_settlement(self, run: RunReference, settlement: dict) -> None:
+        if (not isinstance(settlement, dict)
+                or set(settlement) != {"status", "usage_id", "run_id", "fence", "usage_status", "duplicate"}
+                or settlement["status"] != "settled" or type(settlement["usage_id"]) is not int
+                or settlement["usage_id"] < 1 or settlement["run_id"] != run.run_id
+                or type(settlement["fence"]) is not int or settlement["fence"] != run.fence
+                or settlement["usage_status"] != "known" or type(settlement["duplicate"]) is not bool):
+            raise ContractError("journal usage settlement does not match the admitted run")
+
+        def change(state: dict) -> None:
+            metering = state["metering"]
+            if (state["active_run"] != run.to_dict() or metering["run_ref"] != run.to_dict()
+                    or metering["status"] not in {"known", "capped"}
+                    or metering["pending_request"] is not None):
+                raise StateError("journal usage settlement has no complete active provider meter")
+            state["usage_settlement"] = "settled"
+            state["health"] = "up"
+            state["last_error"] = ""
+
+        self.update(change)
+
     @staticmethod
     def total_input_tokens(metering: dict) -> int:
         return (

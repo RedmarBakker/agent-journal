@@ -53,7 +53,6 @@ from supervisor_bridge.transport import (
     HookAcknowledgement,
     JsonHttpConnection,
     OpenClawHookClient,
-    ReceiptNotFound,
     RetryableTransportError,
     SupervisorHttpClient,
     TransportError,
@@ -126,7 +125,14 @@ class StubJournal:
 
     def apply(self, request):
         self.calls.append(("apply", request))
-        return {"status": "accepted"}
+        return make_receipt()
+
+    def settle_usage(self, run, usage):
+        self.calls.append(("settle_usage", run, usage))
+        return {
+            "status": "settled", "usage_id": 24, "run_id": run.run_id, "fence": run.fence,
+            "usage_status": "known", "duplicate": False,
+        }
 
     def receipt(self, action_id):
         self.calls.append(("receipt", action_id))
@@ -134,9 +140,9 @@ class StubJournal:
 
 
 class PendingReceiptJournal(StubJournal):
-    def receipt(self, action_id):
-        self.calls.append(("receipt", action_id))
-        raise ReceiptNotFound("not available yet")
+    def apply(self, request):
+        self.calls.append(("apply", request))
+        return {"status": "accepted"}
 
 
 class StubHook:
@@ -207,6 +213,13 @@ def metered_state(directory, max_input=100, max_output=100, max_requests=8):
         "max_provider_requests_per_turn": max_requests,
     })
     state.record_budget_verified(run)
+    return state
+
+
+def metered_state_with_usage(directory):
+    state = metered_state(directory, max_input=24000, max_output=8000, max_requests=8)
+    provider = StubProvider([provider_input_tokens(3), provider_response(3, 2)])
+    assert MeteringProxy(state, provider).forward(model_request()).status == 200
     return state
 
 
@@ -398,8 +411,26 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
         "status": receipt["status"], "reason": receipt["reason"], "receipt_id": 23,
         "data": receipt, "report": {"verification": {"verification": "verified"}}, "duplicate": False,
     }
+    run = RunReference.from_run(RUN)
+    apply_request = {
+        "protocol_version": 1, "run_id": run.run_id, "installation_epoch": run.installation_epoch,
+        "fence": run.fence, "grant_version": run.grant_version, "episode_id": run.episode_id,
+        "action_id": run.pending_action_id, "observation_ids": [], "expected_revisions": [],
+        "operations": [], "rationale": "Apply the admitted bundle.",
+    }
+    usage = {
+        "input_tokens": 1, "output_tokens": 2, "cache_creation_input_tokens": 1,
+        "cache_read_input_tokens": 1, "total_input_tokens": 3, "provider_requests": 2,
+        "provider_retries": 0,
+    }
+    settlement = {
+        "status": "settled", "usage_id": 24, "run_id": run.run_id, "fence": run.fence,
+        "usage_status": "known", "duplicate": False,
+    }
     opener = StubOpener([
         b'{"status":"skipped","reason":"empty"}',
+        json.dumps(settlement).encode(),
+        json.dumps(receipt_envelope).encode(),
         json.dumps(receipt_envelope).encode(),
         b'{"runId":"gateway-run-1"}',
     ])
@@ -407,6 +438,8 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     connection.opener = opener
     client = SupervisorHttpClient(connection)
     assert client.admit("timer", None) == {"status": "skipped", "reason": "empty"}
+    assert client.settle_usage(run, usage) == settlement
+    assert client.apply(apply_request) == receipt
     assert client.receipt("action-1") == receipt
     with pytest.raises(TransportError):
         connection.post("/_supervisor/v1/admin", {})
@@ -422,14 +455,22 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
         rejected.receipt("action-1")
 
     service_request, service_timeout = opener.requests[0]
-    receipt_request, receipt_timeout = opener.requests[1]
-    hook_request_sent, hook_timeout = opener.requests[2]
+    usage_request, usage_timeout = opener.requests[1]
+    apply_request_sent, apply_timeout = opener.requests[2]
+    receipt_request, receipt_timeout = opener.requests[3]
+    hook_request_sent, hook_timeout = opener.requests[4]
     assert service_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/admit"
     assert service_request.get_header("Authorization") == "Bearer journal-service-token"
     assert json.loads(service_request.data) == {"protocol_version": 1, "source": "timer", "observation_cursor": None}
+    assert usage_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/usage"
+    assert usage_request.get_header("Authorization") == "Bearer journal-service-token"
+    assert usage_request.get_header("Idempotency-key") == run.run_id
+    assert json.loads(usage_request.data) == {"protocol_version": 1, "run_ref": run.to_dict(), "usage": usage}
+    assert apply_request_sent.full_url == "http://127.0.0.1:9134/_supervisor/v1/apply"
+    assert json.loads(apply_request_sent.data) == apply_request
     assert receipt_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/receipt"
     assert json.loads(receipt_request.data) == {"protocol_version": 1, "action_id": "action-1"}
-    assert service_timeout == receipt_timeout == hook_timeout == 20
+    assert service_timeout == usage_timeout == apply_timeout == receipt_timeout == hook_timeout == 20
     assert hook_request_sent.full_url == "http://localhost:18789/hooks/agent"
     assert hook_request_sent.get_header("Authorization") == "Bearer openclaw-hook-token"
     assert hook_request_sent.get_header("Idempotency-key") == "run-1"
@@ -540,17 +581,30 @@ def test_mcp_observe_and_apply_require_current_fence(tmp_path):
 
 def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path):
     journal = StubJournal([admitted()])
-    state = StateStore(tmp_path)
+    state = metered_state_with_usage(tmp_path)
     hook = StubHook()
     bridge = SupervisorBridge(journal, state, VerifiedBudget(), hook)
     bridge.reconcile("timer")
     server = McpServer(bridge)
+    observe_attempts = []
+    observe = bridge.observe
+
+    def capture_observe(*arguments):
+        try:
+            result = observe(*arguments)
+        except Exception as error:
+            observe_attempts.append((type(error).__name__, str(error)))
+            raise
+        observe_attempts.append(("observed", result))
+        return result
+
+    bridge.observe = capture_observe
 
     observed = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
         "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF, "cursor": None}},
     })
-    assert observed["result"]["isError"] is False
+    assert observed["result"]["isError"] is False, observe_attempts
     assert state.observation_cursor() is None
 
     applied = server.handle({
@@ -559,7 +613,12 @@ def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path
     })
 
     assert applied["result"]["isError"] is False
-    assert [call[0] for call in journal.calls] == ["admit", "observe", "observe", "apply", "receipt"]
+    assert [call[0] for call in journal.calls] == ["admit", "observe", "observe", "settle_usage", "apply"]
+    assert journal.calls[3][2] == {
+        "input_tokens": 3, "output_tokens": 2, "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0, "total_input_tokens": 3, "provider_requests": 2,
+        "provider_retries": 0,
+    }
     assert json.loads(applied["result"]["content"][0]["text"])["verification"] == "verified"
     assert state.observation_cursor() == "cursor-after-page"
     assert state.snapshot()["receipt"]["action_id"] == RUN["pending_action_id"]
@@ -567,16 +626,15 @@ def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path
 
 def test_apply_ack_without_readback_is_not_reported_as_complete(tmp_path):
     journal = PendingReceiptJournal()
-    state = StateStore(tmp_path)
-    state.record_admitted(RunReference.from_run(RUN))
+    state = metered_state_with_usage(tmp_path)
     bridge = SupervisorBridge(journal, state)
 
-    with pytest.raises(ReceiptNotFound):
+    with pytest.raises(ContractError, match="receipt has an unsupported shape"):
         bridge.apply(action_arguments())
 
-    assert [call[0] for call in journal.calls] == ["apply", "receipt"]
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
     assert state.snapshot()["receipt"] is None
-    assert state.snapshot()["last_error"] == "receipt_pending"
+    assert state.snapshot()["usage_settlement"] == "settled"
 
 
 def test_tool_loop_stops_at_the_grant_token_caps(tmp_path):
@@ -949,6 +1007,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                     "params": {"name": name, "arguments": tool_call["input"]}})
 
             observed = scripted_call(TOOL_NAMES[0], {"run_ref": run.to_dict(), "cursor": None}, "observe")
+            assert observed["result"]["isError"] is False
             observation = json.loads(observed["result"]["content"][0]["text"])
             assert len(observation["page"]["observations"]) == 1
             snapshot = observation["snapshot"]
@@ -972,20 +1031,14 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "rationale": "The current failed check needs a bounded diagnostic task.",
             }
             applied = scripted_call(TOOL_NAMES[1], action, "apply_maintenance")
-            assert applied["result"]["isError"] is False, {
-                "mcp_error": applied["result"]["content"][0]["text"],
-                "bridge_error": state.snapshot()["last_error"],
-                "health": state.snapshot()["health"],
-            }
+            assert applied["result"]["isError"] is False, applied
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
             assert applied_receipt["verification"] == "verified", {
                 "status": applied_receipt["status"],
                 "reason": applied_receipt["reason"],
                 "receipt": applied_receipt,
             }
-            receipt = scripted_call(TOOL_NAMES[2], {"run_ref": run.to_dict()}, "receipt")
-            assert receipt["result"]["isError"] is False
-            canonical_receipt = json.loads(receipt["result"]["content"][0]["text"])
+            canonical_receipt = applied_receipt
             assert canonical_receipt["verification"] == "verified"
             return HookAcknowledgement("scripted-model-run")
 
@@ -1009,21 +1062,19 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
         snapshot = state.snapshot()
         assert active is not None and snapshot["receipt"]["verification"] == "verified"
         assert snapshot["usage_settlement"] == "settled"
-        assert snapshot["receipt"]["actor_kind"] == "plugin"
-        assert snapshot["receipt"]["actor_id"] == "journal-supervisor"
         assert snapshot["receipt"]["usage"] == {
-            "input_tokens": 24,
-            "output_tokens": 15,
+            "input_tokens": 16,
+            "output_tokens": 10,
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
-            "total_input_tokens": 24,
-            "provider_requests": 6,
+            "total_input_tokens": 16,
+            "provider_requests": 4,
             "provider_retries": 0,
         }
-        assert len(provider_requests) == 6
+        assert len(provider_requests) == 4
         assert [path for path, _payload in provider_requests] == [
             "/v1/messages/count_tokens", "/v1/messages",
-        ] * 3
+        ] * 2
         assert all(payload["model"] == "claude-sonnet-5" for _path, payload in provider_requests)
 
         title, brief = diagnostic_task_values(fixture.template)
@@ -1052,6 +1103,14 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "SupervisorUsage", last=10, run_ref=active.run_id,
             )
         assert usage_rows and usage_rows[-1].data["status"] == "known"
+        assert usage_rows[-1].data["provider_requests"] == 4
+        with scope.environment(PROJECT):
+            action_receipts = app.container.get(Entries).supervisor_records(
+                "SupervisorActionReceipt", last=10, run_id=active.run_id,
+            )
+        assert action_receipts and usage_rows[-1].row_id < action_receipts[-1].row_id
+        assert action_receipts[-1].data["actor_kind"] == "plugin"
+        assert action_receipts[-1].data["actor_id"] == "journal-supervisor"
     finally:
         if proxy_server is not None:
             proxy_server.close()
@@ -1096,6 +1155,12 @@ def test_two_tenant_replay_restore_and_injection_boundaries(tmp_path, monkeypatc
         foreign_client = SupervisorHttpClient(JsonHttpConnection(base_b, token_a))
         with pytest.raises(AuthorizationError):
             foreign_client.admit("timer", None)
+        with pytest.raises(AuthorizationError):
+            foreign_client.settle_usage(RunReference.from_run(RUN), {
+                "input_tokens": 1, "output_tokens": 1, "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0, "total_input_tokens": 1, "provider_requests": 1,
+                "provider_retries": 0,
+            })
         assert entries_b.global_last_id() == before_b
         assert client_a.admit("timer", None)["status"] == "skipped"
 

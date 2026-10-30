@@ -77,4 +77,4 @@ The profile is not a VM installer and does not assume that a prepared VM is oper
 
 ## Local controlled staging result
 
-Task 112's temporary local probes and blocker are recorded in [STAGING-REPORT.md](STAGING-REPORT.md). The observation scope and receipt read-back issues have been corrected, but the Journal metered-usage settlement handoff is still missing. The probes do not satisfy the dedicated-VM filesystem, network, worker-identity or backup-rotation checks above. Enrollment remains disabled until usage settlement is implemented and the full staging acceptance is complete.
+Task 112's scripted local chain and remaining blockers are recorded in [STAGING-REPORT.md](STAGING-REPORT.md). Focused selectors now cover fenced usage settlement and canonical receipt read-back. The live provider smoke is pending an approved direct OpenClaw program; local probes do not satisfy the dedicated-VM filesystem, network, worker-identity or backup-rotation checks above. Enrollment remains disabled until the live and VM staging gates are complete.

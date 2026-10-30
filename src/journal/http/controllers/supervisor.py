@@ -44,6 +44,9 @@ class SupervisorController:
     def apply(self, request: Request) -> Response:
         return self._service(request, self.maintenance.apply_maintenance)
 
+    def settle_usage(self, request: Request) -> Response:
+        return self._service(request, self.maintenance.settle_usage)
+
     def receipt(self, request: Request) -> Response:
         return self._service(request, self._receipt)
 
