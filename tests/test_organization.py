@@ -1913,7 +1913,9 @@ def test_a_plan_stands_in_the_phase_each_domains_tasks_reached_on_that_domains_b
         app.runtime().deferred.drain()
         assert [line.phase() for line in (*domain_plans.of("alpha"), *domain_plans.of("beta"))] == [BoardPhase.PLANNED, BoardPhase.PLANNED], "a domain task exists in the plan and none is started"
         tasks.save(tasks.find(built.id).worker_started(now), actor)
+        app.runtime().deferred.drain()
         tasks.save(tasks.find(kept.id).worker_started(now), actor)
+        app.runtime().deferred.drain()
         workers.save(workers.find(keeper.id).with_(state=WorkerState.DELIVERED), actor)
         app.runtime().deferred.drain()
         assert (domain_plans.of("alpha")[0].phase(), domain_plans.of("beta")[0].phase()) == (BoardPhase.IN_PROGRESS, BoardPhase.IN_REVIEW), "alpha's task is worked; beta's worker clocked out and its proofs wait to be checked"
@@ -2197,6 +2199,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     with app.container.get(Scope).environment(1):
         domains = app.container.get(DomainRows)
         domains.task_tied(tasks.find(built.id), "beta", actor)
+            app.runtime().deferred.drain()
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 1, "beta": 1}, "alpha still holds the queued task"
         domains.task_tied(tasks.find(looked.id), "beta", actor)
         assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 0, "beta": 1}, "a task handed on to another domain's Role leaves the domain it came from at once"
