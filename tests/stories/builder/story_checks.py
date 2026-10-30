@@ -8,7 +8,12 @@ from journal.engine.nudge import Nudge
 from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
+from journal.repositories.links import Links
+from journal.repositories.messages import Messages
+from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
+from journal.models.support.ref import Ref
 from tests.full_project import MAIN
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
@@ -223,6 +228,12 @@ class StoryChecks:
 
     def expect_task_made_by(self, agent: StoryAgent, n: int) -> None:
         self.expect_row("tasks", n, {"creator": f"agent:{self.session_of(agent)}"})
+
+    def expect_report_about_task(self, report: int, task: int) -> None:
+        report_row = self.app.container.get(Reports).find(report)
+        task_ref = Ref.build(self.app.container.get(Tasks).find(task))
+        targets = self.app.container.get(Links).targets(report_row, Messages.SUBJECT_LINK)
+        assert task_ref in targets, f"report {report} does not link to task {task}: {targets}"
 
     def expect_task_logged(self, n: int, part: str) -> None:
         shown = self.app.console().run(["task", "show", str(n)], self.agent).text
