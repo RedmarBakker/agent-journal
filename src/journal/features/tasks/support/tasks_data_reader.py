@@ -83,6 +83,7 @@ class TasksDataReader:
 
     def paused_line_said(self, agent: Agent) -> bool:
         current, last = self.tasks.current(agent), self.entries.last_key_moment(agent.session, TasksNudges.WAIT_PAUSED_TASK.key)
+        print('DEBUGSAID', last, current and current.started_at and current.started_at.timestamp(), flush=True)
         return current is not None and current.started_at is not None and last is not None and last.seconds >= current.started_at.timestamp()
 
     def current_log(self, agent: Agent) -> str:
