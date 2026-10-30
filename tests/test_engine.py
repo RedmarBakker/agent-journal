@@ -1582,7 +1582,8 @@ def orchestrated(app: App) -> None:
         hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal task complete {n} --how done"})
         assert console.run(["task", "complete", str(n), "--how", "done"], AGENT).code == 0
         app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).state == "done" and stack() == ["orchestrating"], "the plan is done and the orchestrator is back in its mode state"
+    with app.container.get(Scope).environment(environment_id):
+        assert app.container.get(Plans).find(1).state == "done" and stack() == ["orchestrating"], "the plan is done and the orchestrator is back in its mode state"
     assert stop().get("decision") != "block", "with nothing open the stop passes"
 
 

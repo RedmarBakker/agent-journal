@@ -370,7 +370,7 @@ def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing
     assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "both plans run side by side"
 
 
-def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors):
+def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors, monkeypatch):
     from journal.features.plans.plans_nudges import PlansNudges
     from journal.features.plans.support.task_agents import TASK_AGENT_LINK
     from journal.features.workers.workers_nudges import WorkersNudges
@@ -424,6 +424,18 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
 
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "src/footer.py", "content": "x"})
     assert status == 409, "the main agent writes no code"
+    from traceback import format_stack
+    from journal.support.missing_row import MissingRow
+    from journal.support.rejection import Rejection
+    original_find = Tasks.find
+
+    def traced_find(repository, row_id):
+        try:
+            return original_find(repository, row_id)
+        except MissingRow as missing:
+            raise Rejection(f"{missing}\n{''.join(format_stack())}") from missing
+
+    monkeypatch.setattr(Tasks, "find", traced_find)
     completed = console.run(["task", "complete", str(task.id), "--how", "the footer names the shop"], task_caller)
     assert completed.code == 0, completed.error
     app.runtime().deferred.drain()
