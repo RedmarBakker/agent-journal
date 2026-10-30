@@ -650,7 +650,6 @@
         "log where you stand: `journal todo add \"<step>\"` or `journal proof <point> \"<proof>\"`",
         "meanwhile: `journal task start",
         "memories, never lower one; or `journal memory skip \"<why>\"`",
-        "merges its work and removes its worktree",
         "messages unread: `journal message unread`",
         "minutes: one place fewer",
         "minutes: one place more",
@@ -861,8 +860,7 @@
         "your journal was down for",
         "your load stayed at",
         "your memories, heaviest first",
-        "your sleep loop is a wait now",
-        "your turn ended and nothing has arrived since; the stop check, run again, answers"
+        "your sleep loop is a wait now"
     ],
     "event_and_hook_names": [
         "CommandEnded",
