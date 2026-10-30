@@ -1,5 +1,4 @@
 from journal.engine.states.void import Void
-from journal.features.workers.states.working_task import WorkingTask
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.providers.codex import Codex
 from journal.support.agent_role import AgentRole
@@ -13,4 +12,4 @@ def test_a_codex_workers_job_is_the_first_message_of_its_chat_once_it_clocks_in_
     story.agent_clocks_in(story.agents.subject)
     story.agent_reads(story.agents.subject)
     story.expect_worker_chat_after_its_job(story.agents.subject)
-    story.expect_stack(story.agents.subject, Void, WorkingTask)
+    story.expect_stack(story.agents.subject, Void)
