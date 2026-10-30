@@ -5,6 +5,7 @@ What each release of agent-journal version 4 brought, newest first.
 ## 4.69.5
 
 - A supervisor stopped without closing its connection is named once in the chat, since your messages then reach the agent only at its next step.
+- An answer to a question the agent asked is told to it even when the agent worked past its wait first, so a stopped agent is woken by it.
 - The viewer refuses an answer it cannot read as JSON, so a list it polls keeps its last rows instead of breaking the page.
 
 ## 4.69.4
