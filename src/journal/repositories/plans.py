@@ -204,6 +204,14 @@ class Plans(ScopedRepository[Plan]):
         phased = {task.id for phase in self.plan_phases(plan) for task in self.phase_tasks(phase)}
         return [task for task in self.plan_tasks(plan) if task.id not in phased]
 
+    def share_phase(self, first: Task, second: Task) -> bool:
+        plans = {plan.id for plan in self.working_plans(second)}
+        return any(plan.id in plans and self.phase_number(plan, first) == self.phase_number(plan, second) for plan in self.working_plans(first))
+
+    def phase_number(self, plan: Plan, task: Task) -> int:
+        members = self.phase_task_ids(self.plan_phases(plan))
+        return next((phase_id for phase_id, ids in members.items() if task.id in ids), 0)
+
     def has_phase_end_tests(self, task: Task) -> bool:
         templates = [ref.id for plan in self.working_plans(task) for ref in self.links.targets(plan, TESTING_LINK)]
         return bool(templates) and self.templates.has_titled(templates, PHASE_END_TESTS_TITLE)

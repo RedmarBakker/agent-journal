@@ -22,6 +22,7 @@ from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
+from journal.repositories.plans import Plans
 from journal.repositories.proofs import Proofs
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.task_logs import TaskLogs
@@ -40,8 +41,8 @@ class DepartureCommand(Command):
     noun = "clock-out"
     default_verb = "record"
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner) -> None:
-        self.assigner = assigner
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner, plans: Plans) -> None:
+        self.assigner, self.plans = assigner, plans
         self.workers, self.tasks, self.proofs, self.reports, self.branch = workers, tasks, proofs, reports, branch
         self.turns, self.settings, self.logs, self.events, self.time_source, self.affected = turns, settings, logs, events, time_source, affected
 
@@ -78,12 +79,12 @@ class DepartureCommand(Command):
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if worker.rebase_due:
             self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", self.time_source.moment().timestamp()), caller.actor)
-        if self.is_journal_testing(worker):
+        following = self.assigner.following(worker)
+        if self.is_journal_testing(worker) and self.is_phase_end(task, following):
             self.tested(worker, task, args.tests, caller)
         self.plugin_check(WorkerDelivering, worker, task, DELIVERY_HELD)
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
-        following = self.assigner.following(worker)
         if following is not None and self.continues_queue(worker, task, waiting):
             return self.advance_queue(worker, task, following, caller)
         self.reports.delivered(worker, args.report, caller.actor)
@@ -97,11 +98,17 @@ class DepartureCommand(Command):
         if refusals:
             raise Rejection(refusal_heading + "\n" + "\n".join(refusals))
 
+    def is_phase_end(self, task: Task, following: Task | None) -> bool:
+        if following is not None and self.plans.share_phase(task, following):
+            print(f"task {following.id} is next in this phase: your tests run when you clock out of the phase's last task")
+            return False
+        return True
+
     def is_journal_testing(self, worker: Worker) -> bool:
         return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
 
     def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
-        folder = self.branch.folder(worker)
+        folder = self.branch.place(worker)
         if not TestSelection.parsed(tests).names_tests(folder):
             raise Rejection(f"name the tests for {', '.join(self.branch.touched(worker) or ()) or 'your changes'}: journal clock-out \"<report>\" --tests \"<args>\"")
         turn, run_lines = self.turns.checked(worker, self.with_affected(worker, tests.strip(), folder), caller)
