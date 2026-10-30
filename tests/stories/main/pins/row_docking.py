@@ -33,3 +33,16 @@ def test_an_undocked_row_leaves_the_chat_and_cannot_be_undocked_again(story):
     result = story.agent_runs(story.agents.subject, f"task {notes} undock")
     result.expect_command_text("is not docked")
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_row_docked_again_after_its_card_was_taken_down_shows_again(story):
+    notes = story.agent_creates_task(story.agents.subject, "write the notes")
+    story.user_docks("tasks", notes)
+    card = story.docked_card()
+    story.user_did(f"/journal/messages/{card}/unpin", {}, "user unpins the task's card")
+    story.clock_ticks(60)
+    story.expect_docked_cards()
+    story.agent_runs(story.agents.subject, f"task dock {notes}")
+    story.expect_docked_cards(f"Task {notes}: write the notes")
+    story.expect_stack(story.agents.subject, Ready)

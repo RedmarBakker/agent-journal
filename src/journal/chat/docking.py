@@ -77,7 +77,7 @@ class Docking:
         return self.pin(self.card(row) or self.new_card(row, actor), row, actor)
 
     def pin(self, message: Message, row: Model, actor: Actor) -> Message:
-        return self.saved_with(message, {**RowCard.build(row).as_data(), DOCKED: True}, actor)
+        return self.saved_with(message, {**RowCard.build(row).as_data(), DOCKED: True, UNDOCK_TIME_KEY: None}, actor)
 
     def pin_message(self, message: Message, actor: Actor) -> Message:
         return self.saved_with(message, {DOCKED: True, PINNED: True, UNDOCK_TIME_KEY: None}, actor)

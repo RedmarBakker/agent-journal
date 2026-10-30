@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.7
+
+- A row docked again after its card was taken down shows again; docking clears the old time it was taken down.
+
 ## 4.69.6
 
 - A collection can be deleted with journal collection delete; the rows in it stay.
