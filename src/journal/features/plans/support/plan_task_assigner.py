@@ -98,7 +98,8 @@ class PlanTaskAssigner:
 
     def current_plan(self, agent: Agent, event: AgentEvent | RowEvent) -> Plan | None:
         if isinstance(event, TaskClosed):
-            started = self.plans.started_plans(self.tasks.find(event.task_id))
+            with self.scope.environment(event.environment_id):
+                started = self.plans.started_plans(self.tasks.find(event.task_id))
             if started:
                 return started[0]
         plan_id = next((layer.get("data", {}).get("plan_id", 0) for layer in reversed(agent.stack) if layer.get("state") == FOLLOWING_PLAN), 0)
