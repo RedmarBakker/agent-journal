@@ -21,7 +21,7 @@ class TeamCommand(Command):
         self.account, self.connect_step, self.schema = account, connect, schema
 
     def arguments(self, verbs) -> None:
-        connect = self.verb(verbs, "connect", "connect to a team by its server's URL: a new server's bare URL makes you its admin, an invitation URL an admin shared makes you a member, a bare URL with your account logs you in")
+        connect = self.verb(verbs, "connect", "connect to a team's server by its URL: a new server's bare URL makes you its admin, an invitation URL an admin shared makes you a member, a bare URL with your account logs you in")
         connect.add_argument("url", help="the team server's URL, or the invitation URL an admin shared")
         connect.add_argument("--email", required=True, help="your email, the account's user name")
         connect.add_argument("--name", default="", help="the name the team sees beside what you publish")
