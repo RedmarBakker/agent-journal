@@ -57,7 +57,8 @@ task 12, plan 3, message 7: write both, so the chat links it.
 
 When the journal holds you, its line says why and names the way out. After a compaction or a new start, run
 `journal environment overview` before anything else. Search before you say you do not know or ask the user again:
-`journal search "<words>"`.
+`journal search "<words>"`. A pin is a note the user sees on coming back, a button an action for now under your
+message: the pinned-links and messages skills say which to use.
 
 | Read | For | The journal asks for it |
 |---|---|---|

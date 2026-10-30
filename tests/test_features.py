@@ -3190,6 +3190,8 @@ def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_
         assert sentence in PinAndButtonText.BULLETS, f"the pin and button text no longer says {sentence!r}"
     holding = [name for name in ("pinned-links", "messages") if PinAndButtonText.BULLETS in registry.skill(name).body]
     assert holding == ["pinned-links", "messages"], f"only {holding} say what a pin and a button are"
+    pointer = [line for line in registry.skill("journal").body.splitlines() if "A pin is" in line and "a button" in line]
+    assert pointer and "the pinned-links and messages skills" in registry.skill("journal").body, "the journal map names the distinction and points to both skills"
 
 
 def test_a_blocks_waits_and_the_from_flag_are_taught_in_tasks_and_plans_and_messages_point_to_it(app: App):
