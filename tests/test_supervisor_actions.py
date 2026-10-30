@@ -125,9 +125,7 @@ def _admitted_maintenance_context(app, monkeypatch, fixture, mode):
     with scope.environment(PROJECT):
         evidence = entries.supervisor_records("SupervisorObservation", last=100,
             grant_id=grant["grant_id"], grant_version=grant["grant_version"], check_id=check.row_id)
-    maintenance = SupervisorMaintenance(fixture.authority, observations, entries, control_entries,
-        app.container.get(Plans), app.container.get(Tasks), app.container.get(Links), checks,
-        scope, time_source)
+    maintenance = app.container.get(SupervisorMaintenance)
     return {"fixture": fixture, "grant": grant, "token": token, "principal": principal,
         "run": run, "evidence": evidence[-1], "maintenance": maintenance,
         "entries": entries, "scope": scope, "time_source": time_source}

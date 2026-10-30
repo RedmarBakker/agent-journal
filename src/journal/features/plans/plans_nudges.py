@@ -17,6 +17,7 @@ class PlansNudges:
     COORDINATOR_SENDS_NO_WORKER = Nudge("plans", "coordinator_sends_no_worker", "you run plans through their Plan agents, never a worker of your own", "`journal plan tell <n> \"<what>\"`", repeat=Timeout.seconds(0))
     WORKING_TASK_ALONE = Nudge("plans", "you_work_the_task_alone", "you work task {{task}} alone in this worktree, as a one-task plan; no plan row is made for it", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}", repeat=Timeout.seconds(0), longest_characters=1540, longest_reason="it contains the brief of the next task")
+    SUPERVISOR_WORK_AVAILABLE = Nudge("plans", "supervisor_work_available", "eligible plan work is available; the journal will assign it when you are free", repeat=Timeout.seconds(0))
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
     PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")

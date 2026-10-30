@@ -20,7 +20,7 @@ from journal.features.workers.listeners.researcher_end import ResearcherEnd
 from journal.features.workers.listeners.researcher_start import ResearcherStart
 from journal.features.workers.listeners.researchers_closed import ResearchersClosed
 from journal.engine.row_assignment import RowAssignment
-from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_assignment_opportunity import TaskAssignmentOpportunity
 from journal.engine.state_machine import StateMachine
 from journal.console.creations import Creations
 from journal.features.listeners.record_changes import RecordChanges
@@ -113,7 +113,7 @@ class Runtime:
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
-        self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
+        self.bus.add_answer_listener(TaskAssignmentOpportunity, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 

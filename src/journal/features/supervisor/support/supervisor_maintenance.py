@@ -2,11 +2,12 @@ from typing import Any
 
 from journal.features.supervisor.support.admissions import action_receipt_key, action_reuse_key, canonical, digest
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
+from journal.features.supervisor.support.diagnostic_eligibility import eligible_diagnostic
 from journal.models.entry import Entry
 from journal.models.phase import Phase
 from journal.models.plan import Plan
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.models.template import Template
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
@@ -40,10 +41,11 @@ class SupervisorMaintenance:
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations, entries: Entries,
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
-                 scope: Scope, time_source: TimeSource) -> None:
+                 scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
+        self.work_available = work_available
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
@@ -87,7 +89,10 @@ class SupervisorMaintenance:
                     {"table": "plans", "id": grant["plan_id"]},
                     {"table": "phases", "id": grant["current_phase"]["phase_id"]},
                 ])
-            return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "applied", None, affected, changes)
+            receipt = self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "applied", None, affected, changes)
+            if diagnostic is not None:
+                self.work_available.after_commit(principal, receipt, diagnostic.row_id)
+            return receipt
 
     def _request(self, body: object) -> dict[str, Any]:
         fields = {
@@ -313,7 +318,7 @@ class SupervisorMaintenance:
         with self.scope.environment(plan.environment_id):
             existing = next((task for task in self.plans.phase_tasks(phase)
                 if task.title == title and task.brief == brief and self.links.connecting(task, plan)
-                and self._eligible_diagnostic(task)), None)
+                and eligible_diagnostic(task, self.tasks)), None)
             if existing:
                 return existing, False
             allowance = min(1, grant["limits"]["max_new_diagnostics_per_episode"])
@@ -322,10 +327,6 @@ class SupervisorMaintenance:
             task = self.tasks.save(Task(environment_id=plan.environment_id, title=title, brief=brief), actor)
             self.plans.place_task_in_phase(task, plan, phase, actor)
             return self.tasks.find(task.row_id), True
-
-    def _eligible_diagnostic(self, task: Task) -> bool:
-        return bool(task.state == TaskState.OPEN and not task.delegated and not self.tasks.waiting_ids([task])
-            and self.tasks.task_holder(task.row_id) is None and not self.tasks.has_worker_holder([task.row_id]))
 
     def _new_diagnostic_count(self, grant: dict[str, Any], episode_id: str) -> int:
         with self.scope.environment(PROJECT):
@@ -359,7 +360,7 @@ class SupervisorMaintenance:
             if diagnostic is not None:
                 plan_link = self.links.connecting(diagnostic, context["plan"])
                 phase_link = self.links.connecting(diagnostic, context["current_phase_row"])
-                if (len(plan_link) != 1 or len(phase_link) != 1 or not self._eligible_diagnostic(diagnostic)
+                if (len(plan_link) != 1 or len(phase_link) != 1 or not eligible_diagnostic(diagnostic, self.tasks)
                         or diagnostic not in self.plans.phase_tasks(context["current_phase_row"])):
                     raise SupervisorFailure(409, "the diagnostic task did not read back in its enrolled current phase")
         for operation in request["operations"]:

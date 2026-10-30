@@ -9,7 +9,7 @@ from journal.support.actor import Actor
 
 @dataclass(frozen=True, kw_only=True)
 class RowEvent(Event):
-    """What happened to a row, named for the moment: created by the model that made the change, dispatched by its repository on save, and answered by every agent of the environment that has not ended, each under its own role's conduct."""
+    """What happened to a row, named for the moment: created by the model that made the change, dispatched by its repository on save, and answered by its targeted agent or every live agent of the environment."""
 
     feature_name: ClassVar[str] = "engine"
     environment_id: int = 0
@@ -17,6 +17,7 @@ class RowEvent(Event):
     row_id: int = 0
     session: str = ""
     actor: str = ""
+    target_agent_id: int = 0
     bound_environment_ids: tuple[int, ...] = ()
     data: FeatureData = field(default_factory=lambda: FeatureData({}), compare=False)
 

@@ -1,6 +1,7 @@
 from journal.engine.support.assignment import Assignment
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.rows.row_event import RowEvent
+from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
@@ -10,6 +11,7 @@ from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.repositories.plans import Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
@@ -20,19 +22,54 @@ FOLLOWING_PLAN = "following_plan"
 
 
 class PlanTaskAssigner:
-    """The task assigner a followed plan names: when the agent finishes a task of a started plan, or stops with none in progress, it starts the plan's next task in the plan's order, a paused one first; the plan the closed task was in goes first, else the plan the agent follows now; while the plan is blocked, the next open task the default assigner picks, worked over the plan; nothing while a blocked task of the plan waits to be checked, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, in the orchestrator's mode, or with the agent on a task. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
+    """The task assigner a followed plan names: when the agent finishes a task of a started plan, stops with none in progress, or receives a trusted work signal, it starts the plan's next task in its order, a paused one first; blocked tasks, owner checkpoints, unpassed phase tests, orchestrator mode and work already in hand hold it. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource) -> None:
         self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
+        if isinstance(event, PlanWorkAvailable):
+            return self.work_available(agent, event, quantity)
         if not self.default.is_free_moment(agent, event):
             return Assignment()
         return self.next_plan_task(agent, event, quantity)
 
+    def work_available(self, agent: Agent, event: PlanWorkAvailable, quantity: int) -> Assignment:
+        if (event.target_agent_id != agent.row_id or event.environment_id != agent.environment_id
+                or not agent.is_main() or self.default.is_working(agent) or not self.following_plan_idle(agent, event.plan_id)):
+            return Assignment()
+        plan = self.current_plan(agent, event)
+        if plan is None or plan.row_id != event.plan_id or not self.is_current_phase(plan, event.phase_id):
+            return Assignment()
+        if not self.eligible_signal_task(plan, event):
+            return Assignment()
+        return self.next_plan_task(agent, event, quantity)
+
+    @staticmethod
+    def following_plan_idle(agent: Agent, plan_id: int) -> bool:
+        if not agent.stack:
+            return False
+        top = agent.stack[-1]
+        data = top.get("data", {})
+        return top.get("state") == FOLLOWING_PLAN and data.get("plan_id") == plan_id and not data.get("task_id")
+
+    def is_current_phase(self, plan: Plan, phase_id: int) -> bool:
+        states = self.plans.phase_states(plan)
+        number = plan.current_phase(states)
+        return any(state.number == number and state.phase.row_id == phase_id for state in states)
+
+    def eligible_signal_task(self, plan: Plan, event: PlanWorkAvailable) -> bool:
+        task = self.tasks.find(event.task_id)
+        phase = next((state.phase for state in self.plans.phase_states(plan) if state.phase.row_id == event.phase_id), None)
+        return bool(phase and task in self.plans.phase_tasks(phase) and task in self.plans.plan_tasks(plan)
+            and task.state == TaskState.OPEN and not task.delegated and not self.tasks.waiting_ids([task])
+            and self.tasks.task_holder(task.row_id) is None and not self.tasks.has_worker_holder([task.row_id]))
+
     def next_plan_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int) -> Assignment:
         plan = self.current_plan(agent, event)
         if plan is not None and plan.is_blocked():
+            if isinstance(event, PlanWorkAvailable):
+                return Assignment()
             return self.default.next_task(agent, event, quantity)
         if plan is None or not self.is_advancing(plan):
             return Assignment()
@@ -59,13 +96,24 @@ class PlanTaskAssigner:
         plan_id = next((layer.get("data", {}).get("plan_id", 0) for layer in reversed(agent.stack) if layer.get("state") == FOLLOWING_PLAN), 0)
         return self.plans.find(plan_id) if plan_id else None
 
+    def advancement_block(self, plan: Plan) -> str:
+        if not plan.is_started():
+            return "plan_not_started"
+        if self.orchestrator.delegates_work():
+            return "work_delegated"
+        if self.plans.checkpoint_plans(plan) is not None:
+            return "owner_checkpoint"
+        if self.testing.unpassed(plan):
+            return "phase_tests_unpassed"
+        return ""
+
     def is_advancing(self, plan: Plan) -> bool:
-        return plan.is_started() and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan)
+        return not self.advancement_block(plan)
 
     def passes_checkpoints(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))
 
     def following_task(self, plan: Plan) -> Task | None:
-        if not self.passes_checkpoints() and self.plans.checkpoint_plans(plan) is not None:
+        if self.plans.checkpoint_plans(plan) is not None:
             return None
         return self.plans.following_task(plan)

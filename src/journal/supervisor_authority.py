@@ -438,7 +438,8 @@ class SupervisorAuthority:
             environment = self.agents.environment(current_plan)
             if (agent is None or environment is None or environment.row_id != driver_environment_id
                     or agent.environment_id != driver_environment_id or agent.role.value != "main"
-                    or agent.creator != Actor.user(owner_id) or agent.provider != "codex" or not agent.session or agent.state != "leading_plan"
+                    or agent.creator != Actor.user(owner_id) or agent.provider != "codex" or not agent.session
+                    or not self.is_plan_driver_state(agent, current_plan.row_id)
                     or not self.agents.is_running(environment)):
                 raise SupervisorFailure(409, "the plan is not eligible for supervisor enrollment")
         binding_revision = self._binding_revision(current_plan, agent, environment)
@@ -452,6 +453,24 @@ class SupervisorAuthority:
             "binding_revision": binding_revision,
             "owner_user_id": owner_id,
         }
+
+    @staticmethod
+    def is_plan_driver_state(agent: Agent, plan_id: int) -> bool:
+        if agent.state == "leading_plan":
+            return True
+        if len(agent.stack) < 2:
+            return False
+        first, following = agent.stack[:2]
+        if (first.get("state") != "leading_plan" or first.get("data", {}).get("plan_id") != plan_id
+                or following.get("state") != "following_plan" or following.get("data", {}).get("plan_id") != plan_id):
+            return False
+        if agent.state == "following_plan":
+            return len(agent.stack) == 2
+        return (
+            agent.state == "working" and len(agent.stack) == 3
+            and agent.stack[-1].get("state") == "working"
+            and agent.stack[-1].get("data", {}).get("task_id", 0) > 0
+        )
 
     def _plan_revision(self, plan: Plan, phases) -> str:
         with self.scope.environment(plan.environment_id):

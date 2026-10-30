@@ -33,6 +33,7 @@ TURN_EVENTS = (events.STOP, events.TOOL_STARTING, events.PROMPT_SUBMITTED)
 
 SUPERVISOR_ENTRY_TYPES = (
     "SupervisorAction",
+    "SupervisorActionDelivery",
     "SupervisorActionReceipt",
     "SupervisorActionState",
     "SupervisorCredential",

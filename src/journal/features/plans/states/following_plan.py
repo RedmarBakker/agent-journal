@@ -14,6 +14,7 @@ from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
+from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.events.feature_data import FeatureData
 from journal.features.plans.states.plan_work import PlanWork
 from journal.features.plans.plans_nudges import PlansNudges
@@ -86,6 +87,11 @@ class FollowingPlan(PlanWork):
             return self.swap(replace(self, task_id=0, origin_state=event.task_id, checkpoint_pause=True, phase=started.checkpoint_phase, phase_held=bool(started.phase_commands) and not started.is_checkpoint))
         current = event.data.part(TasksPart).current_task
         return self.swap(replace(self, task_id=current if current != event.task_id else 0, origin_state=event.task_id, logged_at=event.time, edits=0))
+
+    def on_plan_work_available(self, event: PlanWorkAvailable, settings: Settings) -> Transition:
+        if event.plan_id != self.plan_id or self.task_id:
+            return self.none()
+        return self.none(PlansNudges.SUPERVISOR_WORK_AVAILABLE.create())
 
     def on_plan_finished(self, event: PlanFinished, settings: Settings) -> Transition:
         return self.pop(PlansNudges.PLAN_FINISHED.create(n=event.plan_id)) if event.plan_id == self.plan_id else self.none()
