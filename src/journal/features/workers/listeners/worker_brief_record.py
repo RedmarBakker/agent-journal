@@ -6,7 +6,7 @@ from journal.support.voice_key import VoiceKey
 
 
 class WorkerBriefRecord(Listener[WorkerDispatched]):
-    """The job a worker is given, at its dispatch and at each send, is the first message of that job in its chat, from the agent that sent it; one whose session is not known yet gets it when its session binds."""
+    """The job a worker is given, at its dispatch and at each send, is the first message of that job in its chat, from the agent that sent it."""
 
     def __init__(self, chat: WorkerChat, workers: Workers) -> None:
         self.chat, self.workers = chat, workers

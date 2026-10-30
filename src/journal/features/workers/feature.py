@@ -54,6 +54,7 @@ from journal.features.workers.listeners.subagent_record import SubagentRecord
 from journal.features.workers.listeners.subagent_message_record import SubagentMessageRecord
 from journal.features.workers.listeners.subagent_turn_record import SubagentTurnRecord
 from journal.features.workers.listeners.worker_brief_record import WorkerBriefRecord
+from journal.features.workers.listeners.worker_brief_binding import WorkerBriefBinding
 from journal.features.workers.listeners.worker_note_record import WorkerNoteRecord
 from journal.features.workers.listeners.worker_turn_record import WorkerTurnRecord
 from journal.features.workers.listeners.worker_cards import WorkerCards
@@ -109,7 +110,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorkerMemoryWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
     answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER), (WorkerAssignment, Blocking.NEXT_DECISION), (WorkerSessionAssignment, Blocking.NEXT_DECISION), (WorkerTaskChanges, Blocking.NEXT_DECISION))
-    listeners = (WorkerProgressRecord, MergedTestRunStop, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, OpenWorkWaitRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
+    listeners = (WorkerProgressRecord, MergedTestRunStop, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, OpenWorkWaitRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerBriefBinding, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
     data = (WorkersDataReader,)
     helper_data = {AgentRole.WORKER: (SessionWorkersReader,)}
     helper_commands = {AgentRole.WORKER: (WorkerPeerCommand, ArrivalCommand, DepartureCommand, ProofCommand, TodoCommand, WorkerTestsCommand)}
