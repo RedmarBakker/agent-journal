@@ -505,6 +505,105 @@ def test_comparison_pairs_pinned_a_b_runs_and_only_recommends_after_the_full_fam
     assert row["holm"]["passed"]
 
 
+def test_twenty_identical_setting_batches_keep_false_findings_near_the_declared_alpha_rate(tmp_path):
+    from random import Random
+    from tests.lab.comparison import Comparison
+
+    plan = comparison_plan()
+    false_positives = 0
+    for index in range(20):
+        first_seed = index * 40
+        batch = comparison_batch(plan, seeds=tuple(range(first_seed, first_seed + 40)))
+        settings = {"hub_route_strategy": "strict"}
+        batch = replace(
+            batch,
+            batch_id=f"{index:032x}",
+            designs=(Design.from_mapping("A", settings), Design.from_mapping("B", settings)),
+            caps=replace(batch.caps, max_runs=80),
+        )
+        home = tmp_path / f"aa-{index}"
+        shared_world = {seed: Random(173_000_000 + seed).random() < 0.9 for seed in batch.seeds}
+        observations = {
+            **{("A", seed): shared_world[seed] and Random(183_000_000 + seed).random() < 0.5 for seed in batch.seeds},
+            **{("B", seed): shared_world[seed] and Random(193_000_000 + seed).random() < 0.5 for seed in batch.seeds},
+        }
+
+        def values(design, seed):
+            return {"goal_reached": observations[(design, seed)]}
+
+        result = Comparison(batch, home, comparison_records(batch, home, values), plan).analyze()
+
+        assert batch.designs[0].settings == batch.designs[1].settings
+        if result["results"][0]["analysis"]["p_value"] <= plan.alpha:
+            false_positives += 1
+
+    assert false_positives <= 3
+
+
+def test_planted_slowdown_is_dropped_at_the_pilot_estimates_fixed_seed_count(tmp_path):
+    from tests.lab.comparison import Comparison
+    from tests.lab.comparison_plan import ComparisonPlan
+    from tests.lab.metric_rule import MetricRule
+    from tests.lab.seed_estimate import SeedEstimate
+
+    plan = ComparisonPlan(
+        "slowdown-rule-1", (MetricRule("minutes_to_done", "continuous", "lower", "primary", 1.0),),
+        0.05, 8, 999, 100, 173,
+    )
+    home = tmp_path / "journal-lab"
+    pilot = {
+        "pilot_manifest_digest": "a" * 64,
+        "pilot_kind": "exploratory",
+        "metric": "minutes_to_done",
+        "expected_metric": "minutes_to_done",
+        "primary_kind": "continuous",
+        "pilot_units_by_scenario": (("claim review", (-1.0, 0.0, 1.0, 2.0, 3.0, 1.0, 2.0, 4.0)),),
+        "pilot_missing_units_by_scenario": (("claim review", 0),),
+        "scenario_names": ("claim review",),
+        "models": ("synthetic-tier",),
+        "pilot_seeds": tuple(range(1, 9)),
+        "caps": SimulationCaps(100, 2, 64 * 1024 * 1024, 180, 30, 60),
+        "estimated_storage_bytes_per_run": 64 * 1024,
+        "estimated_run_seconds": 1.0,
+        "simulated_minutes_by_scenario": (("claim review", 10),),
+        "assumed_effect": 8.0,
+        "practical_minimum": 1.0,
+        "precision_target": 10.0,
+        "required_power": 0.8,
+        "alpha": plan.alpha,
+        "confirmatory_family_size": 1,
+        "bootstrap_draws": 100,
+        "random_seed": 173,
+    }
+
+    def estimate_for(digest):
+        return SeedEstimate.from_pilot(**{
+            **pilot,
+            "confirmatory_manifest_digest": digest,
+        })
+
+    proposed = estimate_for("b" * 64)
+    planned_seeds = proposed.seeds_by_scenario[0][1]
+    batch = comparison_batch(plan, seeds=planned_seeds)
+    estimate = estimate_for(batch.manifest(home)["content_digest"])
+    comparison = Comparison(
+        batch, home,
+        comparison_records(batch, home, lambda design, seed: {"minutes_to_done": 10 if design == "A" else 14}),
+        plan,
+    )
+
+    result = comparison.analyze()
+    primary = result["results"][0]
+
+    assert estimate.status == "estimated"
+    assert estimate.required_seed_count == len(batch.seeds)
+    assert estimate.seeds_by_scenario == (("claim review", batch.seeds),)
+    assert primary["analysis"]["effect_median"] == -4.0
+    assert primary["analysis"]["p_value"] == 1.0
+    assert result["recommendation"] == "drop"
+    assert result["action_taken"] is False
+
+
 def test_comparison_rejects_run_evidence_that_does_not_match_its_frozen_design_pin(tmp_path):
     from tests.lab.comparison import Comparison
 

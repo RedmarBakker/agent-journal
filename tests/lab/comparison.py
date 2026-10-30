@@ -174,17 +174,32 @@ class Comparison:
 
     def _decision(self, results: list[dict[str, Any]], correction: dict[str, Any]) -> tuple[str, str]:
         family = correction["members"]
-        if any(member["p_value"] is None or not member["passed"] for member in family.values()):
+        if any(member["p_value"] is None for member in family.values()):
             return "inconclusive", "every frozen primary and guard test must be present and pass Holm correction before B is eligible"
+        confirmatory = [result for result in results if result["role"] in {"primary", "guard"}]
+        if any(result["analysis"].get("missing_pair_count", 0) for result in confirmatory):
+            return "inconclusive", "missing paired readings cannot support a keep, drop or guard decision"
+        metrics = {metric.name: metric for metric in self.plan.metrics}
+        for result in confirmatory:
+            metric = metrics[result["metric"]]
+            if metric.role != "guard":
+                continue
+            effect = result["analysis"].get("effect_median")
+            if effect is None:
+                return "inconclusive", "a required guard has no complete effect estimate"
+            if effect < -float(metric.tolerated_harm):
+                return "drop", "the completed comparison's observed guard harm exceeds its preregistered margin"
         primary = self.plan.primary
-        primary_results = [result for result in results if result["metric"] == primary.name]
-        if any(result["analysis"].get("missing_pair_count", 0) for result in primary_results):
-            return "inconclusive", "missing paired readings cannot support a keep recommendation"
+        primary_results = [result for result in confirmatory if result["metric"] == primary.name]
         for result in primary_results:
             analysis = result["analysis"]
             effect = analysis.get("effect_percentage_points") if primary.kind == "binary" else analysis.get("effect_median")
-            if effect is None or effect < float(primary.practical_minimum):
-                return "inconclusive", "the primary point improvement does not meet its preregistered practical minimum"
+            if effect is None:
+                return "inconclusive", "a required primary has no complete effect estimate"
+            if effect < float(primary.practical_minimum) or not result["holm"]["passed"]:
+                return "drop", "the completed primary result fails its preregistered benefit criteria"
+        if any(not result["holm"]["passed"] for result in confirmatory if result["role"] == "guard"):
+            return "inconclusive", "the observed guard harm is within its margin but noninferiority is not established"
         return "keep_eligible", "the primary improvement and every frozen guard pass their preregistered thresholds"
 
     @staticmethod
