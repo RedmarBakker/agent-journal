@@ -50,6 +50,7 @@ class SharedJournal:
             self.rows.backup(live)
         self.put_back_files()
         for path, rows in self.team_databases.items():
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(path) as live:
                 rows.backup(live)
         self.app.container.get(Connection).cache.cleared()
