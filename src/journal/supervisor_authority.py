@@ -169,7 +169,7 @@ class SupervisorAuthority:
         return grant, token
 
     def restore_installation(self, actor: Actor, grant_id: str) -> Entry:
-        with self.entries.writing():
+        with self.scope.environment(PROJECT), self.entries.writing():
             entry = self._latest_entry(grant_id)
             if entry is None:
                 raise SupervisorFailure(403, "supervisor request is not authorized")
@@ -756,11 +756,12 @@ class SupervisorAuthority:
             "owner_reviewed_by": owner_id,
             "owner_reviewed_at_ms": self._now_ms(),
         }
-        self.control_entries.recorded(Entry(
-            environment_id=PROJECT, entry_type="SupervisorInstallation", actor=actor, data=data,
-            idempotency=(f"supervisor:restore-reviewed:{grant['scope']['tenant_id']}:{data['installation_id']}"
-                         f":{data['epoch']}:{grant['grant_version']}"),
-        ), actor)
+        with self.scope.environment(PROJECT):
+            self.control_entries.recorded(Entry(
+                environment_id=PROJECT, entry_type="SupervisorInstallation", actor=actor, data=data,
+                idempotency=(f"supervisor:restore-reviewed:{grant['scope']['tenant_id']}:{data['installation_id']}"
+                             f":{data['epoch']}:{grant['grant_version']}"),
+            ), actor)
 
     def _restore_review(self, review: dict[str, Any] | None, installation: Entry) -> None:
         data = installation.data

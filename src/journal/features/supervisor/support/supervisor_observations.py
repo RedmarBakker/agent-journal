@@ -38,7 +38,7 @@ class SupervisorObservations:
                  action_reports: SupervisorActionReports) -> None:
         self.authority, self.entries, self.control_entries = authority, entries, control_entries
         self.scope, self.masks, self.time_source = scope, masks, time_source
-        self.episode_qualification = episode_qualification
+        self.episode_qualifier = episode_qualification
         self.action_reports = action_reports
 
     def completed(self, check: Check, event: CheckCompleted, started: float, fault: str) -> None:
@@ -52,7 +52,7 @@ class SupervisorObservations:
         grant = self.authority.revalidate(principal)
         run, installation_epoch = self._run(principal, grant, request)
         snapshot = self.authority.observation_snapshot(principal, installation_epoch)
-        qualification = self.episode_qualification.qualify(grant, installation_epoch)
+        qualification = self.episode_qualifier.qualify(grant, installation_epoch)
         snapshot = {**snapshot, "episode_qualification": qualification,
             "progress_watermark_ms": qualification["progress_watermark_ms"]}
         page = self._page(grant, installation_epoch, request["cursor"])
@@ -101,7 +101,7 @@ class SupervisorObservations:
 
     def episode_qualification(self, principal: SupervisorPrincipal, installation_epoch: int) -> dict[str, Any]:
         grant = self.authority.revalidate(principal)
-        return self.episode_qualification.qualify(grant, installation_epoch)
+        return self.episode_qualifier.qualify(grant, installation_epoch)
 
     @staticmethod
     def _qualifying_action_evidence(entry: Entry, grant: dict[str, Any], installation_epoch: int, now_ms: int) -> bool:
@@ -221,7 +221,7 @@ class SupervisorObservations:
         key = f"supervisor:observation:{grant['grant_id']}:{epoch}:{observation_id}"
         stored = self.control_entries.recorded(Entry(environment_id=PROJECT, entry_type=OBSERVATION_ENTRY,
             actor=EVIDENCE_ACTOR, data=data, idempotency=key), EVIDENCE_ACTOR)
-        self.episode_qualification.qualify(grant, epoch)
+        self.episode_qualifier.qualify(grant, epoch)
         self.action_reports.measure(grant, stored)
 
     def _next_generation(self, grant: dict[str, Any], check_id: int, epoch: int) -> int:

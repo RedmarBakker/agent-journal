@@ -208,21 +208,23 @@ class SupervisorEpisodeQualification:
         })
 
     def _record(self, grant: dict[str, Any], episode_id: str, kind: str, key: str, data: dict[str, Any]) -> Entry:
-        return self.control_entries.recorded(Entry(
-            environment_id=PROJECT,
-            entry_type="SupervisorEpisode",
-            actor=Actor.plugin(SUPERVISOR_ACTOR),
-            data={
-                "tenant_id": grant["scope"]["tenant_id"],
-                "grant_id": grant["grant_id"],
-                "grant_version": grant["grant_version"],
-                "plan_id": grant["plan_id"],
-                "episode_id": episode_id,
-                "record_kind": kind,
-                **data,
-            },
-            idempotency=key,
-        ), Actor.plugin(SUPERVISOR_ACTOR))
+        actor = Actor.plugin(SUPERVISOR_ACTOR)
+        with self.scope.environment(PROJECT):
+            return self.control_entries.recorded(Entry(
+                environment_id=PROJECT,
+                entry_type="SupervisorEpisode",
+                actor=actor,
+                data={
+                    "tenant_id": grant["scope"]["tenant_id"],
+                    "grant_id": grant["grant_id"],
+                    "grant_version": grant["grant_version"],
+                    "plan_id": grant["plan_id"],
+                    "episode_id": episode_id,
+                    "record_kind": kind,
+                    **data,
+                },
+                idempotency=key,
+            ), actor)
 
     def _attempt_count(self, grant: dict[str, Any], episode_id: str) -> int:
         with self.scope.environment(PROJECT):

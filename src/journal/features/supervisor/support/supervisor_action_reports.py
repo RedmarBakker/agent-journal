@@ -235,8 +235,8 @@ class SupervisorActionReports:
     def _receipt(self, principal: SupervisorPrincipal, action_id: str) -> Entry:
         with self.scope.environment(PROJECT):
             rows = self.entries.supervisor_records(
-                "SupervisorActionReceipt", last=100, tenant_id=principal.scope["tenant_id"],
-                grant_id=principal.grant_id, grant_version=principal.grant_version, action_id=action_id,
+                "SupervisorActionReceipt", last=100, grant_id=principal.grant_id,
+                grant_version=principal.grant_version, action_id=action_id,
             )
         if not rows or rows[0].data.get("scope") != principal.scope:
             raise SupervisorFailure(403, "supervisor receipt is not available")
