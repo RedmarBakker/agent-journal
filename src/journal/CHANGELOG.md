@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.1
+
+- A background command whose shell is killed from outside no longer stays running for ever: its heartbeat asks the shell process itself whether it still runs, never its process number, which a killed shell can still answer to. So it no longer counts as running and holds up an update's restart.
+
 ## 4.69.0
 
 - A worker clocks out once, when its whole queue is done: proving the last point of a task hands it the next, and its tests run and its report reaches you only at the end. The report choice and `--report` are gone.

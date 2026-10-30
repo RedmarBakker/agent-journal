@@ -7346,3 +7346,12 @@ def test_a_subagent_takes_its_name_from_its_dispatch_and_its_job_from_each_new_m
     assert resumed.title_words() == "Mr. Babbage: Design the journal as an engine", "a new message names the job, and a new name when it gives one"
     assert subagent.resumed(3.0, "Apply the two reviews to doc 1086.", "").title_words() == "Mr. Faraday: Review doc 1086", "a message with no name or summary keeps both"
     assert Subagent(task="map the hooks").title_words() == "map the hooks" and Subagent.dispatch_name("map the hooks") is None, "a dispatch naming no one keeps its job alone"
+
+
+def test_a_chain_shell_killed_from_outside_stops_its_heartbeat_though_its_pid_was_never_reaped():
+    from types import SimpleNamespace
+    from journal.features.shell.support.chain_worker import ChainWorker
+    running, killed = SimpleNamespace(process=SimpleNamespace(poll=lambda: None)), SimpleNamespace(process=SimpleNamespace(poll=lambda: -15))
+    assert ChainWorker.is_shell_running([running]), "a running shell keeps the heartbeat"
+    assert not ChainWorker.is_shell_running([running, killed]), "the chain's current shell, killed from another process, is asked of its own process, never of its pid, so the heartbeat stops"
+    assert not ChainWorker.is_shell_running([]), "no shell started yet keeps no heartbeat"

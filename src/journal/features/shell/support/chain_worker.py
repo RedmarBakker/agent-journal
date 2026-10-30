@@ -11,7 +11,6 @@ from journal.features.shell.support.shell_record import ShellRecord
 from journal.features.shell.support.shell_request import OUTPUT_FOLDER_VARIABLE, ShellRequest
 from journal.support.caller import Caller
 from journal.support.heartbeat import HEARTBEAT_INTERVAL_SECONDS, Heartbeat
-from journal.support.process_check import ProcessCheck
 from journal.support.time_source import TimeSource
 from journal.support.merger import Merger
 
@@ -36,29 +35,34 @@ ONECMD_RESET = "set +t 2>/dev/null"
 
 
 class ChainWorker:
-    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever arrived before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a new shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone. While the chain runs, a thread of its own writes the heartbeat into its folder every ten seconds the shell lives. A part is read into a variable before the previous part's status is set again, so $? in the part is that status and never the status of the cat that read it; a new file's lines are counted in the folder the shell stood in when it listed it, which the listing names on its first line."""
+    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever arrived before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a new shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone. While the chain runs, a thread of its own writes the heartbeat into its folder every ten seconds its current shell lives, asked of the shell process itself, never of its pid, which a dead shell left unreaped or a new process can still answer to, so a shell killed from outside stops the heartbeat and its output no longer counts as running. A part is read into a variable before the previous part's status is set again, so $? in the part is that status and never the status of the cat that read it; a new file's lines are counted in the folder the shell stood in when it listed it, which the listing names on its first line."""
 
     def __init__(self, record: ShellRecord, merger: Merger, time_source: TimeSource) -> None:
         self.record, self.merger, self.time_source = record, merger, time_source
 
     def run(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: Callable[[bytes], None]) -> int:
-        stopped = threading.Event()
-        threading.Thread(target=lambda: self.write_heartbeats(folder, stopped), name="shell-heartbeat", daemon=True).start()
+        stopped, shells = threading.Event(), []
+        threading.Thread(target=lambda: self.write_heartbeats(folder, stopped, shells), name="shell-heartbeat", daemon=True).start()
         try:
-            return self.chain(folder, request, caller, direct, output_text)
+            return self.chain(folder, request, caller, direct, output_text, shells)
         finally:
             stopped.set()
 
-    def write_heartbeats(self, folder: OutputFiles, stopped: threading.Event) -> None:
+    def write_heartbeats(self, folder: OutputFiles, stopped: threading.Event, shells: list[ShellProcess]) -> None:
         heartbeat = Heartbeat(folder.folder)
         heartbeat.write(self.time_source.seconds())
         while not stopped.wait(HEARTBEAT_INTERVAL_SECONDS):
-            if ProcessCheck.is_running(folder.shell_pid()):
+            if self.is_shell_running(shells):
                 heartbeat.write(self.time_source.seconds())
 
-    def chain(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: Callable[[bytes], None]) -> int:
+    @staticmethod
+    def is_shell_running(shells: list[ShellProcess]) -> bool:
+        return bool(shells) and shells[-1].process.poll() is None
+
+    def chain(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: Callable[[bytes], None], shells: list[ShellProcess]) -> int:
         request = request.folder_request(folder.folder)
         shell, pump = self.started(request, output_text)
+        shells.append(shell)
         code = 0
         for i, type_name in enumerate(folder.kinds()):
             code = self.part(shell, folder, i, type_name, code, direct, caller)
@@ -70,6 +74,7 @@ class ChainWorker:
                 break
             pump.join(timeout=2)
             shell, pump = self.started(request, output_text)
+            shells.append(shell)
         self.write_part(shell, "exit $__journal_code\n")
         code = self.ended(shell, code)
         pump.join(timeout=2)
