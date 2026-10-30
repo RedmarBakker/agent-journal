@@ -20,13 +20,14 @@ const KINDS = [
     {key: "plan", label: "Plans"},
 ];
 
+const props = defineProps({team: {type: String, default: ""}});
 const items = ref(null);
 const kind = ref("");
 const search = ref("");
 const opened = ref(null);
 
 async function load() {
-    items.value = (await api.libraryItems(kind.value, search.value.trim())).items;
+    items.value = (await api.libraryItems(kind.value, search.value.trim(), props.team)).items;
 }
 
 const isOpened = (item) => opened.value?.item_type === item.item_type && opened.value?.name === item.name;
@@ -57,7 +58,7 @@ onMounted(load);
             </template>
             <template v-if="opened">
                 <aside class="library-panel">
-                    <LibraryItemPanel :type="opened.item_type" :name="opened.name" @changed="load" />
+                    <LibraryItemPanel :type="opened.item_type" :name="opened.name" :team="team" @changed="load" />
                 </aside>
             </template>
         </div>

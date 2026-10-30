@@ -7,7 +7,8 @@ import TextInput from "../kit/TextInput.vue";
 
 const props = defineProps({type: {type: String, required: true}, reference: {type: [String, Number], required: true}, place: {type: String, required: true}});
 const {failure, attempt} = useAttempt();
-const connected = ref(false);
+// the panel publishes to and reads copies of one team's library, so it shows with exactly one team connected
+const oneTeam = ref(false);
 const copies = ref([]);
 const publishing = ref(false);
 const published = ref(0);
@@ -16,8 +17,8 @@ const fields = ref({description: "", note: ""});
 const copy = computed(() => copies.value.find((c) => c.item_type === props.type && (c.place === props.place || c.name === props.place)));
 
 async function load() {
-    connected.value = Boolean((await api.team()).connected);
-    copies.value = connected.value ? (await api.libraryCopies()).copies : [];
+    oneTeam.value = (await api.teams()).teams.length === 1;
+    copies.value = oneTeam.value ? (await api.libraryCopies()).copies : [];
 }
 
 async function publish() {
@@ -32,7 +33,7 @@ onMounted(load);
 </script>
 
 <template>
-    <template v-if="connected">
+    <template v-if="oneTeam">
         <div class="library-standing">
             <span class="library-standing-line">
                 <template v-if="copy">From the library: version {{ copy.version }}</template>

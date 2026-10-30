@@ -31,7 +31,7 @@ test("Settings holds neither a Library nor a Team tab, so the connection lives o
 });
 
 test("the Team page connects, disconnects, invites, lists people and devices, changes a password and lists the shared items", () => {
-    const page = readFileSync("src/pages/TeamPage.vue", "utf8");
+    const page = ["src/pages/TeamPage.vue", "src/resource/TeamConnectForm.vue", "src/resource/TeamMembers.vue"].map((file) => readFileSync(file, "utf8")).join("\n");
     for (const call of ["api.team", "api.connectTeam", "api.disconnectTeam", "api.inviteToTeam", "api.teamDevices", "api.revokeTeamDevice", "api.teamPeople", "api.changeTeamPassword"]) {
         expect(page).toContain(call);
     }
@@ -39,7 +39,7 @@ test("the Team page connects, disconnects, invites, lists people and devices, ch
 });
 
 test("with no team connected the page offers the connect form and the server setup with this release's install.sh", async () => {
-    const status = vi.spyOn(api, "team").mockResolvedValue({connected: false});
+    const status = vi.spyOn(api, "teams").mockResolvedValue({teams: []});
     store.summary = {version: "3.4.5"};
     const root = mounted();
     await settled();
@@ -51,7 +51,7 @@ test("with no team connected the page offers the connect form and the server set
 });
 
 test("on a development install the setup still names the release the journal carries, never the branch and commit", async () => {
-    const status = vi.spyOn(api, "team").mockResolvedValue({connected: false});
+    const status = vi.spyOn(api, "teams").mockResolvedValue({teams: []});
     const releases = vi.spyOn(api, "releases").mockResolvedValue({installed: "development at 4158ac7"});
     store.summary = {version: "3.4.5"};
     const root = mounted();
@@ -61,16 +61,47 @@ test("on a development install the setup still names the release the journal car
     [status, releases].forEach((spy) => spy.mockRestore());
 });
 
-test("a connected admin sees as whom, the people, the devices and the shared items", async () => {
-    const status = vi.spyOn(api, "team").mockResolvedValue({connected: true, address: "https://team.example.com", name: "Ada", role: "admin"});
+const shop = {team: "shop", address: "https://shop.example.com", name: "Ada", role: "admin", people: 2, devices: 1, items: 1};
+const studio = {team: "studio", address: "https://studio.example.com", name: "Ada", role: "member", people: 1, devices: 0, items: 0};
+const releaseItem = {item: {item_type: "sequence", name: "release", description: "How a release goes out"}, version: {number: 2, note: "", published_at: 1793300002}, imported_version: 0};
+
+test("with one team a connected admin sees as whom, the people, the devices and the shared items", async () => {
+    const listed = vi.spyOn(api, "teams").mockResolvedValue({teams: [shop]});
     const people = vi.spyOn(api, "teamPeople").mockResolvedValue({people: [{id: 1, name: "Ada", role: "admin"}, {id: 2, name: "Carl", role: "member"}]});
     const devices = vi.spyOn(api, "teamDevices").mockResolvedValue({devices: [{id: 4, name: "laptop", account_id: 2, revoked_at: null}]});
-    const items = vi.spyOn(api, "libraryItems").mockResolvedValue({items: [{item: {item_type: "sequence", name: "release", description: "How a release goes out"}, version: {number: 2, note: "", published_at: 1793300002}, imported_version: 0}]});
+    const items = vi.spyOn(api, "libraryItems").mockResolvedValue({items: [releaseItem]});
     const root = mounted();
     await settled();
-    expect(root.textContent).toContain("Connected to https://team.example.com as Ada, admin");
+    expect(root.textContent).toContain("Connected to https://shop.example.com as Ada, admin");
     expect(root.textContent).toContain("Carl, member");
     expect(root.textContent).toContain("laptop");
     expect(root.textContent).toContain("release");
-    [status, people, devices, items].forEach((spy) => spy.mockRestore());
+    expect(items).toHaveBeenLastCalledWith("", "", "shop");
+    [listed, people, devices, items].forEach((spy) => spy.mockRestore());
+});
+
+test("with two teams the page lists both, shows the chosen one's people and items, and asks before it disconnects one", async () => {
+    const listed = vi.spyOn(api, "teams").mockResolvedValue({teams: [shop, studio]});
+    const people = vi.spyOn(api, "teamPeople").mockResolvedValue({people: [{id: 1, name: "Ada", role: "admin"}]});
+    const devices = vi.spyOn(api, "teamDevices").mockResolvedValue({devices: []});
+    const items = vi.spyOn(api, "libraryItems").mockResolvedValue({items: []});
+    const disconnect = vi.spyOn(api, "disconnectTeam").mockResolvedValue({connected: false});
+    const root = mounted();
+    await settled();
+    expect(root.textContent).toContain("shop");
+    expect(root.textContent).toContain("studio");
+    expect(root.textContent).toContain("Add a team");
+    expect(people).toHaveBeenLastCalledWith("shop");
+    [...root.querySelectorAll("button")].find((b) => b.textContent.trim() === "studio").click();
+    await settled();
+    expect(people).toHaveBeenLastCalledWith("studio");
+    expect(items).toHaveBeenLastCalledWith("", "", "studio");
+    expect(root.textContent).toContain("Connected to https://studio.example.com as Ada, member");
+    [...root.querySelectorAll("button")].find((b) => b.textContent.includes("Disconnect from studio")).click();
+    await settled();
+    expect(disconnect).not.toHaveBeenCalled();
+    [...document.body.querySelectorAll("button")].find((b) => b.textContent.trim() === "Disconnect").click();
+    await settled();
+    expect(disconnect).toHaveBeenLastCalledWith("studio");
+    [listed, people, devices, items, disconnect].forEach((spy) => spy.mockRestore());
 });
