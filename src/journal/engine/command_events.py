@@ -66,13 +66,13 @@ class CommandEvents:
 
     def help_needed(self, reason: str, caller: Caller) -> None:
         agent = self.caller_agent(caller)
-        self.audience.dispatch(ImpasseReport(reason=reason).placed(agent, None, self.clock.time()))
+        self.audience.dispatch(ImpasseReport(agent=agent, reason=reason).placed(agent, None, self.clock.time()))
 
     def role_taken(self, role: str, task_id: int, caller: Caller) -> None:
         agent = self.caller_agent(caller)
-        event = RoleTaken(role=role, task_id=task_id).placed(agent, None, self.clock.time())
+        event = RoleTaken(agent=agent, role=role, task_id=task_id).placed(agent, None, self.clock.time())
         self.audience.dispatch(event)
 
     def role_step_ended(self, caller: Caller) -> None:
         agent = self.caller_agent(caller)
-        self.audience.dispatch(RoleStepEnded().placed(agent, None, self.clock.time()))
+        self.audience.dispatch(RoleStepEnded(agent=agent).placed(agent, None, self.clock.time()))

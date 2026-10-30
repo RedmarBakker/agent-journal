@@ -3115,7 +3115,7 @@ def test_a_plan_agents_floor_outlasts_every_work_mode_and_a_reset():
     for mode in ("builder", "orchestrator", "solo"):
         assert catalogue.apply_mode(stack, SettingsValue({WorkersOptions.MODE.key: mode})) == stack, f"no work mode, {mode} among them, replaces a Plan agent's floor"
     assert catalogue.reset_stack(stack) == Stack((LeadingPlan(plan_id=1),)), "a reset keeps a Plan agent's floor and drops what is above it"
-    assert type(catalogue.reset_stack(Stack((Orchestrating(), FollowingPlan(plan_id=1)))).states[0]) is type(catalogue.first()), "every other main agent is reset to the first state"
+    assert type(catalogue.reset_stack(Stack((Orchestrating(), FollowingPlan(plan_id=1)))).states[0]) is Orchestrating, "resetting keeps the main agent's work mode floor"
     assert catalogue.is_bottom(LeadingPlan(plan_id=1)), "it is a floor of the idle family"
 
 def test_an_agent_left_stopped_has_its_stop_check_run_again_after_the_set_minutes():

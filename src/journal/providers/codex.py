@@ -47,8 +47,8 @@ RUNNER_FLAG = "--command"
 RUNNER_TOKEN_COUNT = 4
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
 CONTEXT_LIMIT_NONE = 0
-CONTEXTLESS_HOOKS = frozenset(("PreCompact", "SessionEnd", "SubagentStop", "Stop"))
-MATCHERLESS_HOOKS = frozenset(("UserPromptSubmit", "Stop", "Interrupt"))
+CONTEXTLESS_HOOKS = frozenset((HookType.PRE_COMPACT.value, HookType.SESSION_END.value, HookType.SUBAGENT_STOP.value, HookType.STOP.value))
+MATCHERLESS_HOOKS = frozenset((HookType.USER_PROMPT.value, HookType.STOP.value, "Interrupt"))
 SESSION_END_TIMEOUT = 3
 
 
@@ -342,7 +342,7 @@ class Codex(Provider):
         hooks = {}
         for type_name in self.hook_kinds:
             event = type_name.value
-            handler = {"type": "command", "command": command, "timeout": SESSION_END_TIMEOUT if event == "SessionEnd" else 60}
+            handler = {"type": "command", "command": command, "timeout": SESSION_END_TIMEOUT if event == HookType.SESSION_END.value else 60}
             if event not in CONTEXTLESS_HOOKS:
                 handler["additionalContextLimit"] = CONTEXT_LIMIT_NONE
             hooks[event] = [{"matcher": "", "hooks": [handler]}]
