@@ -11,7 +11,7 @@ from journal.app import App
 from journal.config import Config
 from journal.db.connection import Connection
 from journal.events.rows.check_completed import CheckCompleted
-from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
+from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance, diagnostic_task_values
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.http.server import Server
 from journal.models.support.ref import Ref
@@ -1036,6 +1036,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 "usage_settlement": state.snapshot()["usage_settlement"],
                 "last_error": state.snapshot()["last_error"],
                 "service_errors": service_errors,
+                "maintenance_errors": maintenance_errors,
             }
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
             assert applied_receipt["verification"] == "verified", {
@@ -1059,6 +1060,18 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 raise
 
         bridge.call_service = tracked_service_call
+        maintenance_errors = []
+        maintenance = app.container.get(SupervisorMaintenance)
+        apply_maintenance = maintenance.apply_maintenance
+
+        def tracked_maintenance_apply(principal, request):
+            try:
+                return apply_maintenance(principal, request)
+            except Exception as error:
+                maintenance_errors.append(f"{type(error).__name__}: {error}")
+                raise
+
+        maintenance.apply_maintenance = tracked_maintenance_apply
         result = bridge.reconcile("timer")
         app.runtime().deferred.drain()
         status, answer = posted(app, "/hooks/codex", {
