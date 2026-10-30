@@ -46,7 +46,7 @@ class DomainCountRecord(Listener[ModelEvent]):
         if ref.type == Task.table():
             return [name for task in self.domains.tasks.numbered([ref.id]) for name in self.domains.domain_names(task)]
         if ref.type == Worker.table():
-            return [self.domain_of(worker) for worker in self.domains.workers.numbered([ref.id])]
+            return [self.domain_of(worker) for worker in self.domains.workers.numbered(ref.id)]
         return []
 
     def domain_of(self, worker: Worker) -> str:
