@@ -5,8 +5,6 @@ import shutil
 import re
 import shlex
 import subprocess
-import threading
-import time
 from datetime import datetime, timezone
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -26,10 +24,9 @@ from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.output_files import OutputFiles
-from journal.support.command_classifier import CommandClassifier
-from journal.support.command_part import CommandPart
-from journal.models.command_output import CommandOutput
-from dataclasses import asdict
+from journal.features.shell.support.shell_runner import ShellRunner
+from journal.features.shell.support.chain_worker import ChainWorker
+from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
@@ -56,12 +53,8 @@ from tests.stories.builder.step_result import StepResult
 from journal.http.support.project_check import PROJECT_HEADER
 from journal.models.template import Template
 
-# the longest a story waits on a background run, and how often it looks
-RUN_END_TIMEOUT_SECONDS, RUN_END_POLL_SECONDS = 15, 0.1
 # the longest a story waits on one git command of its own setup
 GIT_TIMEOUT_SECONDS = 30
-# the thread the shell runner runs a chain on, whose end is the run's last word
-RUNNER_THREAD = "shell-chain"
 
 SUBAGENT_MODEL = "haiku"
 # the plugin a story's publisher releases from a git folder of the project, and the journal it updated from
@@ -371,17 +364,12 @@ class AgentSteps:
     def agent_runs_a_command(self, agent: StoryAgent, line: str) -> int:
         raw = "".join(f"{name}={value}\0" for name, value in self.shell_variables_of(agent).items()) + f"\0{line}\n"
         request = HttpRequest(f"http://127.0.0.1:{self.app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(self.app.config.root), "X-Journal-Shell": "sh"})
-        newest, runners = self.newest_output(), self.running_runners()
+        newest = self.newest_output()
         text, _, code = urlopen(request, timeout=30).read().decode().rpartition(EXIT)
-        self.runner_threads = [*self.runner_threads, *(self.running_runners() - runners)]
         self.shell_text, self.shell_exit = text, int(code.split()[0])
         self.shell_outputs = self.newest_output() - newest
         self.observed(f"agent runs a command {line.split()[0]}, {'failing' if self.shell_exit else 'passing'}", None, None)
         return self.newest_output()
-
-    @staticmethod
-    def running_runners() -> set[threading.Thread]:
-        return {thread for thread in threading.enumerate() if thread.name == RUNNER_THREAD}
 
     def newest_output(self) -> int:
         with self.app.container.get(Scope).environment(1):
@@ -389,27 +377,19 @@ class AgentSteps:
             rows = outputs.selected(outputs.query().order_descending("id").limit(1))
         return rows[0].row_id if rows else 0
 
-    def background_run_ends(self, output: int) -> StepResult:
-        deadline = time.monotonic() + RUN_END_TIMEOUT_SECONDS
-        while not self.is_output_ended(output):
-            assert time.monotonic() < deadline, f"output {output} still runs after {RUN_END_TIMEOUT_SECONDS} seconds"
-            time.sleep(RUN_END_POLL_SECONDS)
-        for runner in self.runner_threads:
-            runner.join(RUN_END_TIMEOUT_SECONDS)
-        return self.observed("the background run ends", None, None)
-
     def agent_has_a_background_run_printing(self, agent: StoryAgent, line: str, *printed: str) -> int:
-        files = OutputFiles(self.app.config.home / "runtime" / "outputs" / f"story-{self.output_count() + 1}-{time.time_ns()}")
-        files.folder.mkdir(parents=True)
-        command = CommandPart.plain(line, self.app.container.get(CommandClassifier))
-        for name, text in {"line": line, "parts": "R--\n", "0.part": line, "0.command": json.dumps(asdict(command)), "0.out": "".join(f"{row}\n" for row in printed)}.items():
-            (files.folder / name).write_text(text)
-        files.moved()
+        runner, caller = self.app.container.get(ShellRunner), self.seated_caller_of(agent)
         with self.app.container.get(Scope).environment(1):
-            output = self.app.container.get(CommandOutputs).save(CommandOutput(chain=line, command=line, session=self.session_of(agent), folder=str(files.folder), ran_in=str(self.app.config.root), moved=True), Actor.system())
-        files.numbered(output.row_id)
+            folder = runner.split_folder(line)
+            runner.recorded(folder, line, caller, str(self.app.config.root))
+            running = len(folder.kinds()) - 1
+            for part in range(running):
+                folder.ended_with(part, 0)
+            (folder.folder / f"{running}.out").write_text("".join(f"{row}\n" for row in printed))
+            runner.test_run_watched(folder, line, caller)
+            self.shell_text = runner.background_move(folder, line, running, caller, 1, [])
         self.observed(f"agent has a background run {line.split()[0]}", None, None)
-        return output.row_id
+        return folder.number()
 
     def recorded_run_ends(self, output: int) -> StepResult:
         return self.recorded_run_ends_with(output, 0)
@@ -427,9 +407,17 @@ class AgentSteps:
             outputs.save(run.ended_with(status, self.app.container.get(TimeSource).seconds()), Actor.system())
         return self.observed(f"the background run ends {'passing' if status == 0 else 'failing'}", None, None)
 
-    def is_output_ended(self, output: int) -> bool:
+    def background_run_ends(self, agent: StoryAgent, output: int, status: int = 0) -> StepResult:
         with self.app.container.get(Scope).environment(1):
-            return bool(self.app.container.get(CommandOutputs).find(output).ended)
+            folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
+            folder.ended_with(len(folder.kinds()) - 1, status)
+            self.app.container.get(ChainWorker).chain_ended(folder, status, self.seated_caller_of(agent))
+        self.app.runtime().deferred.drain()
+        return self.observed(f"the background run ends {'failing' if status else 'passing'}", None, None)
+
+    def seated_caller_of(self, agent: StoryAgent) -> Caller:
+        with self.app.container.get(Scope).environment(1):
+            return self.app.container.get(HookSeats).caller_seated(self.caller_of(agent))
 
     def output_count(self) -> int:
         with self.app.container.get(Scope).environment(1):

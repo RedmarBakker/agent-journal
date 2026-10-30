@@ -1,13 +1,9 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_conduct import POLL_REPEAT_COMMANDS
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.workers.workers_options import BUILDER_MODE
-from journal.models.task_state import TaskState
-from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.started_task import StartedTask
+from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 

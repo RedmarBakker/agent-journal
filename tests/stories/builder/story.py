@@ -44,7 +44,6 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.scope = AgentRole.MAIN
         self.stack_checked_at = -1
         self.shell_text, self.shell_exit, self.shell_outputs = "", 0, 0
-        self.runner_threads: list = []
         self.viewer_status, self.viewer_answer = 0, {}
         self.closers: list = []
         self.typed: list[str] = []

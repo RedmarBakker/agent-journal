@@ -19,6 +19,7 @@ def test_a_loop_that_only_sleeps_until_a_process_ends_is_run_as_a_wait_named_for
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_loop_that_works_besides_sleeping_runs_untouched_and_one_that_sleeps_while_a_check_passes_waits_until_it_fails(story):
+    story.project_file_holding("done.flag", "")
     story.agent_runs_a_command(story.agents.subject, "until test -e done.flag; do touch done.flag; sleep 1; done")
     story.last_step.expect_shell_exit(0)
     story.last_step.expect_agent_not_told(story.agents.subject, ShellNudges.SLEEP_LOOP_WAIT)
