@@ -1,6 +1,5 @@
-import re
-import shlex
 import random
+import re
 
 from journal.features.shell.support.shell_record import ShellRecord
 from journal.support.caller import Caller
@@ -8,6 +7,7 @@ from journal.support.command_classifier import CommandClassifier
 from journal.support.command_part import CommandPart
 from tests.observation import Observation
 from tests.simulation.job_lengths import JobLengths
+from tests.simulation.agent_session import AgentSession
 from tests.simulation.simulator import Simulator
 from tests.simulation.world import World
 
@@ -21,8 +21,9 @@ class MainAgent:
 
     def __init__(self, simulator: Simulator, policy, chance: random.Random, jobs: JobLengths, send_backs: tuple[float, ...]) -> None:
         self.simulator, self.policy, self.chance, self.jobs, self.send_backs = simulator, policy, chance, jobs, send_backs
+        self.session = AgentSession(simulator, Caller.agent("main", "s1", simulator.provider))
         self.returns: dict[int, int] = {}
-        self.current_task, self.writes, self.calls = 0, 0, 0
+        self.current_task, self.writes = 0, 0
 
     def act(self, world: World) -> tuple[str, Observation]:
         world.refusal_lines = self.simulator.refusals_since()
@@ -30,20 +31,10 @@ class MainAgent:
         return action, getattr(self, f"{action}_action")(world)
 
     def tool(self, name: str, given: dict, answer: dict) -> Observation:
-        self.calls += 1
-        call = f"sim-{self.calls}"
-        held = self.simulator.hook("PreToolUse", tool_name=name, tool_input=given, tool_use_id=call)
-        return held if held.is_refused() else self.simulator.hook("PostToolUse", tool_name=name, tool_input=given, tool_response=answer, tool_use_id=call)
+        return self.session.tool(name, given, answer)
 
     def command(self, argv: list[str]) -> Observation:
-        call = {"command": "journal " + " ".join(shlex.quote(part) for part in argv), "description": "Run a journal command"}
-        self.calls += 1
-        held = self.simulator.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=f"sim-{self.calls}")
-        if held.is_refused():
-            return held
-        seen = self.simulator.run(argv, AGENT)
-        self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=f"sim-{self.calls}")
-        return seen
+        return self.session.command(argv)
 
     def write_action(self, world: World) -> Observation:
         return self.written(world, self.editor_write)
@@ -76,16 +67,16 @@ class MainAgent:
     def commit(self, task: int) -> Observation:
         line = f"git commit -m 'the part of task {task}'"
         self.simulator.ledger.committed(f"the part of task {task}", int(self.simulator.source.seconds()))
-        self.calls += 1
-        call, use = {"command": line, "description": "Commit the task's part"}, f"sim-{self.calls}"
-        held = self.simulator.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=use)
+        caller = self.session.caller
+        call, use = {"command": line, "description": "Commit the task's part"}, self.session.next_tool_use_id()
+        held = self.session.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=use)
         if held.is_refused():
             return held
-        record, chain, root = self.simulator.app.container.get(ShellRecord), f"sim-commit-{self.calls}", self.simulator.app.config.root
-        record.start(chain, line, root / ".journal" / "runs" / chain, AGENT, ran_in=str(root))
-        record.finish_part(chain, CommandPart.plain(line, self.simulator.app.container.get(CommandClassifier)), 0, 0.1, "", [], AGENT)
-        record.foreground_end(chain, 0, AGENT)
-        return self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
+        record, chain, root = self.simulator.app.container.get(ShellRecord), f"sim-commit-{self.session.calls}", self.simulator.app.config.root
+        record.start(chain, line, root / ".journal" / "runs" / chain, caller, ran_in=str(root))
+        record.finish_part(chain, CommandPart.plain(line, self.simulator.app.container.get(CommandClassifier)), 0, 0.1, "", [], caller)
+        record.foreground_end(chain, 0, caller)
+        return self.session.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
 
     def remedy_action(self, world: World) -> Observation:
         return self.command(world.remedies.pop(0)) if world.remedies else self.read_action(world)
@@ -150,7 +141,7 @@ class MainAgent:
         return seen
 
     def stop_action(self, world: World) -> Observation:
-        return self.simulator.hook("Stop")
+        return self.session.hook("Stop")
 
     def answer_action(self, world: World) -> Observation:
         unread = self.command(["message", "unread"])

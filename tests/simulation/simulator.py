@@ -32,30 +32,31 @@ class Simulator:
         self.source.pin(START_SECONDS)
         self.app.container.get(Clock).held_at = START_SECONDS
         self.observer = Observer(app, self.typed)
-        self.said: list[tuple[str, str]] = []
+        self.said: dict[str, list[tuple[str, str]]] = {}
         self.keys_heard: list[str] = []
-        self.refusals: list[str] = []
+        self.refusals: dict[str, list[str]] = {}
 
-    def hook(self, kind: str, session: str = "s1", **body) -> Observation:
-        return self.heard(self.observer.observe(hook_as(self.app, self.provider, kind, session, **body)))
+    def hook(self, kind: str, session: str = "s1", environment: str = "main", **body) -> Observation:
+        answer = hook_as(self.app, self.provider, kind, session, environment, **body)
+        return self.heard(self.observer.observe(answer, environment), environment)
 
     def run(self, argv: list[str], caller) -> Observation:
         outcome = self.app.console().run(argv, caller)
-        return self.heard(self.observer.observe((outcome.code, outcome.error or outcome.text)))
+        return self.heard(self.observer.observe((outcome.code, outcome.error or outcome.text), caller.environment), caller.environment)
 
-    def heard(self, seen: Observation) -> Observation:
-        self.said.extend(zip(seen.nudges, seen.lines))
+    def heard(self, seen: Observation, environment: str = "main") -> Observation:
+        self.said.setdefault(environment, []).extend(zip(seen.nudges, seen.lines))
         self.keys_heard.extend(seen.nudges)
         if seen.is_refused():
-            self.refusals.extend(seen.lines[-1:])
+            self.refusals.setdefault(environment, []).extend(seen.lines[-1:])
         return seen
 
-    def lines_since(self) -> tuple[tuple[str, str], ...]:
-        lines, self.said = tuple(self.said), []
+    def lines_since(self, environment: str = "main") -> tuple[tuple[str, str], ...]:
+        lines = tuple(self.said.pop(environment, []))
         return lines
 
-    def refusals_since(self) -> list[str]:
-        lines, self.refusals = list(self.refusals), []
+    def refusals_since(self, environment: str = "main") -> list[str]:
+        lines = list(self.refusals.pop(environment, []))
         return lines
 
     def advance(self, seconds: float) -> None:
@@ -66,11 +67,11 @@ class Simulator:
         self.app.container.get(Clock).tick(self.source.seconds())
         self.app.runtime().deferred.drain()
 
-    def observe(self) -> Observation:
-        return self.heard(self.observer.observe())
+    def observe(self, environment: str = "main") -> Observation:
+        return self.heard(self.observer.observe(environment=environment), environment)
 
-    def step(self, name: str, answer=None) -> None:
-        seen = self.observer.observe(answer)
+    def step(self, name: str, answer=None, environment: str = "main") -> None:
+        seen = self.observer.observe(answer, environment)
         self.steps.append({"name": name, "answer": answer, "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
 
     def record(self) -> list[dict]:

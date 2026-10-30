@@ -10,6 +10,12 @@ import stat
 import pytest
 
 from journal.features.organization.support.hub_traffic_audit import HubTrafficFinding
+from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.workers.organization_options import OrganizationOptions
+from journal.models.plan_mode import PlanMode
+from journal.repositories.agents import Agents
+from journal.repositories.environments import Environments
+from journal.repositories.plans import Plans
 from tests.lab.measurement import Measurement
 from tests.lab.batch import Batch
 from tests.lab.batch_runner import BatchRunner
@@ -46,12 +52,32 @@ def measurement(value, status="observed", observed=1, expected=1, reason="eviden
     return Measurement(value, status, reason, observed, expected, sources, "1")
 
 
-def lab_journal_request(root: Path, home: Path) -> RunRequest:
+def lab_journal_request(root: Path, home: Path, plan_mode: PlanMode | None = None) -> RunRequest:
+    settings = {"workers.cost_cap_dollars": 3}
+    if plan_mode is not None:
+        settings[OrganizationOptions.PLAN_MODE.key] = plan_mode.value
     return RunRequest(
         "a" * 32, 1, ScenarioPin("production_incident", "software_company", "1", "b" * 64, 420),
-        Design.from_mapping("baseline", {"workers.cost_cap_dollars": 3}), 17, "VoidProvider", "synthetic-tier",
+        Design.from_mapping("baseline", settings), 17, "VoidProvider", "synthetic-tier",
         "c" * 40, "d" * 40, "1", 420, root, home, root / "result.json",
     )
+
+
+def lab_task_domains(scenario, scenario_rows) -> dict[int, str]:
+    return {
+        scenario_rows["task_ids"][task["id"]]: task["domain"]
+        for phase in scenario.phases
+        for task in phase["tasks"]
+    }
+
+
+def lab_task_prerequisites(scenario, scenario_rows) -> dict[int, tuple[int, ...]]:
+    task_ids = scenario_rows["task_ids"]
+    return {
+        task_ids[task["id"]]: tuple(task_ids[prerequisite] for prerequisite in task["prerequisites"])
+        for phase in scenario.phases
+        for task in phase["tasks"]
+    }
 
 
 def test_a_lab_journal_loads_its_scenario_and_replaces_process_and_openrig_calls(tmp_path, monkeypatch):
@@ -105,6 +131,92 @@ def test_a_lab_journal_refuses_to_reuse_a_root_with_a_journal(tmp_path, monkeypa
 
     with pytest.raises(ValueError, match="fresh journal root"):
         LabJournal(run, scenario, business, monkeypatch)
+
+
+def test_the_coordinator_starts_plans_and_a_solo_plan_agent_works_as_one_role_at_a_time(tmp_path, monkeypatch):
+    from journal.features.organization.states.role_work import RoleWork
+    from tests.lab.actors.coordinator_actor import CoordinatorActor
+    from tests.lab.actors.plan_agent_actor import PlanAgentActor
+    from tests.lab.business_type import BusinessType
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.SOLO)
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        coordinator = CoordinatorActor(lab.simulator)
+        assert not coordinator.session_start().is_refused()
+        main = lab.app.container.get(Environments).lookup("main")
+        assert lab.app.container.get(Agents).session_agent(coordinator.session_id).environment_id == main.row_id
+        started = coordinator.start_plans((lab.scenario_rows["plan_id"],))
+        assert len(started) == 1
+        assert started[0].answer[0] == 0
+
+        plan = lab.app.container.get(Plans).find(lab.scenario_rows["plan_id"])
+        environment = lab.app.container.get(PlanAgents).environment(plan)
+        assert plan.mode == PlanMode.SOLO
+        assert lab.launches[-1]["environment"] == environment.name
+        agent = PlanAgentActor(
+            lab.simulator, plan.id, environment.name, plan.mode,
+            lab_task_domains(scenario, lab.scenario_rows), lab_task_prerequisites(scenario, lab.scenario_rows),
+        )
+        assert not agent.session_start().is_refused()
+        assert lab.app.container.get(Agents).session_agent(agent.session_id).environment_id == environment.row_id
+        with pytest.raises(RuntimeError, match="organization Plan agent"):
+            agent.handoffs()
+
+        first = agent.take_role("engineering_lead")
+        assert first.answer[0] == 0
+        assert first.stack[-1] == RoleWork.name
+        with pytest.raises(RuntimeError, match="one Role at a time"):
+            agent.take_role("software_engineer")
+
+        ended = agent.finish_role()
+        assert ended.answer[0] == 0
+        assert RoleWork.name not in ended.stack
+        second = agent.take_role("software_engineer")
+        assert second.answer[0] == 0
+        agent.finish_role()
+
+
+def test_an_organization_plan_agent_hands_tasks_to_domains_and_cannot_take_a_role(tmp_path, monkeypatch):
+    from tests.lab.actors.coordinator_actor import CoordinatorActor
+    from tests.lab.actors.plan_agent_actor import PlanAgentActor
+    from tests.lab.business_type import BusinessType
+    from tests.lab.lab_journal import LabJournal
+    from tests.lab.lab_scenario import LabScenario
+
+    scenario = LabScenario.read(Path(__file__).parent / "lab/scenarios/software_company/production_incident.toml")
+    business = BusinessType.read(Path(__file__).parent / "lab/business_types/software_company.toml")
+    run = lab_journal_request(tmp_path / "root", tmp_path / "home", PlanMode.ORGANIZATION)
+
+    with LabJournal(run, scenario, business, monkeypatch) as lab:
+        coordinator = CoordinatorActor(lab.simulator)
+        assert not coordinator.session_start().is_refused()
+        started = coordinator.start_plans((lab.scenario_rows["plan_id"],))
+        assert len(started) == 1
+        assert started[0].answer[0] == 0
+
+        plan = lab.app.container.get(Plans).find(lab.scenario_rows["plan_id"])
+        environment = lab.app.container.get(PlanAgents).environment(plan)
+        assert plan.mode == PlanMode.ORGANIZATION
+        assert any(call[0] == "up" for call in lab.seats.calls)
+        agent = PlanAgentActor(
+            lab.simulator, plan.id, environment.name, plan.mode,
+            lab_task_domains(scenario, lab.scenario_rows), lab_task_prerequisites(scenario, lab.scenario_rows),
+        )
+        assert not agent.session_start().is_refused()
+        assert lab.app.container.get(Agents).session_agent(agent.session_id).environment_id == environment.row_id
+
+        tasks = lab.scenario_rows["task_ids"]
+        assert agent.handoffs() == ((tasks["assess_customer_impact"], "customer_success"),)
+        assert agent.handoffs((tasks["assess_customer_impact"],)) == ((tasks["restore_service_health"], "engineering"),)
+        assert agent.handoffs((tasks["assess_customer_impact"], tasks["restore_service_health"])) == ((tasks["write_postmortem"], "security"),)
+        refused = agent.take_role("engineering_lead")
+        assert refused.answer[0] != 0
+        assert agent.active_role == ""
 
 
 def test_a_fully_observed_empty_count_is_zero():

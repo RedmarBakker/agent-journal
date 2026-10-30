@@ -1,4 +1,5 @@
 from journal.app import App
+from journal.models.plan_mode import PlanMode
 from tests.lab.lab_scenario import LabScenario
 from tests.user_settings import USER_CALLER
 
@@ -7,7 +8,7 @@ class ScenarioLoader:
     def __init__(self, app: App) -> None:
         self.app = app
 
-    def load(self, scenario: LabScenario) -> dict[str, object]:
+    def load(self, scenario: LabScenario, mode: PlanMode | None = None) -> dict[str, object]:
         plan_id = self.row_id(self.command(["plan", "create", scenario.title, "--brief", scenario.goal]), "plan")
         phase_numbers = {}
         task_ids = {}
@@ -18,6 +19,8 @@ class ScenarioLoader:
                 task_ids[task["id"]] = self.row_id(self.command([
                     "plan", "add", str(plan_id), task["title"], "--brief", task["brief"], "--phase", str(number),
                 ]), "task")
+        if mode is not None:
+            self.command(["plan", "mode", str(plan_id), mode.value])
         self.command(["plan", "ready", str(plan_id)])
         self.command(["plan", "approve", str(plan_id)])
         return {"plan_id": plan_id, "phase_numbers": phase_numbers, "task_ids": task_ids}
