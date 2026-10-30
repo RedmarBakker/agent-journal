@@ -6049,6 +6049,9 @@ def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_re
     console.run(["proof", "1", "parser.py:12, test_reads passes"], lovelace)
     assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
     app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        reports = app.container.get(Agents).session_agent("s1").first_reports
+    assert [task for _, task in reports] == [1], "the first clock-out is recorded before a send-back"
     assert console.run(["worker", "check", "1", "1", "--short", "the rules are not named"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):

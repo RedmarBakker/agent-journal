@@ -1439,6 +1439,8 @@ workers.allowed_models = claude reviewer: sonnet | claude verifier: sonnet | cod
 workers.organization_folder = 'test-organization'  (the user sets it)
 workers.organization_version = ''  (the user sets it)
 workers.default_plan_mode = 'organization'  (the user sets it)
+workers.organization_plan_profile = 'organization-plan-review'  (the user sets it)
+workers.organization_plan_effort = 'xhigh'  (the user sets it)
 workers.openrig_version = ''  (the user sets it)
 workers.cost_cap_dollars = 0  (the user sets it)
 workers.seat_cap = 0  (the user sets it)
@@ -1918,7 +1920,6 @@ tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}
 tasks.tested_task_back  [tasks]  task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}. `journal task resume {{n}}` takes it up
 tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
-tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
 tasks.wait_over  [tasks]  wait over: {{outcome|cap=100}}
 tasks.woken_with_work_in_hand  [tasks]  your turn ended and nothing has arrived since; the stop check, run again, answers:
@@ -2002,7 +2003,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-296 nudges
+308 nudges
 
 $ agent: journal worker list
 exit 0

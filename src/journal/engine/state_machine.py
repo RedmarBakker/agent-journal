@@ -215,7 +215,7 @@ class StateMachine:
             return agent
         typist, previous = Typist(), self.states.stack(agent)
         stack.replace(previous, typist)
-        resolved = self.agents.save(agent.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())), actor)
+        resolved = self.agents.rewritten(agent, actor, lambda current: current.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())))
         self.delivery.moved(agent.environment_id, typist.moves)
         if self.is_moved(agent, stack):
             self.changes.moved(agent, stack.serialized(), cause, actor, previous.removed_states(stack), stack.removed_states(previous))
