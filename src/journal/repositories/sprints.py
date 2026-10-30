@@ -5,13 +5,13 @@ from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.support.task_size_scale import TaskSizeScale
+from journal.features.organization.support.organization import Organization
 from journal.models.link import Link
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
 from journal.models.sprint_change import SprintChange
 from journal.models.sprint_commitment import SprintCommitment
 from journal.models.sprint_state import SprintState
-from journal.features.organization.support.organization import Organization
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.domain_rows import DomainRows
@@ -21,8 +21,8 @@ from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.sprint_changes import SprintChanges
 from journal.repositories.sprint_commitments import SprintCommitments
-from journal.repositories.tasks import Tasks
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.rejection import Rejection
@@ -95,18 +95,27 @@ class Sprints(ScopedRepository[Sprint]):
         with self.writing():
             for plan in self.plans_in(sprint):
                 self.record_commitment(sprint, plan, actor)
-            return self.save(sprint.activated(), actor)
+            return self.save(sprint.activated(self.time_source.seconds()), actor)
 
-    def close(self, sprint_id: int, actor: Actor) -> Sprint:
+    def close(self, sprint_id: int, retrospective: dict, actor: Actor) -> Sprint:
         self.owner(actor)
         sprint = self.find(sprint_id)
         if sprint.state == SprintState.CLOSED:
             return sprint
         if sprint.state != SprintState.ACTIVE:
             raise Rejection("only an active sprint can be closed")
-        return self.save(sprint.closed(self.time_source.seconds()), actor)
+        closed_at = self.time_source.seconds()
+        missed = closed_at >= sprint.ends_at
+        retrospective = {**retrospective, "actual": {
+            **retrospective["actual"], "started_at": self.utc(sprint.started_at) if sprint.started_at else None,
+            "closed_at": self.utc(closed_at), "missed": missed,
+            "late_by_seconds": max(0, int(closed_at - sprint.ends_at)),
+        }, "warnings": ["The sprint closed after its fixed end date; its calendar was not extended."] if missed else []}
+        with self.writing():
+            self.record_change(sprint, None, "sprint_closed", "", retrospective, actor)
+            return self.save(sprint.closed(closed_at), actor)
 
-    def carry(self, sprint_id: int, plan_id: int, next_sprint_id: int, reason: str, actor: Actor) -> Sprint:
+    def carry(self, sprint_id: int, plan_id: int, next_sprint_id: int, reason: str, task_ids: list[int], actor: Actor) -> Sprint:
         self.owner(actor)
         sprint, plan = self.find(sprint_id), self.plans.find(plan_id)
         if sprint.state != SprintState.CLOSED or not self.has_plan(sprint, plan):
@@ -123,11 +132,33 @@ class Sprints(ScopedRepository[Sprint]):
             self.no_other_current_membership(next_sprint, plan)
         if self.has_carried(sprint, plan):
             return sprint
+        if not task_ids:
+            raise Rejection("carry-over needs unfinished committed scope")
+        closure = next((row.data for row in self.changes.numbered(ref.id for ref in self.links.targets(sprint, SPRINT_CHANGE))
+                        if row.change_type == "sprint_closed"), None)
+        if closure is None:
+            raise Rejection("carry-over needs the closed sprint's retrospective")
+        remaining_ids = {row["task_id"] for row in closure.get("task_outcomes", ())
+                         if row["plan_id"] == plan_id and row["scope_status"] == "remaining"}
+        if not set(task_ids) <= remaining_ids:
+            raise Rejection("carry-over can include only the closed sprint's remaining scope")
+        current_task_ids = {task.row_id for task in self.plans.plan_tasks(plan)}
+        if any(task_id not in current_task_ids for task_id in task_ids):
+            raise Rejection("carry-over can include only tasks that remain in the plan")
+        frozen = {row["task_id"]: row.get("scope_snapshot") for row in closure.get("task_outcomes", ())}
         with self.writing():
-            change = self.record_change(sprint, plan, "plan_carried", reason, {}, actor)
+            carried_ids = sorted(set(task_ids))
+            task_snapshots = [frozen.get(task_id) for task_id in carried_ids]
+            if any(snapshot is None for snapshot in task_snapshots):
+                raise Rejection("carry-over needs each remaining task's frozen scope")
+            change = self.record_change(sprint, plan, "plan_carried", reason,
+                                        {"task_ids": carried_ids, "tasks": task_snapshots}, actor)
             if next_sprint:
                 self.links.linked(Ref.build(next_sprint), Ref.build(plan), SPRINT_PLAN, actor)
                 self.links.linked(Ref.build(change), Ref.build(next_sprint), CHANGE_NEXT_SPRINT, actor)
+                if next_sprint.state == SprintState.ACTIVE:
+                    self.record_change(next_sprint, plan, "plan_added", reason,
+                                       {"task_ids": carried_ids, "tasks": task_snapshots}, actor)
         return sprint
 
     def index(self, actor: Actor) -> list[dict]:
@@ -142,7 +173,10 @@ class Sprints(ScopedRepository[Sprint]):
     def summary(self, sprint: Sprint) -> dict:
         return {"id": sprint.row_id, "starts_on": sprint.starts_on, "ends_on": sprint.ends_on, "starts_at": self.utc(sprint.starts_at),
                 "ends_at": self.utc(sprint.ends_at), "timezone": sprint.timezone, "length_days": sprint.length_days,
-                "calendar_version": sprint.calendar_version, "state": sprint.state.value, "plan_ids": [ref.id for ref in self.links.targets(sprint, SPRINT_PLAN)]}
+                "calendar_version": sprint.calendar_version, "state": sprint.state.value,
+                "started_at": self.utc(sprint.started_at) if sprint.started_at else None,
+                "closed_at": self.utc(sprint.closed_at) if sprint.closed_at else None,
+                "plan_ids": [ref.id for ref in self.links.targets(sprint, SPRINT_PLAN)]}
 
     def commitment_data(self, sprint: Sprint) -> list[dict]:
         rows = [self.commitments.find(ref.id) for ref in self.links.targets(sprint, SPRINT_COMMITMENT)]
@@ -166,8 +200,11 @@ class Sprints(ScopedRepository[Sprint]):
     def plans_in(self, sprint: Sprint) -> list[Plan]:
         return [self.plans.find(ref.id) for ref in self.links.targets(sprint, SPRINT_PLAN)]
 
-    def plan_snapshot(self, plan: Plan) -> dict:
+    def plan_snapshot(self, plan: Plan, task_ids: list[int] | None = None) -> dict:
         tasks = self.plans.plan_tasks(plan)
+        if task_ids is not None:
+            selected = set(task_ids)
+            tasks = [task for task in tasks if task.row_id in selected]
         size_scale_version = self.size_scale.version()
         return {"plan_title": plan.title, "plan_brief": plan.brief, "task_ids": [task.row_id for task in tasks],
                 "tasks": [self.task_snapshot(task, size_scale_version) for task in tasks], "due_constraint": None, "capacity_assumptions": None}
@@ -183,24 +220,55 @@ class Sprints(ScopedRepository[Sprint]):
     def committed_task_snapshot(self, plan: Plan, task_id: int) -> dict | None:
         periods = [self.find(ref.id) for ref in self.links.sources(plan, SPRINT_PLAN)]
         for sprint in sorted(periods, key=lambda row: row.starts_at, reverse=True):
-            commitments = [self.commitments.find(ref.id) for ref in self.links.targets(sprint, SPRINT_COMMITMENT)]
-            for commitment in commitments:
-                task = next((row for row in commitment.snapshot.get("tasks", ()) if row.get("id") == task_id), None)
-                if task is not None:
-                    return task
+            snapshot = self.task_snapshot_in_sprint(sprint, plan, task_id)
+            if snapshot is not None:
+                return snapshot
+        return None
+
+    def task_snapshot_in_sprint(self, sprint: Sprint, plan: Plan, task_id: int) -> dict | None:
+        for commitment_ref in self.links.targets(sprint, SPRINT_COMMITMENT):
+            commitment = self.commitments.find(commitment_ref.id)
+            if Ref.build(plan) not in self.links.targets(commitment, COMMITMENT_PLAN):
+                continue
+            task = next((row for row in commitment.snapshot.get("tasks", ()) if row.get("id") == task_id), None)
+            if task is not None:
+                return task
+        for change_ref in self.links.targets(sprint, SPRINT_CHANGE):
+            change = self.changes.find(change_ref.id)
+            if Ref.build(plan) not in self.links.targets(change, CHANGE_PLAN):
+                continue
+            task = next((row for row in change.data.get("tasks", ()) if row.get("id") == task_id), None)
+            if task is not None:
+                return task
         return None
 
     def record_commitment(self, sprint: Sprint, plan: Plan, actor: Actor) -> SprintCommitment:
-        commitment = self.commitments.save(SprintCommitment(environment_id=sprint.environment_id, snapshot=self.plan_snapshot(plan)), actor)
+        carry = self.incoming_carry(sprint, plan)
+        task_ids = carry.get("task_ids") if carry else None
+        snapshot = self.plan_snapshot(plan, task_ids)
+        if carry and isinstance(carry.get("tasks"), list):
+            frozen = {row.get("id"): row for row in carry["tasks"] if isinstance(row, dict)}
+            selected = [frozen[task_id] for task_id in snapshot["task_ids"] if task_id in frozen]
+            snapshot = {**snapshot, "tasks": selected, "task_ids": [row["id"] for row in selected]}
+        commitment = self.commitments.save(SprintCommitment(environment_id=sprint.environment_id, snapshot=snapshot), actor)
         self.links.linked(Ref.build(sprint), Ref.build(commitment), SPRINT_COMMITMENT, actor)
         self.links.linked(Ref.build(commitment), Ref.build(plan), COMMITMENT_PLAN, actor)
         return commitment
 
-    def record_change(self, sprint: Sprint, plan: Plan, kind: str, reason: str, data: dict, actor: Actor) -> SprintChange:
+    def record_change(self, sprint: Sprint, plan: Plan | None, kind: str, reason: str, data: dict, actor: Actor) -> SprintChange:
         change = self.changes.save(SprintChange(environment_id=sprint.environment_id, change_type=kind, reason=reason, data=data), actor)
         self.links.linked(Ref.build(sprint), Ref.build(change), SPRINT_CHANGE, actor)
-        self.links.linked(Ref.build(change), Ref.build(plan), CHANGE_PLAN, actor)
+        if plan:
+            self.links.linked(Ref.build(change), Ref.build(plan), CHANGE_PLAN, actor)
         return change
+
+    def incoming_carry(self, sprint: Sprint, plan: Plan) -> dict | None:
+        for ref in self.links.sources(sprint, CHANGE_NEXT_SPRINT):
+            change = self.changes.find(ref.id)
+            if (Ref.build(plan) in self.links.targets(change, CHANGE_PLAN)
+                    and isinstance(change.data.get("task_ids"), list)):
+                return change.data
+        return None
 
     def has_plan(self, sprint: Sprint, plan: Plan) -> bool:
         return Ref.build(plan) in self.links.targets(sprint, SPRINT_PLAN)

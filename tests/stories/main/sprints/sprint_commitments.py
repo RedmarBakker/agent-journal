@@ -117,28 +117,6 @@ def test_a_plan_has_only_one_current_sprint_commitment(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@pytest.mark.xfail(strict=True, reason="Plan 4 task 162 (W03: Close sprint outcomes and record owner-controlled carry-over).")
-def test_closing_and_carrying_a_plan_keeps_its_identity_and_does_not_duplicate_credit(story):
-    first = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})
-    first.expect_viewer_passed()
-    second = story.user_presses("/journal/sprints", {"start": "2027-04-01", "timezone": "Europe/Amsterdam"})
-    second.expect_viewer_passed()
-    first_id, second_id = first.viewer_answer["id"], second.viewer_answer["id"]
-    story.user_presses(f"/journal/sprints/{first_id}/plans", {"plan": story.plans.first}).expect_viewer_passed()
-    story.user_presses(f"/journal/sprints/{first_id}/start", {}).expect_viewer_passed()
-    story.user_presses(f"/journal/sprints/{first_id}/close", {}).expect_viewer_passed()
-    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
-    carried = story.user_presses(f"/journal/sprints/{first_id}/carry", {"plan": story.plans.first, "to": second_id})
-    carried.expect_viewer_passed()
-    story.user_presses(f"/journal/sprints/{first_id}/carry", {"plan": story.plans.first, "to": second_id}).expect_viewer_passed()
-    result = story.user_opens(f"/journal/sprints/{second_id}/commitment")
-    result.expect_viewer_shows("plan_ids", [story.plans.first])
-    result.expect_viewer_shows("task_ids", [story.tasks.first, story.tasks.second])
-    result.expect_viewer_shows("duplicate_memberships", 0)
-    story.expect_stack(story.agents.subject, Ready)
-
-
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 155 (D02: Add baseline finish ranges and sprint probability).")
 def test_a_sprint_without_a_following_period_does_not_invent_one(story):

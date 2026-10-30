@@ -16,13 +16,14 @@ class Sprint(Scoped):
     length_days: int = 14
     calendar_version: int = 1
     state: SprintState = SprintState.DRAFT
+    started_at: float = 0.0
     closed_at: float = 0.0
 
     def includes(self, moment: float) -> bool:
         return self.starts_at <= moment < self.ends_at
 
-    def activated(self) -> "Sprint":
-        return self.with_(state=SprintState.ACTIVE)
+    def activated(self, moment: float) -> "Sprint":
+        return self.with_(state=SprintState.ACTIVE, started_at=moment)
 
     def closed(self, moment: float) -> "Sprint":
         return self.with_(state=SprintState.CLOSED, closed_at=moment)

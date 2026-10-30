@@ -2,10 +2,12 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from journal.models.support.ref import Ref
+from journal.repositories.forecast_snapshots import ForecastSnapshots
 from journal.repositories.plan_outcome_history import PlanOutcomeHistory
 from journal.repositories.plans import PLAN_LINK
 from journal.repositories.sprints import Sprints
 from journal.support.actor import Actor
+from journal.support.rejection import Rejection
 
 
 SPRINT_METRICS_VERSION = "sprint-metrics-v1"
@@ -16,10 +18,79 @@ DELIVERY_EVENTS = ("delivery_accepted", "delivery_corrected")
 class SprintOutcomeMetrics:
     """The owner-scoped sprint execution, delivery, velocity and scope projection."""
 
-    def __init__(self, sprints: Sprints, history: PlanOutcomeHistory) -> None:
-        self.sprints, self.history = sprints, history
+    def __init__(self, sprints: Sprints, history: PlanOutcomeHistory, snapshots: ForecastSnapshots) -> None:
+        self.sprints, self.history, self.snapshots = sprints, history, snapshots
 
     def read(self, sprint_id: int, actor: Actor) -> dict:
+        sprint, histories = self.source(sprint_id, actor)
+        report = self.project(sprint, histories)
+        retrospective = next((row["data"] for row in sprint["changes"] if row["change_type"] == "sprint_closed"), None)
+        return {**report, **({"retrospective": retrospective} if retrospective else {})}
+
+    def close_report(self, sprint_id: int, actor: Actor) -> dict:
+        sprint, histories = self.source(sprint_id, actor)
+        projection = self.project(sprint, histories)
+        plan_ids = {row["plan_id"] for row in sprint["commitments"]} | set(sprint["plan_ids"])
+        plan_ids.update(row["plan_id"] for row in sprint["changes"] if row.get("plan_id"))
+        snapshots = self.saved_forecasts(sprint_id, sorted(plan_ids))
+        scope_lines = [*projection["scope"]["baseline"]["lines"], *projection["scope"]["added"]["lines"]]
+        task_histories = {(history["scope"]["plan_id"], task["task_id"]): task
+                          for history in histories for task in history["tasks"]}
+        removed_ids = set(projection["scope"]["removed"]["task_ids"])
+        delivered_ids = []
+        remaining_ids = []
+        scope_task_ids = {(line["plan_id"], line["task_id"]) for line in scope_lines}
+        removed_ids.update(task_id for (plan_id, task_id), task in task_histories.items()
+                           if (plan_id, task_id) in scope_task_ids
+                           and (not task["current_in_plan"] or task["execution"]["current_task_state"] == "cancelled"))
+        for line in scope_lines:
+            task = task_histories.get((line["plan_id"], line["task_id"]))
+            if line["task_id"] in removed_ids:
+                continue
+            if task and task["delivery"]["status"] == "delivered":
+                delivered_ids.append(line["task_id"])
+            else:
+                remaining_ids.append(line["task_id"])
+        delivered_ids.sort()
+        remaining_ids.sort()
+        sprint_row = self.sprints.find(sprint_id)
+        task_outcomes = [self.task_close_outcome(sprint_row, line, task_histories.get((line["plan_id"], line["task_id"])),
+                                                "delivered" if line["task_id"] in delivered_ids else
+                                                "removed" if line["task_id"] in removed_ids else "remaining")
+                         for line in scope_lines]
+        cost_rows = [row["measurements"]["cost"] for row in task_outcomes]
+        measured_costs = [row for row in task_outcomes if row["measurements"]["cost"]["status"] == "measured"]
+        cost_availability = {"status": self.cost_status(len(measured_costs), len(cost_rows)),
+                             "measured_task_ids": [row["task_id"] for row in measured_costs],
+                             "unmeasured_task_ids": [row["task_id"] for row in task_outcomes if row["measurements"]["cost"]["status"] != "measured"]}
+        return {"schema_version": "sprint-retrospective-v1",
+                "planned": {key: sprint[key] for key in ("starts_on", "ends_on", "starts_at", "ends_at", "timezone", "length_days", "calendar_version")}
+                           | {"commitments": sprint["commitments"]},
+                "actual": {"started_at": sprint["started_at"]},
+                "forecasts": {"status": "recorded" if snapshots else "not_enough_history", "snapshots": snapshots},
+                "scope_at_close": {"originally_committed_task_ids": projection["scope"]["baseline"]["task_ids"],
+                                   "added_task_ids": projection["scope"]["added"]["task_ids"],
+                                   "scope_task_ids": sorted({line["task_id"] for line in scope_lines}),
+                                   "delivered_task_ids": delivered_ids, "remaining_task_ids": remaining_ids,
+                                   "removed_task_ids": sorted(removed_ids),
+                                   "delivered_by_domain": self.domain_scope(scope_lines, set(delivered_ids)),
+                                   "remaining_by_domain": self.domain_scope(scope_lines, set(remaining_ids))},
+                "task_outcomes": task_outcomes, "cost_availability": cost_availability,
+                "range_errors": self.range_errors(snapshots, task_outcomes)}
+
+    def remaining_task_ids(self, sprint_id: int, plan_id: int, actor: Actor) -> list[int]:
+        sprint = self.sprints.show(sprint_id, actor)
+        closure = next((row["data"] for row in sprint["changes"] if row["change_type"] == "sprint_closed"), None)
+        if closure is None:
+            raise Rejection("carry-over needs a closed sprint retrospective")
+        committed = {row["task_id"] for row in closure["task_outcomes"]
+                     if row["plan_id"] == plan_id and row["scope_status"] == "remaining"}
+        history = self.history.read(plan_id, actor)
+        return sorted(task["task_id"] for task in history["tasks"] if task["task_id"] in committed
+                      and task["current_in_plan"] and task["delivery"]["status"] != "delivered"
+                      and task["execution"]["current_task_state"] != "cancelled")
+
+    def source(self, sprint_id: int, actor: Actor) -> tuple[dict, list[dict]]:
         sprint = self.sprints.show(sprint_id, actor)
         plan_ids = {row["plan_id"] for row in sprint["commitments"]}
         plan_ids.update(sprint["plan_ids"])
@@ -27,7 +98,93 @@ class SprintOutcomeMetrics:
         histories = [self.history.read(plan_id, actor) for plan_id in sorted(plan_ids)]
         self.enrich_plan_links(histories)
         self.enrich_audit(sprint, histories, sprint_id)
-        return self.project(sprint, histories)
+        return sprint, histories
+
+    def saved_forecasts(self, sprint_id: int, plan_ids: list[int]) -> list[dict]:
+        scopes = [("sprint", self.sprints.find(sprint_id)),
+                  *(("plan", self.sprints.plans.find(plan_id)) for plan_id in plan_ids)]
+        rows = [(row.captured_at, row.row_id,
+                 {"id": row.row_id, "scope": {"kind": kind, "id": scope.row_id}, "input_cut": row.input_cut,
+                  "captured_at": self.timestamp(datetime.fromtimestamp(row.captured_at, timezone.utc)),
+                  "method_version": row.method_version, "data": row.data})
+                for kind, scope in scopes for row in self.snapshots.for_scope(scope)]
+        return [snapshot for _captured, _id, snapshot in sorted(rows)]
+
+    def task_close_outcome(self, sprint, line: dict, task: dict | None, status: str) -> dict:
+        plan = self.sprints.plans.find(line["plan_id"])
+        scope_snapshot = self.sprints.task_snapshot_in_sprint(sprint, plan, line["task_id"])
+        if scope_snapshot is None:
+            task_row = self.sprints.tasks.find(line["task_id"])
+            scope_snapshot = self.sprints.task_snapshot(task_row, self.sprints.size_scale.version())
+        if task is None:
+            return {"task_id": line["task_id"], "plan_id": line["plan_id"], "domain": line["domain"],
+                    "size_points": line["size_points"], "scope_status": status, "scope_snapshot": scope_snapshot,
+                    "measurements": {"cost": {"status": "not_measured", "label": "Not measured"}}}
+        return {"task_id": line["task_id"], "plan_id": line["plan_id"], "domain": line["domain"],
+                "size_points": line["size_points"], "scope_status": status, "current_task_state": task["execution"]["current_task_state"],
+                "scope_snapshot": scope_snapshot, "measurements": task["measurements"],
+                "execution": task["execution"], "outcomes": task["outcomes"],
+                "delivery": task["delivery"]}
+
+    @staticmethod
+    def domain_scope(lines: list[dict], included: set[int]) -> list[dict]:
+        groups = {}
+        for line in lines:
+            if line["task_id"] not in included:
+                continue
+            group = groups.setdefault(line["domain"], {"domain": line["domain"], "task_ids": [], "known_size_points": 0,
+                                                          "unknown_size_tasks": 0})
+            group["task_ids"].append(line["task_id"])
+            if line["size_points"] is None:
+                group["unknown_size_tasks"] += 1
+            else:
+                group["known_size_points"] += line["size_points"]
+        return [{**groups[key], "task_ids": sorted(groups[key]["task_ids"]), "task_count": len(groups[key]["task_ids"])}
+                for key in sorted(groups, key=lambda domain: domain or "")]
+
+    @staticmethod
+    def cost_status(measured: int, total: int) -> str:
+        if not measured:
+            return "not_measured"
+        return "measured" if measured == total else "partially_measured"
+
+    @classmethod
+    def range_errors(cls, snapshots: list[dict], outcomes: list[dict]) -> dict:
+        errors = []
+        censored = []
+        by_plan = {}
+        for row in outcomes:
+            by_plan.setdefault(row["plan_id"], []).append(row)
+        for snapshot in snapshots:
+            forecast = snapshot["data"].get("forecast", {})
+            for plan_forecast in forecast.get("plan_forecasts", ()) if forecast.get("status") == "forecast" else ():
+                plan_id = plan_forecast.get("plan_id")
+                tasks = by_plan.get(plan_id, [])
+                if not tasks or any(row["scope_status"] != "delivered" for row in tasks):
+                    censored.append(plan_id)
+                    continue
+                delivered_at = [row.get("measurements", {}).get("delivery", {}).get("accepted_at") for row in tasks]
+                if any(not stamp for stamp in delivered_at):
+                    censored.append(plan_id)
+                    continue
+                actual = max(delivered_at)
+                errors.append({"plan_id": plan_id, "forecast_snapshot_id": snapshot["id"], "actual_delivery_at": actual,
+                               "p50": plan_forecast.get("p50"), "p85": plan_forecast.get("p85"),
+                               "p50_error_days": cls.day_error(actual, plan_forecast.get("p50")),
+                               "p85_error_days": cls.day_error(actual, plan_forecast.get("p85"))})
+        status = "measured" if errors else "censored" if censored else "not_enough_history"
+        return {"status": status, "forecasts": errors, "censored_plan_ids": sorted(set(censored))}
+
+    @classmethod
+    def day_error(cls, actual: str, predicted: str | None) -> int | None:
+        if not predicted:
+            return None
+        actual_moment = cls.moment(actual)
+        try:
+            predicted_day = date.fromisoformat(predicted[:10])
+        except ValueError:
+            return None
+        return (actual_moment.date() - predicted_day).days if actual_moment else None
 
     def enrich_plan_links(self, histories: list[dict]) -> None:
         for history in histories:

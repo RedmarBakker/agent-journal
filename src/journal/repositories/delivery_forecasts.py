@@ -62,7 +62,7 @@ class DeliveryForecasts:
         sprint = self.plan_sprint(plan)
         if sprint:
             _sprint, source, shared = self.sprint_read(sprint.row_id, actor)
-            forecast = self.plan_result(shared, plan_id, source)
+            forecast = self.plan_result(shared, plan.row_id, source)
         else:
             source = self.plan_source(plan, history, actor)
             forecast = self.calculator.estimate(source)

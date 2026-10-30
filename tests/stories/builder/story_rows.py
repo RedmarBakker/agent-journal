@@ -18,6 +18,10 @@ class StoryRows:
         return self.fixture.plans
 
     @property
+    def sprints(self) -> FixtureRows:
+        return self.fixture.sprints
+
+    @property
     def messages(self) -> FixtureRows:
         return self.fixture.messages
 

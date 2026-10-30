@@ -1,7 +1,7 @@
 from journal.support.option import Option
 from tests.stories.fixtures.fixture_rows import FixtureRows
 
-ROW_KINDS = ("tasks", "plans", "messages", "sequences", "plugins", "aliases", "documents", "readers", "outputs", "memories", "checks", "workers", "reviewers", "verifiers", "subagents")
+ROW_KINDS = ("tasks", "plans", "sprints", "messages", "sequences", "plugins", "aliases", "documents", "readers", "outputs", "memories", "checks", "workers", "reviewers", "verifiers", "subagents")
 
 
 class StateFixture:

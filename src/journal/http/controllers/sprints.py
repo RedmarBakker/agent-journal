@@ -1,4 +1,5 @@
 from journal.http.support.request import Request
+from journal.models.sprint_state import SprintState
 from journal.repositories.delivery_forecasts import DeliveryForecasts
 from journal.repositories.sprint_outcome_metrics import SprintOutcomeMetrics
 from journal.repositories.sprints import Sprints
@@ -43,13 +44,21 @@ class SprintController:
         return Response.json(self.sprints.show(sprint.row_id, request.actor))
 
     def close(self, request: Request) -> Response:
-        sprint = self.sprints.close(request.number("id"), request.actor)
-        return Response.json(self.sprints.show(sprint.row_id, request.actor))
+        sprint_id = request.number("id")
+        current = self.sprints.show(sprint_id, request.actor)
+        if current["state"] == SprintState.CLOSED.value:
+            return Response.json(current)
+        retrospective = self.metrics.close_report(sprint_id, request.actor)
+        self.sprints.close(sprint_id, retrospective, request.actor)
+        return Response.json(self.sprints.show(sprint_id, request.actor))
 
     def carry(self, request: Request) -> Response:
-        sprint = self.sprints.carry(request.number("id"), self.number(request.body.get("plan_id"), "plan_id"),
+        sprint_id = request.number("id")
+        plan_id = self.number(request.body.get("plan_id"), "plan_id")
+        task_ids = self.metrics.remaining_task_ids(sprint_id, plan_id, request.actor)
+        sprint = self.sprints.carry(sprint_id, plan_id,
                                     self.number(request.body.get("next_sprint_id", 0), "next_sprint_id"),
-                                    str(request.body.get("reason", "")), request.actor)
+                                    str(request.body.get("reason", "")), task_ids, request.actor)
         return Response.json(self.sprints.show(sprint.row_id, request.actor))
 
     @staticmethod
