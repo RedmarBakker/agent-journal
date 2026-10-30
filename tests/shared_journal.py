@@ -48,11 +48,11 @@ class SharedJournal:
         self.memory.put_back()
         with sqlite3.connect(self.app.config.database) as live:
             self.rows.backup(live)
+        self.put_back_files()
         for path, rows in self.team_databases.items():
             with sqlite3.connect(path) as live:
                 rows.backup(live)
         self.app.container.get(Connection).cache.cleared()
-        self.put_back_files()
 
     @staticmethod
     def database_copy(path: str) -> sqlite3.Connection:
