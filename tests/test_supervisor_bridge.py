@@ -1087,9 +1087,10 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 Actor.agent(fixture.agent.session),
             )
         app.runtime().deferred.drain()
-        with scope.environment(fixture.driver_environment.row_id):
+        with scope.environment(fixture.owner_environment.row_id):
             current = app.container.get(Tasks).find(current_work.row_id)
             diagnostic = app.container.get(Tasks).find(diagnostic.row_id)
+        with scope.environment(fixture.driver_environment.row_id):
             holder = app.container.get(Tasks).task_holder(diagnostic.row_id)
         assert current.state == TaskState.COMPLETED
         assert diagnostic.state == TaskState.STARTED and holder == Ref.build(fixture.agent)
