@@ -12,6 +12,7 @@ from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.support.timespan import Timespan
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.released_tasks import ReleasedTasks
 from journal.events.rows.task_released import TaskReleased
 from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.events.rows.task_delegated import TaskDelegated
@@ -109,8 +110,8 @@ class Task(Scoped, Commentable):
     def worker_started(self, time: datetime) -> "Task":
         return self.with_(state=TaskState.STARTED, delegated=True, started_at=self.started_at or time, pause_reason="", block_reason="")
 
-    def released(self, time: float) -> "Task":
-        return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
+    def released(self, time: float, group: ReleasedTasks | None = None) -> "Task":
+        return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go", group=group))
 
     def transferred(self, environment_id: int, source: str, destination: str, time: datetime) -> "Task":
         transfer_event = TaskTransferred(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, destination=destination)

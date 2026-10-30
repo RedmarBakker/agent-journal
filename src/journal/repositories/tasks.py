@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
+from journal.events.rows.released_tasks import ReleasedTasks
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.link import Link
@@ -318,8 +319,10 @@ class Tasks(ScopedRepository[Task]):
         return self.find(task_id)
 
     def release(self, holder: Ref, actor: Actor) -> None:
-        self.freed(holder, CURRENT_TASK_LINK, actor)
-        self.freed(holder, FINISHED_LINK, actor)
+        self.freed(holder, (CURRENT_TASK_LINK, FINISHED_LINK), actor)
+
+    def release_all(self, holder: Ref, actor: Actor) -> None:
+        self.freed(holder, (CURRENT_TASK_LINK, FINISHED_LINK, QUEUED_LINK), actor)
 
     def finish_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         self.release_task(holder, task_id, actor)
@@ -352,14 +355,20 @@ class Tasks(ScopedRepository[Task]):
         return [link.source for link in queue_links]
 
     def unqueued(self, holder: Ref, actor: Actor) -> None:
-        self.freed(holder, QUEUED_LINK, actor)
+        self.freed(holder, (QUEUED_LINK,), actor)
 
-    def freed(self, holder: Ref, type_name: str, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, link_type=type_name):
+    def freed(self, holder: Ref, link_types: tuple[str, ...], actor: Actor) -> None:
+        freed = []
+        for link in (link for type_name in link_types for link in self.links.all_matching(source=holder, link_type=type_name)):
             self.links.delete(link, actor)
-            for task in self.matching(id=link.target.id, delegated=True):
-                if not task.state.is_closed():
-                    self.save(task.released(self.time_source.moment().timestamp()), actor)
+            freed += [task for task in self.matching(id=link.target.id, delegated=True) if not task.state.is_closed()]
+        group = ReleasedTasks(holder.id, tuple(task.row_id for task in freed), self.common_plan(freed))
+        for i, task in enumerate(freed):
+            self.save(task.released(self.time_source.moment().timestamp(), group if i == 0 else None), actor)
+
+    def common_plan(self, tasks: list[Task]) -> int:
+        plans = {tuple(ref.id for ref in self.links.targets(task, PLAN_LINK)) for task in tasks}
+        return plans.pop()[0] if len(plans) == 1 and len(next(iter(plans))) == 1 else 0
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]

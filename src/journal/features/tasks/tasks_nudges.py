@@ -50,6 +50,7 @@ class TasksNudges:
     TASK_ARRIVED = Nudge("tasks", "task_arrived", "task {{n}} came here from environment {{source}}, {{state}}", "read it with `journal task show {{n}}`", repeat=Timeout.seconds(0))
     TASK_OPENED = Nudge("tasks", "task_opened", "task {{n}} is open", "take it up with `journal task start {{n}}`", repeat=Timeout.seconds(0))
     PAUSE_WAIT_END = Nudge("tasks", "paused_wait_ended", "task {{n}}'s wait is over: {{reason|cap=61}}", "run `journal task resume {{n}}`", repeat=Timeout.seconds(0))
+    TASKS_RELEASED = Nudge("tasks", "tasks_released", "{{tasks|cap=70}} open again: worker {{worker}} let {{them}} go", "take them up with `journal task start <n>`", repeat=Timeout.seconds(0))
     TASK_REOPENED = Nudge("tasks", "task_reopened", "task {{n}} is open again: {{reason|cap=51}}", "take it up with `journal task start {{n}}`", repeat=Timeout.seconds(0))
     BROKEN_WAIT = Nudge("tasks", "fix_the_broken_wait", "{{waits}}", "fix it with `journal task block <n> --until \"<command>\"`, or `journal task unblock <n>`", repeat=Timeout.seconds(0))
     BLOCKED_TASK_REMINDER = Nudge("tasks", "blocked_task_asked_about", "blocked with nothing to open them: {{tasks|cap=18}}", "run `journal task unblock <n>` once what it waits on has arrived", repeat=Timeout.seconds(2700), blocks_regardless=True)

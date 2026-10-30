@@ -15,6 +15,7 @@ from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_arrived import TaskArrived
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.task_released import TaskReleased
 from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
@@ -53,6 +54,8 @@ class TasksConduct(Conduct):
         return self.none(*(TasksNudges.WAIT_CHECK_PASSED.create(what=wait.purpose, lines=wait.lines) for wait in passed))
 
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
+        if isinstance(event, TaskReleased):
+            return self.none(TasksNudges.TASKS_RELEASED.create(tasks=event.group.subject(), worker=event.group.worker_id, them=event.group.pronoun())) if event.group else self.none()
         return self.none(TasksNudges.TASK_REOPENED.create(n=event.task_id, reason=event.reason))
 
     def on_task_wait_ended(self, event: TaskWaitEnded, settings: Settings) -> Transition:

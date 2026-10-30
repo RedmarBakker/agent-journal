@@ -309,8 +309,7 @@ class WorkerActions:
             worker = self.workers.find(n)
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is still out: stop it first with journal worker stop {worker.id}")
-            self.tasks.release(Ref.build(worker), actor)
-            self.tasks.unqueued(Ref.build(worker), actor)
+            self.tasks.release_all(Ref.build(worker), actor)
             return self.workers.save(worker.released(self.time_source.moment().timestamp()), actor)
 
     def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str, reused: type[WorkerReused] = WorkerReused) -> Worker:
