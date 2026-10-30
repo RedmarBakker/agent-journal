@@ -1,5 +1,4 @@
 from argparse import Namespace
-from datetime import datetime, timezone
 
 from journal.console.command import Command
 from journal.features.reviewing.support.review_links import ReviewLinks
@@ -10,7 +9,6 @@ from journal.models.worker import Worker
 from journal.support.actor import Actor
 from journal.models.author import Author
 from journal.models.message import Message
-from journal.models.support.ref import Ref
 from journal.repositories.messages import Messages
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.tasks import Tasks
@@ -35,7 +33,7 @@ class ReviewCommand(Command):
     def record(self, args: Namespace, caller: Caller) -> int:
         reviewer = self.reviewers.find(caller.reviewer_number)
         worker = self.workers.find(self.links.worker(reviewer).id)
-        task = self.tasks.last_task_id(Ref.build(worker))
+        task = self.links.task(reviewer).id
         report = ReviewReport(args.report)
         self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{reviewer.name} reports: worker {worker.id}, {worker.name}, on task {task}: {args.report}", data={"kind": Message.REPORT, "worker": reviewer.name, "reviewer_id": reviewer.id}), caller.actor)
         outcome = self.undecided(reviewer, worker, task, report, caller.actor) if report.is_undecided(len(self.tasks.find(task).points())) else self.decided(reviewer, worker, task, report, caller.actor)

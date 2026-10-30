@@ -35,7 +35,7 @@ class ReviewQueue:
         task = self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
         claimed = self.workers.save(worker.review_claimed(), Actor.system())
         try:
-            reviewing = self.dispatch.sent(reviewer, claimed, self.brief.text(claimed, task, self.reports.last(claimed)))
+            reviewing = self.dispatch.sent(reviewer, claimed, task, self.brief.text(claimed, task, self.reports.last(claimed)))
         except Exception:
             self.workers.save(self.workers.find(claimed.id).review_failed(self.time_source.seconds(), task.id), Actor.system())
             raise

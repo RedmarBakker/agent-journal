@@ -120,6 +120,11 @@ class StoryChecks:
         lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
         assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
+    def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
+        lines = self.log.environment_lines("main")
+        session = self.session_of(agent)
+        assert any(line.session == session and line.matches(nudge.key, values) for line in lines), f"{session} was not told {nudge.key} {values}: {lines}"
+
     def expect_typed_nudge(self, nudge: Nudge, count: int = 1, **values) -> None:
         self.expect_typed_text(nudge.cut(nudge.create(**values).rendered()) if values else nudge.title.partition("{{")[0], count)
 

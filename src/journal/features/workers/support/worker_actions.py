@@ -160,6 +160,7 @@ class WorkerActions:
 
     def merge(self, n: int, actor: Actor, steps: MergeSteps) -> MergeOutcome:
         worker = self.mergeable(n, "work to merge")
+        self.refuse_review_pending(worker, "merge its work")
         *finished, task = self.merged_tasks(worker)
         latest = self.latest_proofs(task)
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
@@ -197,6 +198,7 @@ class WorkerActions:
 
     def gated(self, n: int, task: Task) -> Worker:
         worker = self.mergeable(n, "work to merge")
+        self.refuse_review_pending(worker, "merge its work")
         if task.id not in self.merged_task_ids(worker):
             raise Rejection(f"worker {worker.id} let go of task {task.id} while the plugins were asked about it: nothing was merged")
         return worker
@@ -293,6 +295,11 @@ class WorkerActions:
             raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that has ended has {purpose}")
         return worker
 
+    @staticmethod
+    def refuse_review_pending(worker: Worker, action: str) -> None:
+        if worker.review_pending:
+            raise Rejection(f"worker {worker.id}'s review is in progress: wait for its report before you {action}")
+
     def delivered(self, n: int, purpose: str) -> Worker:
         worker = self.workers.find(n)
         if not worker.is_delivered():
@@ -311,6 +318,7 @@ class WorkerActions:
     def release_dropping(self, n: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
             worker = self.workers.find(n)
+            self.refuse_review_pending(worker, "release it")
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is still out: stop it first with journal worker stop {worker.id}")
             self.tasks.release_all(Ref.build(worker), actor)

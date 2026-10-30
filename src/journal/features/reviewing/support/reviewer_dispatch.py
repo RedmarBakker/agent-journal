@@ -3,6 +3,7 @@ from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
 from journal.features.workers.support.allowed_models import AllowedModels
 from journal.models.reviewer import Reviewer
 from journal.models.reviewer_state import ReviewerState
+from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.repositories.reviewers import Reviewers
@@ -17,9 +18,9 @@ class ReviewerDispatch:
     def __init__(self, reviewers: Reviewers, links: ReviewLinks, runner: ReviewerRunner, providers: Providers, allowed: AllowedModels) -> None:
         self.reviewers, self.links, self.runner, self.providers, self.allowed = reviewers, links, runner, providers, allowed
 
-    def sent(self, reviewer: Reviewer, worker: Worker, brief: str) -> Reviewer:
+    def sent(self, reviewer: Reviewer, worker: Worker, task: Task, brief: str) -> Reviewer:
         reviewing = self.reviewers.save(reviewer.next_review(brief, self.model()), Actor.system())
-        self.links.linked(reviewing, worker)
+        self.links.linked(reviewing, worker, task)
         return self.runner.start(reviewing, reviewer.session)
 
     def added(self, environment_id: int) -> Reviewer:
