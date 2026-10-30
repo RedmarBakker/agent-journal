@@ -30,8 +30,8 @@ OPERATION_FIELDS = {
 
 
 def diagnostic_task_values(template: Template) -> tuple[str, str]:
-    title = f"Read-only diagnostic: {template.title}"
-    brief = "\n\n".join(part.strip() for part in (template.purpose, template.brief, READ_ONLY_DIAGNOSTIC) if part.strip())
+    title = "Read-only diagnostic"
+    brief = "\n\n".join(part.strip() for part in (f"Template {template.title}", template.purpose, template.brief, READ_ONLY_DIAGNOSTIC) if part.strip())
     return title, brief
 
 
@@ -302,7 +302,7 @@ class SupervisorMaintenance:
                 else:
                     check = self._check(operation["check_id"])
                     interval = operation["interval_minutes"]
-                    self.checks.save(check.with_(interval=interval), actor)
+                    self.checks.save(check.with_(interval=float(interval)), actor)
                     affected.append({"table": "checks", "id": check.row_id})
         return affected, diagnostic, created
 

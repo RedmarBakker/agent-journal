@@ -504,7 +504,7 @@ class SupervisorAuthority:
 
     def check_action_revision(self, check: Check) -> str:
         return self._digest({
-            "enrollment_revision": self._check_revision(check), "interval": check.interval,
+            "enrollment_revision": self._check_revision(check), "interval": float(check.interval),
             "verdict": check.verdict(), "last_passed": check.last_passed, "last_stopped": check.last_stopped,
             "last_run_at": self._date(check.last_run_at), "last_duration": check.last_duration,
             "last_output": self._digest(check.last_output), "last_fault": self._digest(check.last_fault),
