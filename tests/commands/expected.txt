@@ -2962,3 +2962,21 @@ options:
   -h, --help   show this help message and exit
   --team TEAM  the team it acts on; needed when this journal is connected to
                several
+
+$ agent: journal organization handoff --help
+exit 0
+usage: journal organization handoff [-h] task target
+
+positional arguments:
+  task
+  target      domain:<id> or role:<domain>/<role>
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal organization inbox --help
+exit 0
+usage: journal organization inbox [-h]
+
+options:
+  -h, --help  show this help message and exit

@@ -368,3 +368,5 @@ user library import --help
 user library update --help
 user library withdraw --help
 user library delete --help
+agent organization handoff --help
+agent organization inbox --help
