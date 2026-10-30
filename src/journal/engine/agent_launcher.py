@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from journal.config import Config
+from journal.support.workspace_worktree import WorkspaceWorktree
 
 # the launch switches of an agent nobody sits at: no questions, no browser, no journal of its own
 DETACHED = ("--yes", "--no-open", "--no-journal")
@@ -19,6 +20,7 @@ class AgentLauncher:
         return self.launched(environment, [agent, "--env", environment, *DETACHED])
 
     def start_in_worktree(self, environment: str, agent: str, resume: tuple[str, ...]) -> int:
+        WorkspaceWorktree.chosen(self.config.root, environment).created()
         return self.launched(environment, [agent, "--env", environment, "--worktree", environment, *DETACHED, "--skip", "--", *resume])
 
     def launched(self, environment: str, arguments: list[str]) -> int:
