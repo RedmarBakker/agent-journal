@@ -29,6 +29,7 @@ class RoleQueue:
         instance = self.instances.existing(role, task)
         if instance is None:
             raise Rejection(f"no instance of {role.title} runs yet: the main agent starts it with journal worker dispatch --role {role.id}")
+        self.tasks.require_assignment_ready(task)
         self.tasks.drop_holder(task, holder, actor)
         self.tasks.queued(task, Ref.build(instance), actor)
         return instance

@@ -230,6 +230,7 @@ class WorkerCommand(Command):
         for plan in self.plans.unapproved(task):
             plan.task_startable(task.id)
         if self.is_holder(task, caller) or task.is_assignable():
+            self.tasks.require_assignment_ready(task)
             return task
         if task.delegated and not task.state.is_closed():
             raise Rejection(DELEGATED_REFUSAL.format(n=n))
@@ -288,6 +289,10 @@ class WorkerCommand(Command):
         holdings = self.actions.task_holdings(args.n, args.task)
         if not args.task and not holdings:
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
+        if args.task:
+            task, worker = self.tasks.find(args.task), self.workers.find(args.n)
+            self.tasks.guard_worker_task(task, Ref.build(worker), caller.actor)
+            self.tasks.require_assignment_ready(task)
         worker = self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
@@ -346,6 +351,10 @@ class WorkerCommand(Command):
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
         self.refused_in_review(worker)
+        for n in args.tasks:
+            self.tasks.require_assignment_ready(self.tasks.find(n))
+        if args.report:
+            worker = self.actions.set_report_choice(worker.id, ReportChoice.argument(args.report), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.drop_holder(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)

@@ -12,8 +12,7 @@ class WorkerTaskAssigner:
         self.tasks = tasks
 
     def following(self, worker: Worker) -> Task | None:
-        queue = self.tasks.queue(Ref.build(worker))
-        return queue[0] if queue else None
+        return next(iter(self.tasks.ready_queue(Ref.build(worker))), None)
 
     def handed(self, worker: Worker, task: Task, actor: Actor) -> Task:
         self.tasks.handover(task, Ref.build(worker), actor)

@@ -90,23 +90,41 @@ class Tasks(ScopedRepository[Task]):
         if link.link_type in (WAIT_LINK, DEPENDENCY_LINK, DELIVERY_GATE_LINK) and self.work_reaches(link.target, link.source):
             raise Rejection(f"{link.source} waiting on {link.target} would close a cycle that nothing could ever end")
 
-    def unmet_prerequisites(self, task: Task) -> list[Ref]:
-        links = self.links.source_links(task, DEPENDENCY_LINK)
+    def dependency_gaps(self, tasks: Sequence[Task]) -> dict[int, tuple[Ref, ...]]:
+        if not tasks:
+            return {}
+        unstarted = {task.row_id for task in tasks if task.started_at is None}
+        links = [link for link in self.links.model_links("source", tasks, DEPENDENCY_LINK) if link.source.id in unstarted]
+        if not links:
+            return {}
         targets = {row.row_id: row for row in self.numbered(link.target.id for link in links if link.target.type == Task.table())}
-        return [link.target for link in links if link.target.type != Task.table() or link.target.id not in targets or targets[link.target.id].state != TaskState.COMPLETED]
+        gaps: dict[int, list[Ref]] = {}
+        for link in links:
+            if link.target.type != Task.table() or link.target.id not in targets or targets[link.target.id].state != TaskState.COMPLETED:
+                gaps.setdefault(link.source.id, []).append(link.target)
+        return {task_id: tuple(refs) for task_id, refs in gaps.items()}
+
+    def unmet_prerequisites(self, task: Task) -> list[Ref]:
+        return list(self.dependency_gaps([task]).get(task.row_id, ()))
 
     def unmet_dependency_ids(self, tasks: Sequence[Task]) -> set[int]:
-        if not tasks:
-            return set()
-        links = self.links.model_links("source", tasks, DEPENDENCY_LINK)
-        targets = {row.row_id: row for row in self.numbered(link.target.id for link in links if link.target.type == Task.table())}
-        return {link.source.id for link in links if link.target.type != Task.table() or link.target.id not in targets or targets[link.target.id].state != TaskState.COMPLETED}
+        return set(self.dependency_gaps(tasks))
+
+    def unavailable_task_ids(self, tasks: Sequence[Task]) -> set[int]:
+        return self.unmet_dependency_ids(tasks) | self.waiting_ids(list(tasks))
 
     def require_prerequisites(self, task: Task) -> None:
         unmet = self.unmet_prerequisites(task)
         if unmet:
-            waiting = ", ".join(str(ref) for ref in unmet)
-            raise Rejection(f"task {task.id} waits for planned prerequisites {waiting}; accept or merge them first")
+            waiting = ", ".join(f"task {ref.id}" for ref in unmet)
+            raise Rejection(f"task {task.id} is unavailable until planned prerequisite {waiting} is accepted; complete or merge it first")
+
+    def require_assignment_ready(self, task: Task) -> None:
+        self.require_prerequisites(task)
+        waits = self.open_wait_refs([task]).get(task.row_id, [])
+        if waits:
+            waiting = ", ".join(f"{ref.type[:-1]} {ref.id}" for ref in waits)
+            raise Rejection(f"task {task.id} is unavailable: it still waits on {waiting}; let the wait finish before assigning it")
 
     def waiting(self, ref: Ref) -> Task | Question | Check:
         return self.awaitable[ref.type].find(ref.id)
@@ -133,7 +151,7 @@ class Tasks(ScopedRepository[Task]):
         agent_query = Query.build(Agent).filter_unequal("state", ENDED_STATE).filter_unequal("id", holder.id)
         claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_name_column(self.links.query(), "source"))
         tasks = self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned()).filter_absent(claimed_links).filter_absent(self.wait_links()))
-        blocked = self.unmet_dependency_ids(tasks)
+        blocked = self.unavailable_task_ids(tasks)
         return [task for task in tasks if task.row_id not in blocked]
 
     def wait_links(self) -> Query:
@@ -203,7 +221,9 @@ class Tasks(ScopedRepository[Task]):
 
     def holder_paused_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
-        return next(iter(self.selected(self.free_query(TaskState.PAUSED, ()).filter_absent(self.user_paused_planned()).filter_existing(hand_links).filter_unequal("wait_ended_at", 0.0).limit(1))), None)
+        tasks = self.selected(self.free_query(TaskState.PAUSED, ()).filter_absent(self.user_paused_planned()).filter_existing(hand_links).filter_unequal("wait_ended_at", 0.0))
+        blocked = self.unavailable_task_ids(tasks)
+        return next((task for task in tasks if task.row_id not in blocked), None)
 
     def actionable(self, state: TaskState) -> list[Task]:
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)
@@ -227,7 +247,7 @@ class Tasks(ScopedRepository[Task]):
             batch = self.selected(query.limit(PAGE_ROWS).offset(offset))
             if not batch:
                 break
-            blocked = self.unmet_dependency_ids(batch)
+            blocked = self.unavailable_task_ids(batch)
             selected.extend(task for task in batch if task.row_id not in blocked)
             offset += len(batch)
         return selected[:count]
@@ -317,6 +337,8 @@ class Tasks(ScopedRepository[Task]):
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:
         self.guard_worker_task(task, holder, actor)
+        if task.started_at is None:
+            self.require_assignment_ready(task)
         owner = self.holder(task)
         target = Ref.build(task)
         for link in self.links.all_matching(target=target, link_type=CURRENT_TASK_LINK):
@@ -334,6 +356,7 @@ class Tasks(ScopedRepository[Task]):
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
         if not self.is_free(task):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, or one in your hands, goes in a worker's queue")
+        self.require_assignment_ready(task)
         if not self.links.all_matching(source=worker, target=Ref.build(task), link_type=QUEUED_LINK):
             self.links.save(Link(source=worker, target=Ref.build(task), link_type=QUEUED_LINK), actor)
         return self.save(task.delegate(self.time_source.moment()), actor)
@@ -342,6 +365,7 @@ class Tasks(ScopedRepository[Task]):
         queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
         if not self.is_free(task) and not (task.delegated and queue_links):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, one in your hands, or a queued one goes first")
+        self.require_assignment_ready(task)
         for link in queue_links:
             self.links.delete(link, actor)
         remaining = [queued for queued in self.queue(worker) if queued.id != task.id]
@@ -363,6 +387,11 @@ class Tasks(ScopedRepository[Task]):
     def queue(self, worker: Ref) -> list[Task]:
         links = sorted(self.links.all_matching(source=worker, link_type=QUEUED_LINK), key=lambda link: link.row_id)
         return [self.find(n) for n in dict.fromkeys(link.target.id for link in links)]
+
+    def ready_queue(self, worker: Ref) -> list[Task]:
+        queue = self.queue(worker)
+        unavailable = self.unavailable_task_ids(queue)
+        return [task for task in queue if task.row_id not in unavailable]
 
     def worker_task(self, task_id: int, worker: int) -> Task:
         holdings = self.holder_task_ids(Ref(WORKERS, worker))

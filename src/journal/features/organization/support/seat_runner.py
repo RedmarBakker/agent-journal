@@ -102,7 +102,7 @@ class SeatRunner:
         task = self.tasks.holder_task(holder)
         if task is not None:
             return task
-        queued = self.tasks.queue(holder)
+        queued = self.tasks.ready_queue(holder)
         return queued[0] if queued else None
 
     def job_plan(self, worker: Worker, task: Task | None = None) -> Plan | None:

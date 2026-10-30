@@ -48,6 +48,10 @@ class WorkerPeerCommand(Command):
         if args.model or args.profile:
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
         self.actions.task_holdings(args.n, args.task)
+        if args.task:
+            task, worker = self.tasks.find(args.task), self.workers.find(args.n)
+            self.tasks.guard_worker_task(task, Ref.build(worker), caller.actor)
+            self.tasks.require_assignment_ready(task)
         worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)

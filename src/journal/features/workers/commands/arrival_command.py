@@ -32,6 +32,7 @@ class ArrivalCommand(Command):
         if not holdings:
             raise Rejection(f"worker {worker.id} has no task: a worker clocks in on the task it was sent on")
         moment, task = self.time_source.moment(), self.tasks.find(holdings[0])
+        self.tasks.require_assignment_ready(task)
         if not task.delegated:
             task = self.tasks.save(task.delegate(moment), caller.actor)
         if not task.is_started():

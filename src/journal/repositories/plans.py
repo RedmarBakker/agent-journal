@@ -133,7 +133,7 @@ class Plans(ScopedRepository[Plan]):
 
     def assignable_tasks(self, task_ids: list[int]) -> list[Task]:
         candidates = self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))
-        blocked = self.tasks.unmet_dependency_ids(candidates)
+        blocked = self.tasks.unavailable_task_ids(candidates)
         assignable = {task.row_id: task for task in candidates if task.row_id not in blocked}
         return [assignable[n] for n in task_ids if n in assignable]
 
@@ -263,7 +263,7 @@ class Plans(ScopedRepository[Plan]):
         return self.first_task(plan, TaskState.OPEN, self.startable_tasks(plan))
 
     def startable_tasks(self, plan: Plan) -> Query:
-        blocked = self.waiting_task_ids(plan) | self.tasks.unmet_dependency_ids(self.plan_tasks(plan))
+        blocked = self.tasks.unavailable_task_ids(self.plan_tasks(plan))
         return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def queued_tasks(self, plan: Plan) -> list[Task]:
@@ -277,7 +277,7 @@ class Plans(ScopedRepository[Plan]):
 
     def takeable_tasks(self, plan: Plan) -> Query:
         takeable = self.tasks.query().filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False)
-        blocked = self.waiting_task_ids(plan) | self.tasks.unmet_dependency_ids(self.plan_tasks(plan))
+        blocked = self.tasks.unavailable_task_ids(self.plan_tasks(plan))
         return takeable.filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
@@ -295,7 +295,7 @@ class Plans(ScopedRepository[Plan]):
 
     def has_resumable(self, plan: Plan) -> bool:
         plan_links = self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan))
-        return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
+        return self.has_link(plan_links, self.takeable_tasks(plan))
 
     def has_link(self, links: Query, tasks: Query) -> bool:
         return bool(self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).limit(1)))
@@ -303,10 +303,6 @@ class Plans(ScopedRepository[Plan]):
     def first_link(self, links: Query, tasks: Query) -> Task | None:
         first = self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).order("id").limit(1))
         return self.tasks.find(first[0].source.id) if first else None
-
-    def waiting_task_ids(self, plan: Plan) -> set[int]:
-        waits = self.links.query().filter(link_type=WAIT_LINK)
-        return self.tasks.waiting_ids(self.tasks.selected(self.plan_task_query(plan).filter_existing(waits.filter_ref("source", self.tasks.query()))))
 
     def worker_holdings(self) -> Query:
         return self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").filter_ref("target", self.tasks.query())

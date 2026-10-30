@@ -69,7 +69,7 @@ class PlanTaskAssigner:
         task = self.tasks.find(event.task_id)
         phase = next((state.phase for state in self.plans.phase_states(plan) if state.phase.row_id == event.phase_id), None)
         return bool(phase and task in self.plans.phase_tasks(phase) and task in self.plans.plan_tasks(plan)
-            and task.state == TaskState.OPEN and not task.delegated and not self.tasks.waiting_ids([task])
+            and task.state == TaskState.OPEN and not task.delegated and task.row_id not in self.tasks.unavailable_task_ids([task])
             and self.tasks.task_holder(task.row_id) is None and not self.tasks.has_worker_holder([task.row_id]))
 
     def next_plan_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int) -> Assignment:
