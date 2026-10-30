@@ -1,0 +1,102 @@
+id = "gdpr_access_request"
+title = "Respond to a data access request"
+business_type = "law_firm"
+goal = "Prepare a timely response to a synthetic data access request with verified scope and reviewed redactions."
+
+[[phases]]
+id = "verify_request"
+title = "Verify the request and deadline"
+complete_when = "The requester, authority, and response deadline are recorded."
+[[phases.tasks]]
+id = "verify_access_request"
+title = "Verify the access request"
+brief = "Check the synthetic request authority and calculate its response deadline from the supplied dates."
+domain = "client_intake"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "collect_records"
+title = "Collect responsive records"
+complete_when = "Responsive synthetic records are collected without unrelated matter material."
+[[phases.tasks]]
+id = "collect_responsive_records"
+title = "Collect responsive records"
+brief = "Locate responsive records in the fictional matter set and log sources that could not be checked."
+domain = "research"
+size = 5
+prerequisites = ["verify_access_request"]
+
+[[phases]]
+id = "review_response"
+title = "Review redactions and response"
+complete_when = "The proposed response and redactions have a documented privacy decision."
+[[phases.tasks]]
+id = "review_access_response"
+title = "Review the access response"
+brief = "Prepare a response index and flag each proposed redaction for authorized legal review."
+domain = "compliance"
+size = 5
+prerequisites = ["collect_responsive_records"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A synthetic requester asks whether the response deadline has been confirmed." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "archive_search_results" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "paralegal" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "ethics_officer", action = "privacy_decision" }
+
+[[expected]]
+id = "access_response_task"
+description = "The access response review is complete with the deadline and redaction questions recorded."
+table = "tasks"
+target = "review_access_response"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_access_response"
+description = "The responsive-record index and proposed response are present in the plan worktree."
+table = "artifacts"
+target = "worktree/gdpr-access-request/access-response.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_access_response"
+description = "The reviewed access response is present on main."
+table = "artifacts"
+target = "main/gdpr-access-request/access-response.md"
+field = "present"
+equals = true
+[[expected]]
+id = "privacy_review_approval"
+description = "The privacy decision is asked before response material is released."
+table = "approvals"
+target = "ethics_officer:privacy_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "access_hub_audit"
+description = "The completed hub audit reports no route violations for the access request plan."
+table = "hub_audits"
+target = "gdpr_access_request"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 480
+[budget.real_caps]
+state = "owner_pending"

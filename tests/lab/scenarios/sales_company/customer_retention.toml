@@ -1,0 +1,102 @@
+id = "customer_retention"
+title = "Prepare a customer retention plan"
+business_type = "sales_company"
+goal = "Prepare a measurable retention response for a synthetic customer at risk of leaving."
+
+[[phases]]
+id = "understand_risk"
+title = "Understand the retention risk"
+complete_when = "The synthetic customer's stated concern and renewal date are recorded."
+[[phases.tasks]]
+id = "review_retention_signals"
+title = "Review retention signals"
+brief = "Summarize synthetic support and usage signals and distinguish confirmed facts from assumptions."
+domain = "customer_success"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "prepare_response"
+title = "Prepare a customer response"
+complete_when = "The response addresses the documented concern without an unapproved commitment."
+[[phases.tasks]]
+id = "prepare_retention_response"
+title = "Prepare the retention response"
+brief = "Draft options tied to the customer's stated need and route any liability commitment for approval."
+domain = "sales"
+size = 5
+prerequisites = ["review_retention_signals"]
+
+[[phases]]
+id = "update_forecast"
+title = "Update the renewal forecast"
+complete_when = "The forecast reflects the evidence, owner, and next review date."
+[[phases.tasks]]
+id = "update_renewal_forecast"
+title = "Update the renewal forecast"
+brief = "Update the synthetic renewal forecast with the customer's response and remaining uncertainty."
+domain = "pipeline"
+size = 3
+prerequisites = ["prepare_retention_response"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A customer says the synthetic service no longer meets its renewal needs." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "customer_usage_summary" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "customer_success_manager" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "contracts_manager", action = "customer_liability_commitment" }
+
+[[expected]]
+id = "forecast_task"
+description = "The renewal forecast is updated after the evidence-based response is prepared."
+table = "tasks"
+target = "update_renewal_forecast"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_retention_plan"
+description = "The retention plan and renewal forecast are present in the plan worktree."
+table = "artifacts"
+target = "worktree/customer-retention/retention-plan.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_retention_plan"
+description = "The reviewed retention plan is present on main."
+table = "artifacts"
+target = "main/customer-retention/retention-plan.md"
+field = "present"
+equals = true
+[[expected]]
+id = "retention_commitment_approval"
+description = "Any retention commitment outside standard terms is held for approval."
+table = "approvals"
+target = "contracts_manager:customer_liability_commitment"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "retention_hub_audit"
+description = "The completed hub audit reports no route violations for the retention plan."
+table = "hub_audits"
+target = "customer_retention"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 300
+[budget.real_caps]
+state = "owner_pending"

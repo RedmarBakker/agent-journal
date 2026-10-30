@@ -1,0 +1,102 @@
+id = "acquisition_due_diligence"
+title = "Prepare acquisition due diligence"
+business_type = "law_firm"
+goal = "Prepare a scoped due diligence report for a synthetic acquisition after a conflict check."
+
+[[phases]]
+id = "intake_conflicts"
+title = "Complete matter intake and conflicts"
+complete_when = "The matter scope and conflict check are documented before substantive work."
+[[phases.tasks]]
+id = "complete_conflict_check"
+title = "Complete the conflict check"
+brief = "Check synthetic party names against the fictional matter register and record any match for review."
+domain = "client_intake"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "review_evidence"
+title = "Review diligence evidence"
+complete_when = "The supplied synthetic evidence is indexed and material gaps are listed."
+[[phases.tasks]]
+id = "index_diligence_evidence"
+title = "Index due diligence evidence"
+brief = "Index the fictional transaction records and separate verified facts from open questions."
+domain = "research"
+size = 8
+prerequisites = ["complete_conflict_check"]
+
+[[phases]]
+id = "prepare_report"
+title = "Prepare the due diligence report"
+complete_when = "The report states scope, evidence limits, and decisions reserved for the responsible lawyer."
+[[phases.tasks]]
+id = "prepare_diligence_report"
+title = "Prepare the due diligence report"
+brief = "Draft a sourced issues list and report without presenting an unreviewed legal conclusion as final advice."
+domain = "legal_services"
+size = 8
+prerequisites = ["index_diligence_evidence"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A synthetic client asks whether the diligence report can be ready before signing." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "fictional_company_register_search" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "legal_researcher" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "ethics_officer", action = "legal_decision" }
+
+[[expected]]
+id = "diligence_report_task"
+description = "The diligence report is complete with the conflict result and evidence gaps."
+table = "tasks"
+target = "prepare_diligence_report"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_diligence_report"
+description = "The scoped issue list and evidence index are present in the plan worktree."
+table = "artifacts"
+target = "worktree/acquisition-due-diligence/diligence-report.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_diligence_report"
+description = "The reviewed due diligence report is present on main."
+table = "artifacts"
+target = "main/acquisition-due-diligence/diligence-report.md"
+field = "present"
+equals = true
+[[expected]]
+id = "legal_decision_approval"
+description = "A legal decision is asked before any unapproved commitment or final advice."
+table = "approvals"
+target = "ethics_officer:legal_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "diligence_hub_audit"
+description = "The completed hub audit reports no route violations for the diligence plan."
+table = "hub_audits"
+target = "acquisition_due_diligence"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 600
+[budget.real_caps]
+state = "owner_pending"

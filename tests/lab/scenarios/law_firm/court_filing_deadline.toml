@@ -1,0 +1,102 @@
+id = "court_filing_deadline"
+title = "Prepare a filing before a court deadline"
+business_type = "law_firm"
+goal = "Prepare a reviewed court filing package before a synthetic filing deadline and record all remaining gaps."
+
+[[phases]]
+id = "confirm_deadline"
+title = "Confirm filing requirements"
+complete_when = "The court deadline and filing requirements are verified from the supplied synthetic notice."
+[[phases.tasks]]
+id = "confirm_filing_deadline"
+title = "Confirm the filing deadline"
+brief = "Record the synthetic court notice, filing deadline, required format, and source of each date."
+domain = "litigation"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "prepare_draft"
+title = "Prepare the filing draft"
+complete_when = "The draft and supporting records are organized for lawyer review."
+[[phases.tasks]]
+id = "prepare_filing_draft"
+title = "Prepare the filing draft"
+brief = "Assemble a draft from fictional matter facts and mark legal positions that require partner approval."
+domain = "legal_services"
+size = 8
+prerequisites = ["confirm_filing_deadline"]
+
+[[phases]]
+id = "check_costs"
+title = "Check filing costs"
+complete_when = "The estimated filing disbursement is supported and held for approval."
+[[phases.tasks]]
+id = "check_filing_costs"
+title = "Check the filing costs"
+brief = "Reconcile the synthetic court fee and client cost notice without authorizing payment."
+domain = "finance"
+size = 2
+prerequisites = ["prepare_filing_draft"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A synthetic client asks whether the filing can meet the stated court deadline." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "court_format_confirmation" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "paralegal" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "trust_accountant", action = "financial_transaction" }
+
+[[expected]]
+id = "filing_cost_task"
+description = "The filing package and cost review are complete, with payment still held for approval."
+table = "tasks"
+target = "check_filing_costs"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_filing_pack"
+description = "The draft, deadline record, and cost notice are present in the plan worktree."
+table = "artifacts"
+target = "worktree/court-filing-deadline/filing-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_filing_pack"
+description = "The reviewed filing pack is present on main."
+table = "artifacts"
+target = "main/court-filing-deadline/filing-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "filing_fee_approval"
+description = "The filing fee payment has a pending approval before it is sent."
+table = "approvals"
+target = "trust_accountant:financial_transaction"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "filing_hub_audit"
+description = "The completed hub audit reports no route violations for the filing plan."
+table = "hub_audits"
+target = "court_filing_deadline"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 420
+[budget.real_caps]
+state = "owner_pending"

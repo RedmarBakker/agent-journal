@@ -1,0 +1,102 @@
+id = "privacy_export_request"
+title = "Prepare a customer data export"
+business_type = "software_company"
+goal = "Prepare a verified customer data export within the agreed deadline while protecting unrelated records."
+
+[[phases]]
+id = "intake"
+title = "Review the customer request"
+complete_when = "The requester and export scope are recorded."
+[[phases.tasks]]
+id = "review_export_request"
+title = "Review the export request"
+brief = "Record the synthetic request, response deadline, and verification evidence still needed."
+domain = "customer_success"
+size = 2
+prerequisites = []
+
+[[phases]]
+id = "scope_data"
+title = "Scope the data safely"
+complete_when = "The export includes only the verified customer's data."
+[[phases.tasks]]
+id = "scope_export_records"
+title = "Scope export records"
+brief = "Map the request to data sources and exclude other customers' records from the synthetic export."
+domain = "security"
+size = 5
+prerequisites = ["review_export_request"]
+
+[[phases]]
+id = "prepare_export"
+title = "Prepare the export package"
+complete_when = "The package and delivery steps pass privacy review."
+[[phases.tasks]]
+id = "prepare_export_package"
+title = "Prepare the export package"
+brief = "Generate a synthetic export manifest, checksum record, and secure delivery checklist."
+domain = "engineering"
+size = 5
+prerequisites = ["scope_export_records"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A customer asks when the requested synthetic export will be ready." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "identity_verification_response" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "support_specialist" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "privacy_officer", action = "privacy_decision" }
+
+[[expected]]
+id = "export_package_task"
+description = "The export package is complete after identity and record scope checks."
+table = "tasks"
+target = "prepare_export_package"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_export_manifest"
+description = "The synthetic export manifest and delivery checklist are present in the plan worktree."
+table = "artifacts"
+target = "worktree/privacy-export-request/export-manifest.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_export_manifest"
+description = "The reviewed export manifest is present on main."
+table = "artifacts"
+target = "main/privacy-export-request/export-manifest.md"
+field = "present"
+equals = true
+[[expected]]
+id = "privacy_approval"
+description = "The privacy officer has been asked to approve the exact export action."
+table = "approvals"
+target = "privacy_officer:privacy_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "export_hub_audit"
+description = "The completed hub audit reports no route violations for the export plan."
+table = "hub_audits"
+target = "privacy_export_request"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 300
+[budget.real_caps]
+state = "owner_pending"

@@ -1,0 +1,102 @@
+id = "year_end_close"
+title = "Close the year for a synthetic client cohort"
+business_type = "accountancy_firm"
+goal = "Prepare a documented year-end close for a synthetic cohort of forty clients after a tax rule change."
+
+[[phases]]
+id = "reconcile"
+title = "Reconcile client balances"
+complete_when = "The cohort's trial balances agree with the supplied synthetic records."
+[[phases.tasks]]
+id = "reconcile_trial_balances"
+title = "Reconcile the trial balances"
+brief = "Reconcile the forty synthetic client ledgers and list unresolved balance differences."
+domain = "bookkeeping"
+size = 8
+prerequisites = []
+
+[[phases]]
+id = "review_tax"
+title = "Review changed tax positions"
+complete_when = "The changed tax rule is applied consistently to the synthetic client cohort."
+[[phases.tasks]]
+id = "review_tax_positions"
+title = "Review the tax positions"
+brief = "Apply the supplied rule change to the synthetic cohort and identify returns requiring partner review."
+domain = "tax"
+size = 8
+prerequisites = ["reconcile_trial_balances"]
+
+[[phases]]
+id = "close"
+title = "Document the close"
+complete_when = "The year-end close has a reviewed evidence trail and unresolved items are explicit."
+[[phases.tasks]]
+id = "document_year_end_close"
+title = "Document the year-end close"
+brief = "Prepare a cohort close summary, evidence index, and exception list without using real client data."
+domain = "audit_assurance"
+size = 5
+prerequisites = ["review_tax_positions"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A client asks how the changed tax rule affects its synthetic year-end estimate." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "bank_statement_batch" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "bookkeeper" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "tax_partner", action = "invoice_correction" }
+
+[[expected]]
+id = "close_task"
+description = "The cohort close summary is complete with the tax review and reconciliation evidence."
+table = "tasks"
+target = "document_year_end_close"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_close_pack"
+description = "The close summary and exception register are present in the plan worktree."
+table = "artifacts"
+target = "worktree/year-end-close/close-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_close_pack"
+description = "The reviewed close pack is present on main."
+table = "artifacts"
+target = "main/year-end-close/close-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "ledger_correction_approval"
+description = "The proposed client ledger correction has a pending approval before posting."
+table = "approvals"
+target = "tax_partner:invoice_correction"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "close_hub_audit"
+description = "The completed hub audit reports no route violations for the close plan."
+table = "hub_audits"
+target = "year_end_close"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 600
+[budget.real_caps]
+state = "owner_pending"

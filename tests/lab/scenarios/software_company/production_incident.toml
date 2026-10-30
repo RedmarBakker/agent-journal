@@ -1,0 +1,102 @@
+id = "production_incident"
+title = "Respond to a production incident"
+business_type = "software_company"
+goal = "Restore a degraded production service and publish a blameless post-incident review."
+
+[[phases]]
+id = "assess_impact"
+title = "Assess customer impact"
+complete_when = "The affected service and customer impact window are documented."
+[[phases.tasks]]
+id = "assess_customer_impact"
+title = "Assess customer impact"
+brief = "Use synthetic incident reports to identify the affected service and customer-visible symptoms."
+domain = "customer_success"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "restore_service"
+title = "Restore service"
+complete_when = "The service is stable and the recovery action is recorded."
+[[phases.tasks]]
+id = "restore_service_health"
+title = "Restore service health"
+brief = "Coordinate a tested recovery and record the evidence without making an unapproved production change."
+domain = "engineering"
+size = 8
+prerequisites = ["assess_customer_impact"]
+
+[[phases]]
+id = "review_incident"
+title = "Review the incident"
+complete_when = "The post-incident review names causes, actions, owners, and remaining security risks."
+[[phases.tasks]]
+id = "write_postmortem"
+title = "Write the post-incident review"
+brief = "Prepare a blameless timeline, cause analysis, follow-up actions, and customer communication plan."
+domain = "security"
+size = 5
+prerequisites = ["restore_service_health"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A customer reports elevated error rates in the synthetic service environment." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "service_health_metrics" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "support_specialist" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "security_engineer", action = "security_decision" }
+
+[[expected]]
+id = "postmortem_task"
+description = "The post-incident review is complete after service recovery and security review."
+table = "tasks"
+target = "write_postmortem"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_postmortem"
+description = "The incident timeline and follow-up actions are present in the plan worktree."
+table = "artifacts"
+target = "worktree/production-incident/postmortem.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_postmortem"
+description = "The reviewed post-incident report is present on main."
+table = "artifacts"
+target = "main/production-incident/postmortem.md"
+field = "present"
+equals = true
+[[expected]]
+id = "security_decision"
+description = "The proposed security control change is held for a security decision."
+table = "approvals"
+target = "security_engineer:security_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "incident_hub_audit"
+description = "The completed hub audit reports no route violations for the incident plan."
+table = "hub_audits"
+target = "production_incident"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 420
+[budget.real_caps]
+state = "owner_pending"

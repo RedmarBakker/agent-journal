@@ -1,0 +1,102 @@
+id = "insurer_code_change"
+title = "Update claims after an insurer code change"
+business_type = "dental_practice"
+goal = "Update synthetic claim guidance after an insurer changes procedure codes and correction rules."
+
+[[phases]]
+id = "review_bulletin"
+title = "Review the insurer bulletin"
+complete_when = "The changed codes and effective date are recorded."
+[[phases.tasks]]
+id = "review_code_bulletin"
+title = "Review the insurer code bulletin"
+brief = "Compare the synthetic insurer notice with the practice's current procedure code list."
+domain = "billing_insurance"
+size = 2
+prerequisites = []
+
+[[phases]]
+id = "assess_clinical_effect"
+title = "Assess clinical coding effects"
+complete_when = "Clinical staff confirm which treatment descriptions map to the changed codes."
+[[phases.tasks]]
+id = "map_treatments_to_codes"
+title = "Map affected treatments"
+brief = "Check the synthetic treatment descriptions against the insurer's revised code guidance."
+domain = "clinical"
+size = 3
+prerequisites = ["review_code_bulletin"]
+
+[[phases]]
+id = "publish_guidance"
+title = "Publish corrected claim guidance"
+complete_when = "The corrected claim process is reviewed and ready for use."
+[[phases.tasks]]
+id = "publish_claim_guidance"
+title = "Publish claim correction guidance"
+brief = "Document the effective date, correction steps, and escalation path for affected claims."
+domain = "compliance"
+size = 5
+prerequisites = ["map_treatments_to_codes"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "An insurer asks whether the practice will resubmit claims under the revised codes." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "insurer_effective_date_confirmation" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "billing_manager" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "billing_manager", action = "invoice_correction" }
+
+[[expected]]
+id = "claim_guidance_task"
+description = "Corrected guidance is complete after billing, clinical and compliance review."
+table = "tasks"
+target = "publish_claim_guidance"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_claim_guidance"
+description = "The revised code map and correction instructions are present in the plan worktree."
+table = "artifacts"
+target = "worktree/insurer-code-change/claim-guidance.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_claim_guidance"
+description = "The reviewed claim guidance is present on main."
+table = "artifacts"
+target = "main/insurer-code-change/claim-guidance.md"
+field = "present"
+equals = true
+[[expected]]
+id = "claim_correction_approval"
+description = "The invoice correction action has been asked for approval before resubmission."
+table = "approvals"
+target = "billing_manager:invoice_correction"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "claim_hub_audit"
+description = "The completed hub audit reports no route violations for the code change plan."
+table = "hub_audits"
+target = "insurer_code_change"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 300
+[budget.real_caps]
+state = "owner_pending"

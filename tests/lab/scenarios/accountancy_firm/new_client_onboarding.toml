@@ -1,0 +1,102 @@
+id = "new_client_onboarding"
+title = "Onboard a synthetic accountancy client"
+business_type = "accountancy_firm"
+goal = "Onboard a synthetic client with verified identity records and a reconciled opening balance."
+
+[[phases]]
+id = "engagement"
+title = "Set up the engagement"
+complete_when = "The engagement scope and requested records are documented."
+[[phases.tasks]]
+id = "set_engagement_scope"
+title = "Set the engagement scope"
+brief = "Record the synthetic client's service scope, deadlines, and missing opening records."
+domain = "client_services"
+size = 2
+prerequisites = []
+
+[[phases]]
+id = "identity_checks"
+title = "Complete identity checks"
+complete_when = "Required identity evidence is reviewed and any exception is held for a decision."
+[[phases.tasks]]
+id = "verify_client_identity"
+title = "Verify the client identity file"
+brief = "Check the synthetic onboarding file against the firm's identity checklist and record missing evidence."
+domain = "compliance"
+size = 5
+prerequisites = ["set_engagement_scope"]
+
+[[phases]]
+id = "opening_balances"
+title = "Reconcile opening balances"
+complete_when = "Opening balances and their supporting source records reconcile."
+[[phases.tasks]]
+id = "reconcile_opening_balances"
+title = "Reconcile opening balances"
+brief = "Compare the synthetic opening ledger with the supplied trial balance and prepare a difference list."
+domain = "bookkeeping"
+size = 5
+prerequisites = ["verify_client_identity"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A prospective client asks which identity documents are still outstanding." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "synthetic_identity_check_result" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "client_onboarding_specialist" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "compliance_officer", action = "privacy_decision" }
+
+[[expected]]
+id = "opening_balances_task"
+description = "Opening balances are reconciled after scope and identity checks are complete."
+table = "tasks"
+target = "reconcile_opening_balances"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_onboarding_file"
+description = "The identity checklist and opening balance record are present in the plan worktree."
+table = "artifacts"
+target = "worktree/new-client-onboarding/onboarding-file.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_onboarding_file"
+description = "The reviewed onboarding file is present on main."
+table = "artifacts"
+target = "main/new-client-onboarding/onboarding-file.md"
+field = "present"
+equals = true
+[[expected]]
+id = "privacy_retention_approval"
+description = "The decision to retain identity evidence has been asked of the compliance officer."
+table = "approvals"
+target = "compliance_officer:privacy_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "onboarding_hub_audit"
+description = "The completed hub audit reports no route violations for the onboarding plan."
+table = "hub_audits"
+target = "new_client_onboarding"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 360
+[budget.real_caps]
+state = "owner_pending"

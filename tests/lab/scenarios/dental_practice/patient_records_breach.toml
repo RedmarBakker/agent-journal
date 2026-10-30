@@ -1,0 +1,102 @@
+id = "patient_records_breach"
+title = "Respond to a patient records breach"
+business_type = "dental_practice"
+goal = "Contain a suspected patient records breach and prepare verified notices without exposing patient identities."
+
+[[phases]]
+id = "contain"
+title = "Contain and scope the incident"
+complete_when = "Access is contained and the affected synthetic record set is scoped."
+[[phases.tasks]]
+id = "triage_record_exposure"
+title = "Triage the records exposure"
+brief = "Record the suspected access window, contain the affected account, and keep the case data synthetic."
+domain = "compliance"
+size = 5
+prerequisites = []
+
+[[phases]]
+id = "verify"
+title = "Verify clinical record impact"
+complete_when = "The clinical record review distinguishes affected from unaffected records."
+[[phases.tasks]]
+id = "check_affected_records"
+title = "Check the affected record set"
+brief = "Compare the incident window with synthetic access logs and identify only the records requiring review."
+domain = "clinical"
+size = 5
+prerequisites = ["triage_record_exposure"]
+
+[[phases]]
+id = "notify"
+title = "Prepare required notices"
+complete_when = "Patient and authority notices are ready for the approved decision."
+[[phases.tasks]]
+id = "prepare_breach_notices"
+title = "Prepare breach notices"
+brief = "Draft clear notices and a regulator report from the verified scope, without real patient data."
+domain = "patient_communication"
+size = 8
+prerequisites = ["check_affected_records"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A patient asks whether their synthetic record was included in the incident." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "access_log_export" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "patient_contact_specialist" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "privacy_officer", action = "data_breach_decision" }
+
+[[expected]]
+id = "notice_task"
+description = "The notice task is complete after the affected record scope is verified."
+table = "tasks"
+target = "prepare_breach_notices"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_incident_report"
+description = "A scoped incident report and patient notice draft are present in the plan worktree."
+table = "artifacts"
+target = "worktree/patient-records-breach/incident-report.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_incident_report"
+description = "The approved incident report is present on main."
+table = "artifacts"
+target = "main/patient-records-breach/incident-report.md"
+field = "present"
+equals = true
+[[expected]]
+id = "breach_decision"
+description = "A data breach decision has been asked of the privacy officer before notices are sent."
+table = "approvals"
+target = "privacy_officer:data_breach_decision"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "breach_hub_audit"
+description = "The completed hub audit reports no route violations for the incident plan."
+table = "hub_audits"
+target = "patient_records_breach"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 480
+[budget.real_caps]
+state = "owner_pending"

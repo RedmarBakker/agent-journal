@@ -1,0 +1,102 @@
+id = "quarter_end_pricing"
+title = "Run a quarter-end push under new pricing"
+business_type = "sales_company"
+goal = "Prepare a quarter-end sales push with approved pricing, contract language, and a checked forecast."
+
+[[phases]]
+id = "set_pricing"
+title = "Set pricing guardrails"
+complete_when = "The new prices and discount limits have a documented source and effective date."
+[[phases.tasks]]
+id = "set_pricing_guardrails"
+title = "Set pricing guardrails"
+brief = "Summarize the synthetic pricing change and record discount limits for the quarter-end campaign."
+domain = "market_strategy"
+size = 3
+prerequisites = []
+
+[[phases]]
+id = "prioritize_pipeline"
+title = "Prioritize the sales pipeline"
+complete_when = "Priority opportunities have owners, next steps, and evidence-based values."
+[[phases.tasks]]
+id = "prioritize_opportunities"
+title = "Prioritize quarter-end opportunities"
+brief = "Rank synthetic opportunities against the new pricing and document the next customer action."
+domain = "sales"
+size = 5
+prerequisites = ["set_pricing_guardrails"]
+
+[[phases]]
+id = "review_terms"
+title = "Review contract terms"
+complete_when = "The template reflects approved pricing and routes exceptions for review."
+[[phases.tasks]]
+id = "review_campaign_template"
+title = "Review the campaign contract template"
+brief = "Check that the synthetic contract template matches the approved pricing and contains no unapproved promises."
+domain = "contracts_compliance"
+size = 5
+prerequisites = ["prioritize_opportunities"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A prospect asks whether the new pricing applies to a renewal signed this quarter." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "approved_price_schedule" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "sales_manager" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "contracts_manager", action = "contract_change" }
+
+[[expected]]
+id = "template_review_task"
+description = "The campaign template is reviewed against pricing and discount guardrails."
+table = "tasks"
+target = "review_campaign_template"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_campaign_pack"
+description = "The pricing guardrails and campaign template are present in the plan worktree."
+table = "artifacts"
+target = "worktree/quarter-end-pricing/campaign-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_campaign_pack"
+description = "The reviewed campaign pack is present on main."
+table = "artifacts"
+target = "main/quarter-end-pricing/campaign-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "pricing_contract_approval"
+description = "The contract change is held for the contracts manager's approval."
+table = "approvals"
+target = "contracts_manager:contract_change"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "pricing_hub_audit"
+description = "The completed hub audit reports no route violations for the pricing plan."
+table = "hub_audits"
+target = "quarter_end_pricing"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 420
+[budget.real_caps]
+state = "owner_pending"

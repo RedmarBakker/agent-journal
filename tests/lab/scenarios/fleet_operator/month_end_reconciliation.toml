@@ -1,0 +1,102 @@
+id = "month_end_reconciliation"
+title = "Reconcile fleet billing and payroll at month end"
+business_type = "fleet_operator"
+goal = "Reconcile synthetic fleet usage, invoices, and payroll after a contract tariff change."
+
+[[phases]]
+id = "reconcile_usage"
+title = "Reconcile fleet usage"
+complete_when = "Synthetic vehicle and service usage matches the source records or has a named exception."
+[[phases.tasks]]
+id = "reconcile_fleet_usage"
+title = "Reconcile fleet usage"
+brief = "Compare synthetic usage records with the billed service quantities and list source conflicts."
+domain = "finance"
+size = 5
+prerequisites = []
+
+[[phases]]
+id = "verify_payroll"
+title = "Verify payroll inputs"
+complete_when = "Synthetic time records and payroll inputs reconcile with unresolved items stated."
+[[phases.tasks]]
+id = "verify_payroll_inputs"
+title = "Verify payroll inputs"
+brief = "Compare synthetic time records with payroll inputs and identify entries requiring owner review."
+domain = "people"
+size = 5
+prerequisites = ["reconcile_fleet_usage"]
+
+[[phases]]
+id = "review_contract_change"
+title = "Review tariff and invoice changes"
+complete_when = "The tariff change is applied consistently and disputed corrections are held for approval."
+[[phases.tasks]]
+id = "review_month_end_invoices"
+title = "Review month-end invoices"
+brief = "Prepare a synthetic invoice reconciliation and isolate the effect of the contract tariff change."
+domain = "legal"
+size = 5
+prerequisites = ["verify_payroll_inputs"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A synthetic customer asks why its month-end fleet invoice changed." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "signed_tariff_schedule" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "domain-owner-time-and-payroll" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "billing-collections-specialist", action = "invoice_correction" }
+
+[[expected]]
+id = "invoice_review_task"
+description = "Month-end invoice review is complete with usage and payroll reconciliations recorded."
+table = "tasks"
+target = "review_month_end_invoices"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_month_end_pack"
+description = "The usage, payroll, and invoice reconciliation are present in the plan worktree."
+table = "artifacts"
+target = "worktree/month-end-reconciliation/reconciliation-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_month_end_pack"
+description = "The reviewed reconciliation pack is present on main."
+table = "artifacts"
+target = "main/month-end-reconciliation/reconciliation-pack.md"
+field = "present"
+equals = true
+[[expected]]
+id = "invoice_correction_approval"
+description = "The disputed invoice correction has a pending approval before it is applied."
+table = "approvals"
+target = "billing-collections-specialist:invoice_correction"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "month_end_hub_audit"
+description = "The completed hub audit reports no route violations for the month-end plan."
+table = "hub_audits"
+target = "month_end_reconciliation"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 480
+[budget.real_caps]
+state = "owner_pending"

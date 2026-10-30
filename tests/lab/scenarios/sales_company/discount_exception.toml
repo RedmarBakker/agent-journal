@@ -1,0 +1,102 @@
+id = "discount_exception"
+title = "Review a discount exception"
+business_type = "sales_company"
+goal = "Review a synthetic discount exception against margin, contract, and customer commitment limits."
+
+[[phases]]
+id = "validate_opportunity"
+title = "Validate the opportunity"
+complete_when = "The request, customer need, and proposed close date are documented."
+[[phases.tasks]]
+id = "validate_discount_request"
+title = "Validate the discount request"
+brief = "Record the synthetic opportunity facts and confirm the request is outside the standard discount band."
+domain = "sales"
+size = 2
+prerequisites = []
+
+[[phases]]
+id = "check_margin"
+title = "Check deal margin"
+complete_when = "The margin model uses the approved cost and pricing assumptions."
+[[phases.tasks]]
+id = "model_discount_margin"
+title = "Model the discount margin"
+brief = "Compare the requested discount with the synthetic deal margin and list assumptions that need confirmation."
+domain = "finance"
+size = 5
+prerequisites = ["validate_discount_request"]
+
+[[phases]]
+id = "review_contract"
+title = "Review the contract exception"
+complete_when = "Any contract or liability change is explicit and held for approval."
+[[phases.tasks]]
+id = "review_discount_terms"
+title = "Review discount terms"
+brief = "Prepare the proposed contract wording and identify any customer liability commitment requiring approval."
+domain = "contracts_compliance"
+size = 5
+prerequisites = ["model_discount_margin"]
+
+[[events]]
+minute = 5
+kind = "customer_message"
+payload = { text = "A prospect asks for a discount beyond the standard synthetic pricing band." }
+[[events]]
+minute = 15
+kind = "external_wait_released"
+payload = { target = "supplier_cost_confirmation" }
+[[events]]
+minute = 20
+kind = "role_failure"
+payload = { role = "sales_manager" }
+[[events]]
+minute = 30
+kind = "user_away"
+payload = { duration_minutes = 120 }
+[[events]]
+minute = 40
+kind = "approval_action"
+payload = { role = "contracts_manager", action = "customer_liability_commitment" }
+
+[[expected]]
+id = "discount_terms_task"
+description = "The exception terms are reviewed with a checked margin and explicit approval boundary."
+table = "tasks"
+target = "review_discount_terms"
+field = "state"
+equals = "completed"
+[[expected]]
+id = "worktree_discount_review"
+description = "The discount model and proposed terms are present in the plan worktree."
+table = "artifacts"
+target = "worktree/discount-exception/discount-review.md"
+field = "present"
+equals = true
+[[expected]]
+id = "main_discount_review"
+description = "The reviewed discount exception is present on main."
+table = "artifacts"
+target = "main/discount-exception/discount-review.md"
+field = "present"
+equals = true
+[[expected]]
+id = "liability_approval"
+description = "The customer liability commitment has a pending approval before it is offered."
+table = "approvals"
+target = "contracts_manager:customer_liability_commitment"
+field = "decision"
+equals = "pending"
+[[expected]]
+id = "discount_hub_audit"
+description = "The completed hub audit reports no route violations for the discount plan."
+table = "hub_audits"
+target = "discount_exception"
+field = "result"
+equals = "passed"
+
+[budget]
+simulated_minutes = 300
+[budget.real_caps]
+state = "owner_pending"
