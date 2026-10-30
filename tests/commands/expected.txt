@@ -1749,6 +1749,7 @@ plans.now_coordinating_plans  [plans]  you now coordinate the plans: each plan's
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
 plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`
+plans.plan_agent_write_outside_worktree  [plans]  write refused: {{path|cap=120}} is outside {{worktree|cap=120}}
 plans.plan_blocked  [plans]  plan {{n}} is blocked: {{why|cap=44}}. unblock it by hand with `journal plan unblock {{n}}`
 plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main and releasing wait for the user's word
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it

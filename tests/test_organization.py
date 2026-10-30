@@ -263,7 +263,7 @@ def test_a_worker_role_can_run_rig_and_detached_commands_without_git_or_hub_send
     use_provider(app, monkeypatch, "claude")
     fixture, organization = loaded(app, tmp_path)
     fixture.role("alpha", "builder", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
-    fixture.domain("alpha", roles=["builder"])
+    fixture.domain("alpha", roles=["builder", "scout"])
     contracts = organization.reload()
     writer = app.container.get(RigSpecs)
     provider = writer.providers.lookup("claude")
