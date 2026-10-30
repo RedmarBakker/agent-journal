@@ -8,6 +8,7 @@ from secrets import token_urlsafe
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.scope import PROJECT
+from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.support.actor import Actor
 
 
@@ -71,10 +72,21 @@ def cost(input_tokens: int, output_tokens: int, input_rate: Decimal, output_rate
 class SupervisorAdmissions:
     """Claims fenced supervisor runs and applies their journal-owned action receipts."""
 
-    def __init__(self, entries: Entries, prices: Mapping[str, tuple[object, object]], clock: Callable[[], datetime], lease_seconds: int = 300) -> None:
+    def __init__(
+        self,
+        entries: Entries,
+        control_entries: SupervisorEntries,
+        prices: Mapping[str, tuple[object, object]],
+        clock: Callable[[], datetime],
+        lease_seconds: int = 300,
+    ) -> None:
         if not 1 <= lease_seconds <= 600:
             raise ValueError("supervisor leases must be between 1 and 600 seconds")
-        self.entries, self.prices, self.clock, self.lease_seconds = entries, prices, clock, lease_seconds
+        self.entries = entries
+        self.control_entries = control_entries
+        self.prices = prices
+        self.clock = clock
+        self.lease_seconds = lease_seconds
 
     def start_installation(self, credential: str, installation_id: str) -> dict:
         if not self._identifier(installation_id):
@@ -601,7 +613,7 @@ class SupervisorAdmissions:
 
     def _record(self, entry_type: str, key: str, tenant_id: str, data: dict, actor: Actor | None = None) -> Entry:
         actor = actor or self._actor(tenant_id)
-        return self.entries.recorded(Entry(environment_id=PROJECT, entry_type=entry_type, actor=actor, data=data, idempotency=key), actor)
+        return self.control_entries.recorded(Entry(environment_id=PROJECT, entry_type=entry_type, actor=actor, data=data, idempotency=key), actor)
 
     def _actor(self, tenant_id: str) -> Actor:
         return Actor.external(f"supervisor:{tenant_id}")

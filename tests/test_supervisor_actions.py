@@ -11,6 +11,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
 from journal.repositories.scope import PROJECT, Scope
+from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.support.actor import Actor
 from journal.support.large_reads import LargeReads
 from journal.support.masks import Masks
@@ -63,11 +64,12 @@ def supervisor_journal(connection, bus, scope, budget=None, prices=None):
         "budget": saved_budget,
     }
     actor = Actor.user(1)
+    control_entries = SupervisorEntries(entries)
     with scope.environment(PROJECT):
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorCredential", actor=actor, data=credential, idempotency=f"supervisor:credential:{credential_hash}"), actor)
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorEnrollment", actor=actor, data={"tenant_id": tenant_id, "enrollment_id": "enrollment-1", "plan_id": "plan-1", "node_id": "node-1", "status": "active"}, idempotency="supervisor:enrollment:tenant-a:plan-1:node-1"), actor)
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data=grant, idempotency="supervisor:grant:tenant-a:grant-a:1"), actor)
-    admissions = SupervisorAdmissions(entries, prices or {MODEL: ("0.10", "0.20")}, lambda: clock[0])
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorCredential", actor=actor, data=credential, idempotency=f"supervisor:credential:{credential_hash}"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorEnrollment", actor=actor, data={"tenant_id": tenant_id, "enrollment_id": "enrollment-1", "plan_id": "plan-1", "node_id": "node-1", "status": "active"}, idempotency="supervisor:enrollment:tenant-a:plan-1:node-1"), actor)
+        control_entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data=grant, idempotency="supervisor:grant:tenant-a:grant-a:1"), actor)
+    admissions = SupervisorAdmissions(entries, control_entries, prices or {MODEL: ("0.10", "0.20")}, lambda: clock[0])
     return admissions, entries, scope, clock, grant, credential_hash
 
 
@@ -105,7 +107,7 @@ def action_intent(text="move diagnostic work first"):
 
 def mutation(entries, scope, intent, actor):
     with scope.environment(PROJECT):
-        row = entries.save(Entry(environment_id=PROJECT, entry_type="SupervisorMutation", actor=actor, data={"action_id": intent["payload"]["text"]}), actor)
+        row = entries.save(Entry(environment_id=PROJECT, entry_type="ActionMutation", actor=actor, data={"action_id": intent["payload"]["text"]}), actor)
     return {"mutation_id": row.id}
 
 
@@ -127,7 +129,7 @@ def test_duplicate_action_returns_one_canonical_receipt(connection, bus, scope):
     assert all(result["receipt_id"] == receipt["receipt_id"] and result["data"] == receipt["data"] for result in deliveries)
     assert len(calls) == 1
     with scope.environment(PROJECT):
-        assert len(entries.kind_entries("SupervisorMutation")) == 1
+        assert len(entries.kind_entries("ActionMutation")) == 1
 
 
 def test_reused_id_with_different_intent_is_rejected(connection, bus, scope):
@@ -176,7 +178,7 @@ def test_only_one_active_supervisor_can_claim_an_enrolled_plan_node(connection, 
     admissions, entries, scope, clock, _, _ = supervisor_journal(connection, bus, scope)
     actor = Actor.user(1)
     with scope.environment(PROJECT):
-        entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data={"tenant_id": "tenant-a", "grant_id": "grant-b", "version": 1, "status": "active", "plan_id": "plan-1", "node_id": "node-1"}, idempotency="supervisor:grant:tenant-a:grant-b:1"), actor)
+        SupervisorEntries(entries).recorded(Entry(environment_id=PROJECT, entry_type="SupervisorGrant", actor=actor, data={"tenant_id": "tenant-a", "grant_id": "grant-b", "version": 1, "status": "active", "plan_id": "plan-1", "node_id": "node-1"}, idempotency="supervisor:grant:tenant-a:grant-b:1"), actor)
     installation = admissions.start_installation(TOKEN, "boot-1")
     assert installation == {"status": "rejected", "reason": "active_supervisor_not_unique"}
     run = admissions.admit_run(TOKEN, 1, "timer", "event-1", observation(clock[0]))
@@ -192,7 +194,7 @@ def test_revocation_or_stale_fence_prevents_apply(connection, bus, scope, change
     if change == "revoke":
         actor = Actor.system()
         with scope.environment(PROJECT):
-            entries.recorded(Entry(environment_id=PROJECT, entry_type="SupervisorRevocation", actor=actor, data={"tenant_id": "tenant-a", "credential_hash": credential_hash}, idempotency=f"supervisor:revoked:{credential_hash}"), actor)
+            SupervisorEntries(entries).recorded(Entry(environment_id=PROJECT, entry_type="SupervisorRevocation", actor=actor, data={"tenant_id": "tenant-a", "credential_hash": credential_hash}, idempotency=f"supervisor:revoked:{credential_hash}"), actor)
     else:
         clock[0] += timedelta(seconds=301)
         admissions.admit_run(TOKEN, run["epoch"], "timer", "event-2", observation(clock[0]))
@@ -230,7 +232,7 @@ def test_budget_is_reserved_before_model_and_unknown_usage_blocks(connection, bu
     assert mutations == []
     with scope.environment(PROJECT):
         assert not entries.supervisor_records("SupervisorActionReceipt", tenant_id="tenant-a", action_id="budget-action")
-    no_price = SupervisorAdmissions(entries, {}, lambda: clock[0])
+    no_price = SupervisorAdmissions(entries, SupervisorEntries(entries), {}, lambda: clock[0])
     assert no_price.admit_run(TOKEN, installation["epoch"], "hook", "unknown-price-event", observation(clock[0]))["reason"] == "unknown_model_price"
     admissions.finish_run(TOKEN, run["run_ref"], run["fence"])
     clock[0] += timedelta(seconds=1)
@@ -293,13 +295,13 @@ def test_crash_before_commit_retries_without_partial_journal_mutation(connection
     with pytest.raises(RuntimeError, match="crash before commit"):
         admissions.apply_action(TOKEN, run["run_ref"], run["fence"], "action-4", intent, lambda *_: None, crash)
     with scope.environment(PROJECT):
-        assert not entries.kind_entries("SupervisorMutation")
+        assert not entries.kind_entries("ActionMutation")
         assert not entries.supervisor_records("SupervisorActionReceipt", tenant_id="tenant-a", action_id="action-4")
         assert not entries.supervisor_records("SupervisorActionState", tenant_id="tenant-a", action_id="action-4", status="pending")
     applied = admissions.apply_action(TOKEN, run["run_ref"], run["fence"], "action-4", intent, lambda *_: None, lambda values, actor: mutation(entries, scope, values, actor))
     assert applied["status"] == "applied"
     with scope.environment(PROJECT):
-        assert len(entries.kind_entries("SupervisorMutation")) == 1
+        assert len(entries.kind_entries("ActionMutation")) == 1
 
 
 def test_commit_with_lost_response_returns_prior_receipt(connection, bus, scope):
@@ -338,7 +340,7 @@ def test_receipt_tombstone_survives_trim_and_restart(connection, bus, scope, tmp
     restarted = Connection(connection.path, Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes(), LargeReads())
     restarted_scope = Scope(Environments(restarted, bus, TimeSource()), Links(restarted, bus, TimeSource()))
     restarted_entries = Entries(restarted, bus, restarted_scope, TimeSource())
-    restarted_admissions = SupervisorAdmissions(restarted_entries, {MODEL: ("0.10", "0.20")}, lambda: clock[0])
+    restarted_admissions = SupervisorAdmissions(restarted_entries, SupervisorEntries(restarted_entries), {MODEL: ("0.10", "0.20")}, lambda: clock[0])
     installation = restarted_admissions.start_installation(TOKEN, "boot-2")
     assert installation["epoch"] > run["epoch"]
     retry = restarted_admissions.apply_action(TOKEN, run["run_ref"], run["fence"], "action-6", intent, lambda *_: None, lambda *_: calls.append(True))
