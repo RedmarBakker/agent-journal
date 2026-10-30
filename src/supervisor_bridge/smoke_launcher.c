@@ -354,9 +354,14 @@ static int stop_child(pid_t child, int result) {
 
 static int wait_for(pid_t child, int seconds, const char *receipt_path) {
     struct timespec interval = {.tv_sec = 0, .tv_nsec = 100000000};
-    time_t started = time(NULL);
+    struct timespec started;
+    clock_gettime(CLOCK_MONOTONIC, &started);
     int status = 0;
-    while (!stop_requested && time(NULL) - started < seconds) {
+    while (!stop_requested) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        time_t deadline = started.tv_sec + seconds;
+        if (now.tv_sec > deadline || (now.tv_sec == deadline && now.tv_nsec >= started.tv_nsec)) break;
         if (receipt_path && receipt_complete(receipt_path)) return stop_child(child, 0);
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child) {
