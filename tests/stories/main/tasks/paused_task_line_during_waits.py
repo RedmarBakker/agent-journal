@@ -11,24 +11,24 @@ AWAIT = "await 'the build' --until false"
 LONG_ENOUGH_MINUTES = 2
 
 
-def waits_a_while(story) -> None:
+def waits_and_stops(story) -> None:
     story.agent_runs(story.agents.subject, AWAIT)
     story.time_travel(minutes=LONG_ENOUGH_MINUTES)
-    story.agent_reads(story.agents.subject)
+    story.agent_stops(story.agents.subject)
 
 
 @story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_paused_task_is_offered_once_at_a_wait_not_at_the_next_waits_with_the_same_task_in_hand_and_again_after_that_task_closes(story):
     story.agent_runs(story.agents.subject, f"task start {story.tasks.open}")
-    waits_a_while(story)
-    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, n=story.tasks.started, count=1)
+    waits_and_stops(story)
+    story.expect_refused(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, n=story.tasks.started)
     story.agent_writes(story.agents.subject, "a.py")
-    waits_a_while(story)
-    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, count=1)
+    waits_and_stops(story)
+    story.expect_allowed()
     story.agent_writes(story.agents.subject, "a.py")
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.open}")
     following = story.agent_creates_task(story.agents.subject, "the tests")
     story.agent_runs(story.agents.subject, f"task start {following}")
-    waits_a_while(story)
-    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, count=2)
+    waits_and_stops(story)
+    story.expect_refused(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, n=story.tasks.started)
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
