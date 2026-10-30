@@ -9,7 +9,7 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_plan import StartedPlan
-from tests.stories.fixtures.main.started_plan_with_subagent import SUBAGENT, StartedPlanWithSubagent
+from tests.stories.fixtures.main.plan_subagent import SUBAGENT, PlanSubagent
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -21,7 +21,7 @@ def test_a_started_plan_with_a_task_in_hand_is_told_to_continue_without_helpers(
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedPlanWithSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_running_background_subagent_does_not_hide_the_plans_task_at_a_stop(story):
     story.user_opens("/journal/subagents")
     story.expect_viewer_rows("rows", "state", [SubagentState.ACTIVE])
@@ -31,7 +31,7 @@ def test_a_running_background_subagent_does_not_hide_the_plans_task_at_a_stop(st
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedPlanWithSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_idle_subagent_does_not_hide_the_plans_task_at_a_stop(story):
     story.subagent_ends(SUBAGENT)
     story.user_opens("/journal/subagents")

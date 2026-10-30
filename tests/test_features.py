@@ -4255,7 +4255,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
+    console.run(["task", "create", "t"], AGENT)
     dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], AGENT)
     process = subprocess.Popen(["sleep", "30"])
     try:
@@ -4490,7 +4490,7 @@ def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(ap
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
+    console.run(["task", "create", "t"], AGENT)
     dispatched(console, ["Mr. Fulton", "the steamboat", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     dispatched(console, ["Mr. Watt", "the engine", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     assert sessions.top("s1").targets() == ["workers:1", "workers:2"]

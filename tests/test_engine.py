@@ -27,6 +27,7 @@ from journal.engine.state_machine import StateMachine
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
+from journal.features.tasks.support.tasks_data import TasksData
 from journal.models.agent import Agent
 from journal.models.setting import Setting
 from journal.db.migrations.stack_seed import StackSeed
@@ -1139,8 +1140,9 @@ def test_awaiting_tells_each_workers_return_and_pops_on_the_last():
     assert last.popped and [n.key for n in last.nudges] == ["tasks.wait_over"] and has_nudge(last.nudges[-1].rendered(), TasksNudges.WAIT_END, outcome="worker 3, Lady Lovelace, reported; worker 4, Herr Turing, stopped")
     from journal.events.rows.worker_dispatched import WorkerDispatched
     from journal.features.workers.workers_conduct import WorkersConduct
-    owned = Working(task_id=7).respond(WorkerDispatched(environment_id=1, time=3.0, worker=WorkerMention(5, "Lady Lovelace", "s1"), awaiter="s1", ref="workers:5", label="worker 5").reaching("s1"), settings, (WorkersConduct,))
-    assert owned.pushed == ExternalWait.opened("worker 5", "workers:5", 3.0), "a worker this agent dispatches pushes the wait on its work"
+    data = FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())})
+    owned = Ready().respond(WorkerDispatched(environment_id=1, time=3.0, worker=WorkerMention(5, "Lady Lovelace", "s1"), awaiter="s1", ref="workers:5", label="worker 5").reaching("s1").with_data(data), settings, (WorkersConduct,))
+    assert owned.pushed == ExternalWait.opened("worker 5", "workers:5", 3.0), "a worker this agent dispatches while idle pushes the wait on its work"
     assert Working(task_id=7).respond(WorkerDispatched(environment_id=1, time=3.0, worker=WorkerMention(5, "Lady Lovelace", "s2"), awaiter="s2", ref="workers:5", label="worker 5").reaching("s1"), settings, (WorkersConduct,)).pushed is None, "another session's worker is not waited on here"
     widened = ExternalWait.opened("worker 5", "workers:5", 3.0).respond(WorkerDispatched(environment_id=1, time=4.0, worker=WorkerMention(6, "Dr. Einstein", "s1"), awaiter="s1", ref="workers:6", label="worker 6").reaching("s1"), settings, (WorkersConduct,))
     assert widened.target == ExternalWait.opened("worker 5, worker 6", "workers:5,workers:6", 3.0) and widened.pushed is None, "a second dispatch widens the wait instead of stacking another"

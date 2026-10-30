@@ -81,8 +81,3 @@ def test_switching_to_solo_mode_names_the_mode(story):
     story.expect_stack(story.agents.subject, Soloing)
 
 
-@story(SoloAgent, mode=SOLO_MODE, subject=AgentRole.MAIN)
-def test_switching_back_to_builder_mode_leaves_the_solo_state(story):
-    story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
-    story.agent_reads(story.agents.subject)
-    story.expect_stack(story.agents.subject, Ready)

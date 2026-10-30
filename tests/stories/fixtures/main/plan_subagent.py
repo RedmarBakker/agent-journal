@@ -7,7 +7,7 @@ from tests.stories.fixtures.subagent.started_subagent import RESEARCHER
 SUBAGENT = "plan-review"
 
 
-class StartedPlanWithSubagent(StateFixture):
+class PlanSubagent(StateFixture):
     """The agent holds the started plan's first task while a background subagent reviews it."""
 
     stack = (Ready, FollowingPlan)
