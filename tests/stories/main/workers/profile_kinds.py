@@ -11,17 +11,17 @@ DISPATCH = "worker dispatch 'Mr. Brunel' --task {task} --changes 'the files of i
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_profile_the_user_saved_is_dispatched_on_the_model_it_names(story):
     story.user_posted("/journal/profiles/builder", {"description": "writes code", "tools": "Read, Edit", "body": "You write.", "profile_type": "worker", "model": "sonnet"})
-    story.agent_runs(story.agents.subject, DISPATCH.format(task=story.tasks.briefed, profile="builder"))
-    story.expect_command_text("on claude sonnet")
+    result = story.agent_runs(story.agents.subject, DISPATCH.format(task=story.tasks.briefed, profile="builder"))
+    result.expect_command_text("on claude sonnet")
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_subagent_profile_is_never_dispatched_as_a_worker(story):
-    story.agent_runs(story.agents.subject, DISPATCH.format(task=story.tasks.briefed, profile="journal-researcher"))
-    story.expect_command_refused()
-    story.expect_command_text("no worker profile")
+    result = story.agent_runs(story.agents.subject, DISPATCH.format(task=story.tasks.briefed, profile="journal-researcher"))
+    result.expect_command_refused()
+    result.expect_command_text("no worker profile")
     story.expect_task(story.tasks.briefed, delegated=False)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -29,8 +29,8 @@ def test_a_subagent_profile_is_never_dispatched_as_a_worker(story):
 @story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_profile_sent_as_a_subagent_is_refused_naming_the_dispatch(story):
     story.user_posted("/journal/profiles/builder", {"description": "writes code", "tools": "Read, Edit", "body": "You write.", "profile_type": "worker", "model": "sonnet"})
-    story.agent_sends_subagent(story.agents.subject, "builder", "write the parser")
-    story.expect_refusal_text("is a worker:")
-    story.expect_refusal_text("--profile builder")
+    result = story.agent_sends_subagent(story.agents.subject, "builder", "write the parser")
+    result.expect_refusal_text("is a worker:")
+    result.expect_refusal_text("--profile builder")
     story.expect_task(story.tasks.briefed, delegated=False)
     story.expect_stack(story.agents.subject, Ready)

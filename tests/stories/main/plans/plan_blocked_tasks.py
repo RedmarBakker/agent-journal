@@ -13,19 +13,19 @@ from tests.stories.fixtures.main.started_plan import StartedPlan
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_whose_every_remaining_task_is_blocked_blocks_itself_and_opens_with_it(story):
     story.agent_runs(story.agents.subject, f"task block {story.tasks.second} 'waits on the designer'")
-    story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
+    result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
     story.expect_plan(story.plans.first, state=PlanState.BLOCKED)
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_BLOCKED, n=story.plans.first)
-    story.agent_runs(story.agents.subject, f"task unblock {story.tasks.second}")
+    result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_BLOCKED, n=story.plans.first)
+    result = story.agent_runs(story.agents.subject, f"task unblock {story.tasks.second}")
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_REOPENED, n=story.plans.first)
+    result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_REOPENED, n=story.plans.first)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_blocked_with_no_reason_is_refused(story):
-    story.agent_runs(story.agents.subject, f"plan block {story.plans.first}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan block {story.plans.first}")
+    result.expect_command_refused()
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)

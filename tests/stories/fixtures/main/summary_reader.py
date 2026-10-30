@@ -21,4 +21,4 @@ class SummaryReader(StateFixture):
         story.agent_runs(story.agents.main, f"reader add {self.readers.first} --pattern '[0-9]+ (passed|failed)' --about 'the summary of a test run'")
 
     def expected(self, story) -> None:
-        story.expect_command_passed()
+        story.last_step.expect_command_passed()

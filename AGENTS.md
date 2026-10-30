@@ -197,8 +197,11 @@ assert appears in it; every assert lives inside an expect method of the builder.
 - **Filed by subject, then topic**: `tests/stories/<subject>/<topic>/<behaviour>.py`. The subject is the agent the
   story is about, `main`, `worker`, `subagent`, `reviewer` or `verifier`, read from the folder. Fixtures live in
   `tests/stories/fixtures/<subject>/`.
-- **Every step and agent check names its agent first, written out**: `story.agent_runs(story.agents.subject, "message read 4")`,
-  `story.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
+- **Every step and agent check names its agent first, written out**: `result = story.agent_runs(story.agents.subject, "message read 4")`,
+  `result.expect_agent_told(story.agents.main, MessagesNudges.MESSAGE_READ)`, `story.expect_stack(story.agents.subject, Ready)`.
+- **A check of what a step brought is made on that step's result**: a step returns what it brought, the lines the
+  journal gave, the hook's verdict, the command's outcome or the viewer's answer, and the check is made on it,
+  `result = story.agent_writes(...)`, then `result.expect_refused(...)`; checks of rows and the stack stay on the story.
   `story.agents` holds the subject, the main agent, `workers.first()` and `workers.get(n)`, the same for reviewers and
   verifiers, and the subagent; there are no main_ or worker_ twins of a step.
 - **Its rows by kind**: the rows its fixture made are read on the story by kind and name, `story.tasks.started`,

@@ -34,19 +34,27 @@ Before a line of a story, write down for yourself what the feature does in each 
 
 ## 2. Write every story in one file, in one go
 
-- File it by scope, then subject: `tests/stories/<scope>/<subject>/<behaviour>.py`, the scope being whose point of view
+- File it by subject, then topic: `tests/stories/<subject>/<topic>/<behaviour>.py`, the subject being the agent the story is about
   its expectations take (`main`, `worker`, `subagent`, `reviewer`, `verifier`), read from the folder; one file per
   behaviour, named for it: `main/tasks/task_transfer.py`, never `environments.py`. It holds every case of that behaviour
-  and nothing else; another concern gets its own small file. Fixtures go in `tests/stories/fixtures/<scope>/`.
+  and nothing else; another concern gets its own small file. Fixtures go in `tests/stories/fixtures/<subject>/`.
 - One story per case, its name the sentence of what happens:
   `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
 - Start each story from the fixture whose rows it uses and name the work mode it plays in
-  (`@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)`, the scope the one its folder names; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
+  (`@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)`, the subject the one its folder names; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
   `ModeFloor`), and close it with
-  `story.expect_stack(Ready, Working)`, the stack it leaves, bottom first; the run fails a story that does not close on it.
-- Under a helper scope the agent checks read that helper: `expect_agent_told` is the worker's line under `worker/`;
-  name the main agent with `expect_main_told`, `expect_main_not_told`; under `main/`, name a worker with
-  `expect_worker_told` and `expect_worker_stack`.
+  `story.expect_stack(story.agents.subject, Ready, Working)`, the stack it leaves, bottom first; the run fails a story that does not close on it.
+- Every agent step and agent check names its agent first, written out, never a default: `story.agents.subject` for the
+  agent the story is about, `story.agents.main`, `story.agents.workers.first()` or `story.agents.workers.get(n)`, the same
+  for reviewers and verifiers, and `story.agents.subagent`: `story.agent_runs(story.agents.subject, "clock-in")`,
+  `result.expect_agent_told(story.agents.main, WorkersNudges.WORKER_REPORTED)`.
+- A step returns what it brought, and a check of it is made on that result: `result = story.agent_writes(...)`, then
+  `result.expect_refused(story.agents.subject, PausingNudges.PAUSED)`; `result.expect_command_text(...)` after
+  `result = story.agent_runs(...)`. Checks of rows and the stack (`expect_task`, `expect_stack`) stay on the story.
+- A fixture keeps the rows it made by kind, `self.tasks.started = story.agent_takes_a_task(story.agents.main, "the footer")`,
+  its helpers as `self.workers.first`, and plays its steps as `story.agents.main`; a story reads them on the story by
+  kind, `story.tasks.started`, `story.plans.first`, `story.messages.second`, and the helpers from `story.agents`, never
+  from the fixture itself. Each row's name says which row it is: started, briefed, first, second, open.
 - Play the agent through `story.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
 - A setting the story needs is set with `@setting(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting, repeated for more:
   the user sets it through the viewer's route after the start fixture and before the first step, and the story fails
@@ -57,13 +65,13 @@ Before a line of a story, write down for yourself what the feature does in each 
   StoryAssertDetector flags an assert in `tests/stories/`.
 - Numbers come from the code, never copied: `MemoryThresholds.CONTEXT[0]`, `story.setting(option) + 1`,
   `story.agent_consumes(option)` for as many tool uses as a setting allows.
-- Check what reaches the agent (`expect_agent_told`, `expect_refused`), the rows (`expect_task`, `task_numbers_in`) and
+- Check what reaches the agent on the step's result (`result.expect_agent_told`, `result.expect_refused`), the rows (`expect_task`, `task_numbers_in`) and
   the stack.
 - A step the builder lacks is added to the builder in `tests/stories/builder/`, once, for every story to use.
 
 ## 3. Run them together, see them fail
 
-Run the file once: `journal suite tests/stories/<scope>/<subject>/<behaviour>.py -q`. Every new case should fail for the
+Run the file once: `journal suite tests/stories/<subject>/<topic>/<behaviour>.py -q`. Every new case should fail for the
 reason you expect. A story that passes before the code exists tests nothing new; a story failing for another reason is
 fixed first.
 

@@ -10,8 +10,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_tasks_filed_from_a_message_are_one_mark_naming_each_and_replies_naming_them_keep_it(story):
     message = story.user_sends_message("see the picture")
-    story.agent_runs(story.agents.subject, f"task create 'look at the picture' --from {message}")
-    story.expect_command_text(f"(from message {message})")
+    result = story.agent_runs(story.agents.subject, f"task create 'look at the picture' --from {message}")
+    result.expect_command_text(f"(from message {message})")
     first = story.task_number()
     story.agent_runs(story.agents.subject, f"task create 'crop it' --from {message}")
     second = story.task_number()
@@ -56,7 +56,7 @@ def test_a_task_made_from_one_message_and_edited_from_another_has_a_mark_under_e
 def test_a_task_created_with_from_right_after_a_reply_to_another_message_is_linked_to_the_one_it_names(story):
     footer, width = story.messages.first, story.messages.second
     story.agent_replies(story.agents.subject, footer, "noted")
-    story.agent_runs(story.agents.subject, f"task create 'the width' --from {width}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"task create 'the width' --from {width}")
+    result.expect_command_passed()
     story.expect_chat_marks("filed", f"Linked task {story.task_number()} from your message")
     story.expect_stack(story.agents.subject, Ready)

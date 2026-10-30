@@ -15,16 +15,16 @@ GITHUB = "secret create Github --kind 'api key' --brief 'Run `curl -H @- https:/
 def test_the_agent_is_refused_every_read_of_the_secrets_and_the_mcp_keys(story):
     values = story.app.container.get(SecretValues).path
     keys = Path.home() / ".journal" / "keys"
-    story.agent_reads(story.agents.subject, str(values))
-    story.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
-    story.agent_runs_in_the_shell(story.agents.subject, f"cat {values.parent}/*.env")
-    story.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
-    story.agent_uses_the_providers_tool(story.agents.subject, "Grep", pattern="KEY", path=str(keys))
-    story.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
-    story.agent_reads(story.agents.subject, "../" * len(story.app.config.root.resolve().parts) + str(keys.resolve()).lstrip("/") + "/x.json")
-    story.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
-    story.agent_reads(story.agents.subject, str(story.app.config.root / "a.py"))
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject, str(values))
+    result.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"cat {values.parent}/*.env")
+    result.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
+    result = story.agent_uses_the_providers_tool(story.agents.subject, "Grep", pattern="KEY", path=str(keys))
+    result.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
+    result = story.agent_reads(story.agents.subject, "../" * len(story.app.config.root.resolve().parts) + str(keys.resolve()).lstrip("/") + "/x.json")
+    result.expect_refused(story.agents.subject, SecretsNudges.PRIVATE_SECRETS)
+    result = story.agent_reads(story.agents.subject, str(story.app.config.root / "a.py"))
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 

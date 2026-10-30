@@ -11,6 +11,7 @@ from journal.support.actor import Actor
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.verifiers import Verifiers
 from journal.support.caller import Caller
+from tests.stories.builder.step_result import StepResult
 
 
 class WorkerSteps:
@@ -22,35 +23,35 @@ class WorkerSteps:
 
     def agent_dispatches_worktree_worker(self, agent: StoryAgent, name: str, task: int) -> int:
         self.agent_runs(agent, f"worker dispatch '{name}' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests' --worktree --no-libraries")
-        self.expect_command_passed()
+        self.last_step.expect_command_passed()
         return self.created_number("worker")
 
     def agent_dispatches_worker_on_plan(self, agent: StoryAgent, name: str, plan: int) -> int:
         self.agent_runs(agent, f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
-        self.expect_command_passed()
+        self.last_step.expect_command_passed()
         return self.newest("workers")
 
-    def agent_clocks_in(self, agent: StoryAgent) -> None:
-        self.agent_runs_cleanly(agent, "clock-in")
+    def agent_clocks_in(self, agent: StoryAgent) -> StepResult:
+        return self.agent_runs_cleanly(agent, "clock-in")
 
-    def agent_proves(self, agent: StoryAgent, point: int, proof: str) -> None:
-        self.agent_runs_cleanly(agent, f"proof {point} '{proof}'")
+    def agent_proves(self, agent: StoryAgent, point: int, proof: str) -> StepResult:
+        return self.agent_runs_cleanly(agent, f"proof {point} '{proof}'")
 
-    def agent_clocks_out(self, agent: StoryAgent, report: str) -> None:
-        self.agent_runs_cleanly(agent, f"clock-out '{report}'")
+    def agent_clocks_out(self, agent: StoryAgent, report: str) -> StepResult:
+        return self.agent_runs_cleanly(agent, f"clock-out '{report}'")
 
-    def worker_proves_its_point_again(self, agent: StoryAgent, point: int, proof: str) -> None:
+    def worker_proves_its_point_again(self, agent: StoryAgent, point: int, proof: str) -> StepResult:
         self.agent_resumes_the_session(agent)
         self.agent_clocks_in(agent)
         self.agent_proves(agent, point, proof)
         self.agent_clocks_out(agent, f"point {point} again: {proof}")
-        self.worker_run_ends_with_its_session(agent, proof)
+        return self.worker_run_ends_with_its_session(agent, proof)
 
-    def worker_run_ends_with_its_session(self, agent: StoryAgent, report: str) -> None:
+    def worker_run_ends_with_its_session(self, agent: StoryAgent, report: str) -> StepResult:
         self.agent_has_written(agent, report)
-        self.worker_run_ends_printing(agent, json.dumps({"result": report, "session_id": self.session_of(agent)}))
+        return self.worker_run_ends_printing(agent, json.dumps({"result": report, "session_id": self.session_of(agent)}))
 
-    def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> None:
+    def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> StepResult:
         runner = self.app.container.get(WorkerRunner)
         with self.app.container.get(Scope).environment(1):
             worker = self.app.container.get(Workers).find(agent.number)
@@ -58,11 +59,12 @@ class WorkerSteps:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(printed)
             runner.finish(worker, 0, Actor.system())
-        self.observed(f"the {agent.role}'s run ends", None, None)
+        return self.observed(f"the {agent.role}'s run ends", None, None)
 
-    def agent_runs_cleanly(self, agent: StoryAgent, line: str) -> None:
-        self.agent_runs(agent, line)
-        assert self.command.code == 0, f"the {agent.role}'s {line} was refused: {self.command.error or self.command.text}"
+    def agent_runs_cleanly(self, agent: StoryAgent, line: str) -> StepResult:
+        result = self.agent_runs(agent, line)
+        assert result.command.code == 0, f"the {agent.role}'s {line} was refused: {result.command.error or result.command.text}"
+        return result
 
 def worker_session(worker: int) -> str:
     return f"w{worker}"

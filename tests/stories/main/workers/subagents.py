@@ -19,8 +19,8 @@ SUBAGENT = "agent-held"
 @story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_subagents_tool_use_is_never_held_by_the_agents_hold(story):
     story.subagent_starts(SUBAGENT, RESEARCHER)
-    story.subagent_writes(SUBAGENT, "notes.md")
-    story.expect_allowed()
+    result = story.subagent_writes(SUBAGENT, "notes.md")
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
@@ -28,8 +28,8 @@ def test_a_subagents_tool_use_is_never_held_by_the_agents_hold(story):
 @setting(WorkersOptions.SUBAGENT_LIMIT, 1)
 def test_a_subagent_sent_past_the_running_limit_is_refused(story):
     story.expect_stack(story.agents.subagent, Void, Researching)
-    story.agent_sends_subagent(story.agents.subject, RESEARCHER, "find where the grammar is read")
-    story.expect_refused(story.agents.subject, WorkersNudges.SUBAGENT_OVERFLOW, running=1)
+    result = story.agent_sends_subagent(story.agents.subject, RESEARCHER, "find where the grammar is read")
+    result.expect_refused(story.agents.subject, WorkersNudges.SUBAGENT_OVERFLOW, running=1)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -37,8 +37,8 @@ def test_a_subagent_sent_past_the_running_limit_is_refused(story):
 @setting(WorkersOptions.SUBAGENT_LIMIT, 0)
 def test_a_running_limit_of_zero_lets_every_subagent_through(story):
     story.expect_stack(story.agents.subagent, Void, Researching)
-    story.agent_sends_subagent(story.agents.subject, REVIEWER, "review the parser plan")
-    story.expect_allowed()
+    result = story.agent_sends_subagent(story.agents.subject, REVIEWER, "review the parser plan")
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -50,7 +50,7 @@ def test_a_background_subagent_that_ended_reads_finished_then_runs_again_when_it
     story.subagent_ends("a9")
     story.expect_dispatch_card(active=False, state=SubagentState.FINISHED.value, outcome=str(CardOutcome.PASSED))
     story.agent_messages_subagent(story.agents.subject, "a9", "one more")
-    story.user_opens("/journal/subagents")
-    story.expect_viewer_rows("rows", "state", ["running"])
-    story.expect_viewer_part(("counts", "open"), 1)
+    result = story.user_opens("/journal/subagents")
+    result.expect_viewer_rows("rows", "state", ["running"])
+    result.expect_viewer_part(("counts", "open"), 1)
     story.expect_stack(story.agents.subject, Ready)

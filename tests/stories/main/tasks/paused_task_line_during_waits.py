@@ -1,3 +1,4 @@
+from tests.stories.builder.step_result import StepResult
 from journal.features.tasks.states.external_wait import NEXT_TASK_DELAY, ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
@@ -10,9 +11,9 @@ from tests.stories.fixtures.main.task_queue import TaskQueue
 AWAIT = "await 'the build' --until false"
 
 
-def waits_a_minute(story) -> None:
+def waits_a_minute(story) -> StepResult:
     story.agent_runs(story.agents.subject, AWAIT)
-    story.agent_is_quiet_past(story.agents.subject, NEXT_TASK_DELAY.amount)
+    return story.agent_is_quiet_past(story.agents.subject, NEXT_TASK_DELAY.amount)
 
 
 @story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -27,6 +28,6 @@ def test_the_paused_task_is_offered_once_at_a_wait_not_at_the_next_waits_with_th
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.open}")
     following = story.agent_creates_task(story.agents.subject, "the tests")
     story.agent_runs(story.agents.subject, f"task start {following}")
-    waits_a_minute(story)
-    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, n=story.tasks.started, what="the build", task=following)
+    result = waits_a_minute(story)
+    result.expect_agent_told(story.agents.subject, TasksNudges.WAIT_PAUSED_TASK, n=story.tasks.started, what="the build", task=following)
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)

@@ -12,8 +12,8 @@ from tests.stories.fixtures.main.started_task import StartedTask
 
 @story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
@@ -21,10 +21,10 @@ def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
 @story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
     story.agent_runs(story.agents.subject, f"task test {story.tasks.started}")
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.WAIT_NEXT_TASK, n=story.tasks.open)
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.WAIT_NEXT_TASK, n=story.tasks.open)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
 
@@ -38,7 +38,7 @@ def test_working_again_ends_the_wait(story):
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_wait_that_names_nothing_to_wait_on_is_refused(story):
-    story.agent_runs(story.agents.subject, "await 'the build'")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, "await 'the build'")
+    result.expect_command_refused()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

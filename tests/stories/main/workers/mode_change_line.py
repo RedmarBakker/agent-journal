@@ -9,9 +9,9 @@ from tests.stories.fixtures.main.solo_agent import SoloAgent
 
 @story(SoloAgent, mode=SOLO_MODE, subject=AgentRole.MAIN)
 def test_switching_to_builder_sends_the_one_mode_line_and_mode_show_prints_the_builders_brief(story):
-    story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
-    story.expect_agent_told(story.agents.subject, PlansNudges.BUILDER_MODE)
-    story.agent_runs(story.agents.subject, "mode show")
-    story.expect_command_passed()
-    story.expect_command_text(WorkModeBriefs.brief(BUILDER_MODE))
+    result = story.user_sets(WorkersOptions.MODE, BUILDER_MODE)
+    result.expect_agent_told(story.agents.subject, PlansNudges.BUILDER_MODE)
+    result = story.agent_runs(story.agents.subject, "mode show")
+    result.expect_command_passed()
+    result.expect_command_text(WorkModeBriefs.brief(BUILDER_MODE))
     story.expect_stack(story.agents.subject, Ready)

@@ -12,6 +12,6 @@ SHIPPED = ProfileFiles.PROFILES[0]
 def test_a_shipped_profile_changed_on_disk_is_written_back_as_shipped_at_the_next_start(story):
     story.a_shipped_profiles_file_was_changed(SHIPPED.name, "Do whatever you like.")
     story.journal_starts_again()
-    story.user_opens(f"/journal/profiles/{SHIPPED.name}")
-    story.expect_viewer_shows("body", SHIPPED.body.strip("\n"))
+    result = story.user_opens(f"/journal/profiles/{SHIPPED.name}")
+    result.expect_viewer_shows("body", SHIPPED.body.strip("\n"))
     story.expect_stack(story.agents.subject, Ready)

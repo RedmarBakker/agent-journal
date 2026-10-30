@@ -17,11 +17,11 @@ from tests.stories.fixtures.main.task_takeover import TaskTakeover
 
 @story(TaskTakeover, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_session_that_took_over_reads_the_overview_before_it_writes(story):
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
     story.agent_looks_at_the_overview(story.agents.subject)
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_allowed()
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -53,8 +53,8 @@ def test_a_takeover_while_the_agent_waits_keeps_the_wait(story):
 def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_new_one(story):
     first = story.main_session()
     story.second_session_starts()
-    story.replaced_session_stops(first)
-    story.expect_allowed()
+    result = story.replaced_session_stops(first)
+    result.expect_allowed()
     story.expect_agent_session(story.main_session())
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

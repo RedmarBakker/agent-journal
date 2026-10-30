@@ -9,6 +9,6 @@ from tests.stories.fixtures.subagent.started_subagent import StartedSubagent
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagent_an_older_journal_left_resting_on_void_is_researching_again_at_its_next_tool_use(story):
     story.an_older_journal_left_the_subagent_on_void(story.agents.subject.agent_id)
-    story.agent_runs_in_the_shell(story.agents.subject, "ls src")
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "ls src")
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Void, Researching)

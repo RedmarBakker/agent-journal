@@ -32,6 +32,8 @@ PLUGIN = "code-commandments"
 README_REF = "main"
 README_TARGET = "the latest release"
 
+# how much of each command a waiting restart names on the update cover
+WAITING_COMMAND_CHARACTERS = 60
 
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, and its install: on its own when the user has switched that on, or when they say so."""
@@ -265,6 +267,6 @@ class Updater:
         host = self.supervisor.hosting()
         outputs = self.queue.restart(host, "") if host is not None else []
         if outputs:
-            self.card.step("Restarting once the running commands end")
+            self.card.step(f"Restarting once these commands end: {', '.join(output.headline()[:WAITING_COMMAND_CHARACTERS] for output in outputs)}")
         elif host is not None and self.queue.is_waiting(host):
             self.card.step("Restarting once the running workers end")

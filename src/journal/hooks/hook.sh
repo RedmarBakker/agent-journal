@@ -38,6 +38,7 @@ post() {
     curl -s --connect-timeout 1 --max-time "$ANSWER_SECONDS" -o "$body" -w '%{http_code}' -X POST "http://127.0.0.1:$port/hooks/$agent" \
         -H "Content-Type: application/json" \
         -H "X-Journal-Env: $(journal_environment)" \
+        -H "X-Journal-Project: $root" \
         -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
         -H "X-Journal-Actor: ${JOURNAL_ACTOR:-agent}" \
         -H "X-Journal-Actor-Token: ${JOURNAL_ACTOR_TOKEN:-}" \

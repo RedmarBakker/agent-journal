@@ -14,8 +14,8 @@ def test_a_commit_naming_the_task_done_closes_it(story):
     story.project_is_a_git_repository()
     commit = f"git -c user.email=story@example.com -c user.name=Story commit --allow-empty -q -m 'the footer' -m 'Journal: tasks done {story.tasks.started}'"
     story.agent_runs_a_command(story.agents.subject, commit)
-    story.agent_has_run_in_the_shell(story.agents.subject, commit)
-    story.expect_agent_told(story.agents.subject, TasksNudges.COMMIT_CLOSURE)
+    result = story.agent_has_run_in_the_shell(story.agents.subject, commit)
+    result.expect_agent_told(story.agents.subject, TasksNudges.COMMIT_CLOSURE)
     story.expect_task(story.tasks.started, state=TaskState.COMPLETED)
     story.expect_stack(story.agents.subject, Ready)
 

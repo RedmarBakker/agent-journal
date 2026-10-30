@@ -15,11 +15,11 @@ from tests.stories.fixtures.main.started_plan import StartedPlan
 def test_a_plans_tasks_follow_in_order_until_it_finishes(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
-    story.agent_runs(story.agents.subject, f"task complete {story.tasks.second} --how done")
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.second} --how done")
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_agent_told(story.agents.subject, PlansNudges.PLAN_FINISHED, n=story.plans.first)
+    result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_FINISHED, n=story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 

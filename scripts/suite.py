@@ -14,7 +14,7 @@ PYTEST = [sys.executable, "-m", "pytest", "-p", "no:warnings"]
 SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
 TALLY_VARIABLE = "JOURNAL_TEST_TALLY"
 SPARE_CORES = 2
-MOST_SHARDS = 8
+MOST_SHARDS = 4
 # what one shard holds in memory, measured at about 210 MB a shard process and 150 MB a booted module journal, with room to spare
 SHARD_BYTES = 300 * 2**20
 # the pages macOS can hand a new process without swapping

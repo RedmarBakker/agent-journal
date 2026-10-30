@@ -12,7 +12,7 @@ OLDER_BRIEF = "Run the tests of each task when it is done."
 def test_a_shipped_template_an_older_journal_wrote_is_brought_to_what_this_journal_ships_at_its_next_start(story):
     story.an_older_journal_wrote_the_template(PLAN_SCOPED_TESTS.title, OLDER_BRIEF)
     story.journal_starts_again()
-    story.user_types(f"template show {story.template_number(PLAN_SCOPED_TESTS.title)}")
-    story.expect_command_text(PLAN_SCOPED_TESTS.brief)
-    story.expect_command_text_without(OLDER_BRIEF)
+    result = story.user_types(f"template show {story.template_number(PLAN_SCOPED_TESTS.title)}")
+    result.expect_command_text(PLAN_SCOPED_TESTS.brief)
+    result.expect_command_text_without(OLDER_BRIEF)
     story.expect_stack(story.agents.subject, Ready)

@@ -14,8 +14,8 @@ from tests.stories.fixtures.main.plan_subagent import SUBAGENT, PlanSubagent
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_started_plan_with_a_task_in_hand_is_told_to_continue_without_helpers(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
@@ -23,10 +23,10 @@ def test_a_started_plan_with_a_task_in_hand_is_told_to_continue_without_helpers(
 
 @story(PlanSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_running_background_subagent_does_not_hide_the_plans_task_at_a_stop(story):
-    story.user_opens("/journal/subagents")
-    story.expect_viewer_rows("rows", "state", [SubagentState.ACTIVE])
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.user_opens("/journal/subagents")
+    result.expect_viewer_rows("rows", "state", [SubagentState.ACTIVE])
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
@@ -34,10 +34,10 @@ def test_a_running_background_subagent_does_not_hide_the_plans_task_at_a_stop(st
 @story(PlanSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_idle_subagent_does_not_hide_the_plans_task_at_a_stop(story):
     story.subagent_ends(SUBAGENT)
-    story.user_opens("/journal/subagents")
-    story.expect_viewer_rows("rows", "state", [SubagentState.FINISHED])
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.user_opens("/journal/subagents")
+    result.expect_viewer_rows("rows", "state", [SubagentState.FINISHED])
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
@@ -47,8 +47,8 @@ def test_a_worker_out_on_the_next_task_does_not_hide_the_plans_task_at_a_stop(st
     worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.second)
     story.expect_worker(story.agents.workers.get(worker), state=WorkerState.DISPATCHED)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
@@ -58,7 +58,7 @@ def test_an_idle_worker_does_not_hide_the_plans_task_at_a_stop(story):
     worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.second)
     story.worker_run_ends_with_its_session(story.agents.workers.get(worker), "the worker ended")
     story.expect_worker(story.agents.workers.get(worker), state=WorkerState.REPORTED)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

@@ -12,34 +12,34 @@ from tests.stories.fixtures.main.started_task import StartedTask
 
 @story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_after_a_compaction_a_write_waits_for_the_overview(story):
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
 @story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_after_a_compaction_a_journal_command_other_than_the_overview_waits_too(story):
-    story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
+    result = story.agent_runs_in_the_shell(story.agents.subject, "journal task list")
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
 @story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_overview_ends_the_wait_and_the_work_goes_on(story):
     story.agent_looks_at_the_overview(story.agents.subject)
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_allowed()
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_before_the_overview_is_refused(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_STOP)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_STOP)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
@@ -47,7 +47,7 @@ def test_a_stop_before_the_overview_is_refused(story):
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_resumed_session_needs_no_overview(story):
     story.agent_resumes_the_session(story.agents.subject)
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_allowed()
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

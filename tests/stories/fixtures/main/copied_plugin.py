@@ -16,4 +16,4 @@ class CopiedPlugin(StateFixture):
         story.user_types(f"plugin install {story.plugin_folder_copied(ECHO)} --yes")
 
     def expected(self, story) -> None:
-        story.expect_command_text(f"installed {self.plugins.first}, on")
+        story.last_step.expect_command_text(f"installed {self.plugins.first}, on")

@@ -11,6 +11,6 @@ FACES = [face for voice in BuiltinCatalogue.ALL for face in voice.emoji.split()]
 @story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_every_built_in_voice_can_put_each_of_its_own_faces_on_a_message(story):
     for face in FACES:
-        story.agent_reacts(story.agents.subject, story.messages.first, face)
-        story.expect_command_text(f"{face} on message {story.messages.first}")
+        result = story.agent_reacts(story.agents.subject, story.messages.first, face)
+        result.expect_command_text(f"{face} on message {story.messages.first}")
     story.expect_stack(story.agents.subject, Ready)

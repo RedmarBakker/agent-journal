@@ -9,15 +9,15 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_closing_turn_of_only_a_face_is_kept_out_and_the_agent_is_told_to_react(story):
-    story.agent_closes_its_turn(story.agents.subject, "👍")
-    story.expect_agent_told(story.agents.subject, MessagesNudges.EMOJI_REPLY, emoji="👍")
+    result = story.agent_closes_its_turn(story.agents.subject, "👍")
+    result.expect_agent_told(story.agents.subject, MessagesNudges.EMOJI_REPLY, emoji="👍")
     story.expect_agent_messages(0)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reply_to_a_message_that_does_not_exist_is_refused(story):
-    story.agent_replies(story.agents.subject, MISSING_ROW, "it is done")
-    story.expect_command_refused()
+    result = story.agent_replies(story.agents.subject, MISSING_ROW, "it is done")
+    result.expect_command_refused()
     story.expect_agent_messages(0)
     story.expect_stack(story.agents.subject, Ready)

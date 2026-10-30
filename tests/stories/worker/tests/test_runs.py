@@ -12,31 +12,31 @@ TEST_LINE = "python3 -m pytest tests/test_parser.py"
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(WorkersOptions.TESTING, MERGER_TESTING)
 def test_a_worker_may_not_run_tests_when_the_merger_runs_them(story):
-    story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
-    story.expect_refused(story.agents.subject, WorkersNudges.TEST_HANDOVER)
+    result = story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
+    result.expect_refused(story.agents.subject, WorkersNudges.TEST_HANDOVER)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(WorkersOptions.TESTING, TEST_BUDGET)
 def test_a_worker_under_a_test_budget_runs_tests_only_through_a_turn(story):
-    story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
-    story.expect_refused(story.agents.subject, WorkersNudges.TEST_BUDGET_REFUSAL)
+    result = story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
+    result.expect_refused(story.agents.subject, WorkersNudges.TEST_BUDGET_REFUSAL)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(WorkersOptions.TESTING, JOURNAL_TESTING)
 def test_a_worker_whose_tests_the_journal_runs_names_them_instead_of_running_them(story):
-    story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
-    story.expect_refused(story.agents.subject, WorkersNudges.JOURNAL_TESTS_REFUSAL)
+    result = story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
+    result.expect_refused(story.agents.subject, WorkersNudges.JOURNAL_TESTS_REFUSAL)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(WorkersOptions.TESTING, WORKER_TESTING)
 def test_a_worker_that_runs_the_tests_it_wrote_may_run_them(story):
-    story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, TEST_LINE)
+    result.expect_allowed()
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

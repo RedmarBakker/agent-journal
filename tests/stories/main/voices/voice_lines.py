@@ -14,8 +14,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_the_voice_is_told_at_a_session_start_with_the_title_and_name_the_user_set(story):
     story.user_sets(VoicesOptions.TITLE, "Captain")
     story.user_sets(VoicesOptions.NAME, "Example")
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, VoicesNudges.VOICE_INSTRUCTION)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, VoicesNudges.VOICE_INSTRUCTION)
     story.expect_answer_text('Address me as "Captain Example"')
     story.expect_stack(story.agents.subject, Ready)
 

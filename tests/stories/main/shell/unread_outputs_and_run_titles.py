@@ -17,5 +17,5 @@ def test_an_ended_run_left_unread_is_named_again_after_the_set_tool_uses(story):
     for _ in range(story.setting(ShellOptions.UNREAD_OUTPUT_INTERVAL)):
         story.agent_reads(story.agents.subject)
         story.agent_has_read(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, ShellNudges.UNREAD_OUTPUT, n=output)
+    story.last_step.expect_agent_told(story.agents.subject, ShellNudges.UNREAD_OUTPUT, n=output)
     story.expect_stack(story.agents.subject, Ready)

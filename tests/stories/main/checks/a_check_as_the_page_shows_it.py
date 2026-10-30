@@ -13,8 +13,8 @@ def test_an_edited_check_shows_what_the_edit_names_and_no_run_yet_and_runs_its_n
     check = story.created_number("check")
     story.agent_runs(story.agents.subject, f"check edit {check} --command '{COMMAND}' --brief '{BRIEF}' --every 5")
     story.expect_row("checks", check, {"title": TITLE, "command": COMMAND, "brief": BRIEF, "last_run_at": None})
-    story.agent_runs(story.agents.subject, f"check run {check}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"check run {check}")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 

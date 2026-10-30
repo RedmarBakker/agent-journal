@@ -11,8 +11,8 @@ from tests.stories.fixtures.main.orchestrator_user_plan import OrchestratorUserP
 
 @story(OrchestratorReadyPlan, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 def test_the_orchestrator_approves_no_plan_while_the_user_has_not_allowed_it(story):
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_text("only the user approves")
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_text("only the user approves")
     story.expect_task(story.tasks.slab, state="open")
     story.expect_stack(story.agents.subject, Orchestrating)
 
@@ -21,8 +21,8 @@ def test_the_orchestrator_approves_no_plan_while_the_user_has_not_allowed_it(sto
 @setting(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, True)
 @setting(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL, PlanApproval.OWN.value)
 def test_an_orchestrator_allowed_its_own_plans_approves_the_plan_it_wrote(story):
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_passed()
     story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.slab, state="open")
     story.expect_stack(story.agents.subject, Orchestrating)
@@ -32,10 +32,10 @@ def test_an_orchestrator_allowed_its_own_plans_approves_the_plan_it_wrote(story)
 @setting(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, True)
 @setting(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL, PlanApproval.OWN.value)
 def test_an_orchestrator_allowed_its_own_plans_is_refused_the_users_plan_and_may_not_change_the_choice(story):
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_text("only the user approves")
-    story.agent_runs(story.agents.subject, f"settings set workers.orchestrator_plan_approval '{PlanApproval.ALL.value}'")
-    story.expect_command_text("the user's to set")
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_text("only the user approves")
+    result = story.agent_runs(story.agents.subject, f"settings set workers.orchestrator_plan_approval '{PlanApproval.ALL.value}'")
+    result.expect_command_text("the user's to set")
     story.expect_task(story.tasks.first, state="open")
     story.expect_task(story.tasks.second, state="open")
     story.expect_stack(story.agents.subject, Orchestrating)
@@ -45,8 +45,8 @@ def test_an_orchestrator_allowed_its_own_plans_is_refused_the_users_plan_and_may
 @setting(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, True)
 @setting(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL, PlanApproval.USER_MADE.value)
 def test_an_orchestrator_allowed_the_users_plans_approves_the_plan_the_user_made(story):
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_passed()
     story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.first, state="open")
     story.expect_task(story.tasks.second, state="open")
@@ -57,7 +57,7 @@ def test_an_orchestrator_allowed_the_users_plans_approves_the_plan_the_user_made
 @setting(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, True)
 @setting(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL, PlanApproval.USER_MADE.value)
 def test_an_orchestrator_allowed_the_users_plans_may_not_approve_its_own(story):
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_text("only the user approves")
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_text("only the user approves")
     story.expect_task(story.tasks.slab, state="open")
     story.expect_stack(story.agents.subject, Orchestrating)

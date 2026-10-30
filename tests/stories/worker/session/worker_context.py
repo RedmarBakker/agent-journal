@@ -11,7 +11,7 @@ CONTEXT_PERCENT = 35
 @story(TwoWorkers, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_read_by_id_carries_the_context_its_session_reported_and_none_it_did_not(story):
     story.context_reaches(CONTEXT_PERCENT)
-    story.user_opens(f"/journal/workers?ids={story.agents.subject},{story.agents.workers.second()}")
-    story.expect_viewer_rows("rows", "context", [CONTEXT_PERCENT, None])
+    result = story.user_opens(f"/journal/workers?ids={story.agents.subject},{story.agents.workers.second()}")
+    result.expect_viewer_rows("rows", "context", [CONTEXT_PERCENT, None])
     story.expect_task(story.tasks.peer, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

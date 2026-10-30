@@ -9,6 +9,6 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 @story(DispatchedWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_retiring_a_worker_still_out_is_never_asked_whether_it_could_be_reused(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker stop {story.agents.workers.first()}")
-    story.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"journal worker stop {story.agents.workers.first()}")
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

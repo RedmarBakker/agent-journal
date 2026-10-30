@@ -1,10 +1,11 @@
 import {computed, onUnmounted, ref, watch} from "vue";
 import {useScope} from "./scope.js";
+import {covered} from "../state/updating.js";
 
 const FETCH_MS = 1000;
 
 // The chat's messages with every active process card brought up to date: one request a second asks for the fields each
-// of them shows now, and none is sent while no process card is active.
+// of them shows now, and none is sent while no process card is active or the update cover is up.
 export function useActiveCards(messages) {
     const scope = useScope();
     const views = ref({});
@@ -13,6 +14,7 @@ export function useActiveCards(messages) {
     );
     let timer = 0;
     const fetchViews = async () => {
+        if (covered()) return;
         const fetched = await scope.api.activeCards(active.value);
         views.value = {...views.value, ...fetched};
     };

@@ -18,25 +18,25 @@ def test_a_second_session_end_stacks_no_second_ended(story):
 
 @story(EndedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_tool_use_after_the_end_brings_the_work_back(story):
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
-    story.expect_agent_not_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
+    result.expect_agent_not_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(EndedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_prompt_after_the_end_brings_the_work_back(story):
-    story.agent_is_prompted(story.agents.subject, "go on with the footer")
-    story.expect_agent_not_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
+    result = story.agent_is_prompted(story.agents.subject, "go on with the footer")
+    result.expect_agent_not_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(EndedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_session_start_after_the_end_brings_the_work_back_with_the_start_block(story):
-    story.agent_starts_a_session(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
-    story.expect_agent_told(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
+    result = story.agent_starts_a_session(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
+    result.expect_agent_told(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 

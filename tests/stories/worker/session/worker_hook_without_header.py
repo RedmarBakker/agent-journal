@@ -13,6 +13,6 @@ def test_a_worker_hook_without_its_header_is_still_the_workers_and_never_held_by
     story.user_sends_message("for the main agent")
     for n in range(story.setting(MessagesOptions.EDIT_BLOCK_LIMIT) + 1):
         story.agent_writes_from_a_hook_without_its_header(story.agents.subject, f"w{n}.py")
-    story.expect_allowed()
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.INBOX_EDIT_BLOCK)
+    story.last_step.expect_allowed()
+    story.last_step.expect_agent_not_told(story.agents.subject, MessagesNudges.INBOX_EDIT_BLOCK)
     story.expect_stack(story.agents.subject, Void, WorkingTask)

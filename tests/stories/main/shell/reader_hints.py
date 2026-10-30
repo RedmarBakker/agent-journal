@@ -9,34 +9,34 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(ErrorsReader, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_output_searched_by_hand_for_a_readers_pattern_is_pointed_at_the_reader_once(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
-    story.expect_allowed()
-    story.expect_agent_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
+    result.expect_allowed()
+    result.expect_agent_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
+    result.expect_agent_not_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(ErrorsReader, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_reader_shows_the_lines_its_pattern_picks(story):
-    story.agent_runs(story.agents.subject, f"output read {story.outputs.first} --reader {story.readers.first}")
-    story.expect_command_passed()
-    story.expect_command_text("an error")
+    result = story.agent_runs(story.agents.subject, f"output read {story.outputs.first} --reader {story.readers.first}")
+    result.expect_command_passed()
+    result.expect_command_text("an error")
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(ErrorsReader, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_removed_reader_is_named_no_more(story):
-    story.agent_runs(story.agents.subject, f"reader remove {story.readers.first}")
-    story.expect_command_passed()
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
-    story.expect_agent_not_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
+    result = story.agent_runs(story.agents.subject, f"reader remove {story.readers.first}")
+    result.expect_command_passed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"journal output read {story.outputs.first} --grep error")
+    result.expect_agent_not_told(story.agents.subject, ShellNudges.READER_HINT, reader=story.readers.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_read_through_a_reader_that_does_not_exist_is_refused(story):
     output = story.agent_runs_a_command(story.agents.subject, "printf 'an error\\nfine\\n' | head -2")
-    story.agent_runs(story.agents.subject, f"output read {output} --reader nobody")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"output read {output} --reader nobody")
+    result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)

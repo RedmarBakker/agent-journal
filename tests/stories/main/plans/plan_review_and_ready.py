@@ -9,10 +9,10 @@ from tests.stories.fixtures.main.draft_plan import DraftPlan
 
 @story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_agent_can_neither_ready_a_plan_with_no_phase_nor_approve_it(story):
-    story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
-    story.expect_command_refused()
-    story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
+    result.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan approve {story.plans.first}")
+    result.expect_command_refused()
     story.expect_plan(story.plans.first, state=PlanState.DRAFT)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
@@ -20,8 +20,8 @@ def test_the_agent_can_neither_ready_a_plan_with_no_phase_nor_approve_it(story):
 @story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_phase_with_no_task_is_not_ready(story):
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Layout' --when 'the layout stands'")
-    story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
+    result.expect_command_refused()
     story.expect_plan(story.plans.first, state=PlanState.DRAFT)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
@@ -33,6 +33,6 @@ def test_a_ready_plan_is_not_started_before_the_user_approves(story):
     story.agent_runs(story.agents.subject, f"plan todos {story.plans.first} 1 {grid}")
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     story.expect_plan(story.plans.first, state=PlanState.READY)
-    story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
+    result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)

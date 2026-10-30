@@ -9,29 +9,29 @@ TOP_USAGE = "usage: journal [-h]"
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_verb_that_does_not_exist_is_answered_with_the_nouns_own_usage_once(story):
-    story.agent_runs(story.agents.subject, "task nope")
-    story.expect_command_refused()
-    story.expect_command_text("usage: journal task")
-    story.expect_command_text_without(TOP_USAGE)
+    result = story.agent_runs(story.agents.subject, "task nope")
+    result.expect_command_refused()
+    result.expect_command_text("usage: journal task")
+    result.expect_command_text_without(TOP_USAGE)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_nouns_help_lists_its_verbs_and_is_no_failure(story):
-    story.agent_runs(story.agents.subject, "plan --help")
-    story.expect_command_passed()
-    story.expect_command_text("approve")
-    story.expect_command_text_without(TOP_USAGE)
-    story.agent_runs(story.agents.subject, "setup --help")
-    story.expect_command_text("restart")
-    story.expect_command_text("project")
+    result = story.agent_runs(story.agents.subject, "plan --help")
+    result.expect_command_passed()
+    result.expect_command_text("approve")
+    result.expect_command_text_without(TOP_USAGE)
+    result = story.agent_runs(story.agents.subject, "setup --help")
+    result.expect_command_text("restart")
+    result.expect_command_text("project")
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_every_row_noun_has_the_dock_verbs_and_a_noun_that_is_no_row_has_not(story):
-    story.agent_runs(story.agents.subject, "report --help")
-    story.expect_command_text("dock")
-    story.agent_runs(story.agents.subject, "search --help")
-    story.expect_command_text_without("dock")
+    result = story.agent_runs(story.agents.subject, "report --help")
+    result.expect_command_text("dock")
+    result = story.agent_runs(story.agents.subject, "search --help")
+    result.expect_command_text_without("dock")
     story.expect_stack(story.agents.subject, Ready)

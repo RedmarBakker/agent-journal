@@ -12,6 +12,6 @@ from tests.stories.fixtures.main.orchestrator_started_plans import OrchestratorS
 @story(OrchestratorStartedPlans, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 @setting(FitnessOptions.WARNINGS, False)
 def test_a_worker_sent_one_task_of_a_plan_whose_other_task_waits_is_told_once_to_queue_it_with_the_fitness_warnings_off(story):
-    story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.tasks.first} --changes 'the files of its task' --profile journal-medior")
-    story.expect_agent_told(story.agents.subject, WorkersNudges.QUEUE_RELATED, task=story.tasks.first, listed=str(story.tasks.second))
+    result = story.agent_runs_in_the_shell(story.agents.subject, f"journal worker dispatch 'Lady Lovelace' --task {story.tasks.first} --changes 'the files of its task' --profile journal-medior")
+    result.expect_agent_told(story.agents.subject, WorkersNudges.QUEUE_RELATED, task=story.tasks.first, listed=str(story.tasks.second))
     story.expect_stack(story.agents.subject, Orchestrating, OrchestratingPlan)

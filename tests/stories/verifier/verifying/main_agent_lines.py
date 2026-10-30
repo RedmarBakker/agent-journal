@@ -11,7 +11,7 @@ from tests.stories.fixtures.verifier.verifier_judging_dismissal import VerifierJ
 @story(VerifierJudgingDismissal, mode=BUILDER_MODE, subject=AgentRole.VERIFIER)
 def test_a_verifier_is_told_none_of_the_main_agents_lines_when_the_user_writes(story):
     story.user_sends_message("is the dismissal fair?")
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, VerificationNudges.VERIFIER_REFUSAL)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.NEW_MESSAGE)
     story.expect_stack(story.agents.subject, Void, Verifying)

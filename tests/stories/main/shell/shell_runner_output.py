@@ -13,8 +13,8 @@ FAILING_CODE = 3
 def test_a_long_output_is_kept_and_only_named_by_its_number(story):
     output = story.agent_runs_a_command(story.agents.subject, f"python3 -c \"print('x' * {story.setting(ShellOptions.COMMAND_SHOWN) + 1})\"")
     story.expect_new_output()
-    story.expect_agent_told(story.agents.subject, ShellNudges.OUTPUT_STORED, n=output)
-    story.expect_shell_text_without("x" * story.setting(ShellOptions.COMMAND_SHOWN))
+    story.last_step.expect_agent_told(story.agents.subject, ShellNudges.OUTPUT_STORED, n=output)
+    story.last_step.expect_shell_text_without("x" * story.setting(ShellOptions.COMMAND_SHOWN))
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -23,8 +23,8 @@ def test_a_long_output_is_kept_and_only_named_by_its_number(story):
 def test_a_reading_command_past_its_read_characters_is_shown_by_its_two_ends(story):
     lines = story.setting(ShellOptions.READ_SHOWN)
     story.agent_runs_a_command(story.agents.subject, f"cat {story.project_file('long.txt', lines)}")
-    story.expect_shell_text("line 0", f"line {lines - 1}")
-    story.expect_shell_text_without(f"line {lines // 2}\n")
+    story.last_step.expect_shell_text("line 0", f"line {lines - 1}")
+    story.last_step.expect_shell_text_without(f"line {lines // 2}\n")
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -40,23 +40,23 @@ def test_only_the_newest_outputs_are_kept_past_the_count(story):
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_kept_output_is_read_by_its_number_with_a_part_named(story):
     output = story.agent_runs_a_command(story.agents.subject, "echo hi | head -1")
-    story.agent_runs(story.agents.subject, f"output read {output} --all")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"output read {output} --all")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_kept_output_read_with_no_part_named_is_refused(story):
     output = story.agent_runs_a_command(story.agents.subject, "echo hi | head -1")
-    story.agent_runs(story.agents.subject, f"output read {output}")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"output read {output}")
+    result.expect_command_refused()
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_status_of_a_kept_output_says_how_it_ended(story):
     output = story.agent_runs_a_command(story.agents.subject, "echo hi | head -1")
-    story.agent_runs(story.agents.subject, f"output status {output}")
-    story.expect_command_passed()
-    story.expect_command_text("finished")
+    result = story.agent_runs(story.agents.subject, f"output status {output}")
+    result.expect_command_passed()
+    result.expect_command_text("finished")
     story.expect_stack(story.agents.subject, Ready)

@@ -11,7 +11,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_feature_switched_off_takes_its_hold_with_it_so_a_stop_with_a_task_in_hand_goes_through(story):
     story.user_switches_off(Tasks)
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

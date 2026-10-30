@@ -10,9 +10,9 @@ from tests.stories.fixtures.main.summary_reader import TEST_RUN, SummaryReader
 def test_removing_a_reader_names_the_outputs_it_read_and_the_next_shell_line_is_answered(story):
     output = story.agent_runs_a_command(story.agents.subject, TEST_RUN.format(seconds=story.setting(FOREGROUND_OPTION) * 2))
     story.agent_runs(story.agents.subject, f"output watch {output} --reader {story.readers.first}")
-    story.agent_runs(story.agents.subject, f"reader remove {story.readers.first}")
-    story.expect_command_text(f"outputs {output} were read through it")
+    result = story.agent_runs(story.agents.subject, f"reader remove {story.readers.first}")
+    result.expect_command_text(f"outputs {output} were read through it")
     story.background_run_ends(output)
-    story.agent_runs(story.agents.subject, "output list")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "output list")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Ready)

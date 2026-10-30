@@ -17,15 +17,15 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @setting(FOREGROUND_OPTION, 1)
 def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_and_its_end_ends_the_wait(story):
     output = story.agent_runs_a_command(story.agents.subject, f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
-    story.expect_agent_told(story.agents.subject, ShellNudges.BACKGROUND_MOVE, n=output)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, ShellNudges.OPEN_OUTPUT_STOP, outputs=output)
+    story.last_step.expect_agent_told(story.agents.subject, ShellNudges.BACKGROUND_MOVE, n=output)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, ShellNudges.OPEN_OUTPUT_STOP, outputs=output)
     story.agent_runs(story.agents.subject, f"await 'the sleep' --output {output}")
-    story.agent_stops(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
-    story.background_run_ends(output)
-    story.expect_agent_told(story.agents.subject, TasksNudges.WAIT_END)
+    result = story.background_run_ends(output)
+    result.expect_agent_told(story.agents.subject, TasksNudges.WAIT_END)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -35,20 +35,20 @@ def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_
 def test_a_message_waiting_for_the_agent_moves_a_run_sooner(story):
     story.user_sends_message("how far is the footer?")
     output = story.agent_runs_a_command(story.agents.subject, f"sleep {story.setting(ShellOptions.MESSAGE_FOREGROUND_LIMIT) * 2}")
-    story.expect_agent_told(story.agents.subject, ShellNudges.BACKGROUND_MOVE, n=output)
+    story.last_step.expect_agent_told(story.agents.subject, ShellNudges.BACKGROUND_MOVE, n=output)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_test_run_moves_to_the_background_at_once_and_is_watched(story):
     output = story.agent_runs_a_command(story.agents.subject, "pytest -q --co")
-    story.expect_agent_told(story.agents.subject, ShellNudges.WATCH_VIEW, n=output)
+    story.last_step.expect_agent_told(story.agents.subject, ShellNudges.WATCH_VIEW, n=output)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_shell_call_the_agent_would_run_in_its_own_background_runs_in_the_foreground_through_the_journal(story):
-    story.agent_runs_in_its_own_background(story.agents.subject, "./scripts/test.sh")
-    story.expect_allowed()
-    story.expect_tool_input_changed(command="./scripts/test.sh", run_in_background=False)
+    result = story.agent_runs_in_its_own_background(story.agents.subject, "./scripts/test.sh")
+    result.expect_allowed()
+    result.expect_tool_input_changed(command="./scripts/test.sh", run_in_background=False)
     story.expect_stack(story.agents.subject, Ready)

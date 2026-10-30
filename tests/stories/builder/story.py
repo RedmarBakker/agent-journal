@@ -20,6 +20,7 @@ from tests.stories.builder.time_steps import TimeSteps
 from tests.stories.builder.main_session import MAIN_SESSION
 from tests.stories.builder.worker_steps import WorkerSteps, worker_session
 from tests.stories.builder.setting_reads import SettingReads
+from tests.stories.builder.step_result import StepResult
 from tests.stories.builder.story_checks import StoryChecks
 from tests.stories.builder.story_rows import StoryRows
 from tests.stories.builder.user_steps import UserSteps
@@ -49,6 +50,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.typed: list[str] = []
         self.typed_from = 0
         self.mode = BUILDER_MODE
+        self.last_step = StepResult(self, (), None, None, "", 0, 0, {})
 
     def reach(self, fixture: type[StateFixture]) -> None:
         self.fixture = self.copies.reached(self, fixture)
@@ -112,14 +114,16 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
     def helper_token(self, stamp: str) -> str:
         return next(launch[ACTOR_TOKEN] for launch in reversed(self.app.helper_launches) if launch.get(ACTOR) == stamp)
 
-    def record_command(self, action: str, outcome: Outcome) -> None:
-        self.observed(action, None, outcome)
+    def record_command(self, action: str, outcome: Outcome) -> StepResult:
+        return self.observed(action, None, outcome)
 
     def unread_settings(self) -> list[str]:
         return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]
 
-    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> None:
+    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> StepResult:
         self.said, steps = self.log.new_entries()
         self.line_keys |= {line.key for line in self.said}
         self.verdict, self.command = verdict, outcome
         self.path += [action, *steps] if action else list(steps)
+        self.last_step = StepResult(self, self.said, verdict, outcome, self.shell_text, self.shell_exit, self.viewer_status, self.viewer_answer)
+        return self.last_step

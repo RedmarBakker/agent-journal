@@ -18,5 +18,5 @@ class PausedPlanOutsideTask(StateFixture):
         story.agent_writes(story.agents.main, "build.py")
 
     def expected(self, story) -> None:
-        story.expect_refused(story.agents.main, PlansNudges.PLAN_RETURN_QUESTION, n=self.plans.first, task=self.tasks.outside)
+        story.last_step.expect_refused(story.agents.main, PlansNudges.PLAN_RETURN_QUESTION, n=self.plans.first, task=self.tasks.outside)
         story.expect_stack(story.agents.main, Ready, Working, ChoosingPlanReturn)

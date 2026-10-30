@@ -10,6 +10,6 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_a_shipped_sequence_an_older_journal_wrote_is_brought_to_what_this_journal_ships_at_its_next_start(story):
     story.an_older_journal_wrote_the_sequence(PLAN_BUILDING.title, PLAN_BUILDING.steps[:1])
     story.journal_starts_again()
-    story.user_types(f"sequence show {story.sequence_number(PLAN_BUILDING.title)}")
-    story.expect_command_text(PLAN_BUILDING.steps[-1].title)
+    result = story.user_types(f"sequence show {story.sequence_number(PLAN_BUILDING.title)}")
+    result.expect_command_text(PLAN_BUILDING.steps[-1].title)
     story.expect_stack(story.agents.subject, Ready)

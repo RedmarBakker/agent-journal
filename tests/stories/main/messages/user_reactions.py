@@ -9,9 +9,9 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_the_users_face_on_a_message_shows_and_the_same_face_again_takes_it_off(story):
     message = story.user_sends_message("hello")
     story.user_presses(f"/journal/messages/{message}/react", {"emoji": "👍"})
-    story.user_opens("/journal/reactions")
-    story.expect_viewer_rows("rows", "emoji", ["👍"])
+    result = story.user_opens("/journal/reactions")
+    result.expect_viewer_rows("rows", "emoji", ["👍"])
     story.user_presses(f"/journal/messages/{message}/react", {"emoji": "👍"})
-    story.user_opens("/journal/reactions")
-    story.expect_viewer_rows("rows", "emoji", [])
+    result = story.user_opens("/journal/reactions")
+    result.expect_viewer_rows("rows", "emoji", [])
     story.expect_stack(story.agents.subject, Ready)

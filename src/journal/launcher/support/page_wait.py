@@ -6,6 +6,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from journal.http.support.project_check import PROJECT_HEADER
 from journal.support.timeout import Timeout
 from journal.support.supervisor_socket import SupervisorSocket
 
@@ -14,7 +15,7 @@ TAB_WAIT_SECONDS = 8.0
 
 
 class PageWait:
-    """The launch's watch for the journal's page: the first time the port in the port file answers, the band shows its address and the viewer opens in the browser; a port file a dead journal left answers nothing."""
+    """The launch's watch for the journal's page: the first time the port in the port file answers as this project's journal, the band shows its address and the viewer opens in the browser; a port file a dead journal left answers nothing, and another project's journal on that port is refused."""
 
     def __init__(self, port_file: Path, socket: str, band: tuple[str, str], viewer: str, log: Callable[[str], None]) -> None:
         self.port_file, self.socket, self.band, self.viewer, self.log = port_file, socket, band, viewer, log
@@ -36,8 +37,9 @@ class PageWait:
         url = f"http://127.0.0.1:{self.port_file.read_text().strip()}/" if self.port_file.is_file() else ""
         if not url:
             return ""
+        health_request = urllib.request.Request(url + "journal/health", headers={PROJECT_HEADER: str(self.port_file.parent.parent)})
         try:
-            with urllib.request.urlopen(url, timeout=0.5) as reply:
+            with urllib.request.urlopen(health_request, timeout=0.5) as reply:
                 return url if reply.status == 200 else ""
         except OSError:
             return ""

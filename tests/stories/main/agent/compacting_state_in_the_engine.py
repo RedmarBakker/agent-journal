@@ -19,9 +19,9 @@ def test_a_message_while_compacting_pushes_nothing_over_the_compaction(story):
 
 @story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_compaction_that_never_starts_again_is_dropped_by_the_next_tool_use(story):
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
-    story.expect_agent_not_told(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
+    result.expect_agent_not_told(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -29,15 +29,15 @@ def test_a_compaction_that_never_starts_again_is_dropped_by_the_next_tool_use(st
 @story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_prompt_while_compacting_ends_the_compaction(story):
     story.agent_is_prompted(story.agents.subject, "go on with the footer")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
 @story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_while_compacting_ends_it_and_the_task_in_hand_answers(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

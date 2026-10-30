@@ -14,8 +14,8 @@ NO_REVIEWER, ONE_REVIEWER = 0, 1
 def test_with_the_reviewer_off_a_clock_out_goes_to_the_agent_to_check(story):
     story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
     story.agent_proves(story.agents.workers.first(), 2, "parser.py:30, test_names passes")
-    story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
-    story.expect_agent_told(story.agents.subject, WorkersNudges.WORK_READY)
+    result = story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
+    result.expect_agent_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_row_count("reviewers", NO_REVIEWER)
     story.expect_stack(story.agents.subject, Orchestrating)
 
@@ -25,7 +25,7 @@ def test_with_the_reviewer_off_a_clock_out_goes_to_the_agent_to_check(story):
 def test_with_the_reviewer_on_in_orchestrator_mode_a_clock_out_goes_to_a_reviewer(story):
     story.agent_proves(story.agents.workers.first(), 1, "parser.py:12, test_reads passes")
     story.agent_proves(story.agents.workers.first(), 2, "parser.py:30, test_names passes")
-    story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
-    story.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
+    result = story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_row_count("reviewers", ONE_REVIEWER)
     story.expect_stack(story.agents.subject, Orchestrating)

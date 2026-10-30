@@ -9,6 +9,6 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_reading_a_message_the_user_deleted_says_so_and_leaves_nothing_to_do(story):
     message = story.user_sends_message("never mind this")
     story.user_deletes_message(message)
-    story.agent_runs(story.agents.subject, f"message read {message}")
-    story.expect_command_text(f"message {message} was deleted by the user; nothing to do")
+    result = story.agent_runs(story.agents.subject, f"message read {message}")
+    result.expect_command_text(f"message {message} was deleted by the user; nothing to do")
     story.expect_stack(story.agents.subject, Ready)

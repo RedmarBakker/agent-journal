@@ -12,14 +12,14 @@ FIRST_STEP = 1
 
 @story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_the_step_is_told_at_the_start_after_a_compaction(story):
-    story.context_is_compacted()
-    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=FIRST_STEP)
+    result = story.context_is_compacted()
+    result.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=FIRST_STEP)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence, ReadingOverview)
 
 
 @story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_wait_that_ends_says_the_step_as_the_sequence_comes_back_on_top(story):
     story.agent_runs(story.agents.subject, "await 'the build' --until false")
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=FIRST_STEP)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=FIRST_STEP)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)

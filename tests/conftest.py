@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from journal.support.masks import Masks
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 from journal.features.faults.support.test_run_files import TEST_RUN_KEY
+from journal.features.updates.support.release_check_memory import MACHINE_VARIABLE
 from journal.support.secret_values import SecretValues
 
 from journal.db.connection import Connection
@@ -29,6 +29,7 @@ from journal.models.setting import Setting
 from journal.support.actor import Actor
 from tests.behaviour_record import BehaviourRecord
 from tests.shard_deal import ShardDeal
+from tests.template_copy import copied
 from tests.shared_journal import SharedJournal
 from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
@@ -39,7 +40,7 @@ STORIES_FOLDER = "tests/stories/"
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
-os.environ["AGENT_JOURNAL_MACHINE"] = tempfile.mkdtemp(prefix="journal-test-machine-")
+os.environ[MACHINE_VARIABLE] = tempfile.mkdtemp(prefix="journal-test-machine-")
 """Every journal a test boots keeps what a machine shares, such as its last look at GitHub for releases, in a scratch folder, never the user's own."""
 """Every test, and every journal a test boots, keeps its secret values in a scratch folder, never the user's own."""
 
@@ -72,6 +73,12 @@ def stand_ins(request):
         patch.setenv("PATH", f"{STAND_INS}{os.pathsep}{os.environ['PATH']}")
         patch.setenv("CLAUDE_CONFIG_DIR", tempfile.mkdtemp(prefix="claude-config-"))
         yield
+
+
+@pytest.fixture(autouse=True)
+def machine_folder(tmp_path_factory, monkeypatch) -> None:
+    """Each test keeps what a machine shares in a folder of its own, so a release check one test stored never moves another test's next check."""
+    monkeypatch.setenv(MACHINE_VARIABLE, str(tmp_path_factory.mktemp("machine")))
 
 
 @pytest.fixture
@@ -127,12 +134,6 @@ def app(journal: SharedJournal):
             cut += [(entry.data["key"], entry.data[CUT_KEY]) for entry in journal.app.container.get(Entries).cut_lines()]
     journal.reset()
     assert not cut, f"lines sent longer than their longest, cut to it (key, length): {cut}"
-
-
-def copied(template: Path, root: Path) -> Path:
-    shutil.copytree(template, root, dirs_exist_ok=True)
-    (root / ".journal" / "project-id").unlink(missing_ok=True)
-    return root
 
 
 @pytest.fixture

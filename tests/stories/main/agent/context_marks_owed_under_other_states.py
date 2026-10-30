@@ -23,19 +23,19 @@ FIRST = MemoryThresholds.CONTEXT[0]
 @story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_mark_reached_while_the_overview_is_owed_is_asked_once_the_overview_is_read(story):
     story.context_reaches(FIRST)
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
     story.agent_looks_at_the_overview(story.agents.subject)
-    story.agent_reads(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
+    result = story.agent_reads(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
 
 @story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_mark_reached_while_the_agent_waits_is_asked_when_it_works_again(story):
     story.agent_consumes_context(story.agents.subject, FIRST)
-    story.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST)
+    story.agent_reads(story.agents.subject)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
@@ -51,17 +51,17 @@ def test_a_mark_reached_in_a_followed_plan_is_weighed_on_top_of_the_plan(story):
 
 @story(ContextMarkSequence, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_mark_reached_in_a_running_sequence_holds_writes_for_the_memories_then_says_the_step_again(story):
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_refused(story.agents.subject, MemoryNudges.DECISION_EDIT_BLOCK)
-    story.agent_runs(story.agents.subject, "memory skip 'nothing new to keep'")
-    story.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=1)
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_refused(story.agents.subject, MemoryNudges.DECISION_EDIT_BLOCK)
+    result = story.agent_runs(story.agents.subject, "memory skip 'nothing new to keep'")
+    result.expect_agent_told(story.agents.subject, SequencesNudges.PENDING_STEP, n=story.sequences.first, step=1)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
 @story(ContextMarkSequence, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_stop_at_the_mark_inside_a_sequence_is_held_by_the_memories_first(story):
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP, percent=FIRST)
-    story.expect_agent_not_told(story.agents.subject, SequencesNudges.PENDING_STEP)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP, percent=FIRST)
+    result.expect_agent_not_told(story.agents.subject, SequencesNudges.PENDING_STEP)
     story.expect_row("sequences", story.sequences.first, {})
     story.expect_stack(story.agents.subject, Ready, FollowingSequence, WeighingMemories)

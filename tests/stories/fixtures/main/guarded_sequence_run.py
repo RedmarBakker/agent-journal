@@ -17,5 +17,5 @@ class GuardedSequenceRun(StateFixture):
         story.agent_runs(story.agents.main, f"sequence run {self.sequences.first}")
 
     def expected(self, story) -> None:
-        story.expect_command_passed()
+        story.last_step.expect_command_passed()
         story.expect_stack(story.agents.main, Ready, FollowingSequence)

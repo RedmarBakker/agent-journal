@@ -11,8 +11,8 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_that_awaits_waits_over_its_work_until_its_own_tool_use(story):
-    story.agent_runs(story.agents.subject, "await 'the build of the parser' --until false")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "await 'the build of the parser' --until false")
+    result.expect_command_passed()
     story.expect_stack(story.agents.subject, Void, WorkingTask, ExternalWait)
     story.agent_reads(story.agents.subject)
     story.expect_task(story.tasks.briefed, delegated=True)
@@ -41,8 +41,8 @@ def test_a_journal_command_leaves_the_workers_wait(story):
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_clearing_its_wait_is_back_at_its_work(story):
     story.agent_runs(story.agents.subject, "await 'the build of the parser' --until false")
-    story.agent_runs(story.agents.subject, "await clear")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "await clear")
+    result.expect_command_passed()
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 

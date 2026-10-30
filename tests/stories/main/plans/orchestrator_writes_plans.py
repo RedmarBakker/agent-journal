@@ -10,7 +10,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(WorkingAgent, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
 @setting(WorkersOptions.ORCHESTRATOR_WRITES_PLANS, False)
 def test_an_orchestrator_the_user_does_not_let_write_plans_is_refused_a_new_plan(story):
-    story.agent_runs(story.agents.subject, "plan create another --brief 'the goal'")
-    story.expect_command_refused()
-    story.expect_command_text("Orchestrator may write plans is off")
+    result = story.agent_runs(story.agents.subject, "plan create another --brief 'the goal'")
+    result.expect_command_refused()
+    result.expect_command_text("Orchestrator may write plans is off")
     story.expect_stack(story.agents.subject, Orchestrating)

@@ -11,18 +11,18 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_whose_journal_came_back_is_held_with_the_wait_line(story):
-    story.agent_reads_after_the_journal_was_down(story.agents.subject, story.setting(LOCKOUT_OPTION) / 2)
-    story.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_WAIT)
+    result = story.agent_reads_after_the_journal_was_down(story.agents.subject, story.setting(LOCKOUT_OPTION) / 2)
+    result.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_WAIT)
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask, LockedOut)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 def test_a_worker_whose_journal_was_down_past_the_grace_is_told_to_end(story):
-    story.agent_reads_after_the_journal_was_down(story.agents.subject, story.setting(LOCKOUT_OPTION) * 2)
-    story.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_END, grace=story.setting(LOCKOUT_OPTION))
+    result = story.agent_reads_after_the_journal_was_down(story.agents.subject, story.setting(LOCKOUT_OPTION) * 2)
+    result.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_END, grace=story.setting(LOCKOUT_OPTION))
     story.agent_is_quiet_past(story.agents.subject, STEADY.amount)
-    story.agent_reads(story.agents.subject)
-    story.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_END, grace=story.setting(LOCKOUT_OPTION))
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, EngineNudges.LOCKOUT_END, grace=story.setting(LOCKOUT_OPTION))
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Void, WorkingTask, LockedOut)

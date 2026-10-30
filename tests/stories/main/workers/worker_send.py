@@ -11,9 +11,9 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_job_sent_to_a_worker_still_out_is_refused(story):
-    story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
-    story.expect_command_refused()
-    story.expect_command_text("is still out")
+    result = story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
+    result.expect_command_refused()
+    result.expect_command_text("is still out")
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
@@ -21,8 +21,8 @@ def test_a_job_sent_to_a_worker_still_out_is_refused(story):
 @story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_worker_whose_run_printed_no_session_is_never_sent_a_job(story):
     story.worker_run_ends_printing(story.agents.workers.first(), "plain words")
-    story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
-    story.expect_command_refused()
+    result = story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
+    result.expect_command_refused()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -31,11 +31,11 @@ def test_a_worker_whose_run_printed_no_session_is_never_sent_a_job(story):
 def test_a_released_worker_is_sent_its_next_job_only_with_a_task_resumes_its_session_on_it_and_the_agent_waits_until_it_reports_again(story):
     lexer = story.agent_creates_task(story.agents.subject, "the lexer")
     story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()} --drop")
-    story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
-    story.expect_command_refused()
-    story.expect_command_text(f"journal worker send {story.agents.workers.first()} --task <task>")
-    story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer' --task {lexer}")
-    story.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
+    result.expect_command_refused()
+    result.expect_command_text(f"journal worker send {story.agents.workers.first()} --task <task>")
+    result = story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer' --task {lexer}")
+    result.expect_command_passed()
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DISPATCHED, brief="now the lexer", resume=story.session_of(story.agents.workers.first()))
     story.expect_task(lexer, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

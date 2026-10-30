@@ -15,10 +15,10 @@ from tests.stories.fixtures.main.plan_return import PlanReturn
 
 @story(PausedPlanOutsideTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_writes_and_stops_wait_until_the_agent_says_where_it_returns(story):
-    story.agent_writes(story.agents.subject, "build.py")
-    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
-    story.agent_stops(story.agents.subject)
-    story.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
+    result = story.agent_writes(story.agents.subject, "build.py")
+    result.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_refused(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION, n=story.plans.first, task=story.tasks.outside)
     story.expect_stack(story.agents.subject, Ready, Working, ChoosingPlanReturn)
 
 
@@ -33,8 +33,8 @@ def test_after_yes_the_plan_goes_on_once_the_outside_task_is_done(story):
 def test_no_leaves_the_plan_paused_and_the_outside_task_in_hand(story):
     story.agent_runs(story.agents.subject, f"plan return {story.plans.first} no")
     story.expect_plan(story.plans.first, state=PlanState.PAUSED)
-    story.agent_writes(story.agents.subject, "build.py")
-    story.expect_allowed()
+    result = story.agent_writes(story.agents.subject, "build.py")
+    result.expect_allowed()
     story.expect_task(story.tasks.outside, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
@@ -42,7 +42,7 @@ def test_no_leaves_the_plan_paused_and_the_outside_task_in_hand(story):
 @story(AgentPausedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_taking_up_a_task_of_the_paused_plan_follows_the_plan_again_and_asks_nothing(story):
     story.agent_runs(story.agents.subject, f"task start {story.tasks.second}")
-    story.agent_writes(story.agents.subject, "footer.py")
-    story.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION)
+    result = story.agent_writes(story.agents.subject, "footer.py")
+    result.expect_agent_not_told(story.agents.subject, PlansNudges.PLAN_RETURN_QUESTION)
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

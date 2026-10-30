@@ -18,5 +18,5 @@ class ContextMarkTask(StateFixture):
         story.agent_consumes_context(story.agents.main, MemoryThresholds.CONTEXT[0])
 
     def expected(self, story) -> None:
-        story.expect_agent_told(story.agents.main, MemoryNudges.CONTEXT_DECISION, percent=MemoryThresholds.CONTEXT[0])
+        story.last_step.expect_agent_told(story.agents.main, MemoryNudges.CONTEXT_DECISION, percent=MemoryThresholds.CONTEXT[0])
         story.expect_stack(story.agents.main, Ready, Working, WeighingMemories)

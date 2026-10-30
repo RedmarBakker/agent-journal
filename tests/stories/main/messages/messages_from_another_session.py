@@ -11,12 +11,12 @@ SENDER = "code-commandments-12"
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_every_hook_is_answered_while_a_message_from_another_session_crosses_in_the_transcript_and_both_ways_reach_the_chat(story):
     story.another_session_sends(story.agents.subject, SENDER, "the fix is on main")
-    story.agent_reads(story.agents.subject)
-    story.expect_allowed()
-    story.agent_writes(story.agents.subject, "b.py")
-    story.expect_allowed()
-    story.agent_runs_in_the_shell(story.agents.subject, "ls")
-    story.expect_allowed()
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
+    result = story.agent_writes(story.agents.subject, "b.py")
+    result.expect_allowed()
+    result = story.agent_runs_in_the_shell(story.agents.subject, "ls")
+    result.expect_allowed()
     story.expect_chat_holds("the fix is on main")
     story.agent_messages_subagent(story.agents.subject, SENDER, "noted")
     story.expect_chat_holds("noted")
@@ -27,11 +27,11 @@ def test_every_hook_is_answered_while_a_message_from_another_session_crosses_in_
 def test_another_agents_question_is_named_at_the_stop_until_the_agent_sends_it_an_answer(story):
     story.another_session_sends(story.agents.subject, SENDER, "the fix is on main.\nDoes your suite pass on it?")
     story.agent_reads(story.agents.subject)
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_told(story.agents.subject, MessagesNudges.PEER_QUESTION, sender=SENDER)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_told(story.agents.subject, MessagesNudges.PEER_QUESTION, sender=SENDER)
     story.agent_messages_subagent(story.agents.subject, SENDER, "it passes")
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.PEER_QUESTION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.PEER_QUESTION)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -39,6 +39,6 @@ def test_another_agents_question_is_named_at_the_stop_until_the_agent_sends_it_a
 def test_a_message_from_another_agent_that_asks_nothing_owes_no_answer(story):
     story.another_session_sends(story.agents.subject, SENDER, "the fix is on main")
     story.agent_reads(story.agents.subject)
-    story.agent_stops(story.agents.subject)
-    story.expect_agent_not_told(story.agents.subject, MessagesNudges.PEER_QUESTION)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_agent_not_told(story.agents.subject, MessagesNudges.PEER_QUESTION)
     story.expect_stack(story.agents.subject, Ready)

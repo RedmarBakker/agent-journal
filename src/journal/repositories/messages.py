@@ -28,6 +28,10 @@ WAITING_HOURS = 24
 DOCKED_CARD_COUNT = 50
 
 
+# how a message with no files keeps its files column
+EMPTY_FILES_VALUES = ["[]", ""]
+
+
 class Messages(ScopedRepository[Message]):
     """A page of messages says whether an older written message is left; the message count is of what a person or an agent wrote, in every environment, leaving out the journal's own marks and cards."""
 
@@ -67,6 +71,9 @@ class Messages(ScopedRepository[Message]):
     def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[Message]:
         chat = self.search_rows(self.main_chat(), terms, limit)
         return [*chat, *self.search_rows(self.query().filter_unlisted("thread", (MessageThread.MAIN,)), terms, limit - len(chat))] if len(chat) < limit else chat
+
+    def with_files(self) -> list[Message]:
+        return self.selected(self.query().filter_unlisted("files", EMPTY_FILES_VALUES).order_descending("id"))
 
     def unread(self) -> list[Message]:
         return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))
