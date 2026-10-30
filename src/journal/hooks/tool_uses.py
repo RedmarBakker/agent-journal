@@ -7,6 +7,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.tasks import Tasks
 from journal.models.support.ref import Ref
 from journal.repositories.entries import Entries
+from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.code_files import CodeFiles
@@ -17,8 +18,9 @@ from journal.features.workers.workers_options import WorkersOptions
 class ToolUses:
     """One tool-use counter per session, stored on the agent's row and carried on every tool event: a plain tool use of the agent's own moves it by one as its ToolStarting is placed; a journal command and a subagent's tool use leave it where it is and carry the unchanged number; a compaction sets it back to zero, with the inbox mark, since the agent after it is as good as new. An edit of a code file by the agent itself moves its count of code edits by one too, and the task in progress in its hand counts the tool use as well. A plain tool use also carries how many times the agent has run its command's shape, counted here once for every listener."""
 
-    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks) -> None:
+    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks, scope: Scope) -> None:
         self.agents, self.entries, self.settings, self.tasks = agents, entries, settings, tasks
+        self.scope = scope
 
     def counted(self, event: AgentEvent) -> AgentEvent:
         if not isinstance(event, (ToolStarting, ToolFinished, Compacting)):
@@ -40,7 +42,8 @@ class ToolUses:
     def task_counted(self, agent: Agent) -> None:
         task = self.tasks.holder_task(Ref.build(agent))
         if task is not None and task.is_started():
-            self.tasks.save(task.tool_used(), Actor.system())
+            with self.scope.environment(task.environment_id):
+                self.tasks.save(task.tool_used(), Actor.system())
 
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))

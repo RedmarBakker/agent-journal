@@ -370,7 +370,7 @@ def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing
     assert [plans.find(plan).state for plan in (first, second)] == [PlanState.STARTED, PlanState.STARTED], "both plans run side by side"
 
 
-def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors, monkeypatch):
+def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors):
     from journal.features.plans.plans_nudges import PlansNudges
     from journal.features.plans.support.task_agents import TASK_AGENT_LINK
     from journal.features.workers.workers_nudges import WorkersNudges
@@ -417,19 +417,10 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
         assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SOLO_DISPATCH), f"the task agent refuses {command.split()[2]}"
     task_caller = Caller.agent(f"task-{task.id}", "task-session", "claude")
     assert console.run(["environment", "overview"], task_caller).code == 0, "the task agent reads its environment before working"
-    from traceback import format_stack
-    from journal.support.missing_row import MissingRow
-    original_find = Tasks.find
-
-    def traced_find(repository, row_id):
-        try:
-            return original_find(repository, row_id)
-        except MissingRow as missing:
-            raise AssertionError(f"{missing}\n{''.join(format_stack())}") from missing
-
-    monkeypatch.setattr(Tasks, "find", traced_find)
     status, body = task_hook("Write", {"file_path": "src/footer.py", "content": "x"})
     assert status == 200, body.get("error", "the task agent may write its own task")
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(task.id).tool_uses == 1, "the task agent's tool use is counted on its task in the task's environment"
 
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "src/footer.py", "content": "x"})
     assert status == 409, "the main agent writes no code"
