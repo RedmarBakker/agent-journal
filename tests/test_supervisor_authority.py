@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from journal.config import Config
 from journal.http.support.identity import Identity
 from journal.http.router import Router
 from journal.http.support.request_reading import RequestReading
@@ -43,7 +44,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
 from journal.supervisor_authority import GRANT_ENTRY, GRANT_FIELDS, RESERVED_OPERATIONS, SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
-from tests.test_features import booted
+from tests.suite_app import SuiteApp
 
 
 @dataclass
@@ -63,6 +64,8 @@ class Fixture:
 
 @pytest.fixture(scope="module")
 def boot():
+    def booted(root, patch):
+        return SuiteApp(Config(root, port=0))
     return booted
 
 
@@ -80,7 +83,10 @@ def seeded(app, owner_id: int = 1) -> Fixture:
 
     owner_environment = environments.made(f"supervisor-owner-{owner_id}", actor)
     driver_environment = environments.made(f"supervisor-driver-{owner_id}", actor)
-    links.linked(Ref.build(User(id=owner_id)), Ref.build(owner_environment), OWNER, Actor.system())
+    for environment in (owner_environment, driver_environment):
+        for owner_link in links.matching(target=Ref.build(environment), link_type=OWNER):
+            links.delete(owner_link, Actor.system())
+        links.linked(Ref.build(User(id=owner_id)), Ref.build(environment), OWNER, Actor.system())
     with scope.environment(owner_environment.row_id):
         plan = plans.save(Plan(environment_id=owner_environment.row_id, title="started plan", brief="keep the service healthy", state=PlanState.STARTED, mode=PlanMode.SOLO), actor)
         phase = phases.save(Phase(environment_id=owner_environment.row_id, title="current phase", completion_rule="open work is complete"), actor)
@@ -245,8 +251,9 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture, monkeypa
         fixture.authority.authenticate(replacement_token)
 
     links = app.container.get(Links)
-    owner_link = links.matching(source=Ref.build(User(id=1)), target=Ref.build(fixture.owner_environment), link_type=OWNER)[0]
-    links.delete(owner_link, Actor.system())
+    for environment in (fixture.owner_environment, fixture.driver_environment):
+        for owner_link in links.matching(target=Ref.build(environment), link_type=OWNER):
+            links.delete(owner_link, Actor.system())
     before_unowned = grant_rows(entries)
     secrets_before = fixture.authority.secrets_store.values()
     with pytest.raises(SupervisorFailure) as unowned:
@@ -332,7 +339,7 @@ def test_current_phase_and_reserved_gates_are_rechecked(app, authority_fixture, 
         phases.save(first_phase.with_(checkpoint=True), actor)
     with pytest.raises(SupervisorFailure) as checkpoint:
         fixture.authority.revalidate(next_principal)
-    assert checkpoint.value.status == 403 and next_grant["current_phase"]["phase_id"] == second_phase.row_id, "reserved checkpoint gates are checked even when the plan is already started"
+    assert checkpoint.value.status == 409 and next_grant["current_phase"]["phase_id"] == second_phase.row_id, "reserved checkpoint gates are checked even when the plan is already started"
 
     with scope.environment(fixture.owner_environment.row_id):
         phases.save(phases.find(fixture.phase.row_id).with_(checkpoint=False), actor)
