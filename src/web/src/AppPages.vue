@@ -40,6 +40,8 @@ defineProps({page: {type: String, required: true}});
             </template>
             <template v-else><Home /></template>
         </template>
+        <template #board><HomePlanBoard /></template>
+        <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
@@ -68,24 +70,3 @@ defineProps({page: {type: String, required: true}});
     </SwitchCase>
 </template>
 
-<style scoped>
-.home-plan-board-screen {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-}
-
-.home-plan-board-screen-board {
-    flex: 0 1 45%;
-    min-height: 180px;
-    overflow: auto;
-    border-bottom: 1px solid var(--line);
-}
-
-.home-plan-board-screen-chat {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow: hidden;
-}
-</style>

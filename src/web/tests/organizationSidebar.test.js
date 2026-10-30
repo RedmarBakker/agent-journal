@@ -108,11 +108,19 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     app.directive("tip", {});
     app.mount(host);
 
+    const homeLinks = [...host.querySelector(".side .group").querySelectorAll("a.item")];
+    expect(homeLinks.slice(0, 3).map((link) => link.textContent.trim())).toEqual(["Home", "Board", "Chat"]);
+
     await until(() => host.querySelector('a[href="#/organization?domain=sales"]') && hasLoaded("domain_counts"));
     expect(api.organization).toHaveBeenCalledOnce();
     expect(organization.domains).toHaveLength(13);
     expect(organization.domains.reduce((total, domain) => total + domain.roles.length, 0)).toBe(50);
     expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(13);
+    const organizationOverview = host.querySelector('a.organization-overview[href="#/organization"]');
+    expect(organizationOverview.textContent).toContain("All domains");
+    location.hash = organizationOverview.getAttribute("href");
+    await until(() => organizationOverview.classList.contains("on"));
+    expect(organizationOverview.classList.contains("on")).toBe(true);
     const sharedRoles = host.querySelector('a[href="#/organization?roles=shared"]');
     expect(sharedRoles.textContent).toContain("Shared Roles");
     location.hash = sharedRoles.getAttribute("href");
@@ -128,6 +136,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     const domain = host.querySelector('a[href="#/organization?domain=sales"]');
     expect(domain.querySelector(".organization-domain-icon").textContent).toBe("📊");
     expect(domain.querySelector(".count").textContent).toBe("1");
+    expect([...host.querySelectorAll(".env-row > a.item:not(.hub-item)")].every((link) => link.getAttribute("href") === "#/chat")).toBe(true);
     expect(domain.querySelector(".count").title).toBe("1 active plans");
     expect(host.querySelector(".organization-role")).toBeNull();
 

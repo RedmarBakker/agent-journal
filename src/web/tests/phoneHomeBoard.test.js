@@ -73,6 +73,7 @@ test("on the phone, Home loads and shows the shared plan cards through the phone
     expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Cost cap: $4.00");
     expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Waits on: your answer");
     expect(host.querySelector('[data-plan-id="73"] a').textContent).toContain("Open its chat");
+    expect(host.querySelector('[data-plan-id="73"] a').getAttribute("href")).toContain("#/chat");
     expect(fetched).toHaveBeenCalledOnce();
     expect(fetched.mock.calls[0][0]).toBe("/p/journal/organization");
     expect(fetched.mock.calls[0][1].headers["X-Phone"]).toBe("1");

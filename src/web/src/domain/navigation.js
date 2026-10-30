@@ -2,6 +2,8 @@ export const SIDEBAR = "sidebar";
 
 export const PAGES = {
     "": {title: "Home", icon: "home", text: ""},
+    board: {title: "Board", icon: "board", text: "Every plan in its current phase"},
+    chat: {title: "Chat", icon: "chat", text: "The main agent's conversation"},
     resources: {title: "Resources", icon: "tiles", text: "Every kind of row the journal keeps"},
     skills: {title: "Skills", icon: "book", text: "The instructions the agent loads for each kind of work"},
     profiles: {title: "Profiles", icon: "agents", text: "The subagents the agent can dispatch, each with its job, tools and model"},

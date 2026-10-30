@@ -18,8 +18,8 @@ import {store} from "./state/store.js";
 import {ui} from "./state/ui.js";
 import {route} from "./route.js";
 
-// the voice's figure lives on the Home page alone: it is unmounted when the user leaves Home, and enters again at home on return
-defineProps({home: {type: Boolean, required: true}});
+// the voice's figure stays with the main chat and is unmounted when the user leaves it
+defineProps({chat: {type: Boolean, required: true}});
 
 onMounted(loadMigration);
 // the voice's figure is named by the voices, so they load with the page, not with the flat figure that is only its fallback
@@ -29,7 +29,7 @@ if (!voicesLoaded.value) loadVoicesUntilLoaded();
 <template>
     <Lightbox />
     <Tooltip />
-    <template v-if="figureVoice && home">
+    <template v-if="figureVoice && chat">
         <VoiceFigure :voice="figureVoice" />
         <template v-if="floorsShown()">
             <FigureFloors />

@@ -204,7 +204,7 @@ watch(
                 <Transition name="quick">
                     <QuickMenu v-if="quick" ref="quickMenu" :opening="quickOpening" @close="quick = false" />
                 </Transition>
-                <AppOverlays :home="page === 'home'" />
+                <AppOverlays :chat="page === 'chat'" />
                 <RestartDialog />
             </div>
         </div>

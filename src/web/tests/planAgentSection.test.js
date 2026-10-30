@@ -3,7 +3,7 @@ import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 
-const api = {launchAgent: vi.fn(), stopAgentIn: vi.fn(), page: (name) => `/chat?env=${name}`};
+const api = {launchAgent: vi.fn(), stopAgentIn: vi.fn(), page: (name) => `/?env=${name}#/chat`};
 vi.mock("../src/api/client.js", async (importOriginal) => ({...(await importOriginal()), api}));
 vi.mock("../src/kit/MenuPanel.vue", () => ({default: {props: ["anchor"], template: "<div class='menu-panel'><slot /></div>"}}));
 
@@ -50,7 +50,8 @@ test("a stopped Plan agent shows its environment, branch, last action time, chat
     expect(host.textContent).toContain("Branch: plan/floors");
     expect(host.textContent).toContain("Last action: No action reported");
     expect(host.textContent).toContain("ago");
-    expect(host.querySelector(".plan-agent-chat").getAttribute("href")).toBe("/chat?env=plan-3");
+    expect(host.querySelector(".plan-agent-chat").getAttribute("href")).toContain("env=plan-3");
+    expect(host.querySelector(".plan-agent-chat").getAttribute("href")).toContain("#/chat");
 
     host.querySelector(".agent-start button").click();
     await nextTick();

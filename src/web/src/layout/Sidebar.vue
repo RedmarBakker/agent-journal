@@ -113,6 +113,12 @@ function point(e) {
                     @toggle="fold('organization')"
                 >
                     <a
+                        :class="['item', 'organization-overview', {on: route.page === 'organization' && !route.shared && !route.domain}]"
+                        :href="href.organization()"
+                    >
+                        <span class="label">All domains</span>
+                    </a>
+                    <a
                         :class="['item', 'organization-shared-roles', {on: route.page === 'organization' && route.shared}]"
                         :href="href.sharedRoles()"
                     >
@@ -156,13 +162,12 @@ function point(e) {
             <FoldGroup class="group" label="Environments" :open="!folded.environments" @toggle="fold('environments')">
                 <template v-for="e in envs" :key="e.id">
                     <div class="env-row">
-                        <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
+                        <a :class="['item', {on: route.env === e.name}]" :href="href.page('chat')" @click="choose(e.name)">
                             <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
                             <span class="label">{{ e.name }}</span>
                             <template v-if="chatPlanLine(rows('plans'), e.name)">
                                 <span class="worktree" :title="chatPlanLine(rows('plans'), e.name)">{{ chatPlanLine(rows("plans"), e.name) }}</span>
                             </template>
-                            <template v-else-if="e.worktree">
                             <template v-else-if="e.worktree">
                                 <span class="worktree" :title="e.worktree">{{ e.worktree }}</span>
                             </template>
