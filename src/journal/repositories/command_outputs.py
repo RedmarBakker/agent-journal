@@ -67,6 +67,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
         query = self.query().filter(environment_id=environment_id, ended=False, session=session).order("id")
         return [o for o in self.selected_globally(query) if self.is_running(Path(o.folder))]
 
+    def unended_among(self, ids: list[int]) -> set[int]:
+        return {output.row_id for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if not output.ended} if ids else set()
+
     def running_among(self, ids: list[int]) -> list[CommandOutput]:
         return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_running(Path(output.folder))] if ids else []
 
@@ -119,6 +122,12 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def run_session_count(self) -> int:
         return len(self.grouped_counts(self.query().filter(moved=True), "session"))
+
+    def has_total_request(self, reader: str, revision: float) -> bool:
+        return self.counted(self.query().filter(watch_reader=reader, is_total_asked=True, reader_revision=revision)) > 0
+
+    def total_request_candidates(self, session: str | None, latest_start: datetime) -> list[CommandOutput]:
+        return self.selected(self.query().filter(session=session, ended=False, is_total_asked=False).filter_unequal("watch_reader", "").filter_less("created_at", latest_start).order("id"))
 
     def running_watched(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).filter_alternatives(self.query().filter(is_watched=True), self.query().filter_unequal("watch_reader", "")).order("id"))

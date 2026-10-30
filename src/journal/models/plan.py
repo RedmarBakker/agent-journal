@@ -172,7 +172,8 @@ class Plan(Scoped, Commentable):
         return self.with_(priorities=order, priorities_at=time, priorities_phase=phase)
 
     def current_phase(self, phases: list[PhaseStates]) -> int:
-        return next((phase.number for phase in phases if phase.has_open_work()), len(phases) or 1)
+        working = next((phase.number for phase in phases if phase.has_active_work()), 0)
+        return working or next((phase.number for phase in phases if phase.has_open_work()), len(phases) or 1)
 
     def checkpoint_phase(self, phases: list[PhaseStates]) -> PhaseStates | None:
         for previous, following in zip(phases, phases[1:]):

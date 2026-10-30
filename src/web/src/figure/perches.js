@@ -3,6 +3,7 @@ import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {FRAMED} from "./frame.js";
+import {phoneFootprint} from "./phonePlacement.js";
 import {LADDER, LEDGES, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfNewest, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
@@ -162,23 +163,23 @@ function hangsFree(floor, figure, floors, y, [from, to]) {
     return near.sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle))[0] ?? null;
 }
 
-// The side of the page, 1 the right or -1 the left, a figure seated at `spot` has free for the telephone it calls on (figure.js seatedCall,
-// acts.js phone_call seated): the side where the floor it sits on runs on under the whole telephone beside it and the telephone stays
-// inside its world, as at a corner the side along its edge rather than past its end; of two free sides, or of none, as on a swing's seat,
-// the one with more of the floor beyond the telephone
+// The hand-side selector a seated call can use without putting the complete telephone beyond its floor or the window. A turned
+// figure's two placements may project to the same side of its hips; the actual depth, yaw and handset span decide which fits.
+// Of two supported placements, prefer more floor beyond the telephone; when neither fits, keep the least of it beyond the edge.
 export function phoneSide(spot, figure, floors) {
-    const {beside, wide} = ACTS.phone_call.seated;
     const unit = figure.size / FRAMED.height;
     const floor = floors.find((each) => each.element && each.element === spot.on);
     const world = worldBox();
+    const supported = {left: Math.max(world.left, floor?.left ?? world.left), right: Math.min(world.right, floor?.right ?? world.right)};
     const room = (way) => {
-        const middle = spot.x + way * beside * unit;
-        const [left, right] = [middle - wide * unit, middle + wide * unit];
-        const under = floor ? Math.min(right, floor.right) - Math.max(left, floor.left) : 0;
-        return {free: left >= world.left && right <= world.right && under >= right - left, beyond: floor ? (way > 0 ? floor.right - right : left - floor.left) : 0};
+        const footprint = phoneFootprint(spot.face ?? 0, way, ACTS.phone_call);
+        const [left, right] = [spot.x + footprint.left * unit, spot.x + footprint.right * unit];
+        const spill = Math.max(0, supported.left - left) + Math.max(0, right - supported.right);
+        return {free: spill < 1e-7, spill, beyond: footprint.middle >= 0 ? supported.right - right : left - supported.left};
     };
     const [right, left] = [room(1), room(-1)];
     if (right.free !== left.free) return right.free ? 1 : -1;
+    if (!right.free && Math.abs(right.spill - left.spill) > 1e-7) return right.spill < left.spill ? 1 : -1;
     return right.beyond >= left.beyond ? 1 : -1;
 }
 

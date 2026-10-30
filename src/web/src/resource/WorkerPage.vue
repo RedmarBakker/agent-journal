@@ -17,7 +17,7 @@ import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, tasksDone} from "../domain/workerTurn.js";
-import {REPORT_CHOICES, reportChoiceKey, stateAt, workerActions, workerActivity, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
+import {stateAt, workerActions, workerActivity, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {go, peek} from "../route.js";
@@ -50,7 +50,7 @@ const state = computed(() => ({
 const worktree = (row) => (row.worktree ? (row.branch ? `Own worktree, branch ${row.branch}` : "Own worktree") : "The project's checkout");
 const facts = computed(() => {
     const row = props.resource;
-    return [workerLine(row) || "Its profile's model", worktree(row), workerReusesLine(row), workerQueueLine(row) || workerReportsWhen(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
+    return [workerLine(row) || "Its profile's model", worktree(row), workerReusesLine(row), workerQueueLine(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
 });
 const parts = computed(() => [
     {key: "brief", title: "Brief", text: props.resource.brief, sub: `sent at ${clock(props.resource.created_at)}`, none: "No brief"},
@@ -77,8 +77,6 @@ const ACTIONS = {
 };
 const actions = computed(() => workerActions(props.resource));
 // the user changes when the worker reports
-const reportChoices = computed(() => (workerState(props.resource) === "finished" ? [] : REPORT_CHOICES));
-const chooseReport = (choice) => api.act("workers", props.resource.id, "report_choice", {choice});
 const {refusal, question, asking, perform, choose} = useInspectorActions(
     () => actions.value,
     (key, answer) => ACTIONS[key](props.resource.id, answer)
@@ -127,12 +125,6 @@ async function send() {
                 </template>
             </template>
         </InspectorSummary>
-        <template v-if="reportChoices.length">
-            <div class="report-choice">
-                <span class="report-choice-label">Reports</span>
-                <Segmented :options="reportChoices" :value="reportChoiceKey(resource)" @pick="chooseReport" />
-            </div>
-        </template>
         <template v-if="narrow && hasWork">
             <div class="tabs">
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
@@ -205,18 +197,6 @@ async function send() {
 </template>
 
 <style scoped>
-.report-choice {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 16px 8px;
-}
-
-.report-choice-label {
-    color: var(--muted);
-    font-size: 12px;
-}
-
 .worker-page {
     display: flex;
     flex-direction: column;

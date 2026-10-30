@@ -47,7 +47,7 @@ class PluginsFeature(Feature[PluginsData]):
     helper_commands = {AgentRole.PLUGIN: (DashboardCommand,)}
     seeds = (PluginServicesSeed,)
     jobs = (PluginHealthCheck,)
-    skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """
+    skill = Skill("plugins", "Work with the plugins the user installs, which receive the journal's events; load it when a plugin blocks you, its card or line appears, or a plugin would help", """
 # Plugins
 
 A plugin is a program the user installs that receives the journal's events and answers them: it may block a tool or a

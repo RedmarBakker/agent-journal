@@ -13,9 +13,8 @@ from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelive
 
 
 @story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_worker_on_a_plan_goes_on_to_the_next_task_without_reporting(story):
-    story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
-    result = story.agent_clocks_out(story.agents.workers.first(), "the first is done")
+def test_a_worker_on_a_plan_goes_on_to_the_next_task_as_it_proves_the_last_point_without_reporting(story):
+    result = story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
     result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_task(story.tasks.second, delegated=True)
@@ -35,17 +34,10 @@ def test_each_task_checked_and_the_worker_merged_finishes_the_plan(story):
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_worker_on_a_plan_that_reports_after_each_task_reports_after_the_first(story):
-    story.agent_runs(story.agents.subject, f"worker dispatch 'Lady Lovelace' --plan {story.plans.first} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests' --report each")
-    worker = story.created_number("worker")
-    story.agent_starts_a_session(story.agents.workers.get(worker))
-    story.agent_clocks_in(story.agents.workers.get(worker))
-    story.agent_proves(story.agents.workers.get(worker), 1, "first.py:3, test_first passes")
-    result = story.agent_clocks_out(story.agents.workers.get(worker), "the first is done")
-    result.expect_agent_told(story.agents.subject, WorkersNudges.WORK_READY)
-    story.expect_worker(worker, state=WorkerState.DELIVERED)
-    story.expect_task(story.tasks.first, delegated=True)
-    story.expect_task(story.tasks.second, delegated=True)
+def test_a_worker_dispatched_with_a_report_choice_is_refused_since_every_worker_reports_once_no_task_is_left(story):
+    result = story.agent_runs(story.agents.subject, f"worker dispatch 'Lady Lovelace' --plan {story.plans.first} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests' --report each")
+    result.expect_command_refused()
+    result.expect_command_text("--report")
     story.expect_stack(story.agents.subject, Ready)
 
 

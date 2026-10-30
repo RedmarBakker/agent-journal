@@ -14,3 +14,6 @@ class Templates(Repository[Template]):
 
     def scheduled(self) -> list[Template]:
         return self.selected(self.query().filter_listed("schedule", [schedule for schedule in TemplateSchedule if schedule != TemplateSchedule.NONE]).order("id"))
+
+    def has_titled(self, ids: list[int], title: str) -> bool:
+        return self.counted(self.query().filter_listed("id", ids).filter(title=title)) > 0

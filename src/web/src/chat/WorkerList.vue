@@ -4,11 +4,8 @@ import {momentEntry, workerEntry} from "../domain/agentEntries.js";
 import {computed, ref} from "vue";
 import AgentDropdown from "./AgentDropdown.vue";
 import TestTurns from "./TestTurns.vue";
-import {TEST_BUDGET} from "../domain/testTurns.js";
 import Segmented from "../kit/Segmented.vue";
-import {TESTINGS} from "../domain/modes.js";
-import {workTesting} from "../composables/settings.js";
-import {saveSettings} from "../actions/settings.js";
+import WorkerCommandKinds from "./WorkerCommandKinds.vue";
 
 const props = defineProps({rows: {type: Array, default: () => []}, loading: Boolean, moments: {type: Array, default: () => []}, momentsLoading: Boolean});
 const TABS = [
@@ -26,32 +23,39 @@ const countsLine = computed(() =>
         .join(" · ")
 );
 
-const testingOptions = TESTINGS.map((one) => ({...one, tip: {title: one.label, line: one.note}}));
-const pickTesting = (key) => saveSettings({workers: {testing: key}});
+const settingsOpen = ref(false);
 </script>
 
 <template>
     <AgentDropdown
         title="Workers"
         table="workers"
-        :entries="tab === 'workers' ? entries : momentEntries"
+        :entries="settingsOpen ? [] : tab === 'workers' ? entries : momentEntries"
         :counts="tab === 'workers' ? countsLine : ''"
-        :none="tab === 'workers' ? 'No workers have been sent from here.' : 'No worker has done anything noteworthy yet.'"
-        :loading="tab === 'workers' ? loading : momentsLoading"
+        :none="settingsOpen ? '' : tab === 'workers' ? 'No workers have been sent from here.' : 'No worker has done anything noteworthy yet.'"
+        :loading="!settingsOpen && (tab === 'workers' ? loading : momentsLoading)"
         @close="emit('close')"
     >
-        <div class="workers-tabs">
-            <Segmented :options="TABS" :value="tab" fill @pick="tab = $event" />
-        </div>
-        <template v-if="tab === 'workers'">
-            <div class="workers-testing">
-                <span class="workers-testing-label">How workers test</span>
-                <Segmented :options="testingOptions" :value="workTesting" wrap @pick="pickTesting" />
-            </div>
+        <template #actions>
+            <button type="button" class="workers-settings" title="Settings for workers" :aria-pressed="settingsOpen" @click="settingsOpen = !settingsOpen">
+                <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3" /><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" /></svg>
+            </button>
         </template>
-        <template v-if="tab === 'workers' && workTesting === TEST_BUDGET">
-            <TestTurns :workers="rows" />
-        </template>
+        <Transition name="workers-slide">
+            <template v-if="settingsOpen">
+                <WorkerCommandKinds @back="settingsOpen = false" />
+            </template>
+            <template v-else>
+                <div class="workers-views">
+                    <div class="workers-tabs">
+                        <Segmented :options="TABS" :value="tab" fill @pick="tab = $event" />
+                    </div>
+                    <template v-if="tab === 'workers'">
+                        <TestTurns :workers="rows" />
+                    </template>
+                </div>
+            </template>
+        </Transition>
     </AgentDropdown>
 </template>
 
@@ -61,17 +65,44 @@ const pickTesting = (key) => saveSettings({workers: {testing: key}});
     padding: 8px 8px 0;
 }
 
-.workers-testing {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px 8px 8px;
-    border-bottom: 1px solid var(--line);
+.workers-settings {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-3);
+    cursor: pointer;
 }
 
-.workers-testing-label {
-    color: var(--text-3);
-    font-size: 12px;
+.workers-settings:hover,
+.workers-settings[aria-pressed="true"] {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.workers-settings svg {
+    width: 14px;
+    height: 14px;
+}
+
+.workers-slide-enter-active,
+.workers-slide-leave-active {
+    transition:
+        transform 0.18s ease,
+        opacity 0.18s ease;
+}
+
+.workers-slide-enter-from {
+    transform: translateX(16px);
+    opacity: 0;
+}
+
+.workers-slide-leave-to {
+    transform: translateX(-16px);
+    opacity: 0;
 }
 </style>

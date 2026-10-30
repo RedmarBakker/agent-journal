@@ -64,12 +64,13 @@ test("pausing a plan marks it paused", async () => {
     expect(first.state).toBe("paused");
 });
 
-test("each running plan gets a bar, the one you work first and delegated ones after it, three at most", async () => {
-    const {barPlans, foldedPlans, othersLine} = await import("../src/domain/plans.js");
-    const plans = [plan(1, "started", {delegated: true}), plan(2, "started"), plan(3, "started", {delegated: true}), plan(4, "started", {delegated: true}), plan(5, "paused")];
-    expect(barPlans(plans).map((p) => p.id)).toEqual([2, 1, 3]);
-    expect(foldedPlans(plans).map((p) => p.id)).toEqual([4, 5]);
-    expect(othersLine(foldedPlans(plans))).toBe("+1 more active plan · 1 paused");
+test("the Plans window groups the open plans: those being worked on, then those waiting to start, and never a closed one", async () => {
+    const {planGroups} = await import("../src/domain/plans.js");
+    const plans = [plan(1, "started", {delegated: true}), plan(2, "started"), plan(3, "ready"), plan(4, "paused"), plan(5, "done", {updated_at: "2026-10-30T10:00:00+00:00"}), plan(6, "cancelled", {updated_at: "2026-10-30T10:00:00+00:00"})];
+    expect(planGroups(plans).map((g) => [g.key, g.plans.map((p) => p.id)])).toEqual([
+        ["running", [1, 2]],
+        ["waiting", [3, 4]],
+    ]);
 });
 
 test("a delegated plan names the workers that hold the open tasks of the phase in hand", async () => {
@@ -87,13 +88,6 @@ test("a delegated plan names the workers that hold the open tasks of the phase i
     expect(seen.line).toBe("Delegated");
     expect(seen.workers[0]).toMatchObject({name: "Hedy", job: "Fix the tunnel"});
     expect(delegationOf({...delegated, delegated: false}, {tasks, workers})).toBe(null);
-});
-
-test("the plan card never counts the plan it shows among the other plans", async () => {
-    const {otherPlans, othersLine} = await import("../src/domain/plans.js");
-    const plans = [plan(34, "started"), plan(35, "draft")];
-    expect(otherPlans(plans, {...plans[1]}).map((p) => p.id)).toEqual([34]);
-    expect(othersLine(otherPlans(plans, plans[1]))).toBe("+1 more active plan");
 });
 
 test("a plan under review offers no Approve button until its review is in and it is ready again", async () => {

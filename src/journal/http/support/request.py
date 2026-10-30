@@ -63,6 +63,9 @@ class Request:
             raise MissingRow("rows", value or "nothing")
         return int(value)
 
+    def text(self, name: str) -> str:
+        return str(self.query.get(name, self.body.get(name, ""))).strip()
+
     def queried(self, name: str, default: float = 0.0) -> float:
         value = self.query.get(name)
         return float(value) if value else default

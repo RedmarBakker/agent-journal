@@ -12,13 +12,13 @@ from tests.stories.fixtures.main.compacting_task import CompactingTask
 from tests.stories.fixtures.main.compaction_skills import CompactionSkills
 from tests.stories.fixtures.main.compaction_skill_reads import CompactionSkillReads
 
-JOURNAL_SKILL, ETIQUETTE_SKILL = "journal", "journal-etiquette"
-
 
 @story(CompactionSkills, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_write_after_a_compaction_is_told_every_skill_owed_and_the_overview(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, BriefingNudges.SKILLS_AND_OVERVIEW_REQUEST)
+    for name in ("journal", "etiquette", "messages"):
+        result.expect_agent_told_words(story.agents.subject, BriefingNudges.SKILLS_AND_OVERVIEW_REQUEST, f"the {name} skill")
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 

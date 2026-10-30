@@ -100,8 +100,7 @@ by you, approved by them, and then followed: finishing one task starts the next 
   worked alone as a one-task plan with no plan row; its close stops that agent.
 - A blocked task never blocks its plan: go on with the tasks that can be done. When every task left is blocked, the plan
   blocks itself and opens again when one opens. When one thing stops all of the plan's work, block the plan on it:
-  `journal plan block <n> "<why>"`, with `--on question:N`, `--on task:N` or `--until "<command>"` as for a task, so it
-  opens by itself; `journal plan unblock <n>` opens it by hand.
+  `journal plan block <n> "<why>"` takes the waits of a task's block (the tasks skill); `journal plan unblock <n>` opens it.
 - A plan's testing template, set on its plan page or by the setting plans.testing for new plans, says how its work is
   tested; it comes with the plan's start and with each task the plan hands you, and you are told when the user changes
   it: follow it, such as writing each task's tests and running them only at a phase's end.

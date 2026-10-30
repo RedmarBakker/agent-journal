@@ -45,13 +45,22 @@ class TestTurns:
         self.timed_out: set[int] = set()
 
     def run_batches(self, worker: Worker, ids: str, caller: Caller) -> str:
-        folder, runs = str(self.branch.folder(worker)), []
+        folder, runs = str(self.branch.place(worker)), []
         for batch in self.batches(ids):
             turn = self.open_turn(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):
                 return "your turn was taken back: nothing ran"
             runs.append((turn, self.run_turn(turn, caller, worker.environment_id)))
         return self.joined(runs)
+
+    def built(self, worker: Worker, caller: Caller) -> str:
+        command = str(self.settings.option(WorkersOptions.BUILD_COMMAND)).strip()
+        if not command:
+            raise Rejection(f"this project has no build command for workers: the user sets {WorkersOptions.BUILD_COMMAND.key}")
+        turn = self.open_turn(worker, "build", command, str(self.branch.place(worker)))
+        if not self.waited(turn):
+            return "your turn was taken back: nothing ran"
+        return self.result(turn, self.run_turn(turn, caller, worker.environment_id))
 
     def batches(self, ids: str) -> list[str]:
         parts = shlex.split(ids)
@@ -209,7 +218,9 @@ class TestTurns:
                 self.run_turn(turn, caller, turn.environment_id)
 
     def running(self) -> list[TestTurn]:
-        return [turn for turn in self.turns.running() if turn.output == 0 or not self.outputs.find(turn.output).ended]
+        turns = self.turns.running()
+        unended = self.outputs.unended_among([turn.output for turn in turns if turn.output])
+        return [turn for turn in turns if turn.output == 0 or turn.output in unended]
 
     def result(self, turn: TestTurn, text: str) -> str:
         lines = [line for line in text.splitlines() if not line.startswith(EXIT)]
@@ -217,6 +228,9 @@ class TestTurns:
         reader_lines = reader.card_lines(lines) if reader is not None else []
         timed = [f"timed out: the run was stopped after {self.limit_seconds() / 60:g} minutes, the test budget's time limit"] if turn.id in self.timed_out else []
         return "\n".join([*(reader_lines or lines[-LAST_LINES:]), *timed])
+
+    def has_command(self, folder: str) -> bool:
+        return bool(str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()) or (Path(folder) / "tests").is_dir()
 
     def command(self, folder: str) -> str:
         set = str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()

@@ -14,7 +14,7 @@ PICTURE_BYTES = bytes(range(256)) * 4
 def test_a_document_and_a_binary_file_go_through_the_library_byte_for_byte_and_no_markdown_is_no_document(story):
     story.the_project_holds_a_file(DOCUMENT, DOCUMENT_BYTES)
     story.the_project_holds_a_file(PICTURE, PICTURE_BYTES)
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     result = story.user_types(f"library publish document {DOCUMENT}")
     result.expect_command_passed()
     result = story.user_types(f"library publish document {PICTURE}")

@@ -7,11 +7,11 @@ from tests.stories.main.library.library_copies import COPY
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_the_library_page_reads_the_connection_without_its_token_and_publishes_and_imports_as_the_command_does(story):
-    result = story.user_opens("/journal/library")
+def test_the_library_page_reads_the_team_connection_without_its_token_and_publishes_and_imports_as_the_command_does(story):
+    result = story.user_opens("/journal/team")
     result.expect_viewer_shows("connected", False)
-    story.user_connects_to_a_library()
-    result = story.user_opens("/journal/library")
+    story.user_connects_to_a_team()
+    result = story.user_opens("/journal/team")
     result.expect_viewer_shows("connected", True)
     result.expect_viewer_shows("name", "Ada")
     result.expect_viewer_shows("token", "")

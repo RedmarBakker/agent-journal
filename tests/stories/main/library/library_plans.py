@@ -11,7 +11,7 @@ PLAN_NAME = "the-site"
 
 @story(TwoPhasePlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_published_to_the_library_imports_as_a_draft_with_its_phases_and_task_titles_every_task_open_and_the_original_as_it_was(story):
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     result = story.user_types(f"library publish plan {story.plans.first} --note 'the site in two phases'")
     result.expect_command_passed()
     result = story.user_types(f"library import plan {PLAN_NAME}")

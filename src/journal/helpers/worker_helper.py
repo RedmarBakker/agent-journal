@@ -17,6 +17,7 @@ from journal.features.workers.commands.arrival_command import ArrivalCommand
 from journal.features.workers.commands.departure_command import DepartureCommand
 from journal.features.workers.commands.proof_command import ProofCommand
 from journal.features.workers.commands.worker_tests_command import WorkerTestsCommand
+from journal.features.workers.commands.worker_build_command import WorkerBuildCommand
 from journal.features.workers.commands.todo_command import TodoCommand
 from journal.features.workers.commands.worker_peer_command import WorkerPeerCommand
 from journal.features.helper import Helper
@@ -45,6 +46,7 @@ class WorkerHelper(Helper):
         (ImpasseCommand, ("declare",)),
         (WorkerTaskCommand, ("log", "show")),
         (WorkerTestsCommand, ("turn",)),
+        (WorkerBuildCommand, ("queued",)),
         (TodoCommand, ("add", "check", "list")),
         (WorkerPeerCommand, ("notify", "peers", "report", "send")),
     )

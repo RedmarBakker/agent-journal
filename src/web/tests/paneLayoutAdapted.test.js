@@ -14,6 +14,14 @@ describe("a stored layout after a release", () => {
         expect(tabsOf(kept).filter((view) => tabsOf(stored).includes(view))).toEqual(tabsOf(stored));
     });
 
+    test("a layout stored before the Plans window takes it beside Tasks once, and a Plans window the user closed stays closed", () => {
+        const stored = {tree: {id: 1}, panes: {1: {tabs: ["chat", "tasks"], active: "chat"}}, next: 2};
+        const kept = adapted(stored, VIEWS);
+        expect(kept.panes[1].tabs).toEqual(["chat", "tasks", "plans"]);
+        const closed = {...kept, panes: {1: {tabs: ["chat", "tasks"], active: "chat"}}};
+        expect(adapted(closed, VIEWS).panes[1].tabs).toEqual(["chat", "tasks"]);
+    });
+
     test("drops a view the release no longer has, the rest staying where the user put them", () => {
         const stored = fresh();
         const gone = tabsOf(stored)[0];

@@ -18,5 +18,6 @@ class FixtureCopy:
 
     def restore(self, story) -> StateFixture:
         self.journal.put_back()
+        story.team_servers_restarted()
         story.line_keys |= self.line_keys
         return self.fixture.copied()

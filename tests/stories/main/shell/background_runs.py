@@ -6,7 +6,6 @@ from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
-from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.started_task import StartedTask
@@ -14,9 +13,8 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(FOREGROUND_OPTION, 1)
 def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_and_its_end_ends_the_wait(story):
-    output = story.agent_runs_a_command(story.agents.subject, f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
+    output = story.agent_has_a_background_run_printing(story.agents.subject, "sleep 2")
     story.last_step.expect_agent_told(story.agents.subject, ShellNudges.BACKGROUND_MOVE, n=output)
     result = story.agent_stops(story.agents.subject)
     result.expect_refused(story.agents.subject, ShellNudges.OPEN_OUTPUT_STOP, outputs=output)
@@ -24,7 +22,7 @@ def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_
     result = story.agent_stops(story.agents.subject)
     result.expect_allowed()
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
-    result = story.background_run_ends(output)
+    result = story.background_run_ends(story.agents.subject, output)
     result.expect_agent_told(story.agents.subject, TasksNudges.WAIT_END)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)

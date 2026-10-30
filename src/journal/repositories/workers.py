@@ -108,7 +108,7 @@ class Workers(ScopedRepository[Worker]):
         rows = self.session_worker(agent.session) if agent.role.is_helper() else []
         return Ref.build(rows[0]) if rows else Ref.build(agent)
 
-    def session_worker(self, session: str) -> list[Worker]:
+    def session_worker(self, session: str | None) -> list[Worker]:
         if not session:
             return []
         rows = {w.id: w for query in (self.query().filter(session=session), self.query().filter(resume=session)) for w in self.selected(query)}

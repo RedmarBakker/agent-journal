@@ -255,8 +255,18 @@ class TaskCommand(Command):
         holdings = self.tasks.task_worker_holdings({args.n})
         if args.n in holdings and not caller.actor.can_move_worker_tasks():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
-        task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
+        task = self.tasks.find(args.n)
+        if self.plans.has_phase_end_tests(task):
+            return self.phase_tested(task, args.how, caller)
+        task = self.tasks.save(task.completed(self._time(), args.how), caller.actor)
         print(f"task {task.row_id} done")
+        self._name_next(task)
+        return 0
+
+    def phase_tested(self, task: Task, outcome: str, caller: Caller) -> int:
+        self.logs.save(TaskLog.build(task, f"done, waiting for the phase's tests: {outcome}", self._time().timestamp()), caller.actor)
+        task = self.tasks.save(task.testing(self._time()), caller.actor)
+        print(f"task {task.row_id} waits in testing until the phase's test run passes: `journal output test <n>` on that run completes it")
         self._name_next(task)
         return 0
 

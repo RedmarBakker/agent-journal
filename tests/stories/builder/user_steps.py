@@ -2,9 +2,11 @@ from tests.stories.builder.story_agent import StoryAgent
 import re
 import shlex
 import uuid
+import json
+from urllib.parse import urlsplit
 from dataclasses import replace
 
-from journal.features.library.support.library_account import LibraryAccount
+from journal.features.library.support.library_account import LIBRARIES_FOLDER, LibraryAccount
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.caller import Caller
 from journal.support.option import Option
@@ -41,33 +43,48 @@ class UserSteps:
     def viewer_logs_a_console_error(self, message: str, stack: str) -> StepResult:
         return self.user_did("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")
 
-    def a_library_server_runs(self) -> str:
-        folder = self.app.config.root / "library-server"
+    def a_team_server_runs(self, name: str = "team") -> str:
+        address = self.team_server_started(name, 0)
+        self.observed("a team server runs", None, None)
+        return f"{address}/setup?code={self.team_server.setup_code.current()}"
+
+    def team_server_started(self, name: str, port: int) -> str:
+        folder = self.app.config.root / f"{name}-server"
         folder.mkdir(exist_ok=True)
-        library = TeamServer(folder)
-        server = library.started("127.0.0.1", 0)
-        self.library_team = library
-        self.closers.append(lambda: library.close(server))
-        self.observed("a library server runs", None, None)
-        return f"http://127.0.0.1:{server.server_address[1]}"
+        team = TeamServer(folder)
+        server = team.started("127.0.0.1", port)
+        self.team_server = team
+        self.closers.append(lambda: team.close(server))
+        self.team_addresses[name] = f"http://127.0.0.1:{server.server_address[1]}"
+        return self.team_addresses[name]
 
-    def user_connects_to_a_library(self) -> str:
-        library = self.a_library_server_runs()
-        self.user_types(f"library connect {library} --email ada@example.com --name Ada --password 'correct horse battery'")
-        return library
+    def team_servers_restarted(self) -> None:
+        for path in sorted((self.app.config.home / LIBRARIES_FOLDER).glob("*.json")):
+            connection = json.loads(path.read_text())
+            if (self.app.config.root / f"{connection['team']}-server").is_dir():
+                self.team_server_started(connection["team"], urlsplit(connection["address"]).port)
 
-    def user_is_a_library_member(self) -> StepResult:
-        self.user_connects_to_a_library()
-        self.library_team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
-        _, token = self.library_team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
+    def user_adds_a_team(self, name: str) -> StepResult:
+        body = {"url": self.a_team_server_runs(name), "email": "ada@example.com", "name": "Ada", "password": "correct horse battery", "team": name}
+        return self.user_presses("/journal/team/connect", body)
+
+    def user_connects_to_a_team(self) -> str:
+        team = self.a_team_server_runs()
+        self.user_types(f"team connect {team} --email ada@example.com --name Ada --password 'correct horse battery'")
+        return team
+
+    def user_is_a_team_member(self) -> StepResult:
+        self.user_connects_to_a_team()
+        self.team_server.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
+        _, token = self.team_server.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
         account = LibraryAccount(self.app.config)
         account.write(replace(account.connection(), token=token, role="member"))
-        return self.observed("the user is a member of the library", None, None)
+        return self.observed("the user is a member of the team", None, None)
 
     def a_library_holds_a_sequence_imported_here(self, title: str, steps: str) -> int:
-        library = self.a_library_server_runs()
+        library = self.a_team_server_runs()
         console, user = self.app.console(), Caller.user("main")
-        lines = (["library", "connect", library, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ["sequence", "create", title, "--steps", steps])
+        lines = (["team", "connect", library, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ["sequence", "create", title, "--steps", steps])
         outcomes = [console.run(line, user) for line in lines]
         sequence = int(re.search(r"sequence (\d+)", outcomes[-1].text)[1])
         outcomes += [console.run(line, user) for line in (["library", "publish", "sequence", str(sequence)], ["library", "import", "sequence", re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")])]

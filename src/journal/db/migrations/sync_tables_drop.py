@@ -9,7 +9,7 @@ SYNC_TABLES = ("outgoing_changes", "id_blocks", "pending_uploads")
 class SyncTablesDrop(Migration):
     """The row sync to a team server is gone, so the tables it kept are dropped: the changes waiting to be sent, the blocks of row numbers the server handed out, and the files waiting to be uploaded."""
 
-    number: ClassVar[int] = 83
+    number: ClassVar[int] = 84
 
     def apply(self, connection: Connection) -> None:
         for table in SYNC_TABLES:

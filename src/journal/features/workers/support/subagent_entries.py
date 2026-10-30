@@ -99,7 +99,7 @@ class SubagentEntries:
             use = e.data.get("tool_use_id", "")
             if Entries.is_kind(e, (events.TOOL_STARTING,)):
                 brief = operation.brief or ""
-                rows.append(Subagent(environment_id=e.environment_id, dispatch=f"sub:{e.id}", dispatcher=e.data.get("session_id", ""), started_at=time, task=operation.title or brief[:80], brief=f"{operation.title} {brief}", agent_type=operation.role or "subagent", model=operation.model))
+                rows.append(Subagent(environment_id=e.environment_id, dispatch=f"sub:{e.id}", dispatcher=e.data.get("session_id", ""), started_at=time, name=Subagent.dispatch_name(brief), task=operation.title or brief[:80], brief=f"{operation.title} {brief}", agent_type=operation.role or "subagent", model=operation.model))
                 open_[use or f"entry:{e.id}"] = len(rows) - 1
             elif Entries.is_kind(e, (events.TOOL_FAILED,)) and open_:
                 i = open_.pop(use) if use in open_ else open_.pop(next(iter(open_)))
@@ -122,7 +122,7 @@ class SubagentEntries:
         time, agent_id = entry.created_at.timestamp(), entry.data.get("agent_id", "")
         operation = entry.recorded_call().operation if Entries.is_kind(entry, (events.TOOL_STARTING,)) else None
         if isinstance(operation, AgentMessage) and operation.receiver == row.session:
-            return row.resumed(time, operation.text)
+            return row.resumed(time, operation.text, operation.summary)
         if not row.is_running():
             return row
         if Entries.is_kind(entry, (events.SUBAGENT_ENDED,)) and agent_id == row.session:
@@ -154,7 +154,7 @@ class SubagentEntries:
         if type_name != events.TOOL_STARTING:
             return
         for i in [i for i, row in enumerate(rows) if row.session and row.session == message.receiver]:
-            rows[i] = rows[i].resumed(time, message.text)
+            rows[i] = rows[i].resumed(time, message.text, message.summary)
             background[message.receiver] = i
 
     @staticmethod

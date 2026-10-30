@@ -7,7 +7,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_published_sequence_is_imported_once_as_an_editable_copy_and_a_second_publish_is_its_version_two(story):
-    story.user_connects_to_a_library()
+    story.user_connects_to_a_team()
     story.user_types("sequence create 'Ship Week' --steps 'tag it | push it'")
     sequence = story.created_number("sequence")
     story.user_types(f"library publish sequence {sequence} --note first")

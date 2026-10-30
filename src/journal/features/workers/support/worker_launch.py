@@ -15,7 +15,6 @@ class WorkerLaunch:
         self.workers, self.runner = workers, runner
 
     def launched(self, worker: Worker, actor: Actor, repositories: tuple[str, ...] = (), branch: str = "") -> Worker:
-        dispatched = worker.with_(repositories=repositories or worker.repositories, branch=branch or worker.branch).dispatched(self.time_source.seconds())
-        started = self.workers.save(dispatched, actor)
-        self.runner.start(started, actor)
-        return self.workers.find(started.row_id)
+        placed = self.workers.save(worker.with_(repositories=repositories or worker.repositories, branch=branch or worker.branch).dispatched(self.time_source.seconds()), actor)
+        self.runner.start(placed, actor)
+        return self.workers.find(worker.row_id)

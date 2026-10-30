@@ -6,7 +6,6 @@ from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_instances import RoleInstances
 from journal.models.link import Link
 from journal.models.support.ref import Ref
-from journal.models.support.report_choice import ReportChoice
 from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.repositories.links import Links
@@ -49,8 +48,6 @@ class RoleQueue:
         role = self.organization.at(current.contract).role(current.role) if current.contract and current.role else None
         if role is None or role.cardinality is not Cardinality.JOURNAL:
             return
-        if current.report_choice != ReportChoice(1):
-            current = self.workers.save(current.with_(report_choice=ReportChoice(1)), actor)
         queued = self.tasks.queue(Ref.build(current))
         if len(queued) < 2:
             return

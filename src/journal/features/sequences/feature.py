@@ -80,4 +80,4 @@ until its last step is done.
   input matches. Only the main agent's own actions start one; a worker's or a subagent's never do.
 - `journal sequence edit <n>` writes the steps or the triggers anew the same way, and `journal sequence show <n>` lists
   its triggers and its steps with their guards.
-""", keywords=('sequence', 'sequences', 'steps'), commands=('sequence',))
+""", keywords=('sequence', 'sequences'), commands=('sequence',))

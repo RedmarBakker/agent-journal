@@ -5,7 +5,7 @@ import {planAgents} from "./domain/planAgents.js";
 const hash = ref(location.hash);
 const isPage = shallowRef(null);
 
-const RENAMED = {integrations: "mcp"};
+const RENAMED = {integrations: "mcp", library: "team"};
 
 function leaveOldAddress() {
     if (!isPage.value) return;
@@ -178,4 +178,4 @@ export function unpeek() {
     opening(route.value.stack.slice(0, -1));
 }
 
-export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "library", "mcp", "file", "resources", "about", "worker", "organization", "role", "board", "chat"];
+export const PAGES = ["settings", "files", "git", "search", "attachments", "skills", "profiles", "plugins", "secrets", "team", "mcp", "file", "resources", "about", "worker", "organization", "role", "board", "chat"];

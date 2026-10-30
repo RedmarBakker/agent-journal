@@ -1,5 +1,7 @@
 """Phase five: the machine. A write in Idle is refused with how to declare work; after task start a stop says carry on, once; done makes the agent idle again; stuck pauses and a tool use lifts it; the state survives a new server."""
 
+from worker_dispatch import started_run
+from journal.repositories.workers import Workers
 import re
 import json
 from pathlib import Path
@@ -135,6 +137,8 @@ from journal.features.questions.questions_nudges import QuestionsNudges
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
+# a line's own words past this many characters are a document, whatever longest it declares
+RARE_CEILING_CHARACTERS = 400
 # the shipped command table, read once for the tests that decode a tool call by hand
 TABLE = ClassificationTable(Config.rooted(Path(__file__).parent), TableSchema())
 SHAPES = CommandShape(TABLE)
@@ -684,21 +688,17 @@ def test_the_models_carry_the_events_their_changes_mean():
 
 
 
-def test_every_line_sent_to_the_agent_fits_the_budget_of_how_often_it_is_sent(app: App):
-    from journal.engine.nudge import PLACEHOLDER
-    from tests.nudge_frequency import RARE_CEILING_CHARACTERS, NudgeFrequency
+def test_a_line_that_declares_a_longest_above_the_normal_says_why_and_stays_near_its_length(app: App):
+    from journal.engine.nudge import NORMAL_LONGEST_CHARACTERS, PLACEHOLDER
     numbers = {"n", "count", "task", "percent", "seconds", "ms", "times", "plan", "phase", "run", "worker", "point", "place", "open", "total", "megabytes", "budget", "grace", "dollars", "step", "minutes", "edits", "stale_after", "clashes", "lines", "cap"}
     typical = lambda found: "x" * int(found.group(2)) if found.group(2) else "9999" if found.group(1) in numbers else "x" * 16
     written = lambda found: "" if found.group(2) else typical(found)
-    frequency, over, loose = NudgeFrequency.frozen(), [], []
+    loose = []
     for nudge in app.container.get(NudgeRegistry).nudges.values():
-        length, budget = len(PLACEHOLDER.sub(typical, nudge.rendered())), frequency.budget_characters(nudge)
-        if length > budget:
-            over.append(f"{nudge.key}: {length} over {budget} ({frequency.line_class(nudge)})")
-        if nudge.longest_characters > 120 and (not nudge.longest_reason or nudge.longest_characters > length + 20 or len(PLACEHOLDER.sub(written, nudge.rendered())) > RARE_CEILING_CHARACTERS):
+        length = len(PLACEHOLDER.sub(typical, nudge.rendered()))
+        if nudge.longest_characters > NORMAL_LONGEST_CHARACTERS and (not nudge.longest_reason or nudge.longest_characters > length + 20 or len(PLACEHOLDER.sub(written, nudge.rendered())) > RARE_CEILING_CHARACTERS):
             loose.append(f"{nudge.key}: declares {nudge.longest_characters} for a line of {length}, reason: {nudge.longest_reason or 'none'}")
-    assert not over, "lines longer than the budget of how often they are sent:\n" + "\n".join(sorted(over))
-    assert not loose, "lines declaring a longest with no reason, far above their length, or with more than 400 characters of their own words:\n" + "\n".join(sorted(loose))
+    assert not loose, f"lines declaring a longest with no reason, far above their length, or with more than {RARE_CEILING_CHARACTERS} characters of their own words:\n" + "\n".join(sorted(loose))
 
 
 def test_no_hook_or_agent_event_is_named_by_a_raw_string_outside_the_references():
@@ -1563,7 +1563,7 @@ def orchestrated(app: App) -> None:
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
     for n in (1, 2, 3):
-        app.container.get(WorkerRunner).run(workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
+        started_run(app.container.get(WorkerRunner), app.container.get(Workers), workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
     assert stack() == ["orchestrating", "orchestrating_plan"], "the last report pops the wait and the orchestrator is back on its plan"
     for n in (1, 2, 3):
         assert console.run(["worker", "complete", str(n)], AGENT).code == 0
@@ -1735,11 +1735,11 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
 
 
 
-def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
+def test_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
     from journal.features.workers.support.test_run_result import TestRunResult
     from journal.features.workers.workers_conduct import WorkersConduct
-    from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
-    budget = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: True})
+    from journal.features.workers.workers_options import WorkersOptions
+    budget = SettingsValue({WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: True})
     worker = Worker(id=3, environment_id=1, name="Lady Lovelace, keeper of the parser", dispatcher="s1")
 
     # a run as the turn hands it back, ended with the runner's exit line, kept on the worker; what the orchestrator, session s1, hears of it
@@ -1767,14 +1767,12 @@ def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one
     for _ in range(2):
         ran("1 failed", 1)
     assert has_nudge(ran("1 failed", 1)[1], WorkersNudges.WORKER_KEEPS_FAILING, n=3, runs=3), "and the notice comes again after the reset"
-    quiet = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
+    quiet = SettingsValue({WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
     assert ran("12 passed", 0, quiet) == [] and ran("1 failed", 1, quiet) == [], "with the line off a failed run is not told"
     assert ran("1 failed", 1, quiet) == []
     notice = ran("1 failed", 1, quiet)
     assert len(notice) == 1 and has_nudge(notice[0], WorkersNudges.WORKER_KEEPS_FAILING, n=3, runs=3), "the notice still comes"
     assert ran("1 failed", 1, session="w9") == [], "only the agent that sent the worker hears of it"
-    handed = SettingsValue({WorkersOptions.TESTING.key: "Hand the tests over"})
-    assert ran("1 failed", 1, handed) == [], "without the test budget nothing is told"
 
 
 def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_clearings():
@@ -2098,7 +2096,7 @@ HELPER_CONDUCTS = {
 }
 HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Researching"}
 HELPER_VERBS = {
-    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory add", "memory list", "memory remove", "memory skip", "memory weigh", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
+    "worker": ["await begin", "await clear", "build queued", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory add", "memory list", "memory remove", "memory skip", "memory weigh", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
     "reviewer": ["doc show", "memory list", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
     "verifier": ["verdict give", "verdict model"],
     "subagent": ["doc create", "doc ready", "doc show", "doc update", "output read", "plan add", "plan brief", "plan create", "plan phase", "plan ready", "plan show", "plan todos", "report create", "report ready", "report show", "report update", "rule list", "rule read", "search find", "task list", "task show"],

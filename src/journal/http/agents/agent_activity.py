@@ -128,7 +128,7 @@ class AgentActivity:
         return [point.shown() for point in points if point.scored_at >= start_at]
 
     def rolling(self) -> dict:
-        if not self.settings.option(FaultsOptions.DEVELOPER):
+        if not self.settings.option(FaultsOptions.PERFORMANCE):
             return {}
         averages = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
                  "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}

@@ -7,7 +7,6 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 from journal.features.profiles.profiles_options import ProfilesOptions
-from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger")
@@ -19,14 +18,13 @@ TURN = ("You work the one task the agent that sent you assigned to you, whose br
          "journal proof <point> \"<file:line, and the test that shows it>\", or say why it is not done with journal proof <point> --not-done \"<why>\". "
          "Commit your work, then clock out with journal clock-out \"<what you changed, file by file, and what you could not do>\": that is your one report, "
          "to the agent that sent you, never to the user.")
-TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
-TESTS_TURN = "Run tests only with journal tests turn, which gives your run its turn within the test budget; any other test run is refused where you have hooks, and where you have none you keep to this yourself; name each test you ran in its proof."
-JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\", naming the tests that cover the files you changed and the tests you wrote, never the whole suite. The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
+WRITES = ("You write: change what the job needs and nothing beyond it. Find what in the code already does part of the job and extend it rather than "
+          "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
+JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or a build yourself: your shell runs only reads, searches and file edits. To check one test while you work, queue it with journal tests turn <test file or test>, and a build with journal build; the journal runs each in your worktree, one run at a time. Write the tests that prove each point, and clock out once your queue is done with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\", naming the tests that cover the files you changed and the tests you wrote, never the whole suite. The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
 DOCUMENT_WRITER_RULES = ("You change no file and run no tests, and use Bash only for journal commands. Read narrowly: search for the line, read the range you need, "
                          "never a whole large file. Answer in a short report written to the agent that started you, with the files and lines that show each point "
                          "and what you could not check. When the job asks for a document, a report or a plan, file it yourself: journal doc create \"<title>\" "
                          "--abstract \"<one line>\" --body \"<markdown>\", journal report create with the same options, or journal plan create, phase, add and todos.")
-TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 
 class ProfileFiles:
@@ -73,13 +71,10 @@ class ProfileFiles:
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
-        return f"{body}\n\n{self.testing_rule()}"
+        return f"{body}\n\n{JOURNAL_TESTING_INSTRUCTION}"
 
     def role_instructions(self, body: str) -> str:
-        return f"{TURN}\n\n{body}\n\n{self.testing_rule()}"
-
-    def testing_rule(self) -> str:
-        return {MERGER_TESTING: TEST_HANDOVER, TEST_BUDGET: TESTS_TURN, JOURNAL_TESTING: JOURNAL_TESTING_INSTRUCTION}.get(self.settings.option(WorkersOptions.TESTING), TESTS_RUN)
+        return f"{TURN}\n\n{body}\n\n{JOURNAL_TESTING_INSTRUCTION}"
 
     def profile_type(self, name: str) -> str:
         return self.read(name)["profile_type"] if (self.folder() / f"{name}.md").is_file() else ""

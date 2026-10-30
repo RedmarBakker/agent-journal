@@ -9,6 +9,7 @@ from journal.support.skill import Skill
 from journal.features.pins.pins_part import PinsPart
 from journal.features.pins.pins_nudges import PinsNudges
 from journal.features.pins.pins_options import PinsOptions
+from journal.features.pins.support.pin_and_button_text import PinAndButtonText
 
 
 class Pins(Feature[PinsData]):
@@ -23,13 +24,12 @@ class Pins(Feature[PinsData]):
 
     nudges = (PinsNudges.LINK_PIN_REQUEST, PinsNudges.UNPINNED_CLAIM)
 
-    skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
+    skill = Skill("pinned-links", 'Pin what the user must see on coming back and put a button under a message for an action now; load it when you point the user at a design, a page or anything else outside the journal', """
 # Pinned links
 
-Whenever you point the user at something outside the journal, a design, a hosted page, a document, any link they
-will open again, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
-A document or a report docks itself at the bottom of the chat when it is created, by you or the user, and stays
-until the user closes it. Any other row of the journal you want to keep in view, a plan or a task, is docked there with
+A pin and a button are two different things.
+
+""" + PinAndButtonText.BULLETS + """A row of the journal you want to keep in view at the bottom of the chat, a plan or a task, is docked there with
 `journal plan dock 12`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with
 `--link plans:12 --user-asked`, its button opening the row in place. An outside address opens in a new tab.
 A link in your chat text or in a command's output that no pin has, a pull request's address among them, is suggested
@@ -37,4 +37,4 @@ as a pin, and the same link again only after a number of your tool uses. The use
 
 The same goes for what a subagent makes: when you dispatch one to produce something the user will open, tell it
 to end its report with the link, and pin that the moment it reports, before you say anything else about its work.
-""", keywords=('pin', 'pinned', 'link', 'design'), commands=('notice',))
+""", keywords=('pin', 'pinned'), commands=('notice',))

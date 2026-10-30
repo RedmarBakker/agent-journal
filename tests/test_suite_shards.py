@@ -2,6 +2,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from tests.service_memory import ServiceMemory
 from tests.shard_deal import ShardDeal
 
 
@@ -20,12 +21,6 @@ def test_shards_are_dealt_longest_first_so_they_end_together_and_go_round_withou
     assert abs(loads[0] - loads[1]) <= 13.3, "no shard ends a whole long test after the other"
     assert "long" in shards[0] and "mid" in shards[1], "the longest test starts a shard of its own"
     assert ShardDeal({}).shards(["a", "b", "c"], 2) == [["a", "c"], ["b"]], "with no times the tests go round"
-
-
-def test_a_run_of_the_simulators_files_runs_at_a_lower_priority_and_any_other_run_as_before():
-    suite = suite_script()
-    assert suite.scoped_command(["tests/simulation_run.py", "-k", "history"])[:3] == ["nice", "-n", "10"], "a sweep of the simulator runs under nice"
-    assert suite.scoped_command(["tests/test_cli.py"])[0] != "nice", "any other run is unchanged"
 
 
 def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dots(tmp_path):
@@ -48,3 +43,32 @@ def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_
     assert suite.vm_stat_available(vm_stat) == 16384 * 32, "macOS: the free, inactive and speculative pages"
     assert suite.meminfo_available("MemTotal:  1000 kB\nMemAvailable:   512 kB\n") == 512 * 1024, "Linux: MemAvailable"
     assert "only 600 MB of memory is free" in suite.memory_line(2, 600 * 2**20), "the run says why it took fewer"
+
+
+class Turn:
+    def __init__(self) -> None:
+        self.count = 0
+
+
+class Tracker:
+    def __init__(self) -> None:
+        self.turns = {"main": Turn()}
+        self.lines = {"main": ["read"]}
+        self.agents = (Turn(),)
+
+
+def test_a_service_put_back_forgets_what_a_test_changed_inside_the_objects_and_lists_it_holds():
+    tracker = Tracker()
+    turn = tracker.turns["main"]
+    memory = ServiceMemory([tracker])
+    tracker.turns["main"].count = 3
+    tracker.lines["main"].append("wrote")
+    tracker.agents[0].count = 2
+    tracker.turns["worker"] = Turn()
+    memory.put_back()
+    assert tracker.turns == {"main": turn} and turn.count == 0, "an object held in a dict is put back as it stood"
+    assert tracker.lines == {"main": ["read"]}, "a list inside a dict is put back as it stood"
+    assert tracker.agents[0].count == 0, "an object held in a tuple is put back as it stood"
+    tracker.lines["main"].append("wrote again")
+    memory.put_back()
+    assert tracker.lines == {"main": ["read"]}, "a second put back still has what was taken, never what the last test changed"

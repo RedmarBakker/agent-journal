@@ -9,6 +9,7 @@ from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
 from journal.models.support.commentable import Commentable
+from journal.models.support.message_button import MessageButton
 TERMINAL_LINE = "typed"
 
 
@@ -68,6 +69,9 @@ class Message(Scoped, Commentable):
     @classmethod
     def hydration(cls, provider: str, session: str, text: str) -> "Message":
         return cls(author=Author.SYSTEM, text=text, data={"kind": cls.HYDRATION, "provider": provider, "session": session, "reading_request": False})
+
+    def with_buttons(self, buttons: list[MessageButton]) -> "Message":
+        return self.with_merged("data", {"buttons": [button.stored() for button in buttons]}) if buttons else self
 
     def with_reading_request(self) -> "Message":
         return self.with_merged("data", {"reading_request": True})

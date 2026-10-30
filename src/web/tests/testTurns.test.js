@@ -28,8 +28,8 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-test("with the test budget on, the workers panel lists the turns going, then those waiting, each with its worker, its test ids and how long it has run or waited, and the budget's numbers", async () => {
-    store.settings = {features: {}, workers: {testing: "Test budget", test_runs: 2, test_waiting: "4", tests_per_run: 20, test_run_minutes: 10}};
+test("the workers panel lists the queued runs going, then those waiting, each with its worker, its test ids and how long it has run or waited, and the budget's numbers", async () => {
+    store.settings = {features: {}, workers: {test_runs: 2, test_waiting: "4", tests_per_run: 20, test_run_minutes: 10}};
     vi.spyOn(api, "list").mockImplementation(async (table) => ({rows: table === "test_turns" ? turns : [], is_last_page: true, counts: {}}));
     const host = document.createElement("div");
     document.body.append(host);
@@ -48,14 +48,25 @@ test("with the test budget on, the workers panel lists the turns going, then tho
     expect(host.querySelector(".test-turns-budget").textContent).toBe("2 runs at once · 4 may wait · 20 test ids a run · 10 minutes a run");
 });
 
-test("with another way of testing, the workers panel shows no test turns", async () => {
-    store.settings = {features: {}, workers: {testing: "Hand the tests over"}};
+test("the workers panel's settings button slides to the command kinds workers may run, and a pick saves them", async () => {
+    store.settings = {features: {}, workers: {command_kinds: "read, search, edit"}};
+    store.spec = {features: [{settings: [{name: "command_kinds", default: "read, search, edit", choices: ["read", "search", "edit", "test run", "build"]}]}]};
     vi.spyOn(api, "list").mockImplementation(async () => ({rows: [], is_last_page: true, counts: {}}));
+    const saved = vi.spyOn(api, "saveSettings").mockImplementation(async () => ({}));
     const host = document.createElement("div");
     document.body.append(host);
     app = createApp({render: () => h(WorkerList, {rows: workers})});
     app.directive("tip", {});
     app.mount(host);
     for (let i = 0; i < 4; i++) await flush();
-    expect(host.querySelector(".test-turns")).toBe(null);
+    expect(host.textContent).not.toContain("How workers test");
+    host.querySelector(".workers-settings").click();
+    for (let i = 0; i < 4; i++) await flush();
+    const picks = [...host.querySelectorAll(".command-kinds-pick")];
+    expect(picks.map((pick) => [pick.dataset.kind, pick.getAttribute("aria-pressed")])).toEqual([["read", "true"], ["search", "true"], ["edit", "true"], ["test run", "false"], ["build", "false"]]);
+    picks[2].click();
+    expect(saved).toHaveBeenCalledWith(expect.objectContaining({workers: {command_kinds: "read, search"}}));
+    host.querySelector(".command-kinds-back").click();
+    for (let i = 0; i < 4; i++) await flush();
+    expect(host.querySelector(".workers-views")).not.toBe(null);
 });

@@ -3,6 +3,11 @@ import {computed} from "vue";
 import {updatedAt} from "../domain/row.js";
 import {STATUS_PREFIXES, statusOf, waitOf} from "../domain/taskBoard.js";
 import {ago} from "../format/time.js";
+import {mentionedRefs} from "../domain/mentions.js";
+import {refParts} from "../domain/records.js";
+import {meta} from "../domain/tables.js";
+import TextDisplay from "../kit/TextDisplay.vue";
+import {peek} from "../route.js";
 import TaskChain from "./TaskChain.vue";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
 import TaskWorker from "./TaskWorker.vue";
@@ -12,6 +17,12 @@ const emit = defineEmits(["status", "select", "answer"]);
 const status = computed(() => statusOf(props.task));
 const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
 const hasBlockDetails = computed(() => !reasonOnly.value || Boolean(props.task.block_reason?.trim()));
+const named = computed(() =>
+    mentionedRefs(props.task.block_reason).map((ref) => {
+        const {table, id} = refParts(ref);
+        return {ref, table, id, label: `Open ${meta(table).title.toLowerCase()} ${id}`};
+    })
+);
 </script>
 
 <template>
@@ -42,7 +53,14 @@ const hasBlockDetails = computed(() => !reasonOnly.value || Boolean(props.task.b
         <section :class="['reason', status]">
             <span class="label">Blocked, waiting on</span>
             <template v-if="reasonOnly">
-                <p class="text">{{ task.block_reason }}</p>
+                <TextDisplay class="text" :text="task.block_reason" />
+                <template v-if="named.length">
+                    <div class="named">
+                        <template v-for="row in named" :key="row.ref">
+                            <button type="button" class="open-named" @click="peek(row.table, row.id)">{{ row.label }}</button>
+                        </template>
+                    </div>
+                </template>
                 <p class="note">Nothing opens it by itself. Unblock it when that is done.</p>
             </template>
             <template v-else>
@@ -131,6 +149,30 @@ const hasBlockDetails = computed(() => !reasonOnly.value || Boolean(props.task.b
     color: var(--text-2);
     white-space: pre-wrap;
     text-wrap: pretty;
+}
+
+.named {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.open-named {
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--raised);
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.open-named:hover {
+    border-color: var(--border-2);
+    background: var(--hover);
 }
 
 .note {

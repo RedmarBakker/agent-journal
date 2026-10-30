@@ -61,7 +61,6 @@ from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.models.task_state import TaskState
-from journal.models.support.report_choice import ReportChoice
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
@@ -2113,10 +2112,7 @@ def test_a_journal_role_queue_serves_a_second_plan_before_a_second_task_from_the
         app.runtime().deferred.drain()
 
         queue = [task.id for task in tasks.queue(holder)]
-        choice = workers.find(worker.id).report_choice
-
     assert queue == [next_second.id, next_first.id, last_first.id], "the second plan gets its turn before the first plan gets a second queued task"
-    assert choice == ReportChoice(1), "the shared Role reports after each task so its next job starts with a fresh context"
 
 
 def test_a_journal_role_job_carries_its_queued_plan_and_task(app, tmp_path):
@@ -2328,7 +2324,6 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
     user_set(first, "plans.plan_agents", True)
     hook(first, "SessionStart")
     first.console().run(["environment", "overview"], agent)
-    user_set(first, "workers.testing", "Hand the tests over")
     sent = [send(first.console(), name) for name in ("Ada Lovelace", "Grace Hopper", "Ida Rhodes")]
     assert [outcome.code for outcome in sent] == [0, 0, 0] and len(started) == 1, ([outcome.error for outcome in sent], "one instance, the other two jobs queued on it")
     first.runtime().stop()

@@ -22,6 +22,7 @@ from journal.features.shell.support.readers import Readers
 from journal.models.command_output import CommandOutput
 from journal.models.message import Message
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.workers import Workers
 from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
@@ -33,12 +34,12 @@ HEADLINE_CHARACTERS = 60
 
 
 class OutputProcessCard(ProcessCard):
-    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends; docked above the chat once it has run five seconds, so a quick command never docks; a card written for a run that has ended is final from its first write."""
+    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends; docked above the chat once it has run five seconds, so a quick command never docks; a card written for a run that has ended is final from its first write; the viewer's poll is answered from the stored card, which WatchRefresh keeps current, so a request never runs a reader."""
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines, labels: ActivityLabel, git: GitCommands, text: CommandText) -> None:
-        self.auto_dock, self.git_titles, self.aliases, self.labels, self.git, self.text = auto_dock, git_titles, aliases, labels, git, text
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines, labels: ActivityLabel, git: GitCommands, text: CommandText, workers: Workers) -> None:
+        self.auto_dock, self.git_titles, self.aliases, self.labels, self.git, self.text, self.workers = auto_dock, git_titles, aliases, labels, git, text, workers
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def is_carded(self, output: CommandOutput) -> bool:
@@ -47,16 +48,19 @@ class OutputProcessCard(ProcessCard):
     def card_contents(self, output: CommandOutput) -> ProcessCardContents:
         view = self.views.view(output)
         part = self.text.shown(self.shown_part(output))
-        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "complete_unended": view.complete_unended, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output), FINAL: output.ended}
+        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "complete_unended": view.complete_unended, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output), **self.runner(output), FINAL: output.ended}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardType.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
+
+    def runner(self, output: CommandOutput) -> dict:
+        workers = self.workers.session_worker(output.session)
+        return {"worker": workers[-1].name} if workers else {}
 
     def stored_contents(self, outputs: list[CommandOutput]) -> list[ProcessCardContents]:
         return [self.card_contents(output) for output in outputs if OutputFiles(Path(output.folder)).is_stored() and self.is_carded(output)]
 
     def refresh(self, message: Message) -> dict:
         output = self.outputs.find(message.data["output"])
-        view = self.views.view(output)
-        return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), **self.run_times(output), "active": not output.ended}
+        return {**CardProgress.stored(message.data), **CardDetail.stored(message.data), **self.run_times(output), "active": not output.ended}
 
     def progress(self, output: CommandOutput, view: OutputView) -> CardProgress:
         return CardProgress(self.outcome(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)

@@ -1,11 +1,8 @@
 import shlex
 from dataclasses import dataclass, field
 
-from journal.models.support.report_choice import ReportChoice
-
 LEAD = ["journal", "worker"]
 VALUED = ("--provider", "--profile", "--role", "--model", "--task", "--why")
-REPORT = "--report"
 
 
 @dataclass(frozen=True)
@@ -29,9 +26,6 @@ class WorkerLine:
         for token in option_tokens:
             if token in VALUED:
                 options[token] = next(option_tokens, "")
-            elif token == REPORT:
-                first = next(option_tokens, "")
-                options[token] = " ".join([first, *(next(option_tokens, "") for _ in range(ReportChoice.word_count(first) - 1))])
             elif token.startswith("--"):
                 flags.add(token)
             else:

@@ -5,6 +5,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.message_arrived import MessageArrived
+from journal.events.rows.trigger_fired import TriggerFired
 from journal.models.trigger import Trigger
 from journal.models.trigger_action import TriggerAction
 from journal.features.triggers.triggers_nudges import TriggersNudges
@@ -20,6 +21,9 @@ class TriggersConduct(Conduct):
     def on_message_arrived(self, event: MessageArrived, settings: Settings) -> Transition:
         return self.none(*trigger_lines(matching_triggers(event.data.part(TriggersPart).triggers, event.text)))
 
+    def on_trigger_fired(self, event: TriggerFired, settings: Settings) -> Transition:
+        return self.none(trigger_line(event.action, event.text))
+
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         rows = matching_triggers(event.data.part(TriggersPart).triggers, event.call.input_text)
         denied = [t for t in rows if t.action == TriggerAction.DENY]
@@ -33,4 +37,8 @@ def matching_triggers(triggers: tuple[Trigger, ...], text: str) -> list[Trigger]
 
 
 def trigger_lines(triggers: list[Trigger]) -> list[Nudge]:
-    return [(TriggersNudges.INSTRUCT if trigger.action == TriggerAction.INSTRUCT else TriggersNudges.NUDGE).create(title=trigger.text) for trigger in triggers]
+    return [trigger_line(trigger.action, trigger.text) for trigger in triggers]
+
+
+def trigger_line(action: TriggerAction, text: str) -> Nudge:
+    return (TriggersNudges.INSTRUCT if action == TriggerAction.INSTRUCT else TriggersNudges.NUDGE).create(title=text)

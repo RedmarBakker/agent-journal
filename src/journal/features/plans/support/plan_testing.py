@@ -5,13 +5,12 @@ from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.template import PLAN_TARGET, Template
 from journal.repositories.links import Links
-from journal.repositories.plans import Plans
+from journal.repositories.plans import TESTING_LINK, Plans
 from journal.repositories.templates import Templates
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
-TESTING_LINK = "testing"
 NONE_TITLE = "none"
 
 

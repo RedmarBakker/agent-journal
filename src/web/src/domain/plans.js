@@ -65,36 +65,31 @@ export function cardChoices(plans, shown) {
     return openPlans(plans).filter((plan) => plan.id !== shown.id && PLANNED.includes(statusOf(plan)) && !plan.is_dismissed);
 }
 
-const MAX_BARS = 3;
 const isRunning = (p) => PLAN_RUNNING.includes(statusOf(p));
 
-export function barPlans(plans) {
-    const running = openPlans(plans)
-        .filter(isRunning)
-        .sort((a, b) => Boolean(a.delegated) - Boolean(b.delegated) || (statusOf(a) === "approved") - (statusOf(b) === "approved") || a.id - b.id);
-    return running.length > MAX_BARS ? running.slice(0, MAX_BARS) : running;
+// The tone a plan's state is drawn in on the Plans window, by its state
+const TONES = {delegated: "workers", started: "working", waiting: "asks", blocked: "blocked", ready: "ready", approved: "ready", paused: "paused", reviewing: "review", draft: "review"};
+export const planTone = (p) => TONES[statusOf(p)] || "working";
+
+// Why a plan being worked on stands where it does, shown after its state: a block's reason, or the checkpoint it waits at
+const REASONS = {blocked: (p) => p.block_reason || "", waiting: () => "Stopped at a checkpoint for you to check it"};
+export const planReason = (p) => (REASONS[statusOf(p)] || (() => ""))(p);
+
+// A plan waiting to start, as its row names its state
+export const waitingLabel = (p) => (statusOf(p) === "ready" ? `${PLAN_STATES.ready}, ${NOT_STARTED.ready}` : PLAN_STATES[statusOf(p)]);
+
+// The Plans window's groups of open plans: those being worked on, then those waiting to start or paused.
+export function planGroups(plans) {
+    const open = openPlans(plans);
+    return [
+        {key: "running", title: "Being worked on", plans: open.filter(isRunning)},
+        {key: "waiting", title: "Waiting to start", plans: open.filter((p) => !isRunning(p))},
+    ].filter((group) => group.plans.length);
 }
 
-export function otherPlans(plans, shown) {
-    return openPlans(plans).filter((p) => p.id !== shown.id);
-}
 
-export function foldedPlans(plans) {
-    const barred = barPlans(plans);
-    return openPlans(plans).filter((p) => !barred.includes(p));
-}
 
-export function othersLine(others) {
-    const paused = others.filter((p) => statusOf(p) === "paused").length;
-    const active = others.filter(isRunning).length;
-    const planned = others.length - paused - active;
-    const words = [
-        active && `+${active} more active ${active === 1 ? "plan" : "plans"}`,
-        planned && `+${planned} more planned`,
-        paused && `${active || planned ? "" : "+"}${paused} paused`,
-    ];
-    return words.filter(Boolean).join(" · ");
-}
+
 
 // A plan list row carries the plan alone; its phases and their task ids are read from a plan held whole.
 export const isWholePlan = (p) => "task_ids" in p;
@@ -144,9 +139,14 @@ const phaseAt = (p) => wholePhases(p)[(p.current_phase || 1) - 1] || null;
 export function delegationOf(p, {tasks, workers}) {
     const phase = phaseAt(p);
     if (!p.delegated || !phase) return null;
-    const held = new Set(tasks.filter((t) => phase.task_ids.includes(t.id) && !isClosed(t) && t.worker_id).map((t) => t.worker_id));
-    const found = workers.filter((w) => held.has(w.id)).map((w) => ({id: w.id, name: w.name, job: w.brief, branch: w.worktree}));
+    const found = workersHolding(phase.task_ids, {tasks, workers});
     return {workers: found, line: found.length === 1 ? `Worker: ${found[0].name}` : "Delegated"};
+}
+
+// The workers that hold an open task among these, each with the job it was given and the task it holds.
+export function workersHolding(taskIds, {tasks, workers}) {
+    const held = new Map(tasks.filter((t) => taskIds.includes(t.id) && !isClosed(t) && t.worker_id).map((t) => [t.worker_id, t]));
+    return workers.filter((w) => held.has(w.id)).map((w) => ({id: w.id, name: w.name, job: w.brief, branch: w.worktree, task: `${held.get(w.id).id} ${held.get(w.id).title}`}));
 }
 
 export function sizeOf(p) {

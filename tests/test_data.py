@@ -585,7 +585,7 @@ def test_registered_migrations_keep_unique_numbers_across_the_merged_migration_i
     numbers = {migration.number: type(migration).__name__ for migration in MIGRATIONS}
     assert len(numbers) == len(MIGRATIONS)
     assert tuple(numbers[number] for number in range(78, 83)) == ("PoolDrop", "TeamColumnsDrop", "FoldSettingDrop", "BrowserSessionsDrop", "DeveloperSwitchRename")
-    assert (numbers[76], numbers[77], numbers[83]) == ("BlankAbsenceNulls", "PlanModes", "SyncTablesDrop")
+    assert (numbers[76], numbers[77], numbers[83], numbers[84]) == ("BlankAbsenceNulls", "PlanModes", "DuplicateSettingsDrop", "SyncTablesDrop")
 
 
 def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
@@ -926,8 +926,9 @@ def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_
 
 
 def plans_of(connection, bus, scope) -> Plans:
+    from journal.repositories.templates import Templates
     links, tasks = Links(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
-    return Plans(connection, bus, scope, links, tasks, Phases(connection, bus, scope, TimeSource()), Workers(connection, bus, scope, links, Rows(connection), tasks, TimeSource()), TimeSource())
+    return Plans(connection, bus, scope, links, tasks, Phases(connection, bus, scope, TimeSource()), Workers(connection, bus, scope, links, Rows(connection), tasks, TimeSource()), Templates(connection, bus, TimeSource()), TimeSource())
 
 
 def test_the_plan_modes_migration_makes_every_plan_from_before_a_solo_one(connection, bus, scope):

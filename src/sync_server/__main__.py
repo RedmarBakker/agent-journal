@@ -16,7 +16,7 @@ def serve(arguments: argparse.Namespace) -> None:
         print(f"moved the row sync's old files to {folder}", flush=True)
     team = TeamServer(arguments.data)
     if team.accounts.is_empty():
-        print("this team server has no admin yet: the first journal to connect to it with journal library connect becomes its admin", flush=True)
+        print(f"this team server has no admin yet: claim it from your journal with journal team connect https://<this server's address>/setup?code={team.setup_code.current()}", flush=True)
     team.http(arguments.host, arguments.port).serve_forever()
 
 
@@ -36,7 +36,15 @@ def restore(arguments: argparse.Namespace) -> None:
     print(f"restored {arguments.source} into {arguments.data / DATABASE}, with the library's files kept beside it")
 
 
-VERBS = {"serve": serve, "backup": backup, "restore": restore}
+def setup_code(arguments: argparse.Namespace) -> None:
+    team = TeamServer(arguments.data)
+    if not team.accounts.is_empty():
+        print("this team server has its admin already, so it has no setup code: connect with your account, or with an invitation an admin shares")
+        return
+    print(team.setup_code.current())
+
+
+VERBS = {"serve": serve, "backup": backup, "restore": restore, "setup-code": setup_code}
 
 
 def main() -> None:
@@ -49,6 +57,7 @@ def main() -> None:
     backing.add_argument("--to", type=Path)
     restoring = verbs.add_parser("restore", help="put a backup in place of the database; run it while no server runs on the data folder")
     restoring.add_argument("--from", dest="source", type=Path, required=True)
+    verbs.add_parser("setup-code", help="print the code that claims this server while it has no admin, for the person with a shell on its machine")
     for verb in verbs.choices.values():
         verb.add_argument("--data", type=Path, required=True, help="the folder its database lives in")
     arguments = parser.parse_args()

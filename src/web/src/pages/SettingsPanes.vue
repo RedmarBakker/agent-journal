@@ -8,7 +8,6 @@ import DeveloperPanel from "./DeveloperPanel.vue";
 import SettingsEnvironments from "./SettingsEnvironments.vue";
 import SettingsRegion from "./SettingsRegion.vue";
 import SettingsServices from "./SettingsServices.vue";
-import SettingsLibrary from "./SettingsLibrary.vue";
 import {tabLine} from "../domain/settingsCatalog.js";
 
 const FLUSH = ["plugins", "environments"];
@@ -43,10 +42,6 @@ const emit = defineEmits(["pick", "saved", "change", "timing", "act", "show-all"
                 <template #environments>
                     <p class="settings-line">{{ tabLine("environments") }}</p>
                     <SettingsEnvironments :query="query" />
-                </template>
-                <template #library>
-                    <p class="settings-line">{{ tabLine("library") }}</p>
-                    <SettingsLibrary />
                 </template>
                 <template #services>
                     <p class="settings-line">{{ tabLine("services") }}</p>

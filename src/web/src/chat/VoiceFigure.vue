@@ -460,7 +460,8 @@ function step() {
     drawnFrame.value = posed.turning ? 0 : shownFrame.value;
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
-    player.show(drawnClip.value, drawnFrame.value, posedOnSeat(shown, seconds), {
+    const facing = posedOnSeat(shown, seconds);
+    player.show(drawnClip.value, drawnFrame.value, facing, {
         posture: drawn,
         eyes: newestAside?.phase === "notice" ? null : look.eyes,
         stride: newestAside?.phase === "scoot" ? Math.abs(newestAside.to - newestAside.from) / SIZE : shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : backing.value?.at.way ? -backing.value.at.steps : stride,
@@ -475,7 +476,7 @@ function step() {
         tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
         ticker: callTicker(),
         // a call made seated has its telephone on the side its seat leaves free, decided once as the call begins (perches.js phoneSide)
-        phoneWay: shown.clip.name === "phone_call" && SEATED.has(drawn) ? (playing.phoneWay ??= phoneSide(body.place, figureSize(), latestFloors().floors)) : 1,
+        phoneWay: drawnClip.value.name === "phone_call" && SEATED.has(drawn) ? (playing.phoneWay ??= phoneSide({...body.place, face: facing}, figureSize(), latestFloors().floors)) : 1,
         grabbed: Boolean(body.airborne?.held),
         airborne: Boolean(body.airborne || flight),
     });
@@ -602,6 +603,17 @@ function endAct(shown) {
 let seatPose = null;
 function posedOnSeat(shown, now) {
     if (newestAside) return newestAside.facing;
+    if (shown.clip.name === "phone_call" && SEATED.has(posed.posture) && !posed.turning) {
+        if (playing.phoneFacing == null) {
+            playing.phoneFacing = player.facing ?? (seatPose ? posedFacing(seatPose, now) : posed.facing);
+            // Retained idle yaw velocity must not carry the rendered heading past the telephone's reserved placement.
+            player.turn = null;
+        }
+        const facing = playing.phoneFacing;
+        // The telephone stays on the reserved side while calling; idle seat turns resume from the heading actually held.
+        if (posed.posture === "sit") seatPose = {face: posed.facing, from: facing, to: facing, since: now, next: Math.max(seatPose?.next ?? now, now)};
+        return facing;
+    }
     seatPose = posed.posture === "sit" && !posed.turning && !shown.clip.aside ? poseAfter(seatPose, posed.facing, now, Math.random) : null;
     return seatPose ? posedFacing(seatPose, now) : posed.facing;
 }

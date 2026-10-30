@@ -48,7 +48,7 @@ export class FigurePlayer {
     // screen as `screen` says (figure/visor.js), the head leaning `tilt` degrees at rest (figure/headTilt.js), and the things flung out
     // rummaging flying as `throws` says (acts.js throwsFor), leaning out `leanWay` (figure.js reachSide); nothing is drawn when that frame is
     // already there and nothing eases; `ticker` is text scrolling across the visor in place of the eyes (visorPixels.js tickerPixels); and the
-    // figure `grabbed` by the pointer startled (figure.js startledHeld); and the side of the page a seated call's telephone stands on,
+    // figure `grabbed` by the pointer startled (figure.js startledHeld); and which mirrored telephone placement a seated call uses,
     // `phoneWay` (figure.js seatedCall); an `airborne` figure no longer plants its feet while leaving a seat
     show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1, airborne = false}) {
         if (["walk", "run"].includes(clip.name) && stride !== null) index = ((stride % 1 + 1) % 1) * clip.frames;

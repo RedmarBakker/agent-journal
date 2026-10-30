@@ -9,7 +9,7 @@ import Notice from "../kit/Notice.vue";
 import {clock} from "../format/time.js";
 import {readerScript, skillFolder} from "../domain/library.js";
 
-const props = defineProps({type: {type: String, required: true}, name: {type: String, required: true}});
+const props = defineProps({type: {type: String, required: true}, name: {type: String, required: true}, team: {type: String, default: ""}});
 const emit = defineEmits(["changed"]);
 const {failure, attempt} = useAttempt();
 const shown = ref(null);
@@ -21,16 +21,16 @@ const edited = computed(() => shown.value?.edited_fields || []);
 const script = computed(() => (props.type === "reader" ? readerScript(versions.value[0]) : ""));
 
 async function load() {
-    shown.value = await api.libraryItem(props.type, props.name);
+    shown.value = await api.libraryItem(props.type, props.name, props.team);
 }
 
 async function importNewest() {
-    const {done} = await attempt(() => api.importLibraryItem(props.type, props.name, newest.value, Boolean(script.value)));
+    const {done} = await attempt(() => api.importLibraryItem(props.type, props.name, newest.value, Boolean(script.value), props.team));
     if (done) await changed();
 }
 
 async function update(replace) {
-    const {done} = await attempt(() => api.updateLibraryItem(props.type, props.name, replace));
+    const {done} = await attempt(() => api.updateLibraryItem(props.type, props.name, replace, props.team));
     if (done) await changed();
 }
 

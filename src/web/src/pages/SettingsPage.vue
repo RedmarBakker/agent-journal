@@ -110,8 +110,6 @@ const sized = new ResizeObserver(([entry]) => page.value && page.value.style.set
 onMounted(() => bars.value && sized.observe(bars.value));
 onUnmounted(() => sized.disconnect());
 const saveTiming = (row, next) => change(row.timing.target, row.label, next);
-// the Library tab is a form for the whole journal, saved by its own buttons: neither note above the settings is true of it
-const formTab = computed(() => !across.value && tab.value === "library");
 </script>
 
 <template>
@@ -134,9 +132,7 @@ const formTab = computed(() => !across.value && tab.value === "library");
                 <template v-if="listed">
                     <Segmented :options="filters" :value="filter" :fill="narrow" @pick="filter = $event" />
                 </template>
-                <template v-if="!formTab">
-                    <span class="settings-saved">Changes are saved as you make them</span>
-                </template>
+                <span class="settings-saved">Changes are saved as you make them</span>
             </PageBar>
         </div>
 

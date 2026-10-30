@@ -16,6 +16,7 @@ import {DEFAULT_LEVEL} from "../domain/verbosity.js";
 import TerminalWindow from "../chat/TerminalWindow.vue";
 import RailWaiting from "../rail/RailWaiting.vue";
 import TasksTab from "../tasks/TasksTab.vue";
+import PlansTab from "../plans/PlansTab.vue";
 import ReviewerPane from "../chat/ReviewerPane.vue";
 
 defineProps({
@@ -52,6 +53,7 @@ const feedKey = computed(() => (agent.value ? `${agent.value.id}:${agent.value.s
             <template #terminal><TerminalWindow :key="level" :level="level" /></template>
             <template #questions><RailWaiting table="questions" /></template>
             <template #tasks><TasksTab /></template>
+            <template #plans><PlansTab /></template>
             <template #agents><AgentGrid /></template>
             <template #reviewer><ReviewerPane /></template>
             <template #default><RailWaiting /></template>

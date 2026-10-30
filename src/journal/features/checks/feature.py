@@ -30,7 +30,7 @@ class Checks(Feature):
     options = (ChecksOptions.REPEAT,)
     nudges = (ChecksNudges.CHECK_FAILED, ChecksNudges.CHECK_FAILURE_REPEAT)
 
-    skill = Skill("checks", 'Scripts that pass or fail about the project; load it when a check is created, run or fails', """
+    skill = Skill("checks", 'Write and run scripts that pass or fail about the project; load it when a check is created, run or fails', """
 # Checks
 
 A check is a script that passes or fails, run by hand or every so many minutes. A failure is reported to you;

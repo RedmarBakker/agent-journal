@@ -65,8 +65,8 @@ class LibraryLink:
     def file(self, item_type: str, name: str, number: int, file_name: str) -> bytes:
         return self.reached(self.account.address(), f"/items/{quote(item_type)}/{quote(name)}/{number}/files/{quote(file_name)}", None, FILE_SECONDS)
 
-    def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
+    def install(self, address: str, setup_code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
+        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name, "setup_code": setup_code}).encode()
         return LoginAnswer(**json.loads(self.reached(address, "/install", body, REQUEST_SECONDS)))
 
     def accept(self, address: str, code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
@@ -116,7 +116,7 @@ class LibraryLink:
         try:
             return self.sent(address, path, body, seconds, method)
         except urllib.error.URLError as unreached:
-            raise Rejection(f"the library at {address} did not answer ({unreached.reason}): journal library connect") from unreached
+            raise Rejection(f"the team server at {address} did not answer ({unreached.reason}): journal team connect") from unreached
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float, method: str | None = None) -> bytes:
         request = urllib.request.Request(address + path, data=body, headers=self.headers(), method=method)

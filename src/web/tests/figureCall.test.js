@@ -192,10 +192,11 @@ test("the telephone comes whole, never growing or fading in: out of a poof a lit
     const {set} = telephone();
     set.userData.shape({squash: first.squash, dial: 0});
     expect(set.children[0].scale.toArray()).toEqual([1, 1, 1]);
-    // it falls, gathering speed, onto the floor
+    // it drops monotonically, easing into its landing instead of stopping at full speed
     const heights = Array.from({length: 41}, (_, index) => phoneArrival(act.drop[0] + ((act.drop[1] - act.drop[0]) * index) / 40).above);
     for (let index = 1; index < heights.length; index++) expect(heights[index]).toBeLessThanOrEqual(heights[index - 1]);
-    expect(heights[20] - heights[40]).toBeGreaterThan(heights[0] - heights[20]);
+    expect(heights[1] - heights[2]).toBeLessThan(heights[19] - heights[20]);
+    expect(heights[38] - heights[39]).toBeLessThan(heights[20] - heights[21]);
     expect(phoneArrival(act.drop[1]).above).toBe(0);
     // it lands squashed, wobbles both ways, smaller each time, and is still by the time it is reached for
     const squashes = Array.from({length: 101}, (_, index) => phoneArrival(act.settle[0] + ((act.settle[1] - act.settle[0]) * index) / 100).squash);
@@ -379,11 +380,11 @@ test("a sitting figure takes a call sitting, wherever it sits, the telephone bes
                         const ear = at("head");
                         const held = pose.props.get("telephone_handset");
                         expect(held.bone, `${label} at ${u}: off the telephone, in the hand`).toBe(`hand_${nearer}`);
-                        expect(at(`hand_${nearer}`).distanceTo(ear), `${label} at ${u}: at its ear`).toBeLessThan(1.6);
+                        if (u >= act.lift[1] && u <= act.hang[0]) expect(at(`hand_${nearer}`).distanceTo(ear), `${label} at ${u}: at its ear`).toBeLessThan(1.6);
                         expect(pose.props.get("telephone_cord"), `${label} at ${u}: its cord`).toBeTruthy();
-                        // the other hand, sitting composed, still flat on the floor beside it
+                        // the other hand rests on the floor outside its dialling reach and return
                         const other = nearer === "l" ? "r" : "l";
-                        if (posture === "composed" && facing === 0) expect(Math.abs(at(`hand_${other}`).z - surface), `${label} at ${u}: the other hand flat`).toBeLessThan(0.12);
+                        if (posture === "composed" && facing === 0 && (u <= act.finger[0] || u >= act.back[1])) expect(Math.abs(at(`hand_${other}`).z - surface), `${label} at ${u}: the other hand flat`).toBeLessThan(0.12);
                     }
                 }
             }
@@ -395,12 +396,14 @@ test("the call is made by the arm from every stance, solved from where the telep
     // the telephone's body as a box about its base in the figure's axes, its rounding and its top tipped toward the viewer counted
     const {width, depth, height, round, dome} = TELEPHONE.base;
     const tipped = height * Math.sin((TELEPHONE.tip * Math.PI) / 180);
-    const outside = (point, base) =>
-        Math.hypot(
-            Math.max(Math.abs(point.x - base.x) - (width / 2 + round), 0),
-            Math.max(Math.abs(point.y - base.y + tipped / 2) - (depth / 2 + round + tipped / 2), 0),
-            Math.max(point.z - (base.z + height + round + dome), base.z - point.z, 0),
+    const outside = (point, base, turn) => {
+        const own = point.clone().sub(base).applyAxisAngle(new THREE.Vector3(0, 0, 1), -THREE.MathUtils.degToRad(turn));
+        return Math.hypot(
+            Math.max(Math.abs(own.x) - (width / 2 + round), 0),
+            Math.max(Math.abs(own.y + tipped / 2) - (depth / 2 + round + tipped / 2), 0),
+            Math.max(own.z - (height + round + dome), -own.z, 0),
         );
+    };
     // how far each part of the body reaches out from its bones, in the figure's units: the trunk half as wide as the shoulders, the limbs
     // as thick as the legs (figureSeatedLegs LEG)
     const [TRUNK, LIMB] = [0.45, 0.28];
@@ -417,9 +420,10 @@ test("the call is made by the arm from every stance, solved from where the telep
             for (const voice of Object.keys(stances)) {
                 const stance = stanceOf(voice);
                 const label = `${voice} ${posture} facing ${facing}${seated ? `, telephone to the ${way > 0 ? "right" : "left"}` : ""}`;
-                // the hand that takes the handset, and the one that dials: seated the one on the telephone's side does both
+                // the near hand holds the receiver while the other hand dials in either posture
                 const holder = seated ? (way * Math.cos((facing * Math.PI) / 180) >= 0 ? "l" : "r") : stance.busy.has("r") ? "l" : "r";
-                const times = seated ? act.seated : act;
+                const dialler = holder === "l" ? "r" : "l";
+                const times = act;
                 let rested = null;
                 let taken = 0;
                 for (let frame = 0; frame < call.frames; frame++) {
@@ -451,13 +455,13 @@ test("the call is made by the arm from every stance, solved from where the telep
                         expect(handset.bone, step).toBe(`hand_${holder}`);
                         if (taken++ === 0) expect(where.distanceTo(rested), `${step}: taken where it rested`).toBeLessThan(NEAR);
                     }
-                    // standing, the hand holds it at the ear while the other hand dials
-                    if (!seated && u >= times.finger[1] && u <= times.back[0]) expect(handset.bone, `${step}: held while dialling`).toBe(`hand_${holder}`);
-                    // seated, the finger of that hand in the hole the dial has turned to, the hand pointing into it
-                    if (seated && u >= times.finger[1] && u <= times.back[0]) {
-                        const hole = onPhoneAt(dialHole(act.turn * partOf(u, times.dial)), base);
-                        const pointing = RIG.along.get(`hand_${holder}`).clone().transformDirection(moves.get(`hand_${holder}`));
-                        expect(at(`hand_${holder}`).addScaledVector(pointing, CALL.finger).distanceTo(hole), `${step}: finger in the dial`).toBeLessThan(NEAR);
+                    // the receiver remains held while the opposite fingertip follows the actual turned dial face
+                    if (u >= times.finger[1] && u <= times.back[0]) {
+                        expect(handset.bone, `${step}: held while dialling`).toBe(`hand_${holder}`);
+                        const hole = onPhoneAt(dialHole(act.turn * partOf(u, times.dial)), base, telephone.turn.z);
+                        const [x, y, z] = CALL.fingertip;
+                        const fingertip = RIG.heads.get(`hand_${dialler}`).clone().add(new THREE.Vector3((dialler === "l" ? 1 : -1) * x, y, z)).applyMatrix4(moves.get(`hand_${dialler}`));
+                        expect(fingertip.distanceTo(hole), `${step}: model fingertip in the dial`).toBeLessThan(NEAR);
                     }
                     if (u > act.talk[0] && u < act.talk[1]) {
                         const [x, y, z] = CALL.ear;
@@ -469,9 +473,10 @@ test("the call is made by the arm from every stance, solved from where the telep
                     // seated, the telephone never sinks into the trunk, the legs or the other arm
                     if (seated) {
                         const other = holder === "l" ? "r" : "l";
-                        for (const bone of ["hips", "spine", "chest", "neck"]) expect(outside(at(bone), base), `${step}: clear of the ${bone}`).toBeGreaterThan(TRUNK);
-                        for (const bone of ["thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", `upper_arm_${other}`, `forearm_${other}`, `hand_${other}`]) {
-                            expect(outside(at(bone), base), `${step}: clear of the ${bone}`).toBeGreaterThan(LIMB);
+                        for (const bone of ["hips", "spine", "chest", "neck"]) expect(outside(at(bone), base, telephone.turn.z), `${step}: clear of the ${bone}`).toBeGreaterThan(TRUNK);
+                        const resting = u <= act.finger[0] || u >= act.back[1] ? [`upper_arm_${other}`, `forearm_${other}`, `hand_${other}`] : [];
+                        for (const bone of ["thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", ...resting]) {
+                            expect(outside(at(bone), base, telephone.turn.z), `${step}: clear of the ${bone}`).toBeGreaterThan(LIMB);
                         }
                     }
                 }

@@ -134,7 +134,7 @@ watch(
 );
 
 // A list may carry a document or report without its body, or a plan without its phases, tasks and reviews, a summary: one held whole stays whole while it has not changed.
-const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r));
+const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r)) || (r.table === "tasks" && !("plan_id" in r));
 
 // The rows `arriving` as the viewer keeps them against the rows it `held`: a row that has not changed is the very object it held, so
 // nothing drawn from it is drawn again, as when a reconnect or a refresh reads the chat's rows again; a summary of a row held whole,
@@ -150,6 +150,14 @@ function stillWhole(held, arriving) {
 }
 
 export const isWhole = (r) => !isSummary(r);
+
+// the rows of these ids held as list rows alone, read whole in one request, as a task's plan comes only with a task read by id
+export async function wholeRows(table, ids) {
+    const summaries = ids.filter((id) => (store.rows[table] || []).some((r) => r.id === id && isSummary(r)));
+    if (!summaries.length) return;
+    const fresh = new Map((await api.list(table, {ids: summaries})).rows.map((r) => [r.id, r]));
+    store.rows[table] = (store.rows[table] || []).map((r) => fresh.get(r.id) || r);
+}
 
 // one row read whole by its own endpoint, in place of its index row
 export async function whole(table, id) {

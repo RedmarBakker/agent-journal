@@ -2,6 +2,48 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.4
+
+- A plan's card counts its tasks without the cancelled ones, so a plan with a cancelled phase can show as done.
+
+## 4.69.3
+
+- The Team page's connect form sends what you type: its text boxes carried nothing back to the form, so every connect was refused as empty.
+
+## 4.69.2
+
+- A new team server is claimed only with its setup code: the server makes it at its first start, the install prints it once with the line that claims it, `journal team connect "<url>/setup?code=<code>"`, and `python -m sync_server setup-code` reads it again on the server's own machine while it has no admin.
+- The Developer features switch turns off again: a setting stored twice, as this switch was after its rename, keeps only its last change. The agent bar's hook and request timings show only while performance monitoring is on.
+
+## 4.69.1
+
+- A background command whose shell is killed from outside no longer stays running for ever: its heartbeat asks the shell process itself whether it still runs, never its process number, which a killed shell can still answer to. So it no longer counts as running and holds up an update's restart.
+
+## 4.69.0
+
+- A worker clocks out once, when its whole queue is done: proving the last point of a task hands it the next, and its tests run and its report reaches you only at the end. The report choice and `--report` are gone.
+- A worker's shell runs only reads, searches, file edits and journal commands. A test or a build it runs itself is refused with the line to queue it: `journal tests turn` for single named tests, `journal build` for the project's build, run for it one at a time. A subagent only reads. Which kinds of command workers may run is set from the workers dropdown's new settings view; the How workers test setting is gone.
+- A worker whose work waits for its check and merge takes no new task.
+- A subagent is shown by the name its dispatch gives it, with its current job beside it.
+- `journal output stop <n>` ends a running output whose command hangs or whose process is gone, and any wait on it.
+- Several teams per project: the Team page lists each connected team, and library commands take `--team`.
+- The skills are reorganised around a short journal map.
+- The Plans window shows open plans only, each plan being worked on as a card with its state, phase, workers and progress.
+- Under tests at each phase end, a finished task waits in testing while the next starts.
+- A run of chosen tests is split across the shards like the whole suite, so it is no longer slower than the suite.
+- The avatars' ears are detached at load, Homie's headphones travel with the headset, and the phone call is redone standing and seated.
+- Fixes: a worker before clock-in may run a journal command after a change of folder; a test run whose stored output was cleared out no longer blocks a clock-out; a journal reaches a team server before it joins one; the developer switch is named Developer features.
+
+## 4.68.6
+
+- Each hook waits its own time for the journal's answer instead of two seconds for all: a tool 5 seconds, your prompt 8, a stop 10, a session start 15, so a busy machine no longer lets hooks go through unchecked.
+- A worktree worker's repositories are stored before its run starts, so it can always clock out with its inner repositories.
+- The Home page has a Plans window, and the plan bars moved into it from the top bar.
+- A message can carry buttons that open an address or post a form.
+- Triggers can fire on a schedule: once, every so many minutes or on a cron line.
+- The developer settings are grouped under one switch, each group with its own.
+- Panning a flowchart never selects text, and a blocked task opens what its reason names.
+
 ## 4.68.5
 
 - In auto mode the agent may stop with tasks open only by waiting or by saying it is stuck, and a stuck agent now stops with its tasks left open. A stop held only for the closing words after a reply no longer counts towards the five in a row that stop a looping agent.
