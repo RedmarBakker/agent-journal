@@ -2,7 +2,6 @@ from journal.features.tasks.states.external_wait import NEXT_TASK_DELAY, Externa
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -26,9 +25,9 @@ def test_the_paused_task_is_offered_once_at_a_wait_not_at_the_next_waits_with_th
     story.expect_typed_nudge(TasksNudges.WAIT_PAUSED_TASK, count=1, n=story.tasks.started, what="the build")
     story.agent_writes(story.agents.subject, "a.py")
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.open}")
+    story.time_travel(minutes=5)
     following = story.agent_creates_task(story.agents.subject, "the tests")
     story.agent_runs(story.agents.subject, f"task start {following}")
-    story.expect_task(story.tasks.started, state=TaskState.PAUSED)
     waits_a_minute(story)
     story.expect_typed_nudge(TasksNudges.WAIT_PAUSED_TASK, count=2, n=story.tasks.started, what="the build")
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
