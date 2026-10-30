@@ -1048,6 +1048,18 @@ def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_wind
     assert ledger.estimate(3, 1000).status == "stale" and ledger.subscription_limits(1000).status == "stale"
 
 
+def test_plan_rig_cost_coverage_counts_plan_domain_and_role_agents(tmp_path):
+    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace())
+    folder = runtime.spec_folder("plan-1")
+    folder.mkdir(parents=True)
+    (folder / "rig.yaml").write_text(json.dumps({"pods": [
+        {"id": "plan", "members": [{"id": "plan-agent"}]},
+        {"id": "engineering", "members": [{"id": "domain-agent"}, {"id": "builder", "role": "builder"}]},
+    ]}))
+
+    assert runtime.expected_seats("plan-1") == 3, "coverage includes the Plan, Domain and Role agent seats"
+
+
 def test_openrig_075_cost_json_preserves_per_seat_estimate_metadata():
     payload = {"seats": [{
         "seatSession": "alpha-builder@release", "status": "reported", "kind": "claude",
@@ -1068,6 +1080,40 @@ def test_openrig_075_cost_json_preserves_per_seat_estimate_metadata():
         2.5, "Claude statusline", "claude", "native-a")
     assert reading.window == payload["seats"][0]["window"] and reading.coverage == "current native session"
     assert reading.freshness == "fresh" and reading.status == "estimated" and reading.sampled_at is not None
+
+
+def test_organization_plan_agent_usage_is_recorded_from_its_rig_seat(tmp_path):
+    from journal.features.plans.support.plan_agents import PlanAgents
+
+    reading = UsageReading(0.37, "Claude statusline", "claude", "native-plan",
+                           {"since": "window-a", "resets": 0, "asOf": 12.0},
+                           "current native session", "fresh", "estimated", "reported", "", 12.0)
+    runtime = SimpleNamespace(target=SeatRuntime.target, usage_cost=lambda _target: reading,
+                              expected_seats=lambda _rig: 3)
+    agents = object.__new__(PlanAgents)
+    agents.agent = lambda _plan: SimpleNamespace(provider="claude", session="")
+    agents.plans = SimpleNamespace(rig_id=lambda _plan: 8)
+    agents.staffing = SimpleNamespace(find_rig=lambda _rig_id: SimpleNamespace(name="plan-4"), runtime=runtime)
+    agents.usage = UsageLedger(Config.rooted(tmp_path))
+    agents.time_source = SimpleNamespace(seconds=lambda: 12.0)
+    plan = SimpleNamespace(id=4, mode=PlanMode.ORGANIZATION)
+
+    agents.record_usage(plan)
+
+    assert agents.usage.seat_estimates(4) == {"plan-plan-agent@plan-4": 0.37}, "the Plan agent's OpenRig session is included even when it has no provider session row"
+
+
+def test_shared_role_usage_samples_its_domain_and_role_seats():
+    from journal.features.organization.support.seat_runtime import SeatAddress
+
+    runner = object.__new__(SeatRunner)
+    addresses = (SeatAddress("engineering", "domain-agent"), SeatAddress("engineering", "builder"),
+                 SeatAddress("support", "domain-agent"), SeatAddress("support", "reviewer"))
+    runner.runtime = SimpleNamespace(seat_addresses=lambda _rig: addresses, target=SeatRuntime.target)
+
+    assert runner.usage_targets(SimpleNamespace(rig="shared", pod="engineering", member="builder")) == (
+        "engineering-domain-agent@shared", "engineering-builder@shared",
+    ), "a shared Role estimate includes its Domain agent without attributing other shared seats to the plan"
 
 
 def test_openrig_cost_json_keeps_unreported_cost_explicit():
@@ -1156,7 +1202,11 @@ def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tm
     plan = SimpleNamespace(state=PlanState.STARTED)
     windows = [SimpleNamespace(key="five_hour", used=40.0, resets_at=500.0, label="five hours")]
     runner = object.__new__(SeatRunner)
-    runner.runtime = SimpleNamespace(usage_cost=lambda _target: reading, expected_seats=lambda _rig: 1,
+    addresses = (SimpleNamespace(pod="plan", member="plan-agent"),
+                 SimpleNamespace(pod="engineering", member="domain-agent"),
+                 SimpleNamespace(pod="engineering", member="builder"))
+    runner.runtime = SimpleNamespace(usage_cost=lambda _target: reading, seat_addresses=lambda _rig: addresses,
+                                     target=SeatRuntime.target, expected_seats=lambda _rig: 3,
                                      stop=lambda target, reason: (order.append("stop"), stopped.append((target, reason))))
     runner.ledger = ledger
     runner.caps = Caps(Settings())
@@ -1175,7 +1225,10 @@ def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tm
     assert paused == [plan] and len(stopped) == 1 and stopped[0][0] == member.target
     assert order == ["notify", "pause", "stop"] and notified[0][1].startswith("the plan's Estimated API cost") and notified[0][-1] == 4
     assert "not money billed" in stopped[0][1]
-    assert ledger.estimate(4, 20.0, 1).status == "estimated"
+    assert ledger.estimate(4, 20.0, 3).status == "estimated"
+    assert set(ledger.seat_estimates(4)) == {
+        "plan-plan-agent@release", "engineering-domain-agent@release", "engineering-builder@release",
+    }, "the estimate includes Plan, Domain and Role seats"
     limits = ledger.subscription_limits(20.0)
     assert limits.status == "available" and limits.limits["five_hour"]["used_percentage"] == 40.0
 

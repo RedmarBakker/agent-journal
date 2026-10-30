@@ -15,7 +15,7 @@ from journal.support.workspace_worktree import WorkspaceWorktree
 
 
 class PlanBranchMerge:
-    """The main agent's checked merge of a finished solo Plan agent worktree."""
+    """The checked merge of a finished solo Plan agent worktree into the project."""
 
     def __init__(self, config: Config, plans: Plans, agents: PlanAgents, branches: BranchMerge) -> None:
         self.config, self.plans, self.agents, self.branches = config, plans, agents, branches

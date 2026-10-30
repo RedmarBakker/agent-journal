@@ -8,6 +8,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_marks import BUILDER_MODE, setting, story
 from tests.stories.fixtures.main.finished_solo_plan_with_branch import FinishedSoloPlanWithBranch
+from tests.stories.fixtures.main.finished_solo_plan_with_branch_before_merge import FinishedSoloPlanWithBranchBeforeMerge
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 
 
@@ -16,16 +17,13 @@ def plan_worktree(story):
 
 
 @story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_finished_solo_plan_waits_for_the_main_agent_to_merge_its_branch(story):
-    merged = story.agent_runs(story.agents.main, f"plan merge {story.plans.first}")
-    merged.expect_command_passed()
-    merged.expect_command_text(f"plan {story.plans.first}'s work merged as")
+def test_a_finished_solo_plan_merges_its_work_into_the_project(story):
     story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
     story.expect_no_project_file(".claude/worktrees/plan-1")
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(FinishedSoloPlanWithBranchBeforeMerge, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(story):
     tree = plan_worktree(story)
     settings = tree.path / ".claude" / "settings.json"
@@ -51,7 +49,7 @@ def test_a_finished_solo_plan_merges_while_leaving_its_generated_settings_out(st
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(FinishedSoloPlanWithBranchBeforeMerge, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story):
     tree = plan_worktree(story)
     leftover = tree.path / "uncommitted.txt"
@@ -63,7 +61,7 @@ def test_a_finished_solo_plan_with_uncommitted_work_keeps_its_worktree(story):
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(FinishedSoloPlanWithBranchBeforeMerge, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(story):
     tree = plan_worktree(story)
     settings = tree.path / ".claude" / "settings.json"
@@ -76,7 +74,7 @@ def test_a_finished_solo_plan_keeps_uncommitted_project_settings_for_review(stor
     story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(FinishedSoloPlanWithBranch, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(FinishedSoloPlanWithBranchBeforeMerge, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_conflict_leaves_the_finished_solo_plan_worktree(story):
     project_file = story.app.config.root / "PLAN-AGENT-SMOKE.md"
     project_file.write_text("the project version\n")

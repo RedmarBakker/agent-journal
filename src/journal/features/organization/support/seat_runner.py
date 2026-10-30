@@ -9,10 +9,11 @@ from journal.config import Config
 from journal.features.organization.support.caps import Caps
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
-from journal.features.organization.support.role_escalation import RoleEscalation
-from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.role import Role
-from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
+from journal.features.organization.support.role_escalation import RoleEscalation
+from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.features.organization.support.seat_runtime import SeatAddress, SeatMember, SeatRuntime
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
@@ -349,9 +350,10 @@ class SeatRunner:
         plan_id = identity.plan_id or worker.plan_id
         estimate = None
         if plan_id:
-            reading = self.runtime.usage_cost(member.target)
-            estimate = self.ledger.record(plan_id, member.target, native_session, reading, now,
-                                          self.runtime.expected_seats(member.rig))
+            expected = self.runtime.expected_seats(member.rig)
+            for target in self.usage_targets(member):
+                reading = self.runtime.usage_cost(target)
+                estimate = self.ledger.record(plan_id, target, reading.native_session_id or target, reading, now, expected)
         source = f"{worker.provider} journal status files"
         try:
             windows = self.providers.lookup(worker.provider).status(native_session, self.config.status_home).windows
@@ -376,6 +378,15 @@ class SeatRunner:
                     self.plans.agent_postponed(plan, Actor.system())
                 self.runtime.stop(member.target, decision.reason)
                 raise Rejection(decision.reason)
+
+    def usage_targets(self, member: SeatMember) -> tuple[str, ...]:
+        addresses = self.runtime.seat_addresses(member.rig)
+        if any(address.pod == PLAN_POD and address.member == PLAN_AGENT for address in addresses):
+            selected = addresses
+        else:
+            job_seats = {SeatAddress(member.pod, "domain-agent"), SeatAddress(member.pod, member.member)}
+            selected = tuple(address for address in addresses if address in job_seats)
+        return tuple(self.runtime.target(member.rig, address.pod, address.member) for address in selected)
 
     def is_finished(self, worker: Worker, actor: Actor, ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> bool:
         identity = SeatJobIdentity.from_worker(worker)
