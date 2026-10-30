@@ -40,5 +40,12 @@ class AnnouncedCommands:
 
     def withdraw(self, environment: str, session: str | None, parts: tuple[str, ...]) -> None:
         with self.lock:
-            remaining = [announcement for announcement in self.announced.get((environment, session), ()) if announcement[0] != parts]
-            self.announced[(environment, session)] = deque(remaining, maxlen=COMMAND_COUNT)
+            remaining = deque(maxlen=COMMAND_COUNT)
+            for announced, subagent in self.announced.get((environment, session), ()):
+                unmatched = list(announced)
+                for part in parts:
+                    if part in unmatched:
+                        unmatched.remove(part)
+                if unmatched:
+                    remaining.append((tuple(unmatched), subagent))
+            self.announced[(environment, session)] = remaining
