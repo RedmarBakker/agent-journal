@@ -28,7 +28,7 @@ def test_a_worker_whose_run_printed_no_session_is_never_sent_a_job(story):
 
 
 @story(WorkerRunEnded, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_released_worker_is_sent_its_next_job_only_with_a_task_and_resumes_its_session_on_that_task(story):
+def test_a_released_worker_is_sent_its_next_job_only_with_a_task_resumes_its_session_on_it_and_the_agent_waits_until_it_reports_again(story):
     lexer = story.agent_creates_task(story.agents.subject, "the lexer")
     story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()} --drop")
     story.agent_runs(story.agents.subject, f"worker send {story.agents.workers.first()} 'now the lexer'")
@@ -39,3 +39,8 @@ def test_a_released_worker_is_sent_its_next_job_only_with_a_task_and_resumes_its
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DISPATCHED, brief="now the lexer", resume=story.session_of(story.agents.workers.first()))
     story.expect_task(lexer, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
+    story.agent_resumes_the_session(story.agents.workers.first())
+    story.agent_clocks_in(story.agents.workers.first())
+    story.agent_proves(story.agents.workers.first(), 1, "lexer.py:4, test_splits passes")
+    story.agent_clocks_out(story.agents.workers.first(), "the lexer splits the words")
+    story.expect_stack(story.agents.subject, Ready)

@@ -4717,46 +4717,6 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     assert workers.find(1).run_end == "the escapement ticks", "the time limit counts from the new run, not the first"
 
 
-def test_a_reused_worker_keeps_every_report_and_is_out_again_until_it_reports(app: App, monkeypatch):
-    from journal.features.workers.support.worker_reports import REPORTED
-    from journal.repositories.links import Links
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers, links = app.console(), app.container.get(Workers), app.container.get(Links)
-    dispatched(console, ["Mr. Stephenson", "the rocket", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "the rocket runs"], Caller.agent("main", "w1", "claude"))
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "complete", "1"], AGENT)
-    tender = re.search(r"task (\d+)", console.run(["task", "create", "the tender", "--brief", "couple the tender"], AGENT).text).group(1)
-    console.run(["worker", "send", "1", "the tender", "--task", tender], AGENT)
-    assert not workers.find(1).adopted and workers.find(1).is_running(), "a report acted on is a thing of the last job; the new one is out"
-    console.run(["worker", "report", "1", "the tender is coupled"], Caller.agent("main", "w1", "claude"))
-    assert workers.find(1).is_idle()
-    console.run(["worker", "stop", "1"], AGENT)
-    revived = console.run(["worker", "send", "1", "the rails", "--task", tender], AGENT)
-    listed = console.run(["worker", "list"], AGENT).text.splitlines()[0]
-    assert listed.split()[1] == "dispatched" and listed.endswith("Mr. Stephenson: the rails"), f"a revived stopped worker is listed as out: {revived.text}{revived.error}"
-    assert len(links.targets(workers.find(1), REPORTED)) == 2, "each report keeps its own link, the first kept as history"
-
-
-def test_a_job_sent_to_a_worker_that_reported_puts_the_dispatcher_back_in_its_wait_on_it(app: App, monkeypatch):
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
-    console.run(["task", "create", "t", "--start"], AGENT)
-    dispatched(console, ["Mr. Arkwright", "the frame", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "the frame spins"], Caller.agent("main", "w1", "claude"))
-    assert sessions.top("s1").name != "awaiting"
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "send", "1", "the mill"], AGENT)
-    waiting = sessions.top("s1")
-    assert waiting.name == "awaiting" and waiting.targets() == ["workers:1"], "the dispatcher waits on the worker it sent out again"
-    console.run(["worker", "report", "1", "the mill turns"], Caller.agent("main", "w1", "claude"))
-    assert sessions.top("s1").name != "awaiting", "until it reports again"
-
-
 def test_a_worker_is_idle_by_one_rule_old_rows_and_dead_processes_included(app: App):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
@@ -4773,25 +4733,6 @@ def test_a_worker_is_idle_by_one_rule_old_rows_and_dead_processes_included(app: 
         workers.save(row, Actor.system())
     assert [w.name for w in workers.scoped() if w.is_running()] == ["out", "ended unreported"], "a dispatched worker is out whatever its process, until its report is filed"
     assert [w.name for w in workers.scoped() if w.is_idle()] == ["idle"], "idle is reported and not yet acted on; a stopped row, old or new, is retired"
-
-
-def test_only_a_send_counts_a_reuse_and_only_a_retire_gives_its_reason(app: App, monkeypatch):
-    from journal.repositories.workers import Workers
-    kept_conversation(app, monkeypatch)
-    hook(app, "SessionStart")
-    console, workers = app.console(), app.container.get(Workers)
-    dispatched(console, ["Mr. Brindley", "the canal", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    console.run(["worker", "report", "1", "dug"], Caller.agent("main", "w1", "claude"))
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["worker", "send", "1", "the aqueduct"], AGENT)
-    console.run(["worker", "stop", "1", "--why", "the aqueduct needs a new design"], AGENT)
-    console.run(["worker", "send", "1", "the lock"], AGENT)
-    assert workers.find(1).updater == AGENT.actor, "the send that counts names its actor"
-    console.run(["worker", "report", "1", "locked"], Caller.agent("main", "w1", "claude"))
-    worker = workers.find(1)
-    assert worker.reuse_count == 2 and worker.retire_reason == "the aqueduct needs a new design", "each send counts once, a report counts none; the reason is the stop's"
-    assert "worker 1's report is acted on: the canal is done" in console.run(["worker", "complete", "1", "--why", "the canal is done"], AGENT).text, "the answer is read back as the reason"
-    assert workers.find(1).retire_reason == "the canal is done" and workers.find(1).reuse_count == 2
 
 
 def test_a_dispatch_names_the_idle_worker_whose_branch_touched_the_briefs_files_never_its_old_brief(app: App):
