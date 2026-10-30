@@ -19,6 +19,7 @@ from journal.models.task import Task
 from journal.models.template import Template
 from journal.repositories.domain_counts import DomainCounts
 from journal.repositories.domain_rows import DomainRows
+from journal.repositories.delivery_forecasts import DeliveryForecasts
 from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks
 from journal.repositories.templates import Templates
@@ -33,19 +34,20 @@ class OrganizationController:
 
     def __init__(self, organization: Organization, domain_plans: DomainPlans, counts: DomainCounts, usage: UsageLedger,
                  time_source: TimeSource, plans: Plans, tasks: Tasks, domain_rows: DomainRows, plan_agents: PlanAgents,
-                 caps: Caps, templates: Templates, template_start: TemplatePlanStart) -> None:
+                 caps: Caps, templates: Templates, template_start: TemplatePlanStart, forecasts: DeliveryForecasts) -> None:
         self.organization, self.domain_plans, self.counts = organization, domain_plans, counts
         self.usage, self.time_source = usage, time_source
         self.plans, self.tasks, self.domain_rows = plans, tasks, domain_rows
         self.plan_agents, self.caps, self.templates, self.template_start = plan_agents, caps, templates, template_start
+        self.forecasts = forecasts
 
     def index(self, request: Request) -> Response:
-        return Response.json(self.shown(self.organization.contracts()))
+        return Response.json(self.shown(self.organization.contracts(), request.actor))
 
     def reload(self, request: Request) -> Response:
-        return Response.json(self.shown(self.organization.reload()))
+        return Response.json(self.shown(self.organization.reload(), request.actor))
 
-    def shown(self, contracts) -> dict:
+    def shown(self, contracts, actor) -> dict:
         counts = {row.name: row for row in self.counts.all_matching()}
         domain_plans = {domain.id: self.domain_plans.of(domain.id) for domain in contracts.domains}
         all_plans = self.plans.all()
@@ -55,6 +57,7 @@ class OrganizationController:
         summaries = {plan_id: self.plan(plan, estimates[plan_id]) for plan_id, plan in known_plans.items()}
         return {"folder": contracts.folder, "commit": contracts.commit, "version": contracts.version, "problems": [asdict(problem) for problem in contracts.problems],
                 "plans": [summaries[plan.id] for plan in all_plans], "scheduled_plans": self.scheduled_plans(),
+                "sprint_forecasts": self.forecasts.organization(actor),
                 "domains": [self.domain(domain, contracts.roles_of(domain.id), counts.get(domain.id), domain_plans[domain.id], summaries) for domain in contracts.domains]}
 
     def role_contract(self, request: Request) -> Response:
@@ -80,11 +83,21 @@ class OrganizationController:
         environment = self.plan_agents.environment(plan)
         return {"id": plan.id, "title": plan.title, "phase": overall.phase().value, "mode": plan.mode.value,
                 "state": plan.state.value, "active": overall.is_active(), "tasks": [task.id for task in tasks],
-                "done": overall.done_count(), "waits_on": self.waits_on(plan, overall, waiting_refs),
+                "done": overall.done_count(), "story_points": self.story_points(tasks),
+                "waits_on": self.waits_on(plan, overall, waiting_refs),
                 "waiting_on_you": self.waiting_on_you(plan, waiting_refs),
                 "plan_agent_state": self.plan_agent_state(environment), "chat": environment.name if environment else "",
                 "estimated_api_cost_usd": estimate.amount_usd, "estimated_api_cost_status": estimate.status,
                 "cost_cap_usd": self.caps.plan_cost(estimate).limit}
+
+    @staticmethod
+    def story_points(tasks: list[Task]) -> dict:
+        sized = [task for task in tasks if isinstance(task.size, int) and not isinstance(task.size, bool) and task.size > 0]
+        done = [task for task in sized if task.state.value == "completed"]
+        unknown = len(tasks) - len(sized)
+        return {"total": sum(task.size for task in sized) if sized else None,
+                "done": sum(task.size for task in done) if done else None,
+                "sized_tasks": len(sized), "unknown_tasks": unknown}
 
     def waiting_refs(self, plan: Plan, tasks: list[Task]) -> list[Ref]:
         task_refs = [ref for refs in self.tasks.open_wait_refs(tasks).values() for ref in refs]

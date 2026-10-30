@@ -51,8 +51,12 @@ afterEach(() => {
 });
 
 test("one plan appears once in each domain's phase with its own progress, mode and wait", async () => {
+    const sprintForecasts = [{
+        sprint: {id: 7, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [77]},
+        forecast: {as_of: "2026-10-30", status: "forecast", plan_forecasts: [{plan_id: 77, status: "forecast", p50: "2026-11-06", probability_this_sprint: 71, probability_next_sprint: 27, probability_later: 2, carry_over: 29, delivered_outcomes: 15, method_version: "baseline-v1", capacity_freshness: "fresh"}]},
+    }];
     host = document.body.appendChild(document.createElement("div"));
-    app = createApp({render: () => h(OrganizationPlanBoard, {domains})});
+    app = createApp({render: () => h(OrganizationPlanBoard, {domains, sprintForecasts})});
     app.mount(host);
     await nextTick();
 
@@ -72,6 +76,9 @@ test("one plan appears once in each domain's phase with its own progress, mode a
     expect(alphaCard.textContent).toContain("Waits on: Role work");
     expect(betaCard.textContent).toContain("2 of 4 done");
     expect(betaCard.textContent).toContain("Waits on: a proof check or approval");
+    expect(alphaCard.textContent).toContain("71% chance in Sprint 7");
+    expect(alphaCard.textContent).toContain("baseline-v1");
+    expect(alphaCard.textContent).not.toContain("Move to another sprint");
 
     const filter = host.querySelector('input[type="search"]');
     expect(filter.placeholder).toBe("Plan title, mode, or waiting reason");
@@ -97,6 +104,51 @@ test("the shared board shows four loading lanes while it reads", async () => {
     await nextTick();
     expect(host.querySelector(".organization-board-loading").getAttribute("aria-busy")).toBe("true");
     expect(host.querySelectorAll(".organization-board-loading .organization-board-lane")).toHaveLength(4);
+});
+
+test("the Plans view puts unfinished ended sprints first, then current, next and unscheduled plans", async () => {
+    const plans = [
+        {id: 21, title: "Waiting for deployment", phase: "done", state: "done", mode: "organization", tasks: [1], done: 1, story_points: {total: 13, done: 13, sized_tasks: 1, unknown_tasks: 0}},
+        {id: 22, title: "Current plan", phase: "in_progress", state: "started", mode: "solo", tasks: [2], done: 0, story_points: {total: 5, done: null, sized_tasks: 1, unknown_tasks: 0}},
+        {id: 23, title: "Next plan", phase: "planned", state: "ready", mode: "organization", tasks: [3], done: 0, story_points: {total: 8, done: null, sized_tasks: 1, unknown_tasks: 0}},
+        {id: 24, title: "Unscheduled plan", phase: "planned", state: "ready", mode: "solo", tasks: [4], done: 0, story_points: {total: null, done: null, sized_tasks: 0, unknown_tasks: 1}},
+    ];
+    const sprintForecasts = [
+        {sprint: {id: 23, starts_on: "2026-11-09", ends_on: "2026-11-23", state: "draft", plan_ids: [23]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 23, delivery_complete: false, status: "not enough history"}]}},
+        {sprint: {id: 22, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [22]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 22, delivery_complete: false, status: "not enough history"}]}},
+        {sprint: {id: 21, starts_on: "2026-10-12", ends_on: "2026-10-26", state: "closed", plan_ids: [21]}, forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 21, delivery_complete: false, status: "not enough history", delivery_status: "awaiting deployment"}]}},
+    ];
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(OrganizationPlanBoard, {plans, sprintForecasts, view: "plans"})});
+    app.mount(host);
+    await nextTick();
+
+    expect([...host.querySelectorAll("[data-sprint-group]")].map((group) => group.dataset.sprintId)).toEqual(["21", "22", "23", "none"]);
+    expect(host.querySelector('[data-sprint-id="21"]').textContent).toContain("Waiting for deployment");
+    expect(host.querySelector('[data-sprint-group][data-sprint-id="21"]').textContent).toContain("13 points");
+    expect(host.querySelector('[data-plan-id="21"]').textContent).toContain("Not enough history yet");
+    expect(host.querySelector('[data-plan-id="24"]').textContent).toContain("No sprint");
+    expect(host.querySelector('[data-plan-id="24"]').textContent).toContain("Size unknown");
+    expect(host.querySelector('[data-sprint-group][data-sprint-id="none"]').textContent).not.toContain("0 points");
+});
+
+test("the Board keeps each sprint together across its phase lanes", async () => {
+    const plans = [sharedPlan("planned", "Ready", [1], 0, ""), {id: 79, title: "Unscheduled", phase: "done", mode: "solo", tasks: [2], done: 1, waits_on: ""}];
+    plans[0].id = 77;
+    const sprintForecasts = [{
+        sprint: {id: 22, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [77]},
+        forecast: {as_of: "2026-10-30", status: "not enough history", plan_forecasts: [{plan_id: 77, status: "not enough history"}]},
+    }];
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(OrganizationPlanBoard, {plans, sprintForecasts, view: "board"})});
+    app.mount(host);
+    await nextTick();
+
+    const sprintBoard = host.querySelector('[data-sprint-id="22"]');
+    expect(sprintBoard.querySelectorAll(".organization-board-lane")).toHaveLength(4);
+    expect(sprintBoard.querySelector('[data-phase="planned"] [data-plan-id="77"]')).not.toBeNull();
+    expect(host.querySelector('[data-sprint-group][data-sprint-id="none"] [data-phase="done"] [data-plan-id="79"]')).not.toBeNull();
+    expect(host.querySelector('[data-plan-id="77"]').textContent).not.toContain("Move to another sprint");
 });
 
 test("a 13-domain organization with 50 Roles and many plans renders one page of cards per phase", async () => {

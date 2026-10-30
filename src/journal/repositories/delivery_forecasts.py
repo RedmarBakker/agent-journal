@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from journal.features.estimates.estimates_options import EstimatesOptions
@@ -25,28 +25,53 @@ class DeliveryForecasts:
         self.calculator, self.snapshots, self.settings, self.time_source = calculator, snapshots, settings, time_source
 
     def sprint(self, sprint_id: int, actor: Actor) -> dict:
-        report = self.metrics.read(sprint_id, actor)
-        source = self.source(report, actor)
-        forecast = self.calculator.estimate(source)
-        return self.snapshots.capture(self.sprints.find(sprint_id), source, forecast, actor)
+        sprint, source, forecast = self.sprint_read(sprint_id, actor)
+        return self.snapshots.capture(sprint, source, forecast, actor)
+
+    def organization(self, actor: Actor) -> list[dict]:
+        sprints = self.sprints.index(actor)
+        reports = [self.metrics.read(sprint["id"], actor) for sprint in sprints]
+        reports_by_id = {report["sprint"]["id"]: report for report in reports}
+        histories = self.plan_histories_for(sprints, actor)
+        rows = []
+        for summary in sprints:
+            sprint = self.sprints.find(summary["id"])
+            source = self.source_from(reports_by_id[summary["id"]], reports, histories)
+            forecast = self.calculator.estimate(source)
+            forecast = self.sprint_forecast(forecast, source, summary, histories)
+            rows.append({"sprint": summary, "forecast": self.snapshots.capture(sprint, source, forecast, actor)})
+        return rows
 
     def plan(self, plan_id: int, actor: Actor) -> dict:
         history = self.history.read(plan_id, actor)
         plan = self.history.plans.find(plan_id)
         sprint = self.plan_sprint(plan)
         if sprint:
-            report = self.metrics.read(sprint.row_id, actor)
-            source = self.source(report, actor)
-            forecast = self.plan_result(self.calculator.estimate(source), plan_id, source)
+            _sprint, source, shared = self.sprint_read(sprint.row_id, actor)
+            forecast = self.plan_result(shared, plan_id, source)
         else:
             source = self.plan_source(plan, history, actor)
             forecast = self.calculator.estimate(source)
+            forecast = {**forecast, **self.capacity_freshness(forecast, source)}
+        forecast = {**forecast, **self.delivery_summary(history),
+                    "sprint": self.sprints.summary(sprint) if sprint else None}
         return self.snapshots.capture(plan, source, forecast, actor)
 
-    def source(self, current: dict, actor: Actor) -> dict:
+    def sprint_read(self, sprint_id: int, actor: Actor) -> tuple[Sprint, dict, dict]:
+        report = self.metrics.read(sprint_id, actor)
+        source, histories = self.source(report, actor)
+        sprint = self.sprints.find(sprint_id)
+        forecast = self.calculator.estimate(source)
+        forecast = self.sprint_forecast(forecast, source, self.sprints.summary(sprint), histories)
+        return sprint, source, forecast
+
+    def source(self, current: dict, actor: Actor) -> tuple[dict, list[dict]]:
         reports = [current, *(self.metrics.read(row["id"], actor) for row in self.sprints.index(actor)
                               if row["id"] != current["sprint"]["id"])]
         plans = self.plan_histories(actor)
+        return self.source_from(current, reports, plans), plans
+
+    def source_from(self, current: dict, reports: list[dict], plans: list[dict]) -> dict:
         batches = self.delivery_batches(plans, current["sprint"]["timezone"])
         capacity_days = self.capacity_days(reports, batches)
         scope = self.sprint_scope(current, plans)
@@ -83,7 +108,10 @@ class DeliveryForecasts:
                 "horizon_sprints": self.settings.integer(EstimatesOptions.FORECAST_HORIZON_SPRINTS)}
 
     def plan_histories(self, actor: Actor, extra_plan_id: int = 0) -> list[dict]:
-        plan_ids = {plan_id for sprint in self.sprints.index(actor) for plan_id in sprint["plan_ids"]}
+        return self.plan_histories_for(self.sprints.index(actor), actor, extra_plan_id)
+
+    def plan_histories_for(self, sprints: list[dict], actor: Actor, extra_plan_id: int = 0) -> list[dict]:
+        plan_ids = {plan_id for sprint in sprints for plan_id in sprint["plan_ids"]}
         if extra_plan_id:
             plan_ids.add(extra_plan_id)
         return [self.history.read(plan_id, actor) for plan_id in sorted(plan_ids)]
@@ -239,6 +267,110 @@ class DeliveryForecasts:
                 "shared_sprint_scope": forecast.get("scope"), "plan_id": plan_id,
                 "unknown_sizes": unknown_sizes, "unknown_domains": unknown_domains,
                 "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": [plan]}
+
+    def sprint_forecast(self, forecast: dict, source: dict, sprint: dict, histories: list[dict]) -> dict:
+        history_by_plan = {row["scope"]["plan_id"]: row for row in histories}
+        distributions = {row["plan_id"]: row for row in forecast.get("plan_forecasts", ())}
+        freshness = self.capacity_freshness(forecast, source)
+        rows = []
+        for plan_id in sprint["plan_ids"]:
+            history = history_by_plan[plan_id]
+            scope_rows = [row for row in source["scope"] if row["plan_id"] == plan_id]
+            scope, _unknown_sizes, _unknown_domains, _unknown_cohorts = BaselineForecast.scope(scope_rows)
+            rows.append({**{key: value for key, value in forecast.items() if key != "plan_forecasts"}, **freshness,
+                         **distributions.get(plan_id, {}), "plan_id": plan_id,
+                         "scope": BaselineForecast.scope_summary(scope, scope_rows),
+                         **self.delivery_summary(history)})
+        return {**forecast, **freshness, "sprint": sprint, "plan_forecasts": rows}
+
+    def delivery_summary(self, history: dict) -> dict:
+        delivery_tasks = history["delivery"]["tasks"]
+        task_histories = {row["task_id"]: row for row in history["tasks"] if row["current_in_plan"]}
+        delivered = sorted(row["task_id"] for row in delivery_tasks if row["status"] == "delivered")
+        awaiting = [row for row in delivery_tasks if row["status"] == "awaiting_deployment"]
+        current = list(task_histories.values())
+        sizes = {row["task_id"]: row["estimate_history"]["current_size"] for row in current}
+        remaining_sizes = [sizes[row["task_id"]] for row in delivery_tasks
+                           if row["task_id"] not in delivered]
+        criteria = self.domain_criteria(delivery_tasks)
+        status = self.delivery_status(history["delivery"]["status"], delivery_tasks)
+        oldest, age = self.awaiting_age(awaiting, task_histories)
+        unknown_sizes = sum(value is None for value in remaining_sizes)
+        return {"delivery_status": status,
+                "delivery_complete": bool(delivery_tasks) and len(delivered) == len(delivery_tasks),
+                "execution_complete": bool(current) and all(row["execution"].get("artifact_accepted") is True for row in current),
+                "latest_delivery_at": self.latest_delivery_at(history),
+                "delivered_scope": delivered,
+                "current_scope": {"task_ids": sorted(sizes), "task_count": len(current),
+                                  "delivered_count": len(delivered), "remaining_count": len(remaining_sizes),
+                                  "remaining_points": None if unknown_sizes else sum(remaining_sizes),
+                                  "unknown_size_tasks": unknown_sizes},
+                "awaiting_deploy_count": len(awaiting),
+                "awaiting_deploy_oldest_since": oldest,
+                "awaiting_deploy_oldest_age_days": round(age / 86400, 1) if age is not None else None,
+                "domain_criteria": criteria,
+                "missing_criteria": sorted({row["reason"] for row in delivery_tasks if row["status"] == "unknown" and row["reason"]})}
+
+    @staticmethod
+    def latest_delivery_at(history: dict) -> str | None:
+        accepted = []
+        for task in history["tasks"]:
+            evidence_id = task.get("delivery", {}).get("evidence_id")
+            accepted.extend(outcome["occurred_at"] for outcome in task.get("outcomes", ())
+                            if evidence_id is not None and outcome.get("kind") in ("delivery_accepted", "delivery_corrected")
+                            and outcome.get("details", {}).get("delivery_id") == evidence_id and outcome.get("occurred_at"))
+        return max(accepted, default=None)
+
+    @staticmethod
+    def domain_criteria(tasks: list[dict]) -> list[dict]:
+        criteria = {}
+        for task in tasks:
+            definition = task.get("definition_of_done")
+            if not definition:
+                continue
+            key = (task.get("domain"), task.get("criteria_version"))
+            criteria[key] = {"domain": key[0], "version": key[1],
+                             "criterion": definition.get("criterion", ""),
+                             "evidence": definition.get("evidence", ""),
+                             "target": definition.get("target", "")}
+        return [criteria[key] for key in sorted(criteria, key=lambda row: (row[0] or "", row[1] or ""))]
+
+    @staticmethod
+    def delivery_status(status: str, tasks: list[dict]) -> str:
+        if status == "unknown":
+            return next((row["reason"] for row in tasks if row["reason"]), "definition of done not set")
+        return {"awaiting_deployment": "awaiting deployment", "awaiting_evidence": "awaiting evidence",
+                "awaiting_merge": "awaiting merge", "awaiting_execution": "awaiting execution"}.get(status, status)
+
+    def awaiting_age(self, awaiting: list[dict], histories: dict[int, dict]) -> tuple[str | None, int | None]:
+        if not awaiting:
+            return None, None
+        stamps = [self.delivery_wait_since(histories.get(row["task_id"], {})) for row in awaiting]
+        if any(stamp is None for stamp in stamps):
+            return None, None
+        oldest = min(stamps)
+        since = datetime.fromisoformat(oldest.replace("Z", "+00:00"))
+        age = int((self.time_source.moment().astimezone(timezone.utc) - since.astimezone(timezone.utc)).total_seconds())
+        return oldest, max(0, age)
+
+    @staticmethod
+    def delivery_wait_since(history: dict) -> str | None:
+        kinds = {"task_completed", "worker_work_merged", "delivery_reopened"}
+        events = [row for row in history.get("outcomes", ()) if row.get("kind") in kinds and row.get("occurred_at")]
+        latest = max(events, key=lambda row: row["occurred_at"], default=None)
+        return latest["occurred_at"] if latest else None
+
+    @staticmethod
+    def capacity_freshness(forecast: dict, source: dict) -> dict:
+        as_of = forecast.get("as_of")
+        observed = [row["date"] for row in source["capacity_days"]
+                    if as_of and row["date"] <= as_of and isinstance(row["available_places"], int)
+                    and not isinstance(row["available_places"], bool)]
+        latest = max(observed, default=None)
+        age = (datetime.fromisoformat(as_of).date() - datetime.fromisoformat(latest).date()).days if as_of and latest else None
+        sprint_days = source["calendar"]["sprint_length_days"]
+        freshness = "unknown" if age is None else "stale" if age > sprint_days else "fresh"
+        return {"capacity_observed_through": latest, "capacity_age_days": age, "capacity_freshness": freshness}
 
     def plan_sprint(self, plan: Plan) -> Sprint | None:
         periods = [self.sprints.find(ref.id) for ref in self.sprints.links.sources(plan, SPRINT_PLAN)]

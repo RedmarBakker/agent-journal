@@ -36,6 +36,7 @@ const communicationEdges = computed(() => {
 });
 const problems = computed(() => organization.value?.problems || []);
 const counts = computed(domainCounts);
+const sprintForecasts = computed(() => organization.value?.sprint_forecasts || []);
 
 const roleInstances = (domain, role) => counts.value[domain]?.roles?.[role.id]?.instances ?? role.instances ?? 0;
 const activePlans = (domain) => counts.value[domain.id]?.plansActive ?? domain.plans_active ?? 0;
@@ -147,7 +148,7 @@ onMounted(() => readFolder());
                         </table>
                     </div>
                 </section>
-                <OrganizationPlanBoard :domains="[selectedDomain]" />
+                <OrganizationPlanBoard :domains="[selectedDomain]" :sprint-forecasts="sprintForecasts" />
             </section>
 
             <EmptyState v-else-if="route.domain" class="organization-empty" title="Domain not found">

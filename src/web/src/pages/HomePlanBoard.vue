@@ -3,13 +3,16 @@ import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import EmptyState from "../kit/EmptyState.vue";
 import OrganizationPlanBoard from "../organization/OrganizationPlanBoard.vue";
+import {sprintPointLabel} from "../domain/taskSizing.js";
 
+const props = defineProps({view: {type: String, default: "plans"}});
 const organization = ref(null);
 const loading = ref(true);
 const problem = ref("");
 const filter = ref("all");
 const plans = computed(() => organization.value?.plans || []);
 const scheduledPlans = computed(() => organization.value?.scheduled_plans || []);
+const sprintForecasts = computed(() => organization.value?.sprint_forecasts || []);
 const visiblePlans = computed(() => {
     if (filter.value === "all") return plans.value;
     if (filter.value === "scheduled") return [];
@@ -39,7 +42,7 @@ onMounted(async () => {
 
 <template>
     <section class="home-plan-board" data-home-plan-board aria-label="Plans">
-        <h1>Plans</h1>
+        <h1>{{ view === "board" ? "Board" : "Plans" }}</h1>
         <p v-if="problem" class="home-plan-board-problem" role="alert">{{ problem }}</p>
         <label v-if="!loading" class="home-plan-board-filter">
             Filter plans
@@ -51,7 +54,7 @@ onMounted(async () => {
                 <option value="scheduled">Scheduled</option>
             </select>
         </label>
-        <OrganizationPlanBoard v-if="loading || visiblePlans.length" :plans="visiblePlans" :loading="loading" />
+        <OrganizationPlanBoard v-if="loading || visiblePlans.length" :plans="visiblePlans" :sprint-forecasts="sprintForecasts" :view="view" :loading="loading" />
         <section v-if="showScheduled && scheduledPlans.length" class="home-plan-board-scheduled" aria-label="Scheduled plans">
             <h2>Starts on a schedule</h2>
             <ul>

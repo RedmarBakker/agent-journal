@@ -179,6 +179,18 @@ export class ApiClient {
         return this.get(this.here(`/plans/${id}/timeline`));
     }
 
+    planForecast(id) {
+        return this.get(this.here(`/plans/${id}/forecast`));
+    }
+
+    sprints() {
+        return this.get(this.here("/sprints"));
+    }
+
+    carryPlan(sprintId, planId, nextSprintId, reason) {
+        return this.post(this.here(`/sprints/${sprintId}/carry`), {plan_id: planId, next_sprint_id: nextSprintId, reason});
+    }
+
     planRoles(id) {
         return this.get(this.here(`/plans/${id}/roles`));
     }

@@ -4,6 +4,7 @@ import Dot from "../kit/Dot.vue";
 import Icon from "../kit/Icon.vue";
 import {state} from "../domain/records.js";
 import {isClosed} from "../domain/row.js";
+import TaskSizePill from "../tasks/TaskSizePill.vue";
 
 defineProps({task: {type: Object, required: true}, running: {type: Boolean, default: true}});
 const emit = defineEmits(["open"]);
@@ -16,6 +17,7 @@ const talk = inject("talk", null);
             <Dot :kind="state(task)" />
             <span class="rn">#{{ task.id }}</span>
             <span class="rt">{{ task.title }}</span>
+            <TaskSizePill :task="task" />
         </button>
         <template v-if="talk">
             <button type="button" class="say" title="Comment on this task" @click="talk.say(`#${task.id} ${task.title}`)">

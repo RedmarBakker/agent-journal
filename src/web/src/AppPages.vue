@@ -32,10 +32,10 @@ defineProps({page: {type: String, required: true}});
 <template>
     <SwitchCase :value="page">
         <template #home>
-            <HomePlanBoard v-if="planAgents" />
+            <HomePlanBoard v-if="planAgents" view="plans" />
             <HomeDashboard v-else />
         </template>
-        <template #board><HomePlanBoard /></template>
+        <template #board><HomePlanBoard view="board" /></template>
         <template #chat><Home /></template>
         <template #settings><SettingsPage /></template>
         <template #search><SearchPage /></template>

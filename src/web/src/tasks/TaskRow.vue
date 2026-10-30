@@ -8,6 +8,7 @@ import TaskStatusIcon from "./TaskStatusIcon.vue";
 import TaskWorker from "./TaskWorker.vue";
 import PriorityIcon from "../kit/PriorityIcon.vue";
 import {NORMAL_PRIORITY, priorityLabel} from "../domain/taskPriority.js";
+import TaskSizePill from "./TaskSizePill.vue";
 
 const props = defineProps({task: {type: Object, required: true}, depth: {type: Number, default: 1}, selected: Boolean});
 const emit = defineEmits(["select", "act", "status", "more", "priority"]);
@@ -31,6 +32,7 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
             <span class="number">{{ task.id }}</span>
         </template>
         <span class="title">{{ task.title }}</span>
+        <TaskSizePill :task="task" />
         <template v-if="task.delegated">
             <TaskWorker :task="task" />
         </template>

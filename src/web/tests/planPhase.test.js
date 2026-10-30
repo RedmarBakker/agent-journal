@@ -20,6 +20,7 @@ test("a phase shows a skeleton for each task still loading and for its workers u
     const loading = await mounted({phase, workers: [], workersLoaded: false});
     expect(loading.querySelectorAll(".line.bones").length).toBe(2);
     expect(loading.querySelector(".holders-loading")).not.toBeNull();
+    expect(loading.querySelector(".phase-points")).toBeNull();
     const loaded = await mounted({
         phase: {...phase, rows: [task(1), task(2), task(3)], waiting: 0},
         workers: [{id: 2, name: "Ada", state: "dispatched", holds: [1]}],
@@ -28,4 +29,13 @@ test("a phase shows a skeleton for each task still loading and for its workers u
     expect(loaded.querySelectorAll(".line.bones").length).toBe(0);
     expect(loaded.querySelector(".holders-loading")).toBeNull();
     expect(loaded.textContent).toContain("Ada");
+});
+
+test("a phase totals sized tasks and keeps unknown sizes out of the points count", async () => {
+    const phase = {i: 1, title: "Members", task_ids: [1, 2], rows: [{...task(1), size: 5}, {...task(2), size: null}], waiting: 0};
+    const loaded = await mounted({phase, workers: [], workersLoaded: true});
+
+    expect(loaded.querySelector(".phase-points").textContent).toBe("5 points sized · 1 task without a size");
+    expect(loaded.querySelectorAll(".line .task-size")).toHaveLength(2);
+    expect(loaded.querySelector('[data-size-unknown]').textContent).toBe("Size unknown");
 });

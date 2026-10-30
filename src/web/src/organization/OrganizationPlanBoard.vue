@@ -6,17 +6,27 @@ import OrganizationPlanCard from "./OrganizationPlanCard.vue";
 import Skeleton from "../kit/Skeleton.vue";
 import PagedCards from "../kit/PagedCards.vue";
 import {pageOf} from "../sync/paging.js";
+import {forecastForPlan, sprintGroups, sprintRange, sprintStatusLabel} from "../domain/deliveryForecast.js";
+import {sprintPointLabel} from "../domain/taskSizing.js";
 
 const PHASES = ["planned", "in_progress", "in_review", "done"];
 const PLAN_PAGE = pageOf("plans");
-const props = defineProps({domains: {type: Array, default: () => []}, plans: {type: Array, default: null}, loading: Boolean});
+const props = defineProps({domains: {type: Array, default: () => []}, plans: {type: Array, default: null}, sprintForecasts: {type: Array, default: () => []}, view: {type: String, default: "plans"}, loading: Boolean});
 const boards = computed(() => props.plans
     ? [{domain: {id: "all-plans", title: "All", board: {}}, allPlans: true, lanes: organizationLanes({plans: props.plans})}]
     : props.domains.map((domain) => ({domain, lanes: organizationLanes(domain, organizationBoard)})));
+const groups = computed(() => sprintGroups(props.plans || [], props.sprintForecasts));
+const planGroups = computed(() => groups.value.map((group) => ({...group, plans: group.plans.map(({plan}) => plan)})));
+const phasesFor = (plans) => organizationLanes({plans});
+const forecastFor = (plan) => forecastForPlan(plan.id, props.sprintForecasts);
+const sprintName = (group) => group.sprint ? `Sprint ${group.sprint.id}` : "No sprint yet";
+const sprintDates = (group) => group.sprint ? sprintRange(group.sprint) : "";
+const sprintStatus = (group) => sprintStatusLabel(group);
+const pointSummary = (group) => sprintPointLabel(group.plans);
 </script>
 
 <template>
-    <section class="organization-plan-board" :aria-label="plans ? 'All plans' : 'Domain boards'">
+    <section class="organization-plan-board" :aria-label="plans ? (view === 'board' ? 'Board plans' : 'All plans') : 'Domain boards'">
         <div v-if="!loading && !plans" class="organization-board-tools">
             <label class="organization-board-filter">
                 Filter plans
@@ -30,6 +40,46 @@ const boards = computed(() => props.plans
                 <Skeleton shape="cards" :count="2" label="Loading plans" />
             </section>
         </div>
+        <div v-else-if="plans && view === 'plans'" class="organization-sprint-list" aria-label="Plans grouped by sprint">
+            <section v-for="group in planGroups" :key="group.key" class="organization-sprint-group" data-sprint-group :data-sprint-id="group.key">
+                <header class="organization-sprint-head">
+                    <div class="organization-sprint-title">
+                        <h2>{{ sprintName(group) }}</h2>
+                        <span v-if="sprintDates(group)" class="organization-sprint-dates">{{ sprintDates(group) }}</span>
+                        <span class="organization-sprint-status" :data-sprint-status="group.status">{{ sprintStatus(group) }}</span>
+                    </div>
+                    <span class="organization-sprint-summary">{{ group.plans.length }} {{ group.plans.length === 1 ? "plan" : "plans" }} · {{ pointSummary(group) }}</span>
+                </header>
+                <PagedCards :items="group.plans" :page-size="PLAN_PAGE" :label="`${sprintName(group)} plans`" noun="plans">
+                    <template #default="{items}">
+                        <OrganizationPlanCard v-for="plan in items" :key="plan.id" :plan="plan" compact :forecast="forecastFor(plan)" />
+                    </template>
+                </PagedCards>
+            </section>
+        </div>
+        <div v-else-if="plans && view === 'board'" class="organization-sprint-board" aria-label="Board grouped by sprint">
+            <section v-for="group in groups" :key="group.key" class="organization-sprint-group" data-sprint-group :data-sprint-id="group.key">
+                <header class="organization-sprint-head">
+                    <div class="organization-sprint-title">
+                        <h2>{{ sprintName(group) }}</h2>
+                        <span v-if="sprintDates(group)" class="organization-sprint-dates">{{ sprintDates(group) }}</span>
+                        <span class="organization-sprint-status" :data-sprint-status="group.status">{{ sprintStatus(group) }}</span>
+                    </div>
+                    <span class="organization-sprint-summary">{{ group.plans.length }} {{ group.plans.length === 1 ? "plan" : "plans" }} · {{ pointSummary(group) }}</span>
+                </header>
+                <div class="organization-board-columns" role="region" tabindex="0" :aria-label="`${sprintName(group)} plan phases`">
+                    <section v-for="lane in phasesFor(group.plans.map(({plan}) => plan))" :key="lane.key" class="organization-board-lane" :data-phase="lane.key">
+                        <h3>{{ lane.title }} <span class="organization-board-count">{{ lane.plans.length }}</span></h3>
+                        <PagedCards :items="lane.plans" :page-size="PLAN_PAGE" :label="`${sprintName(group)} ${lane.title} plans`" noun="plans">
+                            <template #default="{items}">
+                                <OrganizationPlanCard v-for="plan in items" :key="plan.id" :plan="plan" :forecast="forecastFor(plan)" />
+                                <p v-if="!lane.plans.length" class="organization-board-empty">No plans.</p>
+                            </template>
+                        </PagedCards>
+                    </section>
+                </div>
+            </section>
+        </div>
         <div v-else class="organization-boards">
             <section v-for="board in boards" :key="board.domain.id" class="organization-domain-board" :data-domain="board.allPlans ? null : board.domain.id">
                 <header v-if="!board.allPlans" class="organization-domain-board-head">
@@ -41,7 +91,7 @@ const boards = computed(() => props.plans
                         <h3>{{ lane.title }} <span class="organization-board-count">{{ lane.plans.length }}</span></h3>
                         <PagedCards :items="lane.plans" :page-size="PLAN_PAGE" :label="`${board.domain.title} ${lane.title} plans`" noun="plans">
                             <template #default="{items}">
-                                <OrganizationPlanCard v-for="plan in items" :key="plan.id" :plan="plan" />
+                                <OrganizationPlanCard v-for="plan in items" :key="plan.id" :plan="plan" :forecast="forecastFor(plan)" />
                                 <p v-if="!lane.plans.length" class="organization-board-empty">
                                     {{ lane.key === "done" && organizationBoard.hideDone ? "Completed plans are hidden." : "No plans in this phase." }}
                                 </p>
@@ -101,6 +151,78 @@ const boards = computed(() => props.plans
     display: flex;
     flex-direction: column;
     gap: 22px;
+}
+
+.organization-sprint-list,
+.organization-sprint-board {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.organization-sprint-group {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg);
+}
+
+.organization-sprint-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.organization-sprint-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px 10px;
+    min-width: 0;
+}
+
+.organization-sprint-title h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.organization-sprint-dates,
+.organization-sprint-summary {
+    color: var(--text-2);
+    font-size: 11px;
+}
+
+.organization-sprint-status {
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-2);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.organization-sprint-status[data-sprint-status="ended"] {
+    border-color: color-mix(in srgb, var(--warning, #d99325) 45%, var(--border));
+    color: var(--warning, #d99325);
+}
+
+.organization-sprint-summary {
+    flex: none;
+    text-align: right;
+}
+
+.organization-sprint-list :deep(.paged-cards) {
+    gap: 0;
+}
+
+.organization-sprint-board .organization-board-columns {
+    padding: 10px;
 }
 
 .organization-domain-board {
@@ -180,6 +302,17 @@ const boards = computed(() => props.plans
 @media (max-width: 900px) {
     .organization-board-columns {
         grid-template-columns: repeat(4, minmax(220px, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .organization-sprint-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .organization-sprint-summary {
+        text-align: left;
     }
 }
 </style>

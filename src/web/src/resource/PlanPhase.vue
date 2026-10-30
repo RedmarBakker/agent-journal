@@ -8,6 +8,7 @@ import SkeletonLine from "../kit/SkeletonLine.vue";
 import {FINISHED_STATES, grouped, holdingRuns, workerName, workerState, workerTag, workersHolding} from "../domain/workers.js";
 import {isClosed} from "../domain/row.js";
 import {peek, peekThere} from "../route.js";
+import {taskSizing} from "../domain/taskSizing.js";
 
 const props = defineProps({
     phase: {type: Object, default: null},
@@ -21,6 +22,13 @@ const talk = inject("talk", null);
 const scope = useScope();
 const open = (row) => (scope.env ? peekThere(scope.env, "tasks", row.id) : peek("tasks", row.id));
 const rows = computed(() => props.phase.rows);
+const sizing = computed(() => taskSizing(rows.value));
+const pointSummary = computed(() => {
+    if (props.phase.waiting) return "";
+    const known = sizing.value.totalPoints == null ? "" : `${sizing.value.totalPoints} points sized`;
+    const unknown = sizing.value.unknownTasks ? `${sizing.value.unknownTasks} ${sizing.value.unknownTasks === 1 ? "task" : "tasks"} without a size` : "";
+    return [known, unknown].filter(Boolean).join(" · ");
+});
 const done = computed(() => props.running && rows.value.length > 0 && rows.value.every(isClosed));
 const closed = computed(() => (props.running ? rows.value.filter(isClosed).length : 0));
 const holders = computed(() => workersHolding(rows.value, props.workers));
@@ -36,6 +44,7 @@ const HOLDER_BARS = [{width: "64px", height: 14}];
         <div class="phead">
             <span class="mark"><Icon :name="done ? 'check' : 'circle'" :size="14" /></span>
             <span class="ptitle">{{ phase.i ? `${phase.i}. ` : "" }}{{ phase.title }}</span>
+            <span v-if="pointSummary" class="phase-points">{{ pointSummary }}</span>
             <template v-if="talk && phase.i">
                 <button type="button" class="say" title="Comment on this phase" @click="talk.say(`Phase ${phase.i}: ${phase.title}`)">
                     <Icon name="bubble" :size="12" />
@@ -137,6 +146,12 @@ const HOLDER_BARS = [{width: "64px", height: 14}];
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.phase-points {
+    flex: none;
+    color: var(--text-3);
+    font-size: 11px;
 }
 
 .phead-tags {

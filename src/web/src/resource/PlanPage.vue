@@ -1,6 +1,6 @@
 <script setup>
 import CloseButton from "../kit/CloseButton.vue";
-import {computed, ref, watchEffect} from "vue";
+import {computed, ref, watch, watchEffect} from "vue";
 import CommentToggle from "./CommentToggle.vue";
 import ShareButton from "./ShareButton.vue";
 import Icon from "../kit/Icon.vue";
@@ -20,11 +20,18 @@ import PlanAgentSection from "./PlanAgentSection.vue";
 import PlanRoleHistory from "./PlanRoleHistory.vue";
 import PlanTeamSection from "./PlanTeamSection.vue";
 import {planAgents} from "../domain/planAgents.js";
+import {taskSizing} from "../domain/taskSizing.js";
+import DeliveryForecastPanel from "./DeliveryForecastPanel.vue";
+import PlanSprintMove from "./PlanSprintMove.vue";
+import {sprintRange} from "../domain/deliveryForecast.js";
 
 const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boolean, holding: Boolean, closable: {type: Boolean, default: true}});
 const emit = defineEmits(["close"]);
 const error = ref("");
 const fetching = ref(false);
+const forecast = ref(null);
+const forecastProblem = ref("");
+const forecastLoading = ref(false);
 const scope = useScope();
 wholePlans(() => [props.resource.id]);
 const status = computed(() => statusOf(props.resource));
@@ -40,6 +47,9 @@ const phases = computed(() => [
     ...(props.resource.unphased_task_ids?.length ? [phaseOf("Not in a phase", props.resource.unphased_task_ids, 0)] : []),
 ]);
 const planned = computed(() => phases.value.flatMap((p) => p.rows));
+const sizing = computed(() => taskSizing(planned.value));
+const taskRows = computed(() => (props.resource.task_ids || []).length);
+const sizingReady = computed(() => !taskRows.value || planned.value.length >= taskRows.value);
 const {rows: workers, loaded: workersLoaded} = useWorkersHolding(planned);
 watchEffect(() => {
     if (props.readOnly) return;
@@ -55,6 +65,34 @@ watchEffect(() => {
 // A plan not started yet has finished nothing and strikes nothing out, whatever its tasks were before
 const running = computed(() => !PLANNED.includes(status.value));
 const finished = computed(() => (running.value ? planned.value.filter((t) => t.state === "completed").length : 0));
+
+watch(() => [props.resource.id, scope.env], async ([id], _previous, onCleanup) => {
+    let live = true;
+    onCleanup(() => { live = false; });
+    forecast.value = null;
+    forecastProblem.value = "";
+    forecastLoading.value = true;
+    try {
+        const result = await scope.api.planForecast(id);
+        if (live) forecast.value = result;
+    } catch (problem) {
+        if (live) forecastProblem.value = problem.message;
+    } finally {
+        if (live) forecastLoading.value = false;
+    }
+}, {immediate: true});
+
+async function reloadForecast() {
+    forecastLoading.value = true;
+    forecastProblem.value = "";
+    try {
+        forecast.value = await scope.api.planForecast(props.resource.id);
+    } catch (problem) {
+        forecastProblem.value = problem.message;
+    } finally {
+        forecastLoading.value = false;
+    }
+}
 
 async function run(act) {
     error.value = "";
@@ -99,15 +137,28 @@ async function run(act) {
         <template v-if="resource.block_reason">
             <p class="note">Blocked: {{ resource.block_reason }}</p>
         </template>
+        <div v-if="forecast?.sprint" class="plan-sprint-membership">
+            <span>Sprint {{ forecast.sprint.id }} · {{ sprintRange(forecast.sprint) }}</span>
+            <PlanSprintMove :plan-id="resource.id" :sprint="forecast.sprint" :read-only="readOnly" @moved="reloadForecast" />
+        </div>
         <template v-if="planned.length">
             <div :class="['overall', {pinned: pinProgress}]">
                 <template v-if="pinProgress">
                     <span class="pinned-title">{{ resource.title }}</span>
                 </template>
                 <ProgressBar :value="finished" :max="planned.length" />
-                <span class="overall-figure">{{ finished }} of {{ planned.length }} done</span>
+                <span class="overall-figure">
+                    <template v-if="sizingReady && sizing.totalPoints != null">{{ sizing.donePoints }} of {{ sizing.totalPoints }} points done · </template>
+                    {{ finished }} of {{ planned.length }} tasks done
+                </span>
             </div>
         </template>
+        <p v-if="sizingReady && sizing.unknownTasks" class="size-warning" role="status">
+            {{ sizing.unknownTasks }} {{ sizing.unknownTasks === 1 ? "task has" : "tasks have" }} no size. Finish forecasts count it as unknown, not as zero.
+        </p>
+        <p v-else-if="sizingReady && sizing.totalPoints == null && planned.length" class="size-warning" role="status">Size unknown</p>
+        <p v-if="forecastProblem" class="forecast-error" role="status">Delivery forecast: {{ forecastProblem }}</p>
+        <DeliveryForecastPanel v-if="forecast || forecastLoading" :forecast="forecast" :sprint="forecast?.sprint" :plan="resource" :loading="forecastLoading" />
         <template v-if="!readOnly">
             <PlanPageActions :plan="resource" :error="error" @run="run" />
         </template>
@@ -176,6 +227,16 @@ async function run(act) {
     color: var(--blocking);
 }
 
+.plan-sprint-membership {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 12px;
+    color: var(--text-2);
+    font-size: 12px;
+}
+
 .status.approved {
     color: var(--created);
 }
@@ -216,6 +277,22 @@ async function run(act) {
 
 .overall-figure {
     flex: none;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.size-warning {
+    display: flex;
+    align-items: center;
+    margin: -4px 0 14px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--warning, #d99325) 50%, var(--border));
+    border-radius: 7px;
+    color: var(--warning, #d99325);
+    font-size: 12px;
+}
+
+.forecast-error {
     color: var(--text-3);
     font-size: 12px;
 }

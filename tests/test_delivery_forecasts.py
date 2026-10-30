@@ -48,3 +48,30 @@ def delivery_fact(delivery_id: int, kind: str, generation: int, *, task_id: int 
             "committed_size": size, "planned_size": size,
             "cohort_dimensions": dimensions,
             "details": {"delivery_id": delivery_id, "generation": generation}}
+
+
+def test_capacity_freshness_uses_current_observations_and_marks_a_sprint_old_sample_stale():
+    forecast = {"as_of": "2026-11-30"}
+    source = {"calendar": {"sprint_length_days": 14},
+              "capacity_days": [{"date": "2026-11-15", "available_places": 1},
+                                {"date": "2026-12-01", "available_places": 2},
+                                {"date": "2026-11-30", "available_places": True}]}
+
+    fresh = DeliveryForecasts.capacity_freshness(forecast, {**source, "capacity_days": [{"date": "2026-11-16", "available_places": 2}]})
+    stale = DeliveryForecasts.capacity_freshness(forecast, source)
+
+    assert fresh == {"capacity_observed_through": "2026-11-16", "capacity_age_days": 14, "capacity_freshness": "fresh"}
+    assert stale == {"capacity_observed_through": "2026-11-15", "capacity_age_days": 15, "capacity_freshness": "stale"}
+
+
+def test_latest_delivery_time_matches_only_the_current_accepted_evidence():
+    history = {"tasks": [{
+        "delivery": {"evidence_id": 9},
+        "outcomes": [
+            {"kind": "delivery_accepted", "occurred_at": "2026-10-28T12:00:00+00:00", "details": {"delivery_id": 8}},
+            {"kind": "delivery_accepted", "occurred_at": "2026-10-29T12:00:00+00:00", "details": {"delivery_id": 9}},
+            {"kind": "delivery_corrected", "occurred_at": "2026-10-30T12:00:00+00:00", "details": {"delivery_id": 9}},
+        ],
+    }]}
+
+    assert DeliveryForecasts.latest_delivery_at(history) == "2026-10-30T12:00:00+00:00"

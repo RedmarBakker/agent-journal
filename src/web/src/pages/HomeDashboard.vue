@@ -8,6 +8,9 @@ import {ago} from "../format/time.js";
 import {href, peek} from "../route.js";
 import Approvals from "../organization/Approvals.vue";
 import Btn from "../kit/Btn.vue";
+import DeliveryForecastLabel from "../organization/DeliveryForecastLabel.vue";
+import {forecastForPlan} from "../domain/deliveryForecast.js";
+import {pointLabel} from "../domain/taskSizing.js";
 
 const scope = useScope();
 const loading = ref(true);
@@ -20,6 +23,7 @@ const planTasks = ref({});
 const dashboard = ref({blocked_tasks: [], latest_merges: []});
 const now = computed(() => Date.now());
 const plans = computed(() => organization.value.plans || []);
+const sprintForecasts = computed(() => organization.value.sprint_forecasts || []);
 const runningPlans = computed(() => plans.value.filter((plan) => plan.plan_agent_state === "running"));
 const waitingCount = computed(() => waiting.value.length);
 const totalCost = computed(() => estimatedCost(plans.value));
@@ -115,6 +119,10 @@ function finish(plan) {
 
 function mode(plan) {
     return plan.mode ? `${plan.mode[0].toUpperCase()}${plan.mode.slice(1)} mode` : "Mode not set";
+}
+
+function deliveryForecast(plan) {
+    return forecastForPlan(plan.id, sprintForecasts.value);
 }
 
 function cost(plan) {
@@ -245,9 +253,11 @@ onMounted(load);
                         </div>
                         <div class="row-meta">
                             <span class="mode-chip">{{ mode(plan) }}</span>
+                            <span class="progress-count">{{ pointLabel(plan) }}</span>
                             <time v-if="finish(plan)" class="expected-finish" :datetime="finish(plan).date">Expected to finish {{ finish(plan).label }}</time>
                             <span v-else class="no-finish-date">No finish date yet: no task has finished</span>
                         </div>
+                        <DeliveryForecastLabel :forecast="deliveryForecast(plan)" :sprint="deliveryForecast(plan)?.sprint || null" :plan="plan" />
                     </article>
                     <p class="card-footnote">Finish date is a simple estimate from tasks completed per day so far.</p>
                 </div>
