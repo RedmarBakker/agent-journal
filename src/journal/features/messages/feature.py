@@ -78,8 +78,10 @@ The user sends messages; you answer them before anything else.
 - After a compaction, a new start or a takeover, `journal environment overview` shows what is in flight, the latest
   messages among it, and must be run before any other write; `journal message recent` shows the latest messages alone.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
-- When the user must open a web address outside the journal, or send a form to one, put a button under your message
-  instead of asking them to visit it, and never build a page of your own just to hold a button:
+- A button is an action for now: when the user must open a web address outside the journal, start something there or
+  send a form to one, put a button under your message instead of asking them to visit it, and never build a page of
+  your own just to hold a button. Something ready that they should see when they come back later is a pin as well
+  (the pinned-links skill):
   `--button 'Open the app settings|https://github.com/settings/apps|opens the settings in a new tab'` opens it, and `--form-button 'Create the app|<address>|sends the manifest to GitHub|manifest=<json>'` posts the hidden
   fields to it, as GitHub's app manifest flow takes one. The label says what happens, the third part a line on it. Never
   a button for a journal row: task 12 or plan 3 written in the text is a link already.
