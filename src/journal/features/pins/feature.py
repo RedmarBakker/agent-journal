@@ -36,8 +36,7 @@ A pin and a button are two different things.
   (`journal message send` with `--button` or `--form-button`, the messages skill) and moves on with the chat.
 - Something ready that the user also acts on now gets both: the button in the message, and the pin for when they
   come back.
-A document or a report docks itself at the bottom of the chat when it is created, by you or the user, and stays
-until the user closes it. Any other row of the journal you want to keep in view, a plan or a task, is docked there with
+A row of the journal you want to keep in view at the bottom of the chat, a plan or a task, is docked there with
 `journal plan dock 12`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with
 `--link plans:12 --user-asked`, its button opening the row in place. An outside address opens in a new tab.
 A link in your chat text or in a command's output that no pin has, a pull request's address among them, is suggested
