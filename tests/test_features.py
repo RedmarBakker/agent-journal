@@ -7363,3 +7363,16 @@ def test_a_setting_stored_twice_keeps_only_its_most_recently_changed_row_so_the_
     DuplicateSettingsDrop().apply(connection)
     rows = sorted((row["key"], row["value"]) for row in connection.all("SELECT key, value FROM settings WHERE key IN ('features.faults', 'faults.performance')"))
     assert rows == [("faults.performance", "false"), ("features.faults", "false")], "the switch the user turned off last is the one row left, and a setting stored once stays"
+
+
+def test_a_plans_cancelled_tasks_leave_its_task_count(app: App):
+    from journal.repositories.plans import Plans
+    console = app.console()
+    hook(app, "SessionStart")
+    assert console.run(["plan", "create", "the shop", "--brief", "the shop sells"], AGENT).code == 0
+    for title in ("the cart", "the till", "the moving van"):
+        assert console.run(["plan", "add", "1", title, "--brief", f"- {title} works"], AGENT).code == 0
+    assert console.run(["task", "cancel", "3", "--why", "no van after all"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        plans = app.container.get(Plans)
+        assert plans.uncancelled_count(plans.plan_task_ids(plans.find(1))) == 2, "a cancelled task leaves the count, so a plan with a cancelled phase can still be done"
