@@ -17,6 +17,7 @@ class SimulatedSeats:
         self.sessions: dict[str, dict[str, object]] = {}
         self.environments: dict[str, dict[str, str]] = {}
         self.messages: list[tuple[str, str]] = []
+        self.session_number = 0
 
     def run(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(arguments)
@@ -107,8 +108,9 @@ class SimulatedSeats:
         return self.result(arguments, json.dumps(rows))
 
     def start_session(self, target: str, environment: dict[str, str] | None = None) -> None:
+        self.session_number += 1
         self.sessions[target] = {
-            "sessionId": f"sim-{len(self.sessions) + 1}",
+            "sessionId": f"sim-{self.session_number}",
             "pid": self.pid,
             "status": "running",
             "statusUpdatedAt": 1_800_000_000,
