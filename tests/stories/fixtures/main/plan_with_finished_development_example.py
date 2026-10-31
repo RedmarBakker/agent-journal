@@ -10,7 +10,7 @@ from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.workers.workers_options import BUILDER_MODE
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -29,7 +29,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
 
     stack = (Ready,)
     parent = ReportSizedPlan
-    settings = ((PlansOptions.PLAN_AGENTS, True),)
+    settings = ((PlansOptions.PLAN_AGENTS, True), (WorkersOptions.MODE, ORCHESTRATOR_MODE))
 
     def steps(self, story) -> None:
         setup_domain(story, self, "l03-example-development", "development", {
