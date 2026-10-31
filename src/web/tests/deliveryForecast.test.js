@@ -166,6 +166,7 @@ test("the dashboard compares saved estimates with later task times while keeping
         },
         duration_calibration: {
             status: "measured",
+            label: "How often past tasks finished inside their range; 85% is the aim, not a promise.",
             prediction_count: 14,
             observed_count: 10,
             minimum_calibration_samples: 5,
