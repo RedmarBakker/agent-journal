@@ -26,6 +26,7 @@ class OrganizationPlanHandoffSeat(OrganizationPlanSeat):
 
     def steps(self, story) -> None:
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
+        self.add_domain_seats(story, story.app.container.get(SeatRuntime))
         story.plays_in(BUILDER_MODE)
         self.start_plan_seat(story)
 
@@ -50,6 +51,7 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
         story.openrig = SimulatedSeats()
         story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
+        self.add_domain_seats(story, story.app.container.get(SeatRuntime))
         story.plays_in(BUILDER_MODE)
         self.start_plan_seat(story)
 

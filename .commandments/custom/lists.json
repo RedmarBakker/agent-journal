@@ -857,6 +857,7 @@
         "you deferred work in words. file it with `journal task create \"<title>\" --brief \"<what and where to start>\"`",
         "you dismissed a report that was right",
         "you do not use",
+        "you have an unread handoff; run `journal organization inbox`",
         "you have no job yet",
         "you logged nothing for",
         "you mentioned a pinned link but made none",

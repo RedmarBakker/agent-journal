@@ -37,7 +37,7 @@ def test_a_deployment_wait_ends_at_accepted_evidence_and_keeps_its_commitment(st
                 "occurred_at": "2026-10-30T10:00:00+00:00"}}
     result = story.user_presses(f"/journal/plans/{plan}/delivery", evidence)
     result.expect_viewer_passed()
-    story.expect_task_outcome_kinds(task, "task_completed", "worker_work_merged", "delivery_accepted")
+    story.expect_task_outcome_kinds(task, "worker_work_merged", "task_completed", "delivery_accepted")
     story.expect_task_outcome_summary(task, delivery_wait_seconds=172800, execution_status="completed", artifact_accepted=True, right_censored=False)
     story.expect_task_outcome_fact(task, "delivery_accepted", "policy_version")
     story.expect_task(story.tasks.first, state=TaskState.COMPLETED)
