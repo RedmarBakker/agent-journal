@@ -494,6 +494,8 @@ def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to
     from journal.events.rows.worker_mention import WorkerMention
     from journal.events.rows.worker_unfinished import WorkerUnfinished
     from journal.features.workers.listeners.unfinished_clock_out import CLOCK_OUT_REQUEST, UnfinishedClockOut
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
 
     class Actions:
         def __init__(self) -> None:
@@ -504,11 +506,16 @@ def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to
 
     class Workers:
         def find(self, n):
-            return n
+            state = {
+                4: WorkerState.UNFINISHED,
+                5: WorkerState.REPORTED,
+                6: WorkerState.DISPATCHED,
+            }.get(n, WorkerState.UNFINISHED)
+            return Worker(row_id=n, role="builder" if n in (4, 6) else "", state=state)
 
     class Resumes:
         def is_resumable(self, worker):
-            return worker == 3
+            return worker.row_id in (3, 4, 5, 6)
 
     actions = Actions()
     ask = UnfinishedClockOut(actions, Workers(), Resumes())
@@ -516,7 +523,9 @@ def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to
     ask.handle(ended(1))
     ask.handle(ended(2))
     ask.handle(ended(1, 4))
-    assert actions.sent == [(3, CLOCK_OUT_REQUEST, Actor.system())] and "journal clock-out" in CLOCK_OUT_REQUEST, "the journal asks the worker to clock out, in its own words, the first time only, and only a worker that can go on in its session"
+    ask.handle(ended(1, 5))
+    ask.handle(ended(1, 6))
+    assert actions.sent == [(3, CLOCK_OUT_REQUEST, Actor.system())] and "journal clock-out" in CLOCK_OUT_REQUEST, "the journal asks a resumable unfinished worker to clock out once, without restarting a Role seat, a reported worker or a fresh Role job"
 
 
 

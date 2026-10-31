@@ -4,8 +4,7 @@ import re
 import shlex
 import time
 
-from journal.features.organization.support.seat_runner import SeatJobIdentity
-from journal.features.workers.support.worker_runner import END_UNWATCHED, WorkerRunner
+from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -72,10 +71,7 @@ class WorkerSteps:
             output, _ = runner.outputs(worker)
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(printed)
-            if worker.role:
-                runner.finish_seat(worker, SeatJobIdentity.from_worker(worker), END_UNWATCHED, Actor.system())
-            else:
-                runner.finish(worker, 0, Actor.system())
+            runner.recorded_end(worker, Actor.system())
         return self.observed(f"the {agent.role}'s run ends", None, None)
 
     def agent_runs_cleanly(self, agent: StoryAgent, line: str) -> StepResult:

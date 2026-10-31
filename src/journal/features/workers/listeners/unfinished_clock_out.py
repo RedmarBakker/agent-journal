@@ -2,6 +2,7 @@ from journal.events.listener import Listener
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_resumes import WorkerResumes
+from journal.models.worker_state import WorkerState
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 
@@ -16,5 +17,5 @@ class UnfinishedClockOut(Listener[WorkerUnfinished]):
 
     def handle(self, event: WorkerUnfinished) -> None:
         worker = self.workers.find(event.worker.id)
-        if event.times == 1 and not worker.role and self.resumes.is_resumable(worker):
+        if event.times == 1 and worker.state is WorkerState.UNFINISHED and not worker.role and self.resumes.is_resumable(worker):
             self.actions.send(event.worker.id, CLOCK_OUT_REQUEST, None, Actor.system())
