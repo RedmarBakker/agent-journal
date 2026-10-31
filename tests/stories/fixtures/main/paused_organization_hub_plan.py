@@ -19,10 +19,10 @@ from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPla
 class PausedOrganizationHubPlan(OrganizationHubPlan):
     """An approved organization plan has a stopped rig with its new seat settings removed."""
 
-    settings = (*OrganizationHubPlan.settings, (PlansOptions.PLAN_AGENTS, True))
+    parent = OrganizationHubPlan
+    settings = ((PlansOptions.PLAN_AGENTS, True),)
 
     def steps(self, story) -> None:
-        super().steps(story)
         story.openrig = SimulatedSeats()
         runtime = story.app.container.get(SeatRuntime)
         story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
