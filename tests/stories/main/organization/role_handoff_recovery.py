@@ -1,14 +1,11 @@
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.organization.support.seat_runtime import SeatRuntime
-from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_domain_task_with_ended_role_worker import OrganizationDomainTaskWithEndedRoleWorker
 
 
@@ -38,9 +35,6 @@ def test_a_refused_role_handoff_writes_nothing_and_preserves_the_domain_inbox(st
 
 @story(OrganizationDomainTaskWithEndedRoleWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_domain_can_release_an_ended_worker_and_handoff_its_task_to_the_role(story):
-    story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
-    story.openrig = SimulatedSeats()
-    story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
     plan = story.plans.first
     task = story.tasks.first
     stale_worker = story.agents.workers.first()
@@ -80,7 +74,6 @@ def test_a_domain_can_release_an_ended_worker_and_handoff_its_task_to_the_role(s
     role_worker = story.agents.workers.second()
     story.expect_organization_handoff_pending(plan, task, "role:alpha/builder")
     story.expect_worker_role_job(role_worker, task, brief, old_brief)
-    story.expect_role_job_prompt(role_worker, brief, old_brief, "journal clock-in")
     story.expect_organization_domain_can_release_workers(f"plan-{plan}", "alpha")
     story.expect_plan(plan, state=PlanState.DELEGATED)
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)

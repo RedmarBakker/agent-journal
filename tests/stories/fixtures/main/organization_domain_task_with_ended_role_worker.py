@@ -2,7 +2,6 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.support.ref import Ref
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -24,7 +23,6 @@ class OrganizationDomainTaskWithEndedRoleWorker(OrganizationPlanHandoffSeat):
     parent = OrganizationPlanHandoffSeat
 
     def steps(self, story) -> None:
-        story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.openrig = SimulatedSeats()
         story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
         task = self.tasks.first
