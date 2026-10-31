@@ -18,6 +18,7 @@ from journal.models.task import Task
 from journal.repositories.links import Links
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
+from journal.repositories.proofs import Proofs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
@@ -38,8 +39,8 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, time_source: TimeSource, logs: TaskLogs) -> None:
-        self.time_source, self.logs = time_source, logs
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, time_source: TimeSource, logs: TaskLogs, proofs: Proofs) -> None:
+        self.time_source, self.logs, self.proofs = time_source, logs, proofs
         self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing = rounds, taking, testing
@@ -345,13 +346,17 @@ class PlanCommand(Command):
         for i, phase in enumerate(self.plans.plan_phases(plan), 1):
             print(f"phase {i}: {phase.title}" + (f" (complete when {phase.completion_rule})" if phase.completion_rule else "") + (" [checkpoint]" if phase.checkpoint else ""))
             for task in self.plans.phase_tasks(phase):
-                print(f"{task.id:>4}  {task.state:<8} {task.title}")
+                print(self.task_line(task))
         loose = self.plans.loose_tasks(plan)
         if loose:
             print("under no phase yet:")
         for task in loose:
-            print(f"{task.id:>4}  {task.state:<8} {task.title}")
+            print(self.task_line(task))
         return 0
+
+    def task_line(self, task: Task) -> str:
+        proved = task.delegated and not task.is_closed() and self.proofs.is_proved(task)
+        return f"{task.id:>4}  {'proved' if proved else task.state:<8} {task.title}" + ("  (finished by its worker, waiting for your check)" if proved else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for plan in self.plans.scoped():

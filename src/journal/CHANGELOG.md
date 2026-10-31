@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.12
+
+- A task whose every point its worker has proved counts in the plan before it is checked and merged: journal plan show marks it proved, finished by its worker and waiting for your check, and the plan card shows how many wait for your check beside the tasks done, with their part of the bar.
+
 ## 4.69.11
 
 - A plan handed whole to a worker that is then released comes back paused to the agent, instead of staying marked as with a worker.

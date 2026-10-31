@@ -5,14 +5,15 @@ from journal.models.plan import Plan
 from journal.repositories.messages import Messages
 from journal.repositories.plan_reviews import PlanReviews
 from journal.repositories.plans import Plans
+from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 
 
 class PlanOutline:
     """A plan with its phases, each with its task numbers in order, how many of its tasks count towards it, the cancelled left out, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, its review rounds, newest first, each with the reports it filed, and how many comments are under it; read from its links and, for an open plan's phase in hand and checkpoint, its tasks' state counts, never its tasks' rows."""
 
-    def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting) -> None:
-        self.plans, self.tasks, self.reviews, self.rounds, self.testing = plans, tasks, reviews, rounds, testing
+    def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting, proofs: Proofs) -> None:
+        self.plans, self.tasks, self.reviews, self.rounds, self.testing, self.proofs = plans, tasks, reviews, rounds, testing, proofs
 
     def build(self, plan: Plan) -> dict:
         if plan.state.is_closed():
@@ -37,6 +38,11 @@ class PlanOutline:
     def outline(self, plan: Plan, task_ids: list[int], phases: list[dict], current_phase: int, checkpoint_pause: bool, is_delegated: bool) -> dict:
         members = {n for phase in phases for n in phase["task_ids"]}
         return {**ModelFields.build(plan), "task_ids": task_ids, "task_count": self.plans.uncancelled_count(task_ids), "phases": phases, "unphased_task_ids": [n for n in task_ids if n not in members],
-                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "testing": [template.title for template in self.testing.chosen(plan)],
+                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "proved_task_ids": self.proved_task_ids(task_ids, is_delegated), "testing": [template.title for template in self.testing.chosen(plan)],
                 "reviews": [{**ModelFields.build(review), "report_ids": self.rounds.report_ids(review)} for review in self.reviews.reviews(plan)],
                 "comment_count": self.plans.linking_counts(Messages.COMMENT_LINK, [plan.id]).get(plan.id, 0)}
+
+    def proved_task_ids(self, task_ids: list[int], is_delegated: bool) -> list[int]:
+        worker_holdings = self.tasks.task_worker_holdings(set(task_ids)) if is_delegated else {}
+        tasks = (self.tasks.find(task_id) for task_id in task_ids if task_id in worker_holdings)
+        return [task.id for task in tasks if not task.is_closed() and self.proofs.is_proved(task)]

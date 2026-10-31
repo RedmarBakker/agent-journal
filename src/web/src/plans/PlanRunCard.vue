@@ -62,7 +62,12 @@ async function pause() {
         </div>
         <div class="foot">
             <div class="foot-line">
-                <span class="done"><b>{{ standing.done }} of {{ standing.rows }}</b> tasks done</span>
+                <span class="done">
+                    <b>{{ standing.done }} of {{ standing.rows }}</b> tasks done
+                    <template v-if="standing.waiting">
+                        <span class="waiting">· To check: {{ standing.waiting }}</span>
+                    </template>
+                </span>
                 <span class="acts">
                     <template v-if="pausable">
                         <button type="button" class="act" title="Pause the plan and its open tasks" @click.stop="pause">
@@ -78,6 +83,7 @@ async function pause() {
             </div>
             <div :class="['bar', {stalled: status === 'blocked'}]" role="progressbar" :aria-valuenow="standing.done" :aria-valuemax="standing.rows">
                 <i :style="{width: `${standing.donePart}%`}" />
+                <i class="waiting-part" :style="{width: `${standing.waitingPart}%`}" />
             </div>
         </div>
     </article>
@@ -301,10 +307,15 @@ async function pause() {
 }
 
 .bar {
+    display: flex;
     height: 4px;
     border-radius: 2px;
     background: var(--border);
     overflow: hidden;
+}
+
+.waiting {
+    color: var(--text-3);
 }
 
 .bar > i {
@@ -313,6 +324,11 @@ async function pause() {
     border-radius: 2px;
     background: var(--accent);
     transition: width 0.4s ease;
+}
+
+.bar > i.waiting-part {
+    background: var(--accent);
+    opacity: 0.4;
 }
 
 .bar.stalled > i {

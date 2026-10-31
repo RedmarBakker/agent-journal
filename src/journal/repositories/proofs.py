@@ -10,6 +10,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 
 PROOF_LINK = "proves"
+PROVED_STATES = (ProofState.SHOWN, ProofState.CHECKED)
 
 
 class Proofs(ScopedRepository[Proof], LinkedRows):
@@ -22,6 +23,10 @@ class Proofs(ScopedRepository[Proof], LinkedRows):
 
     def task_proofs(self, task: Task) -> list[Proof]:
         return sorted(self.children(task), key=lambda proof: proof.point)
+
+    def is_proved(self, task: Task) -> bool:
+        latest = {proof.point: proof for proof in sorted(self.children(task), key=lambda proof: proof.row_id)}
+        return all(point in latest and latest[point].state in PROVED_STATES for point in range(1, len(task.points()) + 1))
 
     def short_proofs(self, task: Task) -> list[Proof]:
         return [proof for proof in self.children(task) if proof.state == ProofState.SHORT]
