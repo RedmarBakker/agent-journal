@@ -235,8 +235,8 @@ class UserSteps:
     def user_completes_task(self, task: int, outcome: str) -> StepResult:
         return self.user_did(f"/journal/tasks/{task}/finish", dict(how=outcome), "user completes a task")
 
-    def user_pauses_task(self, task: int, reason: str) -> StepResult:
-        return self.user_did(f"/journal/tasks/{task}/pause", dict(why=reason), "user pauses a task")
+    def user_blocks_task(self, task: int, reason: str) -> StepResult:
+        return self.user_did(f"/journal/tasks/{task}/block", dict(why=reason), "user blocks a task")
 
     def user_cancels_task(self, task: int, reason: str) -> StepResult:
         return self.user_did(f"/journal/tasks/{task}/cancel", dict(why=reason), "user cancels a task")

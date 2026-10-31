@@ -21,10 +21,11 @@ class OutputCard(Listener[Saved]):
         output = event.model
         if not isinstance(output, CommandOutput):
             return
-        if not (output.moved or output.is_watched or output.watch_reader):
+        is_shown = self.card.is_shown(output)
+        if not (output.moved or output.is_watched or output.watch_reader or is_shown):
             return
         is_long_run = output.has_run_long(output.update_time.timestamp()) or self.labels.line_label(output.command) in LONG_RUNS
-        if self.card.is_shown(output) or is_long_run:
+        if is_shown or is_long_run:
             if self.card.is_carded(output):
                 self.carded(output, self.card.card_contents(output))
 

@@ -76,7 +76,7 @@ def test_an_owner_paused_plan_stays_paused_when_the_agent_ticks(story):
     tick = story.clock_ticks(1)
     tick.expect_agent_not_told(story.agents.subject, EstimatesNudges.FORECAST_BASIS, n=story.plans.first)
     story.expect_plan(story.plans.first, state="paused")
-    story.expect_task(story.tasks.first, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.first, state=TaskState.BLOCKED)
     story.expect_stack(story.agents.subject, Ready)
 
 

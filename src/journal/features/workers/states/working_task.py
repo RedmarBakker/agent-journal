@@ -18,7 +18,7 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import WorkersOptions
-from journal.support.classification import BUILD, TEST_RUN
+from journal.support.classification import BUILD, JOURNAL, TEST_RUN
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.workers.session_workers_part import SessionWorkersPart
 
@@ -39,7 +39,7 @@ class WorkingTask(BaseState):
             return self.refuse(WorkersNudges.EDIT_LOCK.create())
         if any(part.is_git for part in event.call.parts):
             return self.refuse(WorkersNudges.WORKER_GIT_REFUSAL.create())
-        allowed = {kind.strip() for kind in str(settings.value(WorkersOptions.COMMAND_KINDS)).split(",")}
+        allowed = {JOURNAL, *(kind.strip() for kind in str(settings.value(WorkersOptions.COMMAND_KINDS)).split(","))}
         refused = next((part for part in event.call.parts if not part.is_journal and part.classification.command_type not in allowed), None)
         return self.refuse(KIND_REFUSALS.get(refused.classification.command_type, WorkersNudges.COMMAND_KIND_REFUSAL).create(command=refused.text)) if refused else self.none()
 

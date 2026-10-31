@@ -178,7 +178,9 @@ function doneOf(p, tasks) {
 export function standingOf(p, tasks) {
     const done = doneOf(p, tasks);
     const rows = taskCount(p);
-    return {done, waiting: 0, rows, donePart: (100 * done) / Math.max(1, rows), waitingPart: 0, title: `${done} of ${rows} tasks done`};
+    const waiting = (p.proved_task_ids || []).length;
+    const waitingLine = waiting ? `, to check: ${waiting}` : "";
+    return {done, waiting, rows, donePart: (100 * done) / Math.max(1, rows), waitingPart: (100 * waiting) / Math.max(1, rows), title: `${done} of ${rows} tasks done${waitingLine}`};
 }
 
 // The one button a plan's bar offers: approve one that is ready.

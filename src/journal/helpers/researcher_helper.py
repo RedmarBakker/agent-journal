@@ -1,5 +1,6 @@
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.memory.commands.rule_command import RuleCommand
+from journal.features.messages.commands.message_command import MessageCommand
 from journal.features.plans.commands.plan_command import PlanCommand
 from journal.features.plugins.feature import PluginsFeature
 from journal.features.reports.commands.report_command import ReportCommand
@@ -13,13 +14,14 @@ from journal.support.agent_role import AgentRole
 from journal.models.alias import Alias
 
 class ResearcherHelper(Helper):
-    """A subagent of Claude Code, on its own row from its start, researching over Void: it reads and answers, runs the journal's reading commands but for memories and writes documents, reports and plans of its own, since its command names no row of its own to keep them by, reaches the plugins whose manifests name subagents, and its turns become its messages."""
+    """A subagent of Claude Code, on its own row from its start, researching over Void: it reads and answers, runs the journal's reading commands but for memories, reads the chat thread without marking a message read, and writes documents, reports and plans of its own, since its command names no row of its own to keep them by, reaches the plugins whose manifests name subagents, and its turns become its messages."""
 
     role = AgentRole.SUBAGENT
     first_state = Researching
     features = (PluginsFeature,)
     commands = (
         (DocCommand, ("create", "update", "ready", "show")),
+        (MessageCommand, ("list", "recent")),
         (OutputCommand, ("read",)),
         (PlanCommand, ("create", "brief", "phase", "add", "todos", "ready", "show")),
         (ReportCommand, ("create", "update", "ready", "show")),

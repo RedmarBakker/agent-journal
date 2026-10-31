@@ -205,6 +205,9 @@ class SupervisorLink:
         except OSError:
             return False
 
+    def is_lost(self, environment_id: int) -> bool:
+        return self.announced(environment_id) is not None and not self.runs(environment_id)
+
     def announced(self, environment_id: int) -> SupervisorAnnouncement | None:
         path = self.config.home / "runtime" / "inboxes" / self.environments.find(environment_id).name
         text = path.read_text().strip() if path.is_file() else ""

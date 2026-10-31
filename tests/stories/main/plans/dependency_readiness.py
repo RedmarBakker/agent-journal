@@ -35,8 +35,9 @@ def test_a_plan_skips_unmet_work_and_starts_it_when_its_prerequisite_is_accepted
     story.expect_task(dependent, state=TaskState.STARTED)
     story.expect_task(independent, state=TaskState.OPEN)
     story.user_cancels_task(prerequisite, "the accepted task was withdrawn after work began")
-    story.agent_runs(story.agents.subject, f"task pause {dependent} 'set it aside briefly'")
-    story.agent_runs(story.agents.subject, f"task resume {dependent}")
+    story.agent_runs(story.agents.subject, f"task block {dependent} 'set it aside briefly'")
+    story.agent_runs(story.agents.subject, f"task unblock {dependent}")
+    story.agent_runs(story.agents.subject, f"task start {dependent}")
     story.expect_task(dependent, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 

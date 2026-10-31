@@ -365,7 +365,7 @@
   },
   {
    "key": "task_pauses",
-   "label": "Tasks paused and blocked",
+   "label": "Tasks blocked",
    "family": "tasks",
    "main": true,
    "shown": true,

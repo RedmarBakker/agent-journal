@@ -21,7 +21,7 @@ class PlansNudges:
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
     PLAN_MERGE_READY = Nudge("plans", "solo_plan_branch_ready", "plan {{n}} done; clean work auto-merges", "if merge stops, review, fix the issue and run `journal plan merge {{n}}`", repeat=Timeout.seconds(0))
     PLAN_AGENT_WRITE_SCOPE = Nudge("plans", "plan_agent_write_outside_worktree", "write refused: {{path|cap=120}} is outside {{worktree|cap=120}}", repeat=Timeout.seconds(0), longest_characters=267, longest_reason="it names the path and worktree")
-    PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
+    PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge("plans", "the_user_approved_the_plan", "plan {{n}} approved", repeat=Timeout.seconds(0))

@@ -119,7 +119,7 @@ class WorkInProgress:
             resolution = f"finish testing task {blocker.id}"
         elif blocker.state == TaskState.COMPLETED:
             resolution = f"merge the finished work for task {blocker.id}"
-        elif blocker.state in (TaskState.PAUSED, TaskState.BLOCKED):
+        elif blocker.state == TaskState.BLOCKED:
             resolution = f"resolve its wait, then finish task {blocker.id}"
         else:
             resolution = f"finish task {blocker.id}"

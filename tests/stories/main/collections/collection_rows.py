@@ -21,3 +21,17 @@ def test_a_collection_holds_rows_of_any_type_refuses_one_that_is_not_there_and_l
     result = story.agent_runs(story.agents.subject, "collection list")
     result.expect_command_text("Parser  (0 rows)")
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_deleted_collection_is_gone_and_its_rows_stay(story):
+    task = story.agent_creates_task(story.agents.subject, "the parser")
+    story.agent_runs(story.agents.subject, "collection create 'The parser work'")
+    collection = story.created_number("collection")
+    story.agent_runs(story.agents.subject, f"collection add {collection} tasks:{task}")
+    result = story.agent_runs(story.agents.subject, f"collection delete {collection}")
+    result.expect_command_text(f"collection {collection} is deleted; its rows stay")
+    result = story.agent_runs(story.agents.subject, "collection list")
+    result.expect_command_text_without("The parser work")
+    story.expect_task(task, title="the parser")
+    story.expect_stack(story.agents.subject, Ready)

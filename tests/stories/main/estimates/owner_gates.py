@@ -88,7 +88,7 @@ def test_a_forecast_does_not_resume_an_owner_paused_plan_or_cross_its_checkpoint
     result.expect_viewer_shows("status", "not enough history")
     result.expect_viewer_shows("available_actions", [])
     story.expect_plan(story.plans.first, state=PlanState.PAUSED)
-    story.expect_task(story.tasks.first, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.first, state=TaskState.BLOCKED)
     story.expect_stack(story.agents.subject, Ready)
 
 

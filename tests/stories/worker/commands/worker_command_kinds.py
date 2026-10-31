@@ -21,24 +21,40 @@ def test_a_worker_reads_searches_edits_files_and_runs_journal_commands(story):
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
-def test_a_worker_running_a_test_is_refused_and_told_to_queue_it_with_the_journal(story):
+@setting(WorkersOptions.COMMAND_KINDS, "read, search, edit")
+def test_a_worker_the_user_allows_no_tests_or_builds_running_a_test_is_refused_and_told_to_queue_it_with_the_journal(story):
     result = story.agent_runs_in_the_shell(story.agents.subject, "python3 -m pytest tests/test_parser.py")
     result.expect_refused(story.agents.subject, WorkersNudges.TEST_QUEUE)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
-def test_a_worker_running_a_build_is_refused_and_told_to_queue_it_with_the_journal(story):
+@setting(WorkersOptions.COMMAND_KINDS, "read, search, edit")
+def test_a_worker_the_user_allows_no_tests_or_builds_running_a_build_is_refused_and_told_to_queue_it_with_the_journal(story):
     result = story.agent_runs_in_the_shell(story.agents.subject, "npm run build")
     result.expect_refused(story.agents.subject, WorkersNudges.BUILD_QUEUE)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
-def test_a_worker_may_not_run_any_other_program(story):
+def test_a_worker_runs_any_other_program_by_default(story):
+    story.agent_runs_in_the_shell(story.agents.subject, "python3 scripts/fix_names.py").expect_allowed()
+    story.agent_runs_in_the_shell(story.agents.subject, ".journal/plugins/code-commandments/bin/commandments-release judge --changes").expect_allowed()
+    story.agent_runs_in_the_shell(story.agents.subject, "/tmp/built/journal-hook claude .").expect_allowed()
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_worker_runs_a_journal_alias_as_a_journal_command(story):
+    story.agent_runs(story.agents.main, "alias add judge 'echo judged'").expect_command_passed()
+    story.agent_runs_in_the_shell(story.agents.subject, "journal judge tools/journal-hook").expect_allowed()
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@setting(WorkersOptions.COMMAND_KINDS, "read, search, edit")
+def test_a_worker_the_user_allows_no_other_programs_is_refused_one(story):
     result = story.agent_runs_in_the_shell(story.agents.subject, "python3 scripts/fix_names.py")
-    result.expect_refused(story.agents.subject, WorkersNudges.COMMAND_KIND_REFUSAL)
-    result = story.agent_runs_in_the_shell(story.agents.subject, ".journal/plugins/code-commandments/bin/commandments-release judge --changes")
     result.expect_refused(story.agents.subject, WorkersNudges.COMMAND_KIND_REFUSAL)
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 

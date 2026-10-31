@@ -14,13 +14,13 @@ from journal.support.phone_actor import PhoneActor
 from journal.support.user_actor import UserActor
 
 RELEASING = ("completed", "cancelled")
-PAUSED, BLOCKED = "paused", "blocked"
+BLOCKED = "blocked"
 DROPPING_ACTORS = (UserActor, PhoneActor, AgentActor)
-DROPPED_LINE = "task {task} was paused while you worked on it and is no longer yours: leave it, keep what you committed on your branch, and go on with your queue"
+DROPPED_LINE = "task {task} was blocked while you worked on it and is no longer yours: leave it, keep what you committed on your branch, and go on with your queue"
 
 
 class WorkerTaskChanges(Listener[RowEvent]):
-    """What the user does to a worker's task reaches the worker's rows: a task done or cancelled is let go by its worker, which is released once it holds no other task, a task the user or the agent paused under its worker, by force, is let go too and the worker is told in its session to go on with its queue, a task done, cancelled or blocked while it waits in a worker's queue leaves the queue, a blocked one offered again once it opens, and a title or brief written anew marks the proofs of its changed points stale and, for a worker that is not running, is kept on its row to be said with its next job."""
+    """What the user does to a worker's task reaches the worker's rows: a task done or cancelled is let go by its worker, which is released once it holds no other task, a task the user or the agent blocked under its worker is let go too and the worker is told in its session to go on with its queue, a task done, cancelled or blocked while it waits in a worker's queue leaves the queue, a blocked one offered again once it opens, and a title or brief written anew marks the proofs of its changed points stale and, for a worker that is not running, is kept on its row to be said with its next job."""
 
     def __init__(self, tasks: Tasks, workers: Workers, proofs: Proofs, actions: WorkerActions) -> None:
         self.tasks, self.workers, self.proofs, self.actions = tasks, workers, proofs, actions
@@ -28,7 +28,7 @@ class WorkerTaskChanges(Listener[RowEvent]):
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskClosed) and event.outcome in RELEASING:
             self.closed(event, self.tasks.find(event.task_id))
-        if isinstance(event, TaskClosed) and event.outcome == PAUSED and isinstance(Actor.parse(event.actor), DROPPING_ACTORS):
+        if isinstance(event, TaskClosed) and event.outcome == BLOCKED and isinstance(Actor.parse(event.actor), DROPPING_ACTORS):
             self.dropped(event)
         if isinstance(event, TaskClosed) and event.outcome == BLOCKED:
             self.tasks.unqueued_task(self.tasks.find(event.task_id), Actor.system())

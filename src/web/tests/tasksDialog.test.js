@@ -208,7 +208,6 @@ describe("the tasks dialog's rules", () => {
             "Unblock",
             "Unblock",
         ]);
-        expect(nextAct(task(5, "e", {state: "paused"})).label).toBe("Resume");
         expect(nextAct(task(6, "f", {state: "testing"})).label, "a task waiting in testing offers to finish it, and draws without an error").toBe("Finish");
     });
 
@@ -217,9 +216,9 @@ describe("the tasks dialog's rules", () => {
         expect(waitLine(onPlan)).toBe("Blocked by plan 9");
     });
 
-    test("a started task can be paused, blocked or finished, and says why it cannot go back to open", () => {
+    test("a started task can be blocked or finished, and says why it cannot go back to open", () => {
         const choices = statusChoices(task(1, "a", {state: "started"}));
-        expect(choices.filter((c) => c.act).map((c) => c.status)).toEqual(["paused", "blocked", "done"]);
+        expect(choices.filter((c) => c.act).map((c) => c.status)).toEqual(["blocked", "done"]);
         expect(choices.find((c) => c.status === "open").note).toBe("Only a blocked or completed task goes back to open");
         expect(choices.find((c) => c.current).status).toBe("started");
     });

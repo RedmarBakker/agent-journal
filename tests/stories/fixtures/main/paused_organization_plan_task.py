@@ -20,14 +20,14 @@ class PausedOrganizationPlanTask(OrganizationHubPlan):
         story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
         story.user_pauses_plan(self.plans.first).expect_viewer_passed()
         story.agent_runs(story.agents.main, f"task start {self.tasks.second}").expect_command_passed()
-        story.user_pauses_task(self.tasks.second, "wait for separate input").expect_viewer_passed()
+        story.user_blocks_task(self.tasks.second, "wait for separate input").expect_viewer_passed()
         story.user_pauses_plan(self.plans.first).expect_viewer_passed()
         story.user_sets(PlansOptions.PLAN_AGENTS, True).expect_viewer_passed()
         story.user_sets(WorkersOptions.MODE, ORCHESTRATOR_MODE).expect_viewer_passed()
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.PAUSED)
-        story.expect_task(self.tasks.first, state=TaskState.PAUSED, delegated=False)
-        story.expect_task(self.tasks.second, state=TaskState.PAUSED, delegated=False)
+        story.expect_task(self.tasks.first, state=TaskState.BLOCKED, delegated=False)
+        story.expect_task(self.tasks.second, state=TaskState.BLOCKED, delegated=False)
         story.expect_organization_domains("alpha", "beta")
         story.expect_stack(story.agents.main, CoordinatingPlans)

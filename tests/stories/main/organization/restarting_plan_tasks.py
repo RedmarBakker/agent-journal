@@ -27,7 +27,7 @@ def test_a_user_restarting_an_organization_plan_opens_its_task_for_the_plan_seat
     handed_off.expect_command_passed()
     story.expect_organization_handoff_pending(plan, task, "domain:alpha")
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
-    story.expect_task(story.tasks.second, state=TaskState.PAUSED, delegated=False)
+    story.expect_task(story.tasks.second, state=TaskState.BLOCKED, delegated=False)
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
@@ -49,5 +49,5 @@ def test_an_operator_console_restart_opens_its_task_for_the_plan_seat(story):
     handed_off.expect_command_passed()
     story.expect_organization_handoff_pending(plan, task, "domain:alpha")
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
-    story.expect_task(story.tasks.second, state=TaskState.PAUSED, delegated=False)
+    story.expect_task(story.tasks.second, state=TaskState.BLOCKED, delegated=False)
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)

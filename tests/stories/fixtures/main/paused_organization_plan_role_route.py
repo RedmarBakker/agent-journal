@@ -42,5 +42,5 @@ class PausedOrganizationPlanRoleRoute(PausedOrganizationPlanTask):
         story.expect_plan(self.plans.first, state=PlanState.PAUSED)
         story.expect_task(self.tasks.first, state=TaskState.OPEN, delegated=False)
         story.expect_task_unheld(self.tasks.first)
-        story.expect_task(self.tasks.second, state=TaskState.PAUSED, delegated=False)
+        story.expect_task(self.tasks.second, state=TaskState.BLOCKED, delegated=False)
         story.expect_stack(self.domain_agent, LeadingPlan, FollowingPlan)

@@ -278,7 +278,7 @@ def test_the_commands_an_agent_runs_on_its_started_plan_answer_within_their_budg
     spending = {"POST /cli/task complete": command(full_project, "task", "complete", str(first), "--how", "the parser is written")}
     following = in_hand(full_project)
     assert following != first, "the plan took its next task in hand"
-    spending["POST /cli/task pause"] = command(full_project, "task", "pause", str(following), "the footer first")
+    spending["POST /cli/task block"] = command(full_project, "task", "block", str(following), "the footer first")
     spending["POST /cli/task start"] = command(full_project, "task", "start", str(following))
     spending["POST /cli/output list"] = command(full_project, "output", "list")
     commands = over(recorded(spending))

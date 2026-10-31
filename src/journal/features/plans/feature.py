@@ -2,7 +2,6 @@ from journal.events.blocking import Blocking
 from journal.events.rows.plan_approved import PlanApproved
 from journal.features.feature import Feature
 from journal.features.plans.support.plans_data_reader import PlansDataReader
-from journal.features.plans.support.task_succession_reader import TaskSuccessionReader
 from journal.features.plans.support.plans_data import PlansData
 from journal.features.plans.listeners.plan_blockade import PlanBlockade
 from journal.features.plans.listeners.plan_delegation import PlanDelegation

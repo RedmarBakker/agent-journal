@@ -9,14 +9,15 @@ from journal.models.plan import Plan
 from journal.repositories.messages import Messages
 from journal.repositories.plan_reviews import PlanReviews
 from journal.repositories.plans import Plans
+from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 
 
 class PlanOutline:
     """A plan with its phases, each with its task numbers in order, how many of its tasks count towards it, the cancelled left out, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, its review rounds, newest first, each with the reports it filed, how many comments are under it, the environment whose chat is its Plan agent's, when that agent last acted, or none, and the name of the person it is of; read from its links and, for an open plan's phase in hand and checkpoint, its tasks' state counts, never its tasks' rows."""
 
-    def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting, agents: PlanAgents, owners: PlanOwners) -> None:
-        self.plans, self.tasks, self.reviews, self.rounds, self.testing, self.agents, self.owners = plans, tasks, reviews, rounds, testing, agents, owners
+    def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting, agents: PlanAgents, owners: PlanOwners, proofs: Proofs) -> None:
+        self.plans, self.tasks, self.reviews, self.rounds, self.testing, self.agents, self.owners, self.proofs = plans, tasks, reviews, rounds, testing, agents, owners, proofs
 
     def build(self, plan: Plan) -> dict:
         if plan.state.is_closed():
@@ -41,7 +42,7 @@ class PlanOutline:
     def outline(self, plan: Plan, task_ids: list[int], phases: list[dict], current_phase: int, checkpoint_pause: bool, is_delegated: bool) -> dict:
         members = {n for phase in phases for n in phase["task_ids"]}
         return {**ModelFields.build(plan), "task_ids": task_ids, "task_count": self.plans.uncancelled_count(task_ids), "phases": phases, "unphased_task_ids": [n for n in task_ids if n not in members],
-                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "testing": [template.title for template in self.testing.chosen(plan)],
+                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "proved_task_ids": self.proved_task_ids(task_ids), "testing": [template.title for template in self.testing.chosen(plan)],
                 "reviews": [{**ModelFields.build(review), "report_ids": self.rounds.report_ids(review)} for review in self.reviews.reviews(plan)],
                 "comment_count": self.plans.linking_counts(Messages.COMMENT_LINK, [plan.id]).get(plan.id, 0), "chat": self.chat(plan),
                 "plan_agent_last_action_at": self.agent_last_action_at(plan), "owner": self.owners.name(plan)}
@@ -53,3 +54,6 @@ class PlanOutline:
     def agent_last_action_at(self, plan: Plan) -> datetime | None:
         agent = self.agents.agent(plan)
         return agent.updated_at if agent else None
+
+    def proved_task_ids(self, task_ids: list[int]) -> list[int]:
+        return self.proofs.checkable_ids(self.tasks.tasks_numbered(task_ids))

@@ -30,6 +30,7 @@ from journal.repositories.domain_rows import DomainRows
 from journal.repositories.messages import Messages
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
+from journal.repositories.proofs import Proofs
 from journal.repositories.plans import PHASE_LINK, PHASE_TASK_LINK, PLAN_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
@@ -53,8 +54,8 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies, composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast) -> None:
-        self.time_source, self.logs = time_source, logs
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies, composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast, proofs: Proofs) -> None:
+        self.time_source, self.logs, self.proofs = time_source, logs, proofs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
         self.rounds, self.taking, self.plan_testing = rounds, taking, testing
@@ -339,9 +340,11 @@ class PlanCommand(Command):
                 self.taking.require_start(task)
             current_task = self.tasks.holder_task(self.taking.holder(caller))
             self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
-            self.tasks.save(current_task.paused(f"plan {plan.id} goes first", moment), caller.actor)
+            self.tasks.save(current_task.reopened(moment), caller.actor)
             self.plans.start(plan, self.taking.holder(caller), caller.actor)
-            self.taking.paused_current(current_task, caller)
+            plan_task = self.tasks.holder_task(self.taking.holder(caller))
+            if plan_task is not None:
+                self.tasks.save(plan_task.reopened(moment), caller.actor)
             self.taking.start(self.tasks.find(current_task.id), caller)
         print(f"plan {plan.id} started again under task {current_task.id}, which stays in hand; the plan goes on once it is done")
         return 0
@@ -445,6 +448,10 @@ class PlanCommand(Command):
         for task in loose:
             print(self.task_line(task))
         return 0
+
+    def task_line(self, task: Task) -> str:
+        proved = self.proofs.is_checkable(task)
+        return f"{task.id:>4}  {'proved' if proved else task.state:<8} {task.title}" + ("  (finished by its worker, waiting for your check)" if proved else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         if plan := self.plan_seat_plan(caller):

@@ -17,8 +17,9 @@ export const asksUpdateStatus = (url) => url.split("?")[0].endsWith(UPDATE_STATU
 const failure = (status, message) => Object.assign(new Error(message), {status});
 
 export async function answered(response, fallback, failed = failure) {
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(failed(response.status, body.error || fallback), {blocked: Boolean(body.blocked), details: body});
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw Object.assign(failed(response.status, body?.error || fallback), {blocked: Boolean(body?.blocked), details: body || {}});
+    if (body === null) throw failed(response.status, `The journal's answer could not be read: ${fallback}`);
     return body;
 }
 

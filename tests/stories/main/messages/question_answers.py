@@ -52,13 +52,6 @@ def test_a_question_asked_while_a_plan_is_followed_returns_to_the_plan(story):
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_the_agents_own_tool_use_ends_its_wait(story):
-    story.agent_asks(story.agents.subject, "which footer?", "The agent writes the short one", "The agent writes the long one")
-    story.agent_reads(story.agents.subject)
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_journal_command_while_waiting_keeps_the_wait(story):
     story.agent_asks(story.agents.subject, "which footer?", "The agent writes the short one", "The agent writes the long one")
     story.agent_creates_task(story.agents.subject, "the header")
@@ -99,4 +92,15 @@ def test_a_question_asked_from_outside_an_agents_session_is_refused(story):
 def test_the_providers_own_question_tool_is_refused_for_the_journals(story):
     result = story.agent_uses_the_providers_tool(story.agents.subject, "AskUserQuestion", question="which?")
     result.expect_refused(story.agents.subject, QuestionsNudges.JOURNAL_QUESTION_TOOL)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_the_agents_own_tool_use_ends_its_wait_and_a_later_answer_is_still_told(story):
+    question = story.agent_asks(story.agents.subject, "release now?", "The agent releases it now", "The agent holds it")
+    story.agent_reads(story.agents.subject)
+    story.expect_stack(story.agents.subject, Ready)
+    story.agent_stops(story.agents.subject)
+    result = story.user_answers(question, "The agent holds it")
+    result.expect_agent_told(story.agents.subject, QuestionsNudges.QUESTION_ANSWERED, n=question)
     story.expect_stack(story.agents.subject, Ready)

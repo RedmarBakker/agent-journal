@@ -2412,11 +2412,11 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
     command = dict(tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
     hook(app, "PostToolUse", **command)
     assert app.container.get(Tasks).find(1).state == "started", "the head was not made by this command"
-    for line in (["task", "pause", "1", "first"], ["task", "start", "2"], ["task", "pause", "2", "later"], ["task", "resume", "1"]):
+    for line in (["task", "start", "2"], ["task", "start", "1"]):
         app.console().run(line, AGENT)
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "New\n\nJournal: tasks done 1 and 2 now"], cwd=root, check=True)
     hook(app, "PostToolUse", **command)
-    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "started", "the trailer closes only the started task; the paused one it names is not closed, and the agent takes it up again in auto mode"
+    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "started", "the trailer closes only the started task; the blocked one it names is not closed, and the agent takes it up again in auto mode once its wait on the closed one ends"
 
 
 def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: App):
@@ -2666,7 +2666,7 @@ def test_version_3_todos_become_tasks_in_their_states_with_their_work_logs(app: 
         migrator.run(migrator.begin(Actor.user(1)), Actor.user(1))
         tasks = {t.title: t for t in app.container.get(Tasks).rows()}
         assert tasks["done one"].state == "completed" and tasks["done one"].outcome == "it shipped" and tasks["done one"].brief == "the brief"
-        assert tasks["in progress"].state == "paused" and tasks["waiting"].state == "blocked" and tasks["waiting"].block_reason == "the vendor's answer"
+        assert tasks["in progress"].state == "blocked" and tasks["waiting"].state == "blocked" and tasks["waiting"].block_reason == "the vendor's answer"
         assert tasks["still open"].state == "open" and "struck" not in tasks, "a struck to-do stays behind"
         assert [log.line for log in app.container.get(TaskLogs).rows() if log.task_id == tasks["done one"].id] == ["built it", "tested it"]
 
@@ -3493,8 +3493,8 @@ def test_a_line_naming_a_list_that_changes_is_said_once_inside_its_window(app: A
     agent, nudger = app.container.get(SessionAgents).agent("s1", 1), app.container.get(Nudger)
     assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15")), "the first naming of the commands still running is said"
     assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15, 18")) is None, "a command joining the list inside the window says nothing again: Ada's flood"
-    assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")), "the blocked ask is said once"
-    assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")) is None, "and not again at the next tick five seconds later"
+    assert nudger.deliver(agent, TasksNudges.IDLE_CHECK.create()), "the quiet check is said once"
+    assert nudger.deliver(agent, TasksNudges.IDLE_CHECK.create()) is None, "and not again at the next tick five seconds later"
     assert nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=3)) and nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=4)), "a line about one row is still held by its words: another task is named"
 
 
@@ -7144,16 +7144,16 @@ def test_a_plans_next_task_is_its_paused_one_unless_it_waits_and_a_blocked_one_n
     hook(app, "SessionStart")
     console.run(["plan", "approve", "1"], USER)
     assert console.run(["plan", "start", "1"], AGENT).code == 0
-    for number, state in {1: TaskState.COMPLETED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED}.items():
+    for number, state in {1: TaskState.COMPLETED, 3: TaskState.BLOCKED}.items():
         tasks.save(replace(tasks.find(number), state=state, completed_at=datetime.now(timezone.utc) if state == TaskState.COMPLETED else None), Actor.user(1))
     assigner, plan = app.container.get(PlanTaskAssigner), app.container.get(Plans).find(1)
-    assert assigner.following_task(plan).id == 2, "the plan's paused task comes first"
+    assert assigner.following_task(plan).id == 2, "the plan's first open task comes first"
     tasks.save(replace(tasks.find(2), state=TaskState.STARTED), Actor.user(1))
-    assert console.run(["task", "pause", "2", "after the open one", "--on", "task:4"], USER).code == 0
-    assert assigner.following_task(plan).id == 4, "a paused task that waits on another is passed over, and a blocked one never stops the plan"
+    assert console.run(["task", "block", "2", "after the open one", "--on", "task:4"], USER).code == 0
+    assert assigner.following_task(plan).id == 4, "a blocked task that waits on another is passed over, and a blocked one never stops the plan"
     tasks.save(replace(tasks.find(4), state=TaskState.COMPLETED, completed_at=datetime.now(timezone.utc)), Actor.user(1))
     app.runtime().deferred.drain()
-    assert assigner.following_task(plan).id == 2, "once its wait is over, the paused task comes first again"
+    assert assigner.following_task(plan).id == 2, "once its wait is over, the blocked task is open and comes first again"
     assert [task.title for task in tasks.next_open_tasks(5) if task.title.startswith("outside")] == ["outside high", "outside low"], "free tasks go by priority"
 
 
@@ -7883,3 +7883,16 @@ def test_a_plans_cancelled_tasks_leave_its_task_count(app: App):
     with app.container.get(Scope).environment(MAIN):
         plans = app.container.get(Plans)
         assert plans.uncancelled_count(plans.plan_task_ids(plans.find(1))) == 2, "a cancelled task leaves the count, so a plan with a cancelled phase can still be done"
+
+
+def test_a_resting_docked_card_older_than_its_chats_first_page_is_taken_down_and_newer_or_running_ones_stay(connection):
+    from journal.db.migrations.scrolled_docks_undock import SHOWN_MESSAGE_COUNT, ScrolledDocksUndock
+    cards = ('{"docked": true}', '{"docked": true, "active": true}', '{"docked": true, "undock_at": 5}')
+    for data in cards:
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'system', 'old card', ?, '2026-10-01')", (data,))
+    for _ in range(SHOWN_MESSAGE_COUNT):
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'agent', 'words', '{}', '2026-10-30')")
+    connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at) VALUES (1, 'system', 'new card', '{\"docked\": true}', '2026-10-31')")
+    ScrolledDocksUndock().apply(connection)
+    docked = [row["id"] for row in connection.all("SELECT id FROM messages WHERE json_extract(data, '$.docked') = 1 ORDER BY id")]
+    assert docked == [2, 3, SHOWN_MESSAGE_COUNT + 4], "the old resting card goes; the running one, the leaving one and the card on the first page stay"

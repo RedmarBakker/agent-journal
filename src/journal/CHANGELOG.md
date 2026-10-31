@@ -2,6 +2,70 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.18
+
+- The two settings that remind of blocks with no wait have labels of their own: after completed tasks, and after minutes.
+- The refusal of task pause reads 'tasks are blocked, never paused', and the refusal for a new team server names the setup URL in its log again.
+
+## 4.69.17
+
+- A command run in the foreground whose card had shown in the chat turns that card to how it ended. Before, the card kept its spinner after the run finished, since ending a foreground run unwatches it and the card listener then passed it by.
+
+## 4.69.16
+
+- A subagent may read the chat thread with journal message list and journal message recent, so a reviewer can check the work against what was agreed in the chat. journal message read stays refused, since it marks the user's messages read.
+
+## 4.69.15
+
+- A task is no longer paused: blocked is the one state for waiting. A started task can be blocked, with a reason and optionally --on task:N or --until a check, and taking it up again unblocks it. journal task pause is refused and points to journal task block.
+- Every paused task becomes blocked, keeping its reason and its waits, and the pause columns are dropped.
+- Starting a task while another is in hand blocks the one in hand until the new one closes, then takes it up again.
+- A blocked task with nothing to end it is named to the agent every 5 completed tasks or every 30 minutes, whichever comes first, even when idle, asking whether it can be unblocked or else to make it wait on a task or a check. Both numbers are settings.
+- The viewer drops the paused state: its filter, badge and group.
+
+## 4.69.14
+
+- A plan handed whole to a worker shows its proved tasks on the plan card as To check, as journal plan show does. Before, the card counted only the task the worker held at that moment, so it read 0 tasks done with nothing to check.
+- A worker may run a journal alias, such as journal sins, like any other journal command. Before, an alias was refused as a program the worker may not run.
+
+## 4.69.13
+
+- Workers may run any program by default, including one the journal does not know, such as the code-commandments judge or a binary the worker just built. Before, an unknown program was always refused, whatever the setting said. A user who leaves "unknown" out of Commands workers may run still refuses them.
+
+## 4.69.12
+
+- A task whose every point its worker has proved counts in the plan before it is checked and merged: journal plan show marks it proved, finished by its worker and waiting for your check, and the plan card shows how many wait for your check beside the tasks done, with their part of the bar.
+
+## 4.69.11
+
+- A plan handed whole to a worker that is then released comes back paused to the agent, instead of staying marked as with a worker.
+
+## 4.69.10
+
+- Workers may run every kind of command by default: reading, searching, editing, packages, the network, checks, programs, test runs and builds. A setting that was changed by hand is kept.
+
+## 4.69.9
+
+- On upgrade, a document's or report's card left docked but long scrolled out of the chat is taken down, so the docked list shows what was shown before 4.69.8 (migration 84).
+
+## 4.69.8
+
+- A docked document shows above the chat however old its card is: the list of docked cards now holds every docked card, not only those of running commands.
+
+## 4.69.7
+
+- A row docked again after its card was taken down shows again; docking clears the old time it was taken down.
+
+## 4.69.6
+
+- A collection can be deleted with journal collection delete; the rows in it stay.
+
+## 4.69.5
+
+- A supervisor stopped without closing its connection is named once in the chat, since your messages then reach the agent only at its next step.
+- An answer to a question the agent asked is told to it even when the agent worked past its wait first, so a stopped agent is woken by it.
+- The viewer refuses an answer it cannot read as JSON, so a list it polls keeps its last rows instead of breaking the page.
+
 ## 4.69.4
 
 - A plan's card counts its tasks without the cancelled ones, so a plan with a cancelled phase can show as done.

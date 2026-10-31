@@ -36,13 +36,6 @@ const named = computed(() =>
         </template>
         <span class="since">since {{ ago(updatedAt(task)) || "just now" }}</span>
     </div>
-    <template v-if="status === 'paused'">
-        <section :class="['reason', status]">
-            <span class="label">Pausing reason</span>
-            <p class="text">{{ task.pause_reason }}</p>
-            <p class="note">The journal stops reminding the agent about it until it is resumed.</p>
-        </section>
-    </template>
     <template v-if="task.delegated">
         <section class="reason delegated">
             <span class="label">With a worker</span>
@@ -88,10 +81,6 @@ const named = computed(() =>
     --tone: var(--tone-warn);
 }
 
-.state-line.paused {
-    --tone: var(--tone-helper);
-}
-
 
 .state-line.done {
     --tone: var(--tone-good);
@@ -129,10 +118,6 @@ const named = computed(() =>
     margin-bottom: 18px;
     padding-left: 12px;
     border-left: 2px solid var(--tone-warn);
-}
-
-.reason.paused {
-    border-left-color: var(--tone-helper);
 }
 
 .reason.delegated {

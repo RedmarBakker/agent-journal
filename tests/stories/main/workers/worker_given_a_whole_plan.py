@@ -12,15 +12,6 @@ from tests.stories.fixtures.worker.plan_worker import PlanWorker
 from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelivered
 
 
-@story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_worker_on_a_plan_goes_on_to_the_next_task_as_it_proves_the_last_point_without_reporting(story):
-    result = story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
-    result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
-    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
-    story.expect_task(story.tasks.second, delegated=True)
-    story.expect_stack(story.agents.subject, Ready, ExternalWait)
-
-
 @story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_each_task_checked_and_the_worker_merged_finishes_the_plan(story):
     story.agent_runs(story.agents.subject, f"worker check {story.agents.workers.first()} 1 --task {story.tasks.first}")
@@ -61,3 +52,17 @@ def test_a_queued_task_that_is_blocked_ends_the_queue_with_a_report(story):
     story.expect_task(story.tasks.second, state=TaskState.BLOCKED)
     story.expect_task(story.tasks.first, delegated=True)
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_worker_goes_on_to_the_next_task_as_it_proves_the_last_point_and_the_plan_shows_the_proved_one_waiting_for_the_check(story):
+    result = story.agent_proves(story.agents.workers.first(), 1, "first.py:3, test_first passes")
+    result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
+    story.expect_task(story.tasks.second, delegated=True)
+    result = story.agent_runs(story.agents.subject, f"plan show {story.plans.first}")
+    result.expect_command_text(f"{story.tasks.first:>4}  proved")
+    result.expect_command_text("finished by its worker, waiting for your check")
+    result = story.user_opens(f"/journal/plans?ids={story.plans.first}")
+    result.expect_viewer_part(("rows", 0, "proved_task_ids"), [story.tasks.first])
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)

@@ -128,7 +128,7 @@ def test_a_project_execution_ceiling_counts_work_from_other_environments(story):
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_execution_and_delivery_wip_overlap_without_being_added_together(story):
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'waiting on deployment'")
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waiting on deployment'")
     result = story.user_opens(f"/journal/tasks/{story.tasks.started}/wip")
     result.expect_viewer_shows("execution_wip", True)
     result.expect_viewer_shows("delivery_wip", True)
@@ -144,7 +144,7 @@ def test_report_mode_shows_flow_limits_without_refusing_new_work(story):
     changed.expect_viewer_passed()
     result = story.agent_runs(story.agents.subject, f"task start {second}")
     result.expect_command_passed()
-    story.expect_task(first, state=TaskState.PAUSED)
+    story.expect_task(first, state=TaskState.BLOCKED)
     story.expect_task(second, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 

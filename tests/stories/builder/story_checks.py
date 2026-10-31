@@ -25,6 +25,7 @@ from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
 from journal.support.caller import ACTOR_TOKEN, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.models.support.ref import Ref
+from journal.support.time_source import TimeSource
 from tests.full_project import MAIN
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
@@ -70,8 +71,13 @@ class StoryChecks:
         marks = sorted(row["text"] for row in rows)
         assert marks == sorted(texts), f"the chat's {shows} marks are {marks}, not {sorted(texts)}: {rows}"
 
+    @staticmethod
+    def is_shown_docked(data: dict, now: float) -> bool:
+        return bool(data.get("docked")) and not (data.get("undock_at") and not data.get("held_at") and now >= data["undock_at"])
+
     def expect_docked_cards(self, *texts: str) -> None:
-        docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("docked"))
+        now = self.app.container.get(TimeSource).seconds()
+        docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages?docked=1", MAIN)[1]["rows"] if self.is_shown_docked(row.get("data") or {}, now))
         assert docked == sorted(texts), f"the cards docked above the chat are {docked}, not {sorted(texts)}"
 
     def expect_plan_titles_in(self, environment: str, *titles: str) -> None:

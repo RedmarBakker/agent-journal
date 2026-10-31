@@ -11,8 +11,6 @@ agent task show 1
 agent task list
 agent task next --quantity 2
 agent task pause 1 "the cart comes first"
-agent task resume 1
-agent task skip-paused
 agent task test --help
 agent task transfer --help
 agent task block 2 "waits on the tax rates"
@@ -150,6 +148,7 @@ agent collection members 1
 agent collection list
 agent collection remove 1 tasks:2
 agent collection rename 1 "The checkout"
+agent collection delete 1
 agent check create "The cart adds up" --command "exit 0" --brief "the cart's test passes" --every 0
 agent check list
 agent check run 1

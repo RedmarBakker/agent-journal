@@ -2,13 +2,12 @@ from enum import StrEnum
 
 
 # a state's name before it was renamed, which a row kept elsewhere, as the team's copy, may still carry
-FORMER_NAMES = {"parked": "paused", "done": "completed", "delegated": "started"}
+FORMER_NAMES = {"parked": "blocked", "paused": "blocked", "done": "completed", "delegated": "started"}
 
 
 class TaskState(StrEnum):
     OPEN = "open"
     STARTED = "started"
-    PAUSED = "paused"
     BLOCKED = "blocked"
     TESTING = "testing"
     COMPLETED = "completed"

@@ -44,3 +44,9 @@ test("two reads of a table's rows by different ids go out side by side, each ans
     api.list("tasks", {ids: [4491, 4492]});
     expect(sent.map((url) => url.split("/journal")[1])).toEqual(["/tasks?ids=4481%2C4482", "/tasks?ids=4491%2C4492"]);
 });
+
+test("an answer the journal sent without readable JSON is refused, so a poll keeps what it had", async () => {
+    const {answered} = await import("../src/api/transport.js");
+    await expect(answered(new Response("<html>", {status: 200}), "200 OK")).rejects.toThrow("could not be read");
+    await expect(answered(new Response(JSON.stringify({rows: []}), {status: 200}), "200 OK")).resolves.toEqual({rows: []});
+});

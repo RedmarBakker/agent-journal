@@ -29,6 +29,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.shell_runner import ShellRunner
 from journal.features.shell.support.chain_worker import ChainWorker
+from journal.features.shell.support.shell_record import ShellRecord
 from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -523,6 +524,22 @@ class AgentSteps:
         self.observed(f"agent has a background run {line.split()[0]}", None, None)
         return folder.number()
 
+    def agent_has_a_watched_foreground_run(self, agent: StoryAgent, line: str) -> int:
+        runner, caller = self.app.container.get(ShellRunner), self.seated_caller_of(agent)
+        with self.app.container.get(Scope).environment(1):
+            folder = runner.split_folder(line)
+            runner.recorded(folder, line, caller, str(self.app.config.root))
+            runner.test_run_watched(folder, line, caller)
+        self.observed(f"agent has a watched foreground run {line.split()[0]}", None, None)
+        return folder.number()
+
+    def foreground_run_ends(self, agent: StoryAgent, output: int, status: int = 0) -> StepResult:
+        with self.app.container.get(Scope).environment(1):
+            folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
+            folder.ended_with(len(folder.kinds()) - 1, status)
+            self.app.container.get(ShellRecord).foreground_end(folder.folder.name, status, self.seated_caller_of(agent))
+        return self.observed(f"the foreground run ends {'failing' if status else 'passing'}", None, None)
+
     def recorded_run_ends(self, output: int) -> StepResult:
         return self.recorded_run_ends_with(output, 0)
 
@@ -778,6 +795,20 @@ class AgentSteps:
         with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
             log.write(f"{int(self.app.container.get(TimeSource).seconds())} shell {line}\n")
         return self.observed("a shell line ran around the journal", None, None)
+
+    def the_supervisor_stopped_without_closing_its_inbox(self, agent: StoryAgent) -> StepResult:
+        inbox = self.inbox_file()
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        inbox.write_text(json.dumps({"socket": str(inbox.parent / "gone.sock"), "protocol": 1}))
+        return self.observed("the supervisor stopped without closing its inbox", None, None)
+
+    def the_supervisor_closed_its_inbox(self, agent: StoryAgent) -> StepResult:
+        self.inbox_file().unlink(missing_ok=True)
+        return self.observed("the supervisor closed its inbox", None, None)
+
+    def inbox_file(self) -> Path:
+        environment_id = self.app.container.get(Agents).session_agent(self.main_session()).environment_id
+        return self.app.config.home / "runtime" / "inboxes" / self.app.container.get(Environments).find(environment_id).name
 
     def the_project_holds_a_file(self, path: str, data: bytes) -> StepResult:
         (self.app.config.root / path).write_bytes(data)

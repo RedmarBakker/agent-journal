@@ -60,7 +60,6 @@ ASSIGNMENT_REFUSALS = {
     TaskState.CANCELLED: "task {n} is {state}: a worker is started only on an open task or one you hold",
     TaskState.BLOCKED: "task {n} is {state}: unblock it before a worker takes it",
     TaskState.STARTED: "task {n} is started in another's hands: a worker is started only on an open task or one you hold",
-    TaskState.PAUSED: "task {n} is {state} in another's hands: a worker is started only on an open task or one you hold",
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
@@ -329,7 +328,7 @@ class WorkerCommand(Command):
     @staticmethod
     def refused_in_review(worker: Worker) -> None:
         if worker.is_delivered():
-            raise Rejection(f"worker {worker.id} waits for check and merge; merge it or use another worker")
+            raise Rejection(f"worker {worker.id} waits for its merge: journal worker merge {worker.id}, or send the job to another worker")
 
     def check(self, args: Namespace, caller: Caller) -> int:
         if caller.organization_seat:

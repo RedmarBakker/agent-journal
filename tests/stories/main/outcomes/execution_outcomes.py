@@ -62,7 +62,7 @@ def test_reopening_blocked_work_closes_one_block_interval_without_success_credit
 def test_a_failed_test_and_rework_keep_separate_execution_intervals(story):
     run = story.agent_runs_a_command(story.agents.subject, "sh -c 'seq 1 300; exit 3'")
     story.agent_runs(story.agents.subject, f"output test {run}")
-    story.expect_task(story.tasks.started, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.started, state=TaskState.BLOCKED)
     result = story.user_opens(f"/journal/tasks/{story.tasks.started}/outcomes")
     result.expect_viewer_rows("intervals", "kind", ["execution", "testing", "rework"])
     result.expect_viewer_rows("events", "kind", ["TaskStarted", "TaskClosed", "TaskTestFailed"])
@@ -70,14 +70,14 @@ def test_a_failed_test_and_rework_keep_separate_execution_intervals(story):
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_resolved_wait_and_a_paused_task_resume_are_different_times(story):
+def test_a_resolved_wait_unblocks_a_task_before_it_starts_again(story):
     blocked = story.agent_creates_task(story.agents.subject, "the dependency")
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'waiting for the dependency' --on task:{blocked}")
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waiting for the dependency' --on task:{blocked}")
     story.agent_runs(story.agents.subject, f"task complete {blocked} --how 'dependency is ready'")
     resolved_at = story.app.container.get(Clock).held_at
-    story.expect_task(story.tasks.started, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.started, state=TaskState.OPEN)
     story.time_travel(seconds=1)
-    story.agent_runs(story.agents.subject, f"task resume {story.tasks.started}")
+    story.agent_runs(story.agents.subject, f"task start {story.tasks.started}")
     resumed_at = story.app.container.get(Clock).held_at
     result = story.user_opens(f"/journal/tasks/{story.tasks.started}/outcomes")
     result.expect_viewer_rows("events", "kind", ["TaskClosed", "TaskWaitEnded", "TaskStarted"])
@@ -138,7 +138,7 @@ def test_checking_proofs_and_merging_records_accepted_artifact_completion(story)
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_paused_and_open_work_remains_censored_with_unknown_cost(story):
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.first} 'waiting for owner review' --on task:{story.tasks.second}")
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.first} 'waiting for owner review' --on task:{story.tasks.second}")
     story.time_travel(minutes=60)
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("unfinished_tasks", [story.tasks.first])

@@ -11,7 +11,7 @@ ENDED_REASON = "the session that held it ended"
 
 
 class EndedAgentTasks(AgentListener[SessionStarted]):
-    """When a main session starts, a task still started in the hand of a main agent of the environment whose session has ended is paused, so the agent that starts can resume it and no task is held by a session that will never work again; a session that starts again finds a task paused for its own end started again."""
+    """When a main session starts, a task still started in the hand of a main agent of the environment whose session has ended is blocked, so the agent that starts can take it up and no task is held by a session that will never work again; a session that starts again finds a task blocked for its own end started again."""
 
     def __init__(self, tasks: Tasks, agents: Agents) -> None:
         self.tasks, self.agents = tasks, agents
@@ -21,6 +21,6 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
         moment = datetime.fromtimestamp(event.time, timezone.utc)
         ended = self.agents.ended_main_query(event.environment_id).filter_unequal("id", starting.id)
         for task in self.tasks.agents_tasks(TaskState.STARTED, ended):
-            self.tasks.save(task.paused(ENDED_REASON, moment), Actor.system())
-        for task in self.tasks.agents_paused_with(ENDED_REASON, self.agents.query().filter(id=starting.id)):
+            self.tasks.save(task.blocked(ENDED_REASON, moment), Actor.system())
+        for task in self.tasks.agents_blocked_with(ENDED_REASON, self.agents.query().filter(id=starting.id)):
             self.tasks.save(task.started(moment), Actor.system())

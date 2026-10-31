@@ -181,7 +181,7 @@ class Routes:
         router.get(f"{API}/tasks/{{id}}/size", tasks.size)
         router.get(f"{API}/tasks/{{id}}/wip", tasks.wip)
         router.post(f"{API}/tasks/{{id}}/size", tasks.revise_size)
-        self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
+        self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
         self.resource(router, "plans", plans)
         sprints = get(SprintController)

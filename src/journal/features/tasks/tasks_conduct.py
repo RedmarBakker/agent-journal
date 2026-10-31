@@ -1,7 +1,7 @@
 import re
 import shlex
-from journal.events.rows.task_wait_ended import TaskWaitEnded
-from journal.features.tasks.support.task_succession import TaskSuccession
+from journal.engine.nudge import Nudge
+from journal.features.tasks.support.tasks_data import TasksData
 from journal.engine.conduct import Conduct
 from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
@@ -35,10 +35,12 @@ WAIT_REFUSAL_LIMIT = 2
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a test run started while the task in hand has been in progress a while met with how to put it in testing, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a test run started while the task in hand has been in progress a while met with how to put it in testing, the tasks blocked with nothing to end them named every so many completed tasks or minutes, whichever comes first, idle or not, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        return wake_check(self, event, settings)
+        tasks = event.data.part(TasksPart)
+        loose = tasks.blocked_without_wait and event.time - tasks.loose_blocks_since >= settings.integer(TasksOptions.LOOSE_BLOCK_MINUTES) * 60
+        return Transition.merged(self, [wake_check(self, event, settings), self.none(loose_blocks(tasks)) if loose else self.none()])
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened_beside(event.data, *event.wait_terms()))
@@ -58,9 +60,6 @@ class TasksConduct(Conduct):
             return self.none(TasksNudges.TASKS_RELEASED.create(tasks=event.group.subject(), worker=event.group.worker_id, them=event.group.pronoun())) if event.group else self.none()
         return self.none(TasksNudges.TASK_REOPENED.create(n=event.task_id, reason=event.reason))
 
-    def on_task_wait_ended(self, event: TaskWaitEnded, settings: Settings) -> Transition:
-        return self.none(TasksNudges.PAUSE_WAIT_END.create(n=event.task_id, reason=event.reason))
-
     def on_task_test_failed(self, event: TaskTestFailed, settings: Settings) -> Transition:
         if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
@@ -71,9 +70,13 @@ class TasksConduct(Conduct):
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
-        if event.outcome != "completed" or tasks.current_task or not tasks.paused or tasks.choosable or event.data.part(TaskSuccession):
+        if event.outcome != "completed" or not tasks.blocked_without_wait or tasks.completed_since_loose_blocks < settings.integer(TasksOptions.LOOSE_BLOCK_TASKS):
             return self.none()
-        return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
+        return self.none(loose_blocks(tasks))
+
+
+def loose_blocks(tasks: TasksData) -> Nudge:
+    return TasksNudges.LOOSE_BLOCKS.create(tasks=tasks.blocked_without_wait_summary, n=tasks.blocked_without_wait[0])
 
 
 def testing_suggestion(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

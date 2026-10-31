@@ -42,9 +42,9 @@ def test_an_approved_plan_starts_by_itself_at_a_session_start(story):
 
 
 @story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_paused_plan_task_resumed_carries_on_the_plan(story):
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.first} 'a look at the logs first'")
-    story.agent_runs(story.agents.subject, f"task resume {story.tasks.first}")
+def test_a_blocked_plan_task_taken_up_again_carries_on_the_plan(story):
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.first} 'a look at the logs first'")
+    story.agent_runs(story.agents.subject, f"task start {story.tasks.first}")
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)

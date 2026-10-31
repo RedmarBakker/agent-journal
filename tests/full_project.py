@@ -138,9 +138,9 @@ def loose_tasks(app: App, words: random.Random) -> list[int]:
         for command in (["task", "start", str(task)], ["task", "complete", str(task), "--how", sentence(words)]):
             ran = console.run(command, AGENT)
             assert ran.code == 0, ran.error
-    paused_by_choice, paused_waiting, blocked = tasks[FINISHED_TASKS:FINISHED_TASKS + 3]
-    for command in (["task", "start", str(paused_by_choice)], ["task", "pause", str(paused_by_choice), sentence(words)],
-                    ["task", "start", str(paused_waiting)], ["task", "pause", str(paused_waiting), sentence(words), "--until", "false"],
+    set_aside, waiting, blocked = tasks[FINISHED_TASKS:FINISHED_TASKS + 3]
+    for command in (["task", "start", str(set_aside)], ["task", "block", str(set_aside), sentence(words)],
+                    ["task", "start", str(waiting)], ["task", "block", str(waiting), sentence(words), "--until", "false"],
                     ["task", "block", str(blocked), sentence(words)]):
         ran = console.run(command, AGENT)
         assert ran.code == 0, ran.error
