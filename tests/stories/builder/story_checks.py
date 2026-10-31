@@ -21,6 +21,8 @@ from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.rig_specs import JOURNAL_HEALTH_READ, RigSpecs
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
@@ -334,6 +336,30 @@ class StoryChecks:
         assert environment.get(ACTOR_TOKEN) == member.token, f"{seat} session has no actor token from its generated member"
         assert environment.get("JOURNAL_ENV") == member.environment, f"{seat} session has journal environment {environment.get('JOURNAL_ENV')!r}"
         assert environment.get("JOURNAL_ROOT") == str(self.app.config.root), f"{seat} session has journal root {environment.get('JOURNAL_ROOT')!r}"
+
+    def expect_openrig_seat_health_read(self, agent: StoryAgent, seat: str) -> None:
+        runtime = self.app.container.get(SeatRuntime)
+        member = self.organization_seat_member(seat)
+        spec = runtime.read_spec(member.rig)
+        placed = next(
+            candidate
+            for pod in spec["pods"] if pod["id"] == member.pod
+            for candidate in pod["members"] if candidate["id"] == member.member
+        )
+        provider = self.app.container.get(Providers).lookup(member.provider)
+        permissions = placed[provider.openrig_permissions_field]
+        if provider.openrig_permissions_field == "claude_permissions":
+            assert JOURNAL_HEALTH_READ in permissions["allow"], f"{seat} session {self.session_of(agent)} cannot check this journal's health without approval"
+            assert "Bash(curl *)" not in permissions["allow"], f"{seat} can curl outside this journal's health route"
+        else:
+            assert permissions["approval"] == "never", f"{seat} session {self.session_of(agent)} may prompt for journal health"
+        environment = self.openrig_organization_seat_environment(seat)
+        port = self.app.container.get(RigSpecs).journal_port()
+        assert environment.get("JOURNAL_PORT") == port, f"{seat} session uses health port {environment.get('JOURNAL_PORT')!r}, not this journal's {port}"
+        agent_folder = runtime.spec_folder(member.rig) / "agents" / placed["agent_ref"].removeprefix("local:agents/")
+        command = f"`{OrganizationSeatRouting.health_command}`"
+        for path in (agent_folder / "guidance" / "role.md", agent_folder / "skills" / "journal-organization-seat-routing" / "SKILL.md"):
+            assert command in path.read_text(), f"{seat} guidance {path.name} does not give the exact permitted health command"
 
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:
         agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"

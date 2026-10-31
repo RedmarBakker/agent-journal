@@ -4,13 +4,14 @@ from journal.support.skill import Skill
 class OrganizationSeatRouting:
     """The route instructions shared by every generated organization seat."""
 
+    health_command = "curl -s http://127.0.0.1:$JOURNAL_PORT/journal/health"
     guidance = (
         "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
         "Use Edit for file changes only when this seat is allowed to write. "
         "Read work sent to your seat with `journal organization inbox`. "
         "Use `journal organization handoff <task> <target>` only when your seat is responsible for passing work onward. "
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, or another shell command. "
-        "If needed, read the local /journal/health endpoint with a separate curl command. "
+        f"If needed, check this journal's health with `{health_command}` as a separate command. Do not use curl for another URL. "
         "This is the only route between seats; do not use `rig send` or `rig queue`."
     )
     handoff_prompt = "Read your new handoff with `journal organization inbox`."

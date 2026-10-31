@@ -10,6 +10,7 @@ from journal.config import Config
 from journal.features.organization.support.contract_folder import ContractFolder
 from journal.features.organization.support.contracts import PLAN, Contracts
 from journal.features.organization.support.edge_kind import EdgeKind
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.seat import Seat
 from journal.features.organization.support.seat_worker import SeatWorker
@@ -34,7 +35,7 @@ HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
 DENIED = ("Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)")
 WORKER_COMMANDS = ("Bash(rig context *)", "Bash(nohup *)")
-JOURNAL_HEALTH_READ = "Bash(curl -s http://127.0.0.1:*/journal/health)"
+JOURNAL_HEALTH_READ = f"Bash({OrganizationSeatRouting.health_command})"
 CODEX_ROUTE_RULES = '''prefix_rule(
     pattern = ["rig", "send"],
     decision = "forbidden",
@@ -237,8 +238,12 @@ class RigSpecs:
         shell_path_command = self.shell_path_command()
         prompt_command = "; ".join(filter(None, (launched.get("PROMPT_COMMAND", ""), shell_path_command)))
         routed = {ORGANIZATION_SEAT: worker.organization_seat, ORGANIZATION_RIG: worker.organization_rig}
-        return {**{name: launched[name] for name in SEAT_VARIABLES}, **{name: value for name, value in routed.items() if value}, "PATH": os.pathsep.join(path),
+        return {**{name: launched[name] for name in SEAT_VARIABLES}, "JOURNAL_PORT": self.journal_port(),
+                **{name: value for name, value in routed.items() if value}, "PATH": os.pathsep.join(path),
                 "BASH_ENV": str(self.shell_path_file()), "PROMPT_COMMAND": prompt_command}
+
+    def journal_port(self) -> str:
+        return self.config.port_file.read_text().strip() if self.config.port_file.is_file() else str(self.config.port)
 
     def shell_path_command(self) -> str:
         """Put this project's journal bin first after OpenRig's login shell startup."""

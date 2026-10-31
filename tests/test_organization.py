@@ -31,6 +31,7 @@ from journal.features.organization.support.caps import Caps
 from journal.features.organization.support.edge import Edge
 from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.organization_data_reader import OrganizationDataReader
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.role import Role
@@ -280,16 +281,18 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
     shell_guidance = (
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, "
-        "or another shell command. If needed, read the local /journal/health endpoint with a separate curl command."
+        "or another shell command. If needed, check this journal's health with "
+        f"`{OrganizationSeatRouting.health_command}` as a separate command. Do not use curl for another URL."
     )
     file_guidance = (
         "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
         "Use Edit for file changes only when this seat is allowed to write."
     )
-    health_read = "Bash(curl -s http://127.0.0.1:*/journal/health)"
+    health_read = f"Bash({OrganizationSeatRouting.health_command})"
 
     for member_id in ("plan-agent", "domain-agent", "planner"):
         permissions = members[member_id]["claude_permissions"]
+        assert members[member_id]["env"]["JOURNAL_PORT"] == writer.journal_port(), f"{member_id} targets this journal's health port"
         assert read_commands.issubset(permissions["allow"]), f"{member_id} can inspect its workspace without approval"
         assert scoped_journal_commands.issubset(permissions["allow"]), f"{member_id} can run its scoped journal without approval"
         assert health_read in permissions["allow"], f"{member_id} can read the local journal health endpoint without approval"
