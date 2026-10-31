@@ -12,6 +12,7 @@ from tests.stories.fixtures.main.organization_domain_seat_started import (
     OrganizationDomainSeatStarted,
 )
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import (
+    OrganizationPlanWithoutDomainSeats,
     TASK_BRIEF,
 )
 
