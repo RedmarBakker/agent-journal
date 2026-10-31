@@ -53,7 +53,7 @@ def production_record(task: int, reference: str, artifact: str) -> dict:
 def write_domain(folder, domain: str, definition: dict | None) -> None:
     organization = OrganizationFixture(folder).write()
     organization.domain(domain, roles=["delivery"], **({"definition_of_done": definition} if definition else {}))
-    organization.role(domain, "delivery", writes=True)
+    organization.role(domain, "delivery", writes=True, tools=["read_files", "edit_files"])
 
 
 def load_domain(story, folder) -> None:

@@ -22,7 +22,7 @@ class EnforcedDraftPlan(StateFixture):
             "evidence": "production_deployment",
             "target": "production",
         })
-        organization.role("development", "delivery", writes=True)
+        organization.role("development", "delivery", writes=True, tools=["read_files", "edit_files"])
         story.user_sets(OrganizationOptions.FOLDER, str(folder))
         story.user_presses("/journal/organization/reload", {}).expect_viewer_passed()
         story.user_sets(EstimatesOptions.MODE, "enforce")
