@@ -14,12 +14,12 @@ def test_story_journal_stops_scheduled_jobs_so_time_moves_only_in_story_steps(jo
 def test_a_fixture_is_seeded_once_and_its_copy_is_the_state_the_seeder_reached(app, journal, monkeypatch, copies):
     typing_capture(app, monkeypatch, [])
     pinned_clock(app, monkeypatch)
-    seeded = Story(app, VoidProvider, SettingReads(), copies)
+    seeded = Story(app, VoidProvider, SettingReads(), copies, monkeypatch)
     seeded.reach(StartedTask)
     reached = (seeded.tasks.started, seeded.stack(), seeded.api_row("tasks", seeded.tasks.started)["state"])
     assert {(NewSession, VoidProvider.name), (WorkingAgent, VoidProvider.name), (StartedTask, VoidProvider.name)} <= set(copies.copies), "the fixture and each one it builds on are kept, for every story of the process"
 
     journal.reset()
-    copied = Story(app, VoidProvider, SettingReads(), copies)
+    copied = Story(app, VoidProvider, SettingReads(), copies, monkeypatch)
     copied.reach(StartedTask)
     assert (copied.tasks.started, copied.stack(), copied.api_row("tasks", copied.tasks.started)["state"]) == reached, "a story from the copy starts from the rows and the stack the seeder reached"

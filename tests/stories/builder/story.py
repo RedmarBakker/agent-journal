@@ -34,8 +34,9 @@ from tests.stories.fixtures.state_fixture import StateFixture
 class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, DeveloperSteps, StoryChecks, StoryRows):
     """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines the journal gave, the hook's verdict and the command's outcome, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its fixture is the one it began from, whose rows the story reads by kind, story.tasks.started, and its agents as story.agents, asked at the end whether the story used them all."""
 
-    def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies) -> None:
+    def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies, monkeypatch) -> None:
         self.copies = copies
+        self.monkeypatch = monkeypatch
         self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
         self.main_session_id = MAIN_SESSION
