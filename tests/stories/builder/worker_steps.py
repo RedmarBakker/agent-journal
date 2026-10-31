@@ -5,11 +5,13 @@ import shlex
 import time
 
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-
+from journal.support.caller import ACTOR_TOKEN
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.verifiers import Verifiers
 from journal.support.caller import Caller
@@ -53,6 +55,45 @@ class WorkerSteps:
             "SessionStart", {"source": "startup"},
         )
         return self.hook_observed("worker starts a session", status, answer, environment)
+
+    def role_seat_starts_a_new_session(self, agent: StoryAgent, seat: str) -> StepResult:
+        member = self.organization_seat_member(seat)
+        self.app.container.get(SeatRuntime).launch(member, f"Role seat {seat} starts a new session")
+        environment = self.openrig_organization_seat_environment(seat)
+        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        self.worker_sessions[agent.number] = session
+        journal_environment = environment["JOURNAL_ENV"]
+        self.session_environments[session] = journal_environment
+        headers = {
+            "X-Journal-Env": journal_environment,
+            ACTOR_HEADER: f"worker:{agent.number}",
+            ACTOR_TOKEN_HEADER: environment[ACTOR_TOKEN],
+        }
+        status, answer = self.session_posted_hook(session, headers, "SessionStart", {"source": "startup"})
+        return self.hook_observed(f"Role seat {seat} starts a new session", status, answer, journal_environment)
+
+    def agent_reads_from_organization_role_seat(self, agent: StoryAgent, seat: str, path: str) -> StepResult:
+        return self.organization_role_tool(agent, seat, self.tools.read, {"file_path": path})
+
+    def agent_writes_from_organization_role_seat(self, agent: StoryAgent, seat: str, path: str) -> StepResult:
+        return self.organization_role_tool(agent, seat, self.tools.write, {"file_path": path, "content": "x"})
+
+    def organization_role_tool(self, agent: StoryAgent, seat: str, tool: str, tool_input: dict) -> StepResult:
+        member = self.organization_seat_member(seat)
+        environment = self.openrig_organization_seat_environment(seat)
+        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        journal_environment = environment["JOURNAL_ENV"]
+        self.worker_sessions[agent.number] = session
+        self.session_environments[session] = journal_environment
+        headers = {
+            "X-Journal-Env": journal_environment,
+            ACTOR_HEADER: f"worker:{agent.number}",
+            ACTOR_TOKEN_HEADER: environment[ACTOR_TOKEN],
+        }
+        status, answer = self.session_posted_hook(
+            session, headers, "PreToolUse", {"tool_name": tool, "tool_input": tool_input},
+        )
+        return self.hook_observed(f"Role seat {seat} uses {tool}", status, answer, journal_environment)
 
     def agent_proves(self, agent: StoryAgent, point: int, proof: str) -> StepResult:
         return self.agent_runs_cleanly(agent, f"proof {point} '{proof}'")

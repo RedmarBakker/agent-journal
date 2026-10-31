@@ -9,7 +9,7 @@ from journal.hooks.support.agent_identity import AgentIdentity
 
 
 class WorkerHooks:
-    """A hook from a worker's run: named a worker's by its session when it carries no worker header, taken in by the worker's token or its own session in place of the launch id, its session bound to the worker's row when the row names none yet, and its agent row made in the worker's role."""
+    """A worker hook is identified by its token or bound session, and its session and agent row follow the worker's current provider session."""
 
     def __init__(self, identity: AgentIdentity, workers: Workers, agents: SessionAgents) -> None:
         self.identity, self.workers, self.agents = identity, workers, agents
@@ -26,6 +26,7 @@ class WorkerHooks:
 
     def bind(self, hook: Hook, environment: Environment) -> Agent:
         worker = self.workers.find(hook.worker)
-        if not worker.session:
-            self.workers.save(worker.with_(session=hook.session).with_event(WorkerSessionBound(environment_id=worker.environment_id)), Actor.system())
+        if worker.session != hook.session:
+            bound = worker.with_(session=hook.session, resume=hook.session)
+            self.workers.save(bound.with_event(WorkerSessionBound(environment_id=worker.environment_id)), Actor.system())
         return self.agents.worker_agent(hook.session, environment.row_id, hook.provider)
