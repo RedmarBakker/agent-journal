@@ -1,11 +1,18 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.rig_specs import RigSpecs
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.providers.providers import Providers
+from journal.repositories.environments import Environments
+from journal.support.actor import Actor
+from journal.support.agent_token import AgentToken
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 
@@ -23,8 +30,10 @@ class OrganizationDomainRoleTask(OrganizationHubPlan):
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         story.openrig = SimulatedSeats()
-        story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
+        runtime = story.app.container.get(SeatRuntime)
+        story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
+        self.add_domain_seats(story, runtime)
         story.plays_in(BUILDER_MODE)
         seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
         seat.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
@@ -33,6 +42,18 @@ class OrganizationDomainRoleTask(OrganizationHubPlan):
         story.agent_runs_from_plan_organization_seat(
             story.agents.main, "plan", f"organization handoff {self.tasks.second} domain:alpha",
         ).expect_command_passed()
+
+    def add_domain_seats(self, story, runtime: SeatRuntime) -> None:
+        rig = f"plan-{self.plans.first}"
+        environment = story.app.container.get(Environments).existing(rig)
+        organization = story.app.container.get(Organization)
+        contracts = organization.reload()
+        provider = story.app.container.get(Providers).lookup(story.provider)
+        path = story.app.container.get(RigSpecs).write(
+            rig, contracts, tuple(domain.id for domain in contracts.domains), story.app.config.root,
+            lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig), provider,
+        )
+        runtime.replace_rig(rig, path)
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.STARTED)
