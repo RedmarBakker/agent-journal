@@ -11,6 +11,7 @@ from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
+from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -252,6 +253,13 @@ class StoryChecks:
         with self.app.container.get(Scope).environment(1):
             names = self.app.container.get(DomainRows).domain_names(self.app.container.get(Tasks).find(task))
         assert names == [domain], f"task {task} is tied to {names}, expected {domain}"
+
+    def expect_organization_handoff_pending(self, plan_id: int, task_id: int, target: str) -> None:
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        with self.app.container.get(Scope).environment(plan.environment_id):
+            handoffs = self.app.container.get(OrganizationHandoffs).pending(target)
+        assert any(row_plan.id == plan_id and row_task.id == task_id for _, row_plan, row_task in handoffs), \
+            f"plan {plan_id} task {task_id} is not unread in {target}'s inbox: {handoffs}"
 
     def expect_plan_rig(self, plan_id: int, name: str) -> None:
         with self.app.container.get(Scope).environment(1):

@@ -39,6 +39,7 @@ def test_a_domain_seat_with_an_unread_handoff_is_told_at_start_and_stop(story):
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )
     handoff.expect_command_passed()
+    story.expect_organization_handoff_pending(plan, task, "domain:alpha")
 
     domain = story.organization_seat_agent("domain:alpha")
     started = story.agent_starts_organization_seat(domain, "domain:alpha")
