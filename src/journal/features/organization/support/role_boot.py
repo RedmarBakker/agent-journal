@@ -22,18 +22,23 @@ class RoleBoot:
         return role
 
     def instructions(self, worker: Worker) -> str:
-        contracts = self.organization.at(worker.contract)
-        role = contracts.role(worker.role)
+        role = self.contract_role(worker)
         if role is None:
             return ""
+        contracts = self.organization.at(worker.contract)
         domain = contracts.domain(role.domain)
         body = role.profile(domain.guidance if domain else "", self.tools.words(role.tools)).body
         skills = f"Read these skills before you work: {', '.join(role.skills)}." if role.skills else ""
         return self.profiles.role_instructions("\n\n".join(part for part in (body, skills) if part))
 
     def effort(self, worker: Worker) -> str:
-        role = self.organization.at(worker.contract).role(worker.role) if worker.role else None
+        role = self.contract_role(worker)
         return self.effort_for(role.models, worker.provider) if role else ""
+
+    def contract_role(self, worker: Worker) -> Role | None:
+        if not worker.contract or not worker.role:
+            return None
+        return self.organization.at(worker.contract).role(worker.role)
 
     def version(self) -> str:
         return self.organization.contracts().version

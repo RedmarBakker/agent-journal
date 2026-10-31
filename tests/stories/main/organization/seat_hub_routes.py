@@ -55,6 +55,11 @@ def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(sto
     story.agent_proves(worker, 1, f"the current task brief is met: {brief}")
     story.agent_clocks_out(worker, "task 6 is complete")
 
+    refused = story.agent_runs_from_organization_seat(
+        story.agents.main, "domain:beta", f"worker check {worker} 1",
+    )
+    refused.expect_command_refused()
+    refused.expect_command_text(f"worker {worker} is not assigned to a Role in domain beta")
     checked = story.agent_runs_from_organization_seat(
         story.agents.main, "domain:alpha", f"worker check {worker} 1",
     )

@@ -17,7 +17,7 @@ from journal.features.workers.organization_options import OrganizationOptions
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.repositories.setting_rows import SettingRows
 from journal.support.agent_token import AgentToken
-from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_SEAT
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_SEAT, Caller
 from journal.support.rejection import Rejection
 
 
@@ -129,6 +129,15 @@ class SeatRuntime:
             if member.organization_seat == identity:
                 return member
         raise Rejection(f"OpenRig rig {rig} has no organization seat {identity}")
+
+    def member_for_caller(self, caller: Caller) -> SeatMember:
+        if not caller.organization_seat or not caller.organization_rig or not caller.actor_token:
+            raise Rejection("organization handoff and inbox run only from a generated organization seat")
+        member = self.organization_member(caller.organization_rig, caller.organization_seat, caller.provider or "")
+        if (member.token != caller.actor_token or member.environment != caller.environment or member.provider != caller.provider
+                or member.root != str(self.config.root)):
+            raise Rejection("this journal command does not match its generated organization seat")
+        return member
 
     def generated_boundary(self, folder: Path, member: dict, provider: str, runtime: str) -> None:
         if not provider or not runtime:

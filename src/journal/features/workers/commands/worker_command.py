@@ -17,6 +17,7 @@ from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -25,6 +26,7 @@ from journal.features.workers.support.worker_launch import WorkerLaunch
 from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
+from journal.support.missing_row import MissingRow
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.features.workers.support.worker_rebase import WorkerRebase
 from journal.repositories.messages import Messages
@@ -76,7 +78,7 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge", "send"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation, runtime: SeatRuntime) -> None:
         self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
         self.targets, self.rebases = targets, rebases
@@ -86,6 +88,7 @@ class WorkerCommand(Command):
         self.branch, self.settings, self.actions, self.subagents, self.work_mode = branch, settings, actions, subagents, work_mode
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
         self.roles, self.instances = roles, instances
+        self.runtime = runtime
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -316,6 +319,13 @@ class WorkerCommand(Command):
             raise Rejection(f"worker {worker.id} waits for check and merge; merge it or use another worker")
 
     def check(self, args: Namespace, caller: Caller) -> int:
+        if caller.organization_seat:
+            worker = self.worker_for_check(args.n, caller)
+            with self.scope.environment(worker.environment_id):
+                return self.check_in_scope(args, caller)
+        return self.check_in_scope(args, caller)
+
+    def check_in_scope(self, args: Namespace, caller: Caller) -> int:
         if args.short:
             task = self.actions.short_check(args.n, args.point, args.short, caller.actor, args.task)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
@@ -348,6 +358,13 @@ class WorkerCommand(Command):
             return str(refused)
 
     def merge_one(self, n: int, caller: Caller) -> int:
+        if caller.organization_seat:
+            worker = self.worker_for_merge(n, caller)
+            with self.scope.environment(worker.environment_id):
+                return self.merge_in_scope(n, caller)
+        return self.merge_in_scope(n, caller)
+
+    def merge_in_scope(self, n: int, caller: Caller) -> int:
         outcome = self.actions.merge(n, caller.actor, MergeSteps(lambda line: print(line)))
         print(f"task {outcome.task.id} done: {outcome.task.outcome}")
         print(outcome.worktree or "it had no worktree")
@@ -358,6 +375,37 @@ class WorkerCommand(Command):
         if self.work_mode.delegates_work():
             print(f"run the whole suite now: it has not passed since the merges of {self.checks.check().workers_line()}")
         return 0
+
+    def worker_for_check(self, number: int, caller: Caller) -> Worker:
+        member = self.runtime.member_for_caller(caller)
+        worker = self.worker_for_plan(number, member.rig)
+        if member.organization_seat == "plan":
+            return worker
+        if member.organization_seat.startswith("domain:"):
+            role = self.roles.contract_role(worker)
+            domain = member.organization_seat.removeprefix("domain:")
+            if role and role.domain == domain:
+                return worker
+            raise Rejection(f"worker {worker.id} is not assigned to a Role in domain {domain}")
+        raise Rejection("only a Plan or its Domain seat checks Role work")
+
+    def worker_for_merge(self, number: int, caller: Caller) -> Worker:
+        member = self.runtime.member_for_caller(caller)
+        if member.organization_seat != "plan":
+            raise Rejection("only the Plan seat merges Role work")
+        return self.worker_for_plan(number, member.rig)
+
+    def worker_for_plan(self, number: int, rig: str) -> Worker:
+        prefix = "plan-"
+        plan = rig.removeprefix(prefix)
+        if not rig.startswith(prefix) or not plan.isdigit():
+            raise Rejection("Role work can be checked or merged only from its plan rig")
+        worker = next(iter(self.workers.global_matching(id=number)), None)
+        if worker is None:
+            raise MissingRow(Worker.table(), number)
+        if worker.plan_id != int(plan):
+            raise Rejection(f"worker {number} does not belong to plan {plan}")
+        return worker
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)

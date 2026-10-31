@@ -71,13 +71,7 @@ class OrganizationHub:
             print(f"plan {plan.id} task {task.id}: {task.title}{assignment}\n{task.brief}")
 
     def seat(self, caller: Caller) -> SeatMember:
-        if not caller.organization_seat or not caller.organization_rig or not caller.actor_token:
-            raise Rejection("organization handoff and inbox run only from a generated organization seat")
-        member = self.runtime.organization_member(caller.organization_rig, caller.organization_seat, caller.provider or "")
-        if (member.token != caller.actor_token or member.environment != caller.environment or member.provider != caller.provider
-                or member.root != str(self.runtime.config.root)):
-            raise Rejection("this journal command does not match its generated organization seat")
-        return member
+        return self.runtime.member_for_caller(caller)
 
     def validate_task(self, source: str, task: Task, rig: str) -> Plan:
         if rig.startswith("plan-"):
