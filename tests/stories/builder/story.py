@@ -51,6 +51,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         self.viewer_status, self.viewer_answer = 0, {}
         self.closers: list = []
         self.team_addresses: dict[str, str] = {}
+        self.worker_sessions: dict[int, str] = {}
         self.typed: list[str] = []
         self.typed_from = 0
         self.mode = BUILDER_MODE
@@ -81,7 +82,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         return self.session_of(self.agents.subject)
 
     def session_of(self, agent: StoryAgent) -> str:
-        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: lambda: worker_session(agent.number), AgentRole.SUBAGENT: self.subagent_scope_session, AgentRole.REVIEWER: lambda: self.checker_session(Reviewers, agent.number), AgentRole.VERIFIER: lambda: self.checker_session(Verifiers, agent.number)}[agent.role]()
+        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: lambda: self.worker_sessions.get(agent.number, worker_session(agent.number)), AgentRole.SUBAGENT: self.subagent_scope_session, AgentRole.REVIEWER: lambda: self.checker_session(Reviewers, agent.number), AgentRole.VERIFIER: lambda: self.checker_session(Verifiers, agent.number)}[agent.role]()
 
     def subagent_scope_session(self) -> str:
         return ResearcherSession.joined(self.main_session(), self.agents.subagent.agent_id)
@@ -107,7 +108,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         return {AgentRole.MAIN: lambda: variables, AgentRole.WORKER: lambda: {**variables, ACTOR: f"worker:{agent.number}"}, AgentRole.SUBAGENT: lambda: {**variables, "JOURNAL_SESSION": self.main_session()}}[agent.role]()
 
     def caller_of(self, agent: StoryAgent) -> Caller:
-        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: lambda: Caller.worker("main", agent.number, worker_session(agent.number), self.provider), AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session()), AgentRole.REVIEWER: lambda: Caller.reviewer("main", agent.number, self.session_of(agent), self.provider), AgentRole.VERIFIER: lambda: Caller.verifier("main", agent.number, self.session_of(agent), self.provider)}[agent.role]()
+        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: lambda: Caller.worker("main", agent.number, self.session_of(agent), self.provider), AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session()), AgentRole.REVIEWER: lambda: Caller.reviewer("main", agent.number, self.session_of(agent), self.provider), AgentRole.VERIFIER: lambda: Caller.verifier("main", agent.number, self.session_of(agent), self.provider)}[agent.role]()
 
     def checker_session(self, rows: type, number: int) -> str:
         with self.app.container.get(Scope).environment(1):

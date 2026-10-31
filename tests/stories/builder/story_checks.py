@@ -2,6 +2,7 @@ from tests.stories.builder.step_checks import HOOK_DURATION
 from journal.features.shell.support.output_view import OutputView
 import json
 import re
+import time
 from enum import Enum
 
 from journal.engine.nudge import Nudge
@@ -13,6 +14,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
+from journal.repositories.workers import Workers as WorkerRows
 from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
@@ -332,6 +334,32 @@ class StoryChecks:
                             assert step in skill, f"{agent} routing skill does not say {step!r}"
                     else:
                         assert "clock in on your assigned task" not in guidance, f"read-only Role seat {agent} is told to clock in"
+
+    def expect_worker_role_job(self, worker: StoryAgent, task: int, brief: str, stale_brief: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+            task_row = self.app.container.get(Tasks).find(task)
+            holder = self.app.container.get(Tasks).holder(task_row)
+        assert row.role == "builder" and row.plan_id, f"worker {row.id} is not a plan Builder Role job: {row}"
+        assert holder == Ref.build(row), f"task {task} is held by {holder}, not Role worker {row.id}"
+        assert brief in row.brief and brief in task_row.brief, f"worker {row.id} has not received task {task}'s brief {task_row.brief!r}: {row.brief!r}"
+        assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
+
+    def expect_role_job_prompt(self, worker: StoryAgent, brief: str, stale_brief: str, *parts: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+        role = self.app.container.get(Organization).at(row.contract).role(row.role)
+        member = self.app.container.get(SeatRuntime).member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
+        deadline = time.monotonic() + 5
+        prompts = [prompt for target, prompt in self.openrig.messages if target == member.target]
+        while not prompts and time.monotonic() < deadline:
+            time.sleep(0.01)
+            prompts = [prompt for target, prompt in self.openrig.messages if target == member.target]
+        prompt = prompts[-1] if prompts else ""
+        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s job: {self.openrig.messages}"
+        missing = [part for part in (brief, *parts) if part not in prompt]
+        assert not missing, f"Role seat {member.logical_id} received no {missing}: {prompt!r}"
+        assert stale_brief not in prompt, f"Role seat {member.logical_id} received an old brief: {prompt!r}"
 
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()

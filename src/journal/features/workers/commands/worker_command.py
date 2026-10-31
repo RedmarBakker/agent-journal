@@ -15,6 +15,8 @@ from journal.support.caller import Caller
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
+from journal.features.organization.support.role import Role
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -198,6 +200,15 @@ class WorkerCommand(Command):
         if planned:
             self.delegation.delegate(args.plan, moment, caller.actor)
         return self.launched(worker, task, caller)
+
+    def dispatch_role_task(self, task: Task, role: Role, caller: Caller) -> int:
+        args = Namespace(
+            name=f"{role.title} task {task.id}", brief=OrganizationSeatRouting.role_guidance, provider=None,
+            changes="; ".join(role.outputs), tests="", role=role.id,
+            profile=None, model=None, worktree=False, libraries="", copies="",
+            no_libraries=False, task=task.id, plan=None, phase=0,
+        )
+        return self.dispatch(args, caller)
 
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:

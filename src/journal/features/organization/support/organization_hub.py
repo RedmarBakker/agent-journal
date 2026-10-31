@@ -1,8 +1,12 @@
 from journal.features.organization.support.hub_routes import HubRoutes
+from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
+from journal.features.organization.support.role import Role
+from journal.features.workers.commands.worker_command import WorkerCommand
 from journal.models.organization_handoff import OrganizationHandoff
 from journal.models.plan import Plan
 from journal.models.task import Task
+from journal.models.worker import Worker
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
@@ -17,9 +21,11 @@ class OrganizationHub:
     """Routes tasks from one generated organization seat to a permitted seat through the journal inbox."""
 
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
-                 tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope) -> None:
+                 tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope,
+                 organization: Organization, workers: WorkerCommand) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
         self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
+        self.organization, self.workers = organization, workers
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -40,6 +46,9 @@ class OrganizationHub:
         if domain := self.domain(target):
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
+        if role := self.role(target):
+            if role.writes:
+                self.workers.dispatch_role_task(task, role, caller)
         print(f"task {task.id} routed from {member.organization_seat} to {target}")
 
     def inbox(self, caller: Caller) -> None:
@@ -57,7 +66,9 @@ class OrganizationHub:
             print(f"no tasks handed to {seat}")
         for handoff, plan, task in rows:
             self.handoffs.read(handoff, actor)
-            print(f"plan {plan.id} task {task.id}: {task.title}\n{task.brief}")
+            holder = self.tasks.holder(task)
+            assignment = f"\nworker {holder.id} holds this task" if holder and holder.type == Worker.table() else ""
+            print(f"plan {plan.id} task {task.id}: {task.title}{assignment}\n{task.brief}")
 
     def seat(self, caller: Caller) -> SeatMember:
         if not caller.organization_seat or not caller.organization_rig or not caller.actor_token:
@@ -106,3 +117,12 @@ class OrganizationHub:
         if identity.startswith("role:"):
             return identity.removeprefix("role:").split("/", 1)[0]
         return ""
+
+    def role(self, identity: str) -> Role | None:
+        if not identity.startswith("role:"):
+            return None
+        domain, separator, role_id = identity.removeprefix("role:").partition("/")
+        if not separator:
+            return None
+        return next((role for role in self.organization.contracts().roles
+                     if role.domain == domain and role.id == role_id), None)
