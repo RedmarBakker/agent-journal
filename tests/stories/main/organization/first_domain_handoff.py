@@ -52,10 +52,17 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     role_inbox = story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "organization inbox")
     role_inbox.expect_command_passed()
     role_inbox.expect_command_text(TASK_BRIEF)
-    story.agent_clocks_in(worker)
+    clocked_in = story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in")
+    clocked_in.expect_command_passed()
     story.expect_stack(worker, Void, WorkingTask)
-    story.agent_proves(worker, 1, f"the current task brief is met: {TASK_BRIEF.removeprefix('- ')}")
-    story.agent_clocks_out(worker, "the task brief is met")
+    proven = story.agent_runs_from_openrig_organization_seat(
+        worker, "role:alpha/builder", f"proof 1 'the current task brief is met: {TASK_BRIEF.removeprefix('- ')}'",
+    )
+    proven.expect_command_passed()
+    clocked_out = story.agent_runs_from_openrig_organization_seat(
+        worker, "role:alpha/builder", "clock-out 'the task brief is met'",
+    )
+    clocked_out.expect_command_passed()
 
     checked = story.agent_runs_from_organization_seat(
         story.agents.main, "domain:alpha", f"worker check {worker} 1",
