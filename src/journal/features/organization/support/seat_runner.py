@@ -209,10 +209,10 @@ class SeatRunner:
                 self.runtime.check_version(member.openrig_version)
                 environment = self.environments.find(worker.environment_id).name
                 token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
-                fresh = self.is_journal_role(worker)
                 session = self.runtime.session(member, worker.resume)
+                fresh = self.is_journal_role(worker) or session is None
                 if fresh:
-                    self.launch_fresh(member, worker, identity, session)
+                    self.launch_fresh(member, worker, identity)
                     session = None
                 if session is None and fresh:
                     deadline = time.monotonic() + STARTUP_SECONDS
@@ -264,8 +264,8 @@ class SeatRunner:
                 return
         if self.current_job(identity) is None:
             return
-        fresh = self.is_journal_role(worker)
         session = self.runtime.session(member, worker.resume)
+        fresh = self.is_journal_role(worker) or session is None
         if fresh:
             self.launch_fresh(member, worker, identity)
             session = None
