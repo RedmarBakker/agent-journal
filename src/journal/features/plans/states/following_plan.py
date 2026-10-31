@@ -1,5 +1,6 @@
 from dataclasses import dataclass, fields, replace
 
+from journal.engine.base_state import BaseState
 from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.engine.nudge import Nudge
 from journal.engine.support.block import Block
@@ -39,6 +40,9 @@ class FollowingPlan(PlanWork):
 
     def subject(self) -> str:
         return ", ".join(part for part in (f"plan {self.plan_id}", super().subject()) if part)
+
+    def plan_state(self, **fields) -> BaseState:
+        return FollowingPlan(**fields)
 
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
         if event.plan_id == self.plan_id:
