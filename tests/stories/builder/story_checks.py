@@ -13,6 +13,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.reports import Reports
+from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers as WorkerRows
@@ -324,6 +325,15 @@ class StoryChecks:
         assert environment.get(ACTOR_TOKEN) == member.token, f"{seat} session has no actor token from its generated member"
         assert environment.get("JOURNAL_ENV") == member.environment, f"{seat} session has journal environment {environment.get('JOURNAL_ENV')!r}"
         assert environment.get("JOURNAL_ROOT") == str(self.app.config.root), f"{seat} session has journal root {environment.get('JOURNAL_ROOT')!r}"
+
+    def expect_openrig_role_environment_matches_worker(self, worker: StoryAgent, seat: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+            expected = self.app.container.get(Environments).find(row.environment_id).name
+        member = self.organization_seat_member(seat)
+        environment = self.openrig_organization_seat_environment(seat)
+        assert member.environment == expected, f"{seat} has member environment {member.environment!r}, not worker environment {expected!r}"
+        assert environment.get("JOURNAL_ENV") == expected, f"{seat} session has journal environment {environment.get('JOURNAL_ENV')!r}, not worker environment {expected!r}"
 
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:
         agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"

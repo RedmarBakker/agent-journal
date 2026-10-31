@@ -62,6 +62,7 @@ def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
 
     story.user_starts_plan(plan).expect_viewer_passed()
     story.expect_plan(plan, state=PlanState.STARTED)
+    story.expect_openrig_role_environment_matches_worker(ended_worker, "role:alpha/builder")
 
     domain = story.organization_seat_agent("domain:alpha")
     domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
