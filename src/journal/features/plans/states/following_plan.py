@@ -41,7 +41,9 @@ class FollowingPlan(PlanWork):
         return ", ".join(part for part in (f"plan {self.plan_id}", super().subject()) if part)
 
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
-        return self.none()
+        if event.plan_id == self.plan_id:
+            return super().on_plan_started(event, settings)
+        return self.swap(self.plan_state(plan_id=event.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
 
     def label(self) -> str:
         return super().label() if self.task_id else f"plan {self.plan_id}, with no task in hand"

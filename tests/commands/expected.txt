@@ -1705,6 +1705,7 @@ journal-dumps        File what the user dropped in a dump: sort the material by 
 journal-pinned-links Pin what the user must see on coming back and put a button under a message for an action now; load it when you point the user at a design, a page or anything else outside the journal
 journal-etiquette    Behave in the chat with the user and keep the journal's own mechanics out of it; read at the start of every session, with the journal skill
 journal-plugins      Work with the plugins the user installs, which receive the journal's events; load it when a plugin blocks you, its card or line appears, or a plugin would help
+journal-organization-seat-routing Route organization work through the journal handoff and inbox commands
 
 $ agent: journal skill write --help
 exit 0
