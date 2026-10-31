@@ -41,6 +41,14 @@
       "purpose": "configured provider API only; direct unlisted egress denied"
     },
     {
+      "source": "journal-writer Codex CLI",
+      "destination": "api.openai.com",
+      "protocol": "tcp",
+      "ports": [443],
+      "action": "allow through the tenant-managed egress proxy or maintained provider IP set",
+      "purpose": "file-authenticated Plan driver only; direct unlisted egress denied"
+    },
+    {
       "source": "backup",
       "destination": "the operator-selected repository endpoint",
       "protocol": "operator-declared",

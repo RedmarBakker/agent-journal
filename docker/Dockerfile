@@ -3,6 +3,7 @@ FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl git nodejs npm procps \
     && npm install -g @anthropic-ai/claude-code@2.1.293 \
+    && npm install -g @openai/codex@0.165.0 \
     && npm cache clean --force \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,6 +20,7 @@ RUN groupadd --gid 10001 journal \
 
 COPY --chown=root:root src /opt/agent-journal/src
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
+COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup
 
 ENV JOURNAL_PROJECT=/data/project \
     JOURNAL_ROOT=/data/project/.journal \

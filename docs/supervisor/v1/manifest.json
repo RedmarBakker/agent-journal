@@ -17,7 +17,14 @@
       "identity": "journal uid 10001, gid 10001 inside the writer image",
       "image": "built from the reviewed repository commit and docker/Dockerfile",
       "state_volume": "writer_state",
-      "networks": ["journal_management", "gateway_link"],
+      "networks": ["journal_management", "gateway_link", "provider_egress"],
+      "codex_driver": {
+        "binary": "/usr/local/bin/codex",
+        "package": "@openai/codex@0.165.0",
+        "credential_secret": "codex_driver_credentials",
+        "login": "codex login --with-api-key reads /run/secrets/codex_driver_credentials on stdin",
+        "credential_state": "CODEX_HOME=/run/codex on the writer /run tmpfs; excluded from the backed-up writer volume"
+      },
       "ports": ["container 8421 on gateway_link", "container 8440 on journal_management; host loopback 18440 only"],
       "health": "GET http://127.0.0.1:8440/ready"
     },
@@ -80,10 +87,10 @@
     "capabilities": [],
     "no_new_privileges": true,
     "writable_mounts": ["the single owner-bound plan worktree"],
-    "secret_mount": "codex_driver_credentials only after a supported execution adapter exists",
+    "secret_mount": "codex_driver_credentials is mounted only into the writer service at /run/secrets/codex_driver_credentials; the current shared uid10001 makes it service-visible, so process isolation is not proven",
     "network_allow": ["authenticated CLI/hook routes to the designated writer", "owner-selected provider endpoint when required"],
     "network_deny": ["writer database", "Gateway state", "provider credential service", "admin ports", "other tenant networks"],
-    "status": "contract only; current AgentLauncher does not enforce it"
+    "status": "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
   },
   "worker_identity_contract": {
     "uid": 10004,
@@ -101,7 +108,7 @@
   "networks": {
     "journal_management": {"internal": true, "members": ["journal-writer"], "allowed": ["operator loopback tunnel to 18440"]},
     "gateway_link": {"internal": true, "members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["gateway to the authenticated supervisor routes on writer 8421"]},
-    "provider_egress": {"members": ["openclaw-gateway-and-stdio-client"], "allowed": ["HTTPS to api.anthropic.com only; enforced by the tenant VM firewall"]},
+    "provider_egress": {"members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["journal-writer Codex CLI to api.openai.com:443", "Gateway to api.anthropic.com:443; enforced by the tenant VM firewall"]},
     "backup_egress": {"members": ["backup"], "allowed": ["the operator-selected encrypted backup repository only"]}
   },
   "network_enforcement": [
@@ -124,7 +131,7 @@
     {"name": "restic_password", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_password", "purpose": "encrypted backup repository"},
     {"name": "restic_repository", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_repository", "purpose": "repository locator"},
     {"name": "backup_object_store_credentials", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/backup_object_store_credentials", "purpose": "remote repository access only"},
-    {"name": "codex_driver_credentials", "owner": "plan owner", "mounted_to": "execution identity only after its isolation adapter exists", "purpose": "owner-selected ordinary codex Plan driver; not injected into Gateway", "status": "not wired; staging launch gate"}
+    {"name": "codex_driver_credentials", "owner": "plan owner", "host_owner": "10001:10001", "host_mode": "0400", "mounted_to": "journal-writer:/run/secrets/codex_driver_credentials only", "purpose": "owner-selected Codex Plan driver API-key login; Gateway and backup do not receive this file", "status": "login is staged into the writer /run tmpfs; shared uid10001 means the writer service can read it, so uid10003 process isolation remains a B10 gate"}
   ],
   "backup": {
     "snapshot_interval_seconds": 900,
