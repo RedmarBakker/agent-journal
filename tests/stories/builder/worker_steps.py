@@ -5,7 +5,6 @@ import shlex
 import time
 
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -58,9 +57,9 @@ class WorkerSteps:
 
     def role_seat_starts_a_new_session(self, agent: StoryAgent, seat: str) -> StepResult:
         member = self.organization_seat_member(seat)
-        self.app.container.get(SeatRuntime).launch(member, f"Role seat {seat} starts a new session")
         environment = self.openrig_organization_seat_environment(seat)
-        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        current_session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        session = f"{current_session}-new-session"
         self.worker_sessions[agent.number] = session
         journal_environment = environment["JOURNAL_ENV"]
         self.session_environments[session] = journal_environment
@@ -81,7 +80,7 @@ class WorkerSteps:
     def organization_role_tool(self, agent: StoryAgent, seat: str, tool: str, tool_input: dict) -> StepResult:
         member = self.organization_seat_member(seat)
         environment = self.openrig_organization_seat_environment(seat)
-        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        session = self.session_of(agent)
         journal_environment = environment["JOURNAL_ENV"]
         self.worker_sessions[agent.number] = session
         self.session_environments[session] = journal_environment
