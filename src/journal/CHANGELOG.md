@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.18
+
+- The two settings that remind of blocks with no wait have labels of their own: after completed tasks, and after minutes.
+- The refusal of task pause reads 'tasks are blocked, never paused', and the refusal for a new team server names the setup URL in its log again.
+
 ## 4.69.17
 
 - A command run in the foreground whose card had shown in the chat turns that card to how it ended. Before, the card kept its spinner after the run finished, since ending a foreground run unwatches it and the card listener then passed it by.

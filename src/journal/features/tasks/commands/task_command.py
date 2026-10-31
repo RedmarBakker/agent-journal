@@ -212,7 +212,7 @@ class TaskCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        raise Rejection(f"pause is gone: `journal task block {args.n} \"<why>\"`, with --on task:<n> or --until \"<check>\"")
+        raise Rejection(f"tasks are blocked, never paused: `journal task block {args.n} \"<why>\"`, with --on task:<n> or --until \"<check>\"")
 
     def test(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)

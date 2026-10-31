@@ -46,7 +46,7 @@ no task to hand out now: the builder is handed its next task at a stop or when i
 
 $ agent: journal task pause 1 'the cart comes first'
 exit 1
-pause is gone: `journal task block 1 "<why>"`, with --on task:<n> or --until "<check>"
+tasks are blocked, never paused: `journal task block 1 "<why>"`, with --on task:<n> or --until "<check>"
 
 $ agent: journal task test --help
 exit 0
