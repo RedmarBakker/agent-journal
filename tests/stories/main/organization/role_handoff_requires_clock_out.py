@@ -1,4 +1,3 @@
-from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
@@ -30,7 +29,7 @@ def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan)
 
 
 @story(OrganizationRoleTaskClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -57,4 +56,4 @@ def test_a_role_handoff_before_clock_out_is_refused_with_proof_and_clock_out(sto
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan)
