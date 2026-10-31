@@ -20,6 +20,7 @@ from journal.models.plan import Plan
 from journal.models.rig import Rig
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
+from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.support.actor import Actor
@@ -32,10 +33,11 @@ from journal.support.rejection import Rejection
 class RigStaffing:
     """Start each plan's rig, keep shared journal Roles in one organization rig, and add only the seats each job needs."""
 
-    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers) -> None:
+    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs) -> None:
         self.organization = organization
         self.config, self.plans, self.rigs = config, plans, rigs
         self.seats, self.specs, self.runtime, self.providers = seats, specs, runtime, providers
+        self.handoffs = handoffs
 
     def start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         self.runtime.check_version()
@@ -47,6 +49,7 @@ class RigStaffing:
             if not self.runtime.rig_exists(rig.name):
                 raise Rejection(f"OpenRig rig {rig.name} for plan {plan.id} is not running")
             spec = self.specs.refresh_plan(rig.name, self.config.root, environment.name, self.providers.lookup(agent.provider), self.organization.contracts())
+            self.handoffs.reopen_domain_inboxes(plan, actor)
             self.runtime.replace_rig(rig.name, spec)
             return
 

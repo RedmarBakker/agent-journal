@@ -1813,8 +1813,8 @@ messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
 organization.action_waits_for_the_user  [organization]  {{action}} waits for the user: ask with `journal question ask "<may I?>"`, act once the answer allows it
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
-organization.organization_handoff_waiting_in_inbox  [organization]  a Domain handoff is ready: read `journal organization inbox`, then hand it to a Role
-organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} needs routing to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`
+organization.organization_handoff_waiting_in_inbox  [organization]  you have an unread handoff; run `journal organization inbox`
+organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
 organization.role_task_returns_by_clocking_out  [organization]  Role work returns with `journal proof <point> "<file:line and test>"`, then `journal clock-out "<report>"`

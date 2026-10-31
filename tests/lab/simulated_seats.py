@@ -131,7 +131,7 @@ class SimulatedSeats:
 
     def stop_session(self, target: str) -> None:
         if target in self.sessions:
-            self.sessions[target]["status"] = "stopped"
+            self.sessions[target].update(pid=0, status="stopped")
 
     @staticmethod
     def argument(arguments: tuple[str, ...], name: str) -> str:

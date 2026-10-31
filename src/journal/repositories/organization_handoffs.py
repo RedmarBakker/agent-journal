@@ -51,6 +51,23 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                    plan_ref in self.links.targets(row, PLAN_HANDOFF)
                    for row in rows)
 
+    def reopen_domain_inboxes(self, plan: Plan, actor: Actor) -> None:
+        with self.scope.environment(plan.environment_id):
+            unfinished = {task.row_id for task in self.plans.plan_tasks(plan) if not task.state.is_closed()}
+            latest: dict[int, OrganizationHandoff] = {}
+            for ref in self.links.typed_sources(plan, PLAN_HANDOFF, OrganizationHandoff.table()):
+                row = self.find(ref.id)
+                if not row.target.startswith("domain:"):
+                    continue
+                task_refs = self.links.targets(row, TASK_HANDOFF)
+                if task_refs and task_refs[0].id in unfinished:
+                    task_id = task_refs[0].id
+                    if task_id not in latest or row.row_id > latest[task_id].row_id:
+                        latest[task_id] = row
+            for row in latest.values():
+                if row.read_at is not None:
+                    self.save(row.unread(), actor)
+
     def unread_in_plan(self, plan: Plan, target: str) -> bool:
         plan_ref = Ref.build(plan)
         rows = self.selected_globally(self.query().filter(target=target).filter_null("read_at"))

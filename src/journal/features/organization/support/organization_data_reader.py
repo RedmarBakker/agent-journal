@@ -9,16 +9,11 @@ from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
-from journal.models.task import Task
 from journal.models.task_state import TaskState
-from journal.models.worker import Worker
-from journal.models.worker_state import WorkerState
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
-from journal.repositories.tasks import Tasks
-from journal.repositories.workers import Workers
 from journal.support.agent_role import AgentRole
 
 
@@ -27,10 +22,10 @@ class OrganizationDataReader:
 
     def __init__(self, organization: Organization, approvals: RoleApprovals, plan_agents: PlanAgents,
                  plans: Plans, domains: DomainRows, handoffs: OrganizationHandoffs, scope: Scope,
-                 runtime: SeatRuntime, tasks: Tasks, workers: Workers) -> None:
+                 runtime: SeatRuntime) -> None:
         self.organization, self.approvals = organization, approvals
         self.plan_agents, self.plans, self.domains, self.handoffs, self.scope = plan_agents, plans, domains, handoffs, scope
-        self.runtime, self.tasks, self.workers = runtime, tasks, workers
+        self.runtime = runtime
 
     def read(self, agent: Agent) -> OrganizationData:
         contracts = self.organization.contracts()
@@ -63,30 +58,9 @@ class OrganizationDataReader:
             return None
         with self.scope.environment(plan.environment_id):
             task = self.plans.started_task(plan) or self.plans.following_task(plan)
-            task = task or self.ended_role_task(plan)
-            task = task or next((candidate for candidate in self.plans.plan_tasks(plan)
-                                 if candidate.state == TaskState.OPEN and candidate.delegated
-                                 and self.tasks.holder(candidate) is None), None)
             if task is None:
                 return None
             domain = self.domains.planned_domain_name(task)
-            held_by_ended_role = self.held_by_ended_role(task)
-            if self.tasks.holder(task) is not None and not held_by_ended_role:
+            if not domain or contracts.domain(domain) is None or self.handoffs.domain_handoff_exists(task, plan, domain):
                 return None
-        if not domain or contracts.domain(domain) is None:
-            return None
-        if self.handoffs.unread_in_plan(plan, f"domain:{domain}"):
-            return None
         return task.row_id, domain
-
-    def ended_role_task(self, plan: Plan) -> Task | None:
-        return next((task for task in self.plans.plan_tasks(plan)
-                     if task.state in (TaskState.OPEN, TaskState.STARTED)
-                     and task.delegated and self.held_by_ended_role(task)), None)
-
-    def held_by_ended_role(self, task: Task) -> bool:
-        holder = self.tasks.holder(task)
-        if holder is None or holder.type != Worker.table():
-            return False
-        worker = self.workers.find(holder.id)
-        return worker.role != "" and worker.state == WorkerState.UNFINISHED

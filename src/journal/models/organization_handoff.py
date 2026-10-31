@@ -13,3 +13,6 @@ class OrganizationHandoff(Scoped):
 
     def read(self, at: datetime) -> "OrganizationHandoff":
         return self.with_(read_at=at)
+
+    def unread(self) -> "OrganizationHandoff":
+        return self.with_(read_at=None)
