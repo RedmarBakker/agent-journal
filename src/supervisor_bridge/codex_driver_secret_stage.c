@@ -102,16 +102,26 @@ int main(int argc, char **argv) {
     char directory[MAX_PATH_BYTES];
     char key[MAX_SECRET_BYTES] = {0};
     size_t length = 0;
-    if (argc != 1
-        || live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", directory, sizeof(directory)) != 0
-        || !private_directory(directory)
-        || read_key(key, sizeof(key), &length) != 0) {
-        erase(key, sizeof(key));
+    if (argc != 1) return 2;
+    if (live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", directory, sizeof(directory)) != 0) {
+        fputs("invalid tenant secret source setting\n", stderr);
         return 2;
     }
-    int result = write_driver_secret(directory, key, length);
+    if (!private_directory(directory)) {
+        fputs("tenant secret source directory must be private and owned by this process\n", stderr);
+        return 2;
+    }
+    if (read_key(key, sizeof(key), &length) != 0) {
+        erase(key, sizeof(key));
+        fputs("SecretRun input must be one bounded OpenAI API key line\n", stderr);
+        return 2;
+    }
+    if (write_driver_secret(directory, key, length) != 0) {
+        erase(key, sizeof(key));
+        fputs("could not create the private Codex driver credential file\n", stderr);
+        return 2;
+    }
     erase(key, sizeof(key));
-    if (result != 0) return 2;
     puts("Codex driver credential staged as a private file");
     return 0;
 }
