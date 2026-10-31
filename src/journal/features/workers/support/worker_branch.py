@@ -14,6 +14,7 @@ from journal.support.inner_repositories import InnerRepositories
 from journal.support.rejection import Rejection
 from journal.support.worktree_refs import TIPS_REF
 from journal.support.worktree import Worktree
+from journal.support.viewer_built import is_source_path, problems as viewer_build_problems
 from journal.repositories.environments import Environments
 from journal.repositories.setting_rows import SettingRows
 from journal.sync.team_account import TeamAccount
@@ -171,7 +172,16 @@ class WorkerBranch:
         clashing = self.clash(pending, worker)
         if clashing:
             raise MergeClash(worker.id, clashing)
+        build_refusal = self.viewer_build_refusal(pending, worker)
+        if build_refusal:
+            raise Rejection(f"worker {worker.id}'s work was not merged: {build_refusal}")
         return ", ".join(self.head(repository) for repository in pending)
+
+    def viewer_build_refusal(self, pending: list[WorkerRepository], worker: Worker) -> str:
+        changed = (path for repository in pending for path in self.repository_paths(repository, worker))
+        if not any(is_source_path(path) for path in changed):
+            return ""
+        return next(iter(viewer_build_problems(self.folder(worker) / "src" / "web")), "")
 
     def merging_event(self, type_name: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
         return type_name(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task_id, branch=self.name(worker), worktree=str(self.folder(worker)), repositories=worker.repositories, files=self.touched(worker) or (), base=self.base(worker), window_ms=window_ms)

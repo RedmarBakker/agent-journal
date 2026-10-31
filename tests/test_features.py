@@ -5332,6 +5332,36 @@ def checked_and_merged(app: App, n: int = 1):
     return console.run(["worker", "merge", str(n)], AGENT)
 
 
+def test_a_worker_viewer_change_waits_for_its_fresh_build_and_merges_the_bundle_with_it(app: App, monkeypatch):
+    from journal.support.viewer_built import digest
+
+    root = app.config.root
+    repository_made(root, {
+        ".gitignore": ".journal/\n",
+        "README.md": "one\n",
+        "src/web/src/App.vue": "the viewer before the change\n",
+        "src/web/dist/built-from": "an old build\n",
+    })
+    _, folder, caller = worktree_worker(app, monkeypatch, "the viewer page")
+    committed(folder, "src/web/src/App.vue", "the viewer after the change\n")
+    assert proved_and_out(app, caller, "src/web/src/App.vue:1").code == 0
+    app.console().run(["worker", "check", "1", "1"], AGENT)
+
+    refused = app.console().run(["worker", "merge", "1"], AGENT)
+    assert refused.code != 0 and "Run npm --prefix src/web run build" in refused.error, refused.error
+    assert (root / "src/web/src/App.vue").read_text() == "the viewer before the change\n", "a viewer source is not merged while its build is stale"
+
+    stamp = digest(folder / "src/web")
+    committed(folder, "src/web/dist/built-from", stamp)
+    committed(folder, "src/web/dist/assets/app.js", "the viewer built from the changed source\n")
+    merged = app.console().run(["worker", "merge", "1"], AGENT)
+
+    assert merged.code == 0, merged.error
+    assert (root / "src/web/src/App.vue").read_text() == "the viewer after the change\n"
+    assert (root / "src/web/dist/assets/app.js").is_file(), "the built viewer is in the same merge as its source"
+    assert digest(root / "src/web") == stamp, "the installed bundle stamp describes the merged viewer source"
+
+
 def test_a_workers_report_names_its_task_and_its_clock_out_writes_no_second_mark(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
