@@ -3,6 +3,7 @@ from journal.features.organization.support.organization_data import Organization
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.models.agent import Agent
 from journal.models.plan_mode import PlanMode
+from journal.models.task_state import TaskState
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
@@ -30,6 +31,8 @@ class OrganizationDataReader:
             return None
         with self.scope.environment(plan.environment_id):
             task = self.plans.started_task(plan) or self.plans.following_task(plan)
+            task = task or next((candidate for candidate in self.plans.plan_tasks(plan)
+                                 if candidate.state == TaskState.OPEN and candidate.delegated), None)
             if task is None:
                 return None
             domain = self.domains.planned_domain_name(task)
