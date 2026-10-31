@@ -67,6 +67,14 @@ class Tasks(ScopedRepository[Task]):
         self.links, self.checks, self.agents, self.settings = links, checks, agents, settings
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 
+    def _scoped(self, query: Query) -> Query:
+        scoped = super()._scoped(query)
+        plans = [ref for ref in self.scope.bound() if ref.type == Plan.table()]
+        if not plans:
+            return scoped
+        tasks = self.links.query().filter_listed("target", plans).filter(link_type=PLAN_LINK).filter_ref("source", self.query())
+        return query.filter_alternatives(scoped, query.filter_existing(tasks))
+
     def open_waits(self, row: Task | Plan) -> list[Ref]:
         return [ref for ref in self.links.targets(row, WAIT_LINK) if not self.is_wait_resolved(ref)]
 

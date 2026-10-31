@@ -46,6 +46,11 @@ class Plans(ScopedRepository[Plan]):
         super().__init__(connection, bus, scope, time_source)
         self.links, self.tasks, self.phases, self.workers, self.templates = links, tasks, phases, workers, templates
 
+    def _scoped(self, query: Query) -> Query:
+        scoped = super()._scoped(query)
+        bound = [ref.id for ref in self.scope.bound() if ref.type == Plan.table()]
+        return query.filter_alternatives(scoped, query.filter_listed("id", bound)) if bound else scoped
+
     def user_approved(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
         return self.approval(plan, actor, lambda time: plan.user_approved(time, comment_id))
 
@@ -155,7 +160,8 @@ class Plans(ScopedRepository[Plan]):
         return self.links.model_links("target", phases, PHASE_LINK)
 
     def plan_phases(self, plan: Plan) -> list[Phase]:
-        return self.phases.selected(self.plan_phase_query(plan).order("id"))
+        with self.scope.environment(plan.environment_id):
+            return self.phases.selected(self.plan_phase_query(plan).order("id"))
 
     def plan_phase_query(self, plan: Plan) -> Query:
         linked = self.links.query().filter(target=Ref.build(plan), link_type=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
