@@ -21,9 +21,12 @@
       "codex_driver": {
         "binary": "/usr/local/bin/codex",
         "package": "@openai/codex@0.165.0",
-        "credential_secret": "codex_driver_credentials",
-        "login": "codex login --with-api-key reads /run/secrets/codex_driver_credentials on stdin",
-        "credential_state": "CODEX_HOME=/run/codex on the writer /run tmpfs; excluded from the backed-up writer volume"
+        "driver_home_selection": "AgentLauncher passes JOURNAL_CODEX_HOME as CODEX_HOME only to plan-* environments; the owner main session receives it only through the explicit launcher command",
+        "login": "the owner runs the fixed supervisor-codex-login command; it executes codex login --device-auth and waits for browser approval",
+        "credential_state": "codex_driver_state named volume mounted only to the writer at /var/lib/journal-codex; excluded from backup",
+        "persistence": "plain docker compose down preserves the named volume; do not use down --volumes",
+        "permissions": "directory uid10001 mode 0700; auth.json uid10001 mode 0600; Gateway and backup do not mount it",
+        "identity_limit": "PlanAgents uses writer uid10001; other writer processes share that uid and can read the volume, so process-only access is not proven and remains a B10 gate"
       },
       "ports": ["container 8421 on gateway_link", "container 8440 on journal_management; host loopback 18440 only"],
       "health": "GET http://127.0.0.1:8440/ready"
@@ -87,7 +90,7 @@
     "capabilities": [],
     "no_new_privileges": true,
     "writable_mounts": ["the single owner-bound plan worktree"],
-    "secret_mount": "codex_driver_credentials is mounted only into the writer service at /run/secrets/codex_driver_credentials; the current shared uid10001 makes it service-visible, so process isolation is not proven",
+    "credential_visibility": "Codex auth.json and refresh tokens are in codex_driver_state, mounted only into writer; shared uid10001 makes the volume readable to other writer processes, so process isolation is not proven",
     "network_allow": ["authenticated CLI/hook routes to the designated writer", "owner-selected provider endpoint when required"],
     "network_deny": ["writer database", "Gateway state", "provider credential service", "admin ports", "other tenant networks"],
     "status": "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
@@ -120,6 +123,7 @@
   ],
   "volumes": {
     "writer_state": {"mount": "/data", "owner": "journal:journal", "backup": true, "contains": ["journal record", "project checkout", "journal home"]},
+    "codex_driver_state": {"mount": "/var/lib/journal-codex", "owner": "journal:journal", "mode": "0700", "backup": false, "contains": ["Codex auth.json and refresh tokens"], "reader": "PlanAgents Codex driver and explicitly launched owner main Codex session; not process-isolated from other uid10001 writer processes"},
     "gateway_state": {"mount": "/home/node/.openclaw", "owner": "1000:10030", "mode": "0750", "storage": "tenant-specific host directory via local bind volume", "backup": true, "contains": ["Gateway-owned state; no provider key values"]},
     "supervisor_hints": {"writer_mount": "/var/lib/journal-supervisor/hints", "gateway_mount": "/var/lib/journal-supervisor/hints:ro", "owner": "10001:10030", "storage": "4 MiB tmpfs", "backup": false, "contains": ["at most 1000 bounded row references and event timestamps"]},
     "restore_candidate": {"mount": "/restore-candidate", "owner": "operator-provisioned uid 10005", "storage": "tenant-specific host directory via local bind volume", "backup": false, "contains": ["isolated restore output; never mounted by a running writer"]}
@@ -130,15 +134,14 @@
     {"name": "journal_supervisor_credential", "owner": "journal owner/operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway stdio client:/run/secrets/journal_supervisor_credential", "purpose": "single-installation, revocable supervisor scope; never a plugin token or owner cookie"},
     {"name": "restic_password", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_password", "purpose": "encrypted backup repository"},
     {"name": "restic_repository", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/restic_repository", "purpose": "repository locator"},
-    {"name": "backup_object_store_credentials", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/backup_object_store_credentials", "purpose": "remote repository access only"},
-    {"name": "codex_driver_credentials", "owner": "plan owner", "host_owner": "10001:10001", "host_mode": "0400", "mounted_to": "journal-writer:/run/secrets/codex_driver_credentials only", "purpose": "owner-selected Codex Plan driver API-key login; Gateway and backup do not receive this file", "status": "login is staged into the writer /run tmpfs; shared uid10001 means the writer service can read it, so uid10003 process isolation remains a B10 gate"}
+    {"name": "backup_object_store_credentials", "owner": "backup operator", "host_owner": "root:10005", "host_mode": "0440", "mounted_to": "backup:/run/secrets/backup_object_store_credentials", "purpose": "remote repository access only"}
   ],
   "backup": {
     "snapshot_interval_seconds": 900,
     "retention": {"daily": 7, "weekly": 4, "final_tag": "final"},
     "rpo": "1 hour",
     "rto": "4 hours",
-    "excluded_from_backup": ["/data/secrets", "/data/home/.codex", "/data/home/.claude", "/data/project/.journal/runtime"],
+    "excluded_from_backup": ["/data/secrets", "/data/home/.codex", "/data/home/.claude", "/data/project/.journal/runtime", "/var/lib/journal-codex"],
     "restore_rule": "restore to restore_candidate with the writer stopped; verify and rotate installation epoch before any writer is allowed to start"
   },
   "launch_gates": {

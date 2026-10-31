@@ -20,6 +20,7 @@ RUN groupadd --gid 10001 journal \
 
 COPY --chown=root:root src /opt/agent-journal/src
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
+COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
 COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup
 
 ENV JOURNAL_PROJECT=/data/project \

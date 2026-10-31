@@ -20,6 +20,8 @@ git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     docker/Dockerfile \
     docker/entrypoint.sh \
     docker/hosted-journal \
+    docker/supervisor-codex-login \
+    docker/supervisor-codex-ready \
     docs/supervisor/v1/live-smoke-setup.py > "$BUILD_CONTEXT/runtime.tar"
 tar -xf "$BUILD_CONTEXT/runtime.tar" -C "$BUILD_CONTEXT"
 rm "$BUILD_CONTEXT/runtime.tar"

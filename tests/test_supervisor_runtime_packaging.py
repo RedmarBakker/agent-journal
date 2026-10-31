@@ -32,6 +32,8 @@ def test_profile_is_single_tenant_and_off_by_default():
     assert manifest["launch"]["enrollment_enabled"] is False
     assert all(service["profiles"] == ["authorized-staging"] for service in compose["services"].values())
     assert "writer_state" in compose["volumes"] and "gateway_state" in compose["volumes"]
+    assert "codex_driver_state" in compose["volumes"]
+    assert "/var/lib/journal-codex" in manifest["backup"]["excluded_from_backup"]
     assert compose["services"]["writer"]["restart"] == "unless-stopped"
     assert compose["services"]["gateway"]["restart"] == "unless-stopped"
     assert compose["services"]["writer"]["healthcheck"]["test"] == ["CMD-SHELL", "curl -fsS http://127.0.0.1:8440/ready"]
@@ -85,17 +87,18 @@ def test_secret_mounts_match_the_receiving_service():
     backup_secrets = {secret["source"] for secret in compose["services"]["backup"]["secrets"]}
 
     assert gateway_secrets == {"supervisor_anthropic_api_key", "openclaw_hook_token", "journal_supervisor_credential"}
-    assert writer_secrets == {"codex_driver_credentials"}
+    assert writer_secrets == set()
     assert backup_secrets == {"restic_password", "restic_repository", "backup_object_store_credentials"}
-    assert set(secrets) == gateway_secrets | writer_secrets | backup_secrets
+    assert set(secrets) == gateway_secrets | backup_secrets
     manifest_secrets = {secret["name"]: secret for secret in read_json(PROFILE / "manifest.json")["secrets"]}
     assert {manifest_secrets[name]["host_owner"] for name in gateway_secrets} == {"root:1000"}
     assert {manifest_secrets[name]["host_owner"] for name in backup_secrets} == {"root:10005"}
     assert {manifest_secrets[name]["host_mode"] for name in gateway_secrets | backup_secrets} == {"0440"}
-    driver = manifest_secrets["codex_driver_credentials"]
-    assert driver["host_owner"] == "10001:10001" and driver["host_mode"] == "0400"
-    assert driver["mounted_to"] == "journal-writer:/run/secrets/codex_driver_credentials only"
-    assert "shared uid10001" in driver["status"]
+    assert "codex_driver_credentials" not in manifest_secrets
+    assert "codex_driver_state:/var/lib/journal-codex" in compose["services"]["writer"]["volumes"]
+    assert "codex_driver_state" not in " ".join(compose["services"]["gateway"]["volumes"])
+    assert "codex_driver_state" not in " ".join(compose["services"]["backup"]["volumes"])
+    assert compose["volumes"]["codex_driver_state"] == {}
 
 
 def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
@@ -149,12 +152,14 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert "docker/Dockerfile" in script
     assert "docker/entrypoint.sh" in script
     assert "docker/hosted-journal" in script
+    assert "docker/supervisor-codex-login" in script
+    assert "docker/supervisor-codex-ready" in script
     assert "docs/supervisor/v1/live-smoke-setup.py" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
     assert '"$BUILD_CONTEXT"' in script
 
 
-def test_codex_plan_driver_is_pinned_file_backed_and_uses_the_owner_plan_lifecycle():
+def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecycle():
     compose = read_json(PROFILE / "compose.json")
     manifest = read_json(PROFILE / "manifest.json")
     writer = compose["services"]["writer"]
@@ -164,18 +169,26 @@ def test_codex_plan_driver_is_pinned_file_backed_and_uses_the_owner_plan_lifecyc
     entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
     setup = (PROFILE / "live-smoke-setup.py").read_text()
     host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
+    login = (ROOT / "docker" / "supervisor-codex-login").read_text()
+    ready = (ROOT / "docker" / "supervisor-codex-ready").read_text()
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
     assert (PROFILE / "setup-live-smoke.sh").stat().st_mode & stat.S_IXUSR
 
     assert "npm install -g @openai/codex@0.165.0" in dockerfile
     assert "CODEX_HOME" not in dockerfile and "CODEX_API_KEY" not in dockerfile
-    assert writer["environment"]["CODEX_HOME"] == "/run/codex"
+    assert writer["environment"]["JOURNAL_CODEX_HOME"] == "/var/lib/journal-codex"
     assert writer["tmpfs"] == ["/tmp", "/run:mode=1777"]
-    assert {secret["source"] for secret in writer["secrets"]} == {"codex_driver_credentials"}
-    assert {secret["source"] for secret in gateway["secrets"]}.isdisjoint({"codex_driver_credentials"})
-    assert {secret["source"] for secret in backup["secrets"]}.isdisjoint({"codex_driver_credentials"})
-    assert compose["secrets"]["codex_driver_credentials"]["file"].endswith("/codex_driver_credentials")
-    assert "codex login --with-api-key < /run/secrets/codex_driver_credentials" in entrypoint
-    assert ">/dev/null 2>&1" in entrypoint
+    assert "codex_driver_state:/var/lib/journal-codex" in writer["volumes"]
+    assert "codex_driver_state" in compose["volumes"]
+    assert "codex_driver_state" not in " ".join(gateway["volumes"] + backup["volumes"])
+    assert "codex_driver_credentials" not in json.dumps(compose)
+    assert "supervisor-codex-ready" in entrypoint
+    assert "complete supervisor-codex-login before starting the writer" in entrypoint
+    assert "codex login --device-auth" in login
+    assert "--with-api-key" not in login + entrypoint
+    assert "stat -c %u" in ready and "stat -c %a" in ready
+    assert '"/usr/local/bin/supervisor-codex-ready"' in launcher
+    assert '"down"' in launcher and '"-v"' not in launcher
     assert "if len(sys.argv) != 1" in setup
     assert "start the owner's real Codex session on the designated writer" in setup
     assert "PlanMode.SOLO" in setup and "plans.plan_agents" in setup
@@ -194,31 +207,36 @@ def test_codex_plan_driver_is_pinned_file_backed_and_uses_the_owner_plan_lifecyc
     assert "STAGING_AUTHORIZED" in host_setup and "compose cp writer:/run/journal_supervisor_credential" in host_setup
     assert "normal_driver_separate_execution_identity" in manifest["launch_gates"]
     assert manifest["launch"]["enrollment_enabled"] is False
-    manifest_secrets = {secret["name"]: secret for secret in manifest["secrets"]}
-    assert "shared uid10001" in manifest_secrets["codex_driver_credentials"]["status"]
+    assert "private device-auth login" in setup
+    assert manifest["topology"][0]["codex_driver"]["credential_state"] == "codex_driver_state named volume mounted only to the writer at /var/lib/journal-codex; excluded from backup"
 
 
-def test_codex_secret_stager_is_fixed_owner_only_and_built_from_the_reviewed_source():
-    stage = (ROOT / "src" / "supervisor_bridge" / "codex_driver_secret_stage.c").read_text()
-    build = (ROOT / "src" / "supervisor_bridge" / "build-driver-secret-stage.sh").read_text()
+def test_codex_device_login_is_fixed_and_operator_approved_before_the_smoke():
+    login = (ROOT / "docker" / "supervisor-codex-login").read_text()
+    ready = (ROOT / "docker" / "supervisor-codex-ready").read_text()
+    compose = read_json(PROFILE / "compose.json")
+    manifest = read_json(PROFILE / "manifest.json")
     launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
     runbook = (PROFILE / "RUNBOOK.md").read_text()
     report = (PROFILE / "STAGING-REPORT.md").read_text()
 
-    assert "argc != 1" in stage
-    assert "TENANT_SECRET_SOURCE_DIR" in stage and "codex_driver_credentials" in stage
-    assert "O_CREAT | O_EXCL, 0600" in stage and "fchmod(file, 0400)" in stage
-    assert "opened.st_ino != expected.st_ino" in stage
-    assert "fchmod(file, 0400)" in stage and '"sk-"' in stage and '"sk-ant-"' in stage
-    assert "puts(key" not in stage and "printf(key" not in stage
-    assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in build
-    assert "git -C \"$RUNTIME_SOURCE\" archive --format=tar \"$PROFILE_REVISION\"" in build
-    assert "/usr/local/bin/journal-supervisor-driver-secret-stage" in build
-    assert "journal secret run 2 -- journal-supervisor-driver-secret-stage" in runbook
+    assert "supervisor-codex-login accepts no arguments" in login
+    assert "codex login --device-auth" in login
+    assert "CODEX_HOME" in login and "setpriv --reuid journal" in login
+    assert "auth.json" in ready and "stat -c %a" in ready
+    assert "codex_driver_state" in compose["services"]["writer"]["volumes"][1]
+    assert "codex_driver_credentials" not in json.dumps(compose) + json.dumps(manifest)
+    assert not (ROOT / "src" / "supervisor_bridge" / "codex_driver_secret_stage.c").exists()
+    assert not (ROOT / "src" / "supervisor_bridge" / "build-driver-secret-stage.sh").exists()
+    assert "docker compose" in runbook and "supervisor-codex-login" in runbook
+    assert "codex login --device-auth" in runbook
+    assert "docker compose down" in runbook and "codex_driver_state" in runbook
+    assert "refresh tokens" in runbook.lower()
     assert "revoke the provisional grant" in runbook
-    assert '"codex_driver_credentials"' in launcher
-    assert "copy_driver_secret(source, directory)" in launcher
-    assert "journal-supervisor-driver-secret-stage" in runbook
+    assert "codex_driver_credentials" not in launcher
+    assert "build-driver-secret-stage" not in runbook
+    assert "refresh tokens" in report.lower()
+    assert "device-auth" in report
     assert "uid10003" in runbook and "read-only" in runbook
     assert "uid10003" in report and "read-only" in report
 

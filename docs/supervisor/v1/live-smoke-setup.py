@@ -26,8 +26,7 @@ from journal.supervisor_link import SupervisorLink
 
 ROOT = Path("/data/project/.journal")
 API = "http://127.0.0.1:8421"
-DRIVER_SECRET = Path("/run/secrets/codex_driver_credentials")
-CODEX_HOME = Path("/run/codex")
+CODEX_HOME = Path("/var/lib/journal-codex")
 TOKEN_FILE = Path("/run/journal_supervisor_credential")
 PLAN_TITLE = "Supervisor live smoke"
 PHASE_TITLE = "Bounded supervisor smoke"
@@ -73,12 +72,12 @@ def row_number(output, pattern):
 def require_runtime(app):
     if os.environ.get("JOURNAL_ROOT") != str(ROOT):
         raise SetupFailure("the setup must run in the designated writer installation")
-    secret = DRIVER_SECRET.stat(follow_symlinks=False) if DRIVER_SECRET.exists() else None
     auth = CODEX_HOME / "auth.json"
-    if (not secret or not stat.S_ISREG(secret.st_mode) or secret.st_uid != os.geteuid()
-            or stat.S_IMODE(secret.st_mode) != 0o400 or not CODEX_HOME.is_dir()
-            or not auth.is_file() or auth.stat().st_uid != os.geteuid()):
-        raise SetupFailure("the pinned Codex CLI has no file-backed API-key login")
+    if (not CODEX_HOME.is_dir() or CODEX_HOME.stat().st_uid != os.geteuid()
+            or stat.S_IMODE(CODEX_HOME.stat().st_mode) != 0o700
+            or not auth.is_file() or auth.is_symlink() or auth.stat().st_uid != os.geteuid()
+            or stat.S_IMODE(auth.stat().st_mode) != 0o600):
+        raise SetupFailure("the pinned Codex CLI has no private device-auth login in the persistent writer volume")
     if TOKEN_FILE.exists():
         raise SetupFailure("a supervisor setup credential already exists in this writer")
     scope = app.container.get(Scope)

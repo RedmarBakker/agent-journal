@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 
 from journal.app import App
+from journal.config import Config
 from journal.engine.agent_launcher import AgentLauncher
 from journal.events.announcer import Announcer
 from journal.events.rows.plan_work_available import PlanWorkAvailable
@@ -44,6 +45,18 @@ from tests.test_supervisor_authority import Fixture, enrollment
 from tests.user_settings import user_set
 
 MAIN = 1
+
+
+def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments(monkeypatch, tmp_path):
+    monkeypatch.setenv("JOURNAL_CODEX_HOME", "/var/lib/journal-codex")
+    monkeypatch.setenv("CODEX_HOME", "/data/home/.codex")
+    launcher = AgentLauncher(Config(tmp_path))
+
+    plan = launcher.launch_environment("plan-12", "8421")
+    task = launcher.launch_environment("task-12", "8421")
+
+    assert plan["CODEX_HOME"] == "/var/lib/journal-codex"
+    assert "CODEX_HOME" not in task
 
 
 @pytest.fixture(scope="module")

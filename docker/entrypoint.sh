@@ -31,11 +31,11 @@ hosted-journal prepare --address "$JOURNAL_ADDRESS" --listen 0.0.0.0 --port 8440
 SETUP
 
 $AS_GATEWAY hosted-journal gateway-settings --address "$JOURNAL_ADDRESS" --proxy caddy --days 7
-# Codex's API-key login stays in this writable tmpfs and is rebuilt from the writer-only file secret.
-$AS_JOURNAL mkdir -p /run/codex
-$AS_JOURNAL chmod 0700 /run/codex
-if ! $AS_JOURNAL codex login --with-api-key < /run/secrets/codex_driver_credentials >/dev/null 2>&1; then
-    echo "Codex API-key login failed from the staged file secret" >&2
+mkdir -p "$JOURNAL_CODEX_HOME"
+chown journal:journal "$JOURNAL_CODEX_HOME"
+chmod 0700 "$JOURNAL_CODEX_HOME"
+if ! supervisor-codex-ready; then
+    echo "Codex device login is missing; complete supervisor-codex-login before starting the writer" >&2
     exit 2
 fi
 # Root holds the login page's port for good and starts the login page on it as gateway, so no agent can take the port.

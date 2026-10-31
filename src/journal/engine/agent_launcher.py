@@ -28,7 +28,17 @@ class AgentLauncher:
         log = self.config.home / "runtime" / f"agent-{environment}.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         port = self.config.port_file.read_text().strip() if self.config.port_file.is_file() else str(self.config.port)
-        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root), "JOURNAL_PORT": port}
+        environ = self.launch_environment(environment, port)
         with log.open("ab") as output:
             started = subprocess.Popen([sys.executable, str(package / "journal.py"), *arguments], cwd=self.config.root, env=environ, stdin=subprocess.DEVNULL, stdout=output, stderr=output, start_new_session=True)
         return started.pid
+
+    def launch_environment(self, environment: str, port: str) -> dict[str, str]:
+        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root), "JOURNAL_PORT": port}
+        codex_home = os.environ.get("JOURNAL_CODEX_HOME")
+        if codex_home:
+            if environment.startswith("plan-"):
+                environ["CODEX_HOME"] = codex_home
+            else:
+                environ.pop("CODEX_HOME", None)
+        return environ
