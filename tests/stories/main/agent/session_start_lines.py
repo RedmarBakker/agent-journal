@@ -42,6 +42,7 @@ def test_a_session_start_does_not_name_a_missing_task_as_in_hand(story):
 
 @story(SessionOpening, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_new_session_asks_for_an_introduction_after_the_start_skills_are_read(story):
+    story.last_step.expect_agent_told(story.agents.subject, VoicesNudges.VOICE_INSTRUCTION)
     story.last_step.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
     result = story.agent_reads_a_skill(story.agents.subject, "journal")
     result.expect_allowed()
