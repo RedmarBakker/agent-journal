@@ -97,10 +97,10 @@ class EstimatesForecast:
     @staticmethod
     def basis(forecast: dict | None) -> str:
         if forecast is None:
-            return "Not enough past delivery results; the plan has no owner, so no finish date or sprint chance can be estimated."
+            return "Not enough history yet; no plan owner, so no finish date or sprint probability."
         if forecast["status"] != "forecast":
             missing = ", ".join(forecast["missing_evidence"])
-            return f"Not enough past delivery results; missing {missing}; no finish date or sprint chance can be estimated."
+            return f"Not enough history yet; missing {missing}; no finish date or sprint probability."
         return (f"Past sprint results: {forecast['delivered_outcomes']} delivered plans and "
                 f"{forecast['observed_capacity_days']} days with capacity information; typical finish {forecast['p50']}, "
                 f"wider finish {forecast['p85']}, chance by this sprint's end {forecast['probability_this_sprint']}%.")

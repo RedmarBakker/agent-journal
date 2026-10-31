@@ -44,3 +44,11 @@ def test_plan_forecast_basis_uses_plain_words_for_delivery_history():
                                        "probability_this_sprint": 70})
 
     assert result == "Past sprint results: 12 delivered plans and 20 days with capacity information; typical finish 2026-11-06, wider finish 2026-11-12, chance by this sprint's end 70%."
+
+
+def test_plan_forecast_basis_names_missing_history_and_evidence():
+    result = EstimatesForecast.basis({"status": "not enough history",
+                                      "missing_evidence": ["a committed delivery date", "accepted evidence"]})
+
+    assert result == ("Not enough history yet; missing a committed delivery date, accepted evidence; "
+                      "no finish date or sprint probability.")

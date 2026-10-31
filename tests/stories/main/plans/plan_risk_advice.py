@@ -18,7 +18,7 @@ def test_a_busy_plan_with_no_history_gets_an_honest_forecast_basis_at_stop(story
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
 
     result = story.agent_stops(story.agents.subject)
-    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "not enough history")
+    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "Not enough history yet")
     result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "no finish date or sprint probability")
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
@@ -52,7 +52,7 @@ def test_a_silent_plan_gets_bounded_advice_at_a_tick(story):
     task = story.tasks.first
     ready = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     ready.expect_command_passed()
-    ready.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "not enough history")
+    ready.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "Not enough history yet")
     resized = story.user_presses(f"/journal/tasks/{task}/size", {"size": 5, "reason": "the owner added production rollout"})
     resized.expect_viewer_passed()
     story.user_approves_plan(story.plans.first)
@@ -60,7 +60,7 @@ def test_a_silent_plan_gets_bounded_advice_at_a_tick(story):
     story.time_travel(minutes=2)
 
     tick = story.clock_ticks(1)
-    tick.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "not enough history")
+    tick.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "Not enough history yet")
     tick.expect_agent_told_words(story.agents.subject, EstimatesNudges.SCOPE_GROWTH, "2 story points")
     story.expect_task(task, state=TaskState.STARTED, size=5)
     story.expect_plan(story.plans.first, state="started")

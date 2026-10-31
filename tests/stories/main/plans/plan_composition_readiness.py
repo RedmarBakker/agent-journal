@@ -64,7 +64,7 @@ def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
 def test_a_fully_sized_domain_scoped_plan_with_valid_prerequisites_can_be_readied(story):
     result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     result.expect_command_passed()
-    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "not enough history")
+    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "Not enough history yet")
     story.expect_plan(story.plans.first, state=PlanState.READY)
     story.expect_task(story.tasks.first, state=TaskState.OPEN, size=3)
     story.expect_task(story.tasks.second, state=TaskState.OPEN, size=5)
