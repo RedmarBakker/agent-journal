@@ -179,8 +179,9 @@ def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(
     assert work_delivery(app, context["scope"], receipt["receipt_id"]).data["status"] == "notified", "the action receipt has a separate work-delivery record"
 
 
-def test_live_codex_plan_grant_stays_within_the_smoke_token_and_request_caps(normal_driver: Fixture):
+def test_live_codex_plan_grant_stays_within_the_smoke_token_and_request_caps(app: App, normal_driver: Fixture):
     fixture = normal_driver
+    add_phase_task(app, fixture, "bounded smoke driver", "Keep one eligible task open for the bounded staging grant")
     request = enrollment(fixture, "bounded_write")
     request["limits"].update({
         "max_turns_per_day": 1,

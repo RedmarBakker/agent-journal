@@ -70,13 +70,12 @@ static int read_key(char *key, size_t capacity, size_t *length) {
 static int write_driver_secret(const char *directory, const char *key, size_t length) {
     int directory_fd = open_private_directory(directory);
     if (directory_fd < 0) return -1;
-    int file = openat(directory_fd, "codex_driver_credentials", O_WRONLY | O_CREAT | O_EXCL, 0400);
+    int file = openat(directory_fd, "codex_driver_credentials", O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (file < 0) {
         close(directory_fd);
         return -1;
     }
     int result = 0;
-    if (geteuid() == 0 && fchown(file, JOURNAL_UID, JOURNAL_GID) != 0) result = -1;
     size_t written = 0;
     while (result == 0 && written < length) {
         ssize_t amount = write(file, key + written, length - written);
@@ -89,6 +88,7 @@ static int write_driver_secret(const char *directory, const char *key, size_t le
         do newline = write(file, "\n", 1); while (newline < 0 && errno == EINTR);
         if (newline != 1) result = -1;
     }
+    if (result == 0 && geteuid() == 0 && fchown(file, JOURNAL_UID, JOURNAL_GID) != 0) result = -1;
     if (result == 0 && fchmod(file, 0400) != 0) result = -1;
     if (close(file) != 0) result = -1;
     if (result != 0) unlinkat(directory_fd, "codex_driver_credentials", 0);

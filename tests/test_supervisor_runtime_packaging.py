@@ -207,7 +207,8 @@ def test_codex_secret_stager_is_fixed_owner_only_and_built_from_the_reviewed_sou
 
     assert "argc != 1" in stage
     assert "TENANT_SECRET_SOURCE_DIR" in stage and "codex_driver_credentials" in stage
-    assert "O_CREAT | O_EXCL, 0400" in stage and "opened.st_ino != expected.st_ino" in stage
+    assert "O_CREAT | O_EXCL, 0600" in stage and "fchmod(file, 0400)" in stage
+    assert "opened.st_ino != expected.st_ino" in stage
     assert "fchmod(file, 0400)" in stage and '"sk-"' in stage and '"sk-ant-"' in stage
     assert "puts(key" not in stage and "printf(key" not in stage
     assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in build
