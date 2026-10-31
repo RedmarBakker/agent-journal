@@ -38,7 +38,7 @@ def test_a_partial_organization_rig_start_is_linked_and_reports_its_attention(st
 
     started = story.agent_runs(story.agents.main, f"plan start {plan}")
     started.expect_command_passed()
-    story.expect_recent_message_text(f"Plan {plan} needs OpenRig attention: OpenRig rig plan-{plan} needs attention: {reason}")
+    story.expect_recent_message_text(f"Plan {plan} needs OpenRig attention: OpenRig rig {story.plan_rig_name(plan)} needs attention: {reason}")
     story.expect_openrig_attention(story.plan_rig_name(plan), reason)
     story.expect_plan_rig(plan, story.plan_rig_name(plan))
     story.expect_plan(plan, state=PlanState.STARTED)

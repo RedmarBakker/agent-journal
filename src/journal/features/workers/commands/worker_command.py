@@ -16,6 +16,7 @@ from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
 from journal.features.organization.support.role import Role
+from journal.features.organization.support.rig_names import RigNames
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.organization_options import OrganizationOptions
@@ -76,7 +77,7 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge", "send"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation, runtime: SeatRuntime) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation, runtime: SeatRuntime, names: RigNames) -> None:
         self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
         self.targets, self.rebases = targets, rebases
@@ -87,6 +88,7 @@ class WorkerCommand(Command):
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
         self.roles, self.instances = roles, instances
         self.runtime = runtime
+        self.names = names
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -417,9 +419,8 @@ class WorkerCommand(Command):
         return self.worker_for_plan(number, member.rig)
 
     def worker_for_plan(self, number: int, rig: str) -> Worker:
-        prefix = "plan-"
-        plan = rig.removeprefix(prefix)
-        if not rig.startswith(prefix) or not plan.isdigit():
+        plan_id = self.names.plan_id(rig)
+        if plan_id is None:
             raise Rejection("Role work can be checked or merged only from its plan rig")
         worker = next(iter(self.workers.global_matching(id=number)), None)
         if worker is None:
@@ -427,11 +428,11 @@ class WorkerCommand(Command):
         role = self.roles.contract_role(worker)
         if role and role.cardinality is Cardinality.JOURNAL:
             task_ids = (*self.tasks.finished_task_ids(Ref.build(worker)), *self.tasks.holder_task_ids(Ref.build(worker)))
-            if task_ids and all(self.plans.includes_task_or_part(int(plan), task_id) for task_id in task_ids):
+            if task_ids and all(self.plans.includes_task_or_part(plan_id, task_id) for task_id in task_ids):
                 return worker
-            raise Rejection(f"worker {number} has no unmerged task in plan {plan}")
-        if worker.plan_id != int(plan):
-            raise Rejection(f"worker {number} does not belong to plan {plan}")
+            raise Rejection(f"worker {number} has no unmerged task in plan {plan_id}")
+        if worker.plan_id != plan_id:
+            raise Rejection(f"worker {number} does not belong to plan {plan_id}")
         return worker
 
     def queue(self, args: Namespace, caller: Caller) -> int:
