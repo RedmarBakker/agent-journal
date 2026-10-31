@@ -42,6 +42,13 @@ const criticalPath = computed(() => props.forecast?.critical_path || null);
 const durationRanges = computed(() => props.forecast?.duration_ranges || null);
 const durationCalibration = computed(() => props.forecast?.duration_calibration || null);
 const comparableExamples = computed(() => (durationRanges.value?.tasks || []).flatMap((task) => task.comparable_examples || []));
+const learnedRangeSummary = computed(() => {
+    if (!durationRanges.value) return "";
+    if (durationRanges.value.status !== "forecast") return "Learned ranges: not enough history yet.";
+    const coverage = durationCalibration.value?.coverage?.raw_p85;
+    if (coverage?.percent == null) return "Learned ranges (advisory): no held-out actuals yet.";
+    return `Learned ranges (advisory): upper ranges covered ${coverage.percent}% of ${coverage.observed} held-out actual durations.`;
+});
 const sizingBias = computed(() => durationCalibration.value?.sizing_bias || {});
 const hasSizingBias = computed(() => Object.values(sizingBias.value).some((row) => row.status === "measured"));
 const biasStages = computed(() => [
@@ -109,7 +116,7 @@ const independentTasks = computed(() => (criticalPath.value?.independent_groups 
                 <div><dt>Capacity</dt><dd>{{ capacityLine }}</dd></div>
                 <div><dt>Method and update</dt><dd>{{ forecast?.method_version || "Not estimated" }}<span v-if="forecast?.as_of"> · {{ formatForecastDay(forecast.as_of) }}</span></dd></div>
                 <div><dt>Selected estimator</dt><dd>Empirical baseline selected: {{ forecast?.method_version || "not estimated" }}<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'">. The shared network remains an unselected comparison.</span></dd></div>
-                <div v-if="durationRanges"><dt>Learned duration model:</dt><dd>{{ durationRanges.status === "forecast" ? durationRanges.method_version : "Not enough history" }} · advisory only, not used for delivery probability · {{ durationHistoryLine }}</dd></div>
+                <div v-if="durationRanges"><dt>Learned ranges</dt><dd>{{ learnedRangeSummary }} Not used for delivery probability · {{ durationHistoryLine }}</dd></div>
                 <div v-if="durationCalibration"><dt>Forecast versus actual</dt><dd>{{ calibrationSummary }} <span v-if="durationCalibration.label">{{ durationCalibration.label }}</span></dd></div>
                 <div v-if="!hasSizingBias && durationCalibration"><dt>Sizing bias</dt><dd>No aggregate sizing-bias score. At least {{ durationCalibration.minimum_calibration_samples }} held-out actuals per stage are required.</dd></div>
                 <div v-for="stage in biasStages" :key="stage.key"><dt>{{ stage.label }} sizing bias:</dt><dd><template v-if="sizingBias[stage.key].status === 'measured'">Actual durations were {{ Number(sizingBias[stage.key].actual_to_predicted_p50_ratio).toFixed(1) }}× predicted P50 over {{ sizingBias[stage.key].observed }} held-out actuals.</template><template v-else>Not enough history ({{ sizingBias[stage.key].observed }} held-out actuals).</template></dd></div>

@@ -18,19 +18,20 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "target": "production",
         })
         self.plans.first = story.user_creates_plan("finished release", "the release reaches production")
-        self.tasks.first = story.user_adds_plan_task(self.plans.first, "deploy the release")
-        story.user_presses(f"/journal/tasks/{self.tasks.first}/domain", {
-            "domain": "development", "kind": "planned", "reason": "the release is owned by development",
-        }).expect_viewer_passed()
+        task = story.user_presses(f"/journal/plans/{self.plans.first}/tasks", {
+            "title": "deploy the release", "brief": "the release reaches production", "domain": "development",
+        })
+        task.expect_viewer_passed()
+        self.tasks.first = task.viewer_answer["id"]
         story.user_presses(f"/journal/tasks/{self.tasks.first}/size", {
             "size": 3, "reason": "the original relative size",
         }).expect_viewer_passed()
         sprint = story.user_presses("/journal/sprints", {
-            "start": story.local_moment(0), "timezone": "Europe/Amsterdam",
+            "starts_on": story.local_moment(0).split(" ")[0], "timezone": "Europe/Amsterdam",
         })
         sprint.expect_viewer_passed()
         story.user_presses(f"/journal/sprints/{sprint.viewer_answer['id']}/plans", {
-            "plan": self.plans.first,
+            "plan_id": self.plans.first,
         }).expect_viewer_passed()
         story.user_presses(f"/journal/sprints/{sprint.viewer_answer['id']}/start", {}).expect_viewer_passed()
         story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()

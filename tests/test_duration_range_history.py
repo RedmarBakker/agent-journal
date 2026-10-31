@@ -48,12 +48,13 @@ def test_composition_examples_keep_original_sizes_and_exclude_unaccepted_or_out_
     ], evidence_id=11)
     matching["title"] = "production release"
     matching["estimate_history"]["planning_baseline_size"] = 5
-    wrong_environment = {**matching, "task_id": 2, "delivery": {"status": "delivered", "evidence_id": 12},
+    wrong_environment = {**matching, "task_id": 2,
+                        "estimate_history": {**matching["estimate_history"], "planning_baseline_size": 8},
+                        "delivery": {"status": "delivered", "evidence_id": 12},
                         "outcomes": [{**row, "task_id": 2,
                                       "cohort_dimensions": {**COHORT, "environment_id": 8},
                                       "details": {"delivery_id": 12} if row["kind"] == "delivery_accepted" else row["details"]}
                                      for row in matching["outcomes"]]}
-    wrong_environment["estimate_history"]["planning_baseline_size"] = 8
     current_task = {**matching, "task_id": 3, "title": "current composition",
                     "outcomes": [{**row, "task_id": 3} for row in matching["outcomes"]]}
     unfinished = {**matching, "task_id": 4, "delivery": {"status": "awaiting deployment", "evidence_id": None},

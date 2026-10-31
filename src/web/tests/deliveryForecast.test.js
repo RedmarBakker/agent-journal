@@ -168,6 +168,7 @@ test("the dashboard returns held-out calibration while keeping the empirical bas
             status: "measured",
             prediction_count: 14,
             observed_count: 10,
+            minimum_calibration_samples: 5,
             coverage: {p50: {covered: 5, observed: 10, percent: 50}, raw_p85: {covered: 8, observed: 10, percent: 80},
                 empirical_p50: {covered: 4, observed: 10, percent: 40}, empirical_p85: {covered: 6, observed: 10, percent: 60}},
             sizing_bias: {
@@ -183,12 +184,12 @@ test("the dashboard returns held-out calibration while keeping the empirical bas
     await nextTick();
 
     expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
-    expect(host.textContent).toContain("Learned duration model: bayesian-log-linear-duration-v1");
+    expect(host.textContent).toContain("Learned ranges (advisory): upper ranges covered 80% of 10 held-out actual durations.");
     expect(host.textContent).toContain("24 completed observations · last observed 29 Oct · 1 day old · fresh");
     expect(host.textContent).toContain("Held-out calibration: 10 actuals from 14 saved predictions");
     expect(host.textContent).toContain("P50 coverage 50% · P85 coverage 80%");
     expect(host.textContent).toContain("Past-only size reference P50 coverage 40% · P85 coverage 60%");
-    expect(host.textContent).toContain("advisory only, not used for delivery probability");
+    expect(host.textContent).toContain("Not used for delivery probability");
     expect(host.textContent).toContain("Execution sizing bias: actual durations were 1.5× predicted P50 over 5 held-out actuals");
     expect(host.textContent).toContain("Delivery sizing bias: not enough history (2 held-out actuals)");
     expect(host.textContent).toContain("The shared network remains an unselected comparison");
@@ -203,7 +204,7 @@ test("cold history shows no sizing bias and does not promote learned duration ra
         ...mature,
         duration_ranges: {status: "not_enough_history", method_version: "bayesian-log-linear-duration-v1",
             history: {completed_observations: 0, observed_through: null, age_days: null, freshness: "unknown", recency_half_life_days: 180}},
-        duration_calibration: {status: "not_enough_history", prediction_count: 0, observed_count: 0,
+        duration_calibration: {status: "not_enough_history", prediction_count: 0, observed_count: 0, minimum_calibration_samples: 5,
             coverage: {p50: {covered: 0, observed: 0, percent: null}, raw_p85: {covered: 0, observed: 0, percent: null}},
             sizing_bias: {execution_cycle: {status: "not_enough_history", observed: 0, actual_to_predicted_p50_ratio: null}}},
     };
@@ -213,8 +214,9 @@ test("cold history shows no sizing bias and does not promote learned duration ra
     await nextTick();
 
     expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
-    expect(host.textContent).toContain("Learned duration model: not enough history");
+    expect(host.textContent).toContain("Learned ranges: not enough history yet.");
     expect(host.textContent).toContain("No aggregate sizing-bias score");
+    expect(host.textContent).toContain("At least 5 held-out actuals per stage are required.");
     expect(host.textContent).not.toContain("actual durations were");
     expect(host.textContent).toContain("71%");
     expect(host.textContent).not.toContain("points per hour");

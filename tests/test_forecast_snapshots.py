@@ -76,7 +76,7 @@ def test_delivery_forecast_exposes_learned_ranges_from_immutable_outcome_history
     owner = Actor.user(1)
     with app.container.get(Scope).environment(1):
         plan = app.container.get(Plans).save(Plan(title="release"), owner)
-        task = app.container.get(Tasks).save(Task(title="deployment", size=3), owner)
+        task = app.container.get(Tasks).save(Task(environment_id=1, title="deployment", size=3), owner)
         app.container.get(Links).linked(Ref.build(task), Ref.build(plan), PLAN_LINK, owner)
         time_source = app.container.get(TimeSource)
         as_of = time_source.seconds()
@@ -84,8 +84,12 @@ def test_delivery_forecast_exposes_learned_ranges_from_immutable_outcome_history
                   "criteria_version": "production-v3", "model": "sonnet", "tier": "medium",
                   "cohort_version": "plan4-outcome-cohort-v1"}
         historical_tasks = [completed_history(index, as_of, cohort) for index in range(12)]
+        candidate = {"task_id": task.row_id, "current_in_plan": True,
+                     "estimate_history": {"current_size": 3, "current_scale_version": "points-v1"},
+                     "delivery": {"domain": "development", "criteria_version": "production-v3"},
+                     "outcomes": [], "execution": {}}
         histories = [{"scope": {"environment_id": 1, "plan_id": plan.row_id},
-                      "tasks": [{"task_id": task.row_id, "outcomes": []}, *historical_tasks]}]
+                      "tasks": [*historical_tasks, candidate]}]
         source = {"scope": [{"plan_id": plan.row_id, "task_id": task.row_id, "size_points": 3, "cohort": cohort}]}
 
         forecast = app.container.get(DeliveryForecasts).with_duration_ranges(
