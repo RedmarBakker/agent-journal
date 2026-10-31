@@ -39,7 +39,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.time_travel(seconds=3600)
         story.user_presses(f"/journal/plans/{self.plans.first}/delivery", {
             "action": "accept", "evidence": {
-                "kind": "production_deployment", "source": "deployment pipeline", "reference": "revision-l03",
+                "kind": "production_deployment", "source": "deployment pipeline", "reference": "release-l03",
                 "artifact": "revision-l03", "environment": "production", "result": "succeeded",
                 "task_ids": [self.tasks.first],
                 "occurred_at": datetime.fromtimestamp(story.app.container.get(Clock).held_at, timezone.utc).isoformat(),
