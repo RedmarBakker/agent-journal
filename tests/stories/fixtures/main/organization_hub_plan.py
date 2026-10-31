@@ -1,27 +1,24 @@
-from pathlib import Path
-
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_specs import RigSpecs
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.seat_worker import SeatWorker
-from journal.features.workers.organization_options import OrganizationOptions
 from journal.models.plan_state import PlanState
 from journal.providers.providers import Providers
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from journal.repositories.environments import Environments
-from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.main.organization_setup import OrganizationSetup
 from tests.lab.simulated_seats import SimulatedSeats
 
 
-class OrganizationHubPlan(WorkingAgent):
+class OrganizationHubPlan(OrganizationSetup):
     """A draft plan with one task and an organization with two Domains and three plan Roles."""
 
-    settings = ((OrganizationOptions.FOLDER, str(Path(__file__).resolve().with_name("organization_hub"))),)
+    parent = OrganizationSetup
+    settings = ()
     task_domain = ""
 
     def steps(self, story) -> None:
-        super().steps(story)
         story.openrig = SimulatedSeats()
         story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
         self.plans.first = story.user_creates_plan("p", "b")

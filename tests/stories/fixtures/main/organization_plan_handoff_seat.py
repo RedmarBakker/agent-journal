@@ -40,7 +40,7 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     """The Plan seat starts while its open Domain task is delegated to a worker."""
 
     parent = OrganizationHubPlan
-    settings = (*OrganizationHubPlan.settings, (WorkersOptions.MODE, ORCHESTRATOR_MODE))
+    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
         OrganizationHubPlan.steps(self, story)
