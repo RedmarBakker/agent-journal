@@ -41,8 +41,7 @@ class OrganizationDataReader:
             return bool(self.handoffs.pending(identity))
 
     def organization_seat_for_session(self, plan: Plan, agent: Agent) -> str:
-        rig_id = self.plans.rig_id(plan)
-        rig_names = [self.rigs.find(rig_id).name] if rig_id else []
+        rig_names = [f"plan-{plan.id}"]
         shared = self.rigs.global_matching(
             name=RigStaffing.shared_rig_name(plan.environment_id), environment_id=plan.environment_id,
         )

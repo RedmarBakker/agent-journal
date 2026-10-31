@@ -217,8 +217,7 @@ class AgentSteps:
 
     def organization_seat_member(self, seat: str):
         rig = f"plan-{self.plans.first}"
-        pod, member_name = self.organization_seat_address(seat)
-        return self.app.container.get(SeatRuntime).member(rig, pod, member_name, self.provider)
+        return self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
 
     def agent_runs_from_seat(self, agent: StoryAgent, seat: str, arguments: list[str], member,
                              organization_seat: str, organization_rig: str, journal_environment: str = "main") -> StepResult:
