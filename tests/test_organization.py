@@ -262,6 +262,26 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
 
 
+def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without_prompts(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "claude")
+    contracts = plan_contracts(app, tmp_path)
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(path.read_text())
+    members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
+    read_commands = {"Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)"}
+    journal_commands = tuple(dict.fromkeys(("journal", str(writer.command()), os.path.relpath(writer.command(), app.config.root))))
+    scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
+
+    for member_id in ("plan-agent", "domain-agent", "planner"):
+        permissions = members[member_id]["claude_permissions"]
+        assert read_commands.issubset(permissions["allow"]), f"{member_id} can inspect its workspace without approval"
+        assert scoped_journal_commands.issubset(permissions["allow"]), f"{member_id} can run its scoped journal without approval"
+        assert set(DENIED).issubset(permissions["deny"]), f"{member_id} still denies git and direct hub changes"
+
+
 def test_a_worker_role_can_run_rig_and_detached_commands_without_git_or_hub_sends(app, tmp_path, monkeypatch):
     use_provider(app, monkeypatch, "claude")
     fixture, organization = loaded(app, tmp_path)

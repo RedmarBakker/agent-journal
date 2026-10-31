@@ -211,15 +211,18 @@ class RigSpecs:
         journal_command = os.path.relpath(self.command(), cwd.resolve())
         journal_commands = tuple(dict.fromkeys(("journal", str(self.command()), journal_command)))
         worker_verbs = ("send", "check", "merge")
+        read_only_commands = ("Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)")
         worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in journal_commands for verb in worker_verbs)
         scoped_commands = tuple(f"JOURNAL_ENV=* {command}" for command in journal_commands)
+        scoped_journal_commands = tuple(f"Bash({command} *)" for command in scoped_commands)
         scoped_worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in scoped_commands for verb in worker_verbs)
         scoped_task_commands = tuple(f"Bash({command} task *)" for command in scoped_commands)
         scoped_proof_commands = tuple(
             f"Bash({command} {noun} *)" for command in scoped_commands for noun in ("proof", "clock-out")
         )
         allow.extend((
-            *WORKER_COMMANDS, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *WORKER_COMMANDS, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *scoped_journal_commands,
             *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
             *(tool for tool in seat.tools if tool != "Read"),
         ))
