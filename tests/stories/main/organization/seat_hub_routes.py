@@ -80,7 +80,7 @@ def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(sto
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
     story.expect_organization_seat_routing_guidance(f"plan-{story.plans.first}")
-    story.expect_stack(story.agents.main, LeadingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
 @story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
