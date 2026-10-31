@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
 
 from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.estimates.support.estimates_forecast import EstimatesForecast
 from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
@@ -12,9 +12,6 @@ from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.time_source import TimeSource
-
-if TYPE_CHECKING:
-    from journal.features.estimates.support.estimates_forecast import EstimatesForecast
 
 
 class ReadyQueue:

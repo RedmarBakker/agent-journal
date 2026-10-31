@@ -7,7 +7,6 @@ from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.plans.plans_options import PlansOptions
-from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.models.agent import Agent
@@ -89,6 +88,8 @@ class PlanAgents:
                 self.places.launched(environment, agent, self.repository_folders(plan))
 
     def prepared(self, plan: Plan, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
+        from journal.features.plans.states.leading_plan import LeadingPlan
+
         agent = self.places.prepared(environment, LeadingPlan(plan_id=plan.row_id), starter_environment_id, actor)
         self.plans.agent_linked(plan, agent, actor)
         return agent

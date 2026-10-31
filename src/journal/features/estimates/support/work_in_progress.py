@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from journal.features.estimates.estimates_options import EstimatesOptions, wip_limit
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.models.task_state import TaskState
+from journal.repositories.delivery_records import DeliveryRecords
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import FINISHED_LINK, Tasks, WORKERS
 from journal.support.rejection import Rejection
-
-if TYPE_CHECKING:
-    from journal.repositories.delivery_records import DeliveryRecords
 
 
 class WorkInProgress:
