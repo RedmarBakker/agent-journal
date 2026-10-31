@@ -117,7 +117,7 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert execution["uid"] == 10003 and execution["gid"] == 10003
     assert execution["root_filesystem"] == "read-only"
     assert execution["capabilities"] == [] and execution["no_new_privileges"] is True
-    assert execution["status"] == "contract only; current AgentLauncher does not enforce it"
+    assert execution["status"] == "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
     assert worker["uid"] == 10004 and worker["gid"] == 10004
     assert worker["root_filesystem"] == "read-only"
     assert worker["capabilities"] == [] and worker["no_new_privileges"] is True
@@ -207,7 +207,7 @@ def test_codex_secret_stager_is_fixed_owner_only_and_built_from_the_reviewed_sou
 
     assert "argc != 1" in stage
     assert "TENANT_SECRET_SOURCE_DIR" in stage and "codex_driver_credentials" in stage
-    assert "O_CREAT | O_EXCL | O_NOFOLLOW, 0400" in stage
+    assert "O_CREAT | O_EXCL, 0400" in stage and "opened.st_ino != expected.st_ino" in stage
     assert "fchmod(file, 0400)" in stage and '"sk-"' in stage and '"sk-ant-"' in stage
     assert "puts(key" not in stage and "printf(key" not in stage
     assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in build

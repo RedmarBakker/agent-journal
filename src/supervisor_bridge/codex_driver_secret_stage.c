@@ -27,6 +27,21 @@ static bool private_directory(const char *path) {
     return S_ISDIR(details.st_mode) && details.st_uid == geteuid() && (details.st_mode & 0077) == 0;
 }
 
+static int open_private_directory(const char *path) {
+    struct stat expected, opened;
+    if (lstat(path, &expected) != 0 || !S_ISDIR(expected.st_mode)
+        || expected.st_uid != geteuid() || (expected.st_mode & 0077) != 0) return -1;
+    int directory = open(path, O_RDONLY | O_DIRECTORY);
+    if (directory < 0) return -1;
+    if (fstat(directory, &opened) != 0 || !S_ISDIR(opened.st_mode)
+        || opened.st_uid != geteuid() || (opened.st_mode & 0077) != 0
+        || opened.st_dev != expected.st_dev || opened.st_ino != expected.st_ino) {
+        close(directory);
+        return -1;
+    }
+    return directory;
+}
+
 static bool key_character(unsigned char byte) {
     return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z')
         || (byte >= '0' && byte <= '9') || byte == '-' || byte == '_';
@@ -53,9 +68,9 @@ static int read_key(char *key, size_t capacity, size_t *length) {
 }
 
 static int write_driver_secret(const char *directory, const char *key, size_t length) {
-    int directory_fd = open(directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    int directory_fd = open_private_directory(directory);
     if (directory_fd < 0) return -1;
-    int file = openat(directory_fd, "codex_driver_credentials", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0400);
+    int file = openat(directory_fd, "codex_driver_credentials", O_WRONLY | O_CREAT | O_EXCL, 0400);
     if (file < 0) {
         close(directory_fd);
         return -1;
