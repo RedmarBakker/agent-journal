@@ -30,7 +30,7 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (MessageSkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.NEXT_DECISION), (CompactionReset, Blocking.NEXT_DECISION))
+    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (MessageSkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.ANSWER), (CompactionReset, Blocking.NEXT_DECISION))
     listeners = (SkillLoadedCard, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)

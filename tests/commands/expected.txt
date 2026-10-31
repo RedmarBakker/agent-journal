@@ -367,6 +367,7 @@ usage: journal plan add [-h] [--brief BRIEF] [--domain DOMAIN] [--size SIZE]
                         [--first] [--phase PHASE] [--after AFTER]
                         [--delivery-gate-for DELIVERY_GATE_FOR]
                         [--reason REASON]
+                        n title
 
 positional arguments:
   n
@@ -1095,7 +1096,7 @@ sequence 6: Ship a release, 3 steps
 
 $ agent: journal sequence list
 exit 0
-   1  Building a plan (4 steps, starts on row:plan.created)
+   1  Building a plan (9 steps, starts on row:plan.created)
    2  Applying a plan's reviews (3 steps, starts on row:plan.review_started)
    3  Writing an update (3 steps, starts on 16 phrases)
    4  Checking the instruction files (3 steps, starts on 7 phrases)
@@ -1802,7 +1803,7 @@ memory.reminder_due  [memory]  reminder {{n}} is due: {{text|cap=600}}
 memory.reminder_repeated  [memory]  reminder {{n}}, again: {{text|cap=600}}
 memory.stopped_at_mark  [memory]  stop held at {{percent}}% of context: `journal memory weigh <numbers> <weights>` or `journal memory skip "<why>"`
 memory.write_held_until_decided  [memory]  writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip "<why>"`
-messages.answer_before_anything_else  [messages]  answer or react to message {{messages|cap=73}} before you go on
+messages.answer_before_anything_else  [messages]  run `journal message send '<text>' --reply-to <n>` to reply to message {{messages|cap=18}} before going on
 messages.answer_the_comment_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}
 messages.answer_the_message_read  [messages]  answer message {{n}}: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
@@ -1812,7 +1813,7 @@ messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers|cap=18}} 
 messages.new_agent_message_to_answer  [messages]  new message {{n}} from {{name}}
 messages.new_message_to_answer  [messages]  new message {{n}}
 messages.new_messages_to_answer  [messages]  new messages {{ns|cap=107}}
-messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
+messages.next_tool_held_until_answered  [messages]  run `journal message send '<text>' --reply-to <n>` to reply to message {{messages|cap=18}}; next tool waits
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
 messages.reply_by_command  [messages]  reply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn
@@ -1820,8 +1821,8 @@ messages.reply_in_the_chat  [messages]  message {{n}} answered: reply {{reply}}.
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
 messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
-messages.tools_held_soon_until_answered  [messages]  reply to message {{messages|cap=70}}; tool calls wait after {{count}} more
-messages.tools_held_until_answered  [messages]  answer or react to message {{messages|cap=60}}; tool calls wait until you do
+messages.tools_held_soon_until_answered  [messages]  run `journal message send '<text>' --reply-to <n>` to reply to message {{messages|cap=18}}; tools wait after {{count}} more
+messages.tools_held_until_answered  [messages]  run `journal message send '<text>' --reply-to <n>` to reply to message {{messages|cap=18}}. tool calls wait until you do
 messages.unread_messages_to_read  [messages]  {{count}} messages unread: `journal message unread`
 messages.write_held_until_read  [messages]  {{count}} unread messages. run `journal message unread` before any other write
 messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more

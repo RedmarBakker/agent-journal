@@ -122,6 +122,8 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
     result.expect_command_passed()
     result = story.agent_runs(story.agents.subject, "sequence next")
     result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "sequence follow")
+    result.expect_command_passed()
     result = story.agent_runs(story.agents.subject, "sequence next")
     result.expect_command_passed()
     for words in (
@@ -132,6 +134,8 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
         ("journal plan review",),
         ("journal plan ready",),
     ):
+        result = story.agent_runs(story.agents.subject, "sequence follow")
+        result.expect_command_passed()
         result = story.agent_runs(story.agents.subject, "sequence next")
         result.expect_command_passed()
         for word in words:
@@ -141,7 +145,9 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
 
 @story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_user_message_about_organization_domains_or_roles_requires_the_organization_skill(story):
-    message = story.user_sends_message("Plan this with our organization, Domains and Roles.")
+    story.agent_reads_a_skill(story.agents.subject, "journal-messages")
+    story.agent_reads_a_skill(story.agents.subject, "journal-plans")
+    message = story.user_sends_message("Use our organization's Domains and Roles for delivery.")
     story.agent_reads_message(story.agents.subject, message)
     result = story.agent_writes(story.agents.subject, "plan-notes.md")
     result.expect_refused(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)

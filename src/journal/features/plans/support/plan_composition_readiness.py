@@ -36,8 +36,7 @@ class PlanCompositionReadiness:
     def require_organization_mode(plan: Plan, folder: str) -> None:
         if folder and plan.mode == PlanMode.SOLO:
             raise Rejection(
-                f"an organization is configured; plan {plan.id} needs organization mode: "
-                f"`journal plan mode {plan.id} organization`"
+                f"organization mode required for plan {plan.id}: `journal plan mode {plan.id} organization`"
             )
 
     def is_new_enforced_plan(self, plan: Plan) -> bool:
@@ -56,7 +55,7 @@ class PlanCompositionReadiness:
     def require_size(task, scale: tuple[int, ...]) -> None:
         if task.size in scale:
             return
-        raise Rejection(f"task {task.row_id}: size must use estimates.size_scale; run `journal task size {task.row_id} <points> --reason <why>`")
+        raise Rejection(f"task {task.row_id}: use estimates.size_scale; `journal task size {task.row_id} <points> --reason <why>`")
 
     def require_domain(self, plan: Plan, task, contracts) -> None:
         name = self.domains.planned_domain_name(task)
