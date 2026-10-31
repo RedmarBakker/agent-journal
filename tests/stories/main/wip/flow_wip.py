@@ -44,19 +44,24 @@ def test_a_never_started_blocked_task_is_backlog_not_execution_wip(story):
     result.expect_viewer_shows("execution_wip_task_ids", [])
     result.expect_viewer_shows("blocked_backlog_task_ids", [story.tasks.first])
     story.expect_task(story.tasks.first, state=TaskState.BLOCKED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_merging_releases_execution_wip_but_awaiting_deployment_stays_in_delivery_wip(story):
     worker = story.agents.workers.first()
-    story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.first}")
-    story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.second}")
+    story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.first}").expect_command_passed()
+    story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.second}").expect_command_passed()
     story.agent_runs(story.agents.subject, f"worker merge {worker}").expect_command_passed()
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("execution_wip_task_ids", [])
-    result.expect_viewer_shows("delivery_wip_task_ids", [story.tasks.first, story.tasks.second])
+    result.expect_viewer_shows("delivery_wip_task_ids", [story.tasks.first])
     result.expect_viewer_shows("wip_total", None)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_worker(worker, state=WorkerState.MERGED)
+    sprint = story.user_opens(f"/journal/sprints/{story.sprints.first}")
+    sprint.expect_viewer_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -66,6 +71,7 @@ def test_a_waiting_worker_occupies_a_seat_separately_from_plan_flow_wip(story):
     result.expect_viewer_shows("execution_wip_task_ids", [story.tasks.first])
     result.expect_viewer_shows("occupied_execution_seats", 1)
     result.expect_viewer_shows("delivery_wip_task_ids", [story.tasks.first])
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
@@ -161,6 +167,8 @@ def test_an_unaccepted_delivery_fills_its_plan_limit_until_the_owner_accepts_it(
     story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.first, state=TaskState.COMPLETED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.MERGED)
+    story.user_opens(f"/journal/sprints/{story.sprints.first}").expect_viewer_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -177,6 +185,8 @@ def test_the_owner_cannot_start_a_plan_past_its_delivery_limit(story):
     story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.first, state=TaskState.COMPLETED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.MERGED)
+    story.user_opens(f"/journal/sprints/{story.sprints.first}").expect_viewer_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -203,7 +213,11 @@ def test_a_domain_delivery_limit_applies_across_plans(story):
     plan = story.user_opens_in(other, f"/journal/plans/{next_plan}")
     plan.expect_viewer_shows("state", PlanState.APPROVED.value)
     story.expect_task_in(other, next_task, TaskState.OPEN.value)
+    story.expect_plan(story.plans.first, state=PlanState.APPROVED)
     story.expect_task(story.tasks.first, state=TaskState.COMPLETED)
+    story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.MERGED)
+    story.user_opens(f"/journal/sprints/{story.sprints.first}").expect_viewer_passed()
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -234,7 +248,7 @@ def test_testing_work_keeps_the_followed_plan_at_its_execution_ceiling(story):
     })
     changed.expect_viewer_passed()
 
-    result = story.agent_runs(story.agents.subject, f"task testing {story.tasks.first}")
+    result = story.agent_runs(story.agents.subject, f"task test {story.tasks.first}")
 
     result.expect_command_passed()
     result.expect_agent_told(

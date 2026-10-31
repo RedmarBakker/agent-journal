@@ -14,7 +14,7 @@ def test_aged_work_with_unknown_delivery_history_is_not_starved_by_new_priority_
     changed = story.user_presses("/journal/settings", {"estimates": {"mode": "report"}})
     changed.expect_viewer_passed()
     aged = story.agent_creates_task(story.agents.subject, "the older unestimated task")
-    story.time_travel(days=1)
+    story.time_travel(minutes=24 * 60)
     recent = story.agent_runs(story.agents.subject, "task create 'the urgent task' --priority critical")
     recent.expect_command_passed()
     urgent = story.task_number()
