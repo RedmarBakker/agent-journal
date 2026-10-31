@@ -1,5 +1,6 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
@@ -23,7 +24,7 @@ def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
     )
     handed.expect_command_passed()
     handed.expect_command_text(f"task {task} routed from plan to domain:alpha")
-    story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", "journal organization inbox")
+    story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", OrganizationSeatRouting.handoff_prompt)
     story.expect_task_tied_to_domain(task, "alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
