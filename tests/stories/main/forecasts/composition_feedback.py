@@ -10,6 +10,8 @@ from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 @setting(EstimatesOptions.MODE, "report")
 @story(PlanWithFinishedDevelopmentExample, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actual_durations(story):
+    outcomes = story.user_opens(f"/journal/plans/{story.plans.first}/outcomes")
+    outcomes.expect_viewer_part(("tasks", 0, "outcomes", 0, "cohort_dimensions"), {})
     result = story.agent_runs(story.agents.main,
                               f"plan add {story.plans.second} 'next change' --brief 'deploy the next revision' --domain development")
 
