@@ -94,6 +94,7 @@ class RigSpecs:
         refreshed["env"] = {**member["env"], **self.variables(worker)}
         member.update(refreshed)
         fragment = self.spec_folder(rig) / "members" / f"{pod['id']}-{member['id']}.json"
+        fragment.parent.mkdir(parents=True, exist_ok=True)
         self.written(fragment, member).chmod(OWNER_ONLY)
 
     def refreshed_seat(self, rig: str, pod: dict, member: dict, contracts: Contracts, provider: Provider) -> Seat:
