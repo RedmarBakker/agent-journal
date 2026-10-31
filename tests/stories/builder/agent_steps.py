@@ -139,12 +139,6 @@ class AgentSteps:
     def agent_is_prompted(self, agent: StoryAgent, text: str) -> StepResult:
         return self.hooked(agent, "the user prompts the agent", "UserPromptSubmit", prompt=text)
 
-    def agent_is_prompted_in_environment(self, agent: StoryAgent, environment: str, text: str) -> StepResult:
-        status, answer = self.session_posted_hook(
-            self.session_of(agent), {"X-Journal-Env": environment}, "UserPromptSubmit", {"prompt": text},
-        )
-        return self.hook_observed(f"the user prompts the agent in {environment}", status, answer, environment)
-
     def agent_is_woken_by_the_typed_line(self, agent: StoryAgent) -> StepResult:
         return self.hooked(agent, "the line typed wakes the agent", "UserPromptSubmit", prompt=self.typed[-1] if self.typed else JOURNAL_PREFIX)
 
