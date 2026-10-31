@@ -60,7 +60,7 @@ class SimulatedSeats:
             rig, path = arguments[1], Path(arguments[2])
             pod = json.loads(path.read_text())
             self.specs[rig].setdefault("pods", []).append(pod)
-            self.start_members(rig, {"pods": [pod]})
+            self.start_expanded_pod(rig, pod)
             return self.result(arguments, "{}")
         if arguments[0] == "add":
             rig, pod_id, path = arguments[1], arguments[2], Path(arguments[3])
@@ -99,6 +99,11 @@ class SimulatedSeats:
         for pod in spec.get("pods", []):
             for member in pod.get("members", []):
                 self.start_session(f"{pod['id']}-{member['id']}@{rig}", member.get("env", {}))
+
+    def start_expanded_pod(self, rig: str, pod: dict) -> None:
+        environment = self.specs[rig].get("env", {})
+        for member in pod.get("members", []):
+            self.start_session(f"{pod['id']}-{member['id']}@{rig}", environment)
 
     def processes(self, arguments: tuple[str, ...]) -> subprocess.CompletedProcess:
         rig = self.argument(arguments, "--rig")

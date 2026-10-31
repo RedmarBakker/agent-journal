@@ -538,6 +538,11 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
     grown = json.loads(path.read_text())
     pods = {pod["id"]: pod for pod in grown["pods"]}
     assert seat.logical_id == "alpha.planner" and any(call[0] == "expand" for call in calls[before_first_job:]), "the first Role job adds its Domain pod through OpenRig"
+    placement = calls[before_first_job:]
+    expanded = next(index for index, call in enumerate(placement) if call[0] == "expand")
+    launches = [call[2] for call in placement if call[:2] == ("seat", "launch")]
+    assert expanded < next(index for index, call in enumerate(placement) if call[:2] == ("seat", "launch"))
+    assert launches[:2] == [f"alpha-domain-agent@plan-{plan_id}", f"alpha-planner@plan-{plan_id}"], "every newly expanded member is relaunched from its saved environment"
     assert {pod: [member["id"] for member in value["members"]] for pod, value in pods.items()} == {
         "plan": ["plan-agent"], "alpha": ["domain-agent", "planner"],
     }, "the used Domain and Role appear, while the other Domain and unassigned Roles stay out"

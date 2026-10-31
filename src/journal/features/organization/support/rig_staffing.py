@@ -91,13 +91,13 @@ class RigStaffing:
             return
         running = self.runtime.rig_exists(rig.name)
         worker = lambda placed: SeatWorker(Actor.agent(""), AgentToken.random(), environment, placed.qualified, rig.name)
+        expansion = None
         if pod is None:
             if running:
                 self.runtime.check_expand_version(MINIMUM_OPENRIG_VERSION)
             fragment, pod = self.specs.pod_fragment(rig.name, seat.pod, (seat,), links, self.config.root, worker)
             pods.append(pod)
-            if running:
-                self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
+            expansion = fragment
         elif not any(member.get("id") == seat.member for member in pod.get("members", [])):
             fragment, member = self.specs.member_fragment(rig.name, seat, self.config.root, worker(seat))
             pod.setdefault("members", []).append(member)
@@ -106,9 +106,14 @@ class RigStaffing:
                 self.runtime.add(rig.name, seat.pod, fragment, self.specs.spec_folder(rig.name))
         for source, target in missing_links:
             edges.append(self.specs.edge(source.logical_id(), target.logical_id()))
-            if running:
-                self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
         self.specs.written(path, spec).chmod(OWNER_ONLY)
+        if running and expansion:
+            self.runtime.expand(rig.name, expansion, self.specs.spec_folder(rig.name))
+        if running:
+            for source, target in missing_links:
+                self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
+        if running and expansion:
+            self.launch_expanded_seats(rig, (seat,))
 
     def is_running(self, plan: Plan, provider: str) -> bool:
         rig_id = self.plans.rig_id(plan)
@@ -194,6 +199,7 @@ class RigStaffing:
         pod = next((value for value in pods if value.get("id") == domain_seat.pod), None)
         role_fragment = None
         replace_role = False
+        expansion = None
         if pod is None:
             if running:
                 self.runtime.check_expand_version(MINIMUM_OPENRIG_VERSION)
@@ -202,8 +208,7 @@ class RigStaffing:
                 lambda seat: cwd if seat.qualified == role_seat.qualified else self.config.root,
                 lambda seat: self.seat_worker(seat, role_seat, worker, environment, rig.name),
             )
-            if running:
-                self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
+            expansion = fragment
             pods.append(pod)
         elif not any(member.get("id") == role_seat.member for member in pod.get("members", [])):
             fragment, member = self.specs.member_fragment(
@@ -236,12 +241,21 @@ class RigStaffing:
             self.specs.write_pod_fragment(rig.name, pod)
         self.specs.written(path, spec).chmod(OWNER_ONLY)
         if running:
-            if replace_role:
+            if expansion:
+                self.runtime.expand(rig.name, expansion, self.specs.spec_folder(rig.name))
+            elif replace_role:
                 self.runtime.remove_node(rig.name, role_seat.logical_id())
-            if role_fragment:
+            if role_fragment and not expansion:
                 self.runtime.add(rig.name, domain_seat.pod, role_fragment, self.specs.spec_folder(rig.name))
             for source, target in links:
                 self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
+            if expansion:
+                self.launch_expanded_seats(rig, (domain_seat, role_seat))
+
+    def launch_expanded_seats(self, rig: Rig, seats: tuple[Seat, ...]) -> None:
+        for seat in seats:
+            member = self.runtime.member(rig.name, seat.pod, seat.member, seat.provider)
+            self.runtime.launch(member, f"journal organization starts {seat.qualified} with its generated environment")
 
     def remove_role(self, plan: Plan, contracts: Contracts, role: Role, worker: int, provider_name: str) -> None:
         if role.cardinality is not Cardinality.MANY:

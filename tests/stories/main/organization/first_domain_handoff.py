@@ -27,10 +27,10 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     handed_to_domain.expect_command_text(f"task {task} routed from plan to domain:alpha")
 
     domain = story.organization_seat_agent("domain:alpha")
-    story.expect_openrig_seat_environment(domain, "domain:alpha")
     story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", OrganizationSeatRouting.handoff_prompt)
     started = story.agent_starts_organization_seat(domain, "domain:alpha")
     started.expect_allowed(domain)
+    story.expect_openrig_seat_environment(domain, "domain:alpha")
     inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
