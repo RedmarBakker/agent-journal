@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
-from journal.features.tasks.states.ready import Ready
 from journal.engine.clock import Clock
+from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.estimates.estimates_options import EstimatesOptions
 from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
@@ -34,10 +34,9 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.user_presses(f"/journal/sprints/{sprint_id}/start", {}).expect_viewer_passed()
         story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
-        story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
+        story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         story.time_travel(seconds=3600)
-        story.agent_runs(story.agents.main,
-                         f"task complete {self.tasks.first} --how 'the release artifact is ready'").expect_command_passed()
+        story.agent_runs(story.agents.main, f"task complete {self.tasks.first} --how 'the production artifact is ready'").expect_command_passed()
         story.time_travel(seconds=3600)
         story.user_presses(f"/journal/plans/{self.plans.first}/delivery", {
             "action": "accept", "evidence": {
