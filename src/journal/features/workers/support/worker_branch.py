@@ -169,12 +169,12 @@ class WorkerBranch:
         blocked = self.blocking(pending, worker)
         if blocked:
             raise Rejection(f"worker {worker.id}'s work was not merged: something in the project is in the way\n{blocked}")
-        clashing = self.clash(pending, worker)
-        if clashing:
-            raise MergeClash(worker.id, clashing)
         build_refusal = self.viewer_build_refusal(pending, worker)
         if build_refusal:
             raise Rejection(f"worker {worker.id}'s work was not merged: {build_refusal}")
+        clashing = self.clash(pending, worker)
+        if clashing:
+            raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
 
     def viewer_build_refusal(self, pending: list[WorkerRepository], worker: Worker) -> str:
