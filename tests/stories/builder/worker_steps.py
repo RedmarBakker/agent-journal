@@ -71,7 +71,10 @@ class WorkerSteps:
             output, _ = runner.outputs(worker)
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(printed)
-            runner.finish(worker, 0, Actor.system())
+            if runner.seats.applies(worker):
+                runner.recorded_end(worker, Actor.system())
+            else:
+                runner.finish(worker, 0, Actor.system())
         return self.observed(f"the {agent.role}'s run ends", None, None)
 
     def agent_runs_cleanly(self, agent: StoryAgent, line: str) -> StepResult:
