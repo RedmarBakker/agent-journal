@@ -80,7 +80,7 @@ def test_a_resolved_wait_unblocks_a_task_before_it_starts_again(story):
     story.agent_runs(story.agents.subject, f"task start {story.tasks.started}")
     resumed_at = story.app.container.get(Clock).held_at
     result = story.user_opens(f"/journal/tasks/{story.tasks.started}/outcomes")
-    result.expect_viewer_rows("events", "kind", ["TaskClosed", "TaskWaitEnded", "TaskStarted"])
+    result.expect_viewer_rows("events", "kind", ["TaskClosed", "TaskReopened", "TaskStarted"])
     result.expect_viewer_shows("wait_resolved_at", resolved_at)
     result.expect_viewer_shows("resumed_at", resumed_at)
     story.expect_stack(story.agents.subject, Ready, Working)

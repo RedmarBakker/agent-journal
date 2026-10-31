@@ -11,7 +11,6 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_started import TaskStarted
 from journal.events.rows.task_test_failed import TaskTestFailed
-from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.events.rows.worker_limited import WorkerLimited
 from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_review_failed import WorkerReviewFailed
@@ -89,10 +88,6 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
             return self.record_fact(event.task_id, "task_reopened", event.time,
                                     {"reason": event.reason, "source_actor": event.actor}, Actor.system(),
                                     self.key("task_reopened", event.task_id, event.time, event.actor, event.reason))
-        if isinstance(event, TaskWaitEnded):
-            return self.record_fact(event.task_id, "task_wait_ended", event.time,
-                                    {"reason": event.reason, "source_actor": event.actor}, Actor.system(),
-                                    self.key("task_wait_ended", event.task_id, event.time, event.actor, event.reason))
         if isinstance(event, TaskTestFailed):
             return self.record_fact(event.task_id, "task_test_failed", event.time,
                                     {"outcome": event.outcome, "output_id": event.output_id, "source_actor": event.actor}, Actor.system(),
