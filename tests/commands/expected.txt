@@ -1808,6 +1808,7 @@ organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} w
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
 organization.role_task_returns_by_clocking_out  [organization]  Role work returns with `journal proof <point> "<file:line and test>"`, then `journal clock-out "<report>"`
+organization.role_work_waiting_for_check  [organization]  task {{task}} from worker {{worker}} waits for your check. `journal worker check {{worker}} <point>`; then `journal organization handoff {{task}} plan`
 organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
 organization.you_act_as_the_role  [organization]  you act as {{role}} for this step; `journal role done` when it ends. {{guidance|cap=3000}}
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual

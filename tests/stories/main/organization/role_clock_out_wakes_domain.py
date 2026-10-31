@@ -11,6 +11,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_domain_seat_started import OrganizationDomainSeatStarted
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(OrganizationDomainSeatStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -56,4 +57,4 @@ def test_a_role_clock_out_wakes_its_domain_seat_to_check_and_return_the_task(sto
     story.expect_task(task, state=TaskState.STARTED, delegated=True)
     story.expect_worker(worker, state=WorkerState.DELIVERED)
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
