@@ -1,4 +1,8 @@
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import OrganizationPlanWithoutDomainSeats
 
 
@@ -19,3 +23,9 @@ class OrganizationDomainSeatStarted(OrganizationPlanWithoutDomainSeats):
         started = story.agent_starts_organization_seat(domain, "domain:alpha")
         started.expect_allowed(domain)
         story.expect_openrig_seat_environment(domain, "domain:alpha")
+
+    def expected(self, story) -> None:
+        story.expect_plan(self.plans.first, state=PlanState.STARTED)
+        story.expect_task(self.tasks.first, state=TaskState.OPEN)
+        story.expect_organization_domains("alpha", "beta")
+        story.expect_stack(story.organization_seat_agent("domain:alpha"), LeadingPlan, FollowingPlan)
