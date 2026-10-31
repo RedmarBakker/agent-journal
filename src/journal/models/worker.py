@@ -157,7 +157,9 @@ class Worker(Helper):
         return self.with_event(WorkerQueueDrained(environment_id=self.environment_id, time=time, worker=self.mention(), tasks=f"tasks {', '.join(map(str, task_ids))} are open again"))
 
     def ready(self, time: float) -> "Worker":
-        return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
+        prior_state = self.state.value
+        return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(
+            WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention(), prior_state=prior_state))
 
     def delivered(self, time: float, task_id: int = 0) -> "Worker":
         return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), task_id=task_id, first_report=self.is_first_report(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))

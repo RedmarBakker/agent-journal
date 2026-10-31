@@ -13,6 +13,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
 from journal.models.model_tier import ModelTier
 from journal.repositories.entries import Entries
 from journal.repositories.domain_rows import DomainRows
@@ -96,6 +97,30 @@ def test_long_user_usage_and_deployment_waits_remain_open_with_resource_cost_fac
         assert "capacity_assumptions" in summary["missing_measurements"]
         assert summary["right_censored"] is True
         assert outcomes.find(spend.row_id).details["missing_measurements"]
+
+
+def test_only_a_worker_ready_after_a_usage_limit_records_a_usage_resumption(app):
+    with app.container.get(Scope).environment(1):
+        _plan, task, outcomes = planned_task(app, size=3)
+        actor = Actor.system()
+        worker = app.container.get(Workers).save(Worker(name="Lady Lovelace", model="test-model"), actor)
+        app.container.get(Links).linked(Ref.build(worker), Ref.build(task), CURRENT_TASK_LINK, actor)
+        dispatched = worker.dispatched(10)
+        ordinary_ready = dispatched.ready(20).events[-1]
+
+        assert ordinary_ready.prior_state == WorkerState.DISPATCHED.value
+        assert outcomes.record_row_event(ordinary_ready) is None
+
+        limited = dispatched.limited(30, 50, "the provider's usage limit")
+        limited_fact = outcomes.record_row_event(limited.events[-1])
+        resumed = limited.ready(40).events[-1]
+        resumed_fact = outcomes.record_row_event(resumed)
+
+        assert resumed.prior_state == WorkerState.LIMITED.value
+        assert limited_fact.kind == "usage_limited"
+        assert resumed_fact.kind == "usage_resumed"
+        assert [row.kind for row in outcomes.facts(task.row_id)] == ["usage_limited", "usage_resumed"]
+        assert outcomes.summary(task.row_id, as_of=60)["usage_wait_seconds"] == 10
 
 
 def test_agent_user_wait_events_close_the_interval_on_the_task_it_holds(app):

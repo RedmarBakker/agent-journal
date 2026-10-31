@@ -11,3 +11,4 @@ class WorkerReady(RowEvent):
     feature_name = "workers"
 
     worker: WorkerMention
+    prior_state: str

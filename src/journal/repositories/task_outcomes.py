@@ -29,6 +29,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_outcome import TaskOutcome
 from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.links import Links
 from journal.repositories.plans import PLAN_LINK, Plans
@@ -114,6 +115,8 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
                                     {"worker_id": event.worker.id, "resumes_at": event.resumes_at, "source_actor": event.actor}, Actor.system(),
                                     self.key("usage_limited", event.worker.id, event.time, event.resumes_at))
         if isinstance(event, WorkerReady):
+            if event.prior_state != WorkerState.LIMITED.value:
+                return None
             task_id = self.worker_task(event.worker.id)
             return self.record_fact(task_id, "usage_resumed", event.time,
                                     {"worker_id": event.worker.id, "source_actor": event.actor}, Actor.system(),
