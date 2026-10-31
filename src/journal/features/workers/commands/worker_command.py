@@ -54,7 +54,6 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.features.templates.shipped import JOURNAL_TESTS
 from journal.support.time_source import TimeSource
 
-DELEGATED_REFUSAL = "task {n} is delegated to a worker already: send that worker the next job, or release it first"
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
     TaskState.COMPLETED: "task {n} is {state}: a worker is started only on an open task or one you hold",
@@ -176,22 +175,28 @@ class WorkerCommand(Command):
 
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         role = self.dispatched_role(args)
-        if role and args.task and (instance := self.instances.existing(role, self.assignment(args.task, caller))):
-            return self.queue(Namespace(n=instance.id, tasks=[args.task], first=False), caller)
+        role_task = None
+        if role and args.task:
+            task = self.tasks.find(args.task)
+            instance = self.instances.existing(role, task)
+            if instance and instance.state == WorkerState.UNFINISHED and self.tasks.holder(task) == Ref.build(instance):
+                return self.resend_role_job(instance, task, args, caller)
+            role_task = self.assignment(args.task, caller)
+            if instance:
+                return self.queue(Namespace(n=instance.id, tasks=[role_task.id], first=False), caller)
         output = self.workers.busy_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
             waiting = self.workers.checkable_workers()
             raise Rejection((WorkersNudges.PLACES_FULL.create(n=min(waiting, key=lambda worker: worker.silence.timeout.start).id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
         planned = self.delegation.tasks(args.plan, args.phase) if args.plan else []
-        task = self.assignment(planned[0].row_id if planned else args.task, caller)
+        task = role_task or self.assignment(planned[0].row_id if planned else args.task, caller)
         provider = args.provider or self.provider_default(caller)
         moment = self.time_source.moment().timestamp()
         if args.changes.strip().lower() in EMPTY_CHANGES:
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
-        testing = self.testing_brief(args, planned)
-        brief = "\n\n".join(part for part in (task.brief, args.brief, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part)
+        brief = self.job_brief(task, args, planned)
         profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
         plan_id = self.instances.plan_of(task) if role else 0
         organization_plan = plan_id and self.plans.find(plan_id).mode is PlanMode.ORGANIZATION
@@ -203,6 +208,14 @@ class WorkerCommand(Command):
         if planned:
             self.delegation.delegate(args.plan, moment, caller.actor)
         return self.launched(worker, task, caller)
+
+    def resend_role_job(self, worker: Worker, task: Task, args: Namespace, caller: Caller) -> int:
+        brief = self.job_brief(task, args, [])
+        return self.send(Namespace(n=worker.id, task=task.id, brief=brief, profile=args.profile, model=args.model), caller)
+
+    def job_brief(self, task: Task, args: Namespace, planned: list[Task]) -> str:
+        testing = self.testing_brief(args, planned)
+        return "\n\n".join(part for part in (task.brief, args.brief, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part)
 
     def dispatch_role_task(self, task: Task, role: Role, caller: Caller) -> int:
         args = Namespace(
@@ -247,7 +260,7 @@ class WorkerCommand(Command):
             self.tasks.require_assignment_ready(task)
             return task
         if task.delegated and not task.state.is_closed():
-            raise Rejection(DELEGATED_REFUSAL.format(n=n))
+            raise Rejection(self.tasks.delegated_refusal(task))
         raise Rejection(ASSIGNMENT_REFUSALS.get(task.state, EMPTY_BRIEF_REFUSAL).format(n=n, state=task.state))
 
     def is_holder(self, task: Task, caller: Caller) -> bool:

@@ -45,7 +45,6 @@ QUEUED_LINK = "queued_for"
 FINISHED_LINK = "finished_unmerged"
 WORKERS = "workers"
 WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task it holds, {holdings}"
-HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
 PLAN_LINK = "in_plan"
 USER_PREFIX = "user:"
 AGENT_CREATOR = "agent:"
@@ -316,6 +315,27 @@ class Tasks(ScopedRepository[Task]):
         holders = self.links.ref_sources(Ref(Task.table(), task_id), CURRENT_TASK_LINK)
         return holders[-1] if holders else None
 
+    def worker_assignment(self, task: Task) -> tuple[Ref, str] | None:
+        target = Ref.build(task)
+        return next(
+            ((holder, link_type) for link_type in (CURRENT_TASK_LINK, FINISHED_LINK, QUEUED_LINK)
+             for holder in self.links.ref_sources(target, link_type) if holder.type == WORKERS),
+            None,
+        )
+
+    def delegated_refusal(self, task: Task) -> str:
+        assignment = self.worker_assignment(task)
+        if assignment is None:
+            return f"task {task.id} is delegated without a worker assignment: inspect it with `journal task show {task.id}`"
+        holder, link_type = assignment
+        if link_type == QUEUED_LINK:
+            return f"task {task.id} is queued for worker {holder.id}: remove it with `journal worker drain {holder.id}`"
+        drop = " --drop" if self.finished_task_ids(holder) else ""
+        command = f"journal worker release {holder.id}{drop}"
+        if link_type == FINISHED_LINK:
+            return f"task {task.id} has finished work from worker {holder.id} waiting to merge: release it with `{command}`"
+        return f"task {task.id} is held by worker {holder.id}: release it with `{command}`"
+
     def agents_tasks(self, state: TaskState, agents: Query) -> list[Task]:
         return self.selected(self.agents_state_query(state, agents).order("id"))
 
@@ -350,7 +370,7 @@ class Tasks(ScopedRepository[Task]):
     def guard_worker_task(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         owner = self.holder(task)
         if owner is not None and owner != holder and owner.type == WORKERS and not actor.can_move_worker_tasks():
-            raise Rejection(HOLDER_REFUSAL.format(task=task.id, worker=owner.id))
+            raise Rejection(self.delegated_refusal(task))
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:
         with self.writing():

@@ -11,7 +11,10 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 def test_a_task_a_worker_holds_is_started_by_no_agent_until_the_worker_lets_it_go(story):
     result = story.agent_runs(story.agents.subject, f"task start {story.tasks.briefed}")
     result.expect_command_refused()
-    result.expect_command_text(f"task {story.tasks.briefed} is held by worker {story.agents.workers.first()}")
+    result.expect_command_text(
+        f"task {story.tasks.briefed} is held by worker {story.agents.workers.first()}: "
+        f"release it with `journal worker release {story.agents.workers.first()}`",
+    )
     story.agent_runs(story.agents.subject, f"worker release {story.agents.workers.first()} --drop")
     result = story.agent_runs(story.agents.subject, f"task start {story.tasks.briefed}")
     result.expect_command_passed()
