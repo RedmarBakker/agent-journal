@@ -80,8 +80,8 @@ const notYet = (e) => {
 async function messageNumber(server, record) {
     if (!record.asked) {
         const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, on: record.on, refers: record.refers, idempotency: record.id});
-        if (message.id) return message.id;
         if (message.notice) noticed(message.notice);
+        if (message.id) return message.id;
         record.asked = true;
         await stored(record);
     }

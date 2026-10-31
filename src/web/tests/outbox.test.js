@@ -4,7 +4,7 @@ const server = {create: vi.fn(), upload: vi.fn(), sentMessage: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api: {at: () => server}}));
 vi.mock("../src/composables/poll.js", () => ({pollNow: vi.fn(), startPoll: vi.fn()}));
 
-const {sendMessage, onOutboxChange} = await import("../src/chat/outbox.js");
+const {sendMessage, onOutboxChange, onOutboxNotice} = await import("../src/chat/outbox.js");
 
 const queued = () => JSON.parse(localStorage.getItem("journal.outbox.v4") || "[]");
 const body = {text: "A line", reply_target: 3};
@@ -17,6 +17,7 @@ beforeEach(() => {
     server.upload.mockReset().mockResolvedValue({});
     server.sentMessage.mockReset();
     onOutboxChange(() => {});
+    onOutboxNotice(() => {});
 });
 
 describe("sending a message", () => {
@@ -24,6 +25,14 @@ describe("sending a message", () => {
         expect(await delivered("main", body, [], "id-1")).toBe(true);
         expect(queued()).toEqual([]);
         expect(server.create).toHaveBeenCalledWith("messages", {text: "A line", reply_target: 3, idempotency: "id-1"});
+    });
+
+    test("a saved message also shows the server's no-agent notice", async () => {
+        const notice = vi.fn();
+        onOutboxNotice(notice);
+        server.create.mockResolvedValue({id: 41, notice: "No agent is running in task-1."});
+        expect(await delivered("task-1", body, [], "id-13")).toBe(true);
+        expect(notice).toHaveBeenCalledWith("No agent is running in task-1.");
     });
 
     test("a message sent while the server is away stays queued and says so", async () => {

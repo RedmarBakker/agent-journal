@@ -13,7 +13,7 @@ from journal.support.option import Option
 from sync_server.team_server import TeamServer
 from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
-from tests.in_process import answered, file_answer, get_answer, posted
+from tests.in_process import answered, file_answer, get_answer, posted, routed
 from tests.stories.builder.step_result import StepResult
 
 
@@ -157,6 +157,10 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         return self.observed(f"user opens {route}", None, None)
 
+    def user_opens_viewer_in(self, environment: str) -> StepResult:
+        self.viewer_status, self.viewer_answer = answered(self.app, "GET", "/journal/viewer", b"", {"X-Journal-Env": environment, "X-Journal-Viewer": "1"})
+        return self.observed(f"the viewer tab is open in {environment}", None, None)
+
     def user_downloads(self, route: str) -> StepResult:
         self.viewer_status, self.viewer_answer = file_answer(self.app, route, MAIN)
         return self.observed(f"user downloads {route}", None, None)
@@ -164,6 +168,19 @@ class UserSteps:
     def user_opens_in(self, environment: str, route: str) -> StepResult:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, {"X-Journal-Env": environment})
         return self.observed(f"user opens {route} in {environment}", None, None)
+
+    def viewer_stream_receives_environment_switch(self, environment: str) -> StepResult:
+        answer = routed(self.app, "GET", f"/journal/entries/stream?since=0&env={environment}", b"", {})
+        blocks = answer.blocks
+        next(blocks)
+        self.viewer_status, self.viewer_answer = answer.status, next(blocks).decode()
+        blocks.close()
+        return self.observed(f"the viewer stream receives the launch environment for {environment}", None, None)
+
+    def user_sends_message_in(self, environment: str, text: str) -> StepResult:
+        self.viewer_status, self.viewer_answer = posted(self.app, "/journal/messages", {"text": text, "idempotency": uuid.uuid4().hex}, {**MAIN, "X-Journal-Env": environment})
+        assert self.viewer_status < 300, f"the viewer's message to {environment} was refused: {self.viewer_answer}"
+        return self.observed(f"the user sends a message in {environment}", None, None)
 
     def user_presses_in(self, environment: str, path: str, body: dict) -> StepResult:
         self.viewer_status, self.viewer_answer = posted(self.app, path, body, {"X-Journal-Env": environment})

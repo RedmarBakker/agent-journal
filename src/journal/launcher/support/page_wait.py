@@ -5,6 +5,7 @@ import time
 import urllib.request
 import webbrowser
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from journal.http.support.project_check import PROJECT_HEADER
 from journal.support.timeout import Timeout
@@ -52,10 +53,26 @@ class PageWait:
         if not self.viewer:
             return
         if self.tab_open(url):
+            self.follow_open_viewer(url)
             self.log(f"viewer: a tab of {url} is open already, so none was opened")
             return
         opened = webbrowser.open(url + self.viewer, new=2)
         self.log(f"viewer: opened {url + self.viewer}" if opened else f"viewer: the browser would not open {url + self.viewer}")
+
+    def follow_open_viewer(self, url: str) -> None:
+        environments = parse_qs(urlsplit(self.viewer).query).get("env", [])
+        if not environments:
+            return
+        environment = environments[-1]
+        request = urllib.request.Request(url + "journal/viewer/launch", data=json.dumps({"environment": environment}).encode(), headers={PROJECT_HEADER: str(self.port_file.parent.parent), "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=0.5) as reply:
+                if reply.status < 300:
+                    self.log(f"viewer: asked the open tab to use {environment}")
+                    return
+        except OSError:
+            pass
+        self.log(f"viewer: could not ask the open tab to use {environment}")
 
     def tab_open(self, url: str) -> bool:
         began = time.time()

@@ -110,6 +110,7 @@ class Routes:
         get = self.container.get
         journal, settings, migration, entries = get(JournalController), get(SettingController), get(MigrationController), get(EntryController)
         router.get(f"{API}/viewer", get(ViewerController).show)
+        router.post_unscoped(f"{API}/viewer/launch", get(ViewerController).launch)
         for path, handler in (("manifest", journal.manifest), ("identity", journal.identity), ("health", journal.health), ("journals", journal.journals), ("summary", journal.summary), ("bar", journal.bar), ("developer", journal.developer)):
             router.get(f"{API}/{path}", handler)
         router.post(f"{API}/developer/reset", journal.developer_reset)

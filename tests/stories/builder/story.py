@@ -24,6 +24,7 @@ from tests.agent_hooks import TOOLS
 from tests.stories.builder.agent_steps import AgentSteps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.developer_steps import DeveloperSteps
+from tests.stories.builder.launcher_steps import LauncherSteps
 from tests.stories.builder.hook_verdict import HookVerdict
 from tests.stories.builder.journal_log import JournalLog
 from tests.stories.builder.time_steps import TimeSteps
@@ -38,7 +39,7 @@ from tests.stories.builder.user_steps import UserSteps
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, DeveloperSteps, StoryChecks, StoryRows):
+class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, TimeSteps, DeveloperSteps, StoryChecks, StoryRows):
     """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines the journal gave, the hook's verdict and the command's outcome, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its fixture is the one it began from, whose rows the story reads by kind, story.tasks.started, and its agents as story.agents, asked at the end whether the story used them all."""
 
     def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies, monkeypatch) -> None:

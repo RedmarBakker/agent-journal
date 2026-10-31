@@ -10,6 +10,7 @@ from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from journal.references import events
+from journal.http.support.viewer_presence import ViewerPresence
 
 AGENT_EVENT_KINDS = frozenset({events.SESSION_STARTED, events.PROMPT_SUBMITTED, events.TOOL_STARTING, events.TOOL_FINISHED, events.TOOL_FAILED, events.COMPACTING, events.STOP, events.SESSION_ENDED, events.SUBAGENT_STARTED, events.SUBAGENT_ENDED, events.TURN_DISPLAYED,
                   "nudge", "created", "updated", "deleted"})
@@ -20,8 +21,8 @@ HEARTBEAT_SECONDS = 15.0
 class EntryController:
     """The timeline as the viewer stays live by it: the entries of the kinds it shows after an id, or the newest, without what a tool was given and gave back; and the same as a stream while a tab is open."""
 
-    def __init__(self, entries: Entries, scope: Scope) -> None:
-        self.entries, self.scope = entries, scope
+    def __init__(self, entries: Entries, scope: Scope, presence: ViewerPresence) -> None:
+        self.entries, self.scope, self.presence = entries, scope, presence
 
     def index(self, request: Request) -> Response:
         start = int(request.queried("since"))
@@ -42,8 +43,12 @@ class EntryController:
 
         def events() -> Iterator[bytes]:
             yield b": open\n\n"
-            newest_id, silence_seconds = (min(int(start_id), journal_newest) if start_id else journal_newest), 0.0
+            newest_id, silence_seconds, switch_sequence = (min(int(start_id), journal_newest) if start_id else journal_newest), 0.0, 0
             while True:
+                switch = self.presence.switch_after(switch_sequence)
+                if switch:
+                    switch_sequence, environment = switch
+                    yield self.environment_switch(environment)
                 time.sleep(0.5)
                 silence_seconds += 0.5
                 for entry in read(lambda: self.entries.recent_shown(newest_id, AGENT_EVENT_KINDS)):
@@ -58,3 +63,7 @@ class EntryController:
     @staticmethod
     def event(entry: Entry) -> bytes:
         return f"id: {entry.id}\ndata: {json.dumps(entry, cls=JsonOut)}\n\n".encode()
+
+    @staticmethod
+    def environment_switch(environment: str) -> bytes:
+        return f"event: environment-switch\ndata: {json.dumps({'environment': environment})}\n\n".encode()

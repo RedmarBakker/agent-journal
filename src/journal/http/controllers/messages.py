@@ -13,6 +13,7 @@ from journal.support.response import Response
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.agents import Agents
+from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
@@ -27,8 +28,9 @@ class MessageController(Controller[Message]):
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, links: Links, targets: CommentTarget, references: MessageReference) -> None:
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, links: Links, targets: CommentTarget, references: MessageReference, environments: Environments) -> None:
         self.agents, self.links, self.targets, self.references = agents, links, targets, references
+        self.environments = environments
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
@@ -85,7 +87,19 @@ class MessageController(Controller[Message]):
         posted = self.repository.posted(message, request.actor)
         for target in referred:
             self.links.linked(Ref.build(posted), target, Messages.REFERENCE_LINK, request.actor)
-        return Response.json(self.shown(posted), 201)
+        shown = self.shown(posted)
+        if self.agents.current() is None:
+            shown["notice"] = self.agentless_notice(request.environment)
+        return Response.json(shown, 201)
+
+    def agentless_notice(self, environment: str) -> str:
+        target = self.environments.existing(environment)
+        live = sorted({self.environments.find(agent.environment_id).name for agent in self.agents.active_main_agents() if agent.environment_id != target.row_id})
+        if not live:
+            return f"No agent is running in {target.name}. There are no live agents in another environment."
+        places = " and ".join(live) if len(live) < 3 else f"{', '.join(live[:-1])}, and {live[-1]}"
+        line = "A live agent is running in" if len(live) == 1 else "Live agents are running in"
+        return f"No agent is running in {target.name}. {line} {places}."
 
     def comment(self, target: Ref, request: Request) -> Response:
         if target.type == REPLIED:

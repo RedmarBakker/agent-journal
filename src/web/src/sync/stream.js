@@ -1,8 +1,10 @@
+import {watch} from "vue";
 import {onPhone} from "../platform/phone.js";
 import {api} from "../api/client.js";
 import {startOutbox} from "../chat/outbox.js";
 import {wakePolls} from "../composables/poll.js";
 import {route} from "../route.js";
+import {choose} from "../state/environment.js";
 import {store} from "../state/store.js";
 import {reload, takeEntries} from "./rows.js";
 import {STREAM_CLOSED} from "../api/transport.js";
@@ -23,6 +25,17 @@ function receive(message) {
     heard();
     try {
         takeEntries([JSON.parse(message.data)]);
+    } catch (e) {
+        reload();
+    }
+}
+
+function receiveEnvironmentSwitch(message) {
+    heard();
+    try {
+        const {environment} = JSON.parse(message.data);
+        if (typeof environment !== "string" || !environment) throw new Error("the launch has no environment");
+        if (environment !== route.value.env) choose(environment);
     } catch (e) {
         reload();
     }
@@ -95,6 +108,7 @@ function hush() {
 }
 
 document.addEventListener("visibilitychange", () => listen());
+watch(() => route.value.env, (now, before) => store.booted && now && before && now !== before && listen());
 
 // The stream starts after the newest entry the page holds, so a change made while it was away or reconnecting is sent, not skipped.
 export function listen() {
@@ -106,6 +120,7 @@ export function listen() {
     source = api.stream(Math.max(0, ...store.entries.map((e) => e.id)));
     source.onopen = opened;
     source.onmessage = receive;
+    source.addEventListener("environment-switch", receiveEnvironmentSwitch);
     source.addEventListener("beat", heard);
     watchSilence();
     source.onerror = failed;

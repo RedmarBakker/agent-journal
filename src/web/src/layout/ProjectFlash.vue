@@ -40,7 +40,7 @@ onUnmounted(() => clearTimeout(timer));
     <Transition name="flash">
         <div v-if="showing" :class="['project-flash', {fading: !ui.away.hidden}]" :style="{'--tint': tint}" aria-hidden="true">
             <span class="badge" :style="{background: tint, color: ink}">{{ project.charAt(0).toUpperCase() }}</span>
-            <span class="name">{{ project }} · {{ route.env }}</span>
+            <span class="name" role="status" aria-live="polite">{{ project }} · Now viewing: {{ route.env }}</span>
         </div>
     </Transition>
 </template>

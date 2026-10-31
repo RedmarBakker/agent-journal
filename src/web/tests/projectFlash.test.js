@@ -24,3 +24,27 @@ test("the journal's name shows on a tab return unless the switch on the Settings
     app.unmount();
     host.remove();
 });
+
+test("the environment change is announced in the visible project flash", async () => {
+    const {store} = await import("../src/state/store.js");
+    const {ui} = await import("../src/state/ui.js");
+    const {choose, environment} = await import("../src/state/environment.js");
+    const {default: ProjectFlash} = await import("../src/layout/ProjectFlash.vue");
+    const previous = environment.value;
+    const first = previous === "main" ? "task-1" : "main";
+    const next = first === "main" ? "task-1" : "main";
+    store.settings = {viewer: {flash: true}, features: {}};
+    ui.flash.at = 0;
+    choose(first);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h(ProjectFlash)});
+    app.mount(host);
+    choose(next);
+    await nextTick();
+    await nextTick();
+    expect(host.querySelector(".project-flash .name")?.textContent).toContain(`Now viewing: ${next}`);
+    app.unmount();
+    host.remove();
+    choose(previous);
+});

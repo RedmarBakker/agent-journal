@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
+import {nextTick} from "vue";
 
 const sources = [];
 class FakeSource {
@@ -28,6 +29,7 @@ vi.mock("../src/sync/rows.js", () => ({reload: () => reload(), takeEntries: (e) 
 
 const {listen} = await import("../src/sync/stream.js");
 const {store} = await import("../src/state/store.js");
+const {choose, environment} = await import("../src/state/environment.js");
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -94,6 +96,23 @@ test("an entry is taken, and a damaged one reloads the rows", () => {
     sources[0].onmessage({data: "{nope"});
     expect(takeEntries.mock.calls).toEqual([[[{id: 4}]]]);
     expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test("a launcher environment signal switches the viewer and opens a stream there", async () => {
+    const previous = environment.value;
+    const booted = store.booted;
+    store.booted = true;
+    choose("task-1");
+    await nextTick();
+    sources.length = 0;
+    listen();
+    sources[0].onopen();
+    sources[0].beats["environment-switch"]({data: JSON.stringify({environment: "main"})});
+    await nextTick();
+    expect(environment.value).toBe("main");
+    expect([sources.length, sources[0].closed, store.streamOpen]).toEqual([2, true, false]);
+    store.booted = booted;
+    choose(previous);
 });
 
 test("an open stream that goes silent is treated as down and opened again, a beat keeps it", () => {
