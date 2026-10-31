@@ -366,7 +366,9 @@ class AgentSteps:
 
     def agent_reads_a_skill(self, agent: StoryAgent, folder: str) -> StepResult:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
-        self.hooked(agent, "agent reads a skill", "PreToolUse", **call)
+        result = self.hooked(agent, "agent reads a skill", "PreToolUse", **call)
+        if result.verdict.refused():
+            return result
         return self.hooked(agent, "agent has read the skill", "PostToolUse", **call, tool_response={})
 
     def agent_cats_a_skill_through_the_runner(self, agent: StoryAgent, home: str, folder: str) -> StepResult:
