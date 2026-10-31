@@ -2426,7 +2426,10 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         pod_fragment = json.loads(pod_path.read_text())
         pod_role_member = next(member for member in pod_fragment["members"] if member["id"] == "planner")
 
-    assert len(launches) == len(sent) == 2 and sent[0][0].actor == f"worker:{first_worker_id}" and sent[1][0].actor == f"worker:{worker.id}", "Journal launches and sends each dispatched worker to the generated Role seat"
+    domain_launches = [member for member, _ in launches if member.organization_seat == "domain:alpha"]
+    role_launches = [member for member, _ in launches if member.organization_seat == "role:alpha/planner"]
+    assert len(domain_launches) == 1 and len(role_launches) == len(sent) == 2, "Journal starts the Domain seat once and launches each dispatched worker into its Role seat"
+    assert [member.actor for member in role_launches] == [sent[0][0].actor, sent[1][0].actor] == [f"worker:{first_worker_id}", f"worker:{worker.id}"]
     assert "Write a short note." in sent[0][1] and current.state == WorkerState.DELIVERED, "the Role clocks in, receives its brief, and clocks out"
     assert not isinstance(returned, ExternalWait), "the Role's clock-out resolves the Domain agent's wait through its worker report"
     assert next_current.state == WorkerState.DELIVERED and "another short note" in sent[1][1], "the rebound seat clocks in and returns the second worker's result"
