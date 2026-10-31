@@ -1,14 +1,19 @@
-from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
+from tests.stories.fixtures.main.organization_plan_without_domain_seats import OrganizationPlanWithoutDomainSeats
 
 
-@story(OrganizationPlanSeat, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_domain_seat_can_read_this_journals_health_without_a_prompt(story):
-    story.openrig_starts(f"plan-{story.plans.first}")
+    task = story.tasks.first
+    handed = story.agent_runs_from_plan_organization_seat(
+        story.agents.main, "plan", f"organization handoff {task} domain:alpha",
+    )
+    handed.expect_command_passed()
     domain = story.organization_seat_agent("domain:alpha")
     started = story.agent_starts_organization_seat(domain, "domain:alpha")
     started.expect_allowed(domain)
@@ -19,4 +24,4 @@ def test_a_domain_seat_can_read_this_journals_health_without_a_prompt(story):
     )
     checked.expect_allowed(domain)
 
-    story.expect_stack(story.agents.subject, CoordinatingPlans)
+    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
