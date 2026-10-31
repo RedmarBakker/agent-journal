@@ -11,7 +11,7 @@ OUTSIDE_WORDS = re.compile(r"\b(decisions?|decide|repl(y|ies)|answers?|approv\w*
 
 
 class PersonWait:
-    """Whether a blocked or paused task waits on a person: no --on or --until opens it, and its reason names the user, someone, or a person the journal knows by name; and whether a reason names a person or an outside party's part, a decision, a reply, a vendor, which no command can check."""
+    """Whether a blocked task waits on a person: no --on or --until opens it, and its reason names the user, someone, or a person the journal knows by name; and whether a reason names a person or an outside party's part, a decision, a reply, a vendor, which no command can check."""
 
     def __init__(self, tasks: Tasks, users: Users) -> None:
         self.tasks, self.users = tasks, users

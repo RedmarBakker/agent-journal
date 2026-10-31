@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.models.agent import Agent
 from journal.models.task import Task
@@ -43,14 +45,13 @@ class TasksDataReader:
             "current_task": lambda: self.current_id(agent),
             "current_task_row": lambda: self.tasks.current(agent),
             "last_log_line": lambda: self.current_log(agent),
-            "paused": lambda: tuple(t.row_id for t in self.tasks.paused_tasks()),
-            "pause_summary": lambda: ", ".join(f"task {task.id}" for task in self.tasks.paused_tasks()),
             "blocked": lambda: tuple(t.row_id for t in self.assigner.blocked_work()),
-            "blocked_without_wait": lambda: tuple(t.row_id for t in self.assigner.unwaited_blocked_work()),
-            "blocked_without_wait_summary": lambda: self.summary(self.assigner.unwaited_blocked_work()),
+            "blocked_without_wait": lambda: tuple(t.row_id for t in self.tasks.blocked_without_wait()),
+            "blocked_without_wait_summary": lambda: ", ".join(f"task {task.id}" for task in self.tasks.blocked_without_wait()),
+            "loose_blocks_since": lambda: self.loose_blocks_since(agent),
+            "completed_since_loose_blocks": lambda: self.tasks.completed_count_since(datetime.fromtimestamp(facts.loose_blocks_since, timezone.utc)),
             "broken_waits": lambda: tuple(t.row_id for t, check in self.tasks.broken_waits()),
             "broken_waits_summary": lambda: "; ".join(f"task {task.id} waits on check {check.id}, {check.title}, which cannot run" for task, check in self.tasks.broken_waits()),
-            "first_pause_reason": lambda: next((task.pause_reason for task in self.tasks.paused_tasks()), ""),
             "next_open": lambda: self.assigner.offered(agent),
             "open_work": lambda: self.assigner.open_work(agent),
             "last_commands": lambda: self.last_commands(agent),
@@ -62,18 +63,13 @@ class TasksDataReader:
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_OWNED_TASKS),
-            "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_person_wait(t)),
+            "person_waits": lambda: tuple(t.row_id for t in self.tasks.blocked_tasks() if self.people.is_person_wait(t)),
             "unprioritised": lambda: tuple(t.row_id for t in self.tasks.unprioritised()),
             "blocking_priorities": lambda: facts.unprioritised if len(facts.unprioritised) >= self.settings.integer(TasksOptions.PRIORITY_BLOCK_TASKS) else (),
             "polled_checks": lambda: tuple(check.row_id for check in self.checks.unresolved_waits()),
             "passed_waits": lambda: tuple(PassedWait.read(check) for check in self.checks.passed_waits(self.wait_checks.waited())),
             "wait_progress": lambda: self.progress.running(agent.session),
-            "choosable": lambda: tuple(t.row_id for t in self.assigner.choosable_work(agent)),
-            "choosable_summary": lambda: ", ".join(f"task {task.id}" for task in self.assigner.choosable_work(agent)),
-            "free_open": lambda: self.assigner.free_task() is not None,
-            "paused_declined": lambda: agent.paused_declined,
-            "task_paused_lines": lambda: self.paused_lines(agent),
-            "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
+            "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in self.tasks.blocked_tasks() if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
 
@@ -81,9 +77,9 @@ class TasksDataReader:
         current = self.tasks.current(agent)
         return current.row_id if current else 0
 
-    def paused_lines(self, agent: Agent) -> int:
-        current = self.tasks.current(agent)
-        return self.entries.task_line_count(agent.session, TasksNudges.WAIT_PAUSED_TASK.key, current.row_id) if current else 0
+    def loose_blocks_since(self, agent: Agent) -> float:
+        oldest = min((task.update_time.timestamp() for task in self.tasks.blocked_without_wait()), default=0.0)
+        return max(oldest, self.entries.last_lines(agent.session, TasksNudges.LOOSE_BLOCKS.key))
 
     def current_log(self, agent: Agent) -> str:
         current = self.tasks.current(agent)
@@ -95,7 +91,3 @@ class TasksDataReader:
     def last_log(self, task: Task) -> str:
         logs = self.logs.logs(task)
         return f'"{logs[-1].line}"' if logs else "nothing logged yet"
-
-    @staticmethod
-    def summary(tasks: list[Task]) -> str:
-        return ", ".join(f"task {task.id} ({task.title})" for task in tasks)

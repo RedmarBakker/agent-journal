@@ -120,12 +120,13 @@ def test_tasks_live_over_http(server):
     assert call(server, "GET", "/journal/tasks", environment="other")[1]["rows"] == []
 
 
-def test_the_viewer_pauses_blocks_and_unblocks_a_task_and_its_row_names_what_it_waits_on(server):
+def test_the_viewer_blocks_and_unblocks_a_task_and_its_row_names_what_it_waits_on(server):
     for title in ("first", "second", "third"):
         call(server, "POST", "/journal/tasks", {"title": title})
     call(server, "POST", "/journal/tasks/1/start")
-    paused = call(server, "POST", "/journal/tasks/1/pause", {"why": "the second comes first"})[1]
-    assert paused["state"] == "paused" and paused["pause_reason"] == "the second comes first"
+    set_aside = call(server, "POST", "/journal/tasks/1/block", {"why": "the second comes first"})[1]
+    assert set_aside["state"] == "blocked" and set_aside["block_reason"] == "the second comes first" and "pause_reason" not in set_aside
+    assert call(server, "POST", "/journal/tasks/1/pause", {"why": "later"})[0] == 404, "a task is no longer paused"
     assert call(server, "POST", "/journal/tasks/2/block", {})[0] == 409, "a block names what it waits on"
     blocked = call(server, "POST", "/journal/tasks/2/block", {"on": ["task:3"]})[1]
     assert blocked["state"] == "blocked" and blocked["waits"] == ["tasks:3"]
@@ -535,8 +536,8 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         assert doc["body"].endswith("## Risks\n\nNone\n") and "## Goals" in doc["body"]
         assert call(server, "POST", f"/journal/docs/{doc['id']}", {"title": "Design v2"})[1]["title"] == "Design v2"
         app.console().run(["task", "create", "later", "--start"], Caller.agent("main", "s1", "claude"))
-        app.console().run(["task", "pause", "2", "waiting"], Caller.agent("main", "s1", "claude"))
-        assert call(server, "GET", "/journal/tasks/2")[1]["state"] == "paused"
+        app.console().run(["task", "block", "2", "waiting"], Caller.agent("main", "s1", "claude"))
+        assert call(server, "GET", "/journal/tasks/2")[1]["state"] == "blocked"
     finally:
         app.runtime().stop()
 

@@ -15,7 +15,7 @@ from tests.stories.fixtures.main.three_approved_plans import ThreeApprovedPlans
 @story(ThreeApprovedPlans, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_second_plan_the_user_starts_for_a_builder_pauses_the_first_and_the_builder_is_never_asked_about_returning_to_it(story):
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.first} 'billing comes first'")
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.first} 'billing comes first'")
     story.user_starts_plan(story.plans.second)
     story.expect_plan(story.plans.first, state=PlanState.PAUSED)
     story.expect_plan(story.plans.second, state=PlanState.STARTED)

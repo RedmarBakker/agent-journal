@@ -2,6 +2,7 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
@@ -119,4 +120,47 @@ def test_a_block_with_no_wait_is_named_every_five_completed_tasks_with_the_way_t
         task = story.agent_creates_task(story.agents.subject, title)
         result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
     result.expect_agent_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS, n=logo)
+    story.expect_stack(story.agents.subject, Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_starting_another_task_blocks_the_one_in_hand_until_the_new_one_closes(story):
+    header = story.agent_creates_task(story.agents.subject, "the header")
+    result = story.agent_runs(story.agents.subject, f"task start {header}")
+    result.expect_command_text(f"task {story.tasks.started} blocked until task {header} closes")
+    story.expect_task(story.tasks.started, state=TaskState.BLOCKED, waits=[f"tasks:{header}"])
+    story.agent_runs(story.agents.subject, f"task complete {header} --how done")
+    story.expect_task(story.tasks.started, state=TaskState.STARTED, waits=[])
+    story.expect_stack(story.agents.subject, Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_block_with_no_wait_is_named_after_its_minutes_even_while_the_agent_is_idle(story):
+    logo = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {logo} 'waits on the designer'")
+    story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
+    result = story.agent_is_quiet_past(story.agents.subject, story.setting(TasksOptions.LOOSE_BLOCK_MINUTES) * 60)
+    result.expect_agent_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS, n=logo)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_block_with_no_wait_is_not_named_before_its_minutes_or_its_completed_tasks(story):
+    logo = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {logo} 'waits on the designer'")
+    result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
+    result.expect_agent_not_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS)
+    result = story.agent_is_quiet_just_under(story.agents.subject, story.setting(TasksOptions.LOOSE_BLOCK_MINUTES) * 60)
+    result.expect_agent_not_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_block_that_waits_on_a_check_is_never_named_as_a_block_with_no_wait(story):
+    logo = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {logo} --until false")
+    for title in ("one", "two", "three", "four", "five"):
+        task = story.agent_creates_task(story.agents.subject, title)
+        result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
+    result.expect_agent_not_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS)
     story.expect_stack(story.agents.subject, Ready, Working)

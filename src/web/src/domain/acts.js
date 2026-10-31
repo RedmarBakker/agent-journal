@@ -5,7 +5,7 @@ import {isClosed} from "./row.js";
 // its table and its state.
 const act = (name, label, more = {}) => ({name, label, asks: false, field: "how", danger: false, ...more});
 const DELETE = act("delete", "Delete", {danger: true});
-const UNSTARTED = ["open", "paused", "blocked"];
+const UNSTARTED = ["open", "blocked"];
 const RUNNING = ["started", "blocked"];
 
 const ACTS = {

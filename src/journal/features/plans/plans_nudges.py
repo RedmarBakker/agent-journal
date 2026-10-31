@@ -13,7 +13,7 @@ class PlansNudges:
     BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", "`journal mode show` prints what the mode asks", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}", repeat=Timeout.seconds(0), longest_characters=1540, longest_reason="it contains the brief of the next task")
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} done", "run the final suite; merging to main and releasing wait for the user's word", repeat=Timeout.seconds(0))
-    PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
+    PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge("plans", "the_user_approved_the_plan", "plan {{n}} approved", repeat=Timeout.seconds(0))

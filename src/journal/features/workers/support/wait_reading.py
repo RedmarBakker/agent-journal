@@ -13,11 +13,10 @@ from journal.repositories.tasks import Tasks
 
 # another task a brief or a log line names: task 12, after 12, once 12 is done
 TASK_NAMED = re.compile(r"\b(?:task|after|once)\s+#?(\d+)\b(?!\s*(?:min|minutes?|hours?|seconds?|days?|%))", re.IGNORECASE)
-STOPPED_STATES = (TaskState.BLOCKED, TaskState.PAUSED)
 
 
 class WaitReading:
-    """Reads how the tasks of the started plans wait: each blocked or paused one by whether it waits with --on or --until, or only in words, and whether those words name the user or an outside party; each open one whose brief or log names another open task it does not wait on; and each started plan with many open tasks and none blocked."""
+    """Reads how the tasks of the started plans wait: each blocked one by whether it waits with --on or --until, or only in words, and whether those words name the user or an outside party; each open one whose brief or log names another open task it does not wait on; and each started plan with many open tasks and none blocked."""
 
     def __init__(self, plans: Plans, tasks: Tasks, logs: TaskLogs, settings: SettingRows, people: PersonWait) -> None:
         self.plans, self.tasks, self.logs, self.settings, self.people = plans, tasks, logs, settings, people
@@ -25,7 +24,7 @@ class WaitReading:
     def measured(self) -> WaitUse:
         plans = self.plans.running_plans()
         unclosed = [task for plan in plans for task in self.plans.plan_tasks(plan) if not task.is_closed()]
-        stopped_tasks = [task for task in unclosed if task.state in STOPPED_STATES]
+        stopped_tasks = [task for task in unclosed if task.state == TaskState.BLOCKED]
         waiting = [task for task in stopped_tasks if self.tasks.open_waits(task)]
         unblocked_waits = [task for task in stopped_tasks if task not in waiting]
         external_waits = sum(1 for task in unblocked_waits if self.people.has_outside_name(task.waiting_reason()))

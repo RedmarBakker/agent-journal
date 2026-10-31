@@ -9,7 +9,6 @@ from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_released import TaskReleased
 from journal.events.rows.task_started import TaskStarted
 from journal.models.support.ref import Ref
-from journal.models.task_state import TaskState
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
@@ -20,16 +19,14 @@ MOVES = {
     "created": ("Created", CardType.TASK_MOVES, ""),
     "edited": ("Edited", CardType.TASK_MOVES, ""),
     "started": ("Started", CardType.TASK_MOVES, ""),
-    "resumed": ("Resumed", CardType.TASK_MOVES, ""),
     "unblocked": ("Unblocked", CardType.TASK_MOVES, ""),
     "completed": ("Completed", CardType.TASK_MOVES, "outcome"),
-    "paused": ("Paused", CardType.TASK_PAUSES, "pause_reason"),
     "blocked": ("Blocked", CardType.TASK_PAUSES, "block_reason"),
 }
 
 
 class TaskMoveCards(Listener[RowEvent]):
-    """A task created, edited, started, resumed, completed, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task, with its team when it is a hub task, and why it moved, in the chat of every environment the task is bound to as well as its own; a task given back by its worker, or closed by the merge of its work, is named by the worker's own mark instead."""
+    """A task created, edited, started, completed, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task, with its team when it is a hub task, and why it moved, in the chat of every environment the task is bound to as well as its own; a task given back by its worker, or closed by the merge of its work, is named by the worker's own mark instead."""
 
     def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope) -> None:
         self.cards, self.tasks, self.scope = cards, tasks, scope
@@ -40,7 +37,7 @@ class TaskMoveCards(Listener[RowEvent]):
         if isinstance(event, TaskEdited):
             self.show_move(event, "edited", "")
         if isinstance(event, TaskStarted):
-            self.show_move(event, "resumed" if event.prior_state == TaskState.PAUSED else "started", "")
+            self.show_move(event, "started", "")
         if isinstance(event, TaskClosed) and event.outcome in MOVES and not event.worker_id:
             self.show_move(event, event.outcome, "")
         if isinstance(event, TaskReopened) and not isinstance(event, TaskReleased):

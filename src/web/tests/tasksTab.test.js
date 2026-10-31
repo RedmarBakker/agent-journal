@@ -21,7 +21,7 @@ let app = null;
 
 beforeEach(() => {
     store.rows = {
-        tasks: [task(1, "paused one", "paused"), task(2, "blocked one", "blocked", {block_reason: "the release"}), task(3, "open one", "open"), task(4, "done one", "completed", {completed_at: "2026-10-21T10:00:00+00:00"})],
+        tasks: [task(1, "started one", "started"), task(2, "blocked one", "blocked", {block_reason: "the release"}), task(3, "open one", "open"), task(4, "done one", "completed", {completed_at: "2026-10-21T10:00:00+00:00"})],
         plans: [],
         questions: [],
         checks: [],
@@ -53,8 +53,8 @@ describe("the chat's Tasks tab", () => {
     test("draws the tasks dialog's own list and rows, grouped by status, with the done ones left out", async () => {
         const host = await shown();
         const heads = [...host.querySelectorAll(".tasks-tab .task-list .head .label")].map((h) => h.textContent.trim());
-        expect(heads).toEqual(["Blocked", "Paused", "Open"]);
-        expect([...host.querySelectorAll(".tasks-tab .task-row")].map((r) => r.dataset.task)).toEqual(["2", "1", "3"]);
+        expect(heads).toEqual(["In progress", "Blocked", "Open"]);
+        expect([...host.querySelectorAll(".tasks-tab .task-row")].map((r) => r.dataset.task)).toEqual(["1", "2", "3"]);
         expect(host.querySelector('.task-row[data-task="2"] .wait').textContent).toBe("Blocked: the release");
     });
 

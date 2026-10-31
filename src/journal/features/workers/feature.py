@@ -155,11 +155,11 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Queue first: in builder and orchestrator mode give several related tasks to one worker that reports once, at the end of its queue.
 - A worker reports, and its tests run, only once no task of its queue is left, so a queue interrupts you once.
 - Dispatch or send it the first task, then queue it the rest with `journal worker queue <n> <task> [<task>...]`.
-- A queued task is delegated to that worker at once, never offered to you, blocked or paused; releasing the worker opens it again.
+- A queued task is delegated to that worker at once, never offered to you or blocked; releasing the worker opens it again.
 - When a worker's work is merged you are given the next task in its queue with the line that sends it.
 - A dispatch or a send of a single task while other tasks of its plan wait is told once to queue them.
 - Prefer one worker for a whole approved plan, or one phase of it: `--plan <n>` or `--plan <n> --phase <k>` in place of `--task`
-  queues its open and paused tasks in order, delegates the plan, and the worker tests as the plan's testing template says
+  queues its open tasks in order, delegates the plan, and the worker tests as the plan's testing template says
   and reports once, at the plan's or phase's end or where it cannot go on.
 - Dispatch with `journal worker dispatch "<Name>" --task <n> --changes "<what it changes>" --profile journal-senior|journal-medior
   ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:

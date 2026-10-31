@@ -78,9 +78,9 @@ test("the fitness badge opens the measures of the mode and a timeline of the las
     host.remove();
 });
 
-test("an idle agent in a state pushed over its floor, such as choosing its paused work, is named by that state's title", async () => {
+test("an idle agent in a state pushed over its floor, such as choosing whether to return to a plan, is named by that state's title", async () => {
     const {lineOf} = await import("../src/domain/agentState.js");
-    const agent = {table: "agents", id: 1, session: "s1", role: "main", status: "idle", state: "choosing_paused_work", state_title: "Choosing paused work", stack: [{state: "idle"}, {state: "choosing_paused_work"}], heard_at: new Date().toISOString()};
-    expect(lineOf(agent, null, true)).toBe("choosing paused work");
+    const agent = {table: "agents", id: 1, session: "s1", role: "main", status: "idle", state: "choosing_plan_return", state_title: "Choosing the plan return", stack: [{state: "idle"}, {state: "choosing_plan_return"}], heard_at: new Date().toISOString()};
+    expect(lineOf(agent, null, true)).toBe("choosing the plan return");
     expect(lineOf({...agent, state: "idle", state_title: "Idle", stack: [{state: "idle"}]}, null, true)).toBe("ready for the next task");
 });

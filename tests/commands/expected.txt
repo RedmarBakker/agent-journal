@@ -45,18 +45,8 @@ exit 0
 no task to hand out now: the builder is handed its next task at a stop or when its task closes
 
 $ agent: journal task pause 1 'the cart comes first'
-exit 0
-task 1 paused
-
-$ agent: journal task resume 1
-exit 0
-task 1 resumed
-brief: The footer names the shop
-logged: the footer has its links
-
-$ agent: journal task skip-paused
-exit 0
-paused work set aside until your next close: your next stop takes up the next open task, or start one now with journal task start <n>
+exit 1
+a task is no longer paused: block it with `journal task block 1 "<why>"`, with --on task:<n> or --until "<check>" when something ends the wait
 
 $ agent: journal task test --help
 exit 0
@@ -79,7 +69,7 @@ positional arguments:
 
 options:
   -h, --help   show this help message and exit
-  --force      move a task in progress, paused first, or a task of a plan
+  --force      move a task in progress, blocked first, or a task of a plan
                here, taken out of the plan
 
 $ agent: journal task block 2 'waits on the tax rates'
@@ -1304,6 +1294,8 @@ tasks.name_every = 25
 tasks.log_after = 50
 tasks.log_old_after_minutes = 10
 tasks.block_batch_seconds = 300
+tasks.loose_block_tasks = 5
+tasks.loose_block_minutes = 30
 messages.nudge_after = 5  (the user sets it)
 messages.hold_after = 10  (the user sets it)
 messages.hold_after_unread = 5  (the user sets it)
@@ -1728,7 +1720,7 @@ plans.plan_blocked  [plans]  plan {{n}} is blocked: {{why|cap=44}}. unblock it b
 plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main and releasing wait for the user's word
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it
 plans.plan_reopened  [plans]  plan {{n}} is open again: {{why|cap=53}}. continue with `journal plan start {{n}}`
-plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
+plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan. then `journal plan ready {{n}} --changed "<what this round changed>"`
 plans.return_to_the_paused_plan  [plans]  plan {{n}} paused, task {{task}} in hand: back to the plan after it?. `journal plan return {{n}} yes` or `no`
 plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end. to run one now: `journal plan allow-tests {{n}} --why "<reason>"`
@@ -1804,7 +1796,8 @@ tasks.await_needs_its_reason  [tasks]  {{what|cap=16}} runs {{left}}; to wait an
 tasks.await_only_what_ends_soon  [tasks]  {{what|cap=24}} runs {{left}}, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.await_switches_task  [tasks]  {{what|cap=16}} runs {{left}}: too long. work on task {{n}} meanwhile: `journal task start {{n}}`
 tasks.await_with_its_reason  [tasks]  waiting because {{why|cap=48}}. do any open work that does not depend on it meanwhile
-tasks.blocked_task_asked_about  [tasks]  blocked with nothing to open them: {{tasks|cap=18}}. run `journal task unblock <n>` once what it waits on has arrived
+tasks.blocked_tasks_without_wait  [tasks]  blocked with no wait: {{tasks|cap=30}}. unblock what can go on; else `journal task block {{n}} --on task:<m>` or `--until "<check>"`
+tasks.blocked_with_untested_edits  [tasks]  task {{n}} was blocked with edits no test run has checked. if it only waits for its tests, `journal task test {{n}}`
 tasks.carry_on  [tasks]  {{name}} is in hand: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say in one line why not
 tasks.check_the_blocked_tasks  [tasks]  tasks {{tasks|cap=30}} are blocked. `journal task unblock <n>` what you can, else `journal stuck "<why>"`
@@ -1820,13 +1813,6 @@ tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, work on tas
 tasks.no_stop_while_waiting  [tasks]  {{what|cap=24}} still runs ({{left|cap=16}}). do not stop; carry on with task {{n}} until it ends
 tasks.output_polled  [tasks]  do not poll output {{n}}. wait for it: `journal await "<what>" --output {{n}}`
 tasks.park_the_wait  [tasks]  {{what|cap=18}} has about {{seconds}} seconds left, too long to wait. carry on with task {{n}}; you are informed when it ends
-tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
-tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
-tasks.paused_task_while_waiting  [tasks]  task {{n}} is paused; it could go on while you wait for {{what}}: `journal task resume {{n}}`
-tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks|cap=51}}. resume one that can go on: `journal task resume <n>`
-tasks.paused_wait_ended  [tasks]  task {{n}}'s wait is over: {{reason|cap=61}}. run `journal task resume {{n}}`
-tasks.paused_with_untested_edits  [tasks]  task {{n}} was paused with edits no test run has checked. if it only waits for its tests, `journal task test {{n}}`
-tasks.paused_work_to_choose  [tasks]  paused: {{tasks|cap=15}}{{blocked}}. `journal task resume <n>`, or `journal task skip-paused` to take the open task
 tasks.stop_polling  [tasks]  you ran {{command|cap=50}} {{times}} times in a row. stop polling; wait for it
 tasks.task_arrived  [tasks]  task {{n}} came here from environment {{source}}, {{state}}. read it with `journal task show {{n}}`
 tasks.task_changed  [tasks]  task {{n}} changed. read it again with `journal task show {{n}}`
@@ -1838,7 +1824,7 @@ tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take 
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_released  [tasks]  worker {{worker}} released {{tasks|cap=50}}. take them up with `journal task start <n>`
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
-tasks.tested_task_back  [tasks]  task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}. `journal task resume {{n}}` takes it up
+tasks.tested_task_back  [tasks]  task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}. `journal task start {{n}}` takes it up
 tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
@@ -1857,12 +1843,12 @@ voices.introduce_yourself  [voices]  introduce yourself in the chat in one or tw
 voices.say_you_are_back  [voices]  you are back in an earlier conversation. say so in a line in your voice, then carry on
 voices.the_voice_changed  [voices]  from now on talk to the user like this: {{voice|cap=1500}} use it from your next chat line; say nothing of the change
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported. give it its next job with `journal worker send <n> "<job>"`, stop it, or mark it done
-workers.blocked_work_stands_still  [workers]  blocked or paused tasks not moving: {{tasks|cap=33}}. unblock what is ready; split or reorder the rest
+workers.blocked_work_stands_still  [workers]  blocked tasks not moving: {{tasks|cap=33}}. unblock what is ready; split or reorder the rest
 workers.branch_keeps_clashing  [workers]  worker {{n}}'s branch rebased {{clashes}} times in a row, clashing in {{clashing|cap=25}}. let it merge before the others
 workers.builder_clear_oldest  [workers]  the worker queue has been high for {{minutes}} minutes. check and merge worker {{n}} first
 workers.builder_take_in_first  [workers]  on average {{count}} workers were active at once this hour. merge worker {{n}} next, then hand out the next task
 workers.builder_write_next  [workers]  you wrote {{share}} of the code this hour. write task {{n}} yourself
-workers.check_blocked_tasks  [workers]  tasks {{tasks|cap=15}} are paused or blocked. free what you can: `journal task resume <n>` or `journal task unblock <n>`
+workers.check_blocked_tasks  [workers]  tasks {{tasks|cap=15}} are blocked. free what you can: `journal task unblock <n>`
 workers.clocked_out_work_waits  [workers]  {{workers|cap=16}} clocked out. check each point with `journal worker check <n> <point>`, then `journal worker merge <n>`
 workers.could_it_be_reused  [workers]  if worker {{n}} can do this, run `journal worker send {{n}} "<job>"`; if not, repeat the command with `--why "<why>"`
 workers.delegate_the_task  [workers]  you orchestrate but do {{name|cap=38}} yourself. give it to a worker with journal worker dispatch

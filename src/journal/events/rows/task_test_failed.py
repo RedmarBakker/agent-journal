@@ -5,7 +5,7 @@ from journal.events.rows.row_event import RowEvent
 
 @dataclass(frozen=True, kw_only=True)
 class TaskTestFailed(RowEvent):
-    """A task waiting in testing is paused for its agent to take up again, because the run that tests it did not pass, with how the run ended."""
+    """A task waiting in testing is blocked for its agent to take up again, because the run that tests it did not pass, with how the run ended."""
 
     feature_name = "tasks"
 

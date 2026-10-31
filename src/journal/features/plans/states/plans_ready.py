@@ -18,7 +18,7 @@ from journal.features.plans.support.plan_start_task_assigner import PlanStartTas
 
 @dataclass(frozen=True)
 class PlansReady(Ready):
-    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and its task assigner starts the oldest approved plan between the agent's own paused task and a free one; every other moment is Idle's."""
+    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and its task assigner starts the oldest approved plan before a free one; every other moment is Idle's."""
 
     assigner = PlanStartTaskAssigner
 

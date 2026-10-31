@@ -14,7 +14,6 @@ from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.released_tasks import ReleasedTasks
 from journal.events.rows.task_released import TaskReleased
-from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.events.rows.task_delegated import TaskDelegated
 from journal.events.rows.task_started import TaskStarted
 from journal.models.scoped import Scoped
@@ -27,8 +26,8 @@ from journal.models.support.commentable import Commentable
 BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
 INLINE_POINTS = re.compile(r"\bpoints:\s*(.+)$", re.IGNORECASE | re.DOTALL)
 POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
-# how a task's close names a pause, the agent's own or one made by starting another task
-PAUSED_OUTCOME = "paused"
+# how a task's close names a block, the agent's own or one made by starting another task
+BLOCKED_OUTCOME = "blocked"
 # how the outcome of a request its recipient turned down begins: the task is cancelled, since a task has no declined state
 
 @dataclass(frozen=True)
@@ -42,13 +41,11 @@ class Task(Scoped, Commentable):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     outcome: str = ""
-    pause_reason: str = ""
     block_reason: str = ""
     driver: str = ""
     driver_agent: str = ""
     delegated: bool = False
     priority_set: bool = False
-    wait_ended_at: float = 0.0
     tool_uses: int = 0
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
@@ -70,7 +67,7 @@ class Task(Scoped, Commentable):
         return self.is_open() and not self.delegated and bool(self.brief.strip())
 
     def waiting_reason(self) -> str:
-        return self.block_reason or self.pause_reason
+        return self.block_reason
 
     def points(self) -> tuple[str, ...]:
         bullets = tuple(match[1].strip() for match in BULLET.finditer(self.brief))
@@ -97,7 +94,7 @@ class Task(Scoped, Commentable):
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
-        return self.with_(state=TaskState.STARTED, started_at=self.started_at or time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
+        return self.with_(state=TaskState.STARTED, started_at=self.started_at or time, block_reason="").with_event(event)
 
     def prioritised(self, level: int) -> "Task":
         return self.with_(priority=level, priority_set=True)
@@ -107,10 +104,10 @@ class Task(Scoped, Commentable):
 
     def delegate(self, time: datetime) -> "Task":
         event = TaskDelegated(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, brief=self.brief)
-        return self.with_(state=TaskState.OPEN, delegated=True, pause_reason="", block_reason="").with_event(event)
+        return self.with_(state=TaskState.OPEN, delegated=True, block_reason="").with_event(event)
 
     def worker_started(self, time: datetime) -> "Task":
-        return self.with_(state=TaskState.STARTED, delegated=True, started_at=self.started_at or time, pause_reason="", block_reason="")
+        return self.with_(state=TaskState.STARTED, delegated=True, started_at=self.started_at or time, block_reason="")
 
     def released(self, time: float, group: ReleasedTasks | None = None) -> "Task":
         return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go", group=group))
@@ -123,10 +120,8 @@ class Task(Scoped, Commentable):
     def is_active(self) -> bool:
         return self.is_started() or self.is_testing()
 
-    def paused(self, reason: str, time: datetime) -> "Task":
-        if not self.is_started():
-            raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
-        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, PAUSED_OUTCOME)
+    def set_aside(self, time: datetime) -> "Task":
+        return self.closed(self.with_(state=TaskState.OPEN), time, "set aside")
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, completed_at=self.completed_at or time, outcome=outcome), time, "cancelled")
@@ -144,7 +139,7 @@ class Task(Scoped, Commentable):
 
     def test_failed(self, time: datetime, output_id: int, outcome: str) -> "Task":
         event = TaskTestFailed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, output_id=output_id, outcome=outcome)
-        return self.with_(state=TaskState.PAUSED, pause_reason=f"its test run failed: {outcome}", wait_ended_at=0.0).with_event(event)
+        return self.with_(state=TaskState.BLOCKED, block_reason=f"its test run failed: {outcome}").with_event(event)
 
     def tool_used(self) -> "Task":
         return self.with_(tool_uses=self.tool_uses + 1)
@@ -156,12 +151,7 @@ class Task(Scoped, Commentable):
         return self.state == TaskState.TESTING
 
     def blocked(self, reason: str, time: datetime) -> "Task":
-        return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
-
-    def wait_ended(self, reason: str, time: float) -> "Task":
-        if self.state == TaskState.PAUSED:
-            return self.with_(wait_ended_at=time).with_event(TaskWaitEnded(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))
-        return self.unblocked(reason, time)
+        return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, BLOCKED_OUTCOME)
 
     def unblocked(self, reason: str, time: float) -> "Task":
         return self.with_(state=TaskState.OPEN, block_reason="").with_event(TaskReopened(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))

@@ -7,7 +7,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
-NONE_LEFT = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "paused"]}, "is": 0})
+NONE_LEFT = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "blocked"]}, "is": 0})
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)

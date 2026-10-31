@@ -6,7 +6,6 @@ import {createdAt, isClosed, madeBy, refOf} from "./row.js";
 export const GROUPS = {
     started: "In progress",
     testing: "Testing",
-    paused: "Paused",
     blocked: "Blocked",
     planned: "Planned",
     asked: "Needs you",
@@ -53,14 +52,11 @@ export const planned = (task) => task.state === "open" && Boolean(task.plan_id);
 // a plan not started yet, whose tasks wait for the user's approval
 export const unstartedPlan = (plan) => Boolean(plan) && UNSTARTED.includes(plan.state);
 
-export const paused = (task) => task.state === "paused";
-
 // the open question that names the task, which asks the user about it
 export const questionAbout = (task) => rows("questions").find((q) => !isClosed(q) && (q.text || "").includes(`task ${task.id}`)) || null;
 
 export function groupOf(task) {
     if (task.state === "blocked") return "blocked";
-    if (paused(task)) return "paused";
     if (planned(task)) return "planned";
     if (task.state === "started") return "started";
     if (task.state === "testing") return "testing";
@@ -68,7 +64,7 @@ export function groupOf(task) {
 }
 
 export const state = (task) =>
-    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "testing" ? "testing" : "open";
+    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "testing" ? "testing" : "open";
 
 export function happened(r) {
     const kind = meta(r.table);

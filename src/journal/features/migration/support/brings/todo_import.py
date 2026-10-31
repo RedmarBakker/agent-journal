@@ -36,5 +36,5 @@ class TodoImport(EnvironmentTableImport):
         if row.data.get("blocked"):
             return task.with_(state=TaskState.BLOCKED, block_reason=row.data["blocked"])
         if row.data.get("status") == "started":
-            return task.with_(state=TaskState.PAUSED, pause_reason=MIGRATED_PROGRESS_NOTE)
+            return task.with_(state=TaskState.BLOCKED, block_reason=MIGRATED_PROGRESS_NOTE)
         return task

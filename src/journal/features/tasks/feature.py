@@ -18,9 +18,6 @@ from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.features.tasks.task_edit_conduct import TaskEditConduct
 from journal.support.agent_role import AgentRole
 from journal.support.skill import Skill
-from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
-from journal.features.tasks.listeners.paused_decline_clearing import PausedDeclineClearing
-from journal.features.tasks.listeners.user_paused_work_decline import UserPausedWorkDecline
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
@@ -41,23 +38,23 @@ from journal.features.tasks.commands.worker_task_command import WorkerTaskComman
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
     card_families = (CardFamily("tasks", "Tasks", "task", WORK), CardFamily("impasse", "Agent stuck", "warn", AGENT))
-    card_types = (CardTypeEntry(CardType.TASK_MOVES, "Tasks started and completed", "tasks"), CardTypeEntry(CardType.TASK_PAUSES, "Tasks paused and blocked", "tasks"), CardTypeEntry(CardType.IMPASSE, "Agent stuck", "impasse"))
+    card_types = (CardTypeEntry(CardType.TASK_MOVES, "Tasks started and completed", "tasks"), CardTypeEntry(CardType.TASK_PAUSES, "Tasks blocked", "tasks"), CardTypeEntry(CardType.IMPASSE, "Agent stuck", "impasse"))
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
-    states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)
+    states = (Ready, Working, Impasse, ExternalWait)
     assigners = (DefaultTaskAssigner,)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     helper_commands = {AgentRole.WORKER: (WorkerTaskCommand,)}
     demands = (TasksDemands.PRIORITIES,)
-    options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
+    options = (TasksOptions.AUTO, TasksOptions.WAKE_MINUTES, TasksOptions.WAKE_COUNT, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.TESTING_SUGGESTION_MINUTES, TasksOptions.TESTING_SUGGESTION_TOOL_USES, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH, TasksOptions.LOOSE_BLOCK_TASKS, TasksOptions.LOOSE_BLOCK_MINUTES)
     seeds = (UnusedWaitChecks,)
-    answer_listeners = ((UserPausedWorkDecline, Blocking.NEXT_DECISION), (EndedAgentTasks, Blocking.NEXT_DECISION))
-    listeners = (TestingRunEnd, PausedDeclineClearing, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
+    answer_listeners = ((EndedAgentTasks, Blocking.NEXT_DECISION),)
+    listeners = (TestingRunEnd, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, ReplyTaskLinks)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.STOPPED_WITH_WORK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_PAUSED_TASK, TasksNudges.TEST_FAILURE, TasksNudges.TESTING_SUGGESTION, TasksNudges.UNTESTED_TASK_EDITS, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.TASKS_RELEASED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.TASK_OPENED, TasksNudges.TASK_ARRIVED)
+    nudges = (TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.WAIT_REASON_REQUEST, TasksNudges.WAIT_REASON_LINE, TasksNudges.OUTPUT_POLL_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.STOPPED_WITH_WORK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.TEST_FAILURE, TasksNudges.TESTING_SUGGESTION, TasksNudges.UNTESTED_TASK_EDITS, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.TASKS_RELEASED, TasksNudges.BROKEN_WAIT, TasksNudges.LOOSE_BLOCKS, TasksNudges.TASK_OPENED, TasksNudges.TASK_ARRIVED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
@@ -82,9 +79,9 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - Only the task in hand takes a log line; change a task not running with `journal task edit`.
 - Finish with `journal task complete <n> --how "<outcome>"`:
   `journal task complete 12 --how "Every footer shows the shop name; test_footer passes"`.
-- One task is in hand at a time: starting another pauses the one in hand, and the output says so.
-- `journal task pause <n> "<why>"` sets a started task aside for something else first; `journal task resume <n>` picks
-  it up. Pause for choice, never for being stuck.
+- One task is in hand at a time: starting another blocks the one in hand until the new one closes, and the output
+  says so; it opens again then and auto mode takes it up.
+- A task is never paused: a task that waits is blocked, and `journal task start <n>` on a blocked task takes it up again.
 - A wait is a block the journal can see, never words in a log line.
 - Block a task that waits on another with `journal task block <n> --on task:<m>`, or on an answer with
   `--on question:12`: it opens by itself once that row is answered or closed.
@@ -92,7 +89,10 @@ needs no task; file one for work that is an item of its own, that waits, or that
   request is merged; it opens once the command passes. Single quotes keep a `$(...)` in it to run each time.
 - Block one that waits on a decision with no row to watch with `journal task block <n> "<what it waits on>"`, and open
   it with `journal task unblock <n>` when that has arrived.
-- A blocked task is neither offered nor nudged, only listed with its reason.
+- A blocked task is never offered; one with nothing to end it is named every five completed tasks or thirty minutes,
+  whichever comes first, idle or not (settings tasks.loose_block_tasks and tasks.loose_block_minutes): unblock it if
+  it can go on, else make it wait on a task or a check.
+- A task whose test run failed is blocked with what failed.
 - Unblocking a task or a plan, by hand or by its wait, releases its waits and retires the check its block made.
 - Wait for something outside your control with `journal await "<what you wait for>" --output <n>` for a command in the
   background, or `--until "<script>"`, run every 30 seconds, for anything else; then end your turn.
@@ -106,11 +106,8 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) works the list: at a stop, or when your task closes with none in
   hand, the journal starts the next for you, and only the user stops you.
-- Auto mode's next is your own paused task whose wait ended first, then the next task of your plan or of an approved
-  plan, then the first open task by priority.
-- A task you paused by choice is never resumed for you: while it waits beside an open task, the stop asks which to take
-  up, `journal task resume <n>` for the paused one or `journal task skip-paused` for the open one until your next close.
-- An open task more urgent than every paused one is started at once; with no open task the first paused one is.
+- Auto mode's next is the next task of your plan or of an approved plan, then the first open task by priority; a
+  blocked task is among them as soon as its block ends.
 - With auto mode off the journal starts no task for you.
 - File work you put off in words as a task: work put off in words is lost.
 - Stopping with a task in hand is informed to continue.
