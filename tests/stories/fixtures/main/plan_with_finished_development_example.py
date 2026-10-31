@@ -4,6 +4,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.engine.clock import Clock
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.features.estimates.estimates_options import EstimatesOptions
 from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
@@ -21,6 +22,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "evidence": "production_deployment",
             "target": "production",
         })
+        story.user_sets(EstimatesOptions.MODE, "report").expect_viewer_passed()
         sprint = story.user_presses("/journal/sprints", {
             "starts_on": story.local_moment(0).split(" ")[0], "timezone": "Europe/Amsterdam",
         })
