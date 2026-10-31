@@ -34,6 +34,7 @@ HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
 DENIED = ("Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)")
 WORKER_COMMANDS = ("Bash(rig context *)", "Bash(nohup *)")
+JOURNAL_HEALTH_READ = "Bash(curl -s http://127.0.0.1:*/journal/health)"
 CODEX_ROUTE_RULES = '''prefix_rule(
     pattern = ["rig", "send"],
     decision = "forbidden",
@@ -271,7 +272,7 @@ class RigSpecs:
             f"Bash({command} {noun} *)" for command in scoped_commands for noun in ("proof", "clock-out")
         )
         allow.extend((
-            *WORKER_COMMANDS, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
+            *WORKER_COMMANDS, JOURNAL_HEALTH_READ, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
             *scoped_journal_commands,
             *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
             *(tool for tool in seat.tools if tool != "Read"),

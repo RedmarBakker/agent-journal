@@ -274,12 +274,31 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     read_commands = {"Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)"}
     journal_commands = tuple(dict.fromkeys(("journal", str(writer.command()), os.path.relpath(writer.command(), app.config.root))))
     scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
+    shell_guidance = (
+        "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, "
+        "or another shell command. If needed, read /journal/health in a separate command."
+    )
+    health_read = "Bash(curl -s http://127.0.0.1:*/journal/health)"
 
     for member_id in ("plan-agent", "domain-agent", "planner"):
         permissions = members[member_id]["claude_permissions"]
         assert read_commands.issubset(permissions["allow"]), f"{member_id} can inspect its workspace without approval"
         assert scoped_journal_commands.issubset(permissions["allow"]), f"{member_id} can run its scoped journal without approval"
+        assert health_read in permissions["allow"], f"{member_id} can read the local journal health endpoint without approval"
+        assert "Bash(curl *)" not in permissions["allow"], f"{member_id} can curl only the local journal health endpoint"
         assert set(DENIED).issubset(permissions["deny"]), f"{member_id} still denies git and direct hub changes"
+        agent = path.parent / "agents" / members[member_id]["agent_ref"].removeprefix("local:agents/")
+        guidance = (agent / "guidance" / "role.md").read_text()
+        spec = json.loads((agent / "agent.yaml").read_text())
+        routing_skills = [
+            agent / resource["path"] / "SKILL.md"
+            for resource in spec["resources"]["skills"]
+            if "organization-seat-routing" in resource["id"]
+        ]
+        assert shell_guidance in guidance, f"{member_id} guidance does not keep journal commands separate"
+        assert routing_skills and all(shell_guidance in skill.read_text() for skill in routing_skills), (
+            f"{member_id} routing skill does not keep journal commands separate"
+        )
 
 
 def test_a_worker_role_can_run_rig_and_detached_commands_without_git_or_hub_sends(app, tmp_path, monkeypatch):

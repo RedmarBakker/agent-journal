@@ -7,6 +7,8 @@ class OrganizationSeatRouting:
     guidance = (
         "Read work sent to your seat with `journal organization inbox`. "
         "Route every handoff with `journal organization handoff <task> <target>`. "
+        "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, or another shell command. "
+        "If needed, read the local /journal/health endpoint with a separate curl command. "
         "This is the only route between seats; do not use `rig send` or `rig queue`."
     )
     handoff_prompt = "Read your new handoff with `journal organization inbox`."
