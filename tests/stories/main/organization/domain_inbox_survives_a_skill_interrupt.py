@@ -6,10 +6,10 @@ from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_domain_seat_started_with_plans_skill import OrganizationDomainSeatStartedWithPlansSkill
+from tests.stories.fixtures.main.organization_domain_seat_started import OrganizationDomainSeatStarted
 
 
-@story(OrganizationDomainSeatStartedWithPlansSkill, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainSeatStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_domain_keeps_its_inbox_handoff_after_a_plans_skill_interrupts_it(story):
     plan, task = story.plans.first, story.tasks.first
     domain = story.organization_seat_agent("domain:alpha")

@@ -85,7 +85,13 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         return self.session_posted_hook(self.hook_session_of(agent), self.headers_of(agent), type_name, {**self.hook_fields_of(agent), **body})
 
     def session_posted_hook(self, session: str, headers: dict, type_name: str, body: dict) -> tuple[int, object]:
-        return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main", **headers})
+        environment = self.session_environments.get(session, "main")
+        return posted(
+            self.app,
+            f"/hooks/{self.provider}",
+            {"hook_event_name": type_name, "session_id": session, **body},
+            {"X-Journal-Env": environment, **headers},
+        )
 
     def is_stack_checked_last(self) -> bool:
         return self.stack_checked_at == len(self.path)
