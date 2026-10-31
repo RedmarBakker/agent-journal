@@ -58,7 +58,7 @@ def test_a_new_team_server_is_claimed_only_with_its_setup_code(story):
     address = story.team_addresses["team"]
     result = story.agent_runs(story.agents.subject, f"team connect {address} --email {EMAIL} --name Ada --password '{PASSWORD}'")
     result.expect_command_refused()
-    result.expect_command_text("claim it at")
+    result.expect_command_text("claim it with the setup URL in its log")
     result.expect_command_text("/setup?code=<code>")
     result = story.agent_runs(story.agents.subject, f"team connect '{address}/setup?code=guessed' --email {EMAIL} --name Ada --password '{PASSWORD}'")
     result.expect_command_refused()

@@ -2074,7 +2074,10 @@ def test_the_nudge_words_the_rule_judges_tests_by_are_the_registrys_own(app: App
     """The list nudge-words-in-test reads from .commandments/custom/lists.json is written from the registry: a nudge added or reworded is written in with PYTHONPATH=src python3 -m scripts.nudge_words."""
     from journal.engine.nudge_registry import NudgeRegistry
     from scripts.nudge_words import LISTS, words
-    assert json.loads(LISTS.read_text())["nudge_words"] == words(app.container.get(NudgeRegistry).all()), "the list holds the fixed words of every registered nudge, and no others"
+    listed = json.loads(LISTS.read_text())["nudge_words"]
+    registered = words(app.container.get(NudgeRegistry).all())
+    difference = next(((index, old, new) for index, (old, new) in enumerate(zip(listed, registered)) if old != new), None)
+    assert listed == registered, f"missing {sorted(set(registered) - set(listed))}; stale {sorted(set(listed) - set(registered))}; first order difference {difference}"
 
 HELPER_CONDUCTS = {
     "worker": ["DemandConduct", "RoleConduct", "SafetyConduct", "TaskEditConduct", "WorkerMemoryConduct"],

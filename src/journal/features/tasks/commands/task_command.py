@@ -190,8 +190,7 @@ class TaskCommand(Command):
         return 0
 
     def handover(self, task: Task, caller: Caller) -> tuple[Task, str]:
-        previous = self.taking.blocked_current(task, caller)
-        started = self.taking.start(self.tasks.find(task.id), caller)
+        started, previous = self.taking.start(self.tasks.find(task.id), caller)
         return started, f"task {previous.row_id} blocked until task {started.id} closes" if previous is not None else ""
 
     def transfer(self, args: Namespace, caller: Caller) -> int:

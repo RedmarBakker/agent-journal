@@ -162,7 +162,7 @@ class Task(Scoped, Commentable):
 
     def reopened_for_plan(self, reason: str, time: datetime) -> "Task":
         event = TaskReopened(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, reason=reason)
-        return self.with_(state=TaskState.OPEN, pause_reason="", block_reason="", delegated=False).with_event(event)
+        return self.with_(state=TaskState.OPEN, block_reason="", delegated=False).with_event(event)
 
     def completed(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.COMPLETED, completed_at=time, outcome=outcome), time, "completed")

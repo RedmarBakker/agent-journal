@@ -4,6 +4,7 @@ from journal.engine.clock import Clock
 from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.support.rejection import Rejection
 from journal.models.worker import Worker
 from journal.support.actor import Actor
@@ -22,22 +23,34 @@ class ActiveTask:
         self.time_source, self.waits = time_source, waits
         self.tasks, self.agents, self.clock, self.plans, self.flow = tasks, agents, clock, plans, flow
 
-    def start(self, task: Task, caller: Caller) -> Task:
-        return self.start_as(task, caller, caller.actor)
+    def start(self, task: Task, caller: Caller) -> tuple[Task, Task | None]:
+        with self.tasks.writing():
+            holder = self.prepare_start(task, caller, caller.actor)
+            if task.state == TaskState.BLOCKED:
+                self.waits.released(task, caller.actor)
+            previous = self.blocked_current(task, caller)
+            return self.start_ready(task, holder, caller.actor), previous
 
     def start_as(self, task: Task, caller: Caller, actor: Actor) -> Task:
         with self.tasks.writing():
-            for plan in self.plans.unapproved(task):
-                plan.task_startable(task.id)
-            self.tasks.require_prerequisites(task)
-            self.require_start(task)
-            holder = self.holder(caller)
-            self.tasks.guard_worker_task(task, holder, actor)
-            if task.is_started() and self.tasks.holder(task) == holder:
-                raise Rejection(f"task {task.id} is already in hand: it was started already")
-            for plan in self.plans.unstarted_plans(task):
-                self.plans.resume_plan(plan, task, actor)
-            return self.tasks.holder_started(task.started(self.time_source.moment()), holder, actor)
+            holder = self.prepare_start(task, caller, actor)
+            return self.start_ready(task, holder, actor)
+
+    def prepare_start(self, task: Task, caller: Caller, actor: Actor) -> Ref | None:
+        for plan in self.plans.unapproved(task):
+            plan.task_startable(task.id)
+        self.tasks.require_prerequisites(task)
+        self.require_start(task)
+        holder = self.holder(caller)
+        self.tasks.guard_worker_task(task, holder, actor)
+        if task.is_started() and self.tasks.holder(task) == holder:
+            raise Rejection(f"task {task.id} is already in hand: it was started already")
+        return holder
+
+    def start_ready(self, task: Task, holder: Ref | None, actor: Actor) -> Task:
+        for plan in self.plans.unstarted_plans(task):
+            self.plans.resume_plan(plan, task, actor)
+        return self.tasks.holder_started(task.started(self.time_source.moment()), holder, actor)
 
     def require_start(self, task: Task) -> None:
         self.flow.require_start(task)

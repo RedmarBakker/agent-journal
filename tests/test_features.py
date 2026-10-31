@@ -2413,10 +2413,12 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
     hook(app, "PostToolUse", **command)
     assert app.container.get(Tasks).find(1).state == "started", "the head was not made by this command"
     for line in (["task", "start", "2"], ["task", "start", "1"]):
-        app.console().run(line, AGENT)
+        outcome = app.console().run(line, AGENT)
+        assert outcome.code == 0, outcome.error
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "New\n\nJournal: tasks done 1 and 2 now"], cwd=root, check=True)
     hook(app, "PostToolUse", **command)
-    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "started", "the trailer closes only the started task; the blocked one it names is not closed, and the agent takes it up again in auto mode once its wait on the closed one ends"
+    states = tuple(app.container.get(Tasks).find(number).state for number in (1, 2))
+    assert states == ("completed", "started"), f"the trailer closes only the started task and takes up the blocked one once its wait on the closed one ends, got {states}"
 
 
 def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: App):

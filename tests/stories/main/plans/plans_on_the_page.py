@@ -21,14 +21,14 @@ def test_the_pages_start_of_an_unapproved_plan_is_refused(story):
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_the_pages_start_takes_the_first_task_in_hand_and_its_pause_sets_it_aside_open_with_the_plan(story):
+def test_the_pages_start_takes_the_first_task_in_hand_and_its_pause_blocks_it_with_the_plan(story):
     result = story.user_presses(f"/journal/plans/{story.plans.first}/start", {})
     result.expect_viewer_shows("state", "started")
     story.expect_task(story.tasks.first, state=TaskState.STARTED)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
     story.user_pauses_plan(story.plans.first)
-    story.expect_task(story.tasks.first, state=TaskState.OPEN)
+    story.expect_task(story.tasks.first, state=TaskState.BLOCKED)
     story.expect_stack(story.agents.subject, Ready)
 
 

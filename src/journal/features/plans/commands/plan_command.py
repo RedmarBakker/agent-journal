@@ -449,10 +449,6 @@ class PlanCommand(Command):
             print(self.task_line(task))
         return 0
 
-    def task_line(self, task: Task) -> str:
-        proved = self.proofs.is_checkable(task)
-        return f"{task.id:>4}  {'proved' if proved else task.state:<8} {task.title}" + ("  (finished by its worker, waiting for your check)" if proved else "")
-
     def list(self, args: Namespace, caller: Caller) -> int:
         if plan := self.plan_seat_plan(caller):
             print(f"{plan.id:>4}  {plan.state:<8} {plan.title}")
@@ -462,6 +458,9 @@ class PlanCommand(Command):
         return 0
 
     def task_line(self, task: Task) -> str:
+        proved = self.proofs.is_checkable(task)
         domain = self.domains.planned_domain_name(task)
         target = f" domain:{domain}" if domain else ""
-        return f"{task.id:>4}  {task.state:<8} {task.title}{target}"
+        status = "proved" if proved else task.state
+        proof = "  (finished by its worker, waiting for your check)" if proved else ""
+        return f"{task.id:>4}  {status:<8} {task.title}{proof}{target}"

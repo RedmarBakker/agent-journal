@@ -9,7 +9,7 @@ SHOWN_MESSAGE_COUNT = 50
 class ScrolledDocksUndock(Migration):
     """A row's card left docked but out of sight, older than its chat's first page and neither running nor leaving, is taken down, so the docked list that now holds every docked card shows what was shown before."""
 
-    number: ClassVar[int] = 84
+    number: ClassVar[int] = 87
     statements: ClassVar[tuple[str, ...]] = (
         "UPDATE messages SET data = json_set(data, '$.docked', json('false')) WHERE json_extract(data, '$.docked') = 1"
         " AND coalesce(json_extract(data, '$.active'), 0) = 0 AND json_extract(data, '$.undock_at') IS NULL"
