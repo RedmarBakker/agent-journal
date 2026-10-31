@@ -1,5 +1,6 @@
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -76,4 +77,5 @@ def test_a_domain_can_release_an_ended_worker_and_handoff_its_task_to_the_role(s
     story.expect_worker_role_job(role_worker, task, brief, old_brief)
     story.expect_organization_domain_can_release_workers(f"plan-{plan}", "alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    awaiting = story.app.container.get(StatesCatalogue).restored("awaiting", {})
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan, awaiting)
