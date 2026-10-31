@@ -141,6 +141,7 @@ agent collection members 1
 agent collection list
 agent collection remove 1 tasks:2
 agent collection rename 1 "The checkout"
+agent collection delete 1
 agent check create "The cart adds up" --command "exit 0" --brief "the cart's test passes" --every 0
 agent check list
 agent check run 1

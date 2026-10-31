@@ -120,7 +120,7 @@ class Task(Scoped, Commentable):
     def is_active(self) -> bool:
         return self.is_started() or self.is_testing()
 
-    def set_aside(self, time: datetime) -> "Task":
+    def reopened(self, time: datetime) -> "Task":
         return self.closed(self.with_(state=TaskState.OPEN), time, "set aside")
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":

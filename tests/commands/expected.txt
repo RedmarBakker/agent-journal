@@ -46,7 +46,7 @@ no task to hand out now: the builder is handed its next task at a stop or when i
 
 $ agent: journal task pause 1 'the cart comes first'
 exit 1
-a task is no longer paused: block it with `journal task block 1 "<why>"`, with --on task:<n> or --until "<check>" when something ends the wait
+pause is gone: `journal task block 1 "<why>"`, with --on task:<n> or --until "<check>"
 
 $ agent: journal task test --help
 exit 0
@@ -91,11 +91,11 @@ Task 1: Write the footer undocked
 $ agent: journal task complete 1 --how 'the footer names the shop'
 exit 0
 task 1 done
-task 2 is started next. brief: The total adds the tax once, and rounds to cents
 
 $ agent: journal task start 2
-exit 1
-task 2 is already in hand: it was started already
+exit 0
+task 2 started
+brief: The total adds the tax once, and rounds to cents
 
 $ agent: journal task cancel 2 --why 'the tax rates changed'
 exit 0
@@ -199,7 +199,7 @@ options:
 
 $ user: journal message send 'Please look at the footer'
 exit 0
-message 14 sent
+message 12 sent
 
 $ agent: journal message list
 exit 0
@@ -209,18 +209,16 @@ exit 0
 *   4  system Edited task 2: Fix the cart total
 *   5  system Edited task 2: Fix the cart total rounding
 *   6  system Edited task 2: Fix the cart total
-*   7  system Paused task 1: Write the footer
-*   8  system Resumed task 1: Write the footer
-*   9  system Blocked task 2: Fix the cart total
-*  10  system Unblocked task 2: Fix the cart total
-*  11  system Task 1: Write the footer
-*  12  system Completed task 1: Write the footer
-*  13  system Started task 2: Fix the cart total
-*  14  user  Please look at the footer
+*   7  system Blocked task 2: Fix the cart total
+*   8  system Unblocked task 2: Fix the cart total
+*   9  system Task 1: Write the footer
+*  10  system Completed task 1: Write the footer
+*  11  system Started task 2: Fix the cart total
+*  12  user  Please look at the footer
 
 $ agent: journal message unread
 exit 0
-message 14 from the user: Please look at the footer
+message 12 from the user: Please look at the footer
 
 $ agent: journal message read 1
 exit 0
@@ -235,14 +233,12 @@ exit 0
    4  system Edited task 2: Fix the cart total
    5  system Edited task 2: Fix the cart total rounding
    6  system Edited task 2: Fix the cart total
-   7  system Paused task 1: Write the footer
-   8  system Resumed task 1: Write the footer
-   9  system Blocked task 2: Fix the cart total
-  10  system Unblocked task 2: Fix the cart total
-  11  system Task 1: Write the footer
-  12  system Completed task 1: Write the footer
-  13  system Started task 2: Fix the cart total
-  14  user  Please look at the footer
+   7  system Blocked task 2: Fix the cart total
+   8  system Unblocked task 2: Fix the cart total
+   9  system Task 1: Write the footer
+  10  system Completed task 1: Write the footer
+  11  system Started task 2: Fix the cart total
+  12  user  Please look at the footer
 
 $ agent: journal message react 1 '👍'
 exit 0
@@ -290,11 +286,11 @@ options:
 
 $ agent: journal message send 'The footer is done' --reply-to 1
 exit 0
-message 15 sent
+message 13 sent
 
 $ agent: journal message flowchart 'How a release goes out' --edge 'Suite -> Tag' --edge 'Tag -> Release: when the matrix passes'
 exit 0
-flowchart 16 drawn
+flowchart 14 drawn
 
 $ agent: journal plan create 'The shop'"'"'s checkout' --brief 'A customer can pay'
 exit 0
@@ -765,6 +761,10 @@ $ agent: journal collection rename 1 'The checkout'
 exit 0
 collection 1 is now: The checkout
 
+$ agent: journal collection delete 1
+exit 0
+collection 1 is deleted; its rows stay
+
 $ agent: journal check create 'The cart adds up' --command 'exit 0' --brief 'the cart'"'"'s test passes' --every 0
 exit 0
 check 1: The cart adds up
@@ -1094,12 +1094,10 @@ $ agent: journal search footer
 exit 0
 task 1: Write the footer The footer names the shop the footer names the shop
 task log 1: the footer has its links
-message 15: The footer is done
-message 14: Please look at the footer
-message 12: Completed task 1: Write the footer
-message 11: Task 1: Write the footer
-message 8: Resumed task 1: Write the footer
-message 7: Paused task 1: Write the footer
+message 13: The footer is done
+message 12: Please look at the footer
+message 10: Completed task 1: Write the footer
+message 9: Task 1: Write the footer
 message 2: Started task 1: Write the footer
 message 1: Created task 1: Write the footer
 report 2: Update <date> at <clock> the footer is done
@@ -1188,7 +1186,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 56
+created: message 53
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1377,7 +1375,7 @@ workers.preparation_commands =
 workers.completion_commands = 
 workers.built_paths = 
 workers.build_command = ''
-workers.command_kinds = 'read, search, edit'
+workers.command_kinds = 'read, search, edit, package, network, check, process, test run, build, unknown'
 workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex journal-senior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex reviewer: gpt-5.6-sol, gpt-6.1-sol | codex verifier: gpt-5.6-sol, gpt-6.1-sol
 checks.repeat_minutes = 60
 shell.foreground = 15
@@ -1463,7 +1461,7 @@ $ agent: journal environment overview
 exit 0
 your memories, heaviest first: 1 (weight 8) the suite runs in shards. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`
 task in hand: 4 A card pays the total
-messages read and unanswered: 14
+messages read and unanswered: 12
 
 == journal plan show current ==
 no plan is started
@@ -1910,7 +1908,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-294 nudges
+288 nudges
 
 $ agent: journal worker list
 exit 0

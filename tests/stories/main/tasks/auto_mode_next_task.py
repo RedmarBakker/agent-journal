@@ -70,7 +70,6 @@ def test_a_task_a_worker_holds_is_never_started_by_the_stop(story):
 
 
 @story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(TasksOptions.AUTO, True)
 def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)

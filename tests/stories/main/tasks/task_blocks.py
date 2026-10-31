@@ -116,11 +116,12 @@ def test_a_task_cannot_be_paused_any_more_and_is_pointed_to_block(story):
 def test_a_block_with_no_wait_is_named_every_five_completed_tasks_with_the_way_to_give_it_an_end(story):
     logo = story.agent_creates_task(story.agents.subject, "the logo")
     story.agent_runs(story.agents.subject, f"task block {logo} 'waits on the designer'")
-    for title in ("one", "two", "three", "four", "five"):
+    result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
+    for title in ("one", "two", "three", "four"):
         task = story.agent_creates_task(story.agents.subject, title)
         result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
     result.expect_agent_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS, n=logo)
-    story.expect_stack(story.agents.subject, Ready, Working)
+    story.expect_stack(story.agents.subject, Ready)
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -159,8 +160,9 @@ def test_a_block_with_no_wait_is_not_named_before_its_minutes_or_its_completed_t
 def test_a_block_that_waits_on_a_check_is_never_named_as_a_block_with_no_wait(story):
     logo = story.agent_creates_task(story.agents.subject, "the logo")
     story.agent_runs(story.agents.subject, f"task block {logo} --until false")
-    for title in ("one", "two", "three", "four", "five"):
+    result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
+    for title in ("one", "two", "three", "four"):
         task = story.agent_creates_task(story.agents.subject, title)
         result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
     result.expect_agent_not_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS)
-    story.expect_stack(story.agents.subject, Ready, Working)
+    story.expect_stack(story.agents.subject, Ready)

@@ -285,9 +285,11 @@ class PlanCommand(Command):
         moment = self.time_source.moment()
         current_task = self.tasks.holder_task(self.taking.holder(caller))
         self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
-        self.tasks.save(current_task.blocked(f"plan {plan.id} goes first", moment), caller.actor)
+        self.tasks.save(current_task.reopened(moment), caller.actor)
         self.plans.start(plan, self.taking.holder(caller), caller.actor)
-        self.taking.blocked_current(current_task, caller)
+        plan_task = self.tasks.holder_task(self.taking.holder(caller))
+        if plan_task is not None:
+            self.tasks.save(plan_task.reopened(moment), caller.actor)
         self.taking.start(self.tasks.find(current_task.id), caller)
         print(f"plan {plan.id} started again under task {current_task.id}, which stays in hand; the plan goes on once it is done")
         return 0

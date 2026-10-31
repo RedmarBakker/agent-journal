@@ -107,10 +107,10 @@ class TaskCommand(Command):
         self.link_creation(args.message, task, caller)
         blocked = ""
         if args.start:
-            task, blocked = self.taken(task, caller)
+            task, blocked = self.handover(task, caller)
         unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
         line = f"task {task.row_id} {task.state}" + (f" (from message {args.message})" if args.message else "")
-        print("\n".join(filter(None, [blocked, line, unfiled])))
+        print("\n".join(filter(None, [line, blocked, unfiled])))
         return 0
 
     @staticmethod
@@ -132,11 +132,11 @@ class TaskCommand(Command):
             self.links.save(Link(source=source, target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
     def start(self, args: Namespace, caller: Caller) -> int:
-        task, blocked = self.taken(self.tasks.find(args.n), caller)
+        task, blocked = self.handover(self.tasks.find(args.n), caller)
         print("\n".join([*filter(None, [blocked]), f"task {task.row_id} started", *self.briefing.lines(task)]))
         return 0
 
-    def taken(self, task: Task, caller: Caller) -> tuple[Task, str]:
+    def handover(self, task: Task, caller: Caller) -> tuple[Task, str]:
         previous = self.taking.blocked_current(task, caller)
         started = self.taking.start(self.tasks.find(task.id), caller)
         return started, f"task {previous.row_id} blocked until task {started.id} closes" if previous is not None else ""
@@ -212,7 +212,7 @@ class TaskCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        raise Rejection(f"a task is no longer paused: block it with `journal task block {args.n} \"<why>\"`, with --on task:<n> or --until \"<check>\" when something ends the wait")
+        raise Rejection(f"pause is gone: `journal task block {args.n} \"<why>\"`, with --on task:<n> or --until \"<check>\"")
 
     def test(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)

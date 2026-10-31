@@ -334,7 +334,7 @@ def test_the_paused_tasks_become_blocked_and_the_pause_leaves_the_columns_and_th
     connection.execute("ALTER TABLE tasks ADD COLUMN wait_ended_at REAL DEFAULT 0")
     connection.execute("ALTER TABLE agents ADD COLUMN paused_declined INTEGER DEFAULT 0")
     for title, state, reason in (("the parser", "paused", "waits on the lexer"), ("the lexer", "paused", ""), ("the printer", "open", "")):
-        connection.execute("INSERT INTO tasks (environment_id, title, state, pause_reason, created_at, creator) VALUES (1, ?, ?, ?, '2026-10-31', 'system')", (title, state, reason))
+        connection.execute("INSERT INTO tasks (environment_id, title, state, pause_reason, block_reason, created_at, creator) VALUES (1, ?, ?, ?, '', '2026-10-31', 'system')", (title, state, reason))
     stack = [{"state": "idle", "data": {}}, {"state": "choosing_paused_work", "data": {"refusals": 1}}]
     connection.execute("INSERT INTO agents (session, state, stack, created_at, creator) VALUES ('s1', 'choosing_paused_work', ?, '2026-10-31', 'system')", (json.dumps(stack),))
     PausedTasksBlocked().apply(connection)

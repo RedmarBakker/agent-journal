@@ -646,7 +646,7 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         states = plans.phase_states(plan)
         assert plan.current_phase(states) == 2 and plan.checkpoint_phase(states).number == 1, "phase one done and phase two not begun: the checkpoint"
         assert plans.next_task(plan).id == rows[2].id and plans.remaining_count(plan) == 2 and not plans.is_stalled(plan)
-        tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)).set_aside(datetime.now(timezone.utc)), actor)
+        tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)).reopened(datetime.now(timezone.utc)), actor)
         assert plans.following_task(plan).id == rows[2].id and plans.next_task(plan).id == rows[2].id, "a task set aside is open again and first in its phase"
         tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)), actor)
         assert plans.checkpoint_plans(plan) is None and plans.started_task(plan).id == rows[2].id, "phase two begun"

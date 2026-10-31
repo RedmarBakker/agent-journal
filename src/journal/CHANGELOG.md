@@ -2,6 +2,14 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.15
+
+- A task is no longer paused: blocked is the one state for waiting. A started task can be blocked, with a reason and optionally --on task:N or --until a check, and taking it up again unblocks it. journal task pause is refused and points to journal task block.
+- Every paused task becomes blocked, keeping its reason and its waits, and the pause columns are dropped.
+- Starting a task while another is in hand blocks the one in hand until the new one closes, then takes it up again.
+- A blocked task with nothing to end it is named to the agent every 5 completed tasks or every 30 minutes, whichever comes first, even when idle, asking whether it can be unblocked or else to make it wait on a task or a check. Both numbers are settings.
+- The viewer drops the paused state: its filter, badge and group.
+
 ## 4.69.14
 
 - A plan handed whole to a worker shows its proved tasks on the plan card as To check, as journal plan show does. Before, the card counted only the task the worker held at that moment, so it read 0 tasks done with nothing to check.
