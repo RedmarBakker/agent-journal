@@ -64,7 +64,7 @@ def journal(tmp_path_factory, template_journal: Path) -> SharedJournal:
 
 
 def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead; a worker's program is never started either, though a worker on Claude is given its session at launch, as the real launch gives it one."""
+    """The journal a story runs against: booted as the tests boot it, with scheduled jobs stopped so its clock advances only in story steps, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead; a worker's program is never started either, though a worker on Claude is given its session at launch, as the real launch gives it one."""
     launches: list[dict[str, str]] = []
     launches_ready = threading.Condition()
     original_run = HelperRunner.run
@@ -81,6 +81,7 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     patch.setattr(HelperRunner, "run", capture_launch)
     ReleaseCheckMemory().store(ReleaseCheck(TimeSource().seconds()))
     app = booted(root, patch)
+    app.runtime().jobs.stop()
     patch.setattr(WorkerRunner, "start", worker_session_given)
     app.original_worker_start = original_worker_start
     app.helper_launches = launches

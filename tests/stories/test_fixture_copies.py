@@ -7,6 +7,10 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
+def test_story_journal_stops_scheduled_jobs_so_time_moves_only_in_story_steps(journal):
+    assert journal.app.runtime().jobs._thread is None, "a background tick cannot race a story's clock steps"
+
+
 def test_a_fixture_is_seeded_once_and_its_copy_is_the_state_the_seeder_reached(app, journal, monkeypatch, copies):
     typing_capture(app, monkeypatch, [])
     pinned_clock(app, monkeypatch)
