@@ -166,6 +166,7 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
 def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecycle():
     compose = read_json(PROFILE / "compose.json")
     manifest = read_json(PROFILE / "manifest.json")
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
     writer = compose["services"]["writer"]
     gateway = compose["services"]["gateway"]
     backup = compose["services"]["backup"]

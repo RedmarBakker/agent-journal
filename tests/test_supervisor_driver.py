@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import threading
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -64,8 +65,8 @@ def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments
     assert "CODEX_HOME" not in task
 
 
-def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch, tmp_path):
-    socket_path = tmp_path / "plan-driver.sock"
+def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch):
+    socket_path = Path("/tmp") / f"jpd-{uuid4().hex}.sock"
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     server.listen(1)
@@ -96,6 +97,7 @@ def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatc
 
     listener.join(timeout=2)
     server.close()
+    socket_path.unlink(missing_ok=True)
     assert not listener.is_alive()
     assert pid == 4321
     assert received == [{
