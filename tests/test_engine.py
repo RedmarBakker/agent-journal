@@ -511,7 +511,7 @@ def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to
                 5: WorkerState.REPORTED,
                 6: WorkerState.DISPATCHED,
             }.get(n, WorkerState.UNFINISHED)
-            return Worker(row_id=n, role="builder" if n in (4, 6) else "", state=state)
+            return Worker(id=n, role="builder" if n in (4, 6) else "", state=state)
 
     class Resumes:
         def is_resumable(self, worker):

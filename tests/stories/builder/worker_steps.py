@@ -5,6 +5,7 @@ import shlex
 import time
 
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -45,7 +46,13 @@ class WorkerSteps:
                 worker = self.app.container.get(Workers).find(agent.number)
         assert worker.session, f"Role worker {worker.id} did not receive its OpenRig session"
         self.worker_sessions[agent.number] = worker.session
-        return self.agent_starts_a_session(agent)
+        environment = self.app.container.get(Environments).find(worker.environment_id).name
+        self.session_environments[worker.session] = environment
+        status, answer = self.session_posted_hook(
+            worker.session, {"X-Journal-Env": environment, **self.headers_of(agent)},
+            "SessionStart", {"source": "startup"},
+        )
+        return self.hook_observed("worker starts a session", status, answer, environment)
 
     def agent_proves(self, agent: StoryAgent, point: int, proof: str) -> StepResult:
         return self.agent_runs_cleanly(agent, f"proof {point} '{proof}'")

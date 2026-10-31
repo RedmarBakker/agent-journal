@@ -90,7 +90,7 @@ def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
 
 @story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_refuses_to_expand_a_domain_on_openrig_that_drops_member_environment(story):
-    story.openrig.version = "0.7.5"
+    story.simulated_seats().version = "0.7.5"
     task = story.tasks.first
     result = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
