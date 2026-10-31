@@ -71,6 +71,10 @@ class WorkerSteps:
         self.agent_has_written(agent, report)
         return self.worker_run_ends_printing(agent, json.dumps({"result": report, "session_id": self.session_of(agent)}))
 
+    def worker_run_ends_without_clocking_out(self, agent: StoryAgent) -> StepResult:
+        self.agent_has_written(agent, "the worker started its task")
+        return self.worker_run_ends_printing(agent, "")
+
     def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> StepResult:
         runner = self.app.container.get(WorkerRunner)
         with self.app.container.get(Scope).environment(1):

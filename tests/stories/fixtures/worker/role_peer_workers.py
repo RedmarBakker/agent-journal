@@ -37,7 +37,9 @@ class RolePeerWorkers(WorkingAgent):
         for worker in (story.agents.workers.first(), story.agents.workers.second()):
             story.agent_starts_a_session(worker)
         story.agent_clocks_in(story.agents.workers.first())
-        story.worker_run_ends_with_its_session(story.agents.workers.second(), "waiting for a task")
+        peer = story.agents.workers.second()
+        story.worker_run_ends_with_its_session(peer, "waiting for a task")
+        story.agent_runs(peer, f"worker report {peer} 'waiting for a task'").expect_command_passed()
 
     def dispatch(self, story, name: str, task: int, role: str) -> int:
         result = story.agent_runs(

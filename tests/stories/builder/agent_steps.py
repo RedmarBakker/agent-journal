@@ -15,6 +15,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.support.heartbeat import Heartbeat
 from journal.events.journal_updated import JournalUpdated
 from journal.events.announcer import Announcer
+from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.sequences import Sequences
@@ -84,7 +85,8 @@ class AgentSteps:
 
     def agent_starts_plan_seat(self, agent: StoryAgent, plan: int) -> StepResult:
         environment = self.app.container.get(Environments).existing(f"plan-{plan}")
-        session = f"plan-seat-{plan}-{len(self.path)}"
+        member = self.app.container.get(SeatRuntime).member(f"plan-{plan}", PLAN_POD, PLAN_AGENT, self.provider)
+        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
         self.replace_main_session(session, self.provider, environment.name)
         return self.plan_seat_hook(environment.name, session, "SessionStart", "the Plan seat starts a session", source="startup")
 

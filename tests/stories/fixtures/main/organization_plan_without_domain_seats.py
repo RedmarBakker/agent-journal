@@ -22,6 +22,7 @@ class OrganizationPlanWithoutDomainSeats(OrganizationPlanSeat):
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         story.plays_in(BUILDER_MODE)
         seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
+        story.expect_openrig_seat_environment(story.agents.main, "plan")
         seat.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                                task=self.tasks.first, domain="alpha")
         story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "environment overview").expect_command_passed()
