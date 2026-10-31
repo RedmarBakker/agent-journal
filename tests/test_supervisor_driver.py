@@ -65,7 +65,7 @@ def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments
     assert "CODEX_HOME" not in task
 
 
-def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch):
+def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch, tmp_path):
     socket_path = Path("/tmp") / f"jpd-{uuid4().hex}.sock"
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
