@@ -2,12 +2,10 @@ from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.voices.voices_nudges import VoicesNudges
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.session_opening import SessionOpening
 from tests.stories.fixtures.main.task_queue import TaskQueue
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
@@ -40,15 +38,3 @@ def test_a_session_start_does_not_name_a_missing_task_as_in_hand(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(SessionOpening, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_new_session_asks_for_an_introduction_after_the_start_skills_are_read(story):
-    result = story.agent_reads_a_skill(story.agents.subject, "journal")
-    result.expect_allowed()
-    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    result = story.agent_reads_a_skill(story.agents.subject, "journal-etiquette")
-    result.expect_allowed()
-    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    result = story.agent_reads_a_skill(story.agents.subject, "journal-messages")
-    result.expect_allowed()
-    result.expect_agent_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    story.expect_stack(story.agents.subject, Ready)

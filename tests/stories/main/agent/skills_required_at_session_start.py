@@ -1,6 +1,7 @@
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.skills.skills_options import SkillsOptions
 from journal.features.tasks.states.ready import Ready
+from journal.features.voices.voices_nudges import VoicesNudges
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
@@ -30,9 +31,12 @@ def test_a_start_skill_may_be_read_before_the_others_are(story):
 
 @story(SessionOpening, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_once_every_start_skill_is_read_and_the_overview_run_the_tools_are_free(story):
-    story.agent_reads_a_skill(story.agents.subject, JOURNAL_SKILL)
-    story.agent_reads_a_skill(story.agents.subject, ETIQUETTE_SKILL)
-    story.agent_reads_a_skill(story.agents.subject, MESSAGES_SKILL)
+    result = story.agent_reads_a_skill(story.agents.subject, JOURNAL_SKILL)
+    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
+    result = story.agent_reads_a_skill(story.agents.subject, ETIQUETTE_SKILL)
+    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
+    result = story.agent_reads_a_skill(story.agents.subject, MESSAGES_SKILL)
+    result.expect_agent_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_allowed()
