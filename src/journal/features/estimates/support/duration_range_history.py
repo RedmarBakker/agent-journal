@@ -1,6 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
+
+from journal.features.estimates.support.learned_duration_ranges import LearnedDurationRanges, RECENCY_HALF_LIFE_DAYS
 
 
 class DurationRangeHistory:
@@ -9,6 +11,55 @@ class DurationRangeHistory:
     def observations(self, histories: list[dict], as_of: float) -> list[dict]:
         return [row for history in histories for task in history.get("tasks", ())
                 for row in self.task_observations(history, task, as_of)]
+
+    def examples(self, histories: list[dict], cohort: dict, exclude_task_id: int, as_of: float) -> list[dict]:
+        output = []
+        for history in histories:
+            for task in history.get("tasks", ()):
+                example = self.example(history, task, cohort, exclude_task_id, as_of)
+                if example:
+                    output.append(example)
+        return sorted(output, key=lambda row: (row["plan_id"], row["task_id"]))
+
+    def example(self, history: dict, task: dict, cohort: dict, exclude_task_id: int, as_of: float) -> dict | None:
+        task_id = task.get("task_id")
+        estimate = task.get("estimate_history", {})
+        original_size = estimate.get("planning_baseline_size")
+        if task_id == exclude_task_id or not self.delivered(task) or not LearnedDurationRanges.positive(original_size):
+            return None
+        outcomes = self.task_observations(history, task, as_of)
+        matching = [row for row in outcomes if LearnedDurationRanges.cohort(row["cohort"]) ==
+                    LearnedDurationRanges.cohort(cohort) and not row["right_censored"] and not row["cohort_changed"]]
+        stages = {row["stage"]: row for row in matching}
+        execution = stages.get("execution_cycle")
+        delivery = stages.get("delivery_delay")
+        if execution is None or delivery is None:
+            return None
+        return {"task_id": task_id, "plan_id": history["scope"]["plan_id"], "title": task.get("title", ""),
+                "original_size_points": original_size, "execution_size_points": execution["size_points"],
+                "execution_seconds": execution["duration_seconds"], "delivery_seconds": delivery["duration_seconds"]}
+
+    @staticmethod
+    def delivered(task: dict) -> bool:
+        delivery = task.get("delivery", {})
+        evidence_id = delivery.get("evidence_id")
+        return (delivery.get("status") == "delivered" and evidence_id is not None
+                and any(row.get("kind") in ("delivery_accepted", "delivery_corrected")
+                        and row.get("details", {}).get("delivery_id") == evidence_id
+                        for row in task.get("outcomes", ())))
+
+    @staticmethod
+    def freshness(observations: list[dict], as_of: float) -> dict:
+        completed = [row for row in observations if row.get("right_censored") is False
+                     and row.get("cohort_changed") is not True]
+        observed_through = max((row["observed_at"] for row in completed
+                                if isinstance(row.get("observed_at"), (int, float))
+                                and not isinstance(row.get("observed_at"), bool)), default=None)
+        age = max(0, int((as_of - observed_through) // 86400)) if observed_through is not None else None
+        through = datetime.fromtimestamp(observed_through, timezone.utc).date().isoformat() if observed_through else None
+        return {"completed_observations": len(completed), "observed_through": through, "age_days": age,
+                "freshness": "unknown" if age is None else "stale" if age > RECENCY_HALF_LIFE_DAYS else "fresh",
+                "recency_half_life_days": RECENCY_HALF_LIFE_DAYS}
 
     @staticmethod
     def input_cut(observations: list[dict], as_of: float) -> str:

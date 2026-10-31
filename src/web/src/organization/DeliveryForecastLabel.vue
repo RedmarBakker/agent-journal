@@ -11,12 +11,22 @@ const notDeployed = computed(() => props.plan.state === "done" && props.forecast
 const missed = computed(() => props.sprint?.state === "closed" && props.forecast?.delivery_complete === false && props.plan.state !== "done");
 const delivered = computed(() => props.forecast?.delivery_complete === true);
 const latestDelivery = computed(() => props.forecast?.latest_delivery_at ? formatForecastDay(props.forecast.latest_delivery_at) : "");
+const capacityLine = computed(() => {
+    const forecast = props.forecast;
+    if (forecast?.capacity_freshness === "unknown" || !forecast?.capacity_observed_through) return "Capacity not observed";
+    const age = forecast.capacity_age_days == null ? "" : ` · ${forecast.capacity_age_days} ${forecast.capacity_age_days === 1 ? "day" : "days"} old`;
+    const freshness = forecast.capacity_freshness === "stale" ? "stale" : "fresh";
+    return `Capacity through ${formatForecastDay(forecast.capacity_observed_through)}${age} · ${freshness}`;
+});
 const sampleLine = computed(() => {
     if (!props.forecast) return "";
     const deliveries = Number(props.forecast.delivered_outcomes || 0);
-    const through = props.forecast.capacity_observed_through;
-    const capacity = props.forecast.capacity_freshness === "stale" ? "Capacity is stale" : props.forecast.capacity_freshness === "fresh" ? `Capacity through ${formatForecastDay(through)}` : "Capacity not observed";
-    return `${deliveries} comparable ${deliveries === 1 ? "delivery" : "deliveries"} · ${props.forecast.method_version || "No method"} · ${capacity}`;
+    const calibration = props.forecast.duration_calibration;
+    const p50 = calibration?.coverage?.p50?.percent;
+    const heldOut = calibration?.status === "measured"
+        ? `${calibration.observed_count} held-out actuals · P50 coverage ${p50 == null ? "not measured" : `${p50}%`}`
+        : `Held-out calibration not enough history (${calibration?.observed_count || 0} actuals)`;
+    return `${deliveries} comparable ${deliveries === 1 ? "delivery" : "deliveries"} · ${props.forecast.method_version || "No method"} selected · ${heldOut} · ${capacityLine.value}`;
 });
 const waitingLine = computed(() => {
     if (!awaiting.value) return "";

@@ -1,5 +1,6 @@
 from datetime import datetime
 import math
+from statistics import median
 
 from journal.features.estimates.support.learned_duration_ranges import (
     MINIMUM_REFERENCE_OUTCOMES,
@@ -29,8 +30,19 @@ class DurationRangeCalibration:
         return {"status": "measured" if observed else "not_enough_history", "method_version": "rolling-duration-calibration-v1",
                 "label": "Observed held-out coverage; nominal P85 is a target, not a guarantee.",
                 "prediction_count": len(eligible), "observed_count": len(observed), "censored_predictions": censored,
-                "coverage": coverage,
+                "minimum_calibration_samples": self.minimum_calibration_samples, "coverage": coverage,
+                "sizing_bias": {stage: self.sizing_bias(observed, stage)
+                                for stage in ("execution_cycle", "delivery_delay")},
                 "drift": drift, "predictions": predictions}
+
+    def sizing_bias(self, rows: list[dict], stage: str) -> dict:
+        ratios = [math.log(row["actual_seconds"] / row["p50_seconds"]) for row in rows
+                  if row.get("stage") == stage and self.positive(row.get("actual_seconds"))
+                  and self.positive(row.get("p50_seconds"))]
+        enough = len(ratios) >= self.minimum_calibration_samples
+        ratio = math.exp(median(ratios)) if enough else None
+        return {"status": "measured" if enough else "not_enough_history", "observed": len(ratios),
+                "actual_to_predicted_p50_ratio": ratio}
 
     @classmethod
     def predictions(cls, forecasts: list[dict]) -> list[dict]:

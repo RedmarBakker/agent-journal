@@ -44,6 +44,21 @@ def test_censored_outcomes_are_reported_but_do_not_count_as_coverage():
     assert result["drift"]["status"] == "not_enough_history"
 
 
+def test_aggregate_sizing_bias_waits_for_the_minimum_held_out_actuals():
+    forecasts = [forecast(index, index * 100, f"cut-{index}", 100, 200) for index in range(1, 6)]
+    outcomes = [observation(index, index * 100 + 50, 200) for index in range(1, 6)]
+
+    measured = DurationRangeCalibration().replay(forecasts, outcomes, 1000)
+    sparse = DurationRangeCalibration().replay(forecasts[:4], outcomes[:4], 1000)
+
+    assert measured["sizing_bias"]["execution_cycle"] == {
+        "status": "measured", "observed": 5, "actual_to_predicted_p50_ratio": 2.0,
+    }
+    assert sparse["sizing_bias"]["execution_cycle"] == {
+        "status": "not_enough_history", "observed": 4, "actual_to_predicted_p50_ratio": None,
+    }
+
+
 def test_observed_coverage_and_recent_residual_drift_are_reported():
     forecasts = [forecast(index, index * 100, f"cut-{index}", 100, 120) for index in range(1, 7)]
     outcomes = [observation(index, index * 100 + 50, 100 if index < 4 else 400) for index in range(1, 7)]

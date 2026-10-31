@@ -40,6 +40,47 @@ def test_immutable_lifecycle_facts_make_separate_elapsed_execution_and_delivery_
     assert len(observations) == 5
 
 
+def test_composition_examples_keep_original_sizes_and_exclude_unaccepted_or_out_of_scope_work():
+    matching = task(1, [
+        fact("task_started", "2026-10-01T00:00:00Z"),
+        fact("task_completed", "2026-10-01T01:00:00Z"),
+        fact("delivery_accepted", "2026-10-01T03:00:00Z", {"delivery_id": 11}),
+    ], evidence_id=11)
+    matching["title"] = "production release"
+    matching["estimate_history"]["planning_baseline_size"] = 5
+    wrong_environment = {**matching, "task_id": 2, "delivery": {"status": "delivered", "evidence_id": 12},
+                        "outcomes": [{**row, "task_id": 2,
+                                      "cohort_dimensions": {**COHORT, "environment_id": 8},
+                                      "details": {"delivery_id": 12} if row["kind"] == "delivery_accepted" else row["details"]}
+                                     for row in matching["outcomes"]]}
+    wrong_environment["estimate_history"]["planning_baseline_size"] = 8
+    current_task = {**matching, "task_id": 3, "title": "current composition",
+                    "outcomes": [{**row, "task_id": 3} for row in matching["outcomes"]]}
+    unfinished = {**matching, "task_id": 4, "delivery": {"status": "awaiting deployment", "evidence_id": None},
+                  "outcomes": [{**row, "task_id": 4} for row in matching["outcomes"]]}
+
+    result = DurationRangeHistory().examples(
+        [{"scope": {"environment_id": 7, "plan_id": 1}, "tasks": [
+            matching, current_task, unfinished, wrong_environment,
+        ]}],
+        COHORT, exclude_task_id=3, as_of=AS_OF,
+    )
+
+    assert result == [{"task_id": 1, "plan_id": 1, "title": "production release", "original_size_points": 5,
+                      "execution_size_points": 3, "execution_seconds": 3600, "delivery_seconds": 7200}]
+
+
+def test_duration_history_freshness_uses_the_latest_uncensored_outcome_and_model_half_life():
+    result = DurationRangeHistory.freshness([
+        {"observed_at": AS_OF - 181 * 86400, "right_censored": False, "cohort_changed": False},
+        {"observed_at": AS_OF, "right_censored": True, "cohort_changed": False},
+        {"observed_at": AS_OF - 200 * 86400, "right_censored": False, "cohort_changed": True},
+    ], AS_OF)
+
+    assert result == {"completed_observations": 1, "observed_through": "2026-05-03", "age_days": 181,
+                      "freshness": "stale", "recency_half_life_days": 180}
+
+
 def task(task_id, outcomes, evidence_id=None):
     return {
         "task_id": task_id,

@@ -70,6 +70,23 @@ test("the plan label shows a likely finish and uses the delivery chance", async 
     expect(host.querySelector("[data-chance-tone]").dataset.chanceTone).toBe("good");
 });
 
+test("organization plan labels summarize the selected estimator and held-out calibration", async () => {
+    const forecast = {
+        ...mature,
+        duration_calibration: {status: "measured", observed_count: 10,
+            coverage: {p50: {covered: 5, observed: 10, percent: 50}}},
+    };
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastLabel, {forecast, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("15 comparable deliveries");
+    expect(host.textContent).toContain("delivery-baseline-v1 selected");
+    expect(host.textContent).toContain("10 held-out actuals · P50 coverage 50%");
+    expect(host.textContent).toContain("Capacity through 29 Oct · 1 day old · fresh");
+});
+
 test("delivery chance colors use the approved 70 and 40 percent thresholds", () => {
     expect(forecastTone(100)).toBe("good");
     expect(forecastTone(70)).toBe("good");
@@ -135,6 +152,72 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.textContent).toContain("1 task awaiting deployment for 3 days");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");
     expect(host.querySelector("button")).toBeNull();
+});
+
+test("the dashboard returns held-out calibration while keeping the empirical baseline selected", async () => {
+    const forecast = {
+        ...mature,
+        duration_ranges: {
+            status: "forecast",
+            method_version: "bayesian-log-linear-duration-v1",
+            history: {completed_observations: 24, observed_through: "2026-10-29", age_days: 1, freshness: "fresh", recency_half_life_days: 180},
+            tasks: [{task_id: 101, comparable_examples: [{task_id: 99, plan_id: 8, title: "prior release",
+                original_size_points: 5, execution_size_points: 3, execution_seconds: 3600, delivery_seconds: 7200}]}],
+        },
+        duration_calibration: {
+            status: "measured",
+            prediction_count: 14,
+            observed_count: 10,
+            coverage: {p50: {covered: 5, observed: 10, percent: 50}, raw_p85: {covered: 8, observed: 10, percent: 80},
+                empirical_p50: {covered: 4, observed: 10, percent: 40}, empirical_p85: {covered: 6, observed: 10, percent: 60}},
+            sizing_bias: {
+                execution_cycle: {status: "measured", observed: 5, actual_to_predicted_p50_ratio: 1.5},
+                delivery_delay: {status: "not_enough_history", observed: 2, actual_to_predicted_p50_ratio: null},
+            },
+        },
+        network_forecast: {comparison: {selection: "none"}},
+    };
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastPanel, {forecast, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
+    expect(host.textContent).toContain("Learned duration model: bayesian-log-linear-duration-v1");
+    expect(host.textContent).toContain("24 completed observations · last observed 29 Oct · 1 day old · fresh");
+    expect(host.textContent).toContain("Held-out calibration: 10 actuals from 14 saved predictions");
+    expect(host.textContent).toContain("P50 coverage 50% · P85 coverage 80%");
+    expect(host.textContent).toContain("Past-only size reference P50 coverage 40% · P85 coverage 60%");
+    expect(host.textContent).toContain("advisory only, not used for delivery probability");
+    expect(host.textContent).toContain("Execution sizing bias: actual durations were 1.5× predicted P50 over 5 held-out actuals");
+    expect(host.textContent).toContain("Delivery sizing bias: not enough history (2 held-out actuals)");
+    expect(host.textContent).toContain("The shared network remains an unselected comparison");
+    expect(host.textContent).toContain("Comparable delivered examples");
+    expect(host.textContent).toContain("Task #99 · original size 5 story points · execution size 3 story points · actual execution 1.0 hours · delivery delay 2.0 hours");
+    expect(host.querySelectorAll(".forecast-bands div")).toHaveLength(3);
+    expect(host.textContent).not.toContain("points per hour");
+});
+
+test("cold history shows no sizing bias and does not promote learned duration ranges", async () => {
+    const forecast = {
+        ...mature,
+        duration_ranges: {status: "not_enough_history", method_version: "bayesian-log-linear-duration-v1",
+            history: {completed_observations: 0, observed_through: null, age_days: null, freshness: "unknown", recency_half_life_days: 180}},
+        duration_calibration: {status: "not_enough_history", prediction_count: 0, observed_count: 0,
+            coverage: {p50: {covered: 0, observed: 0, percent: null}, raw_p85: {covered: 0, observed: 0, percent: null}},
+            sizing_bias: {execution_cycle: {status: "not_enough_history", observed: 0, actual_to_predicted_p50_ratio: null}}},
+    };
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastPanel, {forecast, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
+    expect(host.textContent).toContain("Learned duration model: not enough history");
+    expect(host.textContent).toContain("No aggregate sizing-bias score");
+    expect(host.textContent).not.toContain("actual durations were");
+    expect(host.textContent).toContain("71%");
+    expect(host.textContent).not.toContain("points per hour");
 });
 
 test("the plan page shows the critical path, task slack and independent work from the forecast", async () => {

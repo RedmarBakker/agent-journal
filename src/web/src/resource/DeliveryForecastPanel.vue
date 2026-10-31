@@ -39,6 +39,35 @@ const criteria = computed(() => props.forecast?.domain_criteria || []);
 const missing = computed(() => props.forecast?.missing_evidence || []);
 const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
 const criticalPath = computed(() => props.forecast?.critical_path || null);
+const durationRanges = computed(() => props.forecast?.duration_ranges || null);
+const durationCalibration = computed(() => props.forecast?.duration_calibration || null);
+const comparableExamples = computed(() => (durationRanges.value?.tasks || []).flatMap((task) => task.comparable_examples || []));
+const sizingBias = computed(() => durationCalibration.value?.sizing_bias || {});
+const hasSizingBias = computed(() => Object.values(sizingBias.value).some((row) => row.status === "measured"));
+const biasStages = computed(() => [
+    {key: "execution_cycle", label: "Execution"},
+    {key: "delivery_delay", label: "Delivery"},
+].filter(({key}) => sizingBias.value[key]));
+const durationHistoryLine = computed(() => {
+    const history = durationRanges.value?.history;
+    if (!history) return "History age not available";
+    if (history.freshness === "unknown") return "No completed duration observations";
+    const age = `${history.age_days} ${history.age_days === 1 ? "day" : "days"} old`;
+    const through = history.observed_through ? ` · last observed ${formatForecastDay(history.observed_through)}` : "";
+    return `${history.completed_observations} completed observations${through} · ${age} · ${history.freshness}`;
+});
+const calibrationSummary = computed(() => {
+    const calibration = durationCalibration.value;
+    if (!calibration || calibration.status !== "measured") {
+        return `Held-out calibration not enough history: ${calibration?.observed_count || 0} actuals from ${calibration?.prediction_count || 0} saved predictions.`;
+    }
+    const reference = calibration.coverage?.empirical_p50?.percent == null
+        ? ""
+        : ` · Past-only size reference P50 coverage ${calibration.coverage.empirical_p50.percent}% · P85 coverage ${calibration.coverage?.empirical_p85?.percent ?? "not measured"}%`;
+    return `Held-out calibration: ${calibration.observed_count} actuals from ${calibration.prediction_count} saved predictions · P50 coverage ${calibration.coverage?.p50?.percent ?? "not measured"}% · P85 coverage ${calibration.coverage?.raw_p85?.percent ?? "not measured"}%${reference}.`;
+});
+const formatDuration = (seconds) => seconds >= 86400 ? `${(seconds / 86400).toFixed(1)} days`
+    : seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} hours` : `${Math.round(seconds / 60)} minutes`;
 const criticalPathLine = computed(() => {
     const path = criticalPath.value?.critical_path_task_ids || [];
     if (!path.length) return "";
@@ -79,7 +108,21 @@ const independentTasks = computed(() => (criticalPath.value?.independent_groups 
                 <div><dt>History</dt><dd>{{ historyLine }}</dd></div>
                 <div><dt>Capacity</dt><dd>{{ capacityLine }}</dd></div>
                 <div><dt>Method and update</dt><dd>{{ forecast?.method_version || "Not estimated" }}<span v-if="forecast?.as_of"> · {{ formatForecastDay(forecast.as_of) }}</span></dd></div>
+                <div><dt>Selected estimator</dt><dd>Empirical baseline selected: {{ forecast?.method_version || "not estimated" }}<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'">. The shared network remains an unselected comparison.</span></dd></div>
+                <div v-if="durationRanges"><dt>Learned duration model:</dt><dd>{{ durationRanges.status === "forecast" ? durationRanges.method_version : "Not enough history" }} · advisory only, not used for delivery probability · {{ durationHistoryLine }}</dd></div>
+                <div v-if="durationCalibration"><dt>Forecast versus actual</dt><dd>{{ calibrationSummary }} <span v-if="durationCalibration.label">{{ durationCalibration.label }}</span></dd></div>
+                <div v-if="!hasSizingBias && durationCalibration"><dt>Sizing bias</dt><dd>No aggregate sizing-bias score. At least {{ durationCalibration.minimum_calibration_samples }} held-out actuals per stage are required.</dd></div>
+                <div v-for="stage in biasStages" :key="stage.key"><dt>{{ stage.label }} sizing bias:</dt><dd><template v-if="sizingBias[stage.key].status === 'measured'">Actual durations were {{ Number(sizingBias[stage.key].actual_to_predicted_p50_ratio).toFixed(1) }}× predicted P50 over {{ sizingBias[stage.key].observed }} held-out actuals.</template><template v-else>Not enough history ({{ sizingBias[stage.key].observed }} held-out actuals).</template></dd></div>
             </dl>
+            <section v-if="comparableExamples.length" class="duration-examples" aria-label="Comparable delivered examples">
+                <h4>Comparable delivered examples</h4>
+                <ul>
+                    <li v-for="example in comparableExamples" :key="example.task_id">
+                        Task #{{ example.task_id }} · original size {{ example.original_size_points }} story points · execution size {{ example.execution_size_points }} story points · actual execution {{ formatDuration(example.execution_seconds) }} · delivery delay {{ formatDuration(example.delivery_seconds) }}
+                    </li>
+                </ul>
+            </section>
+            <p v-else-if="durationRanges" class="forecast-unknown">No comparable delivered examples for this cohort.</p>
             <section v-if="criticalPath && criticalPath.status !== 'empty'" class="critical-path-read" aria-label="Critical path">
                 <h4>Critical path</h4>
                 <p v-if="criticalPath.status === 'structural'">The dependency graph is structural. Start, finish and slack are unknown.</p>
@@ -192,6 +235,17 @@ const independentTasks = computed(() => (criticalPath.value?.independent_groups 
 .forecast-facts dd {
     margin: 0;
     color: var(--text-2);
+}
+
+.duration-examples h4,
+.duration-examples ul {
+    margin: 0;
+}
+
+.duration-examples ul {
+    padding-left: 20px;
+    color: var(--text-2);
+    font-size: 12px;
 }
 
 .critical-path-read {

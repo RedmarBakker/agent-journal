@@ -17,7 +17,9 @@ from journal.repositories.sprint_outcome_metrics import SprintOutcomeMetrics
 from journal.repositories.sprints import SPRINT_PLAN, Sprints
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.task_dependencies import TaskDependencies
+from journal.repositories.task_outcomes import OUTCOME_COHORT_VERSION
 from journal.support.actor import Actor
+from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
 
@@ -67,6 +69,24 @@ class DeliveryForecasts:
 
     def estimate_from_history(self, plan: Plan, history: dict, actor: Actor) -> dict:
         return self.plan_forecast(plan, history, actor)[1]
+
+    def composition_evidence(self, plan_id: int, task_id: int, actor: Actor) -> dict:
+        history = self.history.read(plan_id, actor)
+        task = next((row for row in history["tasks"] if row["task_id"] == task_id and row["current_in_plan"]), None)
+        if task is None:
+            raise Rejection(f"task {task_id} is not current composition in plan {plan_id}")
+        plan = self.history.plans.find(plan_id)
+        histories = self.plan_histories(actor, plan_id)
+        as_of = self.time_source.seconds()
+        candidate = self.history_task(plan_id, task)
+        observations = self.duration_history.observations(histories, as_of)
+        duration = self.duration_ranges.estimate_task(observations, candidate, as_of)
+        examples = self.duration_history.examples(histories, candidate["cohort"], task_id, as_of)
+        scopes = [plan, *(self.sprints.find(row["id"]) for row in history["sprints"])]
+        snapshots = {snapshot.id: snapshot for scope in scopes for snapshot in self.snapshots.for_scope(scope)}
+        calibration = self.duration_calibration.replay(list(snapshots.values()), observations, as_of)
+        return {"task_id": task_id, "cohort": candidate["cohort"], "duration": duration,
+                "examples": examples, "calibration": calibration}
 
     def plan_forecast(self, plan: Plan, history: dict, actor: Actor) -> tuple[dict, dict]:
         sprint = self.plan_sprint(plan)
@@ -194,7 +214,7 @@ class DeliveryForecasts:
                   "criteria_version": criteria_version,
                   "environment_id": history.get("scope", {}).get("environment_id"),
                   "cohort_version": next((row.get("cohort_version") for row in reversed(history.get("outcomes", ()))
-                                           if row.get("cohort_version")), None),
+                                           if row.get("cohort_version")), OUTCOME_COHORT_VERSION),
                   **cls.model_tier(history.get("outcomes", ()))}
         return {"plan_id": plan_id, "task_id": history.get("task_id"), "size_points": size_points,
                 "cohort": cohort, "delivery_status": delivery.get("status", "unknown")}
@@ -352,7 +372,12 @@ class DeliveryForecasts:
                   if not plan_id or row.get("plan_id") == plan_id]
         duration_status = "forecast" if any(result["status"] == "forecast" for result in ranges) else "not_enough_history"
         duration = {"status": duration_status, "input_cut": self.duration_history.input_cut(observations, as_of),
-                    "method_version": METHOD_VERSION, "as_of": as_of, "tasks": predictions}
+                    "method_version": METHOD_VERSION, "as_of": as_of, "history": self.duration_history.freshness(observations, as_of),
+                    "tasks": predictions}
+        if plan_id:
+            for prediction in duration["tasks"]:
+                prediction["comparable_examples"] = self.duration_history.examples(
+                    histories, prediction["cohort"], prediction["task_id"], as_of)
         snapshots = {snapshot.id: snapshot for scope in scopes for snapshot in self.snapshots.for_scope(scope)}
         calibration = self.duration_calibration.replay(list(snapshots.values()), observations, as_of)
         result = {**forecast, "duration_ranges": duration, "duration_calibration": calibration}

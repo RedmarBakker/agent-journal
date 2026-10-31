@@ -1,5 +1,6 @@
 from journal.features.estimates.support.baseline_forecast import BaselineForecast
 from journal.repositories.delivery_forecasts import DeliveryForecasts
+from journal.repositories.task_outcomes import OUTCOME_COHORT_VERSION
 
 
 COHORT = {"domain": "payments", "size_scale_version": "story-points-v1", "criteria_version": "deployment-v1",
@@ -15,6 +16,19 @@ def test_only_the_currently_accepted_delivery_generation_is_a_comparable_outcome
 
     assert result == [{"task_id": 8, "size_points": 3,
                        "cohort": {**COHORT}, "kind": "delivery_corrected", "generation": 2, "current": True}]
+
+
+def test_new_composition_uses_the_current_outcome_cohort_version_before_its_first_task_outcome():
+    history = {"task_id": 9, "scope": {"environment_id": 1},
+               "estimate_history": {"current_size": 5, "current_scale_version": "story-points-v1",
+                                    "history": [{"scale_version": "story-points-v1"}]},
+               "delivery": {"domain": "payments", "criteria_version": "deployment-v1"}, "outcomes": []}
+
+    result = DeliveryForecasts.history_task(12, history)
+
+    assert result["cohort"]["cohort_version"] == OUTCOME_COHORT_VERSION
+    assert result["cohort"]["environment_id"] == 1
+    assert result["cohort"]["domain"] == "payments"
 
 
 def test_one_delivery_record_is_one_local_day_batch_and_zero_capacity_days_are_preserved():

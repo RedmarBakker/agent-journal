@@ -171,7 +171,10 @@ class PlanCommand(Command):
         for phase in phases:
             self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
         placed = "".join(f", under phase {args.phase}" for _ in phases)
-        print(f"task {task.row_id} added to plan {plan.row_id}{' first' if args.first else ''}{placed}")
+        output = f"task {task.row_id} added to plan {plan.row_id}{' first' if args.first else ''}{placed}"
+        if self.settings.option(EstimatesOptions.MODE) in ("report", "enforce"):
+            output += "\n" + self.estimates_forecast.composition_feedback(plan, task.row_id)
+        print(output)
         return 0
 
     def relink(self, task: Task, plan: Plan, caller: Caller) -> None:
