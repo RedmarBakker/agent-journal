@@ -16,13 +16,20 @@ from journal.models.plan_state import PlanState
 from journal.models.question import Question
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.models.template import Template
+from journal.models.worker import Worker
+from journal.models.worker_state import WorkerState
 from journal.repositories.domain_counts import DomainCounts
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.delivery_forecasts import DeliveryForecasts
+from journal.repositories.links import Links
+from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
-from journal.repositories.tasks import Tasks
+from journal.repositories.scope import Scope
+from journal.repositories.tasks import WAIT_LINK, Tasks
 from journal.repositories.templates import Templates
+from journal.repositories.workers import Workers
 from journal.support.response import Response
 from journal.support.time_source import TimeSource
 
@@ -34,12 +41,14 @@ class OrganizationController:
 
     def __init__(self, organization: Organization, domain_plans: DomainPlans, counts: DomainCounts, usage: UsageLedger,
                  time_source: TimeSource, plans: Plans, tasks: Tasks, domain_rows: DomainRows, plan_agents: PlanAgents,
-                 caps: Caps, templates: Templates, template_start: TemplatePlanStart, forecasts: DeliveryForecasts) -> None:
+                 caps: Caps, templates: Templates, template_start: TemplatePlanStart, forecasts: DeliveryForecasts,
+                 handoffs: OrganizationHandoffs, links: Links, workers: Workers, scope: Scope) -> None:
         self.organization, self.domain_plans, self.counts = organization, domain_plans, counts
         self.usage, self.time_source = usage, time_source
         self.plans, self.tasks, self.domain_rows = plans, tasks, domain_rows
         self.plan_agents, self.caps, self.templates, self.template_start = plan_agents, caps, templates, template_start
         self.forecasts = forecasts
+        self.handoffs, self.links, self.workers, self.scope = handoffs, links, workers, scope
 
     def index(self, request: Request) -> Response:
         return Response.json(self.shown(self.organization.contracts(), request.actor))
@@ -58,18 +67,18 @@ class OrganizationController:
         return {"folder": contracts.folder, "commit": contracts.commit, "version": contracts.version, "problems": [asdict(problem) for problem in contracts.problems],
                 "plans": [summaries[plan.id] for plan in all_plans], "scheduled_plans": self.scheduled_plans(),
                 "sprint_forecasts": self.forecasts.organization(actor) if actor.is_desk_user() else [],
-                "domains": [self.domain(domain, contracts.roles_of(domain.id), counts.get(domain.id), domain_plans[domain.id], summaries) for domain in contracts.domains]}
+                "domains": [self.domain(domain, contracts.roles_of(domain.id), counts.get(domain.id), domain_plans[domain.id], summaries, contracts) for domain in contracts.domains]}
 
     def role_contract(self, request: Request) -> Response:
         domain_id, role_id = request.params["domain"], request.params["role"]
         role = next((role for role in self.organization.contracts().roles if role.domain == domain_id and role.id == role_id), None)
         return Response.json(asdict(role)) if role else Response.absent(f"no Role {role_id} in domain {domain_id}")
 
-    def domain(self, domain: Domain, roles: tuple[Role, ...], count, plans: tuple[DomainPlan, ...], summaries: dict[int, dict]) -> dict:
+    def domain(self, domain: Domain, roles: tuple[Role, ...], count, plans: tuple[DomainPlan, ...], summaries: dict[int, dict], contracts) -> dict:
         shown = {name: value for name, value in asdict(domain).items() if name not in LONG_TEXTS}
         figures = count.roles if count else {}
         return {**shown, "roles": [self.role(role, figures.get(role.id, {})) for role in roles], "plans_active": count.plans_active if count else 0,
-                "plans": [self.domain_plan(domain_plan, domain, summaries[domain_plan.plan.id]) for domain_plan in plans]}
+                "plans": [self.domain_plan(domain_plan, domain, summaries[domain_plan.plan.id], contracts) for domain_plan in plans]}
 
     @staticmethod
     def role(role: Role, figures: dict) -> dict:
@@ -126,8 +135,69 @@ class OrganizationController:
         next_start = template.schedule.next_start(self.template_start.last_start(template), self.time_source.moment())
         return {"id": template.id, "title": template.title, "schedule": template.schedule.value, "next_start": next_start.isoformat()}
 
-    @staticmethod
-    def domain_plan(domain_plan: DomainPlan, domain: Domain, summary: dict) -> dict:
+    def domain_plan(self, domain_plan: DomainPlan, domain: Domain, summary: dict, contracts) -> dict:
         phase = domain_plan.phase()
         return {**summary, "phase": phase.value, "phase_name": domain.board.name(phase), "active": domain_plan.is_active(),
-                "tasks": [task.id for task in domain_plan.tasks], "done": domain_plan.done_count(), "waits_on": domain_plan.waits_on()}
+                "tasks": [task.id for task in domain_plan.tasks], "task_details": [self.task_detail(task, domain_plan.plan, domain, contracts) for task in domain_plan.tasks],
+                "done": domain_plan.done_count(), "waits_on": domain_plan.waits_on()}
+
+    def task_detail(self, task: Task, plan: Plan, domain: Domain, contracts) -> dict:
+        with self.scope.environment(plan.environment_id):
+            parts = self.tasks.parts_of(task)
+            role_parts = [(order, part, self.handoffs.latest_target(part, plan)) for order, part in enumerate(parts, 1)]
+            role_parts = [(order, part, target) for order, part, target in role_parts if target.startswith("role:")]
+            return {"id": task.id, "title": task.title, "state": task.state.value,
+                    "domain": {"id": domain.id, "title": domain.title, "icon": domain.icon},
+                    "route_state": self.route_state(task, plan, parts),
+                    "subtasks": [self.subtask(part, target, order, task, plan, contracts) for order, part, target in role_parts]}
+
+    def subtask(self, task: Task, target: str, order: int, parent: Task, plan: Plan, contracts) -> dict:
+        worker = self.worker(task)
+        return {"id": task.id, "title": task.title, "role": self.role_for_handoff(target, contracts),
+                "worker": {"name": worker.name, "state": worker.state.value} if worker else None,
+                "state": task.state.value, "route_state": self.route_state(task, plan, []),
+                "order": order, "after": self.after(task, parent)}
+
+    def role_for_handoff(self, target: str, contracts) -> dict:
+        domain_id, _, role_id = target.removeprefix("role:").partition("/")
+        role = next((candidate for candidate in contracts.roles if candidate.domain == domain_id and candidate.id == role_id), None)
+        return {"id": role_id, "title": role.title if role else role_id}
+
+    def after(self, task: Task, parent: Task) -> dict:
+        for reference in self.links.targets(task, WAIT_LINK):
+            if reference.type != Task.table():
+                continue
+            previous = self.tasks.find(reference.id)
+            if self.tasks.part_of_task(previous) == parent:
+                return {"id": previous.id, "title": previous.title}
+        return None
+
+    def worker(self, task: Task) -> Worker | None:
+        assignment = self.tasks.worker_assignment(task)
+        if assignment is None or assignment[0].type != Worker.table():
+            return None
+        workers = self.workers.global_matching(id=assignment[0].id)
+        return workers[0] if workers else None
+
+    def route_state(self, task: Task, plan: Plan, parts: list[Task]) -> str:
+        if task.state == TaskState.COMPLETED:
+            return "Merged"
+        if task.state == TaskState.CANCELLED:
+            return "Cancelled"
+        if any((worker := self.worker(part)) and worker.state == WorkerState.DELIVERED for part in parts):
+            return "Waiting for the Domain's check"
+        worker = self.worker(task)
+        if worker and worker.state == WorkerState.DELIVERED:
+            return "Waiting for the Domain's check"
+        target = self.handoffs.latest_target(task, plan)
+        if target.startswith("role:"):
+            return "With a Role"
+        if target.startswith("domain:"):
+            return "With the Domain"
+        if target:
+            return "With the Plan"
+        if worker and worker.role:
+            return "With a Role"
+        if self.domain_rows.domain_names(task):
+            return "With the Domain"
+        return "With the Plan"

@@ -4,13 +4,14 @@ import OrganizationPlanBoard from "../src/organization/OrganizationPlanBoard.vue
 import {organizationBoard} from "../src/state/organizationBoard.js";
 import {pageOf} from "../src/sync/paging.js";
 
-const sharedPlan = (phase, phase_name, tasks, done, waits_on) => ({
+const sharedPlan = (phase, phase_name, tasks, done, waits_on, task_details = []) => ({
     id: 77,
     title: "The shared report",
     phase,
     phase_name,
     mode: "organization",
     tasks,
+    task_details,
     done,
     waits_on,
 });
@@ -21,7 +22,11 @@ const domains = [
         icon: "🧭",
         board: {planned: "Ready", in_progress: "Building", in_review: "Reviewing", done: "Complete"},
         plans: [
-            sharedPlan("in_progress", "Building", [1, 2, 3], 1, "Role work"),
+            sharedPlan("in_progress", "Building", [1, 2, 3], 1, "Role work", [
+                {id: 1, title: "Build the map", route_state: "With a Role"},
+                {id: 2, title: "Write the guide", route_state: "With the Domain"},
+                {id: 3, title: "Check the links", route_state: "With the Plan"},
+            ]),
             {id: 78, title: "An older plan", phase: "done", mode: "solo", tasks: [4], done: 1, waits_on: ""},
         ],
     },
@@ -30,7 +35,10 @@ const domains = [
         title: "Beta",
         icon: "📦",
         board: {planned: "Queued", in_progress: "Working", in_review: "Checking", done: "Finished"},
-        plans: [sharedPlan("in_review", "Checking", [5, 6, 7, 8], 2, "a proof check or approval")],
+        plans: [sharedPlan("in_review", "Checking", [5, 6, 7, 8], 2, "a proof check or approval", [
+            {id: 5, title: "Check the package", route_state: "Waiting for the Domain's check"},
+            {id: 6, title: "Publish the report", route_state: "Merged"},
+        ])],
     },
 ];
 
@@ -50,7 +58,7 @@ afterEach(() => {
     document.body.innerHTML = "";
 });
 
-test("one plan appears once in each domain's phase with its own progress, mode and wait", async () => {
+test("domain boards show the tasks they hold and each plan's own progress, mode and wait", async () => {
     const sprintForecasts = [{
         sprint: {id: 7, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [77]},
         forecast: {as_of: "2026-10-30", status: "forecast", next_sprint_id: 23, plan_forecasts: [{plan_id: 77, status: "forecast", p50: "2026-11-06", probability_this_sprint: 71, probability_next_sprint: 27, probability_later: 2, carry_over: 29, delivered_outcomes: 15, method_version: "baseline-v1", capacity_freshness: "fresh"}]},
@@ -76,6 +84,13 @@ test("one plan appears once in each domain's phase with its own progress, mode a
     expect(alphaCard.textContent).toContain("Waits on: Role work");
     expect(betaCard.textContent).toContain("2 of 4 done");
     expect(betaCard.textContent).toContain("Waits on: a proof check or approval");
+    expect(alphaCard.querySelector('[data-domain-task-id="1"]').textContent).toContain("Task 1: Build the map");
+    expect(alpha.querySelector(".organization-domain-board-head").textContent).toContain("🧭");
+    expect(alpha.querySelector(".organization-domain-board-head").textContent).toContain("Alpha");
+    expect(alphaCard.querySelector('[data-domain-task-id="1"]').textContent).toContain("With a Role");
+    expect(alphaCard.textContent).not.toContain("Check the package");
+    expect(betaCard.querySelector('[data-domain-task-id="5"]').textContent).toContain("Task 5: Check the package");
+    expect(betaCard.querySelector('[data-domain-task-id="5"]').textContent).toContain("Waiting for the Domain's check");
     expect(alphaCard.textContent).toContain("71% chance in Sprint 7");
     expect(alphaCard.textContent).toContain("baseline-v1");
     expect(alphaCard.textContent).not.toContain("Move to another sprint");

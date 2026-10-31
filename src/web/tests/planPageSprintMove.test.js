@@ -2,7 +2,7 @@ import {createApp} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 const scopeState = vi.hoisted(() => ({
-    api: {planForecast: vi.fn(), sprints: vi.fn(), carryPlan: vi.fn()},
+    api: {planForecast: vi.fn(), organization: vi.fn(), sprints: vi.fn(), carryPlan: vi.fn()},
     rows: [],
 }));
 
@@ -36,6 +36,7 @@ beforeEach(() => {
         sprint: {id: 21, state: "closed", starts_on: "2026-10-12", ends_on: "2026-10-26", starts_at: "2026-10-12T00:00:00Z", ends_at: "2026-10-26T00:00:00Z"},
         status: "not enough history",
     });
+    scopeState.api.organization.mockReset().mockResolvedValue({domains: []});
     scopeState.api.sprints.mockReset();
     scopeState.api.carryPlan.mockReset();
     scopeState.rows.length = 0;

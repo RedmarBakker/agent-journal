@@ -29,6 +29,12 @@ const openPlan = () => peek("plans", props.plan.id);
             <span v-if="!compact">Phase: {{ shownPhase() }}</span>
             <span>{{ progress() }} · {{ points() }}</span>
         </span>
+        <ul v-if="!compact && plan.task_details?.length" class="organization-domain-tasks" aria-label="Tasks in this Domain">
+            <li v-for="task in plan.task_details" :key="task.id" :data-domain-task-id="task.id">
+                <span>Task {{ task.id }}: {{ task.title }}</span>
+                <span>{{ task.route_state }}</span>
+            </li>
+        </ul>
         <span v-if="plan.waits_on" class="organization-plan-wait">Waits on: {{ plan.waits_on }}</span>
         <DeliveryForecastLabel :forecast="forecast" :sprint="forecast?.sprint || null" :plan="plan" />
         <template v-if="!compact">
@@ -108,6 +114,22 @@ const openPlan = () => peek("plans", props.plan.id);
 .organization-plan-cost {
     color: var(--text-2);
     font-size: 12px;
+}
+
+.organization-domain-tasks {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    color: var(--text-2);
+    font-size: 12px;
+    list-style: none;
+}
+
+.organization-domain-tasks li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
 }
 
 .organization-plan-cap,

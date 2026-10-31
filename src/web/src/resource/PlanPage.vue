@@ -29,6 +29,8 @@ const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boo
 const emit = defineEmits(["close"]);
 const error = ref("");
 const fetching = ref(false);
+const taskDetails = ref({});
+const taskDetailsProblem = ref("");
 const forecast = ref(null);
 const forecastProblem = ref("");
 const forecastLoading = ref(false);
@@ -79,6 +81,23 @@ watch(() => [props.resource.id, scope.env], async ([id], _previous, onCleanup) =
         if (live) forecastProblem.value = problem.message;
     } finally {
         if (live) forecastLoading.value = false;
+    }
+}, {immediate: true});
+
+watch(() => [props.resource.id, scope.env], async ([id], _previous, onCleanup) => {
+    let live = true;
+    onCleanup(() => { live = false; });
+    taskDetails.value = {};
+    taskDetailsProblem.value = "";
+    try {
+        const organization = await scope.api.organization();
+        if (!live) return;
+        const rows = (organization.domains || []).flatMap((domain) => (domain.plans || [])
+            .filter((plan) => plan.id === id)
+            .flatMap((plan) => plan.task_details || []));
+        taskDetails.value = Object.fromEntries(rows.map((task) => [task.id, task]));
+    } catch (problem) {
+        if (live) taskDetailsProblem.value = problem.message || "Domain and Role assignments could not be loaded.";
     }
 }, {immediate: true});
 
@@ -137,6 +156,7 @@ async function run(act) {
         <template v-if="resource.block_reason">
             <p class="note">Blocked: {{ resource.block_reason }}</p>
         </template>
+        <p v-if="taskDetailsProblem" class="note" role="status">Domain and Role assignments could not be loaded: {{ taskDetailsProblem }}</p>
         <div v-if="forecast?.sprint" class="plan-sprint-membership">
             <span>Sprint {{ forecast.sprint.id }} · {{ sprintRange(forecast.sprint) }}</span>
             <PlanSprintMove :plan-id="resource.id" :sprint="forecast.sprint" :read-only="readOnly" @moved="reloadForecast" />
@@ -179,6 +199,7 @@ async function run(act) {
                     :current="p.i === current && ['started', 'waiting'].includes(status)"
                     :workers="workers"
                     :workers-loaded="workersLoaded"
+                    :task-details="taskDetails"
                     :running="running"
                     @inspect="(worker) => peek('workers', worker.id)"
                 />

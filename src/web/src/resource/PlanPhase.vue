@@ -4,6 +4,7 @@ import Icon from "../kit/Icon.vue";
 import {useScope} from "../composables/scope.js";
 import HolderTag from "../kit/HolderTag.vue";
 import PlanRowLine from "./PlanRowLine.vue";
+import PlanTaskDetails from "./PlanTaskDetails.vue";
 import SkeletonLine from "../kit/SkeletonLine.vue";
 import {FINISHED_STATES, grouped, holdingRuns, workerName, workerState, workerTag, workersHolding} from "../domain/workers.js";
 import {isClosed} from "../domain/row.js";
@@ -15,6 +16,7 @@ const props = defineProps({
     current: {type: Boolean, default: false},
     workers: {type: Array, default: () => []},
     workersLoaded: {type: Boolean, default: true},
+    taskDetails: {type: Object, default: () => ({})},
     running: {type: Boolean, default: true},
 });
 const emit = defineEmits(["inspect"]);
@@ -35,6 +37,7 @@ const holders = computed(() => workersHolding(rows.value, props.workers));
 const runs = computed(() => holdingRuns(rows.value, props.workers));
 const closedHolder = (worker) => FINISHED_STATES.has(workerState(worker));
 const holdersLoading = computed(() => !props.workersLoaded && rows.value.length > 0);
+const detailsOf = (task) => props.taskDetails[task.id] || {domain: null, route_state: "With the Plan", subtasks: []};
 const ROW_BARS = [{width: "58%", height: 11}];
 const HOLDER_BARS = [{width: "64px", height: 14}];
 </script>
@@ -75,6 +78,7 @@ const HOLDER_BARS = [{width: "64px", height: 14}];
                 <div class="held-rows">
                     <template v-for="t in run.rows" :key="t.id">
                         <PlanRowLine :task="t" :running="running" @open="open" />
+                        <PlanTaskDetails :task="detailsOf(t)" />
                     </template>
                 </div>
                 <span :class="{bracket: grouped(run)}" aria-hidden="true" />

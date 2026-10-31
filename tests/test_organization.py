@@ -2547,8 +2547,11 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     status, builder_contract = get_answer(app, "/journal/organization/roles/alpha/builder", env)
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
     story_points = {"total": None, "done": None, "sized_tasks": 0, "unknown_tasks": 3}
-    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "state": "draft", "active": True, "tasks": [built.id, looked.id], "done": 0, "story_points": story_points, "waits_on": "Role work", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "with the counts and the board of plans"
-    assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "state": "draft", "active": False, "tasks": [kept.id], "done": 1, "story_points": story_points, "waits_on": "", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "the same plan has a separate card in beta's phase with only beta's progress"
+    domain = {"id": "alpha", "title": "Alpha", "icon": "🧪"}
+    alpha_task_details = [{"id": task.id, "title": task.title, "state": tasks.find(task.id).state.value, "domain": domain, "route_state": "With a Role", "subtasks": []} for task in (built, looked)]
+    beta_task_details = [{"id": kept.id, "title": kept.title, "state": "completed", "domain": {"id": "beta", "title": "Beta", "icon": "🧪"}, "route_state": "Merged", "subtasks": []}]
+    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "state": "draft", "active": True, "tasks": [built.id, looked.id], "task_details": alpha_task_details, "done": 0, "story_points": story_points, "waits_on": "Role work", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "with the counts and the board of plans"
+    assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "state": "draft", "active": False, "tasks": [kept.id], "task_details": beta_task_details, "done": 1, "story_points": story_points, "waits_on": "", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "the same plan has a separate card in beta's phase with only beta's progress"
     listed = get_answer(app, "/journal/domain_counts", env)[1]["rows"]
     assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"
     status, reloaded = answered(app, "POST", "/journal/organization/reload", b"{}", env)
@@ -2570,6 +2573,70 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         workers.delete(workers.find(builder.id), actor)
         app.runtime().deferred.drain()
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 0, "deleting an active instance immediately changes its domain's figure"
+
+
+def test_the_organization_plan_board_shows_task_domains_routes_and_ordered_role_parts(app, tmp_path):
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.plan_mode import PlanMode
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.organization_handoffs import OrganizationHandoffs
+    from journal.repositories.plans import PLAN_LINK, Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import CURRENT_TASK_LINK, PART_LINK, WAIT_LINK, Tasks
+    from journal.repositories.workers import Workers
+    from tests.in_process import get_answer
+
+    _fixture, organization = loaded(app, tmp_path)
+    organization.reload()
+    plans, tasks, links, domains, handoffs, workers = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows, OrganizationHandoffs, Workers))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="Build the floor", mode=PlanMode.ORGANIZATION), actor)
+        parent = tasks.save(Task(environment_id=1, title="Build the floor"), actor)
+        first = tasks.save(Task(environment_id=1, title="Lay the first layer"), actor)
+        second = tasks.save(Task(environment_id=1, title="Fit the next layer"), actor)
+        domain_task = tasks.save(Task(environment_id=1, title="Handed to the Domain"), actor)
+        role_task = tasks.save(Task(environment_id=1, title="Handed to a Role"), actor)
+        merged_task = tasks.save(Task(environment_id=1, title="Merged task"), actor)
+        for plan_task in (parent, domain_task, role_task, merged_task):
+            links.save(Link(source=Ref.build(plan_task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+            domains.task_tied(plan_task, "alpha", actor)
+        for part in (first, second):
+            links.save(Link(source=Ref.build(part), target=Ref.build(parent), link_type=PART_LINK), actor)
+            domains.task_tied(part, "alpha", actor)
+        links.save(Link(source=Ref.build(second), target=Ref.build(first), link_type=WAIT_LINK), actor)
+        handoffs.handoff(parent, plan, "domain:alpha", actor)
+        handoffs.handoff(domain_task, plan, "domain:alpha", actor)
+        handoffs.handoff(role_task, plan, "role:alpha/builder", actor)
+        handoffs.handoff(first, plan, "role:alpha/builder", actor)
+        handoffs.handoff(second, plan, "role:alpha/scout", actor)
+        merged = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="builder", plan_id=plan.id, state=WorkerState.MERGED), actor)
+        checking = workers.save(Worker(environment_id=1, name="Grace Hopper", role="scout", plan_id=plan.id, state=WorkerState.DELIVERED), actor)
+        links.save(Link(source=Ref.build(merged), target=Ref.build(first), link_type=CURRENT_TASK_LINK), actor)
+        links.save(Link(source=Ref.build(checking), target=Ref.build(second), link_type=CURRENT_TASK_LINK), actor)
+        tasks.save(first.with_(state=TaskState.COMPLETED), actor)
+        tasks.save(second.with_(state=TaskState.STARTED), actor)
+        tasks.save(merged_task.with_(state=TaskState.COMPLETED), actor)
+
+    status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
+    alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
+    details = alpha["plans"][0]["task_details"][0]
+    routes = {task["title"]: task["route_state"] for task in alpha["plans"][0]["task_details"]}
+
+    assert status == 200 and details["domain"] == {"id": "alpha", "title": "Alpha", "icon": "🧪"}
+    assert details["route_state"] == "Waiting for the Domain's check"
+    assert routes == {"Build the floor": "Waiting for the Domain's check", "Handed to the Domain": "With the Domain", "Handed to a Role": "With a Role", "Merged task": "Merged"}
+    assert [(part["role"], part["worker"], part["state"], part["order"], part["after"]) for part in details["subtasks"]] == [
+        ({"id": "builder", "title": "Builder"}, {"name": "Ada Lovelace", "state": "merged"}, "completed", 1, None),
+        ({"id": "scout", "title": "Scout"}, {"name": "Grace Hopper", "state": "clocked out"}, "started", 2, {"id": first.id, "title": first.title}),
+    ], "each Role part names its Role, worker, task state and predecessor"
 
 
 def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(app, tmp_path):
