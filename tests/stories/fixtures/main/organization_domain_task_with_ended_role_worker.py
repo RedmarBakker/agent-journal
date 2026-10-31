@@ -43,9 +43,11 @@ class OrganizationDomainTaskWithEndedRoleWorker(OrganizationPlanHandoffSeat):
                 role=role.id,
                 contract=contracts.version,
                 plan_id=plan.row_id,
-            ).unfinished(story.app.container.get(TimeSource).seconds(), "ended without clocking out")
+            )
             workers = story.app.container.get(Workers)
             worker = workers.save(worker, Actor.system())
+            ended_at = story.app.container.get(TimeSource).seconds()
+            worker = workers.save(worker.unfinished(ended_at, "ended without clocking out"), Actor.system())
             story.app.container.get(Tasks).handover(task_row, Ref.build(worker), Actor.system())
         self.workers.first = worker.row_id
 
