@@ -5,12 +5,14 @@ from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.models.plan_state import PlanState
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
+from tests.stories.fixtures.main.organization_setup import OrganizationSetup
 
 
 class OrganizationPlanSeat(OrganizationHubPlan):
     """An approved organization plan has a planned Alpha task and a simulated OpenRig."""
 
-    settings = (*OrganizationHubPlan.settings, (PlansOptions.PLAN_AGENTS, True))
+    parent = OrganizationSetup
+    settings = ((PlansOptions.PLAN_AGENTS, True),)
     task_domain = "alpha"
 
     def steps(self, story) -> None:
