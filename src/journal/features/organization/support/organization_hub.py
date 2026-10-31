@@ -25,10 +25,10 @@ class OrganizationHub:
 
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
                  tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope,
-                 organization: Organization, workers: WorkerCommand) -> None:
+                 organization: Organization, workers: WorkerCommand, staffing: RigStaffing) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
         self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
-        self.organization, self.workers = organization, workers
+        self.organization, self.workers, self.staffing = organization, workers, staffing
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -48,6 +48,8 @@ class OrganizationHub:
         plan = self.validate_task(source, task, member.rig)
         role = self.role(target)
         if domain := self.domain(target):
+            if member.rig.startswith("plan-"):
+                self.staffing.place_domain(plan, domain, member.provider, member.environment)
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
         if role and role.writes:

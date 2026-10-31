@@ -58,6 +58,47 @@ class RigStaffing:
         rig = self.rigs.save(Rig(environment_id=plan.environment_id, name=rig_name), actor)
         self.plans.rig_linked(plan, rig, actor)
 
+    def place_domain(self, plan: Plan, domain_id: str, provider_name: str, environment: str) -> None:
+        contracts = self.organization.contracts()
+        domain = contracts.domain(domain_id)
+        if domain is None:
+            raise Rejection(f"OpenRig plan {plan.id} cannot place unknown Domain {domain_id}")
+        rig_id = self.plans.rig_id(plan)
+        if not rig_id:
+            raise Rejection(f"plan {plan.id} has no OpenRig rig for Domain {domain_id}")
+        rig = self.find_rig(rig_id)
+        provider = self.providers.lookup(provider_name)
+        plan_seat = self.seats.plan_agent(rig.name, provider)
+        domain_seat = self.seats.domain_agent(domain, provider)
+        links = self.seats.links(contracts, (plan_seat, domain_seat))
+        self.add_domain_seat(rig, domain_seat, links, environment)
+
+    def add_domain_seat(self, rig: Rig, seat: Seat, links: tuple[tuple[Seat, Seat], ...], environment: str) -> None:
+        path, spec = self.specs.read_rig_spec(rig.name)
+        pods = spec.setdefault("pods", [])
+        pod = next((value for value in pods if value.get("id") == seat.pod), None)
+        running = self.runtime.rig_exists(rig.name)
+        worker = lambda placed: SeatWorker(Actor.agent(""), AgentToken.random(), environment, placed.qualified, rig.name)
+        if pod is None:
+            fragment, pod = self.specs.pod_fragment(rig.name, seat.pod, (seat,), links, self.config.root, worker)
+            pods.append(pod)
+            if running:
+                self.runtime.expand(rig.name, fragment, self.specs.spec_folder(rig.name))
+        elif not any(member.get("id") == seat.member for member in pod.get("members", [])):
+            fragment, member = self.specs.member_fragment(rig.name, seat, self.config.root, worker(seat))
+            pod.setdefault("members", []).append(member)
+            self.specs.write_pod_fragment(rig.name, pod)
+            if running:
+                self.runtime.add(rig.name, seat.pod, fragment, self.specs.spec_folder(rig.name))
+        edges = spec.setdefault("edges", [])
+        for source, target in links:
+            edge = self.specs.edge(source.logical_id(), target.logical_id())
+            if source.pod != target.pod and edge not in edges:
+                edges.append(edge)
+                if running:
+                    self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
+        self.specs.written(path, spec).chmod(OWNER_ONLY)
+
     def is_running(self, plan: Plan, provider: str) -> bool:
         rig_id = self.plans.rig_id(plan)
         if not rig_id:
