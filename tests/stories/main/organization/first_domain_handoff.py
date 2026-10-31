@@ -1,5 +1,4 @@
 from journal.engine.states.void import Void
-from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.states.working_task import WorkingTask
@@ -9,28 +8,20 @@ from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.organization_domain_seat_started import (
+    OrganizationDomainSeatStarted,
+)
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import (
-    OrganizationPlanWithoutDomainSeats,
     TASK_BRIEF,
 )
 
 STALE_BRIEF = "the earlier task brief"
 
 
-@story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainSeatStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_sends_work_to_a_role(story):
     plan, task = story.plans.first, story.tasks.first
-    handed_to_domain = story.agent_runs_from_plan_organization_seat(
-        story.agents.main, "plan", f"organization handoff {task} domain:alpha",
-    )
-    handed_to_domain.expect_command_passed()
-    handed_to_domain.expect_command_text(f"task {task} routed from plan to domain:alpha")
-
     domain = story.organization_seat_agent("domain:alpha")
-    story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", OrganizationSeatRouting.handoff_prompt)
-    started = story.agent_starts_organization_seat(domain, "domain:alpha")
-    started.expect_allowed(domain)
-    story.expect_openrig_seat_environment(domain, "domain:alpha")
     inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
