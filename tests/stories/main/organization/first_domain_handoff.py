@@ -82,7 +82,7 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(plan, state=PlanState.FINISHED)
     story.expect_organization_seat_routing_guidance(f"plan-{plan}")
-    story.expect_stack(story.organization_seat_agent("plan"), LeadingPlan, FollowingPlan)
+    story.expect_stack(worker, Void)
 
 
 @story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
