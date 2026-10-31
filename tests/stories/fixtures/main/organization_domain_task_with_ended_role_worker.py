@@ -23,7 +23,6 @@ class OrganizationDomainTaskWithEndedRoleWorker(OrganizationPlanHandoffSeat):
 
     def steps(self, story) -> None:
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
-        super().steps(story)
         task = self.tasks.first
         plan = story.app.container.get(Plans).global_matching(id=self.plans.first)[0]
         handoff = story.agent_runs_from_plan_organization_seat(
