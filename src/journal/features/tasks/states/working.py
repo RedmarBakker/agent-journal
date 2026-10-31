@@ -17,7 +17,7 @@ from journal.support.permission import Permission
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.models.task import PAUSED_OUTCOME
+from journal.models.task import BLOCKED_OUTCOME
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.briefing.briefing_nudges import BriefingNudges
@@ -29,7 +29,7 @@ COMPACT = "compact"
 
 @dataclass(frozen=True)
 class Working(BaseState):
-    """On one task, named with its team when it is a hub task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is instructed to carry on, with the log line first once the same span has passed; a session resumed with it is informed where it stands; a quiet quarter hour is informed it is still open. Pushed by journal task start, popped by done and pause."""
+    """On one task, named with its team when it is a hub task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is instructed to carry on, with the log line first once the same span has passed; a session resumed with it is informed where it stands; a quiet quarter hour is informed it is still open. Pushed by journal task start, popped when the task closes, is blocked or is set aside."""
 
     name = "working"
     title = "Working"
@@ -119,7 +119,7 @@ class Working(BaseState):
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         if event.task_id != self.task_id:
             return self.none()
-        return self.pop(TasksNudges.UNTESTED_TASK_EDITS.create(n=self.task_id)) if self.untested_edits and event.outcome == PAUSED_OUTCOME else self.pop()
+        return self.pop(TasksNudges.UNTESTED_TASK_EDITS.create(n=self.task_id)) if self.untested_edits and event.outcome == BLOCKED_OUTCOME else self.pop()
 
     def on_task_transferred(self, event: TaskTransferred, settings: Settings) -> Transition:
         return self.pop() if event.task_id == self.task_id else self.none()

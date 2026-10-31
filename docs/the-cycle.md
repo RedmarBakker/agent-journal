@@ -63,12 +63,6 @@ table of every state and every line and who says it.
                      │  working on a task ──► "task N is in hand: carry on"  (409) │
                      │  idle, auto on, tasks open ──► "tasks are open: task N next:│
                      │        <title>; sure you want to stop?"              (409)  │
-                     │  idle, auto on, paused work beside an open task ──► the     │
-                     │        choice of paused work is pushed: "paused work to     │
-                     │        take up: …"  (409, twice at most, then the first     │
-                     │        paused task is taken up for the agent)               │
-                     │  idle, other paused tasks ──► "paused tasks, still open: …" │
-                     │        (409, once; the second stop passes)                  │
                      │  paused and the journal awaits the agent (a skill, the      │
                      │        environment read, a context-mark decision) ──► "you  │
                      │        stopped while the journal awaits <what>"     (409,   │
@@ -91,8 +85,9 @@ table of every state and every line and who says it.
    a background chain ends  ──► "the command in the background ended. last lines: …"
    a question is answered   ──► "question N answered: …"  (the Waiting state goes back)
    a rule or fact's keyword ──► "fact N: …"  (whispered once per row per agent)
-   the clock, every minute  ──► a paused task named after a quiet minute · an awaited run
-                                 checked every 5 min · a session silent for an hour is ended
+   the clock, every minute  ──► the tasks blocked with no wait named every 30 minutes or
+                                 5 completed tasks · an awaited run checked every 5 min ·
+                                 a session silent for an hour is ended
 ```
 
 Each typed line is followed by Enter, so it becomes the agent's next prompt: UserPromptSubmit fires and the

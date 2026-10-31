@@ -33,7 +33,7 @@ QUEUED_TASKS = 10
 
 
 class Plans(ScopedRepository[Plan]):
-    """The plans and their rows: tasks and phases in the order they were added, the plan's questions answered over them, and its writes: approve, start (a finished plan is done, else its postponed or next task is taken in hand, one at a time, else it waits for a task to open), postpone (its task in hand postponed first, so the plan's event comes last), cancel (with the tasks that are its alone). The open work is the open tasks of the approved and started plans that are neither blocked, paused, delegated, queued nor in hand; a blocked task, or a paused one still waiting, never stops the plan; the tasks it may take up next are open or paused alike, the first in the plan's order first; a task joined its phase, then its tasks under no phase in the order they joined the plan, and the first phase holding one is found in one read."""
+    """The plans and their rows: tasks and phases in the order they were added, the plan's questions answered over them, and its writes: approve, start (a finished plan is done, else its next task is taken in hand, one at a time, else it waits for a task to open), postpone (its task in hand set aside, open again, first, so the plan's event comes last), cancel (with the tasks that are its alone). The open work is the open tasks of the approved and started plans that are neither blocked, delegated, queued nor in hand; a blocked task never stops the plan; the tasks it may take up next are open, the first in the plan's order first; a task joined its phase, then its tasks under no phase in the order they joined the plan, and the first phase holding one is found in one read."""
 
     model = Plan
 
@@ -121,7 +121,7 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.selected_ids(self.plan_task_query(plan).order_descending("updated_at").order_descending("id").limit(count))
 
     def assignable_tasks(self, task_ids: list[int]) -> list[Task]:
-        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))}
+        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter(state=TaskState.OPEN, delegated=False).filter_unequal("brief", ""))}
         return [assignable[n] for n in task_ids if n in assignable]
 
     def plan_task_ids(self, plan: Plan) -> list[int]:
@@ -259,11 +259,7 @@ class Plans(ScopedRepository[Plan]):
         return queued
 
     def following_task(self, plan: Plan) -> Task | None:
-        return self.first_planned(plan, self.takeable_tasks(plan))
-
-    def takeable_tasks(self, plan: Plan) -> Query:
-        takeable = self.tasks.query().filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False)
-        return takeable.filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+        return self.first_planned(plan, self.startable_tasks(plan))
 
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
         return self.first_planned(plan, candidates.filter(state=state))
@@ -280,7 +276,7 @@ class Plans(ScopedRepository[Plan]):
 
     def has_resumable(self, plan: Plan) -> bool:
         plan_links = self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan))
-        return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
+        return self.has_link(plan_links, self.startable_tasks(plan))
 
     def has_link(self, links: Query, tasks: Query) -> bool:
         return bool(self.links.selected(links.filter_existing(tasks.filter_name_column(links, "source")).limit(1)))
@@ -333,5 +329,5 @@ class Plans(ScopedRepository[Plan]):
         time = self.time_source.moment()
         postponed = self.save(postponed_plan(time.timestamp()), actor)
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
-            self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
+            self.tasks.save(task.set_aside(time), actor)
         return postponed

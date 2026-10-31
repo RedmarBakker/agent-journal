@@ -43,7 +43,7 @@ LIST_ROWS = 20
 
 class TaskCommand(Command):
     noun = "task"
-    uncut_verbs = frozenset({"show", "start", "resume", "complete"})
+    uncut_verbs = frozenset({"show", "start", "complete"})
 
     def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
         self.environments = environments
@@ -58,7 +58,7 @@ class TaskCommand(Command):
         transfer = self.verb(verbs, "transfer", "move a task, with its log, to another environment of this project")
         transfer.add_argument("n", type=int)
         transfer.add_argument("environment", help="the name of the environment it moves to")
-        transfer.add_argument("--force", action="store_true", help="move a task in progress, paused first, or a task of a plan here, taken out of the plan")
+        transfer.add_argument("--force", action="store_true", help="move a task in progress, blocked first, or a task of a plan here, taken out of the plan")
         rename = self.verb(verbs, "rename", "a task's title written again, when the first one was wrong")
         rename.add_argument("n", type=int)
         rename.add_argument("title")
@@ -90,30 +90,27 @@ class TaskCommand(Command):
         block.add_argument("why", nargs="?", default="")
         Waits.arguments(block, "task")
         self.verb(verbs, "unblock", "what it waited on came: the task is open again").add_argument("n", type=int)
-        testing = self.verb(verbs, "test", "the work is done but a test run must say so: the task waits in testing, out of your hand; the run passing completes it, failing puts it back in progress")
+        testing = self.verb(verbs, "test", "the work is done but a test run must say so: the task waits in testing, out of your hand; the run passing completes it, failing blocks it with what failed")
         testing.add_argument("n", type=int)
         testing.add_argument("--output", type=int, default=0, help="the run that tests it, by its output number")
-        pause = self.verb(verbs, "pause", "set a task aside for something else first, by choice; it stays open and stops being nudged")
+        pause = self.verb(verbs, "pause", "no longer done: a task waits by being blocked")
         pause.add_argument("n", type=int)
-        pause.add_argument("why")
-        pause.add_argument("--force", action="store_true", help="pause a worker's task in hand: the worker lets it go, keeps its commits and goes on with its queue")
-        Waits.arguments(pause, "paused task's wait")
-        self.verb(verbs, "resume", "pick a paused task up again").add_argument("n", type=int)
+        pause.add_argument("why", nargs="*")
         priorities = self.verb(verbs, "priorities", "the open tasks you made at the default priority: confirm states that normal is right for each")
         priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
-        self.verb(verbs, "skip-paused", "set your paused work aside until your next close and go on with the next open task").set_defaults(verb="skip_paused")
         self.verb(verbs, "next", "the next tasks to hand out, as the task assigner in force chooses them: for the orchestrator the next tasks to give workers, plan by plan in turn; it starts none").add_argument("--quantity", type=int, default=1, help="how many tasks to name, the assigner choosing each in turn")
 
     def create(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.created(args), caller.actor)
         self.link_creation(args.message, task, caller)
+        blocked = ""
         if args.start:
-            task = self.taking.start(task, caller)
+            task, blocked = self.taken(task, caller)
         unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
         line = f"task {task.row_id} {task.state}" + (f" (from message {args.message})" if args.message else "")
-        print("\n".join(filter(None, [line, unfiled])))
+        print("\n".join(filter(None, [blocked, line, unfiled])))
         return 0
 
     @staticmethod
@@ -135,7 +132,14 @@ class TaskCommand(Command):
             self.links.save(Link(source=source, target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
     def start(self, args: Namespace, caller: Caller) -> int:
-        return self.claimed_task(args.n, caller, "started")
+        task, blocked = self.taken(self.tasks.find(args.n), caller)
+        print("\n".join([*filter(None, [blocked]), f"task {task.row_id} started", *self.briefing.lines(task)]))
+        return 0
+
+    def taken(self, task: Task, caller: Caller) -> tuple[Task, str]:
+        previous = self.taking.blocked_current(task, caller)
+        started = self.taking.start(self.tasks.find(task.id), caller)
+        return started, f"task {previous.row_id} blocked until task {started.id} closes" if previous is not None else ""
 
     def transfer(self, args: Namespace, caller: Caller) -> int:
         task, environment = self.tasks.find(args.n), self.environments.existing(args.environment)
@@ -143,7 +147,7 @@ class TaskCommand(Command):
         self.refuse_transfer(task, plans, args.force)
         for plan in plans:
             self.plans.remove_task(plan, task, caller.actor)
-        task = self.paused_beside_work(task, environment, caller.actor)
+        task = self.blocked_beside_work(task, environment, caller.actor)
         for line in self.logs.logs(task):
             self.logs.save(line.with_(environment_id=environment.id), caller.actor)
         self.tasks.save(task.transferred(environment.id, self.environments.find(task.environment_id).name, environment.name, self._time()), caller.actor)
@@ -154,14 +158,14 @@ class TaskCommand(Command):
         if task.delegated:
             raise Rejection(f"task {task.id} is worker {self.tasks.holder(task).id}'s: release the worker first")
         if not force and task.is_active():
-            raise Rejection(f"task {task.id} is in progress: pause it first, or --force moves it as it is")
+            raise Rejection(f"task {task.id} is in progress: block it first, or --force moves it as it is")
         if not force and plans:
             raise Rejection(f"task {task.id} is in plan {plans[0].id}: --force takes it out of the plan and moves it")
 
-    def paused_beside_work(self, task: Task, environment: Environment, actor: Actor) -> Task:
+    def blocked_beside_work(self, task: Task, environment: Environment, actor: Actor) -> Task:
         if not task.is_started() or not self.tasks.environment_started_tasks(environment.id):
             return task
-        return self.tasks.save(task.paused(f"moved to environment {environment.name}, where a task is in progress", self._time()), actor)
+        return self.tasks.save(task.blocked(f"moved to environment {environment.name}, where a task is in progress", self._time()), actor)
 
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
@@ -217,17 +221,7 @@ class TaskCommand(Command):
             return 0
         output = self.outputs.find(args.output)
         self.test_runs.attach([task], output, caller.actor)
-        print(f"task {task.row_id} waits in testing on output {output.id}: it completes when the run passes, and is in progress again if it fails")
-        return 0
-
-    def resume(self, args: Namespace, caller: Caller) -> int:
-        return self.claimed_task(args.n, caller, "resumed")
-
-    def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
-        previous = self.taking.paused_current(self.tasks.find(n), caller)
-        task = self.taking.start(self.tasks.find(n), caller)
-        paused = [f"task {previous.row_id} paused"] if previous is not None else []
-        print("\n".join([*paused, f"task {task.row_id} {manner}", *self.briefing.lines(task)]))
+        print(f"task {task.row_id} waits in testing on output {output.id}: it completes when the run passes, and is blocked with what failed if it fails")
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:
@@ -295,12 +289,6 @@ state: {task.state}
         phase = next((p for p in phases if p.phase.id in phase_ids), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
-    def skip_paused(self, args: Namespace, caller: Caller) -> int:
-        agent = self.sessions.agent(caller.agent_session, self.scope.id)
-        self.agents.rewritten(agent, caller.actor, lambda current: current.paused_work_declined(self.time_source.seconds()))
-        print("paused work set aside until your next close: your next stop takes up the next open task, or start one now with journal task start <n>")
-        return 0
-
     def next(self, args: Namespace, caller: Caller) -> int:
         agent = self.sessions.agent(caller.agent_session, self.scope.id)
         request = NextTasksRequest(agent=agent).placed(agent, None, self.time_source.moment().timestamp())
@@ -342,11 +330,6 @@ state: {task.state}
         next_task = self.next_tasks.holder_task(closed)
         if next_task:
             print(next_task.line())
-            return
-        holder = self.tasks.holder(closed)
-        choosable = self.tasks.choosable_paused_tasks(holder) if holder is not None and not self.plans.started_plans(closed) else []
-        if choosable:
-            print(f"paused work to take up, asked at your next stop: {', '.join(f'task {task.id} ({task.title})' for task in choosable)}")
 
     def _time(self) -> datetime:
         return self.time_source.moment()

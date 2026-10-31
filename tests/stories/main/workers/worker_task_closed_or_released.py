@@ -20,9 +20,9 @@ def test_the_user_cancelling_a_workers_task_leaves_it_cancelled_and_undelegated(
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_the_user_pausing_a_workers_task_takes_it_from_the_worker(story):
-    story.user_pauses_task(story.tasks.briefed, "later")
-    story.expect_task(story.tasks.briefed, state=TaskState.PAUSED)
+def test_the_user_blocking_a_workers_task_takes_it_from_the_worker(story):
+    story.user_blocks_task(story.tasks.briefed, "later")
+    story.expect_task(story.tasks.briefed, state=TaskState.BLOCKED)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.RELEASED)
     story.expect_stack(story.agents.subject, Ready)
 

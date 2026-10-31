@@ -30,11 +30,11 @@ def test_a_task_in_progress_moves_only_by_force_and_arrives_in_progress(story):
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_task_in_progress_arrives_paused_where_a_task_is_already_in_progress(story):
+def test_a_task_in_progress_arrives_blocked_where_a_task_is_already_in_progress(story):
     second_environment = story.another_environment("second_environment")
     theirs = story.agent_in_starts_task(story.agents.subject, second_environment, "s9", "Their own work")
     story.agent_runs(story.agents.subject, f"task transfer {story.tasks.started} {second_environment} --force")
-    story.expect_task_in(second_environment, story.tasks.started, TaskState.PAUSED)
+    story.expect_task_in(second_environment, story.tasks.started, TaskState.BLOCKED)
     story.expect_task_in(second_environment, theirs, TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -51,14 +51,13 @@ def test_a_task_in_testing_moves_only_by_force_and_stays_in_testing(story):
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_paused_task_arrives_paused_and_is_no_longer_offered_here(story):
+def test_a_blocked_task_arrives_blocked_and_is_no_longer_offered_here(story):
     second_environment = story.another_environment("second_environment")
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'the second_environment environment takes it'")
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'the second_environment environment takes it'")
     footer = story.agent_creates_task(story.agents.subject, "Write the footer")
     story.agent_runs(story.agents.subject, f"task transfer {story.tasks.started} {second_environment}")
-    story.expect_task_in(second_environment, story.tasks.started, TaskState.PAUSED)
-    result = story.agent_stops(story.agents.subject)
-    result.expect_agent_not_told(story.agents.subject, TasksNudges.PAUSED_CHOICE)
+    story.expect_task_in(second_environment, story.tasks.started, TaskState.BLOCKED)
+    story.agent_stops(story.agents.subject)
     story.expect_task(footer, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 

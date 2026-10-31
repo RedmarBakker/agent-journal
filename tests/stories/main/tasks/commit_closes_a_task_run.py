@@ -21,9 +21,8 @@ def test_a_commit_naming_the_task_done_closes_it(story):
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_commit_closing_the_task_in_hand_takes_the_paused_task_up_at_once(story):
+def test_a_commit_closing_the_task_in_hand_takes_up_at_once_the_task_it_was_started_over(story):
     story.project_is_a_git_repository()
-    story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'the footer comes first'")
     footer = story.agent_creates_task(story.agents.subject, "footer")
     story.agent_runs(story.agents.subject, f"task start {footer}")
     commit = f"git -c user.email=story@example.com -c user.name=Story commit --allow-empty -q -m 'the footer' -m 'Journal: tasks done {footer}'"

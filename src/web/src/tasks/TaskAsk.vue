@@ -18,7 +18,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["close"]);
 const task = props.asking.task;
-const fields = reactive({how: "", why: "", title: task?.title || "", brief: task?.brief || ""});
+const fields = reactive({how: "", title: task?.title || "", brief: task?.brief || ""});
 const wait = ref(null);
 const busy = ref(false);
 const question = computed(() => (props.asking.kind === "answer" ? answered(byRef(`questions:${props.asking.question}`)) : null));
@@ -33,12 +33,6 @@ const FORMS = {
         button: `Finish task ${task.id}`,
         ready: () => true,
         send: () => props.acts.finish(task, fields.how.trim()),
-    }),
-    pause: () => ({
-        title: `Pause task ${task.id}`,
-        button: `Pause task ${task.id}`,
-        ready: () => Boolean(fields.why.trim()),
-        send: () => props.acts.pause(task, fields.why.trim()),
     }),
     block: () => ({
         title: `Block task ${task.id}`,
@@ -79,16 +73,6 @@ const sendOnEnter = (e) => e.target.tagName !== "TEXTAREA" && (e.preventDefault(
                         autofocus
                         @input="fields.how = $event.target.value"
                     />
-                </template>
-                <template #pause>
-                    <p class="label">Why pause it?</p>
-                    <TextInput
-                        :value="fields.why"
-                        placeholder="Such as: another task comes first"
-                        autofocus
-                        @input="fields.why = $event.target.value"
-                    />
-                    <p class="hint">The journal stops reminding the agent about it until it is resumed.</p>
                 </template>
                 <template #block>
                     <TaskBlockForm :task="task" :tasks="tasks" @wait="wait = $event" />

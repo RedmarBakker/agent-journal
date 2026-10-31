@@ -16,8 +16,8 @@ def test_a_passing_phase_end_test_run_completes_every_task_of_the_phase_waiting_
 
 
 @story(PhaseWaitingForTests, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_failing_phase_end_test_run_sets_every_task_waiting_in_testing_aside_as_paused_work(story):
+def test_a_failing_phase_end_test_run_blocks_every_task_waiting_in_testing(story):
     story.recorded_run_fails(story.outputs.first)
-    story.expect_task(story.tasks.second, state=TaskState.PAUSED)
-    story.expect_task(story.tasks.third, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.second, state=TaskState.BLOCKED)
+    story.expect_task(story.tasks.third, state=TaskState.BLOCKED)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)

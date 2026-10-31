@@ -155,7 +155,7 @@ class Routes:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
         self.resource(router, "tasks", tasks)
-        self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
+        self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
         self.resource(router, "plans", plans)
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)

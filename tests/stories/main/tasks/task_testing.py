@@ -31,9 +31,9 @@ def test_a_task_in_testing_is_completed_when_its_run_passes(story):
 
 
 @story(TestingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_task_in_testing_is_paused_when_its_run_fails(story):
+def test_a_task_in_testing_is_blocked_when_its_run_fails(story):
     run = story.agent_runs_a_command(story.agents.subject, "sh -c 'seq 1 300; exit 3'")
     result = story.agent_runs(story.agents.subject, f"output test {run}")
-    story.expect_task(story.tasks.started, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.started, state=TaskState.BLOCKED)
     result.expect_agent_told(story.agents.subject, TasksNudges.TEST_FAILURE, n=story.tasks.started)
     story.expect_stack(story.agents.subject, Ready)

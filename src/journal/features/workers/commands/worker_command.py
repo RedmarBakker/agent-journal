@@ -50,7 +50,6 @@ ASSIGNMENT_REFUSALS = {
     TaskState.CANCELLED: "task {n} is {state}: a worker is started only on an open task or one you hold",
     TaskState.BLOCKED: "task {n} is {state}: unblock it before a worker takes it",
     TaskState.STARTED: "task {n} is started in another's hands: a worker is started only on an open task or one you hold",
-    TaskState.PAUSED: "task {n} is {state} in another's hands: a worker is started only on an open task or one you hold",
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")

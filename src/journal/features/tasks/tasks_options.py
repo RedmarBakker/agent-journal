@@ -18,3 +18,5 @@ class TasksOptions:
     LOG_LIMIT = Option("tasks.log_after", "Hold the next write after", "Edits without a log line before the agent's next write waits for one", 50, unit="edits")
     LOG_AGE_LIMIT = Option("tasks.log_old_after_minutes", "Ask for a log at a stop after", "Minutes since the task's last log line before a stop asks for one before carrying on", 10, unit="min")
     BLOCK_BATCH = Option("tasks.block_batch_seconds", "Refuse a third block within", "A third task blocked within this many seconds of two others is refused: blocking a batch is clearing the list, not tasks that cannot move", 300, unit="seconds")
+    LOOSE_BLOCK_TASKS = Option("tasks.loose_block_tasks", "Name blocks with no wait every", "Tasks completed before the journal names the tasks blocked with nothing to end them, asking whether each can be unblocked or else to make it wait on a task or a check; the minutes below name them too, whichever comes first", 5, unit="tasks")
+    LOOSE_BLOCK_MINUTES = Option("tasks.loose_block_minutes", "Or every", "Minutes, even while the agent is idle, before the tasks blocked with nothing to end them are named again", 30, unit="min")

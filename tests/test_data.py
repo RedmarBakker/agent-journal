@@ -318,12 +318,32 @@ def test_the_trigger_phrases_migration_renames_the_words_column(connection):
 def test_the_paused_tasks_migration_turns_a_parked_task_and_plan_into_paused_ones(connection):
     """Migration 42: a task or plan stored as parked is paused, and the task's suspension_reason column is its pause_reason."""
     from journal.db.migrations.paused_tasks import PausedTasks
-    connection.execute("ALTER TABLE tasks RENAME COLUMN pause_reason TO suspension_reason")
+    connection.execute("ALTER TABLE tasks ADD COLUMN suspension_reason TEXT DEFAULT ''")
     connection.execute("INSERT INTO tasks (environment_id, title, state, suspension_reason, created_at, creator) VALUES (1, 'the parser', 'parked', 'waits on the lexer', '2026-10-23', 'system')")
     connection.execute("INSERT INTO plans (environment_id, title, state, created_at, creator) VALUES (1, 'release', 'parked', '2026-10-23', 'system')")
     PausedTasks().apply(connection)
     task = connection.one("SELECT state, pause_reason FROM tasks")
     assert (task["state"], task["pause_reason"]) == ("paused", "waits on the lexer") and connection.one("SELECT state FROM plans")["state"] == "paused"
+
+
+def test_the_paused_tasks_become_blocked_and_the_pause_leaves_the_columns_and_the_stacks(connection):
+    """Migrations 85 and 86: a paused task is blocked with its pause reason, or a reason that says when it was paused, and the pause's columns and the choice of paused work on a stack are gone."""
+    from journal.db.migrations.paused_tasks_blocked import PausedTasksBlocked
+    from journal.db.migrations.pause_columns_drop import PauseColumnsDrop
+    connection.execute("ALTER TABLE tasks ADD COLUMN pause_reason TEXT DEFAULT ''")
+    connection.execute("ALTER TABLE tasks ADD COLUMN wait_ended_at REAL DEFAULT 0")
+    connection.execute("ALTER TABLE agents ADD COLUMN paused_declined INTEGER DEFAULT 0")
+    for title, state, reason in (("the parser", "paused", "waits on the lexer"), ("the lexer", "paused", ""), ("the printer", "open", "")):
+        connection.execute("INSERT INTO tasks (environment_id, title, state, pause_reason, created_at, creator) VALUES (1, ?, ?, ?, '2026-10-31', 'system')", (title, state, reason))
+    stack = [{"state": "idle", "data": {}}, {"state": "choosing_paused_work", "data": {"refusals": 1}}]
+    connection.execute("INSERT INTO agents (session, state, stack, created_at, creator) VALUES ('s1', 'choosing_paused_work', ?, '2026-10-31', 'system')", (json.dumps(stack),))
+    PausedTasksBlocked().apply(connection)
+    PauseColumnsDrop().apply(connection)
+    tasks = [(row["title"], row["state"], row["block_reason"]) for row in connection.all("SELECT title, state, block_reason FROM tasks ORDER BY id")]
+    assert tasks == [("the parser", "blocked", "waits on the lexer"), ("the lexer", "blocked", "paused before version 4.69.15"), ("the printer", "open", "")]
+    assert not {"pause_reason", "wait_ended_at"} & {row["name"] for row in connection.all("PRAGMA table_info(tasks)")} and "paused_declined" not in {row["name"] for row in connection.all("PRAGMA table_info(agents)")}
+    agent = connection.one("SELECT state, stack FROM agents")
+    assert (agent["state"], json.loads(agent["stack"])) == ("idle", [{"state": "idle", "data": {}}]), "the choice of paused work leaves the stack, and the state beneath it is the agent's state"
 
 
 def test_the_load_keys_migration_lets_a_load_stored_with_the_dropped_minutes_read_again(connection):
@@ -495,7 +515,7 @@ def test_a_line_said_before_lines_carried_the_tool_use_gains_it_and_its_moment(t
     assert data["tool_use"] == 0 and data["time"] > 0, data
 
 
-def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_unclosed(connection, bus, scope):
+def test_the_tasks_repository_answers_which_tasks_are_open_blocked_and_unclosed(connection, bus, scope):
     from journal.models.plan import Plan
     from journal.models.plan_state import PlanState
     from journal.repositories.scoped_repository import ScopedRepository
@@ -509,13 +529,11 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
         free = tasks.save(Task(environment_id=1, title="free"), actor=USER)
         drafted = tasks.save(Task(environment_id=1, title="in a draft plan"), actor=USER)
         blocked = tasks.save(Task(environment_id=1, title="blocked", state=TaskState.BLOCKED), actor=USER)
-        paused = tasks.save(Task(environment_id=1, title="paused", state=TaskState.PAUSED), actor=USER)
         done = tasks.save(Task(environment_id=1, title="done", state=TaskState.COMPLETED), actor=USER)
         draft = PlanRows(connection, bus, scope, TimeSource()).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
         links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), link_type=PLAN_LINK), actor=USER)
         assert [task.id for task in tasks.open_tasks()] == [free.id], "a task of an unapproved plan is no open work"
         assert [task.id for task in tasks.blocked_tasks()] == [blocked.id]
-        assert [task.id for task in tasks.paused_tasks()] == [paused.id]
         assert done.id not in [task.id for task in tasks.unclosed_tasks()] and free.id in [task.id for task in tasks.unclosed_tasks()]
         assert tasks.unfinished_ids([free.id, done.id]) == [free.id]
 

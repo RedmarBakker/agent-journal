@@ -9,9 +9,9 @@ from tests.stories.fixtures.main.task_queue import TaskQueue
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_task_paused_with_untested_edits_is_asked_once_whether_it_only_waits_for_its_tests(story):
+def test_a_task_blocked_with_untested_edits_is_asked_once_whether_it_only_waits_for_its_tests(story):
     story.agent_writes(story.agents.subject, "footer.py")
-    result = story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'the header comes first'")
+    result = story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'the header comes first'")
     result.expect_agent_told(story.agents.subject, TasksNudges.UNTESTED_TASK_EDITS, n=story.tasks.started)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -28,13 +28,13 @@ def test_a_task_left_for_another_with_untested_edits_is_asked_about_too(story):
 def test_a_task_whose_edits_a_test_run_checked_is_set_aside_without_the_question(story):
     story.agent_writes(story.agents.subject, "footer.py")
     story.agent_runs_in_the_shell(story.agents.subject, "pytest -q")
-    result = story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'the header comes first'")
+    result = story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'the header comes first'")
     result.expect_agent_not_told(story.agents.subject, TasksNudges.UNTESTED_TASK_EDITS)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_task_paused_with_no_edits_is_set_aside_without_the_question(story):
-    result = story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'the header comes first'")
+def test_a_task_blocked_with_no_edits_is_set_aside_without_the_question(story):
+    result = story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'the header comes first'")
     result.expect_agent_not_told(story.agents.subject, TasksNudges.UNTESTED_TASK_EDITS)
     story.expect_stack(story.agents.subject, Ready)

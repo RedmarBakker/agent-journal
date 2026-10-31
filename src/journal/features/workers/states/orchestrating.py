@@ -32,9 +32,6 @@ class Orchestrating(PlansReady):
     def mode_lines(self) -> tuple[Nudge, ...]:
             return (WorkersNudges.ORCHESTRATOR_MODE.create(),)
 
-    def choice_state(self) -> BaseState | None:
-        return None
-
     def plan_state(self, **fields) -> BaseState:
         return OrchestratingPlan(**fields)
 
@@ -52,7 +49,7 @@ class Orchestrating(PlansReady):
 
 
 def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
-    queue = tuple(n for n in (*tasks.paused, *tasks.blocked) if n not in tasks.person_waits)
+    queue = tuple(n for n in tasks.blocked if n not in tasks.person_waits)
     return (WorkersNudges.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
 
 

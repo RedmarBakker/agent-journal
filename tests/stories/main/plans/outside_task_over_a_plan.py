@@ -33,7 +33,7 @@ def test_the_plan_carries_on_after_the_outside_task_completes(story):
 def test_a_plan_the_user_paused_stays_quiet_at_the_stop(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_allowed()
-    story.expect_task(story.tasks.first, state=TaskState.PAUSED)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_task(story.tasks.second, state=TaskState.OPEN)
     story.expect_plan(story.plans.first, state=PlanState.PAUSED)
     story.expect_stack(story.agents.subject, Ready)
