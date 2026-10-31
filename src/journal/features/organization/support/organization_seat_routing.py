@@ -28,7 +28,7 @@ class OrganizationSeatRouting:
         "`journal clock-in`. Prove each task point with `journal proof <point> \"<file:line, and the test that shows it>\"`, then return work with "
         "`journal clock-out \"<report>\"`. Clocking out returns your work to the Domain agent for checking. Do not hand off your task."
     )
-    skill = Skill("organization-seat-routing", "Route organization work between seats; load it when a seat receives work or hands it off", f"""
+    skill = Skill("organization-seat-routing", "Route organization work; load it when a plan names an organization, Domain or Role, or a seat receives work or hands it off", f"""
 # Organization seat routing
 
 {guidance}
@@ -43,4 +43,4 @@ Use these targets:
 - {role_guidance}
 
 A Plan seat can inspect a task in its plan with `journal task show <task>`.
-""")
+""", keywords=("organization", "domain", "domains", "role", "roles"))

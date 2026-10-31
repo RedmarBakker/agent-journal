@@ -74,7 +74,7 @@ class PlanCommand(Command):
         addition.add_argument("title")
         addition.add_argument("--brief", default="")
         addition.add_argument("--domain", default="")
-        addition.add_argument("--size", default="unknown", help="relative story points from the configured scale, or unknown")
+        addition.add_argument("--size", default="unknown", help="a value in configured estimates.size_scale, or unknown")
         addition.add_argument("--first", action="store_true", help="put it before the tasks the plan has")
         addition.add_argument("--phase", type=int, default=0, help="the phase it goes under, by its number from 1, in the same step")
         addition.add_argument("--after", type=int, action="append", default=[], help="a task that must be accepted first; repeat for more")
@@ -461,8 +461,11 @@ class PlanCommand(Command):
         proved = self.proofs.is_checkable(task)
         domain = self.domains.planned_domain_name(task)
         target = f" domain:{domain}" if domain else ""
+        size = task.size if task.size is not None else "unknown"
+        prerequisites = self.task_dependencies.prerequisites(task)
+        after = ",".join(map(str, prerequisites)) if prerequisites else "none"
         status = "proved" if proved else task.state
         proof = "  (finished by its worker, waiting for your check)" if proved else ""
         parts = self.tasks.parts_of(task)
         split = f"  (split into {len(parts)} {'part' if len(parts) == 1 else 'parts'}, {sum(part.state == TaskState.COMPLETED for part in parts)} merged)" if parts else ""
-        return f"{task.id:>4}  {status:<8} {task.title}{proof}{target}{split}"
+        return f"{task.id:>4}  {status:<8} {task.title}{proof} size:{size} after:{after}{target}{split}"

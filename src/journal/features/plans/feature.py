@@ -77,14 +77,19 @@ by you, approved by them, and then followed: finishing one task starts the next 
   should review before the plan continues. A checkpoint stops the plan only when auto mode is off; in auto mode the plan
   continues straight on.
 - `journal plan add <n> "<task title>" --brief "<done when>" --phase <k>` files a task straight under its phase, by its number
-  from 1; `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase.
+  from 1. Use `--size <points>` from configured `estimates.size_scale`, `--after <task> --reason "<why>"` for prerequisites,
+  `--domain <domain>` for an organization task, and `--delivery-gate-for <task>` when it needs accepted delivery evidence;
+  `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase.
+- Choose how it is worked with `journal plan mode <n> organization` or `journal plan mode <n> solo`. An organization
+  plan gives every task a Domain. Set each task's priority with `journal task edit <task> --priority <level>`.
 - `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
   A builder or a solo agent has one started plan: starting or resuming one pauses the others, and a switch out of the
   orchestrator's mode keeps the one furthest along. An orchestrator keeps every plan it starts. A plan one of whose tasks
   goes to a worker while you hold none of its tasks is delegated: it is no started plan, so you may start another beside
   it; starting one of its tasks yourself makes it started again, and when its last worker task closes it is paused.
-- Asked for a review of a plan: `journal plan review <n>` before the reviewers go out. In review it cannot be approved,
+- Before readying a plan, open a review with `journal plan review <n>` and send a `journal-plan-reviewer` to review it.
+  In review it cannot be approved,
   and `journal plan ready <n>` waits until every subagent is back. Put what they find straight into the plan as tasks
   under its phases, then mark it ready again with `--changed "<what the round changed, in one line>"`: each round is stored on the
   plan, with its reviewers, the reports filed about the plan while it ran, and that line.

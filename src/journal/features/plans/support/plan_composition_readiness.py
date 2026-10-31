@@ -2,6 +2,7 @@ from journal.features.estimates.estimates_options import ENFORCEMENT_PLAN_BOUNDA
 from journal.features.estimates.support.task_size_scale import TaskSizeScale
 from journal.features.organization.support.organization import Organization
 from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.plans import Plans
 from journal.repositories.setting_rows import SettingRows
@@ -18,14 +19,26 @@ class PlanCompositionReadiness:
         self.organization, self.dependencies = organization, dependencies
 
     def validate(self, plan: Plan) -> None:
+        contracts = self.organization.contracts()
+        self.require_organization_mode(plan, contracts.folder)
+        tasks = self.plans.plan_tasks(plan)
+        if plan.mode == PlanMode.ORGANIZATION:
+            for task in tasks:
+                self.require_domain(plan, task, contracts)
         if not self.is_new_enforced_plan(plan):
             return
         scale = self.scale.values()
-        contracts = self.organization.contracts()
-        for task in self.plans.plan_tasks(plan):
+        for task in tasks:
             self.require_size(task, scale)
-            self.require_domain(plan, task, contracts)
         self.dependencies.validate_plan(plan)
+
+    @staticmethod
+    def require_organization_mode(plan: Plan, folder: str) -> None:
+        if folder and plan.mode == PlanMode.SOLO:
+            raise Rejection(
+                f"an organization is configured; plan {plan.id} needs organization mode: "
+                f"`journal plan mode {plan.id} organization`"
+            )
 
     def is_new_enforced_plan(self, plan: Plan) -> bool:
         setting = next((row for row in self.settings.project_rows() if row.key == EstimatesOptions.MODE.key), None)

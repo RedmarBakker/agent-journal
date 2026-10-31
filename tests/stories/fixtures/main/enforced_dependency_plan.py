@@ -12,6 +12,7 @@ class EnforcedDependencyPlan(StateFixture):
     parent = EnforcedDraftPlan
 
     def steps(self, story) -> None:
+        story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization")
         phase = story.agent_runs(story.agents.main, f"plan phase {self.plans.first} 'Delivery' --when 'production accepts the revision'")
         phase.expect_command_passed()
         first = story.agent_runs(story.agents.main, f"plan add {self.plans.first} 'build' --brief 'the artifact builds' --domain development --size 3 --phase 1")
