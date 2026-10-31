@@ -81,8 +81,8 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     story.expect_task(first_part, state=TaskState.COMPLETED)
     story.expect_task(second_part, state=TaskState.COMPLETED)
     story.expect_task(parent, state=TaskState.COMPLETED)
-    story.expect_worker(first_worker, state=WorkerState.DELIVERED)
-    story.expect_worker(second_worker, state=WorkerState.DELIVERED)
+    story.expect_worker(first_worker, state=WorkerState.MERGED)
+    story.expect_worker(second_worker, state=WorkerState.MERGED)
     story.expect_plan(plan, state=PlanState.FINISHED)
     story.expect_openrig_seat_received(
         domain, story.plan_rig_name(plan), "domain:alpha",
