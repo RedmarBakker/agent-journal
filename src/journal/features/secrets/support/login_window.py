@@ -43,8 +43,8 @@ class LoginWindow:
             with self.scope.environment(environment_id):
                 self.messages.save(Message(author=Author.AGENT, text=f"The login to {secret.title} was not saved: {failed}"), Actor.system())
             return
-        self.secrets.save(self.secrets.find(secret.row_id).with_(login_started_at=None, session_at=self.time_source.moment(), session_expires=self.logins.expires(saved, secret.url)), Actor.system())
         self.supplied()
+        self.secrets.save(self.secrets.find(secret.row_id).with_(login_started_at=None, session_at=self.time_source.moment(), session_expires=self.logins.expires(saved, secret.url)), Actor.system())
 
     def dropped(self, secret: Secret, actor: Actor) -> Secret:
         self.logins.drop(secret.title)
