@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
@@ -23,6 +24,15 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "target": "production",
         })
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
+        started_on = datetime.fromtimestamp(story.app.container.get(Clock).held_at, ZoneInfo("Europe/Amsterdam")).date().isoformat()
+        sprint = story.user_presses("/journal/sprints", {"starts_on": started_on, "timezone": "Europe/Amsterdam"})
+        sprint.expect_viewer_passed()
+        self.sprints.first = sprint.viewer_answer["id"]
+        story.user_presses(f"/journal/sprints/{self.sprints.first}/plans", {"plan_id": self.plans.first}).expect_viewer_passed()
+        story.user_presses(f"/journal/sprints/{self.sprints.first}/start", {}).expect_viewer_passed()
+        sprint = story.user_opens(f"/journal/sprints/{self.sprints.first}")
+        sprint.expect_viewer_shows("state", "active")
+        sprint.expect_viewer_part(("plan_ids",), [self.plans.first])
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
         worker = story.agents.workers.first()
         story.agent_starts_a_session(worker)
