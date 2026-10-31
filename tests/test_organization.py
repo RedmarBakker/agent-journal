@@ -2536,6 +2536,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         app.runtime().deferred.drain()
         assert {row.name: row.roles for row in counts.all_matching()}["beta"] == {"keeper": {"instances": 0, "queued": 0}}, "an instance that is released stops being counted, and so does its queue"
         assert {row.name: row.plans_active for row in counts.all_matching()}["beta"] == 0, "and beta's plan is no longer active once its task is done"
+        alpha_task_states = {task.id: tasks.find(task.id).state.value for task in (built, looked)}
     status, shown = get_answer(app, "/journal/organization", env)
     assert shown["folder"] == str(fixture.root) and shown["commit"] == commit, "the page answer names the actual folder and the commit it reads"
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
@@ -2548,7 +2549,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
     story_points = {"total": None, "done": None, "sized_tasks": 0, "unknown_tasks": 3}
     domain = {"id": "alpha", "title": "Alpha", "icon": "🧪"}
-    alpha_task_details = [{"id": task.id, "title": task.title, "state": tasks.find(task.id).state.value, "domain": domain, "route_state": "With a Role", "subtasks": []} for task in (built, looked)]
+    alpha_task_details = [{"id": task.id, "title": task.title, "state": alpha_task_states[task.id], "domain": domain, "route_state": "With a Role", "subtasks": []} for task in (built, looked)]
     beta_task_details = [{"id": kept.id, "title": kept.title, "state": "completed", "domain": {"id": "beta", "title": "Beta", "icon": "🧪"}, "route_state": "Merged", "subtasks": []}]
     assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "state": "draft", "active": True, "tasks": [built.id, looked.id], "task_details": alpha_task_details, "done": 0, "story_points": story_points, "waits_on": "Role work", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "with the counts and the board of plans"
     assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "state": "draft", "active": False, "tasks": [kept.id], "task_details": beta_task_details, "done": 1, "story_points": story_points, "waits_on": "", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "the same plan has a separate card in beta's phase with only beta's progress"
