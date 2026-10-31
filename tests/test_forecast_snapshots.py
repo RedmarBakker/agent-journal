@@ -3,10 +3,14 @@ from datetime import datetime, timezone
 import pytest
 
 from journal.models.plan import Plan
-from journal.repositories.forecast_snapshots import ForecastSnapshots
+from journal.models.support.ref import Ref
+from journal.models.task import Task
 from journal.repositories.delivery_forecasts import DeliveryForecasts
-from journal.repositories.plans import Plans
+from journal.repositories.forecast_snapshots import ForecastSnapshots
+from journal.repositories.links import Links
+from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
@@ -72,14 +76,17 @@ def test_delivery_forecast_exposes_learned_ranges_from_immutable_outcome_history
     owner = Actor.user(1)
     with app.container.get(Scope).environment(1):
         plan = app.container.get(Plans).save(Plan(title="release"), owner)
+        task = app.container.get(Tasks).save(Task(title="deployment", size=3), owner)
+        app.container.get(Links).linked(Ref.build(task), Ref.build(plan), PLAN_LINK, owner)
         time_source = app.container.get(TimeSource)
         as_of = time_source.seconds()
         cohort = {"environment_id": 1, "domain": "development", "size_scale_version": "points-v1",
                   "criteria_version": "production-v3", "model": "sonnet", "tier": "medium",
                   "cohort_version": "plan4-outcome-cohort-v1"}
+        historical_tasks = [completed_history(index, as_of, cohort) for index in range(12)]
         histories = [{"scope": {"environment_id": 1, "plan_id": plan.row_id},
-                      "tasks": [completed_history(index, as_of, cohort) for index in range(12)]}]
-        source = {"scope": [{"plan_id": plan.row_id, "task_id": 99, "size_points": 3, "cohort": cohort}]}
+                      "tasks": [{"task_id": task.row_id, "outcomes": []}, *historical_tasks]}]
+        source = {"scope": [{"plan_id": plan.row_id, "task_id": task.row_id, "size_points": 3, "cohort": cohort}]}
 
         forecast = app.container.get(DeliveryForecasts).with_duration_ranges(
             {"status": "not_enough_history"}, source, [plan], histories, plan.row_id)
@@ -87,7 +94,7 @@ def test_delivery_forecast_exposes_learned_ranges_from_immutable_outcome_history
         assert forecast["duration_ranges"]["status"] == "forecast"
         assert forecast["duration_ranges"]["method_version"] == "bayesian-log-linear-duration-v1"
         assert forecast["duration_ranges"]["input_cut"]
-        assert forecast["duration_ranges"]["tasks"][0]["task_id"] == 99
+        assert forecast["duration_ranges"]["tasks"][0]["task_id"] == task.row_id
         assert forecast["duration_ranges"]["tasks"][0]["stages"]["execution_cycle"]["status"] == "forecast"
         assert forecast["duration_calibration"]["status"] == "not_enough_history"
 
@@ -96,7 +103,7 @@ def completed_history(index, as_of, cohort):
     start = as_of - (index + 2) * 86400
     size = (1, 2, 3, 5, 8, 13)[index % 6]
     end = start + size * 3600
-    return {"task_id": index + 1, "outcomes": [
+    return {"task_id": index + 100, "outcomes": [
         outcome("task_started", start, cohort, size),
         outcome("task_completed", end, cohort, size),
     ]}
