@@ -100,6 +100,8 @@ class Working(BaseState):
         return self.refuse(self.continue_nudge())
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
+        if not self.has_current_task(event.data):
+            return self.pop()
         nudges = [self.continue_nudge()]
         if event.source == COMPACT:
             nudges.append(BriefingNudges.COMPACTION_SUMMARY.create(task=self.label(), last_log=event.data.part(TasksPart).last_log_line, uncommitted=event.data.part(Git).uncommitted))
@@ -125,6 +127,9 @@ class Working(BaseState):
         return self.pop() if event.task_id == self.task_id else self.none()
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
-        if self.task_id and data.part(TasksPart).current_task != self.task_id:
+        if not self.has_current_task(data):
             return self.pop()
         return ()
+
+    def has_current_task(self, data: FeatureData) -> bool:
+        return not self.task_id or data.part(TasksPart).current_task == self.task_id

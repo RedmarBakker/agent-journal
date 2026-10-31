@@ -1,5 +1,5 @@
 from journal.engine.states.demand_block import DemandBlock
-from journal.features.messages.messages_nudges import MessagesNudges
+from journal.features.messages.messages_nudges import MESSAGE_REPLY, MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.external_wait import ExternalWait
@@ -73,6 +73,24 @@ def test_a_stop_under_the_hold_goes_through(story):
     result = story.agent_reads(story.agents.subject)
     result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.messages.first)
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
+
+
+@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_command_reply_satisfies_the_unanswered_message_before_stop(story):
+    story.agent_is_prompted(story.agents.subject, "answer the message")
+    result = story.agent_reads(story.agents.subject)
+    result.expect_refused(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=story.messages.first)
+    result.expect_agent_told_words(story.agents.subject, MessagesNudges.UNANSWERED_TOOL_BLOCK, MESSAGE_REPLY)
+    reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "the footer is done")
+    result = story.agent_reads(story.agents.subject)
+    result.expect_allowed()
+    result = story.agent_closes_its_turn(story.agents.subject, "I will start on the header now")
+    result.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_CLOSING_WORDS, reply=reply)
+    result = story.agent_stops(story.agents.subject)
+    result.expect_allowed()
+    story.expect_message(reply, author="agent", reply_target=story.messages.first)
+    story.expect_newest_agent_message("the footer is done")
+    story.expect_stack(story.agents.subject, Ready)
 
 
 @story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)

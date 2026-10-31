@@ -3,7 +3,10 @@ from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
+from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.setting_changed import SettingChanged
+from journal.features.skills.skills_options import SkillsOptions
+from journal.features.skills.skills_part import SkillsPart
 from journal.features.voices.voices_nudges import VoicesNudges
 from journal.features.voices.voices_options import VoicesOptions
 from journal.features.voices.voices_part import VoicesPart
@@ -22,6 +25,16 @@ class VoicesConduct(Conduct):
             return self.none()
         return self.none(VoicesNudges.VOICE_CHANGE.create(voice=event.data.part(VoicesPart).instruction))
 
+    def on_skill_read(self, event: SkillRead, settings: Settings) -> Transition:
+        if event.skill not in settings.texts(SkillsOptions.START_SKILLS):
+            return self.none()
+        skills = event.data.part(SkillsPart)
+        if set(skills.skills_due) & set(settings.texts(SkillsOptions.START_SKILLS)):
+            return self.none()
+        if event.data.part(VoicesPart).introduction_sent:
+            return self.none()
+        return self.none(VoicesNudges.INTRODUCE_YOURSELF.create())
+
 
 def voices_check(state: BaseState, event: SessionStarted, settings: Settings) -> Transition:
     if event.is_resume():
@@ -31,5 +44,7 @@ def voices_check(state: BaseState, event: SessionStarted, settings: Settings) ->
 
 def introduce_check(state: BaseState, event: SessionStarted, settings: Settings) -> Transition:
     if event.source not in STARTS:
+        return state.none()
+    if not event.is_resume() and set(event.data.part(SkillsPart).skills_due) & set(settings.texts(SkillsOptions.START_SKILLS)):
         return state.none()
     return state.none().typing((VoicesNudges.RETURN_GREETING if event.is_resume() else VoicesNudges.INTRODUCE_YOURSELF).create())

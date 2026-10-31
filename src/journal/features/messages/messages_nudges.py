@@ -4,6 +4,7 @@ from journal.models.message import Message
 from journal.support.timeout import Timeout
 
 REPLY_COMMAND_SPAN_USES = 50
+MESSAGE_REPLY = "`journal message send '<text>' --reply-to <n>`"
 
 
 class MessagesNudges:
@@ -20,11 +21,11 @@ class MessagesNudges:
     COMMENT_READ = Nudge("messages", "answer_the_comment_read", "reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}", "", repeat=Timeout.seconds(0))
     INBOX_COUNTDOWN = Nudge("messages", "writes_held_soon_until_read", "read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)
     INBOX_LAST_USE = Nudge("messages", "next_write_held_until_read", "read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it", "", repeat=Timeout.seconds(0), chat_answerable=True)
-    UNANSWERED_COUNTDOWN = Nudge("messages", "tools_held_soon_until_answered", "reply to message {{messages|cap=70}}; tool calls wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)
-    UNANSWERED_LAST_USE = Nudge("messages", "next_tool_held_until_answered", "reply to message {{messages|cap=62}} now; your next tool call waits for it", "", repeat=Timeout.seconds(0), chat_answerable=True)
+    UNANSWERED_COUNTDOWN = Nudge("messages", "tools_held_soon_until_answered", "run " + MESSAGE_REPLY + " to reply to message {{messages|cap=18}}; tools wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)
+    UNANSWERED_LAST_USE = Nudge("messages", "next_tool_held_until_answered", "run " + MESSAGE_REPLY + " to reply to message {{messages|cap=18}}; next tool waits", "", repeat=Timeout.seconds(0), chat_answerable=True)
     INBOX_EDIT_BLOCK = Nudge("messages", "write_held_until_read", "{{count}} unread messages", "run `journal message unread` before any other write", repeat=Timeout.seconds(0))
-    UNANSWERED_MESSAGES = Nudge("messages", "answer_before_anything_else", "answer or react to message {{messages|cap=73}} before you go on", "", repeat=Timeout.seconds(300), chat_answerable=True)
-    UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages|cap=60}}; tool calls wait until you do", "", repeat=Timeout.seconds(0), chat_answerable=True)
+    UNANSWERED_MESSAGES = Nudge("messages", "answer_before_anything_else", "run " + MESSAGE_REPLY + " to reply to message {{messages|cap=18}} before going on", "", repeat=Timeout.seconds(300), chat_answerable=True)
+    UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "run " + MESSAGE_REPLY + " to reply to message {{messages|cap=18}}", "tool calls wait until you do", repeat=Timeout.seconds(0), chat_answerable=True)
     FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "run `journal message read <n>` and `journal question show <n>` alone, without a pipe", "", repeat=Timeout.seconds(0))
     RETIRED_TAGS = Nudge("messages", "tags_run_nothing", "tags run nothing any more", "reply with `journal message send '<text>' --reply-to <n>`, act by command", repeat=Timeout.minutes(60), kind=NudgeKind.REMARK)
     REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "message {{n}} answered: reply {{reply}}", "go on; closing text is not sent", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)

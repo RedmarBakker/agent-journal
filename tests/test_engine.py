@@ -909,6 +909,8 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
 
 
 def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data():
+    from journal.features.skills.skills_options import SkillsOptions
+    from journal.features.skills.support.skills_data import SkillsData
     from journal.features.voices.voices_options import VoicesOptions
     from journal.features.voices.voices_conduct import VoicesConduct
     from journal.features.voices.support.voices_data import VoicesData
@@ -921,10 +923,10 @@ def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data(
     from journal.events.agent.tool_finished import ToolFinished
     from journal.events.agent.turn_displayed import TurnDisplayed
     from journal.events.rows.setting_changed import SettingChanged
-    settings = SettingsValue({WorkersOptions.MODE.key: "builder", EtiquetteOptions.REMINDER_INTERVAL.key: 50})
+    settings = SettingsValue({WorkersOptions.MODE.key: "builder", EtiquetteOptions.REMINDER_INTERVAL.key: 50, SkillsOptions.START_SKILLS.key: SkillsOptions.START_SKILLS.default})
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
-    data = FeatureData({"plans": PlansData((), None), "tasks": TasksData(current_task=0, last_log_line="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", next_open=None, last_commands=()), "voices": VoicesData(instruction="as a butler"), "etiquette": EtiquetteData(reminder_gap=50, code_edits=0), "pins": PinsData(pinned=("https://a.test/pinned",), recent_suggestions=("https://a.test/said",), newest_pin_at=0.0), "migration": MigrationData(version_3_waiting=True)})
+    data = FeatureData({"plans": PlansData((), None), "tasks": TasksData(current_task=0, last_log_line="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", next_open=None, last_commands=()), "skills": SkillsData(skills_due=(), loaded={}, skills=()), "voices": VoicesData(instruction="as a butler", introduction_sent=False), "etiquette": EtiquetteData(reminder_gap=50, code_edits=0), "pins": PinsData(pinned=("https://a.test/pinned",), recent_suggestions=("https://a.test/said",), newest_pin_at=0.0), "migration": MigrationData(version_3_waiting=True)})
     started = Ready().respond(SessionStarted(agent=EVENT_AGENT).with_data(data), settings, (VoicesConduct, EtiquetteConduct, PinsConduct, MigrationConduct))
     assert [nudge.key for nudge in started.nudges] == ["voices.how_to_talk_to_the_user", "migration.version_3_not_brought_across"]
     assert "as a butler" in started.nudges[0].rendered()
