@@ -1149,7 +1149,7 @@ def test_shared_role_usage_samples_its_domain_and_role_seats():
     runner = object.__new__(SeatRunner)
     addresses = (SeatAddress("engineering", "domain-agent"), SeatAddress("engineering", "builder"),
                  SeatAddress("support", "domain-agent"), SeatAddress("support", "reviewer"))
-    runner.runtime = SimpleNamespace(seat_addresses=lambda _rig: addresses, target=SeatRuntime.target)
+    runner.runtime = SimpleNamespace(roster=lambda _rig: addresses, target=SeatRuntime.target)
 
     assert runner.usage_targets(SimpleNamespace(rig="shared", pod="engineering", member="builder")) == (
         "engineering-domain-agent@shared", "engineering-builder@shared",
@@ -1245,7 +1245,7 @@ def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tm
     addresses = (SimpleNamespace(pod="plan", member="plan-agent"),
                  SimpleNamespace(pod="engineering", member="domain-agent"),
                  SimpleNamespace(pod="engineering", member="builder"))
-    runner.runtime = SimpleNamespace(usage_cost=lambda _target: reading, seat_addresses=lambda _rig: addresses,
+    runner.runtime = SimpleNamespace(usage_cost=lambda _target: reading, roster=lambda _rig: addresses,
                                      target=SeatRuntime.target, expected_seats=lambda _rig: 3,
                                      stop=lambda target, reason: (order.append("stop"), stopped.append((target, reason))))
     runner.ledger = ledger

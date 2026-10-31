@@ -380,7 +380,7 @@ class SeatRunner:
                 raise Rejection(decision.reason)
 
     def usage_targets(self, member: SeatMember) -> tuple[str, ...]:
-        addresses = self.runtime.seat_addresses(member.rig)
+        addresses = self.runtime.roster(member.rig)
         if any(address.pod == PLAN_POD and address.member == PLAN_AGENT for address in addresses):
             selected = addresses
         else:
