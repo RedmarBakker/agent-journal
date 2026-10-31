@@ -56,6 +56,6 @@ class RigSeats:
     def role_seat(self, role: Role, domain: Domain, provider: Provider) -> Seat:
         effort = role.models.effort if provider.supports_reasoning_effort else ""
         clock_in = f" {OrganizationSeatRouting.role_guidance}" if role.writes else ""
-        guidance = f"{role.body(domain.guidance)}\n\n{OrganizationSeatRouting.guidance}{clock_in} Return work to your Domain agent with `journal organization handoff <task> domain:{domain.id}`."
+        guidance = f"{role.body(domain.guidance)}\n\n{OrganizationSeatRouting.guidance}{clock_in}"
         skills = (*role.skills, OrganizationSeatRouting.skill.name)
         return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, guidance, skills, self.tools.provider_tools(role.tools), role.writes)

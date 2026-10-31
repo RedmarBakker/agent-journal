@@ -11,5 +11,6 @@ class OrganizationNudges:
     ROLE_TOOL_REFUSED = Nudge("organization", "the_role_has_no_such_tool", "as {{role}} you do not use {{tool}}: your tools are {{tools}}", repeat=Timeout.seconds(0))
     ONE_ROLE_AT_A_TIME = Nudge("organization", "one_role_at_a_time", "you act as {{role}} already: `journal role done` first", repeat=Timeout.seconds(0))
     ROLE_REPORTED = Nudge("organization", "role_reported_up_the_hub", "{{report|cap=200}}: help it on, or pass it up the hub", repeat=Timeout.seconds(0), longest_characters=235, longest_reason="it carries the Role's own report")
+    ROLE_TASK_RETURN = Nudge("organization", "role_task_returns_by_clocking_out", "Role work returns with `journal proof <point> \"<file:line and test>\"`, then `journal clock-out \"<report>\"`", repeat=Timeout.seconds(0))
     PLAN_TASK_AWAITS_HANDOFF = Nudge("organization", "plan_task_waiting_for_handoff", "plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`", repeat=Timeout.seconds(0))
     UNREAD_HANDOFF = Nudge("organization", "organization_handoff_waiting_in_inbox", "you have an unread handoff; run `journal organization inbox`", repeat=Timeout.seconds(0))

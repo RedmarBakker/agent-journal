@@ -1,3 +1,4 @@
+from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
@@ -34,6 +35,8 @@ class OrganizationHub:
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
         member = self.seat(caller)
+        if source.startswith("role:") and caller.worker_number is not None:
+            raise Rejection(OrganizationNudges.ROLE_TASK_RETURN.rendered())
         refusal = self.routes.refusal_for(source, target)
         if refusal:
             raise Rejection(refusal)

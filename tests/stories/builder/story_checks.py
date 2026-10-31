@@ -362,12 +362,17 @@ class StoryChecks:
                         assert step in guidance, f"the Domain seat guidance does not say {step!r}"
                         assert step in skill, f"the Domain seat routing skill does not say {step!r}"
                 else:
-                    assert f"`journal organization handoff <task> domain:{pod['id']}`" in guidance, f"{agent} guidance does not give its Domain return route"
+                    domain_route = f"`journal organization handoff <task> domain:{pod['id']}`"
+                    assert domain_route not in guidance, f"{agent} guidance tells a Role to hand off its task"
+                    assert domain_route not in skill, f"{agent} routing skill tells a Role to hand off its task"
                     role = contracts.role(identity.split("/", 1)[1])
                     if role and role.writes:
                         role_steps = (
                             "As a writing Role seat, read your inbox with `journal organization inbox`, then clock in on your assigned task",
                             "`journal clock-in`",
+                            "`journal proof <point> \"<file:line, and the test that shows it>\"`",
+                            "`journal clock-out \"<report>\"`",
+                            "Clocking out returns your work to the Domain agent for checking",
                         )
                         for step in role_steps:
                             assert step in guidance, f"{agent} guidance does not say {step!r}"
