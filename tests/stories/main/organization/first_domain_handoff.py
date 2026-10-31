@@ -74,6 +74,6 @@ def test_a_plan_refuses_to_expand_a_domain_on_openrig_that_drops_member_environm
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )
     result.expect_command_refused()
-    result.expect_command_text("OpenRig daemon 0.7.5 is too old; dynamic organization seat placement requires OpenRig 0.7.6 or later; restart the OpenRig daemon")
+    result.expect_command_text("OpenRig daemon 0.7.5 cannot place seats; it needs 0.7.6 or later: restart the daemon")
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)

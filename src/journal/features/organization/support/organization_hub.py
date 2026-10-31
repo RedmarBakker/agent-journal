@@ -2,7 +2,6 @@ from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
-from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime

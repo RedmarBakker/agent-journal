@@ -244,7 +244,7 @@ class SeatRuntime:
     def check_expand_version(self, minimum: str) -> str:
         installed = self.check_version()
         if self.version_number(installed) < self.version_number(minimum):
-            raise Rejection(f"OpenRig daemon {installed} is too old; dynamic organization seat placement requires OpenRig {minimum} or later; restart the OpenRig daemon")
+            raise Rejection(f"OpenRig daemon {installed} cannot place seats; it needs {minimum} or later: restart the daemon")
         return installed
 
     @staticmethod
