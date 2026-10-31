@@ -12,6 +12,7 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.providers.providers import Providers
@@ -54,12 +55,8 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.agent_runs_from_plan_organization_seat(
             story.agents.main, "plan", f"organization handoff {self.tasks.first} domain:development",
         ).expect_command_passed()
-        domain = story.organization_seat_agent("domain:development")
-        domain_started = story.agent_starts_organization_seat(domain, "domain:development")
-        domain_started.expect_allowed(domain)
-        story.agent_runs_from_openrig_organization_seat(domain, "domain:development", "organization inbox").expect_command_passed()
-        story.agent_runs_from_openrig_organization_seat(
-            domain, "domain:development", f"organization handoff {self.tasks.first} role:development/delivery",
+        story.agent_runs_from_organization_seat(
+            story.agents.main, "domain:development", f"organization handoff {self.tasks.first} role:development/delivery",
         ).expect_command_passed()
         self.workers.first = story.newest("workers")
         worker = story.agents.workers.first()
@@ -72,11 +69,11 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.agent_runs_from_openrig_organization_seat(
             worker, "role:development/delivery", "clock-out 'the production artifact is ready'",
         ).expect_command_passed()
-        story.agent_runs_from_openrig_organization_seat(
-            domain, "domain:development", f"worker check {worker} 1",
+        story.agent_runs_from_organization_seat(
+            story.agents.main, "domain:development", f"worker check {worker} 1",
         ).expect_command_passed()
-        story.agent_runs_from_openrig_organization_seat(
-            domain, "domain:development", f"organization handoff {self.tasks.first} plan",
+        story.agent_runs_from_organization_seat(
+            story.agents.main, "domain:development", f"organization handoff {self.tasks.first} plan",
         ).expect_command_passed()
         story.agent_runs_from_plan_organization_seat(
             story.agents.main, "plan", f"worker merge {worker}",
@@ -95,8 +92,9 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.agent_runs(story.agents.main, f"plan mode {self.plans.second} organization").expect_command_passed()
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plans.first, state=PlanState.FINISHED)
+        story.expect_plan(self.plans.first, state=PlanState.FINISHED, mode=PlanMode.ORGANIZATION)
         story.expect_task(self.tasks.first, state=TaskState.COMPLETED, size=3)
+        story.expect_plan(self.plans.second, state=PlanState.DRAFT, mode=PlanMode.ORGANIZATION)
         story.expect_stack(story.agents.main, Ready)
 
     def write_rig_specs(self, story, environment: str) -> None:
