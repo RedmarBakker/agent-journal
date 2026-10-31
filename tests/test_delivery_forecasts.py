@@ -86,3 +86,19 @@ def test_latest_delivery_time_matches_only_the_current_accepted_evidence():
     }]}
 
     assert DeliveryForecasts.latest_delivery_at(history) == "2026-10-30T12:00:00+00:00"
+
+
+def test_plan_projection_keeps_task_p50s_from_its_shared_forecast_only():
+    first = {"plan_id": 1, "task_id": 11, "p50": "2026-10-31", "p50_duration_days": 1}
+    other = {"plan_id": 2, "task_id": 22, "p50": "2026-11-01", "p50_duration_days": 2}
+    forecast = {"task_forecasts": [first, other],
+                "plan_forecasts": [{"plan_id": 1, "p50": "2026-10-31", "task_forecasts": [first]}]}
+    source = {"scope": [
+        {"task_id": 11, "plan_id": 1, "size_points": 3, "cohort": COHORT, "delivery_status": "in_progress"},
+        {"task_id": 22, "plan_id": 2, "size_points": 3, "cohort": COHORT, "delivery_status": "in_progress"},
+    ], "scope_uncertainties": []}
+
+    result = DeliveryForecasts.plan_result(forecast, 1, source)
+
+    assert result["p50"] == "2026-10-31"
+    assert result["task_forecasts"] == [first]

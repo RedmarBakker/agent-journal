@@ -53,6 +53,9 @@ def risk_lines(advice: EstimatesRiskData, settings: Settings) -> list[Nudge]:
     for dependent, prerequisite in advice.critical_prerequisites:
         lines.append(repeated(EstimatesNudges.CRITICAL_PREREQUISITE, settings).create(
             n=advice.plan_id, task=dependent, prerequisite=prerequisite))
+    if advice.critical_path_advice:
+        lines.append(repeated(EstimatesNudges.CRITICAL_PATH, settings).create(
+            n=advice.plan_id, work=advice.critical_path_advice))
     threshold = percentage(settings, EstimatesOptions.SPRINT_MISS_WARNING_PERCENT)
     over_p85 = advice.sprint_p85 and advice.current_sprint_end and advice.sprint_p85 > advice.current_sprint_end
     likely_miss = advice.sprint_probability is not None and advice.sprint_probability < threshold

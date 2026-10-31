@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.support.baseline_forecast import BaselineForecast
+from journal.features.estimates.support.critical_path import CriticalPath
 from journal.features.estimates.support.duration_range_calibration import DurationRangeCalibration
 from journal.features.estimates.support.duration_range_history import DurationRangeHistory
 from journal.features.estimates.support.learned_duration_ranges import METHOD_VERSION, LearnedDurationRanges
@@ -14,6 +15,7 @@ from journal.repositories.plan_outcome_history import PlanOutcomeHistory
 from journal.repositories.sprint_outcome_metrics import SprintOutcomeMetrics
 from journal.repositories.sprints import SPRINT_PLAN, Sprints
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.task_dependencies import TaskDependencies
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 
@@ -24,10 +26,12 @@ class DeliveryForecasts:
     def __init__(self, sprints: Sprints, metrics: SprintOutcomeMetrics, history: PlanOutcomeHistory,
                  calculator: BaselineForecast, snapshots: ForecastSnapshots, settings: SettingRows,
                  time_source: TimeSource, duration_history: DurationRangeHistory,
-                 duration_ranges: LearnedDurationRanges, duration_calibration: DurationRangeCalibration) -> None:
+                 duration_ranges: LearnedDurationRanges, duration_calibration: DurationRangeCalibration,
+                 dependencies: TaskDependencies, critical_path: CriticalPath) -> None:
         self.sprints, self.metrics, self.history = sprints, metrics, history
         self.calculator, self.snapshots, self.settings, self.time_source = calculator, snapshots, settings, time_source
         self.duration_history, self.duration_ranges, self.duration_calibration = duration_history, duration_ranges, duration_calibration
+        self.dependencies, self.critical_path = dependencies, critical_path
 
     def sprint(self, sprint_id: int, actor: Actor) -> dict:
         sprint, source, forecast = self.sprint_read(sprint_id, actor)
@@ -77,6 +81,7 @@ class DeliveryForecasts:
         forecast = self.with_duration_ranges(forecast, source, scopes, histories, plan.row_id)
         forecast = {**forecast, **self.delivery_summary(history),
                     "sprint": self.sprints.summary(sprint) if sprint else None}
+        forecast = self.with_critical_path(plan, source, forecast)
         return source, forecast
 
     def sprint_read(self, sprint_id: int, actor: Actor) -> tuple[Sprint, dict, dict]:
@@ -283,16 +288,19 @@ class DeliveryForecasts:
         plan = next((row for row in forecast.get("plan_forecasts", ()) if row["plan_id"] == plan_id), None)
         scope_rows = [row for row in source["scope"] if row["plan_id"] == plan_id]
         scope, unknown_sizes, unknown_domains, unknown_cohorts = BaselineForecast.scope(scope_rows)
+        task_forecasts = [row for row in forecast.get("task_forecasts", ()) if row["plan_id"] == plan_id]
         task_ids = {row["task_id"] for row in scope_rows}
         unknown_scope = {row for row in source["scope_uncertainties"] if row in task_ids}
         if plan is None:
             return {**forecast, "plan_id": plan_id, "scope": BaselineForecast.scope_summary(scope, scope_rows),
                     "unknown_sizes": unknown_sizes, "unknown_domains": unknown_domains,
-                    "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": []}
+                    "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": [],
+                    "task_forecasts": task_forecasts}
         return {**forecast, **plan, "scope": BaselineForecast.scope_summary(scope, scope_rows),
                 "shared_sprint_scope": forecast.get("scope"), "plan_id": plan_id,
                 "unknown_sizes": unknown_sizes, "unknown_domains": unknown_domains,
-                "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": [plan]}
+                "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": [plan],
+                "task_forecasts": plan.get("task_forecasts", task_forecasts)}
 
     def sprint_forecast(self, forecast: dict, source: dict, sprint: dict, histories: list[dict],
                         sprints: list[dict]) -> dict:
@@ -304,8 +312,11 @@ class DeliveryForecasts:
             history = history_by_plan[plan_id]
             scope_rows = [row for row in source["scope"] if row["plan_id"] == plan_id]
             scope, _unknown_sizes, _unknown_domains, _unknown_cohorts = BaselineForecast.scope(scope_rows)
-            rows.append({**{key: value for key, value in forecast.items() if key != "plan_forecasts"}, **freshness,
-                         **distributions.get(plan_id, {}), "plan_id": plan_id,
+            distribution = distributions.get(plan_id, {})
+            task_forecasts = distribution.get("task_forecasts", [row for row in forecast.get("task_forecasts", ())
+                                                                   if row["plan_id"] == plan_id])
+            rows.append({**{key: value for key, value in forecast.items() if key not in ("plan_forecasts", "task_forecasts")}, **freshness,
+                         **distribution, "plan_id": plan_id, "task_forecasts": task_forecasts,
                          "scope": BaselineForecast.scope_summary(scope, scope_rows),
                          **self.delivery_summary(history)})
         next_sprint = self.next_sprint(sprint, sprints)
@@ -314,6 +325,14 @@ class DeliveryForecasts:
         sprint_row = self.sprints.find(sprint["id"])
         plan_rows = [self.sprints.plans.find(history["scope"]["plan_id"]) for history in histories]
         return self.with_duration_ranges(result, source, [sprint_row, *plan_rows], histories)
+
+    def with_critical_path(self, plan: Plan, source: dict, forecast: dict) -> dict:
+        durations = {row["task_id"]: row.get("p50_duration_days") for row in forecast.get("task_forecasts", ())}
+        tasks = [{"task_id": row["task_id"], "p50_duration_days": durations.get(row["task_id"])}
+                 for row in source.get("scope", ())
+                 if row.get("plan_id") == plan.row_id and row.get("delivery_status") not in ("delivered", "removed")]
+        return {**forecast, "critical_path": self.critical_path.project(
+            forecast.get("as_of"), tasks, self.dependencies.graph(plan))}
 
     def with_duration_ranges(self, forecast: dict, source: dict, scopes: list[object], histories: list[dict],
                              plan_id: int = 0) -> dict:

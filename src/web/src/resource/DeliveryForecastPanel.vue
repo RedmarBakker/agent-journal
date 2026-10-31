@@ -38,6 +38,15 @@ const capacityLine = computed(() => {
 const criteria = computed(() => props.forecast?.domain_criteria || []);
 const missing = computed(() => props.forecast?.missing_evidence || []);
 const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
+const criticalPath = computed(() => props.forecast?.critical_path || null);
+const criticalPathLine = computed(() => {
+    const path = criticalPath.value?.critical_path_task_ids || [];
+    if (!path.length) return "";
+    const finish = criticalPath.value.p50_finish ? ` · P50 finish ${formatForecastDay(criticalPath.value.p50_finish)}` : "";
+    return `Critical path: ${path.map((id) => "#" + id).join(" → ")}${finish}`;
+});
+const criticalTasks = computed(() => (criticalPath.value?.critical_task_ids || []).map((id) => "#" + id).join(", "));
+const independentTasks = computed(() => (criticalPath.value?.independent_groups || []).flat().map((id) => "task #" + id).join(", "));
 </script>
 
 <template>
@@ -71,6 +80,25 @@ const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
                 <div><dt>Capacity</dt><dd>{{ capacityLine }}</dd></div>
                 <div><dt>Method and update</dt><dd>{{ forecast?.method_version || "Not estimated" }}<span v-if="forecast?.as_of"> · {{ formatForecastDay(forecast.as_of) }}</span></dd></div>
             </dl>
+            <section v-if="criticalPath && criticalPath.status !== 'empty'" class="critical-path-read" aria-label="Critical path">
+                <h4>Critical path</h4>
+                <p v-if="criticalPath.status === 'structural'">The dependency graph is structural. Start, finish and slack are unknown.</p>
+                <template v-else>
+                    <p>{{ criticalPathLine }}</p>
+                    <p v-if="criticalTasks">Critical tasks: {{ criticalTasks }}</p>
+                    <ul v-if="criticalPath.tasks?.length">
+                        <li v-for="task in criticalPath.tasks" :key="task.task_id">
+                            Task #{{ task.task_id }} · P50 {{ task.p50_duration_days }} days · starts {{ formatForecastDay(task.earliest_start) }} · finishes {{ formatForecastDay(task.earliest_finish) }} · {{ task.slack_days }} {{ task.slack_days === 1 ? "day" : "days" }} of slack
+                        </li>
+                    </ul>
+                </template>
+                <p v-if="independentTasks">Independent work: {{ independentTasks }}</p>
+                <ul v-if="criticalPath.external_conditions?.length">
+                    <li v-for="condition in criticalPath.external_conditions" :key="`${condition.task_id}:${condition.prerequisite_id}:${condition.kind}`">
+                        Cross-plan {{ condition.kind === "delivery_gate" ? "delivery gate" : "prerequisite" }} from task #{{ condition.task_id }} to task #{{ condition.prerequisite_id }} is {{ condition.status }}.
+                    </li>
+                </ul>
+            </section>
             <p v-if="missing.length" class="missing-evidence">Not included: {{ missing.join(", ") }}.</p>
         </template>
     </section>
@@ -164,6 +192,27 @@ const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
 .forecast-facts dd {
     margin: 0;
     color: var(--text-2);
+}
+
+.critical-path-read {
+    display: grid;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--text-2);
+    font-size: 12px;
+}
+
+.critical-path-read h4,
+.critical-path-read p,
+.critical-path-read ul {
+    margin: 0;
+}
+
+.critical-path-read ul {
+    display: grid;
+    gap: 4px;
+    padding-left: 18px;
 }
 
 @media (max-width: 650px) {

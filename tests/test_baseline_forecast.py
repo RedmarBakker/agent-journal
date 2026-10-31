@@ -49,6 +49,8 @@ def test_zero_shared_capacity_does_not_create_a_finite_finish_date():
     assert result["p85"] is None
     assert result["probability_beyond_horizon"] == 100
     assert result["bands"] == {"this_sprint": 0, "next_sprint": 0, "later": 100}
+    assert result["task_forecasts"][0]["p50"] is None
+    assert result["task_forecasts"][0]["probability_beyond_horizon"] == 100
 
 
 def test_other_cohort_delivery_remains_in_the_shared_observed_block():
@@ -83,6 +85,26 @@ def test_plans_share_each_sampled_delivery_block_once():
     assert result["plan_forecasts"][1]["p50"] == "2026-11-01"
 
 
+def test_task_p50_durations_come_from_sampled_work_intervals_in_shared_scenarios():
+    scope = [task(1, 11, 2), task(1, 12, 2)]
+
+    result = BaselineForecast().estimate(source(scope=scope, deliveries=deliveries(10),
+                                                 capacity_days=capacity_days(points=2)))
+
+    forecasts = {row["task_id"]: row for row in result["task_forecasts"]}
+    assert forecasts[11]["p50"] == "2026-10-31"
+    assert forecasts[11]["p85"] == "2026-10-31"
+    assert forecasts[11]["p50_duration_days"] == 1
+    assert forecasts[11]["p85_duration_days"] == 1
+    assert forecasts[12]["p50"] == "2026-11-01"
+    assert forecasts[12]["p85"] == "2026-11-01"
+    assert forecasts[12]["p50_duration_days"] == 1
+    assert forecasts[12]["p85_duration_days"] == 1
+    plan_tasks = result["plan_forecasts"][0]["task_forecasts"]
+    assert [row["task_id"] for row in plan_tasks] == [11, 12]
+    assert [row["p50_duration_days"] for row in plan_tasks] == [1, 1]
+
+
 def test_a_missing_next_cycle_is_named_without_inventing_its_date():
     request = source(scope=[task(1, 11, 2)], deliveries=deliveries(10), capacity_days=capacity_days(points=2))
     request["calendar"]["next_end"] = None
@@ -103,7 +125,7 @@ def test_probability_bands_are_rounded_from_one_distribution_and_sum_to_one_hund
     assert result["sensitivity"]["status"] == "observed block bootstrap"
     assert result["sensitivity"]["label"] == "Conditional range over resampled observed days; not a calibration guarantee."
     assert all(row["p10"] <= row["p90"] for row in result["sensitivity"]["bands"].values())
-    assert result["method_version"] == "baseline-throughput-v1"
+    assert result["method_version"] == "baseline-throughput-v2"
     assert len(result["input_cut"]) == 64
     assert result["seed"] == 43
     assert result["capacity"]["daily_observations"] == 20

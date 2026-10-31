@@ -75,6 +75,32 @@ class TaskDependencies:
                  for link in links if link.source.id in task_ids and link.target.type == Task.table()]
         return {"plan_id": plan.row_id, "edges": edges}
 
+    def graph(self, plan: Plan) -> dict:
+        tasks = self.plans.plan_tasks(plan)
+        task_ids = {task.row_id for task in tasks}
+        edges, external = [], []
+        for task in tasks:
+            for target_id in self.prerequisites(task):
+                target = self.tasks.find(target_id)
+                self.add_graph_edge(edges, external, task, target, task_ids, "prerequisite", target.is_completed())
+            for ref in self.links.typed_targets(task, DELIVERY_GATE_LINK, Task.table()):
+                target = self.tasks.find(ref.id)
+                self.add_graph_edge(edges, external, task, target, task_ids, "delivery_gate", self.delivery.accepted_for_task(target))
+        edges.sort(key=lambda row: (row["task_id"], row["prerequisite_id"], row["kind"]))
+        external.sort(key=lambda row: (row["task_id"], row["prerequisite_id"], row["kind"]))
+        return {"plan_id": plan.row_id, "edges": edges, "external_conditions": external}
+
+    @staticmethod
+    def add_graph_edge(edges: list[dict], external: list[dict], task: Task, target: Task,
+                       task_ids: set[int], kind: str, resolved: bool) -> None:
+        cross_plan = target.row_id not in task_ids
+        edge = {"task_id": task.row_id, "prerequisite_id": target.row_id, "kind": kind, "external": cross_plan}
+        if cross_plan:
+            edges.append(edge)
+            external.append({**edge, "status": "resolved" if resolved else "unresolved"})
+        elif not resolved:
+            edges.append(edge)
+
     def validate_plan(self, plan: Plan) -> None:
         tasks = self.plans.plan_tasks(plan)
         prerequisites = {task.row_id: self.prerequisites(task) for task in tasks}

@@ -17,3 +17,4 @@ class EstimatesRiskData:
     current_sprint_end: str = ""
     sprint_probability: int | None = None
     sprint_p85: str = ""
+    critical_path_advice: str = ""

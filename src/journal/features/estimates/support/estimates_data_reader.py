@@ -36,7 +36,8 @@ class EstimatesDataReader:
         return EstimatesRiskData(plan.row_id, self.forecasts.basis(forecast), growth_points, growth,
                                  *aging, self.critical_prerequisites(plan), sprint["ends_on"] if sprint else "",
                                  forecast.get("probability_this_sprint") if forecast else None,
-                                 forecast.get("p85") or "" if forecast else "")
+                                 forecast.get("p85") or "" if forecast else "",
+                                 self.critical_path_advice(forecast))
 
     def active_plan(self) -> Plan | None:
         plan = next(iter(self.plans.running_plans()), None)
@@ -94,3 +95,12 @@ class EstimatesDataReader:
         return tuple((edge["task_id"], edge["prerequisite_id"]) for edge in edges
                      if not self.plans.tasks.find(edge["task_id"]).is_closed()
                      and not self.plans.tasks.find(edge["prerequisite_id"]).is_closed())
+
+    @staticmethod
+    def critical_path_advice(forecast: dict | None) -> str:
+        path = forecast.get("critical_path", {}) if forecast else {}
+        critical = path.get("critical_task_ids", ())
+        if path.get("status") == "estimated" and critical:
+            return "critical tasks " + ", ".join(f"#{task_id}" for task_id in critical)
+        independent = [task_id for group in path.get("independent_groups", ()) for task_id in group]
+        return "independent tasks " + ", ".join(f"#{task_id}" for task_id in independent) if independent else ""

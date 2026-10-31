@@ -27,4 +27,4 @@ class Estimates(Feature[object]):
     conduct = (EstimatesConduct,)
     data = (EstimatesDataReader,)
     nudges = (EstimatesNudges.FORECAST_BASIS, EstimatesNudges.SCOPE_GROWTH, EstimatesNudges.AGING_TASK,
-              EstimatesNudges.CRITICAL_PREREQUISITE, EstimatesNudges.SPRINT_MISS)
+              EstimatesNudges.CRITICAL_PREREQUISITE, EstimatesNudges.CRITICAL_PATH, EstimatesNudges.SPRINT_MISS)

@@ -137,6 +137,63 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.querySelector("button")).toBeNull();
 });
 
+test("the plan page shows the critical path, task slack and independent work from the forecast", async () => {
+    const forecast = {
+        ...mature,
+        critical_path: {
+            status: "estimated",
+            basis: "shared P50 task durations",
+            p50_finish: "2026-11-05",
+            critical_path_task_ids: [201, 202],
+            critical_task_ids: [201, 202],
+            independent_groups: [[203]],
+            external_conditions: [],
+            edges: [{task_id: 202, prerequisite_id: 201, kind: "prerequisite", external: false}],
+            tasks: [
+                {task_id: 201, p50_duration_days: 2, earliest_start: "2026-10-30", earliest_finish: "2026-11-01", latest_start: "2026-10-30", latest_finish: "2026-11-01", slack_days: 0, critical: true},
+                {task_id: 202, p50_duration_days: 3, earliest_start: "2026-11-01", earliest_finish: "2026-11-04", latest_start: "2026-11-01", latest_finish: "2026-11-04", slack_days: 0, critical: true},
+                {task_id: 203, p50_duration_days: 4, earliest_start: "2026-10-30", earliest_finish: "2026-11-03", latest_start: "2026-10-31", latest_finish: "2026-11-04", slack_days: 1, critical: false},
+            ],
+        },
+    };
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastPanel, {forecast, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("Critical path: #201 → #202");
+    expect(host.textContent).toContain("P50 finish 5 Nov");
+    expect(host.textContent).toContain("Task #203 · P50 4 days");
+    expect(host.textContent).toContain("1 day of slack");
+    expect(host.textContent).toContain("Independent work: task #203");
+});
+
+test("a structural plan graph names an unresolved cross-plan gate without date or slack claims", async () => {
+    const forecast = {
+        ...mature,
+        critical_path: {
+            status: "structural",
+            basis: "structural dependency graph",
+            p50_finish: null,
+            critical_path_task_ids: [],
+            critical_task_ids: [],
+            independent_groups: [],
+            edges: [{task_id: 101, prerequisite_id: 900, kind: "delivery_gate", external: true}],
+            external_conditions: [{task_id: 101, prerequisite_id: 900, kind: "delivery_gate", external: true, status: "unresolved"}],
+            tasks: [{task_id: 101, p50_duration_days: null, earliest_start: null, earliest_finish: null, latest_start: null, latest_finish: null, slack_days: null, critical: false}],
+        },
+    };
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(DeliveryForecastPanel, {forecast, sprint, plan: {state: "started"}})});
+    app.mount(host);
+    await nextTick();
+
+    expect(host.textContent).toContain("The dependency graph is structural. Start, finish and slack are unknown.");
+    expect(host.textContent).toContain("Cross-plan delivery gate from task #101 to task #900 is unresolved");
+    expect(host.textContent).not.toContain("P50 finish");
+    expect(host.textContent).not.toContain("days of slack");
+});
+
 test("a cold completed development plan says it is not deployed and invents no date or chance", async () => {
     const cold = {
         ...mature,

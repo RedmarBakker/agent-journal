@@ -9,7 +9,7 @@ MIN_DELIVERED_OUTCOMES = 10
 MIN_CAPACITY_DAYS = 20
 DEFAULT_TRIALS = 10000
 DEFAULT_HORIZON_SPRINTS = 6
-METHOD_VERSION = "baseline-throughput-v1"
+METHOD_VERSION = "baseline-throughput-v2"
 ACCEPTED_DELIVERIES = ("delivery_accepted", "delivery_corrected")
 
 
@@ -35,12 +35,15 @@ class BaselineForecast:
         prepared = self.prepared(tasks, counts, blocks, missing, unknown_domains, unknown_sizes, unknown_cohorts,
                                  unknown_scope, invalid_capacity, source, calendar, as_of, input_cut, seed)
         if missing:
-            return self.abstention(prepared)
+            result = self.abstention(prepared)
+            result["task_forecasts"] = self.unavailable_task_forecasts(prepared["scope"]["tasks"], result["status"])
+            return result
         trials = self.positive(source.get("trials"), DEFAULT_TRIALS)
         horizon = self.positive(source.get("horizon_sprints"), DEFAULT_HORIZON_SPRINTS)
         sprint_days = self.positive(calendar.get("sprint_length_days"), 14)
         simulations, batches = self.simulations(tasks, blocks, as_of, sprint_days * horizon, trials, seed, calendar)
         result = self.distribution(simulations, prepared, len(blocks))
+        result["task_forecasts"] = self.task_distributions(simulations, prepared)
         result["plan_forecasts"] = self.plan_distributions(simulations, prepared)
         result["sensitivity"] = self.sensitivity(batches, prepared)
         return result
@@ -197,6 +200,12 @@ class BaselineForecast:
                 "sensitivity": {"status": "abstained", "reason": "the required history or shared capacity is missing"}}
 
     @staticmethod
+    def unavailable_task_forecasts(scope: list[dict], status: str) -> list[dict]:
+        return [{"plan_id": row.get("plan_id"), "task_id": row.get("task_id"), "status": status,
+                 "p50": None, "p85": None, "p50_duration_days": None, "p85_duration_days": None,
+                 "probability_beyond_horizon": None} for row in scope]
+
+    @staticmethod
     def capacity_summary(blocks: list[dict]) -> dict:
         places = [row["available_places"] for row in blocks]
         return {"status": "observed", "daily_observations": len(blocks),
@@ -262,7 +271,9 @@ class BaselineForecast:
                     trials: int, seed: int, calendar: dict) -> tuple[dict, list[dict]]:
         replicates = min(100, trials)
         per_replicate, remainder = divmod(trials, replicates)
-        simulated = {"sprint": [], "plans": {plan_id: [] for plan_id in sorted({row["plan_id"] for row in tasks})}}
+        simulated = {"sprint": [], "plans": {plan_id: [] for plan_id in sorted({row["plan_id"] for row in tasks})},
+                     "tasks": {task_id: [] for task_id in sorted({row["task_id"] for row in tasks})},
+                     "task_durations": {task_id: [] for task_id in sorted({row["task_id"] for row in tasks})}}
         batches = []
         for replicate in range(replicates):
             pool_random = random.Random(seed + replicate * 2 + 1)
@@ -271,39 +282,47 @@ class BaselineForecast:
             trial_random = random.Random(seed + replicate * 2 + 2)
             batch = {"sprint": [], "plans": {plan_id: [] for plan_id in simulated["plans"]}}
             for _trial in range(count):
-                sprint_finish, plan_finish = cls.simulate(tasks, pool, as_of, horizon_days, trial_random)
+                sprint_finish, plan_finish, task_finish, task_start = cls.simulate(tasks, pool, as_of, horizon_days, trial_random)
                 batch["sprint"].append(sprint_finish)
                 simulated["sprint"].append(sprint_finish)
                 for plan_id, dates in simulated["plans"].items():
                     finish = plan_finish.get(plan_id)
                     batch["plans"][plan_id].append(finish)
                     dates.append(finish)
+                for task_id, dates in simulated["tasks"].items():
+                    finish = task_finish.get(task_id)
+                    dates.append(finish)
+                    finish_offset = (finish - as_of).days if finish and as_of else None
+                    duration = finish_offset - task_start[task_id] + 1 if finish_offset is not None and task_id in task_start else None
+                    simulated["task_durations"][task_id].append(duration)
             batches.append(batch)
         return simulated, batches
 
     @classmethod
     def simulate(cls, tasks: list[dict], blocks: list[dict], as_of: date | None,
-                 horizon_days: int, rng: random.Random) -> tuple[date | None, dict[int, date | None]]:
+                 horizon_days: int, rng: random.Random) -> tuple[date | None, dict[int, date | None], dict[int, date | None], dict[int, int]]:
         progress = {row["task_id"]: 0 for row in tasks}
         task_finishes = {}
+        task_starts = {}
         plan_ids = sorted({row["plan_id"] for row in tasks})
         plan_finishes = {plan_id: None for plan_id in plan_ids}
         if not tasks:
-            return as_of, {plan_id: as_of for plan_id in plan_ids}
+            return as_of, {plan_id: as_of for plan_id in plan_ids}, task_finishes, task_starts
         for offset in range(1, horizon_days + 1):
             day = rng.choice(blocks)
             if day["available_places"] == 0:
                 continue
             for batch in day["deployment_batches"]:
-                cls.allocate(tasks, batch["points_by_cohort"], progress, task_finishes, as_of, offset)
+                cls.allocate(tasks, batch["points_by_cohort"], progress, task_finishes, task_starts, as_of, offset)
                 cls.mark_plans(tasks, task_finishes, plan_finishes)
                 if len(task_finishes) == len(tasks):
-                    return cls.finish_date(as_of, offset), plan_finishes
-        return None, plan_finishes
+                    return cls.finish_date(as_of, offset), plan_finishes, task_finishes, task_starts
+        return None, plan_finishes, task_finishes, task_starts
 
     @classmethod
     def allocate(cls, tasks: list[dict], output: dict[str, int], progress: dict[int, int],
-                 task_finishes: dict[int, date | None], as_of: date | None, offset: int) -> None:
+                 task_finishes: dict[int, date | None], task_starts: dict[int, int],
+                 as_of: date | None, offset: int) -> None:
         for cohort_key, points in output.items():
             remaining = points
             ordered = sorted((row for row in tasks if row["cohort_key"] == cohort_key and row["task_id"] not in task_finishes),
@@ -312,6 +331,8 @@ class BaselineForecast:
                 used = min(remaining, task["size_points"] - progress[task["task_id"]])
                 progress[task["task_id"]] += used
                 remaining -= used
+                if used and task["task_id"] not in task_starts:
+                    task_starts[task["task_id"]] = offset
                 if progress[task["task_id"]] >= task["size_points"]:
                     task_finishes[task["task_id"]] = cls.finish_date(as_of, offset)
                 if remaining <= 0:
@@ -350,6 +371,7 @@ class BaselineForecast:
     @classmethod
     def plan_distributions(cls, simulations: dict, prepared: dict) -> list[dict]:
         calendar = {"current_end": cls.day(prepared.get("current_end")), "next_end": cls.day(prepared.get("next_end"))}
+        task_forecasts = cls.task_distributions(simulations, prepared)
         rows = []
         for plan_id, dates in sorted(simulations["plans"].items()):
             bands, counts = cls.bands(dates, calendar)
@@ -357,8 +379,29 @@ class BaselineForecast:
                          "bands": bands, "probability_this_sprint": bands["this_sprint"],
                          "probability_next_sprint": bands["next_sprint"], "probability_later": bands["later"],
                          "carry_over": cls.carry_over(bands),
-                         "probability_beyond_horizon": cls.percent(counts["beyond"], len(dates))})
+                         "probability_beyond_horizon": cls.percent(counts["beyond"], len(dates)),
+                         "task_forecasts": [row for row in task_forecasts if row["plan_id"] == plan_id]})
         return rows
+
+    @classmethod
+    def task_distributions(cls, simulations: dict, prepared: dict) -> list[dict]:
+        scope = {row["task_id"]: row for row in prepared["scope"]["tasks"]}
+        rows = []
+        for task_id, dates in sorted(simulations["tasks"].items()):
+            p50, p85 = cls.quantile(dates, 0.50), cls.quantile(dates, 0.85)
+            durations = simulations["task_durations"][task_id]
+            rows.append({"plan_id": scope[task_id]["plan_id"], "task_id": task_id,
+                         "status": "forecast" if p50 else "beyond horizon", "p50": p50, "p85": p85,
+                         "p50_duration_days": cls.duration_quantile(durations, 0.50),
+                         "p85_duration_days": cls.duration_quantile(durations, 0.85),
+                         "probability_beyond_horizon": cls.percent(dates.count(None), len(dates))})
+        return rows
+
+    @classmethod
+    def duration_quantile(cls, values: list[int | None], probability: float) -> int | None:
+        ordered = sorted(value for value in values if value is not None)
+        index = math.ceil(probability * len(values)) - 1
+        return ordered[index] if 0 <= index < len(ordered) else None
 
     @classmethod
     def bands(cls, dates: list[date | None], calendar: dict) -> tuple[dict, dict]:
