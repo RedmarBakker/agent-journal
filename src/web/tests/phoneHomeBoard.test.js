@@ -24,6 +24,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
     document.documentElement.classList.remove("phone");
     document.body.innerHTML = "";
+    store.settings = {plans: {plan_agents: false}};
 });
 
 function mount(component, props = {}) {
@@ -34,7 +35,7 @@ function mount(component, props = {}) {
     return host;
 }
 
-test("on the phone, Home loads and shows the shared plan cards through the phone journal path", async () => {
+test("on the phone, Home stays the dashboard and shows Plan agents through the phone journal path", async () => {
     choose("main");
     store.people = {hosted: false};
     store.settings = {plans: {plan_agents: true}};
@@ -63,21 +64,17 @@ test("on the phone, Home loads and shows the shared plan cards through the phone
     const host = mount(AppPages, {page: "home"});
     await vi.waitFor(() => expect(host.querySelector('[data-plan-id="73"]')).not.toBeNull());
 
-    expect(host.querySelector("[data-home-plan-board]")).not.toBeNull();
+    expect(host.querySelector("[data-home-dashboard] h1").textContent).toBe("Home");
+    expect(host.querySelector("[data-home-plan-board]")).toBeNull();
     expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Phone board plan");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Organization");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Phase: In progress");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("1 of 2 done");
     expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Plan agent: running");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Estimated API cost: $1.25");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Cost cap: $4.00");
-    expect(host.querySelector('[data-plan-id="73"]').textContent).toContain("Waits on: your answer");
-    expect(host.querySelector('[data-plan-id="73"] a').textContent).toContain("Open its chat");
-    expect(host.querySelector('[data-plan-id="73"] a').getAttribute("href")).toContain("#/chat");
-    expect(fetched).toHaveBeenCalledOnce();
-    expect(fetched.mock.calls[0][0]).toBe("/p/journal/organization");
-    expect(fetched.mock.calls[0][1].headers["X-Phone"]).toBe("1");
-    expect(fetched.mock.calls[0][1].headers["X-Journal-Viewer"]).toBeUndefined();
+    expect(host.querySelector('[data-plan-id="73"] .plan-agent-chat').textContent).toContain("Open its chat");
+    expect(host.querySelector('[data-plan-id="73"] .plan-agent-chat').getAttribute("href")).toContain("#/chat");
+    expect(host.querySelector('[data-cost-plan-id="73"]').textContent).toContain("$1.25 of $4.00");
+    const organizationRequest = fetched.mock.calls.find(([url]) => url === "/p/journal/organization");
+    expect(organizationRequest).toBeDefined();
+    expect(organizationRequest[1].headers["X-Phone"]).toBe("1");
+    expect(organizationRequest[1].headers["X-Journal-Viewer"]).toBeUndefined();
 });
 
 test("the Organization, Role and plan timeline screens say they open on the desktop", async () => {

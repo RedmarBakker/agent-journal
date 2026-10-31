@@ -24,7 +24,6 @@ import HomePlanBoard from "./pages/HomePlanBoard.vue";
 import PhoneDesktopNotice from "./phone/PhoneDesktopNotice.vue";
 import {onPhone} from "./platform/phone.js";
 import {route} from "./route.js";
-import {planAgents} from "./domain/planAgents.js";
 
 defineProps({page: {type: String, required: true}});
 </script>
@@ -32,8 +31,7 @@ defineProps({page: {type: String, required: true}});
 <template>
     <SwitchCase :value="page">
         <template #home>
-            <HomePlanBoard v-if="planAgents" view="plans" />
-            <HomeDashboard v-else />
+            <HomeDashboard />
         </template>
         <template #board><HomePlanBoard view="board" /></template>
         <template #chat><Home /></template>

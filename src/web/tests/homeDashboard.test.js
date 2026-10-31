@@ -1,6 +1,7 @@
 import {createApp, h, nextTick} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import HomeDashboard from "../src/pages/HomeDashboard.vue";
+import {store} from "../src/state/store.js";
 
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
 
@@ -13,6 +14,7 @@ afterEach(() => {
     host?.remove();
     host = null;
     document.body.innerHTML = "";
+    store.settings = {plans: {plan_agents: false}};
     vi.useRealTimers();
     vi.restoreAllMocks();
 });
@@ -44,6 +46,7 @@ function dashboardScope({empty = false} = {}) {
             planTasks: vi.fn(async (id) => id === 8
                 ? [{id: 1, state: "completed", completed_at: new Date((now - 86400) * 1000).toISOString()}, {id: 2, state: "open"}, {id: 3, state: "open"}]
                 : [{id: 4, state: "open"}, {id: 5, state: "open"}]),
+            page: vi.fn((environment) => `#/chat?env=${environment}`),
             list: vi.fn(async (table, options = {}) => {
                 if (table === "approvals") return list(empty ? [] : [approval]);
                 if (table === "questions") return list(empty ? [] : [question, approvalQuestion]);
@@ -143,9 +146,34 @@ test("the phone layout moves blocked work ahead of cost while desktop keeps the 
 });
 
 test("the Home route opens the dashboard", async () => {
+    store.settings = {plans: {plan_agents: false}};
     const {default: AppPages} = await import("../src/AppPages.vue");
     const page = await mounted(dashboardScope({empty: true}), AppPages, {page: "home"});
 
     expect(page.querySelector("[data-home-dashboard] h1").textContent).toBe("Home");
     expect(page.querySelectorAll("[data-dashboard-card]")).toHaveLength(6);
+});
+
+test("Home stays the dashboard with Plan agents on and lists started plans with their agents", async () => {
+    store.settings = {plans: {plan_agents: true}};
+    const scope = dashboardScope();
+    scope.api.organization.mockResolvedValue({plans: [
+        {id: 8, title: "Started agent", mode: "organization", state: "started", tasks: [], done: 0, plan_agent_state: "running", chat: "plan-8"},
+        {id: 9, title: "Started without agent", mode: "solo", state: "started", tasks: [], done: 0, plan_agent_state: "stopped", chat: "plan-9"},
+        {id: 10, title: "Paused agent", mode: "solo", state: "paused", tasks: [], done: 0, plan_agent_state: "running", chat: "plan-10"},
+    ]});
+    const {default: AppPages} = await import("../src/AppPages.vue");
+    const page = await mounted(scope, AppPages, {page: "home"});
+    const plans = page.querySelector('[data-dashboard-card="plans"]');
+
+    expect(page.querySelector("[data-home-dashboard] h1").textContent).toBe("Home");
+    expect(page.querySelector("[data-home-plan-board]")).toBeNull();
+    expect(plans.querySelector("h2").textContent).toBe("Started plans");
+    expect([...plans.querySelectorAll("[data-plan-id]")].map((plan) => plan.dataset.planId)).toEqual(["8", "9"]);
+    expect(plans.querySelector('[data-plan-id="8"] .plan-agent-state').textContent).toBe("Plan agent: running");
+    expect(plans.querySelector('[data-plan-id="9"] .plan-agent-state').textContent).toBe("Plan agent: stopped");
+    expect(plans.querySelector('[data-plan-id="8"] .plan-agent-chat').getAttribute("href")).toBe("#/chat?env=plan-8");
+    expect(scope.api.page).toHaveBeenCalledWith("plan-8");
+    expect(plans.querySelector("header a").textContent).toBe("Open the Board");
+    expect(plans.querySelector("header a").getAttribute("href")).toContain("board");
 });

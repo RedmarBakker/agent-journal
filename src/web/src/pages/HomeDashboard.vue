@@ -11,6 +11,7 @@ import Btn from "../kit/Btn.vue";
 import DeliveryForecastLabel from "../organization/DeliveryForecastLabel.vue";
 import {forecastForPlan} from "../domain/deliveryForecast.js";
 import {pointLabel} from "../domain/taskSizing.js";
+import {planAgents} from "../domain/planAgents.js";
 
 const scope = useScope();
 const loading = ref(true);
@@ -25,6 +26,9 @@ const now = computed(() => Date.now());
 const plans = computed(() => organization.value.plans || []);
 const sprintForecasts = computed(() => organization.value.sprint_forecasts || []);
 const runningPlans = computed(() => plans.value.filter((plan) => plan.plan_agent_state === "running"));
+const dashboardPlans = computed(() => planAgents.value
+    ? plans.value.filter((plan) => plan.state === "started")
+    : runningPlans.value);
 const waitingCount = computed(() => waiting.value.length);
 const totalCost = computed(() => estimatedCost(plans.value));
 const hasCost = computed(() => plans.value.some((plan) => plan.estimated_api_cost_usd !== null && plan.estimated_api_cost_usd !== undefined));
@@ -104,7 +108,7 @@ async function load() {
         const workerTasksRows = taskIds.length ? rowsOf(await scope.api.list("tasks", {ids: taskIds})) : [];
         workerTasks.value = Object.fromEntries(workerTasksRows.map((task) => [task.id, task]));
 
-        const finishRows = await Promise.all(runningPlans.value.map(async (plan) => [plan.id, rowsOf(await scope.api.planTasks(plan.id))]));
+        const finishRows = await Promise.all(dashboardPlans.value.map(async (plan) => [plan.id, rowsOf(await scope.api.planTasks(plan.id))]));
         planTasks.value = Object.fromEntries(finishRows);
     } catch (error) {
         problem.value = error.message || "The Home dashboard could not be loaded.";
@@ -238,11 +242,11 @@ onMounted(load);
             </section>
 
             <section class="home-dashboard-card plans wide" data-dashboard-card="plans">
-                <header class="card-head"><h2>Running plans</h2><span class="count">{{ runningPlans.length }}</span><span class="spacer"></span><a :href="href.page('organization')">Open the Board</a></header>
-                <p v-if="loading" class="card-empty">Loading running plans.</p>
-                <p v-else-if="!runningPlans.length" class="card-empty">No plan is running. Start one from the Board or the Plans list.</p>
+                <header class="card-head"><h2>{{ planAgents ? "Started plans" : "Running plans" }}</h2><span class="count">{{ dashboardPlans.length }}</span><span class="spacer"></span><a :href="href.page('board')">Open the Board</a></header>
+                <p v-if="loading" class="card-empty">{{ planAgents ? "Loading started plans." : "Loading running plans." }}</p>
+                <p v-else-if="!dashboardPlans.length" class="card-empty">{{ planAgents ? "No plan has started." : "No plan is running. Start one from the Board or the Plans list." }}</p>
                 <div v-else class="dashboard-list">
-                    <article v-for="plan in runningPlans" :key="plan.id" class="dashboard-row plan-row" :data-plan-id="plan.id">
+                    <article v-for="plan in dashboardPlans" :key="plan.id" class="dashboard-row plan-row" :data-plan-id="plan.id">
                         <div class="row-top">
                             <button type="button" class="row-title" @click="openRow('plans', plan.id)">{{ plan.title }}</button>
                             <span class="row-id">Plan {{ plan.id }}</span>
@@ -254,6 +258,8 @@ onMounted(load);
                         <div class="row-meta">
                             <span class="mode-chip">{{ mode(plan) }}</span>
                             <span class="progress-count">{{ pointLabel(plan) }}</span>
+                            <span v-if="planAgents" class="plan-agent-state">Plan agent: {{ plan.plan_agent_state || "not started" }}</span>
+                            <a v-if="planAgents && plan.chat" class="plan-agent-chat" :href="scope.api.page(plan.chat)" :title="`Plan agent in ${plan.chat}`">Open its chat</a>
                             <time v-if="finish(plan)" class="expected-finish" :datetime="finish(plan).date">Expected to finish {{ finish(plan).label }}</time>
                             <span v-else class="no-finish-date">No finish date yet: no task has finished</span>
                         </div>
@@ -442,6 +448,12 @@ onMounted(load);
 
 .card-head a:hover {
     text-decoration: underline;
+}
+
+.plan-agent-chat {
+    color: var(--accent-text);
+    font-size: 12px;
+    text-decoration: none;
 }
 
 .card-empty {

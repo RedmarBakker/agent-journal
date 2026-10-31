@@ -2,6 +2,7 @@ import {createApp, h, nextTick} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import HomePlanBoard from "../src/pages/HomePlanBoard.vue";
 import {pageOf} from "../src/sync/paging.js";
+import {store} from "../src/state/store.js";
 
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
 
@@ -15,6 +16,7 @@ afterEach(() => {
     app = null;
     host?.remove();
     host = null;
+    store.settings = {plans: {plan_agents: false}};
     vi.restoreAllMocks();
     document.body.innerHTML = "";
 });
@@ -42,6 +44,22 @@ test("the Board route keeps the separate plan board without the main chat", asyn
     expect(host.querySelector(".home")).toBeNull();
     expect(host.querySelector("[data-home-dashboard]")).toBeNull();
     expect(api.organization).toHaveBeenCalledOnce();
+});
+
+test("the separate plans page stays available when Plan agents are on", async () => {
+    store.settings = {plans: {plan_agents: true}};
+    api.organization.mockResolvedValue({
+        plans: [{id: 81, title: "Started plan", phase: "in_progress", mode: "solo", state: "started", tasks: [810], done: 0, plan_agent_state: "running", chat: "plan-81"}],
+        scheduled_plans: [],
+        domains: [],
+    });
+    const {default: AppPages} = await import("../src/AppPages.vue");
+    mount(AppPages, {page: "board"});
+    await until(() => host.querySelector('[data-plan-id="81"] .organization-plan-title'));
+
+    expect(host.querySelector("[data-home-plan-board] h1").textContent).toBe("Plans");
+    expect(host.querySelector("[data-home-dashboard]")).toBeNull();
+    expect(host.querySelector('[data-plan-id="81"]').textContent).toContain("Plan agent: running");
 });
 
 test("the separate plan board keeps paging plans and scheduled next starts", async () => {
