@@ -9,7 +9,8 @@
         "JOURNAL_ADDRESS": "${JOURNAL_ADDRESS:?set a private tenant DNS name}",
         "GIT_NAME": "Journal supervisor pilot",
         "GIT_EMAIL": "journal-pilot@localhost",
-        "JOURNAL_CODEX_HOME": "/var/lib/journal-codex"
+        "JOURNAL_CODEX_HOME": "/var/lib/journal-codex",
+        "JOURNAL_PLAN_DRIVER_SOCKET": "/run/journal-plan-driver.sock"
       },
       "volumes": ["writer_state:/data", "codex_driver_state:/var/lib/journal-codex", "supervisor_hints:/var/lib/journal-supervisor/hints"],
       "ports": ["127.0.0.1:18440:8440"],
@@ -22,7 +23,7 @@
       "read_only": true,
       "tmpfs": ["/tmp", "/run:mode=1777"],
       "cap_drop": ["ALL"],
-      "cap_add": ["SETUID", "SETGID"],
+      "cap_add": ["SETUID", "SETGID", "SETPCAP"],
       "security_opt": ["no-new-privileges:true"],
       "healthcheck": {
         "test": ["CMD-SHELL", "curl -fsS http://127.0.0.1:8440/ready"],

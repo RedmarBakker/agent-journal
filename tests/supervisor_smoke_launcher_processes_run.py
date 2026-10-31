@@ -1,8 +1,11 @@
 # Starts real programs, so it is not in the default run: journal suite tests/supervisor_smoke_launcher_processes_run.py -q.
 from pathlib import Path
 import json
+import os
 import shutil
 import subprocess
+import sys
+import tempfile
 import time
 
 import pytest
@@ -111,7 +114,9 @@ def staging_root(tmp_path):
     work = tmp_path / "project"
     (work / "docs/supervisor/v1").mkdir(parents=True)
     (work / COMPOSE).write_text(
-        '{"services":{"writer":{"environment":{"JOURNAL_CODEX_HOME": "/var/lib/journal-codex"},'
+        '{"services":{"writer":{"environment":{"JOURNAL_CODEX_HOME": "/var/lib/journal-codex",'
+        '"JOURNAL_PLAN_DRIVER_SOCKET": "/run/journal-plan-driver.sock"},'
+        '"cap_add": ["SETUID", "SETGID", "SETPCAP"],'
         '"volumes":["codex_driver_state:/var/lib/journal-codex"]},'
         '"gateway": {"secrets":[]},"backup": {"secrets":[]}},'
         '"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",'
@@ -120,21 +125,32 @@ def staging_root(tmp_path):
     (work / "docker").mkdir()
     (work / "docker/Dockerfile").write_text(
         "RUN npm install -g @openai/codex@0.165.0\n"
+        "groupadd --gid 10003 codex-driver\n"
+        "useradd --uid 10003 --gid codex-driver\n"
+        "chown codex-driver:codex-driver /var/lib/journal-codex\n"
+        "chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex\n"
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/\n"
+        "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher\n"
         "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup\n"
     )
     (work / "docker/entrypoint.sh").write_text(
+        "setpriv --reuid 10003 --regid 10003 --clear-groups supervisor-codex-ready\n"
+        "/run/journal-plan-driver-server.pid\n"
+        "supervisor-codex-plan-launcher\n"
         "if ! supervisor-codex-ready; then\n"
         "echo complete supervisor-codex-login before starting the writer\n"
     )
     (work / "docker/supervisor-codex-login").write_text(
         "supervisor-codex-login accepts no arguments\n"
+        "supervisor-codex-login must run as uid/gid 10003\n"
+        "Codex driver home must be pre-created as uid/gid 10003 with mode 0700\n"
         "codex login --device-auth\n"
     )
     (work / "docker/supervisor-codex-ready").write_text(
         "supervisor-codex-ready accepts no arguments\n"
+        "supervisor-codex-ready must run as uid/gid 10003\n"
         "Codex device login is absent or not private\n"
-        "stat -c %u\nstat -c %a\n"
+        "stat -c %u\nstat -c %g\nstat -c %a\n"
     )
     (work / "docs/supervisor/v1/live-smoke-setup.py").write_text(
         "if len(sys.argv) != 1\n/_supervisor/v1/enrollment\nPlanMode.SOLO\nSupervisorLink\n"
@@ -208,7 +224,7 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert f"--env-file {ENV_FILE}" in calls[0]
     assert f"-f {COMPOSE}" in calls[0]
     assert "--profile authorized-staging" in calls[0]
-    assert "run --rm --no-deps --entrypoint /usr/local/bin/supervisor-codex-ready writer" in calls[0]
+    assert "run --rm --no-deps --user 10003:10003 --entrypoint /usr/local/bin/supervisor-codex-ready writer" in calls[0]
     assert " up " in f" {calls[1]} " and "gateway" in calls[1] and "writer" in calls[1]
     assert "--no-build --pull never" in calls[1]
     assert "down --timeout 3 --remove-orphans" in calls[2]
@@ -306,3 +322,27 @@ def test_launcher_refuses_to_start_services_without_the_persistent_codex_device_
     assert len(calls) == 1
     assert "supervisor-codex-ready" in calls[0]
     assert " up " not in f" {calls[0]} "
+
+
+def test_uid10001_cannot_read_codex_driver_state_owned_by_uid10003():
+    setpriv = shutil.which("setpriv")
+    if os.name != "posix" or not setpriv or os.geteuid() != 0:
+        pytest.skip("the DAC probe needs Linux setpriv and root to create the staged identities")
+    volume = Path(tempfile.mkdtemp(prefix="codex-driver-state-"))
+    try:
+        auth = volume / "auth.json"
+        auth.write_text("private Codex device token")
+        os.chown(volume, 10003, 10003)
+        os.chmod(volume, 0o700)
+        os.chown(auth, 10003, 10003)
+        os.chmod(auth, 0o600)
+        denied = subprocess.run(
+            [setpriv, "--reuid=10001", "--regid=10001", "--clear-groups", "--", sys.executable, "-c", "import pathlib,sys; pathlib.Path(sys.argv[1]).read_bytes()", str(auth)],
+            capture_output=True,
+            text=True,
+        )
+        assert denied.returncode != 0
+        assert "PermissionError" in denied.stderr
+        assert "private Codex device token" not in denied.stdout + denied.stderr
+    finally:
+        shutil.rmtree(volume)

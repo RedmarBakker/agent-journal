@@ -1,3 +1,8 @@
+import array
+import json
+import os
+import socket
+import threading
 from uuid import uuid4
 
 import pytest
@@ -57,6 +62,49 @@ def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments
 
     assert plan["CODEX_HOME"] == "/var/lib/journal-codex"
     assert "CODEX_HOME" not in task
+
+
+def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch, tmp_path):
+    socket_path = tmp_path / "plan-driver.sock"
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(socket_path))
+    server.listen(1)
+    received = []
+
+    def accept_request():
+        connection, _ = server.accept()
+        with connection:
+            data, ancillary, _, _ = connection.recvmsg(65536, socket.CMSG_SPACE(array.array("i").itemsize))
+            received.append(json.loads(data))
+            for level, kind, payload in ancillary:
+                if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                    descriptor = array.array("i")
+                    descriptor.frombytes(payload[:array.array("i").itemsize])
+                    for item in descriptor:
+                        os.close(item)
+            connection.sendall(b'{"pid":4321}')
+
+    listener = threading.Thread(target=accept_request)
+    listener.start()
+    monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SOCKET", str(socket_path))
+    launcher = AgentLauncher(Config(tmp_path))
+    monkeypatch.setattr(launcher, "plan_worktree_permissions", lambda _worktree: None)
+    worktree = tmp_path / ".claude" / "worktrees" / "plan-12"
+    arguments = ["codex", "--env", "plan-12", "--worktree", "plan-12", "--yes", "--no-open", "--no-journal", "--skip", "--", "--resume", "session-12"]
+
+    pid = launcher.launched("plan-12", arguments, worktree)
+
+    listener.join(timeout=2)
+    server.close()
+    assert not listener.is_alive()
+    assert pid == 4321
+    assert received == [{
+        "environment": "plan-12",
+        "root": str(tmp_path.resolve()),
+        "worktree": str(worktree.resolve()),
+        "port": "8421",
+        "resume": ["--resume", "session-12"],
+    }]
 
 
 @pytest.fixture(scope="module")

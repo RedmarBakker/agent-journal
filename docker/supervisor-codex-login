@@ -6,12 +6,16 @@ if [ "$#" -ne 0 ]; then
     echo "supervisor-codex-login accepts no arguments" >&2
     exit 2
 fi
-if [ "$(id -u)" -ne 0 ]; then
-    echo "supervisor-codex-login must run as the writer container root" >&2
+if [ "$(id -u)" != 10003 ] || [ "$(id -g)" != 10003 ]; then
+    echo "supervisor-codex-login must run as uid/gid 10003" >&2
     exit 2
 fi
-
-mkdir -p "$JOURNAL_CODEX_HOME"
-chown journal:journal "$JOURNAL_CODEX_HOME"
-chmod 0700 "$JOURNAL_CODEX_HOME"
-exec setpriv --reuid journal --regid journal --init-groups env CODEX_HOME="$JOURNAL_CODEX_HOME" codex login --device-auth
+if [ ! -d "$JOURNAL_CODEX_HOME" ] || [ -L "$JOURNAL_CODEX_HOME" ] \
+    || [ "$(stat -c %u "$JOURNAL_CODEX_HOME")" != 10003 ] \
+    || [ "$(stat -c %g "$JOURNAL_CODEX_HOME")" != 10003 ] \
+    || [ "$(stat -c %a "$JOURNAL_CODEX_HOME")" != 700 ]; then
+    echo "Codex driver home must be pre-created as uid/gid 10003 with mode 0700" >&2
+    exit 2
+fi
+umask 077
+exec env HOME="$JOURNAL_CODEX_HOME" CODEX_HOME="$JOURNAL_CODEX_HOME" codex login --device-auth

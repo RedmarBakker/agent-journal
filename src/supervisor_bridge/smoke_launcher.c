@@ -192,26 +192,40 @@ static int valid_profile(const char *config_path) {
     };
     static const char *required_writer_package[] = {
         "npm install -g @openai/codex@0.165.0",
+        "groupadd --gid 10003 codex-driver",
+        "useradd --uid 10003 --gid codex-driver",
+        "chown codex-driver:codex-driver /var/lib/journal-codex",
+        "chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/",
+        "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher",
         "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
     };
     static const char *required_writer_volume[] = {
         "\"JOURNAL_CODEX_HOME\": \"/var/lib/journal-codex\"",
+        "\"JOURNAL_PLAN_DRIVER_SOCKET\": \"/run/journal-plan-driver.sock\"",
         "\"codex_driver_state:/var/lib/journal-codex\"",
         "\"codex_driver_state\": {}",
+        "\"cap_add\": [\"SETUID\", \"SETGID\", \"SETPCAP\"]",
     };
     static const char *required_writer_entrypoint[] = {
         "supervisor-codex-ready",
+        "setpriv --reuid 10003 --regid 10003 --clear-groups supervisor-codex-ready",
+        "/run/journal-plan-driver-server.pid",
+        "supervisor-codex-plan-launcher",
         "complete supervisor-codex-login before starting the writer",
     };
     static const char *required_login_command[] = {
         "supervisor-codex-login accepts no arguments",
+        "supervisor-codex-login must run as uid/gid 10003",
+        "pre-created as uid/gid 10003 with mode 0700",
         "codex login --device-auth",
     };
     static const char *required_ready_command[] = {
         "supervisor-codex-ready accepts no arguments",
+        "supervisor-codex-ready must run as uid/gid 10003",
         "Codex device login is absent or not private",
         "stat -c %u",
+        "stat -c %g",
         "stat -c %a",
     };
     static const char *required_setup[] = {
@@ -255,6 +269,7 @@ static int valid_profile(const char *config_path) {
         && contains_all(writer_package, required_writer_package, sizeof(required_writer_package) / sizeof(required_writer_package[0]))
         && contains_all(writer_entrypoint, required_writer_entrypoint, sizeof(required_writer_entrypoint) / sizeof(required_writer_entrypoint[0]))
         && contains_all(login_command, required_login_command, sizeof(required_login_command) / sizeof(required_login_command[0]))
+        && !strstr(login_command, "chown")
         && contains_all(ready_command, required_ready_command, sizeof(required_ready_command) / sizeof(required_ready_command[0]))
         && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
@@ -438,7 +453,7 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
     char *ready_arguments[] = {
         "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "run", "--rm",
-        "--no-deps", "--entrypoint", "/usr/local/bin/supervisor-codex-ready", "writer", NULL,
+        "--no-deps", "--user", "10003:10003", "--entrypoint", "/usr/local/bin/supervisor-codex-ready", "writer", NULL,
     };
     char **arguments = action == COMPOSE_DOWN ? down_arguments : action == COMPOSE_READY ? ready_arguments : up_arguments;
     pid_t child = fork();

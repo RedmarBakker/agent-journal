@@ -106,6 +106,7 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     firewall = read_json(PROFILE / "firewall-policy.fixture.json")
     execution = manifest["execution_identity_contract"]
     worker = manifest["worker_identity_contract"]
+    plan_driver = next(item for item in manifest["topology"] if item["name"] == "normal-plan-driver")
 
     assert manifest["network_policy_fixture"] == "firewall-policy.fixture.json"
     assert firewall["is_applied_firewall_config"] is False
@@ -120,7 +121,9 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert execution["uid"] == 10003 and execution["gid"] == 10003
     assert execution["root_filesystem"] == "read-only"
     assert execution["capabilities"] == [] and execution["no_new_privileges"] is True
-    assert execution["status"] == "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
+    assert execution["status"] == "packaged; dedicated-VM B10 process identity, capability, worktree write-scope and designated-route probes remain pending"
+    assert "routed through the fixed uid10003 broker by AgentLauncher" in plan_driver["status"]
+    assert "B10 must still prove" in plan_driver["status"]
     assert worker["uid"] == 10004 and worker["gid"] == 10004
     assert worker["root_filesystem"] == "read-only"
     assert worker["capabilities"] == [] and worker["no_new_privileges"] is True
@@ -154,6 +157,7 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert "docker/hosted-journal" in script
     assert "docker/supervisor-codex-login" in script
     assert "docker/supervisor-codex-ready" in script
+    assert "docker/supervisor-codex-plan-launcher.py" in script
     assert "docs/supervisor/v1/live-smoke-setup.py" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
     assert '"$BUILD_CONTEXT"' in script
@@ -167,6 +171,8 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     backup = compose["services"]["backup"]
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
     entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
+    driver_launcher = (ROOT / "docker" / "supervisor-codex-plan-launcher.py").read_text()
+    agent_launcher = (ROOT / "src" / "journal" / "engine" / "agent_launcher.py").read_text()
     setup = (PROFILE / "live-smoke-setup.py").read_text()
     host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
     login = (ROOT / "docker" / "supervisor-codex-login").read_text()
@@ -177,17 +183,34 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "npm install -g @openai/codex@0.165.0" in dockerfile
     assert "CODEX_HOME" not in dockerfile and "CODEX_API_KEY" not in dockerfile
     assert writer["environment"]["JOURNAL_CODEX_HOME"] == "/var/lib/journal-codex"
+    assert writer["environment"]["JOURNAL_PLAN_DRIVER_SOCKET"] == "/run/journal-plan-driver.sock"
+    assert writer["cap_add"] == ["SETUID", "SETGID", "SETPCAP"]
+    assert writer["read_only"] is True
+    assert "no-new-privileges:true" in writer["security_opt"]
     assert writer["tmpfs"] == ["/tmp", "/run:mode=1777"]
     assert "codex_driver_state:/var/lib/journal-codex" in writer["volumes"]
     assert "codex_driver_state" in compose["volumes"]
     assert "codex_driver_state" not in " ".join(gateway["volumes"] + backup["volumes"])
     assert "codex_driver_credentials" not in json.dumps(compose)
     assert "supervisor-codex-ready" in entrypoint
+    assert "setpriv --reuid 10003 --regid 10003 --clear-groups supervisor-codex-ready" in entrypoint
+    assert "supervisor-codex-plan-launcher" in entrypoint
     assert "complete supervisor-codex-login before starting the writer" in entrypoint
+    assert "/run/journal-plan-driver-server.pid" in entrypoint
+    assert "setfacl" in agent_launcher and "u:10003:rwX" in agent_launcher
+    assert "JOURNAL_PLAN_DRIVER_SOCKET" in agent_launcher and "plan_launched" in agent_launcher
+    assert "peer_uid != JOURNAL_UID" in driver_launcher
+    assert "peer_pid != server_pid" in driver_launcher
+    assert "only a numbered Plan environment" in driver_launcher
+    assert "os.setgid(DRIVER_GID)" in driver_launcher and "os.setuid(DRIVER_UID)" in driver_launcher
+    assert "PR_CAPBSET_DROP" in driver_launcher and "PR_SET_NO_NEW_PRIVS" in driver_launcher
+    assert '"CODEX_HOME": CODEX_HOME' in driver_launcher
+    assert '"PATH": "/usr/local/bin:/usr/bin:/bin"' in driver_launcher
     assert "codex login --device-auth" in login
     assert "--with-api-key" not in login + entrypoint
     assert "stat -c %u" in ready and "stat -c %a" in ready
     assert '"/usr/local/bin/supervisor-codex-ready"' in launcher
+    assert '"10003:10003"' in launcher
     assert '"down"' in launcher and '"-v"' not in launcher
     assert "if len(sys.argv) != 1" in setup
     assert "start the owner's real Codex session on the designated writer" in setup
@@ -208,7 +231,30 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "normal_driver_separate_execution_identity" in manifest["launch_gates"]
     assert manifest["launch"]["enrollment_enabled"] is False
     assert "private device-auth login" in setup
-    assert manifest["topology"][0]["codex_driver"]["credential_state"] == "codex_driver_state named volume mounted only to the writer at /var/lib/journal-codex; excluded from backup"
+    assert manifest["topology"][0]["codex_driver"]["permissions"].startswith("the Dockerfile pre-creates /var/lib/journal-codex as uid/gid 10003 mode 0700")
+    assert manifest["volumes"]["codex_driver_state"]["owner"] == "10003:10003"
+    assert manifest["execution_identity_contract"]["status"].startswith("packaged; dedicated-VM B10")
+    assert manifest["launch_gates"]["normal_driver_separate_execution_identity"] is False
+    assert "uid/gid 10003" in runbook and "B10 remains false" in runbook
+
+
+def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_owner():
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+    login = (ROOT / "docker" / "supervisor-codex-login").read_text()
+    ready = (ROOT / "docker" / "supervisor-codex-ready").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+
+    assert "groupadd --gid 10003 codex-driver" in dockerfile
+    assert "useradd --uid 10003 --gid codex-driver" in dockerfile
+    assert "/var/lib/journal-codex" in dockerfile
+    assert "chown codex-driver:codex-driver /var/lib/journal-codex" in dockerfile
+    assert "chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex" in dockerfile
+    assert "supervisor-codex-login must run as uid/gid 10003" in login
+    assert "Codex driver home must be pre-created as uid/gid 10003 with mode 0700" in login
+    assert "stat -c %u" in login and "stat -c %g" in login and "stat -c %a" in login
+    assert "chown" not in login
+    assert "supervisor-codex-ready must run as uid/gid 10003" in ready
+    assert "--user 10003:10003" in runbook
 
 
 def test_codex_device_login_is_fixed_and_operator_approved_before_the_smoke():
@@ -222,8 +268,9 @@ def test_codex_device_login_is_fixed_and_operator_approved_before_the_smoke():
 
     assert "supervisor-codex-login accepts no arguments" in login
     assert "codex login --device-auth" in login
-    assert "CODEX_HOME" in login and "setpriv --reuid journal" in login
-    assert "auth.json" in ready and "stat -c %a" in ready
+    assert "CODEX_HOME" in login and "codex login --device-auth" in login
+    assert "supervisor-codex-login must run as uid/gid 10003" in login
+    assert "auth.json" in ready and "stat -c %g" in ready and "stat -c %a" in ready
     assert "codex_driver_state" in compose["services"]["writer"]["volumes"][1]
     assert "codex_driver_credentials" not in json.dumps(compose) + json.dumps(manifest)
     assert not (ROOT / "src" / "supervisor_bridge" / "codex_driver_secret_stage.c").exists()

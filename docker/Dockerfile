@@ -1,7 +1,7 @@
 FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git nodejs npm procps \
+    && apt-get install -y --no-install-recommends acl ca-certificates curl findutils git nodejs npm procps \
     && npm install -g @anthropic-ai/claude-code@2.1.293 \
     && npm install -g @openai/codex@0.165.0 \
     && npm cache clean --force \
@@ -10,17 +10,21 @@ RUN apt-get update \
 # Two users share the record through the journal group: journal runs the server and its agents, gateway runs
 # the login page and alone reads its password and logins.
 RUN groupadd --gid 10001 journal \
+    && groupadd --gid 10003 codex-driver \
     && useradd --uid 10001 --gid journal --home-dir /data/home --no-create-home --shell /bin/sh journal \
     && useradd --uid 10002 --gid journal --home-dir /data/gateway --no-create-home --shell /usr/sbin/nologin gateway \
-    && mkdir -p /data/home /data/project /data/secrets /data/gateway /data/vault \
+    && useradd --uid 10003 --gid codex-driver --home-dir /var/lib/journal-codex --no-create-home --shell /usr/sbin/nologin codex-driver \
+    && mkdir -p /data/home /data/project /data/secrets /data/gateway /data/vault /var/lib/journal-codex \
     && chown journal:journal /data/home /data/project /data/secrets \
     && chown gateway:journal /data/gateway /data/vault \
-    && chmod 700 /data/home /data/secrets /data/gateway /data/vault \
+    && chown codex-driver:codex-driver /var/lib/journal-codex \
+    && chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex \
     && chmod 2770 /data/project
 
 COPY --chown=root:root src /opt/agent-journal/src
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
+COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher
 COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup
 
 ENV JOURNAL_PROJECT=/data/project \

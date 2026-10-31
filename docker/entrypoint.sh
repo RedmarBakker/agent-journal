@@ -5,6 +5,7 @@ set -eu
 umask 007
 
 : "${JOURNAL_ADDRESS:?set JOURNAL_ADDRESS in .env to the server's own domain}"
+: "${JOURNAL_PLAN_DRIVER_SOCKET:?set the private Plan driver launcher socket}"
 PROJECT="${JOURNAL_PROJECT:-/data/project}"
 ROOT="$PROJECT/.journal"
 # The login page's Python never looks in a folder an agent can write: it starts in /, with a safe import path.
@@ -31,13 +32,22 @@ hosted-journal prepare --address "$JOURNAL_ADDRESS" --listen 0.0.0.0 --port 8440
 SETUP
 
 $AS_GATEWAY hosted-journal gateway-settings --address "$JOURNAL_ADDRESS" --proxy caddy --days 7
-mkdir -p "$JOURNAL_CODEX_HOME"
-chown journal:journal "$JOURNAL_CODEX_HOME"
-chmod 0700 "$JOURNAL_CODEX_HOME"
-if ! supervisor-codex-ready; then
+if ! setpriv --reuid 10003 --regid 10003 --clear-groups supervisor-codex-ready; then
     echo "Codex device login is missing; complete supervisor-codex-login before starting the writer" >&2
     exit 2
 fi
+setpriv --regid 10001 --clear-groups sh -eu -c 'printf "%s\n" "$1" > /run/journal-plan-driver-server.pid; chmod 0440 /run/journal-plan-driver-server.pid' sh "$$"
+python3 -P /usr/local/bin/supervisor-codex-plan-launcher &
+PLAN_LAUNCHER_PID=$!
+attempt=0
+while [ ! -S "$JOURNAL_PLAN_DRIVER_SOCKET" ]; do
+    if ! kill -0 "$PLAN_LAUNCHER_PID" 2>/dev/null || [ "$attempt" -ge 50 ]; then
+        echo "the restricted Codex Plan launcher did not become ready" >&2
+        exit 2
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.1
+done
 # Root holds the login page's port for good and starts the login page on it as gateway, so no agent can take the port.
 env -C / PYTHONPATH=/opt/agent-journal/src PYTHONSAFEPATH=1 python3 -P -m commands.login_apart keep "$ROOT" --port 8440 &
 $AS_GATEWAY hosted-journal password-status

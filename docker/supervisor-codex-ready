@@ -6,10 +6,14 @@ if [ "$#" -ne 0 ]; then
     echo "supervisor-codex-ready accepts no arguments" >&2
     exit 2
 fi
+if [ "$(id -u)" != 10003 ] || [ "$(id -g)" != 10003 ]; then
+    echo "supervisor-codex-ready must run as uid/gid 10003" >&2
+    exit 2
+fi
 auth="$JOURNAL_CODEX_HOME/auth.json"
-if [ ! -d "$JOURNAL_CODEX_HOME" ] || [ "$(stat -c %u "$JOURNAL_CODEX_HOME")" != 10001 ] || [ "$(stat -c %a "$JOURNAL_CODEX_HOME")" != 700 ] \
+if [ ! -d "$JOURNAL_CODEX_HOME" ] || [ -L "$JOURNAL_CODEX_HOME" ] || [ "$(stat -c %u "$JOURNAL_CODEX_HOME")" != 10003 ] || [ "$(stat -c %g "$JOURNAL_CODEX_HOME")" != 10003 ] || [ "$(stat -c %a "$JOURNAL_CODEX_HOME")" != 700 ] \
     || [ ! -f "$auth" ] || [ -L "$auth" ] || [ ! -s "$auth" ] \
-    || [ "$(stat -c %u "$auth")" != 10001 ] || [ "$(stat -c %a "$auth")" != 600 ]; then
+    || [ "$(stat -c %u "$auth")" != 10003 ] || [ "$(stat -c %g "$auth")" != 10003 ] || [ "$(stat -c %a "$auth")" != 600 ]; then
     echo "Codex device login is absent or not private in the persistent writer volume" >&2
     exit 2
 fi

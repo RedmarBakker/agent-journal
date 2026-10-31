@@ -21,12 +21,13 @@
       "codex_driver": {
         "binary": "/usr/local/bin/codex",
         "package": "@openai/codex@0.165.0",
-        "driver_home_selection": "AgentLauncher passes JOURNAL_CODEX_HOME as CODEX_HOME only to plan-* environments; the owner main session receives it only through the explicit launcher command",
-        "login": "the owner runs the fixed supervisor-codex-login command; it executes codex login --device-auth and waits for browser approval",
-        "credential_state": "codex_driver_state named volume mounted only to the writer at /var/lib/journal-codex; excluded from backup",
+        "driver_home_selection": "AgentLauncher sends plan-* Codex launches through the fixed local launcher; it pins HOME and CODEX_HOME to /var/lib/journal-codex; the owner main session uses its separate /data/home/.codex login",
+        "login": "the owner runs supervisor-codex-login as uid/gid 10003; the script verifies the image-provisioned private home and runs codex login --device-auth for browser approval",
+        "credential_state": "codex_driver_state named volume mounted in the writer at /var/lib/journal-codex; DAC access is limited to uid/gid 10003 and excluded from backup",
         "persistence": "plain docker compose down preserves the named volume; do not use down --volumes",
-        "permissions": "directory uid10001 mode 0700; auth.json uid10001 mode 0600; Gateway and backup do not mount it",
-        "identity_limit": "PlanAgents uses writer uid10001; other writer processes share that uid and can read the volume, so process-only access is not proven and remains a B10 gate"
+        "permissions": "the Dockerfile pre-creates /var/lib/journal-codex as uid/gid 10003 mode 0700 so a new named volume keeps that owner; auth.json is uid/gid 10003 mode 0600; Gateway and backup do not mount it",
+        "launch_adapter": "the writer starts a fixed Unix-socket launcher as root with only SETUID, SETGID and SETPCAP; it accepts requests only from the designated journal server PID and uid10001, and only starts numbered Codex Plan environments",
+        "identity_limit": "the package launches the Plan process as uid/gid 10003 with no capabilities, no-new-privileges, a read-only container root and an ACL limited to its Plan worktree; dedicated-VM B10 process and write probes remain pending"
       },
       "ports": ["container 8421 on gateway_link", "container 8440 on journal_management; host loopback 18440 only"],
       "health": "GET http://127.0.0.1:8440/ready"
@@ -66,7 +67,7 @@
       "identity": "required dedicated execution uid/gid 10003 with a restricted container or equivalent profile",
       "state_volume": "owner-bound plan worktree only; no writer database, Gateway state, or provider-secret mount",
       "network": "designated journal CLI/hook route and owner-selected provider only",
-      "status": "not enforced by the current AgentLauncher; enrollment remains disabled until B10 proves the real bound driver path"
+      "status": "Plan Codex launches are routed through the fixed uid10003 broker by AgentLauncher; B10 must still prove the bound live driver path and deny unapproved routes before enrollment"
     },
     {
       "name": "backup",
@@ -89,11 +90,11 @@
     "root_filesystem": "read-only",
     "capabilities": [],
     "no_new_privileges": true,
-    "writable_mounts": ["the single owner-bound plan worktree"],
-    "credential_visibility": "Codex auth.json and refresh tokens are in codex_driver_state, mounted only into writer; shared uid10001 makes the volume readable to other writer processes, so process isolation is not proven",
+    "writable_mounts": ["codex_driver_state for the private Codex home", "only the single owner-bound Plan worktree through a uid10003 ACL"],
+    "credential_visibility": "Codex auth.json and refresh tokens are in codex_driver_state, owned uid/gid 10003 mode 0700; uid10001 has no DAC read permission and Gateway and backup do not mount it",
     "network_allow": ["authenticated CLI/hook routes to the designated writer", "owner-selected provider endpoint when required"],
     "network_deny": ["writer database", "Gateway state", "provider credential service", "admin ports", "other tenant networks"],
-    "status": "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
+    "status": "packaged; dedicated-VM B10 process identity, capability, worktree write-scope and designated-route probes remain pending"
   },
   "worker_identity_contract": {
     "uid": 10004,
@@ -123,7 +124,7 @@
   ],
   "volumes": {
     "writer_state": {"mount": "/data", "owner": "journal:journal", "backup": true, "contains": ["journal record", "project checkout", "journal home"]},
-    "codex_driver_state": {"mount": "/var/lib/journal-codex", "owner": "journal:journal", "mode": "0700", "backup": false, "contains": ["Codex auth.json and refresh tokens"], "reader": "PlanAgents Codex driver and explicitly launched owner main Codex session; not process-isolated from other uid10001 writer processes"},
+    "codex_driver_state": {"mount": "/var/lib/journal-codex", "owner": "10003:10003", "mode": "0700", "backup": false, "contains": ["Codex auth.json and refresh tokens"], "reader": "PlanAgents Codex driver uid10003; uid10001 denial is covered by the isolated DAC probe"},
     "gateway_state": {"mount": "/home/node/.openclaw", "owner": "1000:10030", "mode": "0750", "storage": "tenant-specific host directory via local bind volume", "backup": true, "contains": ["Gateway-owned state; no provider key values"]},
     "supervisor_hints": {"writer_mount": "/var/lib/journal-supervisor/hints", "gateway_mount": "/var/lib/journal-supervisor/hints:ro", "owner": "10001:10030", "storage": "4 MiB tmpfs", "backup": false, "contains": ["at most 1000 bounded row references and event timestamps"]},
     "restore_candidate": {"mount": "/restore-candidate", "owner": "operator-provisioned uid 10005", "storage": "tenant-specific host directory via local bind volume", "backup": false, "contains": ["isolated restore output; never mounted by a running writer"]}
