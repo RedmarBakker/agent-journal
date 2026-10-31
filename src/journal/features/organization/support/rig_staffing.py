@@ -77,6 +77,15 @@ class RigStaffing:
         path, spec = self.specs.read_rig_spec(rig.name)
         pods = spec.setdefault("pods", [])
         pod = next((value for value in pods if value.get("id") == seat.pod), None)
+        edges = spec.setdefault("edges", [])
+        missing_links = tuple(
+            (source, target)
+            for source, target in links
+            if source.pod != target.pod and self.specs.edge(source.logical_id(), target.logical_id()) not in edges
+        )
+        member_exists = pod is not None and any(member.get("id") == seat.member for member in pod.get("members", []))
+        if member_exists and not missing_links:
+            return
         running = self.runtime.rig_exists(rig.name)
         worker = lambda placed: SeatWorker(Actor.agent(""), AgentToken.random(), environment, placed.qualified, rig.name)
         if pod is None:
@@ -90,13 +99,10 @@ class RigStaffing:
             self.specs.write_pod_fragment(rig.name, pod)
             if running:
                 self.runtime.add(rig.name, seat.pod, fragment, self.specs.spec_folder(rig.name))
-        edges = spec.setdefault("edges", [])
-        for source, target in links:
-            edge = self.specs.edge(source.logical_id(), target.logical_id())
-            if source.pod != target.pod and edge not in edges:
-                edges.append(edge)
-                if running:
-                    self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
+        for source, target in missing_links:
+            edges.append(self.specs.edge(source.logical_id(), target.logical_id()))
+            if running:
+                self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
         self.specs.written(path, spec).chmod(OWNER_ONLY)
 
     def is_running(self, plan: Plan, provider: str) -> bool:
