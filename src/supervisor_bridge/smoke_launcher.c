@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include "live_smoke_settings.h"
 
 #ifndef SMOKE_RUN_SECONDS
 #define SMOKE_RUN_SECONDS 105
@@ -22,6 +23,9 @@
 
 #define ENV_FILE "docs/supervisor/v1/live-smoke.env"
 #define COMPOSE_FILE "docs/supervisor/v1/compose.json"
+#define WRITER_DOCKERFILE "docker/Dockerfile"
+#define WRITER_ENTRYPOINT "docker/entrypoint.sh"
+#define WRITER_SETUP "docs/supervisor/v1/live-smoke-setup.py"
 #define GATEWAY_DOCKERFILE "docs/supervisor/v1/Dockerfile.gateway"
 #define PROJECT_NAME "journal-supervisor-smoke"
 #define MAX_SECRET_BYTES 4096
@@ -29,6 +33,7 @@
 #define STOP_SECONDS 3
 
 static const char *required_secret_files[] = {
+    "codex_driver_credentials",
     "openclaw_hook_token",
     "journal_supervisor_credential",
     "restic_password",
@@ -60,39 +65,10 @@ static bool required_file(const char *path) {
     return S_ISREG(details.st_mode) && (details.st_mode & 0022) == 0 && details.st_size > 0 && details.st_size <= MAX_SECRET_BYTES;
 }
 
-static int setting_value(const char *setting, char *value, size_t capacity) {
-    struct stat file_details;
-    if (lstat(ENV_FILE, &file_details) != 0 || !S_ISREG(file_details.st_mode) || file_details.st_uid != geteuid() || (file_details.st_mode & 0022) != 0) return -1;
-    FILE *settings = fopen(ENV_FILE, "r");
-    if (!settings) return -1;
-    char line[MAX_PATH_BYTES + 64];
-    size_t prefix_length = strlen(setting) + 1;
-    bool found = false;
-    while (fgets(line, sizeof(line), settings)) {
-        size_t length = strlen(line);
-        if (length && line[length - 1] == '\n') line[--length] = 0;
-        if (length < prefix_length || strncmp(line, setting, prefix_length - 1) != 0 || line[prefix_length - 1] != '=') continue;
-        if (found || length <= prefix_length || length - prefix_length >= capacity) {
-            fclose(settings);
-            return -1;
-        }
-        const char *source = line + prefix_length;
-        if (source[0] != '/') {
-            fclose(settings);
-            return -1;
-        }
-        for (const unsigned char *cursor = (const unsigned char *)source; *cursor; cursor++) {
-            if (isspace(*cursor) || *cursor == '$' || *cursor == '`' || *cursor == '\\' || *cursor == '\'' || *cursor == '"') {
-                fclose(settings);
-                return -1;
-            }
-        }
-        memcpy(value, source, length - prefix_length + 1);
-        found = true;
-    }
-    int error = ferror(settings) ? -1 : 0;
-    fclose(settings);
-    return error == 0 && found ? 0 : -1;
+static bool required_driver_file(const char *path) {
+    struct stat details;
+    if (lstat(path, &details) != 0) return false;
+    return S_ISREG(details.st_mode) && (details.st_mode & 0777) == 0400 && details.st_size >= 16 && details.st_size <= MAX_SECRET_BYTES;
 }
 
 static bool path_join(char *result, size_t capacity, const char *directory, const char *name) {
@@ -197,6 +173,11 @@ static bool contains_all(const char *text, const char *const *needles, size_t co
     return true;
 }
 
+static bool segment_contains(const char *start, const char *end, const char *needle) {
+    const char *match = strstr(start, needle);
+    return match && match < end;
+}
+
 static int valid_profile(const char *config_path) {
     static const char *required_config[] = {
         "\"allowRequestSessionKey\":false",
@@ -219,18 +200,56 @@ static int valid_profile(const char *config_path) {
         "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge",
         "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge",
     };
-    char *compose = NULL, *gateway_package = NULL, *config = NULL;
+    static const char *required_writer_package[] = {
+        "npm install -g @openai/codex@0.165.0",
+        "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
+    };
+    static const char *required_writer_secret[] = {
+        "{\"source\": \"codex_driver_credentials\", \"target\": \"codex_driver_credentials\"}",
+        "\"codex_driver_credentials\": {\"file\": \"${TENANT_SECRET_DIR:?set the temporary tenant secret directory}/codex_driver_credentials\"}",
+        "\"CODEX_HOME\": \"/run/codex\"",
+    };
+    static const char *required_writer_login[] = {
+        "codex login --with-api-key < /run/secrets/codex_driver_credentials",
+        ">/dev/null 2>&1",
+    };
+    static const char *required_setup[] = {
+        "if len(sys.argv) != 1",
+        "/_supervisor/v1/enrollment",
+        "PlanMode.SOLO",
+        "SupervisorLink",
+        "\"max_input_tokens_per_turn\": 24000",
+        "\"max_output_tokens_per_turn\": 8000",
+        "\"max_provider_requests_per_turn\": 8",
+        "\"mode\": \"bounded_write\"",
+    };
+    char *compose = NULL, *writer_package = NULL, *writer_entrypoint = NULL, *writer_setup = NULL;
+    char *gateway_package = NULL, *config = NULL;
     if (read_file(COMPOSE_FILE, &compose, 131072) != 0
+        || read_file(WRITER_DOCKERFILE, &writer_package, 131072) != 0
+        || read_file(WRITER_ENTRYPOINT, &writer_entrypoint, 131072) != 0
+        || read_file(WRITER_SETUP, &writer_setup, 131072) != 0
         || read_file(GATEWAY_DOCKERFILE, &gateway_package, 131072) != 0
         || read_file(config_path, &config, 131072) != 0) {
         free(compose);
+        free(writer_package);
+        free(writer_entrypoint);
+        free(writer_setup);
         free(gateway_package);
         free(config);
         return -1;
     }
     char *compact = compact_json(config);
+    const char *gateway_service = strstr(compose, "\"gateway\": {");
+    const char *backup_service = gateway_service ? strstr(gateway_service, "\"backup\": {") : NULL;
     bool valid = compact
+        && gateway_service && backup_service
         && contains_all(compose, required_gateway_image, sizeof(required_gateway_image) / sizeof(required_gateway_image[0]))
+        && contains_all(compose, required_writer_secret, sizeof(required_writer_secret) / sizeof(required_writer_secret[0]))
+        && !segment_contains(gateway_service, backup_service, "codex_driver_credentials")
+        && contains_all(writer_package, required_writer_package, sizeof(required_writer_package) / sizeof(required_writer_package[0]))
+        && contains_all(writer_entrypoint, required_writer_login, sizeof(required_writer_login) / sizeof(required_writer_login[0]))
+        && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
         && all_values_equal(compact, "api", "\"anthropic-messages\"")
@@ -242,6 +261,9 @@ static int valid_profile(const char *config_path) {
         && !strstr(compact, "https://api.anthropic.com");
     free(compact);
     free(compose);
+    free(writer_package);
+    free(writer_entrypoint);
+    free(writer_setup);
     free(gateway_package);
     free(config);
     return valid ? 0 : -1;
@@ -293,7 +315,7 @@ static int copy_secret(const char *source_directory_path, const char *target_dir
         return -1;
     }
     char buffer[MAX_SECRET_BYTES];
-    ssize_t count;
+    ssize_t count = 0;
     int result = 0;
     while ((count = read(source_fd, buffer, sizeof(buffer))) > 0) {
         ssize_t written = 0;
@@ -310,6 +332,50 @@ static int copy_secret(const char *source_directory_path, const char *target_dir
     if (count < 0) result = -1;
     erase(buffer, sizeof(buffer));
     if (close(source_fd) != 0 || close(target_fd) != 0) result = -1;
+    return result;
+}
+
+static int copy_driver_secret(const char *source_directory_path, const char *target_directory) {
+    char source[MAX_PATH_BYTES], target[MAX_PATH_BYTES];
+    if (!path_join(source, sizeof(source), source_directory_path, "codex_driver_credentials")
+        || !path_join(target, sizeof(target), target_directory, "codex_driver_credentials")) return -1;
+    int source_fd = open(source, O_RDONLY | O_NOFOLLOW);
+    if (source_fd < 0) return -1;
+    struct stat details;
+    if (fstat(source_fd, &details) != 0 || !S_ISREG(details.st_mode) || (details.st_mode & 0777) != 0400
+        || details.st_size < 16 || details.st_size > MAX_SECRET_BYTES) {
+        close(source_fd);
+        return -1;
+    }
+    int target_fd = open(target, O_WRONLY | O_CREAT | O_EXCL, 0400);
+    if (target_fd < 0) {
+        close(source_fd);
+        return -1;
+    }
+    int result = fchown(target_fd, details.st_uid, details.st_gid) == 0 ? 0 : -1;
+    char buffer[MAX_SECRET_BYTES];
+    ssize_t count = 0;
+    size_t total = 0;
+    while (result == 0 && (count = read(source_fd, buffer, sizeof(buffer))) > 0) {
+        if (total + (size_t)count > MAX_SECRET_BYTES) {
+            result = -1;
+            break;
+        }
+        ssize_t written = 0;
+        while (written < count) {
+            ssize_t amount = write(target_fd, buffer + written, (size_t)(count - written));
+            if (amount <= 0) {
+                result = -1;
+                break;
+            }
+            written += amount;
+        }
+        if (result == 0) total += (size_t)count;
+    }
+    if (count < 0 || total != (size_t)details.st_size || fchmod(target_fd, 0400) != 0) result = -1;
+    erase(buffer, sizeof(buffer));
+    if (close(source_fd) != 0 || close(target_fd) != 0) result = -1;
+    if (result != 0) unlink(target);
     return result;
 }
 
@@ -436,9 +502,9 @@ int main(int argc, char **argv) {
     (void)argv;
     if (argc != 1 || access(COMPOSE_FILE, R_OK) != 0 || access(ENV_FILE, R_OK) != 0) return 2;
     char source[MAX_PATH_BYTES], config_path[MAX_PATH_BYTES], gateway_state[MAX_PATH_BYTES], receipt_path[MAX_PATH_BYTES];
-    if (setting_value("TENANT_SECRET_SOURCE_DIR", source, sizeof(source)) != 0
-        || setting_value("OPENCLAW_CONFIG_FILE", config_path, sizeof(config_path)) != 0
-        || setting_value("GATEWAY_STATE_PATH", gateway_state, sizeof(gateway_state)) != 0
+    if (live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", source, sizeof(source)) != 0
+        || live_smoke_setting_value(ENV_FILE, "OPENCLAW_CONFIG_FILE", config_path, sizeof(config_path)) != 0
+        || live_smoke_setting_value(ENV_FILE, "GATEWAY_STATE_PATH", gateway_state, sizeof(gateway_state)) != 0
         || !private_directory(source)
         || !private_directory(gateway_state)
         || !path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")
@@ -446,7 +512,12 @@ int main(int argc, char **argv) {
         || valid_profile(config_path) != 0) return 2;
     for (size_t index = 0; index < sizeof(required_secret_files) / sizeof(required_secret_files[0]); index++) {
         char path[MAX_PATH_BYTES];
-        if (!path_join(path, sizeof(path), source, required_secret_files[index]) || !required_file(path)) return 2;
+        if (!path_join(path, sizeof(path), source, required_secret_files[index])) return 2;
+        if (strcmp(required_secret_files[index], "codex_driver_credentials") == 0) {
+            if (!required_driver_file(path)) return 2;
+        } else if (!required_file(path)) {
+            return 2;
+        }
     }
     const char *home = getenv("HOME");
     if (!home || !private_directory(home)) return 2;
@@ -454,8 +525,10 @@ int main(int argc, char **argv) {
     if (!path_join(directory, sizeof(directory), home, "journal-supervisor-smoke-XXXXXX") || !mkdtemp(directory)) return 2;
     chmod(directory, 0700);
     bool ready = true;
+    if (copy_driver_secret(source, directory) != 0) ready = false;
     for (size_t index = 0; index < sizeof(required_secret_files) / sizeof(required_secret_files[0]); index++) {
-        if (copy_secret(source, directory, required_secret_files[index]) != 0) ready = false;
+        if (strcmp(required_secret_files[index], "codex_driver_credentials") != 0
+            && copy_secret(source, directory, required_secret_files[index]) != 0) ready = false;
     }
     char key[MAX_SECRET_BYTES + 1] = {0};
     size_t key_length = 0;

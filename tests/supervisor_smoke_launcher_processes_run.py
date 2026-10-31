@@ -1,7 +1,9 @@
 # Starts real programs, so it is not in the default run: journal suite tests/supervisor_smoke_launcher_processes_run.py -q.
 from pathlib import Path
 import json
+import os
 import shutil
+import stat
 import subprocess
 import time
 
@@ -10,9 +12,11 @@ import pytest
 
 ROOT = Path(__file__).parents[1]
 SOURCE = ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c"
+SECRET_STAGE_SOURCE = ROOT / "src" / "supervisor_bridge" / "codex_driver_secret_stage.c"
 COMPOSE = "docs/supervisor/v1/compose.json"
 ENV_FILE = "docs/supervisor/v1/live-smoke.env"
 SECRET_FILES = (
+    "codex_driver_credentials",
     "openclaw_hook_token",
     "journal_supervisor_credential",
     "restic_password",
@@ -26,6 +30,7 @@ def compiled_launcher(tmp_path):
     compiler = shutil.which("cc")
     assert compiler, "a C compiler is required to build the native launcher"
     executable = tmp_path / "journal-supervisor-smoke"
+    secret_stage = tmp_path / "journal-supervisor-driver-secret-stage"
     docker_stub = tmp_path / "docker"
     stub_source = tmp_path / "docker_stub.c"
     stub_source.write_text(
@@ -66,6 +71,14 @@ int main(int argc, char **argv) {
         if (!seen) return 14;
         fputs(key, seen);
         fclose(seen);
+        snprintf(path, sizeof(path), "%s/codex_driver_credentials", secret_dir);
+        struct stat driver_secret;
+        if (stat(path, &driver_secret) != 0 || (driver_secret.st_mode & 0777) != 0400) return 19;
+        snprintf(path, sizeof(path), "%s/driver-secret-info", home);
+        FILE *driver_info = fopen(path, "w");
+        if (!driver_info) return 20;
+        fprintf(driver_info, "%o %u\n", driver_secret.st_mode & 0777, driver_secret.st_uid);
+        fclose(driver_info);
         snprintf(path, sizeof(path), "%s/slow-up", home);
         if (is_up && access(path, F_OK) == 0) sleep(5);
         if (is_up && access(path, F_OK) != 0) {
@@ -92,19 +105,44 @@ int main(int argc, char **argv) {
         text=True,
     )
     assert compiled.returncode == 0, compiled.stderr
+    staged = subprocess.run(
+        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", str(SECRET_STAGE_SOURCE), "-o", str(secret_stage)],
+        capture_output=True,
+        text=True,
+    )
+    assert staged.returncode == 0, staged.stderr
     subprocess.run(
         [compiler, "-std=c11", "-Wall", "-Wextra", "-O2", str(stub_source), "-o", str(docker_stub)],
         check=True,
         capture_output=True,
         text=True,
     )
-    return executable, docker_stub
+    return executable, docker_stub, secret_stage
 
 
 def staging_root(tmp_path):
     work = tmp_path / "project"
     (work / "docs/supervisor/v1").mkdir(parents=True)
-    (work / COMPOSE).write_text('"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"\n')
+    (work / COMPOSE).write_text(
+        '{"services":{"writer":{"secrets":[{"source": "codex_driver_credentials", "target": "codex_driver_credentials"}],'
+        '"environment":{"CODEX_HOME": "/run/codex"}},'
+        '"gateway": {"secrets":[]},"backup": {"secrets":[]}},'
+        '"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",'
+        '"secrets":{"codex_driver_credentials": {"file": "${TENANT_SECRET_DIR:?set the temporary tenant secret directory}/codex_driver_credentials"}}}\n'
+    )
+    (work / "docker").mkdir()
+    (work / "docker/Dockerfile").write_text(
+        "RUN npm install -g @openai/codex@0.165.0\n"
+        "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup\n"
+    )
+    (work / "docker/entrypoint.sh").write_text(
+        "codex login --with-api-key < /run/secrets/codex_driver_credentials >/dev/null 2>&1\n"
+    )
+    (work / "docs/supervisor/v1/live-smoke-setup.py").write_text(
+        "if len(sys.argv) != 1\n/_supervisor/v1/enrollment\nPlanMode.SOLO\nSupervisorLink\n"
+        '"max_input_tokens_per_turn": 24000\n"max_output_tokens_per_turn": 8000\n'
+        '"max_provider_requests_per_turn": 8\n"mode": "bounded_write"\n'
+    )
     (work / "docs/supervisor/v1/Dockerfile.gateway").write_text(
         "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5\n"
         "RUN apt-get install -y --no-install-recommends python3\n"
@@ -125,7 +163,7 @@ def staging_root(tmp_path):
     secrets.mkdir(mode=0o700)
     for name in SECRET_FILES:
         (secrets / name).write_text(f"staged-{name}\n")
-        (secrets / name).chmod(0o600)
+        (secrets / name).chmod(0o400 if name == "codex_driver_credentials" else 0o600)
     gateway_state = tmp_path / "gateway-state"
     gateway_state.mkdir(mode=0o700)
     (work / ENV_FILE).write_text(f"TENANT_SECRET_SOURCE_DIR={secrets}\nOPENCLAW_CONFIG_FILE={config}\nGATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
@@ -153,8 +191,19 @@ def run_launcher(executable, work, home, docker_path, key, *arguments):
     )
 
 
+def run_secret_stage(executable, work, key, *arguments):
+    return subprocess.run(
+        [str(executable), *arguments],
+        input=key,
+        cwd=work,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/root", "LANG": "C.UTF-8"},
+        capture_output=True,
+        timeout=10,
+    )
+
+
 def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_key_in_arguments(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     key = b"sk-ant-test-fixed-smoke-key-123456789\n"
@@ -180,7 +229,7 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
 
 
 def test_launcher_rejects_arguments_and_non_anthropic_input_without_starting_runtime(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
 
@@ -194,7 +243,7 @@ def test_launcher_rejects_arguments_and_non_anthropic_input_without_starting_run
 
 
 def test_launcher_refuses_a_direct_provider_route_or_model_fallback(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     config = work / "docs/supervisor/v1/openclaw-live.json"
@@ -212,7 +261,7 @@ def test_launcher_refuses_a_direct_provider_route_or_model_fallback(compiled_lau
 
 
 def test_launcher_refuses_a_gateway_package_without_the_pinned_runtime(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     dockerfile = work / "docs/supervisor/v1/Dockerfile.gateway"
@@ -225,7 +274,7 @@ def test_launcher_refuses_a_gateway_package_without_the_pinned_runtime(compiled_
 
 
 def test_launcher_refuses_a_previous_receipt_in_the_gateway_state(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     gateway_state = tmp_path / "gateway-state/journal-supervisor-transport"
@@ -239,7 +288,7 @@ def test_launcher_refuses_a_previous_receipt_in_the_gateway_state(compiled_launc
 
 
 def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(compiled_launcher, tmp_path):
-    executable, docker_stub = compiled_launcher
+    executable, docker_stub, _secret_stage = compiled_launcher
     work, _secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     (home / "slow-up").touch()
@@ -252,3 +301,75 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
     assert len((home / "docker-calls").read_text().splitlines()) == 2
     assert not Path((home / "secret-path").read_text()).exists()
     assert "#define SMOKE_RUN_SECONDS 105" in SOURCE.read_text()
+
+
+def test_codex_secret_stage_writes_one_owner_only_file_without_echoing_the_key(compiled_launcher, tmp_path):
+    _launcher, _docker_stub, secret_stage = compiled_launcher
+    work, secrets, _home = staging_root(tmp_path)
+    secret = secrets / "codex_driver_credentials"
+    secret.unlink()
+    key = b"sk-proj-supervisor-test-key-123456789\n"
+
+    result = run_secret_stage(secret_stage, work, key)
+
+    assert result.returncode == 0, result.stderr
+    assert result.args == [str(secret_stage)]
+    assert key.strip() not in result.stdout + result.stderr
+    details = secret.stat()
+    expected_owner = 10001 if os.geteuid() == 0 else os.geteuid()
+    assert secret.read_bytes() == key
+    assert stat.S_IMODE(details.st_mode) == 0o400 and details.st_uid == expected_owner
+
+
+def test_codex_secret_stage_rejects_arguments_malformed_lines_and_unbounded_input(compiled_launcher, tmp_path):
+    _launcher, _docker_stub, secret_stage = compiled_launcher
+    work, secrets, _home = staging_root(tmp_path)
+    (secrets / "codex_driver_credentials").unlink()
+    key = b"sk-proj-supervisor-test-key-123456789\n"
+    anthropic_key = b"sk-ant-test-anthropic-key-123456789\n"
+
+    argument = run_secret_stage(secret_stage, work, key, "extra")
+    malformed = run_secret_stage(secret_stage, work, b"not-an-openai-key\n")
+    anthropic = run_secret_stage(secret_stage, work, anthropic_key)
+    multiple = run_secret_stage(secret_stage, work, key + b"second-line\n")
+    unbounded = run_secret_stage(secret_stage, work, b"sk-" + b"a" * 4096 + b"\n")
+
+    assert all(result.returncode != 0 for result in (argument, malformed, anthropic, multiple, unbounded))
+    assert b"this stager accepts no arguments" in argument.stderr
+    assert not (secrets / "codex_driver_credentials").exists()
+    assert all(key.strip() not in result.stdout + result.stderr for result in (argument, malformed, anthropic, multiple, unbounded))
+    assert anthropic_key.strip() not in anthropic.stdout + anthropic.stderr
+
+
+def test_codex_secret_stage_refuses_to_replace_an_existing_credential(compiled_launcher, tmp_path):
+    _launcher, _docker_stub, secret_stage = compiled_launcher
+    work, secrets, _home = staging_root(tmp_path)
+    existing = (secrets / "codex_driver_credentials").read_bytes()
+
+    result = run_secret_stage(secret_stage, work, b"sk-proj-supervisor-test-key-123456789\n")
+
+    assert result.returncode != 0
+    assert (secrets / "codex_driver_credentials").read_bytes() == existing
+
+
+def test_launcher_requires_the_codex_driver_secret_and_copies_it_private(compiled_launcher, tmp_path):
+    executable, docker_stub, _secret_stage = compiled_launcher
+    work, secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    secret = secrets / "codex_driver_credentials"
+    original_owner = secret.stat().st_uid
+    secret.chmod(0o600)
+
+    wrong_mode = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+    secret.unlink()
+    missing = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert wrong_mode.returncode != 0 and missing.returncode != 0
+    assert not (home / "docker-calls").exists()
+    secret.write_text("sk-proj-staged-driver-credential-123456789\n")
+    secret.chmod(0o400)
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+    assert result.returncode == 0, result.stderr
+    copied = (home / "driver-secret-info").read_text().split()
+    assert int(copied[0], 8) == 0o400 and int(copied[1]) == original_owner
+    assert not Path((home / "secret-path").read_text()).joinpath("codex_driver_credentials").exists()

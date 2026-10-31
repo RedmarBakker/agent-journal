@@ -1,6 +1,7 @@
 """Static and pure-function checks for the inert supervisor v1 deployment package."""
 
 import json
+import stat
 from pathlib import Path
 
 from plugins.supervisor_v1 import bridge_service
@@ -84,14 +85,17 @@ def test_secret_mounts_match_the_receiving_service():
     backup_secrets = {secret["source"] for secret in compose["services"]["backup"]["secrets"]}
 
     assert gateway_secrets == {"supervisor_anthropic_api_key", "openclaw_hook_token", "journal_supervisor_credential"}
-    assert writer_secrets == set()
+    assert writer_secrets == {"codex_driver_credentials"}
     assert backup_secrets == {"restic_password", "restic_repository", "backup_object_store_credentials"}
     assert set(secrets) == gateway_secrets | writer_secrets | backup_secrets
-    assert "codex_driver_credentials" not in secrets
     manifest_secrets = {secret["name"]: secret for secret in read_json(PROFILE / "manifest.json")["secrets"]}
     assert {manifest_secrets[name]["host_owner"] for name in gateway_secrets} == {"root:1000"}
     assert {manifest_secrets[name]["host_owner"] for name in backup_secrets} == {"root:10005"}
     assert {manifest_secrets[name]["host_mode"] for name in gateway_secrets | backup_secrets} == {"0440"}
+    driver = manifest_secrets["codex_driver_credentials"]
+    assert driver["host_owner"] == "10001:10001" and driver["host_mode"] == "0400"
+    assert driver["mounted_to"] == "journal-writer:/run/secrets/codex_driver_credentials only"
+    assert "shared uid10001" in driver["status"]
 
 
 def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
@@ -106,13 +110,14 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert any(rule["ports"] == [8421] and rule["action"] == "allow" for rule in firewall["rules"])
     assert any(rule["ports"] == [8440, 5432, 3306, 6379] and rule["action"] == "deny" for rule in firewall["rules"])
     assert any(rule["destination"] == "api.anthropic.com" and rule["ports"] == [443] for rule in firewall["rules"])
+    assert any(rule["destination"] == "api.openai.com" and rule["ports"] == [443] for rule in firewall["rules"])
     assert any("refuse enrollment" in rule["action"] for rule in firewall["rules"])
     assert manifest["launch_gates"]["active_worker_restricted_profile_verified_or_enrollment_refused"] is False
     assert manifest["launch"]["enrollment_enabled"] is False
     assert execution["uid"] == 10003 and execution["gid"] == 10003
     assert execution["root_filesystem"] == "read-only"
     assert execution["capabilities"] == [] and execution["no_new_privileges"] is True
-    assert execution["status"] == "contract only; current AgentLauncher does not enforce it"
+    assert execution["status"] == "contract only; current AgentLauncher runs Plan agents as writer uid10001 and does not enforce uid10003 or a worktree-only mount profile"
     assert worker["uid"] == 10004 and worker["gid"] == 10004
     assert worker["root_filesystem"] == "read-only"
     assert worker["capabilities"] == [] and worker["no_new_privileges"] is True
@@ -144,8 +149,78 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert "docker/Dockerfile" in script
     assert "docker/entrypoint.sh" in script
     assert "docker/hosted-journal" in script
+    assert "docs/supervisor/v1/live-smoke-setup.py" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
     assert '"$BUILD_CONTEXT"' in script
+
+
+def test_codex_plan_driver_is_pinned_file_backed_and_uses_the_owner_plan_lifecycle():
+    compose = read_json(PROFILE / "compose.json")
+    manifest = read_json(PROFILE / "manifest.json")
+    writer = compose["services"]["writer"]
+    gateway = compose["services"]["gateway"]
+    backup = compose["services"]["backup"]
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+    entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
+    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
+    assert (PROFILE / "setup-live-smoke.sh").stat().st_mode & stat.S_IXUSR
+
+    assert "npm install -g @openai/codex@0.165.0" in dockerfile
+    assert "CODEX_HOME" not in dockerfile and "CODEX_API_KEY" not in dockerfile
+    assert writer["environment"]["CODEX_HOME"] == "/run/codex"
+    assert writer["tmpfs"] == ["/tmp", "/run:mode=1777"]
+    assert {secret["source"] for secret in writer["secrets"]} == {"codex_driver_credentials"}
+    assert {secret["source"] for secret in gateway["secrets"]}.isdisjoint({"codex_driver_credentials"})
+    assert {secret["source"] for secret in backup["secrets"]}.isdisjoint({"codex_driver_credentials"})
+    assert compose["secrets"]["codex_driver_credentials"]["file"].endswith("/codex_driver_credentials")
+    assert "codex login --with-api-key < /run/secrets/codex_driver_credentials" in entrypoint
+    assert ">/dev/null 2>&1" in entrypoint
+    assert "if len(sys.argv) != 1" in setup
+    assert "start the owner's real Codex session on the designated writer" in setup
+    assert "PlanMode.SOLO" in setup and "plans.plan_agents" in setup
+    assert '"plan", "ready"' in setup and '"plan", "approve"' in setup and '"plan", "start"' in setup
+    assert "SupervisorLink" in setup and "plan_agents.is_running(environment)" in setup
+    assert '"/_supervisor/v1/enrollment"' in setup
+    assert '"max_input_tokens_per_turn": 24000' in setup
+    assert '"max_output_tokens_per_turn": 8000' in setup
+    assert '"max_provider_requests_per_turn": 8' in setup
+    assert '"max_turns_per_day": 1' in setup
+    assert '"max_cost_microusd_per_day": 1000000' in setup
+    assert "active_workers = workers.global_matching(state=WorkerState.DISPATCHED)" in setup and "if active_workers:" in setup
+    assert '"mode": "bounded_write"' in setup
+    assert '"/run/journal_supervisor_credential"' in setup
+    assert "except (OSError, SetupFailure) as error:" in setup and "revoke(grant_id)" in setup
+    assert "STAGING_AUTHORIZED" in host_setup and "compose cp writer:/run/journal_supervisor_credential" in host_setup
+    assert "normal_driver_separate_execution_identity" in manifest["launch_gates"]
+    assert manifest["launch"]["enrollment_enabled"] is False
+    manifest_secrets = {secret["name"]: secret for secret in manifest["secrets"]}
+    assert "shared uid10001" in manifest_secrets["codex_driver_credentials"]["status"]
+
+
+def test_codex_secret_stager_is_fixed_owner_only_and_built_from_the_reviewed_source():
+    stage = (ROOT / "src" / "supervisor_bridge" / "codex_driver_secret_stage.c").read_text()
+    build = (ROOT / "src" / "supervisor_bridge" / "build-driver-secret-stage.sh").read_text()
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+    report = (PROFILE / "STAGING-REPORT.md").read_text()
+
+    assert "argc != 1" in stage
+    assert "TENANT_SECRET_SOURCE_DIR" in stage and "codex_driver_credentials" in stage
+    assert "O_CREAT | O_EXCL, 0600" in stage and "fchmod(file, 0400)" in stage
+    assert "opened.st_ino != expected.st_ino" in stage
+    assert "fchmod(file, 0400)" in stage and '"sk-"' in stage and '"sk-ant-"' in stage
+    assert "puts(key" not in stage and "printf(key" not in stage
+    assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in build
+    assert "git -C \"$RUNTIME_SOURCE\" archive --format=tar \"$PROFILE_REVISION\"" in build
+    assert "/usr/local/bin/journal-supervisor-driver-secret-stage" in build
+    assert "journal secret run 2 -- journal-supervisor-driver-secret-stage" in runbook
+    assert "revoke the provisional grant" in runbook
+    assert '"codex_driver_credentials"' in launcher
+    assert "copy_driver_secret(source, directory)" in launcher
+    assert "journal-supervisor-driver-secret-stage" in runbook
+    assert "uid10003" in runbook and "read-only" in runbook
+    assert "uid10003" in report and "read-only" in report
 
 
 def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():

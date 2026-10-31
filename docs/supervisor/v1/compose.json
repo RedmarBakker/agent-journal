@@ -8,17 +8,20 @@
       "environment": {
         "JOURNAL_ADDRESS": "${JOURNAL_ADDRESS:?set a private tenant DNS name}",
         "GIT_NAME": "Journal supervisor pilot",
-        "GIT_EMAIL": "journal-pilot@localhost"
+        "GIT_EMAIL": "journal-pilot@localhost",
+        "CODEX_HOME": "/run/codex"
       },
+      "secrets": [{"source": "codex_driver_credentials", "target": "codex_driver_credentials"}],
       "volumes": ["writer_state:/data", "supervisor_hints:/var/lib/journal-supervisor/hints"],
       "ports": ["127.0.0.1:18440:8440"],
       "expose": ["8421"],
       "networks": {
         "journal_management": {"ipv4_address": "10.76.10.10"},
-        "gateway_link": {"ipv4_address": "10.76.20.10"}
+        "gateway_link": {"ipv4_address": "10.76.20.10"},
+        "provider_egress": {}
       },
       "read_only": true,
-      "tmpfs": ["/tmp", "/run"],
+      "tmpfs": ["/tmp", "/run:mode=1777"],
       "cap_drop": ["ALL"],
       "cap_add": ["SETUID", "SETGID"],
       "security_opt": ["no-new-privileges:true"],
@@ -126,6 +129,7 @@
     "backup_entrypoint": {"file": "./backup-entrypoint.sh"}
   },
   "secrets": {
+    "codex_driver_credentials": {"file": "${TENANT_SECRET_DIR:?set the temporary tenant secret directory}/codex_driver_credentials"},
     "supervisor_anthropic_api_key": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/supervisor_anthropic_api_key"},
     "openclaw_hook_token": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/openclaw_hook_token"},
     "journal_supervisor_credential": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/journal_supervisor_credential"},

@@ -40,7 +40,7 @@ from journal.features.plans.support.plan_agents import PlanAgents
 from tests.in_process import posted
 from tests.test_features import booted
 from tests.test_supervisor_actions import _admitted_maintenance_context, diagnostic_operation, maintenance_request
-from tests.test_supervisor_authority import Fixture
+from tests.test_supervisor_authority import Fixture, enrollment
 from tests.user_settings import user_set
 
 MAIN = 1
@@ -177,6 +177,30 @@ def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(
     assert task.state == TaskState.STARTED and holder == Ref.build(agent), "the normal row-event assignment path starts the eligible current-phase diagnostic in the bound driver"
     assert len(announced) == 1 and isinstance(announced[0], PlanWorkAvailable) and announced[0].environment_id == fixture.agent.environment_id and announced[0].plan_id == fixture.plan.row_id, "the committed receipt signals work in its bound Plan environment"
     assert work_delivery(app, context["scope"], receipt["receipt_id"]).data["status"] == "notified", "the action receipt has a separate work-delivery record"
+
+
+def test_live_codex_plan_grant_stays_within_the_smoke_token_and_request_caps(app: App, normal_driver: Fixture):
+    fixture = normal_driver
+    add_phase_task(app, fixture, "bounded smoke driver", "Keep one eligible task open for the bounded staging grant")
+    request = enrollment(fixture, "bounded_write")
+    request["limits"].update({
+        "max_turns_per_day": 1,
+        "max_input_tokens_per_turn": 24000,
+        "max_output_tokens_per_turn": 8000,
+        "max_provider_requests_per_turn": 8,
+        "max_turn_seconds": 600,
+        "max_cost_microusd_per_day": 1000000,
+    })
+
+    grant, _token = fixture.authority.enroll(fixture.owner, request)
+    fixture.credentials.append(fixture.authority._credential_name(grant["grant_id"], grant["grant_version"]))
+
+    assert grant["driver_provider"] == "codex" and grant["driver_agent_id"] == fixture.agent.row_id
+    assert grant["limits"]["max_input_tokens_per_turn"] == 24000
+    assert grant["limits"]["max_output_tokens_per_turn"] == 8000
+    assert grant["limits"]["max_provider_requests_per_turn"] == 8
+    assert grant["limits"]["max_turns_per_day"] == 1
+    assert grant["limits"]["max_cost_microusd_per_day"] == 1000000
 
 
 def test_busy_driver_keeps_task_then_takes_eligible_diagnostic(app: App, normal_driver: Fixture, monkeypatch):
