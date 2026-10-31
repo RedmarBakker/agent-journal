@@ -18,7 +18,8 @@ class DomainPlans:
         for task in tasks:
             for ref in self.links.targets(task, PLAN_LINK):
                 grouped.setdefault(ref.id, []).append(task)
-        return tuple(DomainPlan(self.plans.find(plan_id), tuple(planned), reviewed) for plan_id, planned in sorted(grouped.items()))
+        return tuple(DomainPlan(self.plans.global_matching(id=plan_id)[0], tuple(planned), reviewed)
+                     for plan_id, planned in sorted(grouped.items()))
 
     def on_board(self, plan: Plan, domain_id: str) -> DomainPlan:
         tasks = self.domains.plan_domain_tasks(plan, domain_id)

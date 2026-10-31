@@ -1,0 +1,16 @@
+id = "alpha"
+title = "Alpha"
+icon = "a"
+description = "Owns alpha work."
+outcome = "Alpha work is complete."
+responsible = ["alpha work"]
+not_responsible = ["beta work"]
+roles = ["builder", "maker", "shared", "runner"]
+skills = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

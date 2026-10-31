@@ -20,3 +20,32 @@ class OrganizationNudges:
         repeat=Timeout.seconds(0), longest_characters=160,
         longest_reason="it names the waiting task and both commands to check and return it",
     )
+    TASK_CAN_BE_SPLIT = Nudge(
+        "organization", "plan_task_can_be_split", "task {{task}} can be split between its Roles",
+        "Use `journal organization part {{task}} role:{{domain}}/<role> \"<title>\" --brief \"<what>\"`",
+        repeat=Timeout.seconds(0),
+    )
+    SPLIT_PART_READY = Nudge(
+        "organization", "split_part_ready_for_role", "task {{task}} is ready for {{role}}",
+        "Run `journal organization handoff {{task}} {{role}}`",
+        repeat=Timeout.seconds(0),
+    )
+    SPLIT_ALL_PARTS_CANCELLED = Nudge(
+        "organization", "all_split_parts_cancelled", "all parts of task {{task}} were cancelled",
+        "Return it with `journal organization handoff {{task}} plan`",
+        repeat=Timeout.seconds(0),
+    )
+    SPLIT_TASK_COMPLETED = Nudge(
+        "organization", "split_task_completed", "task {{task}} is complete after all its parts were merged",
+        repeat=Timeout.seconds(0),
+    )
+    SPLIT_HANDOFF_REQUIRED = Nudge(
+        "organization", "split_task_handoff_requires_a_part", "task {{task}} has Role parts",
+        "Hand off one of its parts to a Role",
+        repeat=Timeout.seconds(0),
+    )
+    SPLIT_OTHER_DOMAIN = Nudge(
+        "organization", "split_part_for_another_domain", "this task belongs to {{domain}}",
+        "Use `journal organization other` to ask the Plan seat for another Domain",
+        repeat=Timeout.seconds(0),
+    )

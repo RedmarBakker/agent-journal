@@ -4,6 +4,7 @@ from journal.models.organization_handoff import OrganizationHandoff
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.repositories.links import Links
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.scope import Scope
@@ -40,7 +41,10 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         for row in rows:
             task_refs, plan_refs = self.links.targets(row, TASK_HANDOFF), self.links.targets(row, PLAN_HANDOFF)
             if task_refs and plan_refs:
-                result.append((row, self.plans.find(plan_refs[0].id), self.tasks.find(task_refs[0].id)))
+                task = self.tasks.find(task_refs[0].id)
+                if target.startswith("role:") and task.state == TaskState.BLOCKED:
+                    continue
+                result.append((row, self.plans.find(plan_refs[0].id), task))
         return tuple(result)
 
     def domain_handoff_exists(self, task: Task, plan: Plan, domain: str) -> bool:
@@ -61,7 +65,12 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
 
     def reopen_domain_inboxes(self, plan: Plan, actor: Actor) -> None:
         with self.scope.environment(plan.environment_id):
-            unfinished = {task.row_id for task in self.plans.plan_tasks(plan) if not task.state.is_closed()}
+            plan_tasks = self.plans.plan_tasks(plan)
+            unfinished = {task.row_id for task in plan_tasks if not task.state.is_closed()}
+            open_parts = [part for task in plan_tasks for part in self.tasks.parts_of(task) if not part.state.is_closed()]
+            unfinished.update(part.row_id for part in open_parts)
+            parents = [self.tasks.part_of_task(part) for part in open_parts]
+            unfinished.update(parent.row_id for parent in parents if parent is not None)
             latest: dict[int, OrganizationHandoff] = {}
             for ref in self.links.typed_sources(plan, PLAN_HANDOFF, OrganizationHandoff.table()):
                 row = self.find(ref.id)

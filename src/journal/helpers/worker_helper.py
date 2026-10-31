@@ -50,7 +50,7 @@ class WorkerHelper(Helper):
         (WorkerBuildCommand, ("queued",)),
         (TodoCommand, ("add", "check", "list")),
         (WorkerPeerCommand, ("notify", "peers", "report", "send")),
-        (OrganizationCommand, ("handoff", "inbox")),
+        (OrganizationCommand, ("handoff", "inbox", "part")),
     )
 
     @classmethod

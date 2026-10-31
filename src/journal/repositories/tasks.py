@@ -45,6 +45,7 @@ FINISHED_LINK = "finished_unmerged"
 WORKERS = "workers"
 WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task it holds, {holdings}"
 PLAN_LINK = "in_plan"
+PART_LINK = "part_of"
 USER_PREFIX = "user:"
 AGENT_CREATOR = "agent:"
 CLOSED = (TaskState.COMPLETED, TaskState.CANCELLED)
@@ -296,6 +297,13 @@ class Tasks(ScopedRepository[Task]):
 
     def holder(self, task: Task) -> Ref | None:
         return self.task_holder(task.row_id)
+
+    def parts_of(self, task: Task) -> list[Task]:
+        return self.numbered(ref.id for ref in self.links.sources(task, PART_LINK))
+
+    def part_of_task(self, task: Task) -> Task | None:
+        parents = self.links.targets(task, PART_LINK)
+        return self.find(parents[0].id) if parents else None
 
     def task_holder(self, task_id: int) -> Ref | None:
         holders = self.links.ref_sources(Ref(Task.table(), task_id), CURRENT_TASK_LINK)

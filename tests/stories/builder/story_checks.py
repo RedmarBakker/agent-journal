@@ -22,6 +22,8 @@ from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.cardinality import Cardinality
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_specs import JOURNAL_HEALTH_READ, RigSpecs
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
@@ -155,8 +157,10 @@ class StoryChecks:
         assert last == line, f"the last line typed into the agent's terminal is {last!r}, not {line!r}"
 
     def expect_stack(self, agent: StoryAgent, *states: type) -> None:
-        stack = self.session_stack(self.session_of(agent))
-        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack of the {agent.role} is {stack}; told {[line.key for line in self.said]}"
+        session = self.session_of(agent)
+        environment = self.session_environments.get(session, "main")
+        stack = self.session_stack(session)
+        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
     def expect_agent_session_in_environment(self, agent: StoryAgent, environment: str) -> None:
@@ -423,7 +427,7 @@ class StoryChecks:
             row = self.app.container.get(WorkerRows).find(worker.number)
             task_row = self.app.container.get(Tasks).find(task)
             holder = self.app.container.get(Tasks).holder(task_row)
-        assert row.role == "builder" and row.plan_id, f"worker {row.id} is not a plan Builder Role job: {row}"
+        assert row.role and row.plan_id, f"worker {row.id} is not a plan Role job: {row}"
         assert holder == Ref.build(row), f"task {task} is held by {holder}, not Role worker {row.id}"
         assert brief in row.brief and brief in task_row.brief, f"worker {row.id} has not received task {task}'s brief {task_row.brief!r}: {row.brief!r}"
         assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
@@ -434,10 +438,7 @@ class StoryChecks:
 
     def role_job_prompt(self, worker: StoryAgent, brief: str, *parts: str) -> str:
         self.app.container.get(ListenerQueue).drain()
-        with self.app.container.get(Scope).environment(1):
-            row = self.app.container.get(WorkerRows).find(worker.number)
-        role = self.app.container.get(Organization).at(row.contract).role(row.role)
-        member = self.app.container.get(SeatRuntime).member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
+        member = self.organization_role_member(worker)
         seats = self.simulated_seats()
         expected = (brief, *parts)
         deadline = time.monotonic() + 5
@@ -448,8 +449,16 @@ class StoryChecks:
             received = [prompt for target, prompt in seats.messages if target == member.target]
             prompts = [prompt for prompt in received if all(part in prompt for part in expected)]
         prompt = prompts[-1] if prompts else ""
-        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s current job: {received}"
+        assert prompt, f"Role seat {member.logical_id} never received worker {worker.number}'s current job: {received}"
         return prompt
+
+    def organization_role_member(self, worker: StoryAgent):
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+        role = self.app.container.get(Organization).at(row.contract).role(row.role)
+        plan = self.app.container.get(Plans).global_matching(id=row.plan_id)[0]
+        rig = RigStaffing.shared_rig_name(plan.environment_id) if role.cardinality is Cardinality.JOURNAL else f"plan-{row.plan_id}"
+        return self.app.container.get(SeatRuntime).member(rig, role.domain, role.id, row.provider)
 
     def expect_role_guidance_and_skills_omit(self, worker: StoryAgent, *job_text: str) -> None:
         with self.app.container.get(Scope).environment(1):

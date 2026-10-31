@@ -31,6 +31,19 @@ class OrganizationCommand(Command):
         handoff = self.verb(verbs, "handoff", "hand a task to the next seat along the organization's hub routes")
         handoff.add_argument("task", type=int)
         handoff.add_argument("target", help="domain:<id> or role:<domain>/<role>")
+        part = self.verb(verbs, "part", "split a Domain's plan task into work for one writing Role")
+        part.add_argument("task", type=int)
+        part.add_argument("target", help="role:<domain>/<role>")
+        part.add_argument("title")
+        part.add_argument("--brief", required=True)
+        part.add_argument("--after", type=int, default=0, help="a part of this plan task that must finish first")
+        other = self.verb(verbs, "other", "ask the Plan seat to hand a task to another Domain")
+        other.add_argument("task", type=int)
+        other.add_argument("target", help="domain:<id>")
+        other.add_argument("title")
+        other.add_argument("--brief", required=True)
+        parts = self.verb(verbs, "parts", "list the Role parts of a plan task")
+        parts.add_argument("task", type=int)
         self.verb(verbs, "inbox", "read tasks handed to this generated organization seat")
 
     def list(self, args: Namespace, caller: Caller) -> int:
@@ -65,13 +78,26 @@ class OrganizationCommand(Command):
         self.hub.handoff(args.task, args.target, caller)
         return 0
 
+    def part(self, args: Namespace, caller: Caller) -> int:
+        self.hub.part(args.task, args.target, args.title, args.brief, args.after, caller)
+        return 0
+
+    def other(self, args: Namespace, caller: Caller) -> int:
+        self.hub.other(args.task, args.target, args.title, args.brief, caller)
+        return 0
+
+    def parts(self, args: Namespace, caller: Caller) -> int:
+        self.hub.parts(args.task, caller)
+        return 0
+
     def inbox(self, args: Namespace, caller: Caller) -> int:
         self.hub.inbox(caller)
         return 0
 
-    @staticmethod
-    def plan_line(domain_plan: DomainPlan, board: BoardPhases) -> str:
-        tasks = ", ".join(f"task {task.id} {task.state}" for task in domain_plan.tasks)
+    def plan_line(self, domain_plan: DomainPlan, board: BoardPhases) -> str:
+        tasks = ", ".join(
+            f"task {task.id} {task.state}{self.hub.split_progress(task)}" for task in domain_plan.tasks
+        )
         return f"plan {domain_plan.plan.id} {domain_plan.plan.title}, {board.name(domain_plan.phase())}{', active' if domain_plan.is_active() else ''}: {tasks}"
 
     def print_contracts(self, contracts: Contracts) -> None:

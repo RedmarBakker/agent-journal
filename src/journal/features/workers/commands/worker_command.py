@@ -415,6 +415,12 @@ class WorkerCommand(Command):
         worker = next(iter(self.workers.global_matching(id=number)), None)
         if worker is None:
             raise MissingRow(Worker.table(), number)
+        role = self.roles.contract_role(worker)
+        if role and role.cardinality is Cardinality.JOURNAL:
+            task_ids = (*self.tasks.finished_task_ids(Ref.build(worker)), *self.tasks.holder_task_ids(Ref.build(worker)))
+            if task_ids and all(self.plans.includes_task_or_part(int(plan), task_id) for task_id in task_ids):
+                return worker
+            raise Rejection(f"worker {number} has no unmerged task in plan {plan}")
         if worker.plan_id != int(plan):
             raise Rejection(f"worker {number} does not belong to plan {plan}")
         return worker

@@ -15,6 +15,8 @@ def test_a_user_restarting_an_organization_plan_opens_its_task_for_the_plan_seat
 
     started = story.user_starts_plan(plan)
     started.expect_viewer_passed()
+    shown = story.agent_runs(story.agents.main, f"plan show {plan}")
+    shown.expect_command_passed()
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_task_unheld(task)

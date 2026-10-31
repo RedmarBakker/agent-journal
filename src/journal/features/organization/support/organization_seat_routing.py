@@ -18,7 +18,10 @@ class OrganizationSeatRouting:
     domain_guidance = (
         "As the Domain seat, read your inbox with `journal organization inbox`, then hand each task to one of your Roles with "
         "`journal organization handoff <task> role:<domain>/<role>`. If your inbox has no handoff, wait for a journal handoff "
-        "and do not ask the operator for task details."
+        "and do not ask the operator for task details. If one Role cannot do a task alone, split it with "
+        "`journal organization part <task> role:<domain>/<role> \"<title>\" --brief \"<what>\"`; use `--after <part>` "
+        "to order parts and `journal organization parts <task>` to check them. Use `journal organization other <task> "
+        "domain:<id> \"<title>\" --brief \"<what>\"` for work owned by another Domain."
     )
     role_guidance = (
         "As a writing Role seat, read your inbox with `journal organization inbox`, then clock in on your assigned task with "
@@ -34,6 +37,7 @@ Use these targets:
 
 - A Plan seat hands a task to a Domain seat with `domain:<id>`.
 - A Domain seat hands work to a Role seat with `role:<domain>/<role>` and returns finished work to the Plan seat with `plan`.
+- A Domain seat can split a task into Role parts with `journal organization part`, list them with `journal organization parts`, and ask the Plan seat to hand work to another Domain with `journal organization other`.
 - A writing Role seat proves each task point and clocks out; the clock-out returns its work to the Domain seat for checking.
 - {domain_guidance}
 - {role_guidance}

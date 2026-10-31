@@ -18,7 +18,7 @@ from journal.repositories.links import Links
 from journal.repositories.phases import PHASE_TASK_LINK, Phases
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PLAN_LINK, WAIT_LINK, WORKERS, Tasks
+from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PART_LINK, PLAN_LINK, WAIT_LINK, WORKERS, Tasks
 from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.models.phase_states import PhaseStates
@@ -92,6 +92,7 @@ class Plans(ScopedRepository[Plan]):
         return {plan.state for plan in self.containing(task)}
 
     def containing(self, task: Task) -> list[Plan]:
+        task = self.tasks.part_of_task(task) or task
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.APPROVED, PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED, PlanState.BLOCKED)]
 
     def waiting_plans(self, model) -> list[Plan]:
@@ -140,6 +141,15 @@ class Plans(ScopedRepository[Plan]):
 
     def plan_task_ids(self, plan: Plan) -> list[int]:
         return [ref.id for ref in self.links.sources(plan, PLAN_LINK)]
+
+    def includes_task_or_part(self, plan_id: int, task_id: int) -> bool:
+        plans = self.global_matching(id=plan_id)
+        tasks = self.tasks.global_matching(id=task_id)
+        if not plans or not tasks:
+            return False
+        planned = set(self.links.sources(plans[0], PLAN_LINK))
+        task = tasks[0]
+        return Ref.build(task) in planned or any(parent in planned for parent in self.links.targets(task, PART_LINK))
 
     def phase_links(self, phases: list[Phase]) -> list[Link]:
         return self.links.model_links("target", phases, PHASE_LINK)

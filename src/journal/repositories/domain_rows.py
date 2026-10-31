@@ -85,7 +85,9 @@ class DomainRows(Repository[DomainRow]):
     def reviewed_ids(self, tasks: list[Task]) -> frozenset[int]:
         waiting = {task_id for task_id, refs in self.tasks.open_wait_refs(tasks).items() if any(ref.type in REVIEWS for ref in refs)}
         finished = {link.target.id for link in self.links.model_links("target", tasks, FINISHED_LINK)}
-        held = {link.target.id for link in self.links.model_links("target", tasks, CURRENT_TASK_LINK) if link.source.type == Worker.table() and self.workers.find(link.source.id).state == WorkerState.DELIVERED}
+        held = {link.target.id for link in self.links.model_links("target", tasks, CURRENT_TASK_LINK)
+                if link.source.type == Worker.table()
+                and self.workers.global_matching(id=link.source.id)[0].state == WorkerState.DELIVERED}
         return frozenset(waiting | finished | held)
 
     def board_names(self, plan: Plan) -> list[str]:

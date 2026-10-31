@@ -463,4 +463,6 @@ class PlanCommand(Command):
         target = f" domain:{domain}" if domain else ""
         status = "proved" if proved else task.state
         proof = "  (finished by its worker, waiting for your check)" if proved else ""
-        return f"{task.id:>4}  {status:<8} {task.title}{proof}{target}"
+        parts = self.tasks.parts_of(task)
+        split = f"  (split into {len(parts)} {'part' if len(parts) == 1 else 'parts'}, {sum(part.state == TaskState.COMPLETED for part in parts)} merged)" if parts else ""
+        return f"{task.id:>4}  {status:<8} {task.title}{proof}{target}{split}"

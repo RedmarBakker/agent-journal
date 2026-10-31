@@ -79,7 +79,18 @@ class SimulatedSeats:
             return self.result(arguments, "{}")
         if arguments[:2] == ("telemetry", "transitions"):
             return self.result(arguments, '{"transitions": [], "page": {"hasMore": false}}')
-        if arguments[0] in {"remove", "edge"}:
+        if arguments[0] == "remove":
+            rig, logical_id = arguments[1:3]
+            pod_id, member_id = logical_id.split(".", 1)
+            pod = next(pod for pod in self.specs[rig]["pods"] if pod["id"] == pod_id)
+            pod["members"] = [member for member in pod["members"] if member["id"] != member_id]
+            pod["edges"] = [edge for edge in pod.get("edges", []) if member_id not in (edge.get("from"), edge.get("to"))]
+            self.specs[rig]["edges"] = [edge for edge in self.specs[rig].get("edges", []) if logical_id not in (edge.get("from"), edge.get("to"))]
+            target = f"{pod_id}-{member_id}@{rig}"
+            self.sessions.pop(target, None)
+            self.environments.pop(target, None)
+            return self.result(arguments, "{}")
+        if arguments[0] == "edge":
             return self.result(arguments, "{}")
         return self.result(arguments, "", 2, f"unsupported simulated OpenRig call: {' '.join(arguments)}")
 

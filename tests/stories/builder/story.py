@@ -241,8 +241,8 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
             "",
         )
 
-    def record_command(self, action: str, outcome: Outcome) -> StepResult:
-        return self.observed(action, None, outcome)
+    def record_command(self, action: str, outcome: Outcome, environment: str = "main") -> StepResult:
+        return self.observed(action, None, outcome, environment)
 
     def unread_settings(self) -> list[str]:
         return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]

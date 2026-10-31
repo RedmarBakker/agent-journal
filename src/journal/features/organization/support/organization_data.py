@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.role_approvals import RoleApprovals
+from journal.features.organization.support.task_part_progress import TaskPartProgress
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,8 @@ class OrganizationData:
     waiting_plan_handoff: tuple[int, str] | None = None
     unread_handoff: bool = False
     role_work_waiting_for_check: tuple[tuple[int, int], ...] = ()
+    split_tasks: tuple[tuple[int, str], ...] = ()
+    split_parts: tuple[TaskPartProgress, ...] = ()
 
     def contracts_at(self, version: str) -> Contracts:
         return self.history.get(version, self.contracts)

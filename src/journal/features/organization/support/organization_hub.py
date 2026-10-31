@@ -6,12 +6,14 @@ from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.role import Role
+from journal.features.organization.support.task_parts import TaskParts
 from journal.features.workers.commands.worker_command import WorkerCommand
 from journal.features.workers.support.owned_task_line import owned_task_line
 from journal.models.organization_handoff import OrganizationHandoff
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
@@ -19,6 +21,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.caller import Caller
+from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 
 
@@ -27,10 +30,12 @@ class OrganizationHub:
 
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
                  tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope,
-                 organization: Organization, workers: WorkerCommand, staffing: RigStaffing) -> None:
+                 organization: Organization, workers: WorkerCommand, staffing: RigStaffing,
+                 task_parts: TaskParts) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
         self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
         self.organization, self.workers, self.staffing = organization, workers, staffing
+        self.task_parts = task_parts
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -51,6 +56,10 @@ class OrganizationHub:
         task = self.tasks.find(task_id)
         plan = self.validate_task(source, task, member.rig)
         role = self.role(target)
+        if role and self.tasks.parts_of(task):
+            raise Rejection(OrganizationNudges.SPLIT_HANDOFF_REQUIRED.create(task=task.id).rendered())
+        if role:
+            self.tasks.require_assignment_ready(task)
         if domain := self.domain(target):
             if source == "plan" and target.startswith("domain:") and self.plans.rig_id(plan):
                 self.staffing.place_domain(plan, domain, member.provider, member.environment)
@@ -61,6 +70,90 @@ class OrganizationHub:
         elif target != "main":
             self.wake(target, plan, role, member)
         print(f"task {task.id} routed from {member.organization_seat} to {target}")
+
+    def part(self, parent_id: int, target: str, title: str, brief: str, after: int, caller: Caller) -> None:
+        source, member = caller.organization_seat, self.seat(caller)
+        parent = self.task(parent_id)
+        with self.scope.environment(parent.environment_id):
+            self.create_part(parent, target, title, brief, after, source, member, caller)
+
+    def create_part(self, parent: Task, target: str, title: str, brief: str, after: int,
+                    source: str, member: SeatMember, caller: Caller) -> None:
+        if not source.startswith("domain:") or caller.worker_number is not None:
+            raise Rejection(OrganizationNudges.ROLE_TASK_RETURN.rendered())
+        role = self.role(target)
+        domain = source.removeprefix("domain:")
+        if role is None:
+            raise Rejection(f"{target} is not a Role in the organization contract")
+        if role.domain != domain:
+            raise Rejection(OrganizationNudges.SPLIT_OTHER_DOMAIN.create(domain=domain).rendered())
+        if not role.writes:
+            raise Rejection(f"role:{role.domain}/{role.id} does not write; give it a read-only assignment another way")
+        refusal = self.routes.refusal_for(source, target)
+        if refusal:
+            raise Rejection(refusal)
+        plan = self.validate_task(source, parent, member.rig)
+        part = self.task_parts.part(parent, plan, domain, title, brief, after, caller.actor)
+        self.handoffs.handoff(part, plan, target, caller.actor)
+        if part.state == TaskState.BLOCKED:
+            print(f"task {part.id} part of task {parent.id} waits for task {after} before {target}")
+            return
+        self.workers.dispatch_role_task(part, role, caller)
+        print(f"task {part.id} part of task {parent.id} routed to {target}")
+
+    def other(self, parent_id: int, target: str, title: str, brief: str, caller: Caller) -> None:
+        source, member = caller.organization_seat, self.seat(caller)
+        parent = self.task(parent_id)
+        with self.scope.environment(parent.environment_id):
+            self.create_other(parent, target, title, brief, source, member, caller)
+
+    def create_other(self, parent: Task, target: str, title: str, brief: str,
+                     source: str, member: SeatMember, caller: Caller) -> None:
+        if not source.startswith("domain:") or caller.worker_number is not None:
+            raise Rejection(OrganizationNudges.ROLE_TASK_RETURN.rendered())
+        domain = self.domain(target)
+        source_domain = source.removeprefix("domain:")
+        if not domain or domain == source_domain:
+            raise Rejection(f"organization other needs another Domain, not {target}")
+        if self.organization.contracts().domain(domain) is None:
+            raise Rejection(f"domain {domain} is not in the organization contract")
+        plan = self.validate_task(source, parent, member.rig)
+        task = self.task_parts.other(parent, plan, domain, title, brief, caller.actor)
+        self.wake("plan", plan, None, member)
+        print(f"task {task.id} added to plan {plan.id} as another Domain's part of task {parent.id}")
+
+    def parts(self, parent_id: int, caller: Caller) -> None:
+        self.seat(caller)
+        parent = self.task(parent_id)
+        with self.scope.environment(parent.environment_id):
+            plans = self.plans.containing(parent)
+            if len(plans) != 1:
+                raise Rejection(f"task {parent.id} does not identify one plan for its parts")
+            plan = plans[0]
+            parts = self.tasks.parts_of(parent)
+            if not parts:
+                print(f"task {parent.id} has no parts")
+                return
+            for part in parts:
+                target = self.handoffs.latest_target(part, plan)
+                waiting = ", ".join(f"task {ref.id}" for ref in self.tasks.open_waits(part))
+                line = f"task {part.id} {part.state.value}, {target or 'not assigned'}"
+                print(f"{line}, waits for {waiting}" if waiting else line)
+
+    def task(self, task_id: int) -> Task:
+        task = next(iter(self.tasks.global_matching(id=task_id)), None)
+        if task is None:
+            raise MissingRow(Task.table(), task_id)
+        return task
+
+    def split_progress(self, task: Task) -> str:
+        with self.scope.environment(task.environment_id):
+            parts = self.tasks.parts_of(task)
+            if not parts:
+                return ""
+            completed = sum(part.state == TaskState.COMPLETED for part in parts)
+            noun = "part" if len(parts) == 1 else "parts"
+            return f", split into {len(parts)} {noun} with its Domain, {completed} merged"
 
     def wake(self, target: str, plan: Plan, role: Role | None, source: SeatMember) -> None:
         rig = self.target_rig(target, plan, role, source)
@@ -95,6 +188,14 @@ class OrganizationHub:
             holder = self.tasks.holder(task)
             assignment = self.assignment(holder, task, caller)
             print(f"plan {plan.id} task {task.id}: {task.title}{assignment}\n{task.brief}")
+            if seat.startswith("domain:"):
+                for part in self.tasks.parts_of(task):
+                    if part.state.is_closed():
+                        continue
+                    target = self.handoffs.latest_target(part, plan)
+                    holder = self.tasks.holder(part)
+                    assignment = self.assignment(holder, part, caller)
+                    print(f"plan {plan.id} task {part.id}: {part.title} (part of task {task.id}, {target or 'not assigned'}){assignment}")
 
     @staticmethod
     def assignment(holder: Ref | None, task: Task, caller: Caller) -> str:
@@ -110,17 +211,22 @@ class OrganizationHub:
     def validate_task(self, source: str, task: Task, rig: str) -> Plan:
         if rig.startswith("plan-"):
             plan = self.plan_for_rig(rig)
-            if task not in self.plans.plan_tasks(plan):
+            parent = self.tasks.part_of_task(task)
+            plan_tasks = self.plans.plan_tasks(plan)
+            if task not in plan_tasks and parent not in plan_tasks:
                 raise Rejection(f"task {task.id} is not in plan {plan.id}")
             if source == "plan":
+                if parent and task not in plan_tasks:
+                    raise Rejection(f"task {task.id} is a Role part; the Plan seat receives parts but does not hand them on")
                 return plan
             if domain := self.domain(source):
-                if domain not in self.domains.domain_names(task):
+                if domain not in self.domains.domain_names(task) and domain not in self.domains.domain_names(parent or task):
                     raise Rejection(f"task {task.id} has not been handed to {domain}")
                 return plan
         if rig.startswith("organization-") and source.startswith("role:"):
             domain = self.domain(source)
-            if domain not in self.domains.domain_names(task):
+            parent = self.tasks.part_of_task(task)
+            if domain not in self.domains.domain_names(task) and domain not in self.domains.domain_names(parent or task):
                 raise Rejection(f"task {task.id} has not been handed to {domain}")
             plans = self.plans.containing(task)
             if len(plans) == 1:

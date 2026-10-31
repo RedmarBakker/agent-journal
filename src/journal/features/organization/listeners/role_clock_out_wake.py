@@ -1,10 +1,10 @@
 from journal.events.listener import Listener
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.features.organization.organization_nudges import OrganizationNudges
-from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.repositories.plans import Plans
+from journal.models.plan_state import PlanState
 from journal.repositories.workers import Workers
 
 
@@ -18,20 +18,16 @@ class RoleClockOutWake(Listener[WorkerDelivered]):
         if not event.task_id:
             return
         worker = self.workers.find(event.worker.id)
-        if not worker.plan_id or not worker.role or not worker.dispatcher:
+        if not worker.role:
             return
-        plans = self.plans.global_matching(id=worker.plan_id)
-        if not plans:
-            return
-        plan = plans[0]
-        for rig in RigStaffing.rigs_for_plan(plan):
-            identity = self.runtime.organization_seat_for_session(rig, worker.provider, worker.dispatcher)
-            if not identity.startswith("domain:"):
+        plans = [plan for plan in self.plans.global_matching(state=PlanState.STARTED)
+                 if self.plans.includes_task_or_part(plan.id, event.task_id)]
+        for plan in plans:
+            domain = self.checks.domain_for_task(worker, event.task_id, plan)
+            if not domain or not self.checks.is_waiting_for_check(worker, event.task_id, plan, domain):
                 continue
-            domain = identity.removeprefix("domain:")
-            if not self.checks.is_waiting_for_check(worker, event.task_id, plan, domain):
-                continue
-            recipient = self.runtime.organization_member(rig, identity, worker.provider)
+            rig = f"plan-{plan.id}"
+            recipient = self.runtime.organization_member(rig, f"domain:{domain}", worker.provider)
             nudge = OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker.id, task=event.task_id)
             self.runtime.send(recipient, nudge.rendered())
             return

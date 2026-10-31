@@ -6,6 +6,8 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.role_taken import RoleTaken
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.stop import Stop
+from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_reopened import TaskReopened
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.organization_part import OrganizationPart
 from journal.features.organization.states.role_work import RoleWork
@@ -22,7 +24,29 @@ class OrganizationConduct(Conduct):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.none(*(nudge for nudge in (
             OrganizationConduct.unread_handoff(event), OrganizationConduct.waiting_handoff(event),
-        ) if nudge), *OrganizationConduct.role_work_awaiting_check(event))
+        ) if nudge), *OrganizationConduct.role_work_awaiting_check(event),
+                          *OrganizationConduct.split_guidance(event))
+
+    def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
+        progress = event.data.part(OrganizationPart).split_parts
+        nudges = tuple(
+            OrganizationNudges.SPLIT_PART_READY.create(task=part, role=role)
+            for split in progress for part, role in split.ready_parts() if part == event.task_id
+        )
+        return self.none(*nudges)
+
+    def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
+        progress = next(
+            (split for split in event.data.part(OrganizationPart).split_parts if event.task_id in split.part_ids),
+            None,
+        )
+        if progress is None:
+            return self.none()
+        if progress.all_completed():
+            return self.none(OrganizationNudges.SPLIT_TASK_COMPLETED.create(task=progress.parent_id))
+        if progress.all_cancelled():
+            return self.none(OrganizationNudges.SPLIT_ALL_PARTS_CANCELLED.create(task=progress.parent_id))
+        return self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if nudge := OrganizationConduct.unread_handoff(event):
@@ -48,3 +72,20 @@ class OrganizationConduct(Conduct):
             OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker, task=task)
             for worker, task in event.data.part(OrganizationPart).role_work_waiting_for_check
         )
+
+    @staticmethod
+    def split_guidance(event: AgentEvent) -> tuple[Nudge, ...]:
+        data = event.data.part(OrganizationPart)
+        guidance = [
+            OrganizationNudges.TASK_CAN_BE_SPLIT.create(task=task, domain=domain)
+            for task, domain in data.split_tasks
+        ]
+        guidance.extend(
+            OrganizationNudges.SPLIT_PART_READY.create(task=task, role=role)
+            for split in data.split_parts for task, role in split.ready_parts()
+        )
+        guidance.extend(
+            OrganizationNudges.SPLIT_ALL_PARTS_CANCELLED.create(task=split.parent_id)
+            for split in data.split_parts if split.all_cancelled()
+        )
+        return tuple(guidance)
