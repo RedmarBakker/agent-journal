@@ -15,7 +15,13 @@ def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actua
 
     result.expect_command_passed()
     forecast = story.user_opens(f"/journal/plans/{story.plans.second}/forecast")
-    forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "cohort"), {})
+    forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "cohort"), {
+        "domain": "development", "size_scale_version": "c77b87f4bb0d3eb9ec8702833cc0f7e882b8a1c09f1d593d9a25fef3939b1de1",
+        "criteria_version": "9e5b9c3201baa4bb", "environment_id": 1,
+        "cohort_version": "plan4-outcome-cohort-v1", "model": None, "tier": None,
+    })
+    outcomes = story.user_opens(f"/journal/plans/{story.plans.first}/outcomes")
+    outcomes.expect_viewer_part(("tasks", 0, "outcomes"), [])
     result.expect_command_text("1 similar finished task")
     result.expect_command_text(f"Task {story.tasks.first}")
     result.expect_command_text("original estimate 3 points")
