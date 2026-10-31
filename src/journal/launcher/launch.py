@@ -102,13 +102,18 @@ class Launch:
         requested = self.environment or self.worktree or self.resume_folder(menu) or self.unused_name(menu)
         matched = requested if self.environment and self.environment == self.worktree else self.unheld(menu, requested)
         if not sys.stdin.isatty():
-            menu.environment_rows(matched or self.default_environment(), menu.environments())
-            return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
+            environment = matched or self.default_environment()
+            rows = menu.environment_rows(environment, menu.environments())
+            row = next((row for row in rows if row.name == environment), None)
+            needs_worktree = bool(row and row.needs_worktree)
+            worktree = bool(self.worktree or self.worktree_launch or needs_worktree)
+            return Choice(environment, "", self.stashed, self.is_skipping(), worktree)
         subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False)
         if not self.confirmed and UpdatePrompt(Config(self.root), menu.screen, ReleaseSource(ReleaseCheckMemory(), TimeSource())).installed_newer():
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
-        return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
+        worktree = self.worktree or (matched if self.worktree_launch else "")
+        return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed, worktree)
 
     def unused_name(self, menu: Menu) -> str:
         if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
@@ -126,6 +131,8 @@ class Launch:
         return candidate
 
     def chosen(self, choice: Choice) -> "Launch":
+        if choice.worktree and not self.worktree:
+            return replace(self, worktree=choice.environment, worktree_launch=True)
         if self.worktree and (not self.environment or self.worktree == self.environment):
             return replace(self, worktree=choice.environment)
         return self

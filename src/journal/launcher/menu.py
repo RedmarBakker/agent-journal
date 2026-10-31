@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import TypeVar
 
@@ -27,7 +28,7 @@ ListedRow = TypeVar("ListedRow", EnvironmentRow, PastSessionRow)
 
 
 class Menu:
-    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, for a new one a past conversation of the project to continue from, whether to continue its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run. The left arrow asks again the last question that was asked, and each question is skipped where it does not apply."""
+    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, whether to continue a conversation, whether the agent asks before each tool, whether other hooks are set aside, and whether a branch conflict should use a worktree. The left arrow asks again the last question that was asked, and each question is skipped where it does not apply."""
 
     def __init__(self, root: Path, journal_sh: Path, screen: Screen | None = None) -> None:
         self.root, self.journal_sh = root, journal_sh
@@ -61,22 +62,24 @@ class Menu:
         self.journal("environment", "create", name)
         return self.environments()
 
-    def choose(self, agent: str, environment: str = "", new: bool = False, stashed: bool = False, omit: bool = False, confirmed: bool = False) -> Choice:
+    def choose(self, agent: str, environment: str = "", new: bool = False, stashed: bool = False, omit: bool = False, confirmed: bool = False, worktree: str = "") -> Choice:
         self.screen.banner(agent, str(self.root))
-        choice = self.confirmed(agent, environment, new, stashed) if confirmed else self.menu_choice(agent, environment, new, stashed, omit)
+        choice = self.confirmed(agent, environment, new, stashed, worktree) if confirmed else self.menu_choice(agent, environment, new, stashed, omit, worktree)
         self.remembered.write(Answers(choice.prompt_flags, choice.stashed_hooks))
         self._summary(choice)
         return choice
 
-    def confirmed(self, agent: str, environment: str, new: bool, stashed: bool) -> Choice:
+    def confirmed(self, agent: str, environment: str, new: bool, stashed: bool, worktree: str = "") -> Choice:
         selection = environment or "main"
         rows = self.environment_rows(selection, self.environments())
         last = next((row.last_session(agent) for row in rows if row.name == selection), "")
-        return Choice(selection, "" if new else last, stashed or self.remembered.read().stashed_hooks, True)
+        row = next((row for row in rows if row.name == selection), None)
+        needs_worktree = bool(row and row.needs_worktree)
+        return Choice(selection, "" if new else last, stashed or self.remembered.read().stashed_hooks, True, bool(worktree or needs_worktree))
 
-    def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
-        answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read())
-        steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._takeover_stage, self._prompts_stage, self._hooks_stage, self._trust_stage)
+    def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool, worktree: str = "") -> Choice:
+        answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read(), worktree=bool(worktree))
+        steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._takeover_stage, self._prompts_stage, self._hooks_stage, self._trust_stage, self._worktree_stage)
         shown: list[int] = []
         index = 0
         while index < len(steps):
@@ -91,7 +94,7 @@ class Menu:
             answers = stage.answers
             shown += [index] if stage.is_shown else []
             index += 1
-        return Choice(answers.selection, answers.resume, answers.stashed_hooks, answers.prompt_flags)
+        return Choice(answers.selection, answers.resume, answers.stashed_hooks, answers.prompt_flags, answers.worktree)
 
     def _environment_stage(self, answers: MenuAnswers) -> MenuStage:
         return answers.with_environment(self._environment)
@@ -119,6 +122,20 @@ class Menu:
 
     def _trust_stage(self, answers: MenuAnswers) -> MenuStage:
         return MenuStage(answers, self._trust_question(answers.agent))
+
+    def _worktree_stage(self, answers: MenuAnswers) -> MenuStage:
+        if answers.worktree:
+            return MenuStage(answers, False)
+        row = next((row for row in answers.rows if row.name == answers.selection), None)
+        if row is None:
+            row = next((row for row in self.environments() if row.name == answers.selection), None)
+        if not row or not row.needs_worktree:
+            return MenuStage(answers, False)
+        notes = [row.refusal]
+        options = [Option("Yes, start in a worktree"), Option("Choose another environment")]
+        if self.screen.pick(f"Start {answers.selection} in its own worktree?", notes, options, 0) == 1:
+            raise EnvironmentRepick()
+        return MenuStage(replace(answers, worktree=True), True)
 
     def _foreign_hooks(self, agent: str, previous: bool) -> bool:
         return self._hooks(ForeignHooks(self.root, Providers().lookup(agent)).foreign(), previous)

@@ -8,7 +8,7 @@ from journal.support.environment_row import EnvironmentRow
 
 @dataclass(frozen=True)
 class MenuAnswers:
-    """What a launch's menu knows as it asks its questions in turn: what the launch was given, the environments to choose from, the answers last time, and each answer as it is given."""
+    """What a launch's menu knows as it asks its questions in turn: its arguments, the environments to choose from, the answers last time, and each answer as it is given."""
 
     agent: str
     environment: str
@@ -22,6 +22,7 @@ class MenuAnswers:
     resume: str = ""
     prompt_flags: bool = False
     stashed_hooks: bool = False
+    worktree: bool = False
 
     def with_environment(self, environment_picker: Callable[[str, list[EnvironmentRow]], str]) -> "MenuStage":
         return MenuStage(replace(self, selection=self.environment or environment_picker(self.agent, self.rows)), not self.environment)

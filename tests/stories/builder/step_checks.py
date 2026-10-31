@@ -73,6 +73,19 @@ class StepChecks:
     def expect_shell_exit(self, code: int) -> None:
         assert self.shell_exit == code, f"the command ended {self.shell_exit}, not {code}"
 
+    def expect_launcher_prompt(self, heading: str, *options: str, default: int) -> None:
+        shown = getattr(self.story, "launcher_questions", [])
+        assert shown and shown[-1] == (heading, options, default), f"the launcher's last question was {shown[-1] if shown else None}, not {(heading, options, default)}"
+
+    def expect_launcher_started_in_worktree(self, environment: str) -> None:
+        from journal.support.worktree import Worktree
+
+        folder = Worktree(self.story.app.config.root, environment).path
+        choice = getattr(self.story, "launcher_choice", None)
+        assert self.story.launcher_refusal == "", f"the launcher refused to start: {self.story.launcher_refusal}"
+        assert choice and choice.environment == environment and choice.worktree, f"the launcher chose {choice}, not a worktree for {environment}"
+        assert self.story.launcher_front_folder == str(folder) and folder.is_dir(), f"the launcher uses {self.story.launcher_front_folder!r}, not {folder}"
+
     def expect_command_passed(self) -> None:
         assert self.command is not None and self.command.code == 0, f"the command was refused: {self.command.error or self.command.text if self.command else ''}"
 

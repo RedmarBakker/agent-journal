@@ -21,6 +21,10 @@ class EnvironmentRow:
     def last_session(self, agent: str) -> str:
         return self.last_sessions.get(agent, "")
 
+    @property
+    def needs_worktree(self) -> bool:
+        return self.name != "main" and bool(self.refusal)
+
     def badges(self) -> tuple[str, ...]:
         working = ("agent working",) if self.working else ()
         return (*working, f"last used {self.last_used}") if self.last_used else working
