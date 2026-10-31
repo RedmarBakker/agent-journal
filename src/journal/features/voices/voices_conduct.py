@@ -27,10 +27,8 @@ class VoicesConduct(Conduct):
 
     def on_skill_read(self, event: SkillRead, settings: Settings) -> Transition:
         start_skills = settings.texts(SkillsOptions.START_SKILLS)
-        if event.skill not in start_skills:
-            return self.none()
         skills = event.data.part(SkillsPart)
-        if skills.unread([card for card in skills.skills if card.name in start_skills]):
+        if set(skills.skills_due) & set(start_skills):
             return self.none()
         if event.data.part(VoicesPart).introduction_sent:
             return self.none()
