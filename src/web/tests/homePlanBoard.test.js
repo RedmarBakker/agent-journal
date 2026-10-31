@@ -46,7 +46,7 @@ test("the Board route keeps the separate plan board without the main chat", asyn
     expect(api.organization).toHaveBeenCalledOnce();
 });
 
-test("the separate plans page stays available when Plan agents are on", async () => {
+test("the Board page stays available as the separate plans page when Plan agents are on", async () => {
     store.settings = {plans: {plan_agents: true}};
     api.organization.mockResolvedValue({
         plans: [{id: 81, title: "Started plan", phase: "in_progress", mode: "solo", state: "started", tasks: [810], done: 0, plan_agent_state: "running", chat: "plan-81"}],
@@ -57,7 +57,7 @@ test("the separate plans page stays available when Plan agents are on", async ()
     mount(AppPages, {page: "board"});
     await until(() => host.querySelector('[data-plan-id="81"] .organization-plan-title'));
 
-    expect(host.querySelector("[data-home-plan-board] h1").textContent).toBe("Plans");
+    expect(host.querySelector("[data-home-plan-board] h1").textContent).toBe("Board");
     expect(host.querySelector("[data-home-dashboard]")).toBeNull();
     expect(host.querySelector('[data-plan-id="81"]').textContent).toContain("Plan agent: running");
 });
@@ -103,7 +103,7 @@ test("the separate plan board keeps paging plans and scheduled next starts", asy
     expect(host.querySelector(".home-plan-board-scheduled").textContent).toContain("Next start:");
     expect(host.querySelector(".home-plan-board-scheduled time").getAttribute("datetime")).toBe("2026-10-30T00:00:00+01:00");
 
-    host.querySelector('button[aria-label="Next All In progress plans page"]').click();
+    host.querySelector('button[aria-label="Next No sprint yet plans page"]').click();
     await nextTick();
     expect(host.querySelectorAll(".organization-plan-card")).toHaveLength(1);
     expect(host.querySelector(".organization-plan-card").textContent).toContain("Plan 51");
