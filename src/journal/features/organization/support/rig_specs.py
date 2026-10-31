@@ -31,7 +31,8 @@ AGENT_SPEC_VERSION = "1.0"
 PROFILE = "default"
 GUIDANCE = "guidance/role.md"
 HOOKS = "journal-hooks"
-SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
+JOURNAL_ENVIRONMENT = "JOURNAL_ENV"
+SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, JOURNAL_ENVIRONMENT, "JOURNAL_ROOT")
 DENIED = ("Bash(git *)", "Bash(rig send *)", "Bash(rig queue *)")
 WORKER_COMMANDS = ("Bash(rig context *)", "Bash(nohup *)")
 JOURNAL_HEALTH_READ = "Bash(curl -s http://127.0.0.1:*/journal/health)"
@@ -135,7 +136,8 @@ class RigSpecs:
     def refresh_worker(rig: str, member: dict, environment: str, identity: str) -> SeatWorker:
         try:
             old = member["env"]
-            return SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), environment, identity, rig)
+            seat_environment = old[JOURNAL_ENVIRONMENT] if identity.startswith("role:") else environment
+            return SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), seat_environment, identity, rig)
         except (KeyError, ValueError) as failed:
             raise Rejection(f"OpenRig organization seat {identity} in rig {rig} has no actor token to preserve: {failed}") from failed
 

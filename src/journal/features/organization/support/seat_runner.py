@@ -210,9 +210,9 @@ class SeatRunner:
                 environment = self.environments.find(worker.environment_id).name
                 token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
                 session = self.runtime.session(member, worker.resume)
-                fresh = self.is_journal_role(worker) or session is None
+                fresh = self.is_journal_role(worker)
                 if fresh:
-                    self.launch_fresh(member, worker, identity)
+                    self.launch_fresh(member, worker, identity, session)
                     session = None
                 if session is None and fresh:
                     deadline = time.monotonic() + STARTUP_SECONDS
@@ -265,7 +265,7 @@ class SeatRunner:
         if self.current_job(identity) is None:
             return
         session = self.runtime.session(member, worker.resume)
-        fresh = self.is_journal_role(worker) or session is None
+        fresh = self.is_journal_role(worker)
         if fresh:
             self.launch_fresh(member, worker, identity)
             session = None

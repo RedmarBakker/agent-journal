@@ -85,6 +85,7 @@ def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     story.expect_worker_role_job(worker, task, "- the restarted Role gets this task", "- the earlier task brief")
     role_started = story.agent_starts_role_session(worker)
     role_started.expect_allowed(worker)
+    story.expect_openrig_seat_environment(worker, "role:alpha/builder")
     story.expect_role_job_prompt(worker, "- the restarted Role gets this task", "- the earlier task brief", "journal clock-in")
     story.agent_clocks_in(worker).expect_command_passed()
     story.expect_task(task, state=TaskState.STARTED, delegated=True)
