@@ -31,7 +31,7 @@ from journal.features.shell.support.chain_worker import ChainWorker
 from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
-from journal.support.caller import Caller, ORGANIZATION_RIG, ORGANIZATION_SEAT
+from journal.support.caller import ACTOR_TOKEN, Caller, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.support.agent_role import AgentRole
 from journal.support.option import Option
 from journal.support.plugin_tokens import PluginTokens
@@ -162,7 +162,8 @@ class AgentSteps:
         member = runtime.member(rig, pod, member_name, self.provider)
         variables = self.organization_seat_variables(runtime, rig, pod, member_name)
         return self.agent_runs_from_seat(agent, seat, arguments, member, member.organization_seat,
-                                         variables.get(ORGANIZATION_RIG, ""), member.environment)
+                                         variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                         variables.get(ACTOR_TOKEN, ""))
 
     def agent_runs_from_openrig_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
@@ -170,9 +171,10 @@ class AgentSteps:
         pod, member_name = self.organization_seat_address(seat)
         runtime = self.app.container.get(SeatRuntime)
         member = runtime.member(rig, pod, member_name, self.provider)
-        variables = self.openrig.member_environment(rig, pod, member_name)
+        variables = self.openrig_organization_seat_environment(seat)
         return self.agent_runs_from_seat(agent, seat, arguments, member, variables.get(ORGANIZATION_SEAT, ""),
-                                         variables.get(ORGANIZATION_RIG, ""), member.environment)
+                                         variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                         variables.get(ACTOR_TOKEN, ""))
 
     def agent_runs_from_plan_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
@@ -182,12 +184,14 @@ class AgentSteps:
         member = runtime.member(rig, pod, member_name, self.provider)
         variables = self.organization_seat_variables(runtime, rig, pod, member_name)
         return self.agent_runs_from_seat(agent, seat, arguments, member, member.organization_seat,
-                                         variables.get(ORGANIZATION_RIG, ""), member.environment)
+                                         variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                         variables.get(ACTOR_TOKEN, ""))
 
     def organization_seat_agent(self, seat: str) -> StoryAgent:
         member = self.organization_seat_member(seat)
         session = self.simulated_seats().sessions[member.target]["sessionId"]
-        self.session_environments[str(session)] = member.environment
+        environment = self.openrig_organization_seat_environment(seat).get("JOURNAL_ENV", "")
+        self.session_environments[str(session)] = environment
         return StoryAgent(AgentRole.MAIN, session=str(session))
 
     def organization_seat_goes_idle(self, agent: StoryAgent, seat: str) -> StepResult:
@@ -202,28 +206,34 @@ class AgentSteps:
         return self.organization_seat_hook(agent, seat, "Stop", "organization seat stops")
 
     def organization_seat_hook(self, agent: StoryAgent, seat: str, event: str, action: str, **body) -> StepResult:
-        member = self.organization_seat_member(seat)
+        environment = self.openrig_organization_seat_environment(seat).get("JOURNAL_ENV", "")
         status, answer = self.session_posted_hook(
-            self.session_of(agent), {"X-Journal-Env": member.environment}, event, body,
+            self.session_of(agent), {"X-Journal-Env": environment}, event, body,
         )
-        return self.hook_observed(action, status, answer, member.environment)
+        return self.hook_observed(action, status, answer, environment)
 
     def agent_runs_as_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
         member = self.organization_seat_member(seat)
-        variables = self.organization_seat_variables(self.app.container.get(SeatRuntime), member.rig, member.pod, member.member)
+        variables = self.openrig_organization_seat_environment(seat)
         return self.agent_runs_from_seat(agent, seat, arguments, member, member.organization_seat,
-                                         variables.get(ORGANIZATION_RIG, ""), member.environment)
+                                         variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                         variables.get(ACTOR_TOKEN, ""))
 
     def organization_seat_member(self, seat: str):
         rig = f"plan-{self.plans.first}"
         return self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
 
+    def openrig_organization_seat_environment(self, seat: str) -> dict[str, str]:
+        member = self.organization_seat_member(seat)
+        return self.simulated_seats().member_environment(member.rig, member.pod, member.member)
+
     def agent_runs_from_seat(self, agent: StoryAgent, seat: str, arguments: list[str], member,
-                             organization_seat: str, organization_rig: str, journal_environment: str = "main") -> StepResult:
+                             organization_seat: str, organization_rig: str, journal_environment: str,
+                             actor_token: str) -> StepResult:
         answer = posted(self.app, "/cli", {"argv": arguments, "env": journal_environment, "agent": True, "provider": member.provider,
                                              "session": self.session_of(agent), "organization_seat": organization_seat,
-                                             "organization_rig": organization_rig, "actor_token": member.token},
+                                             "organization_rig": organization_rig, "actor_token": actor_token},
                         {**MAIN, "X-Journal-Env": journal_environment})[1]
         outcome = Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
         return self.record_command(f"agent runs {' '.join(arguments[:2])} from organization seat {seat}{', refused' if outcome.code else ''}", outcome)

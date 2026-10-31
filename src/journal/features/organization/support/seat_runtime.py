@@ -225,6 +225,16 @@ class SeatRuntime:
             raise Rejection(f"OpenRig is {installed}; workers.openrig_version requires {expected}")
         return installed
 
+    def check_expand_version(self, minimum: str) -> str:
+        installed = self.check_version()
+        if self.version_number(installed) < self.version_number(minimum):
+            raise Rejection(f"OpenRig {installed}; dynamic organization seat placement requires OpenRig {minimum} or later")
+        return installed
+
+    @staticmethod
+    def version_number(version: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in version.split("."))
+
     def status(self, seat: SeatMember | str) -> dict:
         target = seat.target if isinstance(seat, SeatMember) else seat
         result = self.run("seat", "status", target, "--json")

@@ -465,12 +465,12 @@ def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_a
 def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_first_used_domain_and_role(app, tmp_path, monkeypatch):
     contracts = plan_contracts(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
-    user_set(app, "workers.openrig_version", "0.7.5")
+    user_set(app, "workers.openrig_version", "0.7.6")
     calls = []
 
     def run(_runtime, *arguments, check=True):
         calls.append(arguments)
-        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        output = "rig version 0.7.6\n" if arguments == ("--version",) else "{}"
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
@@ -540,13 +540,13 @@ def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_
     _fixture, organization = loaded(app, tmp_path)
     organization.reload()
     user_set(app, "plans.plan_agents", True)
-    user_set(app, "workers.openrig_version", "0.7.5")
+    user_set(app, "workers.openrig_version", "0.7.6")
     root = app.config.root
     calls = []
 
     def run(_runtime, *arguments, check=True):
         calls.append(arguments)
-        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        output = "rig version 0.7.6\n" if arguments == ("--version",) else "{}"
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)

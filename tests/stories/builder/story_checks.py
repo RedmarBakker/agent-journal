@@ -23,7 +23,7 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
-from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
+from journal.support.caller import ACTOR_TOKEN, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.models.support.ref import Ref
 from tests.full_project import MAIN
 from tests.in_process import get_answer
@@ -304,6 +304,18 @@ class StoryChecks:
         member = self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
         messages = [message for target, message in self.simulated_seats().messages if target == member.target]
         assert text in messages, f"OpenRig seat {member.logical_id} for {agent.session} received {messages}, not {text!r}"
+
+    def expect_openrig_seat_environment(self, agent: StoryAgent, seat: str) -> None:
+        member = self.organization_seat_member(seat)
+        environment = self.openrig_organization_seat_environment(seat)
+        session = self.simulated_seats().sessions[member.target]["sessionId"]
+        agent_session = self.session_of(agent)
+        assert session == agent_session, f"{seat} session {session} does not match {agent_session}"
+        assert environment.get(ORGANIZATION_SEAT) == seat, f"{seat} session has organization identity {environment.get(ORGANIZATION_SEAT)!r}"
+        assert environment.get(ORGANIZATION_RIG) == member.rig, f"{seat} session has organization rig {environment.get(ORGANIZATION_RIG)!r}"
+        assert environment.get(ACTOR_TOKEN) == member.token, f"{seat} session has no actor token from its generated member"
+        assert environment.get("JOURNAL_ENV") == member.environment, f"{seat} session has journal environment {environment.get('JOURNAL_ENV')!r}"
+        assert environment.get("JOURNAL_ROOT") == str(self.app.config.root), f"{seat} session has journal root {environment.get('JOURNAL_ROOT')!r}"
 
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:
         agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"

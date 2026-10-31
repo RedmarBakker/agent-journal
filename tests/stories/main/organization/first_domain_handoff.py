@@ -27,24 +27,29 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     handed_to_domain.expect_command_text(f"task {task} routed from plan to domain:alpha")
 
     domain = story.organization_seat_agent("domain:alpha")
+    story.expect_openrig_seat_environment(domain, "domain:alpha")
     story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", OrganizationSeatRouting.handoff_prompt)
-    inbox = story.agent_runs_from_organization_seat(story.agents.main, "domain:alpha", "organization inbox")
+    started = story.agent_starts_organization_seat(domain, "domain:alpha")
+    started.expect_allowed(domain)
+    inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
     inbox.expect_command_text(TASK_BRIEF)
 
-    handed_to_role = story.agent_runs_from_organization_seat(
-        story.agents.main, "domain:alpha", f"organization handoff {task} role:alpha/builder",
+    handed_to_role = story.agent_runs_from_openrig_organization_seat(
+        domain, "domain:alpha", f"organization handoff {task} role:alpha/builder",
     )
     handed_to_role.expect_command_passed()
     worker_number = story.newest("workers")
     story.fixture.workers.first = worker_number
     worker = story.agents.workers.first()
     story.expect_worker_role_job(worker, task, TASK_BRIEF, STALE_BRIEF)
-    story.agent_starts_role_session(worker)
+    role_started = story.agent_starts_role_session(worker)
+    role_started.expect_allowed(worker)
+    story.expect_openrig_seat_environment(worker, "role:alpha/builder")
     story.expect_role_job_prompt(worker, TASK_BRIEF, STALE_BRIEF, "journal clock-in")
 
-    role_inbox = story.agent_runs_from_organization_seat(worker, "role:alpha/builder", "organization inbox")
+    role_inbox = story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "organization inbox")
     role_inbox.expect_command_passed()
     role_inbox.expect_command_text(TASK_BRIEF)
     story.agent_clocks_in(worker)
@@ -80,4 +85,17 @@ def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
     )
     result.expect_command_refused()
     story.expect_task(story.tasks.first, state=TaskState.OPEN, delegated=False)
+    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+
+
+@story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_plan_refuses_to_expand_a_domain_on_openrig_that_drops_member_environment(story):
+    story.openrig.version = "0.7.5"
+    task = story.tasks.first
+    result = story.agent_runs_from_plan_organization_seat(
+        story.agents.main, "plan", f"organization handoff {task} domain:alpha",
+    )
+    result.expect_command_refused()
+    result.expect_command_text("OpenRig 0.7.5; dynamic organization seat placement requires OpenRig 0.7.6 or later")
+    story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)

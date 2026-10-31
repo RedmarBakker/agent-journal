@@ -9,17 +9,19 @@ class SimulatedSeats:
 
     def __init__(self) -> None:
         self.pid = os.getpid()
+        self.version = "0.7.6"
         self.calls: list[tuple[str, ...]] = []
         self.rigs: set[str] = set()
         self.stopped_rigs: set[str] = set()
         self.specs: dict[str, dict] = {}
         self.sessions: dict[str, dict[str, object]] = {}
+        self.environments: dict[str, dict[str, str]] = {}
         self.messages: list[tuple[str, str]] = []
 
     def run(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(arguments)
         if arguments == ("--version",):
-            return self.result(arguments, "OpenRig 0.7.5\n")
+            return self.result(arguments, f"OpenRig {self.version}\n")
         if arguments[0] == "up":
             path = Path(arguments[1])
             rig = path.parent.name
@@ -44,7 +46,7 @@ class SimulatedSeats:
         if arguments[:2] == ("seat", "status"):
             return self.result(arguments, json.dumps(self.sessions.get(arguments[2], {})))
         if arguments[:2] == ("seat", "launch"):
-            self.start_session(arguments[2])
+            self.start_session(arguments[2], self.environment_for(arguments[2]))
             return self.result(arguments, "{}")
         if arguments[:2] == ("seat", "stop"):
             self.stop_session(arguments[2])
@@ -63,10 +65,11 @@ class SimulatedSeats:
             member = json.loads(path.read_text())
             pod = next(pod for pod in self.specs[rig]["pods"] if pod["id"] == pod_id)
             pod.setdefault("members", []).append(member)
-            self.start_session(f"{pod_id}-{member['id']}@{rig}")
+            self.start_session(f"{pod_id}-{member['id']}@{rig}", member.get("env", {}))
             return self.result(arguments, "{}")
         if arguments[0] == "launch":
-            self.start_session(f"{arguments[2]}@{arguments[1]}")
+            target = f"{arguments[2]}@{arguments[1]}"
+            self.start_session(target, self.environment_for(target))
             return self.result(arguments, "{}")
         if arguments[0] == "usage":
             return self.result(arguments, '{"seats": []}')
@@ -85,15 +88,12 @@ class SimulatedSeats:
         self.specs[rig] = json.loads(path.read_text())
 
     def member_environment(self, rig: str, pod: str, member: str) -> dict[str, str]:
-        spec = self.specs[rig]
-        pod_spec = next(value for value in spec["pods"] if value["id"] == pod)
-        member_spec = next(value for value in pod_spec["members"] if value["id"] == member)
-        return member_spec.get("env", {})
+        return self.environments[f"{pod}-{member}@{rig}"]
 
     def start_members(self, rig: str, spec: dict) -> None:
         for pod in spec.get("pods", []):
             for member in pod.get("members", []):
-                self.start_session(f"{pod['id']}-{member['id']}@{rig}")
+                self.start_session(f"{pod['id']}-{member['id']}@{rig}", member.get("env", {}))
 
     def processes(self, arguments: tuple[str, ...]) -> subprocess.CompletedProcess:
         rig = self.argument(arguments, "--rig")
@@ -106,13 +106,23 @@ class SimulatedSeats:
         ]
         return self.result(arguments, json.dumps(rows))
 
-    def start_session(self, target: str) -> None:
+    def start_session(self, target: str, environment: dict[str, str] | None = None) -> None:
         self.sessions[target] = {
             "sessionId": f"sim-{len(self.sessions) + 1}",
             "pid": self.pid,
             "status": "running",
             "statusUpdatedAt": 1_800_000_000,
         }
+        self.environments[target] = dict(environment or {})
+
+    def environment_for(self, target: str) -> dict[str, str]:
+        address, rig = target.rsplit("@", 1)
+        return next(
+            member.get("env", {})
+            for pod in self.specs[rig]["pods"]
+            for member in pod["members"]
+            if f"{pod['id']}-{member['id']}" == address
+        )
 
     def idle(self, target: str) -> None:
         self.sessions[target]["status"] = "idle"

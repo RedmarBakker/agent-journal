@@ -25,7 +25,7 @@ from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.support.rejection import Rejection
 
-OPENRIG_VERSION = "0.7.5"
+MINIMUM_OPENRIG_VERSION = "0.7.6"
 RIG_SPEC_VERSION = "0.2"
 AGENT_SPEC_VERSION = "1.0"
 PROFILE = "default"

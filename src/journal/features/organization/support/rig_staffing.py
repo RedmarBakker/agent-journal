@@ -9,7 +9,7 @@ from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD, RigSeats
-from journal.features.organization.support.rig_specs import OWNER_ONLY, RigSpecs
+from journal.features.organization.support.rig_specs import MINIMUM_OPENRIG_VERSION, OWNER_ONLY, RigSpecs
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.seat import Seat
 from journal.features.organization.support.seat_runtime import SeatRuntime
@@ -89,6 +89,8 @@ class RigStaffing:
         running = self.runtime.rig_exists(rig.name)
         worker = lambda placed: SeatWorker(Actor.agent(""), AgentToken.random(), environment, placed.qualified, rig.name)
         if pod is None:
+            if running:
+                self.runtime.check_expand_version(MINIMUM_OPENRIG_VERSION)
             fragment, pod = self.specs.pod_fragment(rig.name, seat.pod, (seat,), links, self.config.root, worker)
             pods.append(pod)
             if running:
@@ -190,6 +192,8 @@ class RigStaffing:
         role_fragment = None
         replace_role = False
         if pod is None:
+            if running:
+                self.runtime.check_expand_version(MINIMUM_OPENRIG_VERSION)
             fragment, pod = self.specs.pod_fragment(
                 rig.name, domain_seat.pod, (domain_seat, role_seat), links,
                 lambda seat: cwd if seat.qualified == role_seat.qualified else self.config.root,
