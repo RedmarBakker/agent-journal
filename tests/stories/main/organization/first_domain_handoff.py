@@ -87,6 +87,10 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
 
 @story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
+    inbox = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "organization inbox")
+    inbox.expect_command_passed()
+    inbox.expect_command_text(f"plan {story.plans.first} task {story.tasks.first}: first")
+    inbox.expect_command_text(TASK_BRIEF)
     result = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {story.tasks.first} domain:gamma",
     )
