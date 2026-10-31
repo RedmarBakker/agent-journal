@@ -383,13 +383,14 @@ class StoryChecks:
             row = self.app.container.get(WorkerRows).find(worker.number)
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
         member = self.app.container.get(SeatRuntime).member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
+        seats = self.simulated_seats()
         deadline = time.monotonic() + 5
-        prompts = [prompt for target, prompt in self.openrig.messages if target == member.target]
+        prompts = [prompt for target, prompt in seats.messages if target == member.target]
         while not prompts and time.monotonic() < deadline:
             time.sleep(0.01)
-            prompts = [prompt for target, prompt in self.openrig.messages if target == member.target]
+            prompts = [prompt for target, prompt in seats.messages if target == member.target]
         prompt = prompts[-1] if prompts else ""
-        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s job: {self.openrig.messages}"
+        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s job: {seats.messages}"
         missing = [part for part in (brief, *parts) if part not in prompt]
         assert not missing, f"Role seat {member.logical_id} received no {missing}: {prompt!r}"
         assert stale_brief not in prompt, f"Role seat {member.logical_id} received an old brief: {prompt!r}"

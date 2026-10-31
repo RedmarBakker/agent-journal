@@ -511,12 +511,12 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
 def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_seat(app, tmp_path, monkeypatch):
     _fixture, organization = loaded(app, tmp_path)
     contracts = organization.reload()
-    user_set(app, "workers.openrig_version", "0.7.5")
+    user_set(app, "workers.openrig_version", "0.7.6")
     calls = []
 
     def run(_runtime, *arguments, check=True):
         calls.append(arguments)
-        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        output = "rig version 0.7.6\n" if arguments == ("--version",) else "{}"
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
@@ -2260,7 +2260,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
 
     contracts = plan_contracts(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
-    user_set(app, "workers.openrig_version", "0.7.5")
+    user_set(app, "workers.openrig_version", "0.7.6")
     monkeypatch.setattr(WorkerRunner, "start", WORKER_RUNNER_START)
 
     threads, launches, sent = [], [], []
@@ -2277,7 +2277,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     monkeypatch.setattr(SeatRunner, "record_usage", lambda *args: None)
 
     def run(_runtime, *arguments, check=True):
-        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        output = "rig version 0.7.6\n" if arguments == ("--version",) else "{}"
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
