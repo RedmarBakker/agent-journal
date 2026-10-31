@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.16
+
+- A subagent may read the chat thread with journal message list and journal message recent, so a reviewer can check the work against what was agreed in the chat. journal message read stays refused, since it marks the user's messages read.
+
 ## 4.69.15
 
 - A task is no longer paused: blocked is the one state for waiting. A started task can be blocked, with a reason and optionally --on task:N or --until a check, and taking it up again unblocks it. journal task pause is refused and points to journal task block.

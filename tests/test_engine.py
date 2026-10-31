@@ -2032,7 +2032,7 @@ HELPER_VERBS = {
     "worker": ["await begin", "await clear", "build queued", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory add", "memory list", "memory remove", "memory skip", "memory weigh", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
     "reviewer": ["doc show", "memory list", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
     "verifier": ["verdict give", "verdict model"],
-    "subagent": ["doc create", "doc ready", "doc show", "doc update", "output read", "plan add", "plan brief", "plan create", "plan phase", "plan ready", "plan show", "plan todos", "report create", "report ready", "report show", "report update", "rule list", "rule read", "search find", "task list", "task show"],
+    "subagent": ["doc create", "doc ready", "doc show", "doc update", "message list", "message recent", "output read", "plan add", "plan brief", "plan create", "plan phase", "plan ready", "plan show", "plan todos", "report create", "report ready", "report show", "report update", "rule list", "rule read", "search find", "task list", "task show"],
 }
 HELPER_LISTENERS = {
     "worker": ["CompactionMarkClear", "ContextThresholdCheck", "HookAnswer", "MemoryFading", "PluginAgentRelay", "RecordEdit", "ResearcherEnd", "ResearcherStart", "ResearchersClosed", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],

@@ -29,6 +29,17 @@ def test_a_subagent_reads_the_tasks_and_the_rules(story):
 
 
 @story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
+def test_a_subagent_reads_the_chat_thread_without_marking_a_message_read(story):
+    result = story.agent_runs(story.agents.subject, "message list")
+    result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "message recent")
+    result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "message read 1")
+    result.expect_command_refused()
+    story.expect_stack(story.agents.subject, Void, Researching)
+
+
+@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.SUBAGENT)
 def test_a_subagent_may_not_create_a_task(story):
     result = story.agent_runs(story.agents.subject, "task create 'more work'")
     result.expect_command_refused()
