@@ -109,7 +109,7 @@ def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatc
         "environment": "plan-12",
         "root": str(tmp_path.resolve()),
         "worktree": str(worktree.resolve()),
-        "port": "8421",
+        "port": str(launcher.config.port),
         "resume": ["--resume", "session-12"],
     }]
 
