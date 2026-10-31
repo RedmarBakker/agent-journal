@@ -61,4 +61,5 @@ def test_a_report_forecast_reads_the_owners_shared_wip_ceilings(story):
     forecast.expect_viewer_part(("network_forecast", "mode"), "report")
     for _option, value, key in settings:
         forecast.expect_viewer_part(("network_forecast", "wip_limits", key), value)
+    story.expect_task(story.tasks.first, state="open")
     story.expect_stack(story.agents.subject, Ready)

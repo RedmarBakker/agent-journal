@@ -488,7 +488,8 @@ class NetworkForecast:
     def distributions(self, runs: list[dict], tasks: list[dict], graph: dict, prepared: dict) -> dict:
         dates = [run["finish"] for run in runs]
         blocked = self.external_blocked_tasks(graph)
-        bands, _counts = BaselineForecast.bands([self.day(value) for value in dates], prepared["calendar"])
+        bands, _counts = BaselineForecast.bands([self.day(value) for value in dates],
+                                                self.calendar(prepared["calendar"]))
         plan_forecasts = [self.group_distribution(runs, tasks, "plans", plan_id, prepared, blocked)
                           for plan_id in prepared["plan_ids"]]
         domain_forecasts = [self.group_distribution(runs, tasks, "domains", domain, prepared, blocked)
@@ -539,7 +540,8 @@ class NetworkForecast:
     def group_distribution(self, runs: list[dict], tasks: list[dict], key: str, value, prepared: dict,
                            blocked: set[int]) -> dict:
         dates = [run[key][value] for run in runs]
-        bands, _counts = BaselineForecast.bands([self.day(day) for day in dates], prepared["calendar"])
+        bands, _counts = BaselineForecast.bands([self.day(day) for day in dates],
+                                                self.calendar(prepared["calendar"]))
         group_tasks = [row for row in tasks if (value in row["plan_ids"] if key == "plans" else row.get("domain") == value)]
         critical_count = sum(value is not None for value in dates)
         result = {("plan_id" if key == "plans" else "domain"): value,
@@ -639,7 +641,14 @@ class NetworkForecast:
 
     @staticmethod
     def baseline_summary(baseline: dict) -> dict:
-        return {key: baseline.get(key) for key in ("status", "method_version", "p50", "p85", "plan_forecasts")}
+        return {"status": baseline.get("status"), "method_version": baseline.get("method_version"),
+                "p50": baseline.get("p50"), "p85": baseline.get("p85"),
+                "plan_forecasts": baseline.get("plan_forecasts") or []}
+
+    @staticmethod
+    def calendar(value: dict) -> dict:
+        return {"current_end": BaselineForecast.day(value.get("current_end")),
+                "next_end": BaselineForecast.day(value.get("next_end"))}
 
     @staticmethod
     def public(result: dict) -> dict:
