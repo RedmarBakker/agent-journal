@@ -1,5 +1,6 @@
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
+from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
@@ -28,6 +29,7 @@ def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
 
 @story(StoppedOrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
+    story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
     plan = story.plans.first
     task = story.tasks.first
     rig = f"plan-{plan}"
