@@ -4,6 +4,7 @@ from dataclasses import replace
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.organization.support.contracts import PLAN
 from journal.features.plans.support.plan_branch_merge import PlanBranchMerge
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.organization.support.organization import Organization
@@ -380,7 +381,18 @@ class PlanCommand(Command):
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:
+        if plan := self.plan_seat_plan(caller):
+            if args.n not in (CURRENT, str(plan.id)):
+                raise Rejection(f"organization Plan seat may read plan {plan.id} only")
+            with self.scope.environment(plan.environment_id):
+                return self.shown(plan)
         return self.current() if args.n == CURRENT else self.shown(self.plans.find(int(args.n)))
+
+    def plan_seat_plan(self, caller: Caller) -> Plan | None:
+        if caller.organization_seat != PLAN:
+            return None
+        plan = self.plan_agents.led_plan(self.scope.id)
+        return plan if plan and caller.organization_rig == f"plan-{plan.id}" else None
 
     def current(self) -> int:
         started = self.statuses.started()
@@ -407,15 +419,23 @@ class PlanCommand(Command):
         for i, phase in enumerate(self.plans.plan_phases(plan), 1):
             print(f"phase {i}: {phase.title}" + (f" (complete when {phase.completion_rule})" if phase.completion_rule else "") + (" [checkpoint]" if phase.checkpoint else ""))
             for task in self.plans.phase_tasks(phase):
-                print(f"{task.id:>4}  {task.state:<8} {task.title}")
+                print(self.task_line(task))
         loose = self.plans.loose_tasks(plan)
         if loose:
             print("under no phase yet:")
         for task in loose:
-            print(f"{task.id:>4}  {task.state:<8} {task.title}")
+            print(self.task_line(task))
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
+        if plan := self.plan_seat_plan(caller):
+            print(f"{plan.id:>4}  {plan.state:<8} {plan.title}")
+            return 0
         for plan in self.plans.scoped():
             print(f"{plan.id:>4}  {plan.state:<8} {plan.title}")
         return 0
+
+    def task_line(self, task: Task) -> str:
+        domain = self.domains.planned_domain_name(task)
+        target = f" domain:{domain}" if domain else ""
+        return f"{task.id:>4}  {task.state:<8} {task.title}{target}"

@@ -19,6 +19,7 @@ from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.providers.providers import Providers
 from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.models.support.ref import Ref
 from tests.full_project import MAIN
@@ -263,6 +264,18 @@ class StoryChecks:
         assert member.organization_seat == "plan", f"plan seat has organization identity {member.organization_seat!r}"
         assert member.root == str(self.app.config.root), f"plan seat reaches journal root {member.root}, not {self.app.config.root}"
         assert variables.get(ORGANIZATION_RIG) == rig, f"plan seat has organization rig {variables.get(ORGANIZATION_RIG)!r}, not {rig}"
+
+    def expect_plan_seat_journal_reads_allowed(self, rig: str) -> None:
+        runtime = self.app.container.get(SeatRuntime)
+        spec = runtime.read_spec(rig)
+        pod = next(value for value in spec["pods"] if value["id"] == PLAN_POD)
+        member = next(value for value in pod["members"] if value["id"] == PLAN_AGENT)
+        provider = self.app.container.get(Providers).lookup(self.provider)
+        permissions = member[provider.openrig_permissions_field]
+        if provider.openrig_permissions_field == "claude_permissions":
+            assert "Bash(journal *)" in permissions["allow"], "the Plan seat's journal commands need approval"
+        else:
+            assert permissions["approval"] == "never", "the Plan seat's journal commands need approval"
 
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()
