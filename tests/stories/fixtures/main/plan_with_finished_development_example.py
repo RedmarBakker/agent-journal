@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from journal.engine.clock import Clock
-from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_staffing import RigStaffing
@@ -38,7 +37,6 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "evidence": "production_deployment",
             "target": "production",
         })
-        story.user_sets(EstimatesOptions.MODE, "report").expect_viewer_passed()
         main_session = story.main_session()
         story.configure_simulated_openrig()
         self.write_rig_specs(story, "main")
