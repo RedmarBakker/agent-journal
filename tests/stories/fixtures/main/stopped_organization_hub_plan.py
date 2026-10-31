@@ -11,7 +11,7 @@ class StoppedOrganizationHubPlan(PausedOrganizationHubPlan):
     def steps(self, story) -> None:
         story.configure_simulated_openrig()
         runtime = story.app.container.get(SeatRuntime)
-        rig = f"plan-{self.plans.first}"
+        rig = story.plan_rig_name(self.plans.first)
         story.openrig.rigs.add(rig)
         story.openrig.remember_spec(rig, runtime.spec_folder(rig) / "rig.yaml")
         story.openrig.run("down", rig, "--yes", "--json")

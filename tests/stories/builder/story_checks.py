@@ -473,7 +473,8 @@ class StoryChecks:
             row = self.app.container.get(WorkerRows).find(worker.number)
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
         plan = self.app.container.get(Plans).global_matching(id=row.plan_id)[0]
-        rig = RigStaffing.shared_rig_name(plan.environment_id) if role.cardinality is Cardinality.JOURNAL else f"plan-{row.plan_id}"
+        staffing = self.app.container.get(RigStaffing)
+        rig = staffing.shared_rig_name(plan.environment_id) if role.cardinality is Cardinality.JOURNAL else staffing.plan_rig_name(plan)
         return self.app.container.get(SeatRuntime).member(rig, role.domain, role.id, row.provider)
 
     def expect_role_guidance_and_skills_omit(self, worker: StoryAgent, *job_text: str) -> None:
@@ -481,7 +482,7 @@ class StoryChecks:
             row = self.app.container.get(WorkerRows).find(worker.number)
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
         runtime = self.app.container.get(SeatRuntime)
-        member = runtime.member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
+        member = runtime.member(self.plan_rig_name(row.plan_id), role.domain, role.id, row.provider)
         folder = runtime.spec_folder(member.rig) / "agents" / f"{member.pod}-{member.member}"
         guidance = folder / "guidance" / "role.md"
         skills = tuple((folder / "skills").rglob("SKILL.md"))

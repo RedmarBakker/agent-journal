@@ -41,6 +41,7 @@ from journal.features.organization.support import seat_runner as seat_runner_mod
 from journal.features.organization.support import seat_runtime as seat_runtime_module
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.rig_names import RigNames
 from journal.features.organization.support.rig_seats import RigSeats
 from journal.features.organization.support.rig_specs import DENIED, RigSpecs
 from journal.features.organization.support.seat_worker import SeatWorker
@@ -526,7 +527,8 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
     assert console.run(["plan", "start", str(plan_id)], user).code == 0
     app.runtime().deferred.drain()
 
-    path = app.config.home / "runtime" / "rigs" / f"plan-{plan_id}" / "rig.yaml"
+    rig_name = app.container.get(RigNames).plan(plan_id)
+    path = app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml"
     initial = json.loads(path.read_text())
     assert [(pod["id"], [member["id"] for member in pod["members"]]) for pod in initial["pods"]] == [("plan", ["plan-agent"])], "starting an organization plan launches no unused Domain or Role seats"
     assert any(call[0] == "up" for call in calls), "the Plan-only spec starts the plan's rig"
@@ -547,7 +549,7 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
     expanded = next(index for index, call in enumerate(placement) if call[0] == "expand")
     launches = [call[2] for call in placement if call[:2] == ("seat", "launch")]
     assert expanded < next(index for index, call in enumerate(placement) if call[:2] == ("seat", "launch"))
-    assert launches[:2] == [f"alpha-domain-agent@plan-{plan_id}", f"alpha-planner@plan-{plan_id}"], "every newly expanded member is relaunched from its saved environment"
+    assert launches[:2] == [f"alpha-domain-agent@{rig_name}", f"alpha-planner@{rig_name}"], "every newly expanded member is relaunched from its saved environment"
     assert {pod: [member["id"] for member in value["members"]] for pod, value in pods.items()} == {
         "plan": ["plan-agent"], "alpha": ["domain-agent", "planner"],
     }, "the used Domain and Role appear, while the other Domain and unassigned Roles stay out"
@@ -576,10 +578,11 @@ def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_
                                      plan_id=first_plan.id, provider="claude", model="opus"), actor)
         first = runner.member(worker)
         second = runner.member(workers.save(worker.with_(plan_id=second_plan.id), actor))
-        spec = json.loads((app.config.home / "runtime" / "rigs" / "organization-1" / "rig.yaml").read_text())
+        rig_name = app.container.get(RigNames).organization(1)
+        spec = json.loads((app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml").read_text())
 
     members = {member["id"] for pod in spec["pods"] for member in pod["members"]}
-    assert first.rig == second.rig == "organization-1" and first.logical_id == second.logical_id == "alpha.scout", "both plans use the same shared Role seat"
+    assert first.rig == second.rig == rig_name and first.logical_id == second.logical_id == "alpha.scout", "both plans use the same shared Role seat"
     assert len([call for call in calls if call[0] == "up"]) == 1 and members == {"domain-agent", "scout"}, "the shared rig starts once and has no plan-specific Role copy"
 
 
@@ -629,7 +632,8 @@ def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_
         branch = app.container.get(WorkerBranch)
         folder = branch.folder(worker)
         seat_id = f"builder-{worker.id}"
-        spec_path = app.config.home / "runtime" / "rigs" / f"plan-{plan_id}" / "rig.yaml"
+        rig_name = app.container.get(RigNames).plan(plan_id)
+        spec_path = app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml"
         placed = json.loads(spec_path.read_text())
         members = {member["id"]: member for pod in placed["pods"] for member in pod["members"]}
         assert worker.plan_id == plan_id and worker.worktree and folder.is_dir() and members[seat_id]["cwd"] == str(folder), "each planned many-cardinality Role gets a unique rig seat rooted in its own worktree without an extra flag"
@@ -2409,10 +2413,11 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
 
         current = app.container.get(Workers).find(worker.id)
         returned = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
-        spec = json.loads((app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "rig.yaml").read_text())
+        rig_name = app.container.get(RigNames).plan(plan.id)
+        spec = json.loads((app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml").read_text())
         pod = next(pod for pod in spec["pods"] if pod["id"] == "alpha")
         role_member = next(member for member in pod["members"] if member["id"] == "planner")
-        pod_path = app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "pods" / "alpha.json"
+        pod_path = app.config.home / "runtime" / "rigs" / rig_name / "pods" / "alpha.json"
         first_pod = json.loads(pod_path.read_text())
         first_pod_role = next(member for member in first_pod["members"] if member["id"] == "planner")
 
@@ -2434,7 +2439,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
 
         next_current = app.container.get(Workers).find(next_worker.id)
         next_returned = states.stack(app.container.get(Agents).find(domain_agent.id)).top()
-        spec = json.loads((app.config.home / "runtime" / "rigs" / f"plan-{plan.id}" / "rig.yaml").read_text())
+        spec = json.loads((app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml").read_text())
         pod = next(pod for pod in spec["pods"] if pod["id"] == "alpha")
         role_member = next(member for member in pod["members"] if member["id"] == "planner")
         pod_fragment = json.loads(pod_path.read_text())
@@ -2455,8 +2460,8 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     assert first_pod_role["env"][ACTOR] == f"worker:{first_worker_id}" and pod_role_member["env"][ACTOR] == f"worker:{worker.id}", "the incremental pod fragment tracks the Role actor as workers change"
     assert pod_role_member["env"][ACTOR_TOKEN] == role_member["env"][ACTOR_TOKEN], "the pod fragment keeps the rebound Role token"
     assert seat_changes == [
-        ("remove", f"plan-{plan.id}", "alpha.planner"),
-        ("add", f"plan-{plan.id}", "alpha", "alpha-planner.json"),
+        ("remove", rig_name, "alpha.planner"),
+        ("add", rig_name, "alpha", "alpha-planner.json"),
     ], "the running Role node is replaced before the next worker starts"
 
 
@@ -2821,3 +2826,80 @@ def test_home_plan_board_lists_every_plan_with_its_recorded_cost_cap_and_schedul
     assert cards["Solo plan without a domain"]["estimated_api_cost_usd"] is None and cards["Solo plan without a domain"]["phase"] == "planned"
     assert cards["Waiting for approval"]["waiting_on_you"] and cards["Waiting for approval"]["waits_on"] == "your approval"
     assert shown["scheduled_plans"] == [{"id": scheduled.id, "title": "Nightly report", "schedule": "daily", "next_start": next_start}], "scheduled plan templates include their next start"
+
+
+def test_two_projects_start_plan_four_on_distinct_openrig_rigs(tmp_path):
+    from journal.features.organization.support.rig_staffing import RigStaffing
+    from journal.support.actor import Actor
+    from journal.support.secret_values import SecretValues
+
+    started = set()
+
+    class OpenRig:
+        def check_version(self):
+            pass
+
+        def rig_exists(self, name):
+            return name in started
+
+        def start_rig(self, name):
+            assert name not in started
+            started.add(name)
+
+    def staffing(root, runtime):
+        config = Config.rooted(root)
+        rigs = SimpleNamespace(global_matching=lambda **_: (), save=lambda rig, _actor: rig)
+        seats = SimpleNamespace(links=lambda *_args: ())
+        specs = SimpleNamespace(write=lambda name, *_args: name, write_shared=lambda name, *_args: name)
+        result = RigStaffing(
+            config, SimpleNamespace(contracts=lambda: None),
+            SimpleNamespace(rig_id=lambda plan: 0), rigs, seats, specs, runtime,
+            SimpleNamespace(lookup=lambda _provider: object()), SimpleNamespace(), SimpleNamespace(),
+            RigNames(SecretValues(config)), SimpleNamespace(environment=lambda _environment_id: nullcontext()),
+        )
+        result.record_plan_rig = lambda *_args: None
+        return result
+
+    runtime = OpenRig()
+    first_config, second_config = Config.rooted(tmp_path / "first"), Config.rooted(tmp_path / "second")
+    first_names = RigNames(SecretValues(first_config))
+    second_names = RigNames(SecretValues(second_config))
+    plan = SimpleNamespace(id=4, environment_id=1)
+    environment, agent = SimpleNamespace(name="main"), SimpleNamespace(provider="claude")
+
+    first_staffing, second_staffing = staffing(first_config.root, runtime), staffing(second_config.root, runtime)
+    first_staffing.start_plan(plan, environment, agent, Actor.system())
+    second_staffing.start_plan(plan, environment, agent, Actor.system())
+    first_shared = first_staffing.shared_rig(plan, None, None, None, 1, "main", first_config.root)
+    second_shared = second_staffing.shared_rig(plan, None, None, None, 1, "main", second_config.root)
+
+    assert started == {first_names.plan(4), second_names.plan(4), first_names.organization(1), second_names.organization(1)}
+    assert first_names.plan(4) != second_names.plan(4)
+    assert first_names.plan_id(first_names.plan(4)) == 4
+    assert first_names.plan_id(second_names.plan(4)) is None
+    assert first_shared.name == first_names.organization(1)
+    assert second_shared.name == second_names.organization(1)
+    assert first_names.organization(1) != second_names.organization(1)
+
+
+def test_existing_organization_rigs_keep_their_legacy_names(app, tmp_path):
+    from journal.features.organization.support.organization_hub import OrganizationHub
+    from journal.features.organization.support.rig_staffing import RigStaffing
+    from journal.models.plan import Plan
+    from journal.models.rig import Rig
+    from journal.repositories.plans import Plans
+    from journal.repositories.rigs import Rigs
+    from journal.repositories.scope import Scope
+
+    loaded(app, tmp_path)
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = app.container.get(Plans).save(Plan(environment_id=1, title="Legacy organization plan"), actor)
+        rig = app.container.get(Rigs).save(Rig(environment_id=1, name=f"plan-{plan.id}"), actor)
+        app.container.get(Plans).rig_linked(plan, rig, actor)
+        app.container.get(Rigs).save(Rig(environment_id=1, name="organization-1"), actor)
+
+        staffing = app.container.get(RigStaffing)
+        assert staffing.plan_rig_name(plan) == f"plan-{plan.id}"
+        assert staffing.shared_rig_name(1) == "organization-1"
+        assert app.container.get(OrganizationHub).plan_for_rig(rig.name) == plan

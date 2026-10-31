@@ -18,7 +18,7 @@ def test_a_generated_plan_seat_starts_without_project_mcp_attention(story):
     plan, task = story.plans.first, story.tasks.first
     started = story.user_starts_plan(plan)
     started.expect_viewer_passed()
-    story.expect_openrig_no_attention(f"plan-{plan}")
+    story.expect_openrig_no_attention(story.plan_rig_name(plan))
 
     handoff = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
@@ -26,7 +26,7 @@ def test_a_generated_plan_seat_starts_without_project_mcp_attention(story):
     handoff.expect_command_passed()
     story.expect_organization_handoff_pending(plan, task, "domain:alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_plan_rig(plan, f"plan-{plan}")
+    story.expect_plan_rig(plan, story.plan_rig_name(plan))
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
 
 
@@ -39,8 +39,8 @@ def test_a_partial_organization_rig_start_is_linked_and_reports_its_attention(st
     started = story.agent_runs(story.agents.main, f"plan start {plan}")
     started.expect_command_passed()
     story.expect_recent_message_text(f"Plan {plan} needs OpenRig attention: OpenRig rig plan-{plan} needs attention: {reason}")
-    story.expect_openrig_attention(f"plan-{plan}", reason)
-    story.expect_plan_rig(plan, f"plan-{plan}")
+    story.expect_openrig_attention(story.plan_rig_name(plan), reason)
+    story.expect_plan_rig(plan, story.plan_rig_name(plan))
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(task, state=TaskState.OPEN)
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
@@ -53,7 +53,7 @@ def test_a_refused_domain_handoff_does_not_write_an_inbox_row(story):
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )
     refused.expect_command_refused()
-    refused.expect_command_text(f"OpenRig rig plan-{plan} has no organization seat domain:alpha")
+    refused.expect_command_text(f"OpenRig rig {story.plan_rig_name(plan)} has no organization seat domain:alpha")
     story.expect_organization_handoff_count(plan, 0)
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)

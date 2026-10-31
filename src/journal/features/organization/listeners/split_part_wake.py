@@ -4,6 +4,7 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
 from journal.engine.nudge import Nudge
 from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan import Plan
@@ -19,9 +20,9 @@ class SplitPartWake(Listener[RowEvent]):
     """Wake the Domain seat when one of its split parts is ready or its split task changes."""
 
     def __init__(self, tasks: Tasks, plans: Plans, handoffs: OrganizationHandoffs,
-                 agents: PlanAgents, runtime: SeatRuntime) -> None:
+                 agents: PlanAgents, runtime: SeatRuntime, staffing: RigStaffing) -> None:
         self.tasks, self.plans, self.handoffs = tasks, plans, handoffs
-        self.agents, self.runtime = agents, runtime
+        self.agents, self.runtime, self.staffing = agents, runtime, staffing
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskReopened):
@@ -88,6 +89,6 @@ class SplitPartWake(Listener[RowEvent]):
     def wake(self, plan: Plan, domain: str, nudge: Nudge) -> None:
         if not domain or plan.state not in (PlanState.STARTED, PlanState.DELEGATED) or not (agent := self.agents.agent(plan)):
             return
-        rig = f"plan-{plan.id}"
+        rig = self.staffing.plan_rig_name(plan)
         seat = self.runtime.organization_member(rig, f"domain:{domain}", agent.provider)
         self.runtime.send(seat, nudge.rendered())

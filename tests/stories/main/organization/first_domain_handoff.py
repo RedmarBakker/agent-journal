@@ -48,7 +48,7 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(plan, state=PlanState.FINISHED)
-    story.expect_organization_seat_routing_guidance(f"plan-{plan}")
+    story.expect_organization_seat_routing_guidance(story.plan_rig_name(plan))
     story.expect_stack(worker, Void)
 
 

@@ -22,13 +22,13 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     story.agent_proves(second_worker, 1, "the current task brief is met: the part work is met")
     story.agent_clocks_out(second_worker, "the part work is met").expect_command_passed()
     story.expect_openrig_seat_received(
-        domain, f"plan-{plan}", "domain:alpha",
+        domain, story.plan_rig_name(plan), "domain:alpha",
         OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=second_worker.number, task=second_part).rendered(),
     )
     story.agent_proves(first_worker, 1, "the current task brief is met: the part work is met")
     story.agent_clocks_out(first_worker, "the part work is met").expect_command_passed()
     story.expect_openrig_seat_received(
-        domain, f"plan-{plan}", "domain:alpha",
+        domain, story.plan_rig_name(plan), "domain:alpha",
         OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=first_worker.number, task=first_part).rendered(),
     )
 
@@ -85,7 +85,7 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     story.expect_worker(second_worker, state=WorkerState.DELIVERED)
     story.expect_plan(plan, state=PlanState.FINISHED)
     story.expect_openrig_seat_received(
-        domain, f"plan-{plan}", "domain:alpha",
+        domain, story.plan_rig_name(plan), "domain:alpha",
         OrganizationNudges.SPLIT_TASK_COMPLETED.create(task=parent).rendered(),
     )
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))

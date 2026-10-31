@@ -26,11 +26,12 @@ class OrganizationDataReader:
 
     def __init__(self, organization: Organization, approvals: RoleApprovals, plan_agents: PlanAgents,
                  plans: Plans, domains: DomainRows, handoffs: OrganizationHandoffs, scope: Scope,
-                 runtime: SeatRuntime, role_work_checks: RoleWorkChecks, tasks: Tasks) -> None:
+                 runtime: SeatRuntime, role_work_checks: RoleWorkChecks, tasks: Tasks, staffing: RigStaffing) -> None:
         self.organization, self.approvals = organization, approvals
         self.plan_agents, self.plans, self.domains, self.handoffs, self.scope = plan_agents, plans, domains, handoffs, scope
         self.runtime, self.role_work_checks = runtime, role_work_checks
         self.tasks = tasks
+        self.staffing = staffing
 
     def read(self, agent: Agent) -> OrganizationData:
         contracts = self.organization.contracts()
@@ -85,7 +86,7 @@ class OrganizationDataReader:
                  if candidate.state in (PlanState.STARTED, PlanState.DELEGATED)]
         candidates = (plan, *(candidate for candidate in plans if candidate != plan)) if plan else tuple(plans)
         for candidate in candidates:
-            for rig in RigStaffing.rigs_for_plan(candidate):
+            for rig in self.staffing.rigs_for_plan(candidate):
                 identity = self.runtime.organization_seat_for_session(rig, agent.provider, agent.session)
                 if identity:
                     return candidate, identity

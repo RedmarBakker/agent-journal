@@ -18,6 +18,8 @@ from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.repositories.plans import Plans
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.in_process import posted
 from tests.agent_hooks import TOOLS
@@ -112,6 +114,10 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
 
     def simulated_seats(self):
         return self.app.container.get(SeatRuntime).execute.__self__
+
+    def plan_rig_name(self, plan: int) -> str:
+        row = self.app.container.get(Plans).global_matching(id=plan)[0]
+        return self.app.container.get(RigStaffing).plan_rig_name(row)
 
     def settle(self) -> None:
         self.app.container.get(ListenerQueue).drain()

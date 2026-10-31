@@ -38,5 +38,5 @@ def test_a_plan_seat_reads_its_plan_tasks_and_handoff_targets_without_an_environ
     targets.expect_command_passed()
     targets.expect_command_text("domain alpha")
     targets.expect_command_text("domain beta")
-    story.expect_plan_seat_journal_reads_allowed(f"plan-{plan}")
+    story.expect_plan_seat_journal_reads_allowed(story.plan_rig_name(plan))
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)

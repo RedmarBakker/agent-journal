@@ -23,7 +23,7 @@ class OrganizationHubPlan(OrganizationSetup):
         story.configure_simulated_openrig()
         self.plans.first = story.user_creates_plan("p", "b")
         self.tasks.first = story.user_adds_plan_task(self.plans.first, "first", self.task_domain)
-        rig = f"plan-{story.plans.first}"
+        rig = story.plan_rig_name(story.plans.first)
         contracts = story.app.container.get(Organization).reload()
         domains = tuple(domain.id for domain in contracts.domains)
         provider = story.app.container.get(Providers).lookup(story.provider)
@@ -39,8 +39,8 @@ class OrganizationHubPlan(OrganizationSetup):
         story.expect_organization_domains("alpha", "beta")
 
     def add_domain_seats(self, story, runtime: SeatRuntime) -> None:
-        rig = f"plan-{self.plans.first}"
-        environment = story.app.container.get(Environments).existing(rig)
+        rig = story.plan_rig_name(self.plans.first)
+        environment = story.app.container.get(Environments).existing(f"plan-{self.plans.first}")
         contracts = story.app.container.get(Organization).reload()
         provider = story.app.container.get(Providers).lookup(story.provider)
         path = story.app.container.get(RigSpecs).write(

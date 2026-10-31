@@ -13,7 +13,7 @@ from tests.stories.fixtures.main.stopped_organization_hub_plan import StoppedOrg
 @story(PausedOrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     plan = story.plans.first
-    rig = f"plan-{plan}"
+    rig = story.plan_rig_name(plan)
     result = story.agent_runs(story.agents.main, f"plan start {plan}")
     result.expect_command_passed()
     seat = story.agent_runs_from_openrig_organization_seat(story.agents.main, "plan", f"organization handoff {story.tasks.first} domain:alpha")
@@ -33,7 +33,7 @@ def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
     plan = story.plans.first
     task = story.tasks.first
-    rig = f"plan-{plan}"
+    rig = story.plan_rig_name(plan)
     stale_brief = "- old notes for the writer"
     brief = "- the restarted Domain seat routes the current task"
     story.user_rewrites_the_brief(task, stale_brief)

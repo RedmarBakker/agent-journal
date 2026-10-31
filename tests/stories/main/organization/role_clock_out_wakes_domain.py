@@ -23,7 +23,7 @@ def test_a_role_clock_out_wakes_its_domain_seat_to_check_and_return_the_task(sto
     clocked_out = story.agent_clocks_out(worker, "the task brief is met")
     clocked_out.expect_command_passed()
     story.expect_openrig_seat_received(
-        domain, f"plan-{plan}", "domain:alpha",
+        domain, story.plan_rig_name(plan), "domain:alpha",
         f"task {task} from worker {worker.number} waits for your check. `journal worker check {worker.number} <point>`; "
         f"then `journal organization handoff {task} plan`",
     )

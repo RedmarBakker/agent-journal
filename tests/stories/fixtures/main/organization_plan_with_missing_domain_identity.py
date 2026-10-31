@@ -12,7 +12,7 @@ class OrganizationPlanWithMissingDomainIdentity(OrganizationPlanWithDomainSeats)
     settings = ()
 
     def steps(self, story) -> None:
-        path, spec = story.app.container.get(RigSpecs).read_rig_spec(f"plan-{self.plans.first}")
+        path, spec = story.app.container.get(RigSpecs).read_rig_spec(story.plan_rig_name(self.plans.first))
         member = next(
             member
             for pod in spec["pods"] if pod["id"] == "alpha"

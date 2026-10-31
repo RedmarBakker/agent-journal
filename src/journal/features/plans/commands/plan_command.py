@@ -5,6 +5,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.organization.support.contracts import PLAN
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.plans.support.plan_branch_merge import PlanBranchMerge
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.plans.support.plan_composition_readiness import PlanCompositionReadiness
@@ -54,7 +55,15 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode, plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope, logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies, composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast, proofs: Proofs) -> None:
+    def __init__(
+        self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization,
+        subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting,
+        settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode,
+        plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope,
+        logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies,
+        composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast, proofs: Proofs,
+        staffing: RigStaffing,
+    ) -> None:
         self.time_source, self.logs, self.proofs = time_source, logs, proofs
         self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
@@ -64,6 +73,7 @@ class PlanCommand(Command):
         self.task_sizes = task_sizes
         self.task_dependencies = task_dependencies
         self.composition, self.estimates_forecast = composition, estimates_forecast
+        self.staffing = staffing
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -414,7 +424,7 @@ class PlanCommand(Command):
         if caller.organization_seat != PLAN:
             return None
         plan = self.plan_agents.led_plan(self.scope.id)
-        return plan if plan and caller.organization_rig == f"plan-{plan.id}" else None
+        return plan if plan and caller.organization_rig == self.staffing.plan_rig_name(plan) else None
 
     def current(self) -> int:
         started = self.statuses.started()

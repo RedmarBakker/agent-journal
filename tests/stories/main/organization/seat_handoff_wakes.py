@@ -13,7 +13,7 @@ from tests.stories.fixtures.main.organization_plan_with_domain_seats import Orga
 def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
     plan = story.plans.first
     task = story.tasks.first
-    story.openrig_starts(f"plan-{plan}")
+    story.openrig_starts(story.plan_rig_name(plan))
     domain = story.organization_seat_agent("domain:alpha")
     domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
     domain_started.expect_agent_not_told(domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha")
@@ -24,7 +24,7 @@ def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
     )
     handed.expect_command_passed()
     handed.expect_command_text(f"task {task} routed from plan to domain:alpha")
-    story.expect_openrig_seat_received(domain, f"plan-{plan}", "domain:alpha", OrganizationSeatRouting.handoff_prompt)
+    story.expect_openrig_seat_received(domain, story.plan_rig_name(plan), "domain:alpha", OrganizationSeatRouting.handoff_prompt)
     story.expect_task_tied_to_domain(task, "alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
@@ -34,7 +34,7 @@ def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
 def test_a_domain_seat_with_an_unread_handoff_is_told_at_start_and_stop(story):
     plan = story.plans.first
     task = story.tasks.first
-    story.openrig_starts(f"plan-{plan}")
+    story.openrig_starts(story.plan_rig_name(plan))
     handoff = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )

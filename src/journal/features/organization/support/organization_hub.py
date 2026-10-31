@@ -2,6 +2,7 @@ from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.rig_names import RigNames
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
@@ -32,12 +33,13 @@ class OrganizationHub:
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
                  tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope,
                  organization: Organization, workers: WorkerCommand, staffing: RigStaffing,
-                 task_parts: TaskParts, role_work_checks: RoleWorkChecks) -> None:
+                 task_parts: TaskParts, role_work_checks: RoleWorkChecks, names: RigNames) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
         self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
         self.organization, self.workers, self.staffing = organization, workers, staffing
         self.task_parts = task_parts
         self.role_work_checks = role_work_checks
+        self.names = names
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -176,15 +178,14 @@ class OrganizationHub:
         recipient = self.runtime.organization_member(rig, target, source.provider)
         self.runtime.send(recipient, OrganizationSeatRouting.handoff_prompt)
 
-    @staticmethod
-    def target_rig(target: str, plan: Plan, role: Role | None, source: SeatMember) -> str:
+    def target_rig(self, target: str, plan: Plan, role: Role | None, source: SeatMember) -> str:
         if target == "plan":
-            return f"plan-{plan.id}"
+            return self.staffing.plan_rig_name(plan)
         if target.startswith("domain:"):
-            return source.rig if source.rig.startswith("organization-") else f"plan-{plan.id}"
+            return source.rig if source.rig.startswith("organization-") else self.staffing.plan_rig_name(plan)
         if role and role.cardinality is Cardinality.JOURNAL:
-            return RigStaffing.shared_rig_name(plan.environment_id)
-        return f"plan-{plan.id}"
+            return self.staffing.shared_rig_name(plan.environment_id)
+        return self.staffing.plan_rig_name(plan)
 
     def inbox(self, caller: Caller) -> None:
         seat = caller.organization_seat
@@ -255,12 +256,13 @@ class OrganizationHub:
         raise Rejection(f"{source} cannot hand off task {task.id} from rig {rig}")
 
     def plan_for_rig(self, rig: str) -> Plan:
-        prefix = "plan-"
-        if not rig.startswith(prefix) or not rig.removeprefix(prefix).isdigit():
+        plan_id = self.names.plan_id(rig)
+        if plan_id is None:
             raise Rejection(f"organization Plan seat is not in a plan rig: {rig}")
-        matches = self.plans.global_matching(id=int(rig.removeprefix(prefix)))
+        matches = [plan for plan in self.plans.global_matching(id=plan_id)
+                   if self.staffing.plan_rig_name(plan) == rig]
         if not matches:
-            raise Rejection(f"organization Plan seat has no plan {rig.removeprefix(prefix)}")
+            raise Rejection(f"organization Plan seat has no plan {plan_id}")
         return matches[0]
 
     @staticmethod

@@ -126,7 +126,7 @@ def test_a_part_that_follows_another_waits_and_the_domain_is_told_when_it_is_rea
     story.expect_task(first_part, state=TaskState.COMPLETED)
     story.expect_task(second_part, state=TaskState.OPEN, delegated=False)
     story.expect_openrig_seat_received(
-        domain, f"plan-{story.plans.first}", "domain:alpha",
+        domain, story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_PART_READY.create(
             task=second_part, role="role:alpha/maker",
         ).rendered(),
@@ -191,7 +191,7 @@ def test_a_part_for_another_domain_goes_to_the_plan_which_hands_it_on(story):
     task = story.newest("tasks")
     plan = _plan_agent(story)
     story.expect_openrig_seat_received(
-        plan, f"plan-{story.plans.first}", "plan", OrganizationSeatRouting.handoff_prompt,
+        plan, story.plan_rig_name(story.plans.first), "plan", OrganizationSeatRouting.handoff_prompt,
     )
     plan_prompt = story.agent_resumes_the_session(plan)
     plan_prompt.expect_agent_told(plan, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
@@ -241,7 +241,7 @@ def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(sto
     story.expect_task(parent, state=TaskState.COMPLETED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
     story.expect_openrig_seat_received(
-        _domain(story), f"plan-{story.plans.first}", "domain:alpha",
+        _domain(story), story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_TASK_COMPLETED.create(task=parent).rendered(),
     )
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
@@ -331,7 +331,7 @@ def test_a_cancelled_part_does_not_stop_the_task_but_all_cancelled_parts_are_han
     story.user_cancels_task(first_part, "the part is no longer needed").expect_viewer_passed()
     story.expect_task(parent, state=TaskState.OPEN)
     story.expect_openrig_seat_received(
-        domain, f"plan-{story.plans.first}", "domain:alpha",
+        domain, story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_ALL_PARTS_CANCELLED.create(task=parent).rendered(),
     )
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))

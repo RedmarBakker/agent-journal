@@ -1,6 +1,7 @@
 from journal.events.listener import Listener
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.repositories.plans import Plans
@@ -11,8 +12,9 @@ from journal.repositories.workers import Workers
 class RoleClockOutWake(Listener[WorkerDelivered]):
     """Wake the Domain seat that sent a Role worker when its work is ready to check."""
 
-    def __init__(self, workers: Workers, plans: Plans, checks: RoleWorkChecks, runtime: SeatRuntime) -> None:
-        self.workers, self.plans, self.checks, self.runtime = workers, plans, checks, runtime
+    def __init__(self, workers: Workers, plans: Plans, checks: RoleWorkChecks, runtime: SeatRuntime,
+                 staffing: RigStaffing) -> None:
+        self.workers, self.plans, self.checks, self.runtime, self.staffing = workers, plans, checks, runtime, staffing
 
     def handle(self, event: WorkerDelivered) -> None:
         if not event.task_id:
@@ -31,7 +33,7 @@ class RoleClockOutWake(Listener[WorkerDelivered]):
             )
             if not waiting:
                 continue
-            rig = f"plan-{plan.id}"
+            rig = self.staffing.plan_rig_name(plan)
             recipient = self.runtime.organization_member(rig, f"domain:{waiting}", worker.provider)
             nudge = OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker.id, task=event.task_id)
             self.runtime.send(recipient, nudge.rendered())

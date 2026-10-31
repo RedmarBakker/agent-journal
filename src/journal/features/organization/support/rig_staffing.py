@@ -8,6 +8,7 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.contracts import Contracts
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.rig_names import RigNames
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.rig_specs import MINIMUM_OPENRIG_VERSION, OWNER_ONLY, RigSpecs
 from journal.features.organization.support.role import Role
@@ -24,6 +25,7 @@ from journal.providers.providers import Providers
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
+from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR
@@ -34,12 +36,16 @@ from journal.support.rejection import Rejection
 class RigStaffing:
     """Start each plan's rig, keep shared journal Roles in one organization rig, and add only the seats each job needs."""
 
-    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs, role_work_checks: RoleWorkChecks) -> None:
+    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats,
+                 specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs,
+                 role_work_checks: RoleWorkChecks, names: RigNames, scope: Scope) -> None:
         self.organization = organization
         self.config, self.plans, self.rigs = config, plans, rigs
         self.seats, self.specs, self.runtime, self.providers = seats, specs, runtime, providers
         self.handoffs = handoffs
         self.role_work_checks = role_work_checks
+        self.names = names
+        self.scope = scope
 
     def start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         self.runtime.check_version()
@@ -55,7 +61,7 @@ class RigStaffing:
             self.runtime.replace_rig(rig.name, spec)
             return
 
-        rig_name = f"plan-{plan.id}"
+        rig_name = self.names.plan(plan.id)
         provider = self.providers.lookup(agent.provider)
         path = self.specs.write(rig_name, self.organization.contracts(), (), self.config.root,
                                 lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig_name), provider)
@@ -193,13 +199,19 @@ class RigStaffing:
             self.runtime.start_rig(path)
         return rig
 
-    @staticmethod
-    def shared_rig_name(environment_id: int) -> str:
-        return f"organization-{environment_id}"
+    def shared_rig_name(self, environment_id: int) -> str:
+        for name in (self.names.organization(environment_id), self.names.legacy_organization(environment_id)):
+            if self.rigs.global_matching(name=name, environment_id=environment_id):
+                return name
+        return self.names.organization(environment_id)
 
-    @staticmethod
-    def rigs_for_plan(plan: Plan) -> tuple[str, str]:
-        return f"plan-{plan.id}", RigStaffing.shared_rig_name(plan.environment_id)
+    def plan_rig_name(self, plan: Plan) -> str:
+        with self.scope.environment(plan.environment_id):
+            rig_id = self.plans.rig_id(plan)
+            return self.find_rig(rig_id).name if rig_id else self.names.plan(plan.id)
+
+    def rigs_for_plan(self, plan: Plan) -> tuple[str, str]:
+        return self.plan_rig_name(plan), self.shared_rig_name(plan.environment_id)
 
     def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
                    worker: int, environment: str, cwd: Path, running: bool) -> None:

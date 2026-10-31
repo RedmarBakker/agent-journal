@@ -42,5 +42,5 @@ def test_a_role_seat_keeps_its_clocked_in_job_when_its_hook_session_changes(stor
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_organization_seat_routing_guidance(f"plan-{story.plans.first}")
+    story.expect_organization_seat_routing_guidance(story.plan_rig_name(story.plans.first))
     story.expect_stack(worker, Void)

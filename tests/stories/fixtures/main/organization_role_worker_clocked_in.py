@@ -38,5 +38,5 @@ class OrganizationRoleWorkerClockedIn(OrganizationDomainSeatStarted):
 
     def expected(self, story) -> None:
         story.expect_task(story.tasks.first, delegated=True)
-        story.expect_organization_seat_routing_guidance(f"plan-{story.plans.first}")
+        story.expect_organization_seat_routing_guidance(story.plan_rig_name(story.plans.first))
         story.expect_stack(story.agents.workers.first(), Void, WorkingTask)

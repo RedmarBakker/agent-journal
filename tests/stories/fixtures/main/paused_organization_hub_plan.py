@@ -25,7 +25,7 @@ class PausedOrganizationHubPlan(OrganizationHubPlanWithPlanAgents):
         runtime = story.app.container.get(SeatRuntime)
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
-        rig = f"plan-{self.plans.first}"
+        rig = story.plan_rig_name(self.plans.first)
         with story.app.container.get(Scope).environment(1):
             plans = story.app.container.get(Plans)
             plan = plans.find(self.plans.first)
