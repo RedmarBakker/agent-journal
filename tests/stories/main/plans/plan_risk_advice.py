@@ -6,7 +6,7 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
+from tests.stories.fixtures.main.solo_report_sized_plan import SoloReportSizedPlan
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
@@ -25,7 +25,7 @@ def test_a_busy_plan_with_no_history_gets_an_honest_forecast_basis_at_stop(story
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SoloReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_scope_growth_is_advised_without_rewriting_the_plan(story):
     task = story.tasks.first
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
@@ -45,7 +45,7 @@ def test_scope_growth_is_advised_without_rewriting_the_plan(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SoloReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(EstimatesOptions.RISK_REPEAT_MINUTES, 1)
 @setting(EstimatesOptions.SCOPE_GROWTH_WARNING_POINTS, 2)
 def test_a_silent_plan_gets_bounded_advice_at_a_tick(story):
@@ -80,10 +80,10 @@ def test_an_owner_paused_plan_stays_paused_when_the_agent_ticks(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SoloReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependency(story):
     prerequisite = story.tasks.first
-    second = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --domain development --size 5 --phase 1 --after {prerequisite} --reason 'deployment uses the built artifact'")
+    second = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --size 5 --phase 1 --after {prerequisite} --reason 'deployment uses the built artifact'")
     second.expect_command_passed()
     dependent = story.created_number("task")
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
@@ -98,11 +98,11 @@ def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependenc
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SoloReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 @setting(EstimatesOptions.AGING_MINIMUM_OUTCOMES, 1)
 def test_a_task_beyond_its_comparable_historical_p85_gets_advice(story):
     historical = story.tasks.first
-    second = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --domain development --size 3 --phase 1")
+    second = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --size 3 --phase 1")
     second.expect_command_passed()
     current = story.created_number("task")
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
