@@ -6,7 +6,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 @dataclass(frozen=True)
 class FixtureCopy:
-    """A state fixture as its seeder left the journal: the journal's rows, files and services, the fixture with the rows it named, and the lines its seeding made the journal say, put back for every later story that starts from it."""
+    """A state fixture as its seeder left the journal: the journal rows, files and services, the fixture rows, the agent sessions and the lines its seeding made the journal say, put back for every later story that starts from it."""
 
     journal: SharedJournal
     fixture: StateFixture
@@ -17,16 +17,18 @@ class FixtureCopy:
 
     @staticmethod
     def journal_copy(story, fixture: StateFixture) -> "FixtureCopy":
-        return FixtureCopy(SharedJournal(story.app), fixture, frozenset(story.line_keys), story.main_session_id,
-                           tuple(story.session_environments.items()), tuple(story.worker_sessions.items()))
+        return FixtureCopy(
+            SharedJournal(story.app), fixture, frozenset(story.line_keys), story.main_session_id,
+            tuple(story.session_environments.items()), tuple(story.worker_sessions.items()),
+        )
 
     def restore(self, story) -> StateFixture:
         self.journal.put_back()
         story.team_servers_restarted()
         story.line_keys |= self.line_keys
         environments = dict(self.session_environments)
-        story.replace_main_session(self.main_session_id, story.provider,
-                                   environments.get(self.main_session_id, "main"))
         story.session_environments = environments
         story.worker_sessions = dict(self.worker_sessions)
+        story.replace_main_session(self.main_session_id, story.provider,
+                                   environments.get(self.main_session_id, "main"))
         return self.fixture.copied()
