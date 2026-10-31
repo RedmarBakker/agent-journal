@@ -48,7 +48,7 @@ class OrganizationHub:
         plan = self.validate_task(source, task, member.rig)
         role = self.role(target)
         if domain := self.domain(target):
-            if member.rig.startswith("plan-"):
+            if source == "plan" and target.startswith("domain:") and member.rig.startswith("plan-"):
                 self.staffing.place_domain(plan, domain, member.provider, member.environment)
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
