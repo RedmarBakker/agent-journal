@@ -13,7 +13,7 @@ from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.rig_staffing import RigStaffing
-from journal.features.organization.support.seat_runtime import SeatAddress, SeatMember, SeatRuntime
+from journal.features.organization.support.seat_runtime import SeatAddress, SeatMember, SeatRuntime, SeatSession
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.support.owned_task_line import owned_task_line
 from journal.features.workers.support.worker_branch import WorkerBranch
@@ -209,7 +209,7 @@ class SeatRunner:
                 self.runtime.check_version(member.openrig_version)
                 environment = self.environments.find(worker.environment_id).name
                 token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
-                session = self.runtime.session(member, worker.resume)
+                session = self.session_for_worker(member, worker)
                 fresh = self.is_journal_role(worker)
                 if fresh:
                     self.launch_fresh(member, worker, identity, session)
@@ -264,7 +264,7 @@ class SeatRunner:
                 return
         if self.current_job(identity) is None:
             return
-        session = self.runtime.session(member, worker.resume)
+        session = self.session_for_worker(member, worker)
         fresh = self.is_journal_role(worker)
         if fresh:
             self.launch_fresh(member, worker, identity)
@@ -305,6 +305,10 @@ class SeatRunner:
     def is_journal_role(self, worker: Worker) -> bool:
         role = self.role_for(worker)
         return bool(role and role.cardinality is Cardinality.JOURNAL)
+
+    def session_for_worker(self, member: SeatMember, worker: Worker) -> SeatSession | None:
+        session = self.runtime.session(member, worker.resume)
+        return session or self.runtime.session(member)
 
     def launch_fresh(self, member: SeatMember, worker: Worker, identity: SeatJobIdentity) -> None:
         reason = f"journal worker {worker.id} starts task {identity.task_id or identity.started_at} with a fresh context"

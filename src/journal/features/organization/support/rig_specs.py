@@ -75,20 +75,20 @@ class RigSpecs:
     def write_shared(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> Path:
         return self.write_seats(rig, seats, links, cwd, workers, f"The journal's shared organization Roles in {rig}.")
 
-    def refresh_plan(self, rig: str, cwd: Path, environment: str, provider: Provider, contracts: Contracts) -> Path:
+    def refresh_plan(self, rig: str, cwd: Path, provider: Provider, contracts: Contracts) -> Path:
         path, spec = self.read_rig_spec(rig)
         _, plan_member = self.plan_member(spec)
         for placed in spec.get("pods", []):
             for candidate in placed.get("members", []):
                 member_cwd = cwd if candidate is plan_member else Path(candidate["cwd"])
-                self.refresh_member(rig, placed, candidate, member_cwd, environment, contracts, provider)
+                self.refresh_member(rig, placed, candidate, member_cwd, contracts, provider)
             self.write_pod_fragment(rig, placed)
         self.written(path, spec).chmod(OWNER_ONLY)
         return path
 
-    def refresh_member(self, rig: str, pod: dict, member: dict, cwd: Path, environment: str, contracts: Contracts, provider: Provider) -> None:
+    def refresh_member(self, rig: str, pod: dict, member: dict, cwd: Path, contracts: Contracts, provider: Provider) -> None:
         seat = self.refreshed_seat(rig, pod, member, contracts, provider)
-        worker = self.refresh_worker(rig, member, environment, seat.qualified)
+        worker = self.refresh_worker(rig, member, seat.qualified)
         folder = self.spec_folder(rig) / "agents" / seat.agent()
         self.refresh_agent(folder, seat)
         refreshed = self.member(seat, cwd, worker)
@@ -132,12 +132,12 @@ class RigSpecs:
         return description.removeprefix(prefix)
 
     @staticmethod
-    def refresh_worker(rig: str, member: dict, environment: str, identity: str) -> SeatWorker:
+    def refresh_worker(rig: str, member: dict, identity: str) -> SeatWorker:
         try:
             old = member["env"]
-            return SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), environment, identity, rig)
+            return SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), old["JOURNAL_ENV"], identity, rig)
         except (KeyError, ValueError) as failed:
-            raise Rejection(f"OpenRig organization seat {identity} in rig {rig} has no actor token to preserve: {failed}") from failed
+            raise Rejection(f"OpenRig organization seat {identity} in rig {rig} has no journal identity to preserve: {failed}") from failed
 
     def read_rig_spec(self, rig: str) -> tuple[Path, dict]:
         path = self.spec_folder(rig) / "rig.yaml"
