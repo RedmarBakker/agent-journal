@@ -27,7 +27,7 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         self.links, self.tasks, self.plans = links, tasks, plans
 
     def handoff(self, task: Task, plan: Plan, target: str, actor: Actor) -> OrganizationHandoff:
-        for row, existing_plan, existing in self.pending(target):
+        for row, existing_plan, existing in self.awaiting_action(target):
             if existing_plan.row_id == plan.row_id and existing.row_id == task.row_id:
                 return row
         row = self.save(OrganizationHandoff(target=target), actor)
@@ -37,6 +37,20 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
 
     def pending(self, target: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
         rows = self.selected(self.query().filter(target=target).filter_null("read_at").order("id"))
+        return self.targeted(rows, target)
+
+    def awaiting_action(self, target: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
+        rows = self.targeted(self.selected(self.query().filter(target=target).order("id")), target)
+        latest = {(plan.row_id, task.row_id): row for row, plan, task in rows}
+        return tuple(
+            (row, plan, task) for row, plan, task in rows
+            if latest[(plan.row_id, task.row_id)] == row
+            and self.latest_handoff(task, plan) == row
+            and not task.state.is_closed()
+            and not (target.startswith("domain:") and self.tasks.parts_of(task))
+        )
+
+    def targeted(self, rows: list[OrganizationHandoff], target: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
         result = []
         for row in rows:
             task_refs, plan_refs = self.links.targets(row, TASK_HANDOFF), self.links.targets(row, PLAN_HANDOFF)
@@ -56,12 +70,16 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                    for row in rows)
 
     def latest_target(self, task: Task, plan: Plan) -> str:
+        handoff = self.latest_handoff(task, plan)
+        return handoff.target if handoff else ""
+
+    def latest_handoff(self, task: Task, plan: Plan) -> OrganizationHandoff | None:
         plan_ref = Ref.build(plan)
         for reference in reversed(self.links.typed_sources(task, TASK_HANDOFF, OrganizationHandoff.table())):
             row = self.find(reference.id)
             if plan_ref in self.links.targets(row, PLAN_HANDOFF):
-                return row.target
-        return ""
+                return row
+        return None
 
     def reopen_domain_inboxes(self, plan: Plan, actor: Actor, tasks_waiting_for_check: set[int]) -> None:
         with self.scope.environment(plan.environment_id):
@@ -99,4 +117,4 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         return tuple(row for row in rows if row[1].row_id == plan.row_id)
 
     def read(self, row: OrganizationHandoff, actor: Actor) -> OrganizationHandoff:
-        return self.save(row.read(self.time_source.moment()), actor)
+        return row if row.read_at is not None else self.save(row.read(self.time_source.moment()), actor)

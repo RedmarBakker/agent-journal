@@ -185,9 +185,9 @@ class OrganizationHub:
         if member.rig.startswith("plan-"):
             plan = self.plan_for_rig(member.rig)
             with self.scope.environment(plan.environment_id):
-                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan), caller)
+                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.awaiting_action(seat), plan), caller)
             return
-        self.print_inbox(seat, self.handoffs.pending(seat), caller)
+        self.print_inbox(seat, self.handoffs.awaiting_action(seat), caller)
 
     def print_inbox(self, seat: str, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], caller: Caller) -> None:
         if not rows:

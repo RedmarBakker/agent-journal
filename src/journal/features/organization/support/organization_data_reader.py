@@ -91,7 +91,7 @@ class OrganizationDataReader:
         return plan, ""
 
     def waiting_plan_handoff(self, plan: Plan | None, contracts: Contracts, identity: str) -> tuple[int, str] | None:
-        if plan is None or plan.mode != PlanMode.ORGANIZATION or identity not in ("", "plan"):
+        if plan is None or plan.mode != PlanMode.ORGANIZATION or identity != "plan":
             return None
         with self.scope.environment(plan.environment_id):
             tasks = self.plans.plan_tasks(plan)
