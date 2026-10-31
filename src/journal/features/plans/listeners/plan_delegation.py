@@ -12,7 +12,7 @@ MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, 
 
 
 class PlanDelegation(Listener[Updated]):
-    """A plan's state follows who works its tasks: the agent starting one of them makes it its active plan, one of them handed to a worker while the agent holds none makes it delegated, which is no active plan, and a delegated plan whose last worker task closes is paused again; an orchestrator keeps all its plans started, so its plans are left as they are."""
+    """A plan's state follows who works its tasks: the agent starting one of them makes it its active plan, one of them handed to a worker while the agent holds none makes it delegated, which is no active plan, and a delegated plan whose last worker task closes or is released is paused again; an orchestrator keeps all its plans started, so its plans are left as they are."""
 
     def __init__(self, plans: Plans, time_source: TimeSource, work_mode: WorkMode) -> None:
         self.plans, self.time_source, self.work_mode = plans, time_source, work_mode
@@ -34,6 +34,6 @@ class PlanDelegation(Listener[Updated]):
             return PlanState.STARTED
         if task.delegated and not previous.delegated and not self.plans.has_agent_task(plan):
             return PlanState.DELEGATED
-        if task.delegated and task.is_closed() and plan.state == PlanState.DELEGATED and not self.plans.has_worker_task(plan):
+        if previous.delegated and (task.is_closed() or not task.delegated) and plan.state == PlanState.DELEGATED and not self.plans.has_worker_task(plan):
             return PlanState.PAUSED
         return None

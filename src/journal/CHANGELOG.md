@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.11
+
+- A plan handed whole to a worker that is then released comes back paused to the agent, instead of staying marked as with a worker.
+
 ## 4.69.10
 
 - Workers may run every kind of command by default: reading, searching, editing, packages, the network, checks, programs, test runs and builds. A setting that was changed by hand is kept.
