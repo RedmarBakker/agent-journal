@@ -384,15 +384,16 @@ class StoryChecks:
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
         member = self.app.container.get(SeatRuntime).member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
         seats = self.simulated_seats()
+        expected = (brief, *parts)
         deadline = time.monotonic() + 5
-        prompts = [prompt for target, prompt in seats.messages if target == member.target]
+        received = [prompt for target, prompt in seats.messages if target == member.target]
+        prompts = [prompt for prompt in received if all(part in prompt for part in expected)]
         while not prompts and time.monotonic() < deadline:
             time.sleep(0.01)
-            prompts = [prompt for target, prompt in seats.messages if target == member.target]
+            received = [prompt for target, prompt in seats.messages if target == member.target]
+            prompts = [prompt for prompt in received if all(part in prompt for part in expected)]
         prompt = prompts[-1] if prompts else ""
-        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s job: {seats.messages}"
-        missing = [part for part in (brief, *parts) if part not in prompt]
-        assert not missing, f"Role seat {member.logical_id} received no {missing}: {prompt!r}"
+        assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s current job: {received}"
         assert stale_brief not in prompt, f"Role seat {member.logical_id} received an old brief: {prompt!r}"
 
     def expect_role_guidance_and_skills_omit(self, worker: StoryAgent, *job_text: str) -> None:
