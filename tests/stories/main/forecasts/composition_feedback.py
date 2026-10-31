@@ -10,12 +10,12 @@ from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 @setting(EstimatesOptions.MODE, "report")
 @story(PlanWithFinishedDevelopmentExample, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actual_durations(story):
-    outcomes = story.user_opens(f"/journal/plans/{story.plans.first}/outcomes")
-    outcomes.expect_viewer_part(("tasks", 0, "outcomes", 0, "cohort_dimensions"), {})
     result = story.agent_runs(story.agents.main,
                               f"plan add {story.plans.second} 'next change' --brief 'deploy the next revision' --domain development")
 
     result.expect_command_passed()
+    forecast = story.user_opens(f"/journal/plans/{story.plans.second}/forecast")
+    forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "cohort"), {})
     result.expect_command_text("1 similar finished task")
     result.expect_command_text(f"Task {story.tasks.first}")
     result.expect_command_text("original estimate 3 points")
