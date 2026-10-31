@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.10
+
+- Workers may run every kind of command by default: reading, searching, editing, packages, the network, checks, programs, test runs and builds. A setting that was changed by hand is kept.
+
 ## 4.69.9
 
 - On upgrade, a document's or report's card left docked but long scrolled out of the chat is taken down, so the docked list shows what was shown before 4.69.8 (migration 84).
