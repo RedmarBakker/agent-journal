@@ -37,10 +37,12 @@ class WorkerSteps:
 
     def agent_starts_role_session(self, agent: StoryAgent) -> StepResult:
         deadline = time.monotonic() + 5
-        worker = self.app.container.get(Workers).find(agent.number)
+        with self.app.container.get(Scope).environment(1):
+            worker = self.app.container.get(Workers).find(agent.number)
         while not worker.session and time.monotonic() < deadline:
             time.sleep(0.01)
-            worker = self.app.container.get(Workers).find(agent.number)
+            with self.app.container.get(Scope).environment(1):
+                worker = self.app.container.get(Workers).find(agent.number)
         assert worker.session, f"Role worker {worker.id} did not receive its OpenRig session"
         self.worker_sessions[agent.number] = worker.session
         return self.agent_starts_a_session(agent)
