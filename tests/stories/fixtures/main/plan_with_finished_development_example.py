@@ -1,56 +1,52 @@
+from datetime import datetime, timezone
+
 from journal.features.tasks.states.ready import Ready
-from journal.features.estimates.estimates_options import EstimatesOptions
-from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
-from tests.stories.fixtures.main.working_agent import WorkingAgent
+from journal.engine.clock import Clock
+from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
+from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PlanWithFinishedDevelopmentExample(StateFixture):
-    """The owner has one production-delivered, sized development task and a second draft plan for the builder."""
+    """The owner deployed a sized task from ReportSizedPlan and made a second draft plan for the builder."""
 
     stack = (Ready,)
-    parent = WorkingAgent
+    parent = ReportSizedPlan
 
     def steps(self, story) -> None:
-        setup_domain(story, self, "l03-example-development", "development", {
-            "criterion": "A successful production deployment of the committed revision.",
-            "evidence": "production_deployment",
-            "target": "production",
-        })
-        self.plans.first = story.user_creates_plan("finished release", "the release reaches production")
-        task = story.user_presses(f"/journal/plans/{self.plans.first}/tasks", {
-            "title": "deploy the release", "brief": "the release reaches production", "domain": "development",
-        })
-        task.expect_viewer_passed()
-        self.tasks.first = task.viewer_answer["id"]
-        story.user_presses(f"/journal/tasks/{self.tasks.first}/size", {
-            "size": 3, "reason": "the original relative size",
-        }).expect_viewer_passed()
         sprint = story.user_presses("/journal/sprints", {
             "starts_on": story.local_moment(0).split(" ")[0], "timezone": "Europe/Amsterdam",
         })
         sprint.expect_viewer_passed()
-        story.user_presses(f"/journal/sprints/{sprint.viewer_answer['id']}/plans", {
+        sprint_id = sprint.viewer_answer["id"]
+        story.user_presses(f"/journal/sprints/{sprint_id}/plans", {
             "plan_id": self.plans.first,
         }).expect_viewer_passed()
-        story.user_presses(f"/journal/sprints/{sprint.viewer_answer['id']}/start", {}).expect_viewer_passed()
+        story.user_presses(f"/journal/sprints/{sprint_id}/start", {}).expect_viewer_passed()
         story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()
-        story.user_approves_plan(self.plans.first)
-        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
-        story.agent_starts_a_session(story.agents.workers.first())
-        story.agent_clocks_in(story.agents.workers.first())
+        story.user_approves_plan(self.plans.first).expect_viewer_passed()
+        worker_id = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
+        worker = story.agents.workers.get(worker_id)
+        story.agent_starts_a_session(worker)
+        story.agent_clocks_in(worker)
         story.time_travel(seconds=3600)
-        story.agent_proves(story.agents.workers.first(), 1, "release.py:3, the production artifact is ready")
-        story.agent_clocks_out(story.agents.workers.first(), "the production artifact is ready")
-        story.agent_runs(story.agents.main, f"worker check {self.workers.first} 1 --task {self.tasks.first}")
-        story.agent_runs(story.agents.main, f"worker merge {self.workers.first}")
+        story.agent_proves(worker, 1, "release.py:3, the production artifact is ready")
+        story.agent_clocks_out(worker, "the production artifact is ready")
+        story.agent_runs(story.agents.main, f"worker check {worker_id} 1 --task {self.tasks.first}").expect_command_passed()
+        story.agent_runs(story.agents.main, f"worker merge {worker_id}").expect_command_passed()
         story.time_travel(seconds=3600)
         story.user_presses(f"/journal/plans/{self.plans.first}/delivery", {
-            "kind": "production_deployment", "source": "deployment-l03", "artifact": "revision-l03",
-            "environment": "production", "scope": [self.tasks.first], "succeeded": True,
+            "action": "accept", "evidence": {
+                "kind": "production_deployment", "source": "deployment pipeline", "reference": "revision-l03",
+                "artifact": "revision-l03", "environment": "production", "result": "succeeded",
+                "task_ids": [self.tasks.first],
+                "occurred_at": datetime.fromtimestamp(story.app.container.get(Clock).held_at, timezone.utc).isoformat(),
+            },
         }).expect_viewer_passed()
         self.plans.second = story.user_creates_plan("next release", "the next release reaches production")
-        story.user_sets(EstimatesOptions.MODE, "report").expect_viewer_passed()
 
     def expected(self, story) -> None:
+        story.expect_plan(self.plans.first, state=PlanState.FINISHED)
+        story.expect_task(self.tasks.first, state=TaskState.COMPLETED, size=3)
         story.expect_stack(story.agents.main, Ready)

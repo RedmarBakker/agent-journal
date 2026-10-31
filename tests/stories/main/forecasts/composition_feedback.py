@@ -40,6 +40,7 @@ def test_cold_composition_shows_no_personalized_bias_and_keeps_the_empirical_bas
     result.expect_command_text("No aggregate sizing-bias score")
     result.expect_command_text("Empirical baseline remains selected")
     result.expect_command_text_without("points per hour")
+    story.expect_task(story.tasks.first, state="open", size=3)
     forecast = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     forecast.expect_viewer_part(("duration_calibration", "status"), "not_enough_history")
     story.expect_stack(story.agents.main, Ready)
