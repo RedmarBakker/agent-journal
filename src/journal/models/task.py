@@ -156,8 +156,6 @@ class Task(Scoped, Commentable):
         return self.state == TaskState.TESTING
 
     def blocked(self, reason: str, time: datetime) -> "Task":
-        if self.is_started():
-            raise Rejection(f"task {self.id} has started, so pause it: `journal task pause {self.id} \"<why>\"`, with --on or --until")
         return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
 
     def wait_ended(self, reason: str, time: float) -> "Task":

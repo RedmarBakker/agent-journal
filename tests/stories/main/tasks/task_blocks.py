@@ -92,3 +92,31 @@ def test_a_plan_wait_is_named_in_show_list_and_the_viewer_row(story):
     result.expect_command_text(f"release after the plan  [waiting on: plan {story.plans.first}]")
     story.expect_task(release, waits=[f"plans:{story.plans.first}"])
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_the_started_task_itself_can_be_blocked_and_unblocking_takes_it_up_again(story):
+    story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waits on the designer'").expect_command_passed()
+    story.expect_task(story.tasks.started, state=TaskState.BLOCKED)
+    story.agent_runs(story.agents.subject, f"task unblock {story.tasks.started}")
+    story.expect_task(story.tasks.started, state=TaskState.OPEN)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_task_cannot_be_paused_any_more_and_is_pointed_to_block(story):
+    result = story.agent_runs(story.agents.subject, f"task pause {story.tasks.started} 'later'")
+    result.expect_command_refused()
+    result.expect_command_text("task block")
+    story.expect_stack(story.agents.subject, Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_block_with_no_wait_is_named_every_five_completed_tasks_with_the_way_to_give_it_an_end(story):
+    logo = story.agent_creates_task(story.agents.subject, "the logo")
+    story.agent_runs(story.agents.subject, f"task block {logo} 'waits on the designer'")
+    for title in ("one", "two", "three", "four", "five"):
+        task = story.agent_creates_task(story.agents.subject, title)
+        result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
+    result.expect_agent_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS, n=logo)
+    story.expect_stack(story.agents.subject, Ready, Working)

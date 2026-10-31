@@ -208,15 +208,7 @@ class TaskCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.find(args.n)
-        holder = self.tasks.holder(task) if task.delegated and not args.force else None
-        if holder is not None and holder.type == Worker.table():
-            raise Rejection(f"task {args.n} is worker {holder.id}'s, mid-task: --force takes it from the worker; its commits stay")
-        task = self.tasks.save(task.paused(args.why, self._time()), caller.actor)
-        self.waits.linked(task, args.on, args.until, args.every, caller.actor)
-        waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
-        print(f"task {task.row_id} paused{waits}")
-        return 0
+        raise Rejection(f"a task is no longer paused: block it with `journal task block {args.n} \"<why>\"`, with --on task:<n> or --until \"<check>\" when something ends the wait")
 
     def test(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)
