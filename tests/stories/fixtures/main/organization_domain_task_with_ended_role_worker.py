@@ -1,4 +1,5 @@
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -13,6 +14,7 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
+from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_plan_handoff_seat import OrganizationPlanHandoffSeat
 
 
@@ -23,6 +25,8 @@ class OrganizationDomainTaskWithEndedRoleWorker(OrganizationPlanHandoffSeat):
 
     def steps(self, story) -> None:
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
+        story.openrig = SimulatedSeats()
+        story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
         task = self.tasks.first
         plan = story.app.container.get(Plans).global_matching(id=self.plans.first)[0]
         handoff = story.agent_runs_from_plan_organization_seat(
