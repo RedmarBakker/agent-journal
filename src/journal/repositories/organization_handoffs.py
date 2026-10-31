@@ -63,7 +63,7 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                 return row.target
         return ""
 
-    def reopen_domain_inboxes(self, plan: Plan, actor: Actor) -> None:
+    def reopen_domain_inboxes(self, plan: Plan, actor: Actor, tasks_waiting_for_check: set[int]) -> None:
         with self.scope.environment(plan.environment_id):
             plan_tasks = self.plans.plan_tasks(plan)
             unfinished = {task.row_id for task in plan_tasks if not task.state.is_closed()}
@@ -71,6 +71,11 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
             unfinished.update(part.row_id for part in open_parts)
             parents = [self.tasks.part_of_task(part) for part in open_parts]
             unfinished.update(parent.row_id for parent in parents if parent is not None)
+            unfinished.difference_update(tasks_waiting_for_check)
+            unfinished.difference_update(
+                parent.row_id for task_id in tasks_waiting_for_check
+                if (parent := self.tasks.part_of_task(self.tasks.find(task_id))) is not None
+            )
             latest: dict[int, OrganizationHandoff] = {}
             for ref in self.links.typed_sources(plan, PLAN_HANDOFF, OrganizationHandoff.table()):
                 row = self.find(ref.id)

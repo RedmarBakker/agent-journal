@@ -177,10 +177,10 @@ class WorkerCommand(Command):
         role_task = None
         if role and args.task:
             task = self.tasks.find(args.task)
-            instance = self.instances.existing(role, task)
+            instance = self.role_task_instance(role, task, caller)
             if instance and instance.state == WorkerState.UNFINISHED and self.tasks.holder(task) == Ref.build(instance):
                 return self.resend_role_job(instance, task, args, caller)
-            role_task = self.assignment(args.task, caller)
+            role_task = task
             if instance:
                 return self.queue(Namespace(n=instance.id, tasks=[role_task.id], first=False), caller)
         output = self.workers.busy_workers()
@@ -224,6 +224,15 @@ class WorkerCommand(Command):
             no_libraries=False, task=task.id, plan=None, phase=0,
         )
         return self.dispatch(args, caller)
+
+    def require_role_task_dispatchable(self, task: Task, role: Role, caller: Caller) -> None:
+        self.role_task_instance(role, task, caller)
+
+    def role_task_instance(self, role: Role, task: Task, caller: Caller) -> Worker | None:
+        instance = self.instances.existing(role, task)
+        if not (instance and instance.state == WorkerState.UNFINISHED and self.tasks.holder(task) == Ref.build(instance)):
+            self.assignment(task.id, caller)
+        return instance
 
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:

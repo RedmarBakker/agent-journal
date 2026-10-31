@@ -30,6 +30,17 @@ class RoleWorkChecks:
             if self.matches(worker, task_id, plan, domain)
         )
 
+    def tasks_waiting_for_check(self, plan: Plan) -> set[int]:
+        waiting = set()
+        for worker in self.workers.global_matching(state=WorkerState.DELIVERED):
+            if not worker.role:
+                continue
+            for task_id in self.tasks.holder_task_ids(Ref.build(worker)):
+                domain = self.domain_for_task(worker, task_id, plan)
+                if domain and self.matches(worker, task_id, plan, domain):
+                    waiting.add(task_id)
+        return waiting
+
     def is_waiting_for_check(self, worker: Worker, task_id: int, plan: Plan, domain: str) -> bool:
         with self.scope.environment(plan.environment_id):
             return self.matches(worker, task_id, plan, domain)

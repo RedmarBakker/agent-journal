@@ -60,6 +60,8 @@ class OrganizationHub:
             raise Rejection(OrganizationNudges.SPLIT_HANDOFF_REQUIRED.create(task=task.id).rendered())
         if role:
             self.tasks.require_assignment_ready(task)
+            if role.writes:
+                self.workers.require_role_task_dispatchable(task, role, caller)
         if domain := self.domain(target):
             if source == "plan" and target.startswith("domain:") and self.plans.rig_id(plan):
                 self.staffing.place_domain(plan, domain, member.provider, member.environment)

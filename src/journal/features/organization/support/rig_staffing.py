@@ -14,6 +14,7 @@ from journal.features.organization.support.role import Role
 from journal.features.organization.support.seat import Seat
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.seat_worker import SeatWorker
+from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.models.agent import Agent
 from journal.models.environment import Environment
 from journal.models.plan import Plan
@@ -33,11 +34,12 @@ from journal.support.rejection import Rejection
 class RigStaffing:
     """Start each plan's rig, keep shared journal Roles in one organization rig, and add only the seats each job needs."""
 
-    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs) -> None:
+    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats, specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs, role_work_checks: RoleWorkChecks) -> None:
         self.organization = organization
         self.config, self.plans, self.rigs = config, plans, rigs
         self.seats, self.specs, self.runtime, self.providers = seats, specs, runtime, providers
         self.handoffs = handoffs
+        self.role_work_checks = role_work_checks
 
     def start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         self.runtime.check_version()
@@ -49,7 +51,7 @@ class RigStaffing:
             if not self.runtime.rig_exists(rig.name):
                 raise Rejection(f"OpenRig rig {rig.name} for plan {plan.id} is not running")
             spec = self.specs.refresh_plan(rig.name, self.config.root, self.providers.lookup(agent.provider), self.organization.contracts())
-            self.handoffs.reopen_domain_inboxes(plan, actor)
+            self.handoffs.reopen_domain_inboxes(plan, actor, self.role_work_checks.tasks_waiting_for_check(plan))
             self.runtime.replace_rig(rig.name, spec)
             return
 

@@ -11,8 +11,10 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
+from tests.stories.fixtures.main.organization_role_worker_clocked_in import OrganizationRoleWorkerClockedIn
 from tests.stories.fixtures.main.paused_organization_domain_handoff import PausedOrganizationDomainHandoff
 from tests.stories.fixtures.main.paused_organization_plan_role_route import PausedOrganizationPlanRoleRoute
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(PausedOrganizationDomainHandoff, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -128,4 +130,80 @@ def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     restarted_plan.expect_agent_not_told(
         plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha",
     )
+    story.expect_stack(worker, Void, WorkingTask)
+
+
+@story(PausedOrganizationPlanRoleRoute, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_restarting_a_plan_tells_its_domain_to_check_finished_role_work(story):
+    story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
+    plan, task = story.plans.first, story.tasks.first
+    domain = story.organization_seat_agent("domain:alpha")
+    story.user_rewrites_the_brief(task, "- the Role task is complete")
+    handed_to_role = story.agent_runs_as_organization_seat(
+        domain, "domain:alpha", f"organization handoff {task} role:alpha/builder",
+    )
+    handed_to_role.expect_command_passed()
+    story.fixture.workers.first = story.newest("workers")
+    worker = story.agents.workers.first()
+    story.agent_starts_role_session(worker).expect_allowed(worker)
+    story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in").expect_command_passed()
+
+    story.agent_proves(worker, 1, "the Role task is complete: the task brief is met")
+    story.agent_clocks_out(worker, "the Role task is complete").expect_command_passed()
+    story.user_starts_plan(plan).expect_viewer_passed()
+
+    domain = story.organization_seat_agent("domain:alpha")
+    plan_seat = story.organization_seat_agent("plan")
+    plan_started = story.agent_starts_plan_seat(plan_seat, plan)
+    plan_started.expect_agent_not_told(
+        plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha",
+    )
+    domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
+    domain_started.expect_agent_told(
+        domain, OrganizationNudges.ROLE_WORK_AWAITS_CHECK, worker=worker.number, task=task,
+    )
+    domain_started.expect_agent_not_told(domain, OrganizationNudges.UNREAD_HANDOFF)
+
+    check = story.agent_runs_from_openrig_organization_seat(
+        domain, "domain:alpha", f"worker check {worker} 1",
+    )
+    check.expect_command_passed()
+    returned = story.agent_runs_from_openrig_organization_seat(
+        domain, "domain:alpha", f"organization handoff {task} plan",
+    )
+    returned.expect_command_passed()
+    story.agent_runs_from_openrig_organization_seat(plan_seat, "plan", "organization inbox").expect_command_passed()
+    merged = story.agent_runs_from_openrig_organization_seat(plan_seat, "plan", f"worker merge {worker}")
+    merged.expect_command_passed()
+
+    story.expect_task(task, state=TaskState.COMPLETED)
+    story.expect_worker(worker, state=WorkerState.MERGED)
+    story.expect_plan(plan, state=PlanState.BLOCKED)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+
+
+@story(OrganizationRoleWorkerClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_a_refused_role_handoff_does_not_leave_a_role_inbox_row(story):
+    task = story.tasks.first
+    domain = story.organization_seat_agent("domain:alpha")
+    worker = story.agents.workers.first()
+
+    read = story.agent_runs_from_openrig_organization_seat(
+        worker, "role:alpha/builder", "organization inbox",
+    )
+    read.expect_command_passed()
+    read.expect_command_text("no tasks handed to role:alpha/builder")
+
+    refused = story.agent_runs_from_openrig_organization_seat(
+        domain, "domain:alpha", f"organization handoff {task} role:alpha/builder",
+    )
+    refused.expect_command_refused()
+
+    inbox = story.agent_runs_from_openrig_organization_seat(
+        worker, "role:alpha/builder", "organization inbox",
+    )
+    inbox.expect_command_passed()
+    inbox.expect_command_text("no tasks handed to role:alpha/builder")
+
+    story.expect_task(task, delegated=True)
     story.expect_stack(worker, Void, WorkingTask)
