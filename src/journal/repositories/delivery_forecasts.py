@@ -3,6 +3,9 @@ from zoneinfo import ZoneInfo
 
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.support.baseline_forecast import BaselineForecast
+from journal.features.estimates.support.duration_range_calibration import DurationRangeCalibration
+from journal.features.estimates.support.duration_range_history import DurationRangeHistory
+from journal.features.estimates.support.learned_duration_ranges import METHOD_VERSION, LearnedDurationRanges
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
 from journal.models.sprint_state import SprintState
@@ -20,9 +23,11 @@ class DeliveryForecasts:
 
     def __init__(self, sprints: Sprints, metrics: SprintOutcomeMetrics, history: PlanOutcomeHistory,
                  calculator: BaselineForecast, snapshots: ForecastSnapshots, settings: SettingRows,
-                 time_source: TimeSource) -> None:
+                 time_source: TimeSource, duration_history: DurationRangeHistory,
+                 duration_ranges: LearnedDurationRanges, duration_calibration: DurationRangeCalibration) -> None:
         self.sprints, self.metrics, self.history = sprints, metrics, history
         self.calculator, self.snapshots, self.settings, self.time_source = calculator, snapshots, settings, time_source
+        self.duration_history, self.duration_ranges, self.duration_calibration = duration_history, duration_ranges, duration_calibration
 
     def sprint(self, sprint_id: int, actor: Actor) -> dict:
         sprint, source, forecast = self.sprint_read(sprint_id, actor)
@@ -63,10 +68,13 @@ class DeliveryForecasts:
         if sprint:
             _sprint, source, shared = self.sprint_read(sprint.row_id, actor)
             forecast = self.plan_result(shared, plan.row_id, source)
+            histories = self.plan_histories(actor, plan.row_id)
         else:
-            source = self.plan_source(plan, history, actor)
+            source, histories = self.plan_source(plan, history, actor)
             forecast = self.calculator.estimate(source)
             forecast = {**forecast, **self.capacity_freshness(forecast, source)}
+        scopes = [plan, *([sprint] if sprint else [])]
+        forecast = self.with_duration_ranges(forecast, source, scopes, histories, plan.row_id)
         forecast = {**forecast, **self.delivery_summary(history),
                     "sprint": self.sprints.summary(sprint) if sprint else None}
         return source, forecast
@@ -92,7 +100,7 @@ class DeliveryForecasts:
         sprint = current["sprint"]
         return self.request(scope, reports, current["data_quality"], capacity_days, sprint, plans)
 
-    def plan_source(self, plan: Plan, history: dict, actor: Actor) -> dict:
+    def plan_source(self, plan: Plan, history: dict, actor: Actor) -> tuple[dict, list[dict]]:
         reports = [self.metrics.read(row["id"], actor) for row in self.sprints.index(actor)]
         plans = self.plan_histories(actor, plan.row_id)
         timezone_name = self.timezone(reports)
@@ -102,7 +110,7 @@ class DeliveryForecasts:
         approved = self.approved(history["scope"]["plan_state"])
         for row in scope:
             row["approved_scope"] = approved
-        return self.request(scope, reports, history["data_quality"], capacity_days, None, plans)
+        return self.request(scope, reports, history["data_quality"], capacity_days, None, plans), plans
 
     def request(self, scope: list[dict], reports: list[dict], quality: dict, capacity_days: list[dict],
                 sprint: dict | None, histories: list[dict]) -> dict:
@@ -175,6 +183,9 @@ class DeliveryForecasts:
         cohort = {"domain": domain,
                   "size_scale_version": size_version,
                   "criteria_version": criteria_version,
+                  "environment_id": history.get("scope", {}).get("environment_id"),
+                  "cohort_version": next((row.get("cohort_version") for row in reversed(history.get("outcomes", ()))
+                                           if row.get("cohort_version")), None),
                   **cls.model_tier(history.get("outcomes", ()))}
         return {"plan_id": plan_id, "task_id": history.get("task_id"), "size_points": size_points,
                 "cohort": cohort, "delivery_status": delivery.get("status", "unknown")}
@@ -295,7 +306,27 @@ class DeliveryForecasts:
                          **distributions.get(plan_id, {}), "plan_id": plan_id,
                          "scope": BaselineForecast.scope_summary(scope, scope_rows),
                          **self.delivery_summary(history)})
-        return {**forecast, **freshness, "sprint": sprint, "plan_forecasts": rows}
+        result = {**forecast, **freshness, "sprint": sprint, "plan_forecasts": rows}
+        sprint_row = self.sprints.find(sprint["id"])
+        plan_rows = [self.sprints.plans.find(history["scope"]["plan_id"]) for history in histories]
+        return self.with_duration_ranges(result, source, [sprint_row, *plan_rows], histories)
+
+    def with_duration_ranges(self, forecast: dict, source: dict, scopes: list[object], histories: list[dict],
+                             plan_id: int = 0) -> dict:
+        tasks = [row for row in source.get("scope", ()) if not plan_id or row.get("plan_id") == plan_id]
+        as_of = self.time_source.seconds()
+        observations = self.duration_history.observations(histories, as_of)
+        ranges = [self.duration_ranges.estimate_task(observations, row, as_of) for row in tasks]
+        predictions = [{"plan_id": row.get("plan_id"), "task_id": row.get("task_id"),
+                        "size_points": row.get("size_points"), "cohort": row.get("cohort") or {},
+                        "stages": result["stages"]}
+                       for row, result in zip(tasks, ranges)]
+        duration_status = "forecast" if any(result["status"] == "forecast" for result in ranges) else "not_enough_history"
+        duration = {"status": duration_status, "input_cut": self.duration_history.input_cut(observations, as_of),
+                    "method_version": METHOD_VERSION, "as_of": as_of, "tasks": predictions}
+        snapshots = {snapshot.id: snapshot for scope in scopes for snapshot in self.snapshots.for_scope(scope)}
+        calibration = self.duration_calibration.replay(list(snapshots.values()), observations, as_of)
+        return {**forecast, "duration_ranges": duration, "duration_calibration": calibration}
 
     def delivery_summary(self, history: dict) -> dict:
         delivery_tasks = history["delivery"]["tasks"]

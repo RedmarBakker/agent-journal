@@ -27,7 +27,7 @@ class ForecastSnapshots(ScopedRepository[ForecastSnapshot]):
         self.links = links
 
     def capture(self, scope: Model, source: dict, forecast: dict, actor: Actor) -> dict:
-        if forecast["status"] != "forecast":
+        if forecast["status"] != "forecast" and not self.has_duration_forecast(forecast):
             return forecast
         key = self.key(scope, forecast)
         with self.writing():
@@ -55,7 +55,15 @@ class ForecastSnapshots(ScopedRepository[ForecastSnapshot]):
 
     @staticmethod
     def key(scope: Model, forecast: dict) -> str:
+        duration = forecast.get("duration_ranges") or {}
         value = {"scope": [scope.table(), scope.row_id], "input_cut": forecast["input_cut"],
-                 "method_version": forecast["method_version"], "as_of": forecast["as_of"]}
+                 "method_version": forecast["method_version"], "as_of": forecast["as_of"],
+                 "duration_input_cut": duration.get("input_cut"),
+                 "duration_method_version": duration.get("method_version")}
         encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(encoded).hexdigest()
+
+    @staticmethod
+    def has_duration_forecast(forecast: dict) -> bool:
+        return (forecast.get("duration_ranges", {}).get("status") == "forecast"
+                and bool(forecast.get("duration_ranges", {}).get("input_cut")))
