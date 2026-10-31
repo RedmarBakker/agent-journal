@@ -1,6 +1,5 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.seat_runtime import SeatRuntime
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
@@ -8,14 +7,14 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from tests.lab.simulated_seats import SimulatedSeats
-from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
+from tests.stories.fixtures.main.organization_hub_plan_with_plan_agents import OrganizationHubPlanWithPlanAgents
 
 
-class OrganizationDomainRoleTask(OrganizationHubPlan):
+class OrganizationDomainRoleTask(OrganizationHubPlanWithPlanAgents):
     """A started organization plan has a completed task and a current task waiting with its Domain."""
 
-    parent = OrganizationHubPlan
-    settings = ((PlansOptions.PLAN_AGENTS, True), (WorkersOptions.MODE, ORCHESTRATOR_MODE))
+    parent = OrganizationHubPlanWithPlanAgents
+    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
         self.tasks.second = story.user_adds_plan_task(self.plans.first, "task 6 current", "alpha")

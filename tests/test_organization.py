@@ -1381,6 +1381,7 @@ def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monito
     runner = object.__new__(SeatRunner)
     role = SimpleNamespace(cardinality=Cardinality.PLAN, models=SimpleNamespace(for_provider=lambda _provider: "gpt-6-luna"))
     runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
+    runner.tasks = SimpleNamespace(holder_task=lambda _holder: None, ready_queue=lambda _holder: ())
     runner._guard = threading.Lock()
     runner._active = {worker.id}
     from journal.features.organization.support.seat_runner import SeatJobIdentity

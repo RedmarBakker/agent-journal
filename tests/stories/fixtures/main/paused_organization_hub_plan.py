@@ -1,7 +1,6 @@
 import json
 
 from journal.features.organization.support.seat_runtime import SeatRuntime
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan_state import PlanState
@@ -13,14 +12,14 @@ from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from tests.lab.simulated_seats import SimulatedSeats
-from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
+from tests.stories.fixtures.main.organization_hub_plan_with_plan_agents import OrganizationHubPlanWithPlanAgents
 
 
-class PausedOrganizationHubPlan(OrganizationHubPlan):
+class PausedOrganizationHubPlan(OrganizationHubPlanWithPlanAgents):
     """An approved organization plan has a stopped rig with its new seat settings removed."""
 
-    parent = OrganizationHubPlan
-    settings = ((PlansOptions.PLAN_AGENTS, True),)
+    parent = OrganizationHubPlanWithPlanAgents
+    settings = ()
 
     def steps(self, story) -> None:
         story.openrig = SimulatedSeats()
