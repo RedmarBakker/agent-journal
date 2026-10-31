@@ -46,5 +46,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.FINISHED, mode=PlanMode.ORGANIZATION)
         story.expect_task(self.tasks.first, state=TaskState.COMPLETED, size=3)
+        story.expect_task_outcome_kinds(self.tasks.first, "task_completed", "worker_work_merged", "delivery_accepted")
+        story.expect_task_outcome_summary(self.tasks.first, execution_status="completed", artifact_accepted=True, right_censored=False)
         story.expect_plan(self.plans.second, state=PlanState.DRAFT, mode=PlanMode.ORGANIZATION)
         story.expect_stack(story.agents.main, Ready)
