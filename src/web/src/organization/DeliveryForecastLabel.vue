@@ -21,12 +21,15 @@ const capacityLine = computed(() => {
 const sampleLine = computed(() => {
     if (!props.forecast) return "";
     const deliveries = Number(props.forecast.delivered_outcomes || 0);
+    const model = props.forecast.method_version ? `Forecast model: ${props.forecast.method_version}` : "";
     const calibration = props.forecast.duration_calibration;
     const p50 = calibration?.coverage?.p50?.percent;
     const laterResults = calibration?.status === "measured"
         ? `Compared with ${calibration.observed_count} later task results; the usual range included ${p50 == null ? "not measured" : `${p50}%`}`
         : `Not enough later task results to compare saved estimates (${calibration?.observed_count || 0} finished tasks)`;
-    return `${deliveries} delivered ${deliveries === 1 ? "plan" : "plans"} · Delivery chance uses past sprint results · ${laterResults} · ${capacityLine.value}`;
+    return [`${deliveries} delivered ${deliveries === 1 ? "plan" : "plans"} · Delivery chance uses past sprint results · ${laterResults} · ${capacityLine.value}`, model]
+        .filter(Boolean)
+        .join(" · ");
 });
 const waitingLine = computed(() => {
     if (!awaiting.value) return "";

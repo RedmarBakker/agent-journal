@@ -92,7 +92,7 @@ test("domain boards show the tasks they hold and each plan's own progress, mode 
     expect(betaCard.querySelector('[data-domain-task-id="5"]').textContent).toContain("Task 5: Check the package");
     expect(betaCard.querySelector('[data-domain-task-id="5"]').textContent).toContain("Waiting for the Domain's check");
     expect(alphaCard.textContent).toContain("71% chance in Sprint 7");
-    expect(alphaCard.textContent).toContain("baseline-v1");
+    expect(alphaCard.textContent).toContain("Forecast model: baseline-v1");
     expect(alphaCard.textContent).not.toContain("Move to another sprint");
 
     const filter = host.querySelector('input[type="search"]');

@@ -80,7 +80,7 @@ test("a plan task shows its Domain, route, ordered Role subtasks, workers and me
     await vi.waitFor(() => expect(host.querySelector(".plan-subtask-summary")?.textContent).toContain("2 subtasks for 2 Roles, 1 merged"));
 
     const details = host.querySelector(".plan-task-details");
-    expect(details.textContent).toContain("🧭 Alpha");
+    expect(details.textContent).toContain("🧭 Domain: Alpha");
     expect(details.textContent).toContain("Waiting for the Domain's check");
     expect(details.textContent).toContain("2 subtasks for 2 Roles, 1 merged");
     expect(details.querySelector('[data-subtask-id="201"]').textContent).toContain("Role: Builder");
