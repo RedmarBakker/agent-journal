@@ -470,7 +470,10 @@ class StoryChecks:
         row = self.api_row(table, n)
         expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
         row_fields = {name: row.get(name) for name in expected_fields}
-        assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
+        if row_fields != expected_fields:
+            error = self.app.config.home / "runtime" / "workers" / f"{n}.err"
+            detail = f"; seat failure: {error.read_text()}" if table == "workers" and error.is_file() else ""
+            raise AssertionError(f"{table} {n} has {row_fields}, not {expected_fields}{detail}")
 
     def floor(self) -> type:
         return Workers.modes.states[self.mode]
