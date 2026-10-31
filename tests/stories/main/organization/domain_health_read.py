@@ -24,4 +24,4 @@ def test_a_domain_seat_can_read_this_journals_health_without_a_prompt(story):
     )
     checked.expect_allowed(domain)
 
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
