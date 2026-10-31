@@ -1796,6 +1796,7 @@ messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
 organization.action_waits_for_the_user  [organization]  {{action}} waits for the user: ask with `journal question ask "<may I?>"`, act once the answer allows it
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
+organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
 organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
@@ -2019,7 +2020,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-309 nudges
+310 nudges
 
 $ agent: journal worker list
 exit 0

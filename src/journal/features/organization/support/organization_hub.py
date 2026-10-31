@@ -1,5 +1,6 @@
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
+from journal.models.organization_handoff import OrganizationHandoff
 from journal.models.plan import Plan
 from journal.models.task import Task
 from journal.repositories.domain_rows import DomainRows
@@ -7,6 +8,7 @@ from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
+from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
@@ -46,15 +48,15 @@ class OrganizationHub:
         if member.rig.startswith("plan-"):
             plan = self.plan_for_rig(member.rig)
             with self.scope.environment(plan.environment_id):
-                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan))
+                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan), caller.actor)
             return
-        self.print_inbox(seat, self.handoffs.pending(seat))
+        self.print_inbox(seat, self.handoffs.pending(seat), caller.actor)
 
-    def print_inbox(self, seat: str, rows: tuple[tuple[object, Plan, Task], ...]) -> None:
+    def print_inbox(self, seat: str, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], actor: Actor) -> None:
         if not rows:
             print(f"no tasks handed to {seat}")
         for handoff, plan, task in rows:
-            self.handoffs.read(handoff, caller.actor)
+            self.handoffs.read(handoff, actor)
             print(f"plan {plan.id} task {task.id}: {task.title}\n{task.brief}")
 
     def seat(self, caller: Caller) -> SeatMember:
