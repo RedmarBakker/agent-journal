@@ -1749,10 +1749,11 @@ engine.stop_held_in_a_loop  [engine]  stop held five times; the next goes throug
 engine.worker_ends_after_the_grace  [engine]  your journal was down {{seconds}} seconds, past a worker's {{grace}}-second limit. stop now; you will be sent again
 estimates.critical_path_work  [estimates]  plan {{n}} delivery graph: {{work|cap=160}}. keep the critical tasks or independent work visible; prerequisite changes need a reason
 estimates.critical_prerequisite_open  [estimates]  plan {{n}}: task {{task}} waits on task {{prerequisite}}. resolve it or justify a change
-estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance this sprint; P85 is {{p85}}. review scope with the owner
+estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance to deliver this sprint; P85 is {{p85}}. review scope with the owner and its dependency; the forecast changes nothing
 estimates.plan_forecast_basis  [estimates]  plan {{n}} forecast: {{basis|cap=240}}
 estimates.plan_scope_growth  [estimates]  plan {{n}} scope grew: {{change|cap=55}}. ask the owner before changing it
 estimates.task_past_historical_range  [estimates]  task {{task}} worked {{age}}; historical P85 is {{p85}}. check its wait, scope and next step
+estimates.work_in_progress_limit  [estimates]  {{reason|cap=270}}. existing work stays in place; delivery evidence remains the owner's decision
 etiquette.a_line_is_an_instruction  [etiquette]  a [journal] line is an instruction, not a message. act on it; never answer or mention it in the chat
 etiquette.blank_lines_between_paragraphs  [etiquette]  put a blank line between paragraphs
 etiquette.no_em_dashes  [etiquette]  no em dashes in the chat; use a full stop

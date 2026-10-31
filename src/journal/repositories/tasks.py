@@ -411,9 +411,9 @@ class Tasks(ScopedRepository[Task]):
         if task.row_id in assigned or len(assigned) < value:
             return
         finished = set(self.finished_task_ids(worker))
-        action = ("merge its finished work" if assigned & finished
+        action = (f"merge worker {worker.id}'s finished work" if assigned & finished
                   else f"finish or release its current task or drain its queue with worker drain {worker.id}")
-        raise Rejection(f"worker assignment WIP limit {value} is full at worker {worker.id}: {action} before queuing task {task.id}")
+        raise Rejection(f"worker assignment WIP limit {value} full: {action}; then queue task {task.id}")
 
     def drop_holder(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):
