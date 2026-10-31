@@ -20,12 +20,19 @@ class OrganizationConduct(Conduct):
         return self.push(work, *work.guidance(contracts))
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        nudge = OrganizationConduct.waiting_handoff(event)
-        return self.none(nudge) if nudge else self.none()
+        return self.none(*(nudge for nudge in (
+            OrganizationConduct.unread_handoff(event), OrganizationConduct.waiting_handoff(event),
+        ) if nudge))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        if nudge := OrganizationConduct.unread_handoff(event):
+            return self.refuse(nudge)
         nudge = OrganizationConduct.waiting_handoff(event)
         return self.refuse(nudge) if nudge else self.none()
+
+    @staticmethod
+    def unread_handoff(event: AgentEvent) -> Nudge | None:
+        return OrganizationNudges.UNREAD_HANDOFF.create() if event.data.part(OrganizationPart).unread_handoff else None
 
     @staticmethod
     def waiting_handoff(event: AgentEvent) -> Nudge | None:

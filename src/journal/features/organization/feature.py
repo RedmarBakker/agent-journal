@@ -32,4 +32,4 @@ class OrganizationFeature(Feature[OrganizationData]):
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
     helper_listeners = {AgentRole.WORKER: (RoleStuckReport, RoleRefusalReport)}
-    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME, OrganizationNudges.ROLE_REPORTED, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF)
+    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME, OrganizationNudges.ROLE_REPORTED, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, OrganizationNudges.UNREAD_HANDOFF)

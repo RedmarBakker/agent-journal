@@ -1,5 +1,8 @@
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.role import Role
 from journal.features.workers.commands.worker_command import WorkerCommand
@@ -43,13 +46,30 @@ class OrganizationHub:
     def handoff_task(self, task_id: int, target: str, source: str, member: SeatMember, caller: Caller) -> None:
         task = self.tasks.find(task_id)
         plan = self.validate_task(source, task, member.rig)
+        role = self.role(target)
         if domain := self.domain(target):
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
-        if role := self.role(target):
-            if role.writes:
-                self.workers.dispatch_role_task(task, role, caller)
+        if role and role.writes:
+            self.workers.dispatch_role_task(task, role, caller)
+        elif target != "main":
+            self.wake(target, plan, role, member)
         print(f"task {task.id} routed from {member.organization_seat} to {target}")
+
+    def wake(self, target: str, plan: Plan, role: Role | None, source: SeatMember) -> None:
+        rig = self.target_rig(target, plan, role, source)
+        recipient = self.runtime.organization_member(rig, target, source.provider)
+        self.runtime.send(recipient, OrganizationSeatRouting.handoff_prompt)
+
+    @staticmethod
+    def target_rig(target: str, plan: Plan, role: Role | None, source: SeatMember) -> str:
+        if target == "plan":
+            return f"plan-{plan.id}"
+        if target.startswith("domain:"):
+            return source.rig if source.rig.startswith("organization-") else f"plan-{plan.id}"
+        if role and role.cardinality is Cardinality.JOURNAL:
+            return RigStaffing.shared_rig_name(plan.environment_id)
+        return f"plan-{plan.id}"
 
     def inbox(self, caller: Caller) -> None:
         seat = caller.organization_seat

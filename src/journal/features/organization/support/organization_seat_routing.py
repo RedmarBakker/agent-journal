@@ -9,6 +9,7 @@ class OrganizationSeatRouting:
         "Route every handoff with `journal organization handoff <task> <target>`. "
         "This is the only route between seats; do not use `rig send` or `rig queue`."
     )
+    handoff_prompt = "Read your new handoff with `journal organization inbox`."
     domain_guidance = (
         "As the Domain seat, read your inbox with `journal organization inbox`, then hand each task to one of your Roles with "
         "`journal organization handoff <task> role:<domain>/<role>`."

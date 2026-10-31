@@ -82,6 +82,8 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         return self.session_of(self.agents.subject)
 
     def session_of(self, agent: StoryAgent) -> str:
+        if agent.session:
+            return agent.session
         return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: lambda: self.worker_sessions.get(agent.number, worker_session(agent.number)), AgentRole.SUBAGENT: self.subagent_scope_session, AgentRole.REVIEWER: lambda: self.checker_session(Reviewers, agent.number), AgentRole.VERIFIER: lambda: self.checker_session(Verifiers, agent.number)}[agent.role]()
 
     def subagent_scope_session(self) -> str:

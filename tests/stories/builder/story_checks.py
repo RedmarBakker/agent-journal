@@ -286,6 +286,11 @@ class StoryChecks:
         else:
             assert permissions["approval"] == "never", "the Plan seat's journal commands need approval"
 
+    def expect_openrig_seat_received(self, agent: StoryAgent, rig: str, seat: str, text: str) -> None:
+        member = self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
+        messages = [message for target, message in self.openrig.messages if target == member.target]
+        assert text in messages, f"OpenRig seat {member.logical_id} for {agent.session} received {messages}, not {text!r}"
+
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:
         agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"
         spec = self.app.container.get(SeatRuntime).read_spec(rig)

@@ -101,6 +101,9 @@ class SimulatedSeats:
             "statusUpdatedAt": 1_800_000_000,
         }
 
+    def idle(self, target: str) -> None:
+        self.sessions[target]["status"] = "idle"
+
     def stop_session(self, target: str) -> None:
         if target in self.sessions:
             self.sessions[target]["status"] = "stopped"

@@ -10,6 +10,7 @@ class StoryAgent:
     role: AgentRole
     number: int = 0
     agent_id: str = ""
+    session: str = ""
 
     def __str__(self) -> str:
         return str(self.number)

@@ -130,6 +130,15 @@ class SeatRuntime:
                 return member
         raise Rejection(f"OpenRig rig {rig} has no organization seat {identity}")
 
+    def organization_seat_for_session(self, rig: str, provider: str, session: str) -> str:
+        if not session or not (self.spec_folder(rig) / "rig.yaml").is_file():
+            return ""
+        for address in self.roster(rig):
+            member = self.member(rig, address.pod, address.member, provider)
+            if member.organization_seat and self.session(member, session):
+                return member.organization_seat
+        return ""
+
     def member_for_caller(self, caller: Caller) -> SeatMember:
         if not caller.organization_seat or not caller.organization_rig or not caller.actor_token:
             raise Rejection("organization handoff and inbox run only from a generated organization seat")
