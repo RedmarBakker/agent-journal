@@ -12,6 +12,7 @@ def test_a_plan_seat_hands_a_task_to_its_domain_seat(story):
     result.expect_command_passed()
     result.expect_command_text(f"task {task} routed from plan to domain:alpha")
     story.expect_task_tied_to_domain(task, "alpha")
+    story.expect_organization_seat_routing_guidance(f"plan-{story.plans.first}")
     inbox = story.agent_runs_from_organization_seat(story.agents.main, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {story.plans.first} task {task}: first")

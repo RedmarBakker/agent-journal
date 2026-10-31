@@ -352,7 +352,8 @@ class TaskCommand(Command):
                 return 0
             args.n = current_task.id
         task = self.readable(int(args.n), caller)
-        print(f"""task {task.row_id}: {task.title}
+        with self.scope.environment(task.environment_id):
+            print(f"""task {task.row_id}: {task.title}
 state: {task.state}
 {self.place(task)}{self.wait_line(task)}
 {self.briefing.whole(task)}""")

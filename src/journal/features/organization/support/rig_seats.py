@@ -2,6 +2,7 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.contracts import PLAN, Contracts
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.edge_kind import EdgeKind
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.seat import Seat
@@ -16,7 +17,7 @@ PLAN_POD = "plan"
 PLAN_AGENT = "plan-agent"
 DOMAIN_AGENT = "domain-agent"
 LEADER_TOOLS = ("read_files",)
-PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to the Domain agents of its domains and write no code. Route a task with `journal organization handoff <task> domain:<id>`. Read tasks handed to you with `journal organization inbox`."
+PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to the Domain agents of its domains and write no code. {routing} Route a plan task with `journal organization handoff <task> domain:<id>`. Inspect its details with `journal task show <task>`."
 
 
 class RigSeats:
@@ -37,20 +38,23 @@ class RigSeats:
         profile = str(self.settings.option(OrganizationOptions.PLAN_PROFILE)).strip()
         model = self.allowed.strongest(provider.name, profile)
         effort = str(self.settings.option(OrganizationOptions.PLAN_EFFORT)).strip() if provider.supports_reasoning_effort else ""
-        return Seat(PLAN, PLAN_POD, PLAN_AGENT, "", provider.name, model, effort, PLAN_GUIDANCE.format(rig=rig), (), self.tools.provider_tools(LEADER_TOOLS), False)
+        guidance = PLAN_GUIDANCE.format(rig=rig, routing=OrganizationSeatRouting.guidance)
+        return Seat(PLAN, PLAN_POD, PLAN_AGENT, "", provider.name, model, effort, guidance, (OrganizationSeatRouting.skill.name,), self.tools.provider_tools(LEADER_TOOLS), False)
 
     def domain_agent(self, domain: Domain, provider: Provider) -> Seat:
         effort = domain.models.effort if provider.supports_reasoning_effort else ""
         model = domain.models.for_provider(provider.name)
         if self.settings.option(OrganizationOptions.DOMAIN_AGENT_MODEL_TIER) == "lowest_allowed":
             model = self.allowed.weakest(provider.name, "domain-agent")
-        guidance = f"{domain.body()}\n\nRead tasks handed to you with `journal organization inbox`; hand work to a Role with `journal organization handoff <task> role:{domain.id}/<role>`."
-        return Seat(Contracts.domain_id(domain.id), domain.id, DOMAIN_AGENT, "", provider.name, model, effort, guidance, domain.skills, self.tools.provider_tools(LEADER_TOOLS), False)
+        guidance = f"{domain.body()}\n\n{OrganizationSeatRouting.guidance} Hand work to a Role with `journal organization handoff <task> role:{domain.id}/<role>`. Return completed work to the Plan seat with `journal organization handoff <task> plan`."
+        skills = (*domain.skills, OrganizationSeatRouting.skill.name)
+        return Seat(Contracts.domain_id(domain.id), domain.id, DOMAIN_AGENT, "", provider.name, model, effort, guidance, skills, self.tools.provider_tools(LEADER_TOOLS), False)
 
     def role_seats(self, contracts: Contracts, domain: Domain, provider: Provider) -> tuple[Seat, ...]:
         return tuple(self.role_seat(role, domain, provider) for role in contracts.roles_of(domain.id) if role.cardinality is Cardinality.PLAN)
 
     def role_seat(self, role: Role, domain: Domain, provider: Provider) -> Seat:
         effort = role.models.effort if provider.supports_reasoning_effort else ""
-        guidance = f"{role.body(domain.guidance)}\n\nRead tasks handed to your seat with `journal organization inbox`."
-        return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, guidance, role.skills, self.tools.provider_tools(role.tools), role.writes)
+        guidance = f"{role.body(domain.guidance)}\n\n{OrganizationSeatRouting.guidance} Return work to your Domain agent with `journal organization handoff <task> domain:{domain.id}`."
+        skills = (*role.skills, OrganizationSeatRouting.skill.name)
+        return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, guidance, skills, self.tools.provider_tools(role.tools), role.writes)

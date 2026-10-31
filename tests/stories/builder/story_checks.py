@@ -17,7 +17,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
-from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
+from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
 from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
@@ -276,6 +276,35 @@ class StoryChecks:
             assert "Bash(journal *)" in permissions["allow"], "the Plan seat's journal commands need approval"
         else:
             assert permissions["approval"] == "never", "the Plan seat's journal commands need approval"
+
+    def expect_organization_seat_routing_guidance(self, rig: str) -> None:
+        agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"
+        spec = self.app.container.get(SeatRuntime).read_spec(rig)
+        for pod in spec["pods"]:
+            for member in pod["members"]:
+                agent = member["agent_ref"].removeprefix("local:agents/")
+                folder = agents / agent
+                guidance = (folder / "guidance" / "role.md").read_text()
+                skill = (folder / "skills" / "journal-organization-seat-routing" / "SKILL.md").read_text()
+                spec = json.loads((folder / "agent.yaml").read_text())
+                skills = spec["profiles"]["default"]["uses"]["skills"]
+                assert "journal-organization-seat-routing" in skills, f"{agent} does not load its routing skill"
+                instructions = (
+                    "journal organization handoff",
+                    "journal organization inbox",
+                    "only route between seats",
+                    "do not use `rig send` or `rig queue`",
+                )
+                for instruction in instructions:
+                    assert instruction in guidance, f"{agent} guidance does not say {instruction!r}"
+                    assert instruction in skill, f"{agent} routing skill does not say {instruction!r}"
+                if member["id"] == PLAN_AGENT:
+                    assert "journal task show" in guidance, "the Plan seat guidance does not name task show for its plan tasks"
+                    assert "journal task show" in skill, "the Plan seat routing skill does not name task show for its plan tasks"
+                elif member["id"] == DOMAIN_AGENT:
+                    assert "`journal organization handoff <task> plan`" in guidance, "the Domain seat guidance does not give the Plan return route"
+                else:
+                    assert f"`journal organization handoff <task> domain:{pod['id']}`" in guidance, f"{agent} guidance does not give its Domain return route"
 
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()

@@ -29,6 +29,11 @@ def test_a_plan_seat_reads_its_plan_tasks_and_handoff_targets_without_an_environ
     shown.expect_command_text("first")
     shown.expect_command_text("domain:alpha")
 
+    task_details = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", f"task show {task}")
+    task_details.expect_command_passed()
+    task_details.expect_command_text(f"task {task}: first")
+    task_details.expect_command_text(f"plan {plan}: p")
+
     targets = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "organization list")
     targets.expect_command_passed()
     targets.expect_command_text("domain alpha")

@@ -16,6 +16,7 @@ from journal.features.organization.role_conduct import RoleConduct
 from journal.features.organization.states.role_work import RoleWork
 from journal.features.organization.support.organization_data import OrganizationData
 from journal.features.organization.support.organization_data_reader import OrganizationDataReader
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.support.agent_role import AgentRole
 
 
@@ -23,6 +24,7 @@ class OrganizationFeature(Feature[OrganizationData]):
     name = OrganizationPart.name
     title = "Agentic organization"
     help = "The domains and Roles of an agentic organization are read from the folder the Settings page names; journal holds no list of them. Each Role is one value that solo and seats both use: a worker dispatched to a Role works inside its tools and approvals, and a solo Plan agent takes on one Role at a time as a pushed state. A task handed or queued to a Role is linked to its domain, so each domain has a board of the plans with tasks there, each standing in the phase that domain's tasks reached. A Role that is stuck, refused or ends without clocking out is reported up the hub: to its Domain agent, else the Plan agent, else the user."
+    skill = OrganizationSeatRouting.skill
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
     conduct = (OrganizationConduct, HubConduct)
