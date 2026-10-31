@@ -26,7 +26,7 @@ class PausedOrganizationHubPlan(OrganizationHubPlan):
         super().steps(story)
         story.openrig = SimulatedSeats()
         runtime = story.app.container.get(SeatRuntime)
-        story.monkeypatch.setattr(SeatRuntime, "run", story.openrig.run)
+        story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         rig = f"plan-{self.plans.first}"

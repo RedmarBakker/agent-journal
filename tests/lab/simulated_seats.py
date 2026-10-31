@@ -11,6 +11,7 @@ class SimulatedSeats:
         self.pid = os.getpid()
         self.calls: list[tuple[str, ...]] = []
         self.rigs: set[str] = set()
+        self.stopped_rigs: set[str] = set()
         self.specs: dict[str, dict] = {}
         self.sessions: dict[str, dict[str, object]] = {}
         self.messages: list[tuple[str, str]] = []
@@ -23,13 +24,19 @@ class SimulatedSeats:
             path = Path(arguments[1])
             rig = path.parent.name
             self.rigs.add(rig)
+            self.stopped_rigs.discard(rig)
             self.specs[rig] = json.loads(path.read_text())
             self.start_members(rig, self.specs[rig])
             return self.result(arguments, "{}")
         if arguments[0] == "down":
-            self.rigs.discard(arguments[1])
+            rig = arguments[1]
+            if rig in self.stopped_rigs:
+                return self.result(arguments, '{"alreadyStopped": true, "errors": []}', 1)
+            if rig not in self.rigs:
+                return self.result(arguments, '{"error": "unknown rig"}', 1)
+            self.stopped_rigs.add(rig)
             for target in self.sessions:
-                if target.endswith(f"@{arguments[1]}"):
+                if target.endswith(f"@{rig}"):
                     self.stop_session(target)
             return self.result(arguments, "{}")
         if arguments[0] == "ps":

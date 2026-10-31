@@ -443,9 +443,20 @@ class SeatRuntime:
             result = self.execute(["rig", *arguments], capture_output=True, text=True, timeout=30)
         except (OSError, subprocess.TimeoutExpired) as failed:
             raise Rejection(f"OpenRig {' '.join(arguments)} failed: {failed}") from failed
-        if check and result.returncode:
+        if check and result.returncode and not self.already_stopped(arguments, result):
             raise Rejection(f"OpenRig {' '.join(arguments)} failed: {(result.stderr or result.stdout).strip()}")
         return result
+
+    @staticmethod
+    def already_stopped(arguments: tuple[str, ...], result: subprocess.CompletedProcess) -> bool:
+        if not arguments or arguments[0] != "down":
+            return False
+        try:
+            response = json.loads(result.stdout)
+        except ValueError:
+            return False
+        return (not result.stderr.strip() and isinstance(response, dict) and response.get("alreadyStopped") is True
+                and not response.get("errors") and not response.get("error"))
 
     @staticmethod
     def json_value(output: str) -> object:
