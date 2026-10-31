@@ -19,13 +19,13 @@ class EstimatesForecast:
 
     def composition_feedback(self, plan: Plan, task_id: int) -> str:
         evidence = self.composition_evidence(plan, task_id)
-        lines = ["Empirical baseline remains selected; learned duration ranges are advisory."]
+        lines = ["Ranges come from past delivered tasks; the learned ranges are advice only."]
         examples = evidence["examples"]
         if examples:
-            lines.append(f"{len(examples)} comparable delivered {self.plural(len(examples), 'example')} in the same authorized cohort:")
+            lines.append(f"{len(examples)} similar finished {self.plural(len(examples), 'task')}:")
             lines.extend(self.example_line(row) for row in examples)
         else:
-            lines.append("No comparable delivered examples for this authorized cohort.")
+            lines.append("No similar finished tasks yet.")
         lines.extend(self.duration_lines(evidence["duration"]))
         lines.extend(self.bias_lines(evidence["calibration"]))
         return "\n".join(lines)
@@ -39,18 +39,18 @@ class EstimatesForecast:
 
     @classmethod
     def example_line(cls, example: dict) -> str:
-        return (f"task {example['task_id']} · original size {example['original_size_points']} story points · "
-                f"execution size {example['execution_size_points']} story points · "
-                f"actual execution {cls.duration(example['execution_seconds'])} · "
-                f"actual delivery delay {cls.duration(example['delivery_seconds'])}")
+        return (f"Task {example['task_id']} · original estimate {example['original_size_points']} points · "
+                f"final size {example['execution_size_points']} points · work took "
+                f"{cls.duration(example['execution_seconds'])} · delivery took "
+                f"{cls.duration(example['delivery_seconds'])} after work finished")
 
     @staticmethod
     def duration_lines(duration: dict) -> list[str]:
         stages = duration.get("stages", {})
-        labels = {"execution_cycle": "execution", "delivery_delay": "delivery"}
+        labels = {"execution_cycle": "work", "delivery_delay": "time from finishing work to delivery"}
         size = duration.get("size_points")
-        return [f"Learned {labels[name]} range for {size} story points: P50 {EstimatesForecast.duration(row['p50_seconds'])}, "
-                f"P85 {EstimatesForecast.duration(row['p85_seconds'])}."
+        return [f"For {size} points, {labels[name]} is estimated at {EstimatesForecast.duration(row['p50_seconds'])} "
+                f"for a typical task and up to {EstimatesForecast.duration(row['p85_seconds'])} in the wider range."
                 for name, row in stages.items() if row.get("status") == "forecast"]
 
     @staticmethod
@@ -58,14 +58,22 @@ class EstimatesForecast:
         minimum = calibration.get("minimum_calibration_samples")
         measured = [(name, row) for name, row in calibration.get("sizing_bias", {}).items()
                     if row.get("status") == "measured"]
-        if measured:
-            return [f"Aggregate sizing-bias summary for {name.replace('_', ' ')}: actual durations were "
-                    f"{row['actual_to_predicted_p50_ratio']:.2f}× predicted P50 across {row['observed']} held-out actuals."
-                    for name, row in measured]
-        if minimum is None:
-            return ["No aggregate sizing-bias score; there is no owner-scoped outcome history."]
-        observed = max((row.get("observed", 0) for row in calibration.get("sizing_bias", {}).values()), default=0)
-        return [f"No aggregate sizing-bias score: {observed} held-out actuals; need {minimum} for a score."]
+        labels = {"execution_cycle": "work time", "delivery_delay": "delivery time"}
+        if minimum is None and not measured:
+            return ["There are no finished task times to compare with estimates yet."]
+        stages = calibration.get("sizing_bias", {})
+        lines = [f"Across {row['observed']} finished tasks, {labels.get(name, name)} took "
+                 f"{row['actual_to_predicted_p50_ratio']:.2f} times as long as estimated."
+                 for name, row in measured]
+        if minimum is not None:
+            lines.extend(f"Not enough finished tasks to compare {labels.get(name, name)} estimates "
+                         f"({row.get('observed', 0)} of {minimum})."
+                         for name, row in stages.items() if row.get("status") != "measured")
+        if lines:
+            return lines
+        if not stages:
+            return [f"Not enough finished tasks to measure how sizes compare (0 of {minimum})."]
+        return ["There are no finished task times to compare with estimates yet."]
 
     @staticmethod
     def duration(seconds: float) -> str:
@@ -89,13 +97,13 @@ class EstimatesForecast:
     @staticmethod
     def basis(forecast: dict | None) -> str:
         if forecast is None:
-            return "not enough history; the plan has no recorded owner, so no finish date or sprint probability can be estimated"
+            return "Not enough past delivery results; the plan has no owner, so no finish date or sprint chance can be estimated."
         if forecast["status"] != "forecast":
             missing = ", ".join(forecast["missing_evidence"])
-            return f"not enough history; missing {missing}; no finish date or sprint probability can be estimated"
-        return (f"baseline {forecast['method_version']} from {forecast['delivered_outcomes']} comparable accepted deliveries "
-                f"and {forecast['observed_capacity_days']} observed capacity days; P50 {forecast['p50']}, "
-                f"P85 {forecast['p85']}, this sprint {forecast['probability_this_sprint']}%")
+            return f"Not enough past delivery results; missing {missing}; no finish date or sprint chance can be estimated."
+        return (f"Past sprint results: {forecast['delivered_outcomes']} delivered plans and "
+                f"{forecast['observed_capacity_days']} days with capacity information; typical finish {forecast['p50']}, "
+                f"wider finish {forecast['p85']}, chance by this sprint's end {forecast['probability_this_sprint']}%.")
 
     def owner(self, plan: Plan) -> Actor | None:
         owner = self.owners.number(plan)

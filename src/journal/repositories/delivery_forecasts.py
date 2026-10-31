@@ -78,7 +78,7 @@ class DeliveryForecasts:
         plan = self.history.plans.find(plan_id)
         histories = self.plan_histories(actor, plan_id)
         as_of = self.time_source.seconds()
-        candidate = self.history_task(plan_id, task)
+        candidate = self.history_task(plan_id, task, scope=history["scope"])
         observations = self.duration_history.observations(histories, as_of)
         duration = self.duration_ranges.estimate_task(observations, candidate, as_of)
         examples = self.duration_history.examples(histories, candidate["cohort"], task_id, as_of)
@@ -135,7 +135,8 @@ class DeliveryForecasts:
         timezone_name = self.timezone(reports)
         batches = self.delivery_batches(plans, timezone_name)
         capacity_days = self.capacity_days(reports, batches)
-        scope = [self.history_task(plan.row_id, row) for row in history["tasks"] if row["current_in_plan"]]
+        scope = [self.history_task(plan.row_id, row, scope=history["scope"])
+                 for row in history["tasks"] if row["current_in_plan"]]
         approved = self.approved(history["scope"]["plan_state"])
         for row in scope:
             row["approved_scope"] = approved
@@ -168,7 +169,8 @@ class DeliveryForecasts:
         return [self.history.read(plan_id, actor) for plan_id in sorted(plan_ids)]
 
     def sprint_scope(self, report: dict, histories: list[dict]) -> list[dict]:
-        task_histories = {row["task_id"]: {**row, "plan_id": history["scope"]["plan_id"]}
+        task_histories = {row["task_id"]: {**row, "plan_id": history["scope"]["plan_id"],
+                                             "scope": history["scope"]}
                           for history in histories for row in history["tasks"]}
         approved_plans = {row["scope"]["plan_id"]: self.approved(row["scope"]["plan_state"]) for row in histories}
         lines = [*report["scope"]["baseline"]["lines"], *report["scope"]["added"]["lines"]]
@@ -181,14 +183,16 @@ class DeliveryForecasts:
         return scope
 
     def scope_task(self, line: dict, history: dict, approved_scope: bool) -> dict:
-        task = self.history_task(line["plan_id"], history, line)
+        task = self.history_task(line["plan_id"], history, line, history.get("scope"))
         delivery = history.get("delivery", {})
         task["delivery_status"] = delivery.get("status", "unknown")
         task["approved_scope"] = approved_scope
         return task
 
     @classmethod
-    def history_task(cls, plan_id: int, history: dict, frozen: dict | None = None) -> dict:
+    def history_task(cls, plan_id: int, history: dict, frozen: dict | None = None,
+                     scope: dict | None = None) -> dict:
+        scope = scope or history.get("scope", {})
         estimate = history.get("estimate_history", {})
         sizes = estimate.get("history", ())
         latest = sizes[-1] if sizes else {}
@@ -212,7 +216,7 @@ class DeliveryForecasts:
         cohort = {"domain": domain,
                   "size_scale_version": size_version,
                   "criteria_version": criteria_version,
-                  "environment_id": history.get("scope", {}).get("environment_id"),
+                  "environment_id": scope.get("environment_id") if scope else None,
                   "cohort_version": next((row.get("cohort_version") for row in reversed(history.get("outcomes", ()))
                                            if row.get("cohort_version")), OUTCOME_COHORT_VERSION),
                   **cls.model_tier(history.get("outcomes", ()))}

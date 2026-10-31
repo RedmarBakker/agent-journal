@@ -46,32 +46,31 @@ const learnedRangeSummary = computed(() => {
     if (!durationRanges.value) return "";
     if (durationRanges.value.status !== "forecast") return "Learned ranges: not enough history yet.";
     const coverage = durationCalibration.value?.coverage?.raw_p85;
-    if (coverage?.percent == null) return "Learned ranges (advisory): no held-out actuals yet.";
-    return `Learned ranges (advisory): upper ranges covered ${coverage.percent}% of ${coverage.observed} held-out actual durations.`;
+    if (coverage?.percent == null) return "Ranges come from past delivered tasks; they are advice only. Not enough finished tasks to check how often they fit yet.";
+    return `Ranges come from past delivered tasks; they are advice only. The wider range included ${coverage.percent}% of ${coverage.observed} finished task times.`;
 });
 const sizingBias = computed(() => durationCalibration.value?.sizing_bias || {});
-const hasSizingBias = computed(() => Object.values(sizingBias.value).some((row) => row.status === "measured"));
 const biasStages = computed(() => [
-    {key: "execution_cycle", label: "Execution"},
-    {key: "delivery_delay", label: "Delivery"},
+    {key: "execution_cycle"},
+    {key: "delivery_delay"},
 ].filter(({key}) => sizingBias.value[key]));
 const durationHistoryLine = computed(() => {
     const history = durationRanges.value?.history;
     if (!history) return "History age not available";
-    if (history.freshness === "unknown") return "No completed duration observations";
+    if (history.freshness === "unknown") return "No finished task times recorded";
     const age = `${history.age_days} ${history.age_days === 1 ? "day" : "days"} old`;
     const through = history.observed_through ? ` · last observed ${formatForecastDay(history.observed_through)}` : "";
-    return `${history.completed_observations} completed observations${through} · ${age} · ${history.freshness}`;
+    return `${history.completed_observations} finished task times${through} · ${age} · ${history.freshness}`;
 });
 const calibrationSummary = computed(() => {
     const calibration = durationCalibration.value;
     if (!calibration || calibration.status !== "measured") {
-        return `Held-out calibration not enough history: ${calibration?.observed_count || 0} actuals from ${calibration?.prediction_count || 0} saved predictions.`;
+        return `Not enough later task results to compare saved estimates (${calibration?.observed_count || 0} finished tasks from ${calibration?.prediction_count || 0} saved estimates).`;
     }
     const reference = calibration.coverage?.empirical_p50?.percent == null
         ? ""
-        : ` · Past-only size reference P50 coverage ${calibration.coverage.empirical_p50.percent}% · P85 coverage ${calibration.coverage?.empirical_p85?.percent ?? "not measured"}%`;
-    return `Held-out calibration: ${calibration.observed_count} actuals from ${calibration.prediction_count} saved predictions · P50 coverage ${calibration.coverage?.p50?.percent ?? "not measured"}% · P85 coverage ${calibration.coverage?.raw_p85?.percent ?? "not measured"}%${reference}.`;
+        : ` Past task times alone included ${calibration.coverage.empirical_p50.percent}% in the usual range and ${calibration.coverage?.empirical_p85?.percent ?? "not measured"}% in the wider range.`;
+    return `Compared with ${calibration.observed_count} later task results from ${calibration.prediction_count} saved estimates, the usual range included ${calibration.coverage?.p50?.percent ?? "not measured"}% and the wider range included ${calibration.coverage?.raw_p85?.percent ?? "not measured"}%.${reference}`;
 });
 const formatDuration = (seconds) => seconds >= 86400 ? `${(seconds / 86400).toFixed(1)} days`
     : seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} hours` : `${Math.round(seconds / 60)} minutes`;
@@ -114,22 +113,21 @@ const independentTasks = computed(() => (criticalPath.value?.independent_groups 
                 <div v-if="!criteria.length"><dt>Done criteria</dt><dd>{{ missingCriteria[0] || missing[0] || "Definition of done not set" }}</dd></div>
                 <div><dt>History</dt><dd>{{ historyLine }}</dd></div>
                 <div><dt>Capacity</dt><dd>{{ capacityLine }}</dd></div>
-                <div><dt>Method and update</dt><dd>{{ forecast?.method_version || "Not estimated" }}<span v-if="forecast?.as_of"> · {{ formatForecastDay(forecast.as_of) }}</span></dd></div>
-                <div><dt>Selected estimator</dt><dd>Empirical baseline selected: {{ forecast?.method_version || "not estimated" }}<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'">. The shared network remains an unselected comparison.</span></dd></div>
-                <div v-if="durationRanges"><dt>Learned ranges</dt><dd>{{ learnedRangeSummary }} Not used for delivery probability · {{ durationHistoryLine }}</dd></div>
-                <div v-if="durationCalibration"><dt>Forecast versus actual</dt><dd>{{ calibrationSummary }} <span v-if="durationCalibration.label">{{ durationCalibration.label }}</span></dd></div>
-                <div v-if="!hasSizingBias && durationCalibration"><dt>Sizing bias</dt><dd>No aggregate sizing-bias score. At least {{ durationCalibration.minimum_calibration_samples }} held-out actuals per stage are required.</dd></div>
-                <div v-for="stage in biasStages" :key="stage.key"><dt>{{ stage.label }} sizing bias:</dt><dd><template v-if="sizingBias[stage.key].status === 'measured'">Actual durations were {{ Number(sizingBias[stage.key].actual_to_predicted_p50_ratio).toFixed(1) }}× predicted P50 over {{ sizingBias[stage.key].observed }} held-out actuals.</template><template v-else>Not enough history ({{ sizingBias[stage.key].observed }} held-out actuals).</template></dd></div>
+                <div><dt>Updated</dt><dd>{{ forecast?.as_of ? formatForecastDay(forecast.as_of) : "Not estimated" }}</dd></div>
+                <div><dt>Delivery chance</dt><dd>Based on past sprint results.<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'"> The shared dependency estimate is shown for comparison only.</span></dd></div>
+                <div v-if="durationRanges"><dt>Task-time ranges</dt><dd>{{ learnedRangeSummary }} These ranges do not change the delivery chance. {{ durationHistoryLine }}</dd></div>
+                <div v-if="durationCalibration"><dt>Saved estimates and later results</dt><dd>{{ calibrationSummary }}</dd></div>
+                <div v-for="stage in biasStages" :key="stage.key"><dt>{{ stage.key === 'execution_cycle' ? 'Work-time estimate' : 'Delivery-time estimate' }}</dt><dd><template v-if="sizingBias[stage.key].status === 'measured'">Across {{ sizingBias[stage.key].observed }} finished tasks, {{ stage.key === 'execution_cycle' ? 'work' : 'time from finishing work to delivery' }} took {{ Number(sizingBias[stage.key].actual_to_predicted_p50_ratio).toFixed(1) }} times as long as estimated.</template><template v-else>Not enough finished tasks to compare {{ stage.key === 'execution_cycle' ? 'work-time' : 'delivery-time' }} estimates ({{ sizingBias[stage.key].observed }} of {{ durationCalibration.minimum_calibration_samples }}).</template></dd></div>
             </dl>
-            <section v-if="comparableExamples.length" class="duration-examples" aria-label="Comparable delivered examples">
-                <h4>Comparable delivered examples</h4>
+            <section v-if="comparableExamples.length" class="duration-examples" aria-label="Similar finished tasks">
+                <h4>Similar finished tasks</h4>
                 <ul>
                     <li v-for="example in comparableExamples" :key="example.task_id">
-                        Task #{{ example.task_id }} · original size {{ example.original_size_points }} story points · execution size {{ example.execution_size_points }} story points · actual execution {{ formatDuration(example.execution_seconds) }} · delivery delay {{ formatDuration(example.delivery_seconds) }}
+                        Task #{{ example.task_id }} · original estimate {{ example.original_size_points }} points · finished size {{ example.execution_size_points }} points · work took {{ formatDuration(example.execution_seconds) }} · delivery took {{ formatDuration(example.delivery_seconds) }} after work finished
                     </li>
                 </ul>
             </section>
-            <p v-else-if="durationRanges" class="forecast-unknown">No comparable delivered examples for this cohort.</p>
+            <p v-else-if="durationRanges" class="forecast-unknown">No similar finished tasks yet.</p>
             <section v-if="criticalPath && criticalPath.status !== 'empty'" class="critical-path-read" aria-label="Critical path">
                 <h4>Critical path</h4>
                 <p v-if="criticalPath.status === 'structural'">The dependency graph is structural. Start, finish and slack are unknown.</p>

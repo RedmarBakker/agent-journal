@@ -26,15 +26,10 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.user_presses(f"/journal/sprints/{sprint_id}/start", {}).expect_viewer_passed()
         story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
-        worker_id = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
-        worker = story.agents.workers.get(worker_id)
-        story.agent_starts_a_session(worker)
-        story.agent_clocks_in(worker)
+        story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
         story.time_travel(seconds=3600)
-        story.agent_proves(worker, 1, "release.py:3, the production artifact is ready")
-        story.agent_clocks_out(worker, "the production artifact is ready")
-        story.agent_runs(story.agents.main, f"worker check {worker_id} 1 --task {self.tasks.first}").expect_command_passed()
-        story.agent_runs(story.agents.main, f"worker merge {worker_id}").expect_command_passed()
+        story.agent_runs(story.agents.main,
+                         f"task complete {self.tasks.first} --how 'the release artifact is ready'").expect_command_passed()
         story.time_travel(seconds=3600)
         story.user_presses(f"/journal/plans/{self.plans.first}/delivery", {
             "action": "accept", "evidence": {

@@ -65,12 +65,12 @@ test("the plan label shows a likely finish and uses the delivery chance", async 
     expect(host.textContent).toContain("71% chance in Sprint 22");
     expect(host.textContent).toContain("Sprint 23 27% · later 2% · carry-over 29%");
     expect(host.querySelector(".delivery-probability").getAttribute("aria-label")).toBe("71% in Sprint 22, 27% in Sprint 23, 2% later");
-    expect(host.textContent).toContain("15 comparable deliveries");
-    expect(host.textContent).toContain("delivery-baseline-v1");
+    expect(host.textContent).toContain("15 delivered plans");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
     expect(host.querySelector("[data-chance-tone]").dataset.chanceTone).toBe("good");
 });
 
-test("organization plan labels summarize the selected estimator and held-out calibration", async () => {
+test("organization plan labels explain past sprint results and later task times", async () => {
     const forecast = {
         ...mature,
         duration_calibration: {status: "measured", observed_count: 10,
@@ -81,9 +81,9 @@ test("organization plan labels summarize the selected estimator and held-out cal
     app.mount(host);
     await nextTick();
 
-    expect(host.textContent).toContain("15 comparable deliveries");
-    expect(host.textContent).toContain("delivery-baseline-v1 selected");
-    expect(host.textContent).toContain("10 held-out actuals · P50 coverage 50%");
+    expect(host.textContent).toContain("15 delivered plans");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
+    expect(host.textContent).toContain("Compared with 10 later task results; the usual range included 50%");
     expect(host.textContent).toContain("Capacity through 29 Oct · 1 day old · fresh");
 });
 
@@ -144,17 +144,17 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.textContent).toContain("Delivered task #101");
     expect(host.textContent).toContain("Current tasks #101, #102, #103");
     expect(host.textContent).not.toContain("Next sprint");
-    expect(host.textContent).toContain("15 comparable deliveries");
+    expect(host.textContent).toContain("15 delivered plans");
     expect(host.textContent).toContain("28 days of observed capacity");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");
-    expect(host.textContent).toContain("delivery-baseline-v1");
+    expect(host.textContent).toContain("Based on past sprint results.");
     expect(host.textContent).toContain("A successful production deployment of the committed revision.");
     expect(host.textContent).toContain("1 task awaiting deployment for 3 days");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");
     expect(host.querySelector("button")).toBeNull();
 });
 
-test("the dashboard returns held-out calibration while keeping the empirical baseline selected", async () => {
+test("the dashboard compares saved estimates with later task times while keeping delivery chance based on sprint results", async () => {
     const forecast = {
         ...mature,
         duration_ranges: {
@@ -183,23 +183,23 @@ test("the dashboard returns held-out calibration while keeping the empirical bas
     app.mount(host);
     await nextTick();
 
-    expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
-    expect(host.textContent).toContain("Learned ranges (advisory): upper ranges covered 80% of 10 held-out actual durations.");
-    expect(host.textContent).toContain("24 completed observations · last observed 29 Oct · 1 day old · fresh");
-    expect(host.textContent).toContain("Held-out calibration: 10 actuals from 14 saved predictions");
-    expect(host.textContent).toContain("P50 coverage 50% · P85 coverage 80%");
-    expect(host.textContent).toContain("Past-only size reference P50 coverage 40% · P85 coverage 60%");
-    expect(host.textContent).toContain("Not used for delivery probability");
-    expect(host.textContent).toContain("Execution sizing bias: actual durations were 1.5× predicted P50 over 5 held-out actuals");
-    expect(host.textContent).toContain("Delivery sizing bias: not enough history (2 held-out actuals)");
-    expect(host.textContent).toContain("The shared network remains an unselected comparison");
-    expect(host.textContent).toContain("Comparable delivered examples");
-    expect(host.textContent).toContain("Task #99 · original size 5 story points · execution size 3 story points · actual execution 1.0 hours · delivery delay 2.0 hours");
+    expect(host.textContent).toContain("Based on past sprint results.");
+    expect(host.textContent).toContain("Ranges come from past delivered tasks; they are advice only. The wider range included 80% of 10 finished task times.");
+    expect(host.textContent).toContain("24 finished task times · last observed 29 Oct · 1 day old · fresh");
+    expect(host.textContent).toContain("Compared with 10 later task results from 14 saved estimates, the usual range included 50% and the wider range included 80%.");
+    expect(host.textContent).toContain("Past task times alone included 40% in the usual range and 60% in the wider range.");
+    expect(host.textContent).toContain("These ranges do not change the delivery chance.");
+    expect(host.textContent).toContain("Across 5 finished tasks, work took 1.5 times as long as estimated.");
+    expect(host.textContent).toContain("Not enough finished tasks to compare delivery-time estimates (2 of 5).");
+    expect(host.textContent).toContain("The shared dependency estimate is shown for comparison only");
+    expect(host.textContent).toContain("Similar finished tasks");
+    expect(host.textContent).toContain("Task #99 · original estimate 5 points · finished size 3 points · work took 1.0 hours · delivery took 2.0 hours after work finished");
+    expect(host.textContent).not.toMatch(/empirical baseline|authorized cohort|held-out actuals|sizing-bias score/i);
     expect(host.querySelectorAll(".forecast-bands div")).toHaveLength(3);
     expect(host.textContent).not.toContain("points per hour");
 });
 
-test("cold history shows no sizing bias and does not promote learned duration ranges", async () => {
+test("cold history explains the missing task results and keeps learned ranges advisory", async () => {
     const forecast = {
         ...mature,
         duration_ranges: {status: "not_enough_history", method_version: "bayesian-log-linear-duration-v1",
@@ -213,11 +213,11 @@ test("cold history shows no sizing bias and does not promote learned duration ra
     app.mount(host);
     await nextTick();
 
-    expect(host.textContent).toContain("Empirical baseline selected: delivery-baseline-v1");
+    expect(host.textContent).toContain("Based on past sprint results.");
     expect(host.textContent).toContain("Learned ranges: not enough history yet.");
-    expect(host.textContent).toContain("No aggregate sizing-bias score");
-    expect(host.textContent).toContain("At least 5 held-out actuals per stage are required.");
+    expect(host.textContent).toContain("Not enough finished tasks to compare work-time estimates (0 of 5).");
     expect(host.textContent).not.toContain("actual durations were");
+    expect(host.textContent).not.toMatch(/empirical baseline|authorized cohort|held-out actuals|sizing-bias score/i);
     expect(host.textContent).toContain("71%");
     expect(host.textContent).not.toContain("points per hour");
 });
@@ -313,7 +313,7 @@ test("a cold completed development plan says it is not deployed and invents no d
     expect(host.querySelector("button")).toBeNull();
 });
 
-test("stale capacity remains visible beside the forecast method and update date", async () => {
+test("stale capacity remains visible beside the forecast update date", async () => {
     const stale = {...mature, capacity_freshness: "stale", capacity_age_days: 20};
     host = document.body.appendChild(document.createElement("div"));
     app = createApp({render: () => h(DeliveryForecastPanel, {forecast: stale, sprint, plan: {state: "started"}})});
@@ -321,7 +321,8 @@ test("stale capacity remains visible beside the forecast method and update date"
     await nextTick();
 
     expect(host.textContent).toContain("20 days old · stale");
-    expect(host.textContent).toContain("delivery-baseline-v1 · 30 Oct");
+    expect(host.textContent).toContain("30 Oct");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
 });
 
 test("a missing definition of done is named instead of hidden", async () => {

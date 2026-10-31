@@ -23,10 +23,10 @@ const sampleLine = computed(() => {
     const deliveries = Number(props.forecast.delivered_outcomes || 0);
     const calibration = props.forecast.duration_calibration;
     const p50 = calibration?.coverage?.p50?.percent;
-    const heldOut = calibration?.status === "measured"
-        ? `${calibration.observed_count} held-out actuals · P50 coverage ${p50 == null ? "not measured" : `${p50}%`}`
-        : `Held-out calibration not enough history (${calibration?.observed_count || 0} actuals)`;
-    return `${deliveries} comparable ${deliveries === 1 ? "delivery" : "deliveries"} · ${props.forecast.method_version || "No method"} selected · ${heldOut} · ${capacityLine.value}`;
+    const laterResults = calibration?.status === "measured"
+        ? `Compared with ${calibration.observed_count} later task results; the usual range included ${p50 == null ? "not measured" : `${p50}%`}`
+        : `Not enough later task results to compare saved estimates (${calibration?.observed_count || 0} finished tasks)`;
+    return `${deliveries} delivered ${deliveries === 1 ? "plan" : "plans"} · Delivery chance uses past sprint results · ${laterResults} · ${capacityLine.value}`;
 });
 const waitingLine = computed(() => {
     if (!awaiting.value) return "";
