@@ -281,7 +281,7 @@ class RigSpecs:
         return self.config.home / "bin" / "journal"
 
     def agent(self, folder: Path, seat: Seat) -> None:
-        (folder / GUIDANCE).parent.mkdir(parents=True)
+        (folder / GUIDANCE).parent.mkdir(parents=True, exist_ok=True)
         (folder / GUIDANCE).write_text(seat.guidance)
         provider = self.providers.lookup(seat.provider)
         hooks = self.hook_resource(provider, folder)
