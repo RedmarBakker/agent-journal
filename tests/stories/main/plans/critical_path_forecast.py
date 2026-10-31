@@ -43,6 +43,7 @@ def test_a_plan_forecast_shows_declared_dependencies_and_independent_work_as_a_s
 
 @story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
+    existing_task = story.tasks.first
     source_plan = story.user_creates_plan("source delivery", "the source artifact is deployed")
     source_task = story.user_adds_plan_task(source_plan, "source artifact", "development")
     gate = story.user_presses(f"/journal/plans/{story.plans.first}/tasks", {
@@ -62,6 +63,7 @@ def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
         {"task_id": gate_id, "prerequisite_id": source_task, "kind": "delivery_gate", "external": True, "status": "unresolved"},
     ])
     forecast.expect_viewer_part(("critical_path", "p50_finish"), None)
+    story.expect_task(existing_task, state=TaskState.OPEN, size=3)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -88,6 +90,6 @@ def test_a_plan_builder_is_told_about_a_truly_independent_task(story):
 
     result = story.agent_stops(story.agents.subject)
 
-    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.CRITICAL_PATH, f"task #{independent_id}")
+    result.expect_agent_told_words(story.agents.subject, EstimatesNudges.CRITICAL_PATH, f"independent tasks #{independent_id}")
     story.expect_task(dependent_id, state=TaskState.OPEN, size=5)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
