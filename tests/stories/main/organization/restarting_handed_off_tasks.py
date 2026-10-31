@@ -12,6 +12,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
 from tests.stories.fixtures.main.paused_organization_domain_handoff import PausedOrganizationDomainHandoff
+from tests.stories.fixtures.main.paused_organization_plan_role_route import PausedOrganizationPlanRoleRoute
 
 
 @story(PausedOrganizationDomainHandoff, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -36,7 +37,7 @@ def test_restarting_a_plan_marks_its_read_domain_handoff_unread(story):
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
 
 
-@story(PausedOrganizationDomainHandoff, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationPlanRoleRoute, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
     story.plays_in(BUILDER_MODE)
