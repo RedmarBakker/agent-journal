@@ -43,12 +43,12 @@ class PlanCompositionReadiness:
     def require_size(task, scale: tuple[int, ...]) -> None:
         if task.size in scale:
             return
-        raise Rejection(f"task {task.row_id} has no approved size: use `journal task size {task.row_id} <points> --reason \"<why>\"`")
+        raise Rejection(f"task {task.row_id} size is not in estimates.size_scale: `journal task size {task.row_id} <points> --reason <why>`")
 
     def require_domain(self, plan: Plan, task, contracts) -> None:
         name = self.domains.planned_domain_name(task)
         if not name:
-            raise Rejection(f"task {task.row_id} needs a domain: set it on the task page or use `journal plan add {plan.row_id}`")
+            raise Rejection(f"task {task.row_id} needs a domain: edit its task page or use `journal plan add {plan.row_id} --domain <name>`")
         domain = contracts.domain(name)
         if domain is None:
             raise Rejection(f"task {task.row_id} names unknown domain {name}: fix domain.toml and reload the organization")
@@ -56,4 +56,4 @@ class PlanCompositionReadiness:
             raise Rejection(f"planned domain {name} needs a responsible role in domain.toml")
         done = domain.definition_of_done
         if done is None or not done.criterion.strip() or not done.target.strip():
-            raise Rejection(f"planned domain {name} needs a definition of done with a criterion and target")
+            raise Rejection(f"planned domain {name} needs a definition of done in domain.toml with a criterion and target")

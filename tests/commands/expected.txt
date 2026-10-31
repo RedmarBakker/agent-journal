@@ -1746,6 +1746,7 @@ engine.helper_has_no_job  [engine]  you have no job yet. wait for the journal to
 engine.journal_answers_again  [engine]  your journal was down for {{seconds}} seconds and is back. tools wait a few seconds until it is steady; try again then
 engine.stop_held_in_a_loop  [engine]  stop held five times; the next goes through. fix the state with `journal panic <state>`, then `journal panic report`
 engine.worker_ends_after_the_grace  [engine]  your journal was down {{seconds}} seconds, past a worker's {{grace}}-second limit. stop now; you will be sent again
+estimates.critical_path_work  [estimates]  plan {{n}} delivery graph: {{work|cap=160}}. keep the critical tasks or independent work visible; prerequisite changes need a reason
 estimates.critical_prerequisite_open  [estimates]  plan {{n}}: task {{task}} waits on prerequisite {{prerequisite}}. resolve it or justify a change
 estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance this sprint; P85 {{p85}}. review scope with the owner
 estimates.plan_forecast_basis  [estimates]  plan {{n}} forecast: {{basis|cap=240}}
@@ -2030,7 +2031,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-315 nudges
+316 nudges
 
 $ agent: journal worker list
 exit 0
