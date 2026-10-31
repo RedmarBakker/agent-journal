@@ -44,7 +44,7 @@ def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(sto
     worker = story.agents.workers.first()
     story.expect_worker_role_job(worker, task, brief, old_brief)
     story.expect_role_job_prompt(worker, brief, old_brief, f"You are worker {worker}; task {task} is yours", "journal clock-in")
-    story.expect_role_guidance_and_skills_omit(worker, f"task {task}", "task 6 current", brief, old_brief)
+    story.expect_role_guidance_and_skills_omit(worker, "task 6 current", brief, old_brief)
 
     story.agent_starts_role_session(worker)
     inbox = story.agent_runs_from_organization_seat(worker, "role:alpha/builder", "organization inbox")
