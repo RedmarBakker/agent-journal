@@ -5,6 +5,7 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_domain_seat_started import OrganizationDomainSeatStarted
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(OrganizationDomainSeatStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
@@ -35,4 +36,4 @@ def test_a_domain_keeps_its_inbox_handoff_until_it_hands_the_task_to_a_role(stor
     inbox.expect_command_text_without(f"plan {plan} task {task}: first")
     inbox.expect_agent_not_told(domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                                 task=task, domain="alpha")
-    story.expect_stack(domain, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
