@@ -27,7 +27,7 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         self.links, self.tasks, self.plans = links, tasks, plans
 
     def handoff(self, task: Task, plan: Plan, target: str, actor: Actor) -> OrganizationHandoff:
-        for row, existing_plan, existing in self.awaiting_action(target):
+        for row, existing_plan, existing in self.pending(target):
             if existing_plan.row_id == plan.row_id and existing.row_id == task.row_id:
                 return row
         row = self.save(OrganizationHandoff(target=target), actor)
@@ -44,10 +44,15 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         latest = {(plan.row_id, task.row_id): row for row, plan, task in rows}
         return tuple(
             (row, plan, task) for row, plan, task in rows
-            if latest[(plan.row_id, task.row_id)] == row
-            and self.latest_handoff(task, plan) == row
-            and not task.state.is_closed()
-            and not (target.startswith("domain:") and self.tasks.parts_of(task))
+            if not task.state.is_closed()
+            and (
+                row.read_at is None
+                or (
+                    latest[(plan.row_id, task.row_id)] == row
+                    and self.latest_handoff(task, plan) == row
+                    and not (target.startswith("domain:") and self.tasks.parts_of(task))
+                )
+            )
         )
 
     def targeted(self, rows: list[OrganizationHandoff], target: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:

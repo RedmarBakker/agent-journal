@@ -185,9 +185,12 @@ class OrganizationHub:
         if member.rig.startswith("plan-"):
             plan = self.plan_for_rig(member.rig)
             with self.scope.environment(plan.environment_id):
-                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.awaiting_action(seat), plan), caller)
+                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs_for_inbox(seat), plan), caller)
             return
-        self.print_inbox(seat, self.handoffs.awaiting_action(seat), caller)
+        self.print_inbox(seat, self.handoffs_for_inbox(seat), caller)
+
+    def handoffs_for_inbox(self, seat: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
+        return self.handoffs.awaiting_action(seat) if seat.startswith("domain:") else self.handoffs.pending(seat)
 
     def print_inbox(self, seat: str, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], caller: Caller) -> None:
         if not rows:

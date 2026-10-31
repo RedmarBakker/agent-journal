@@ -88,6 +88,9 @@ class OrganizationDataReader:
                 identity = self.runtime.organization_seat_for_session(rig, agent.provider, agent.session)
                 if identity:
                     return candidate, identity
+            plan_agent = self.plan_agents.agent(candidate)
+            if plan_agent and agent.session and plan_agent.session == agent.session:
+                return candidate, "plan"
         return plan, ""
 
     def waiting_plan_handoff(self, plan: Plan | None, contracts: Contracts, identity: str) -> tuple[int, str] | None:
