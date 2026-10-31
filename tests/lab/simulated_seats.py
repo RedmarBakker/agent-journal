@@ -52,6 +52,19 @@ class SimulatedSeats:
         if arguments[0] == "send":
             self.messages.append((arguments[1], arguments[2]))
             return self.result(arguments, "{}")
+        if arguments[0] == "expand":
+            rig, path = arguments[1], Path(arguments[2])
+            pod = json.loads(path.read_text())
+            self.specs[rig].setdefault("pods", []).append(pod)
+            self.start_members(rig, {"pods": [pod]})
+            return self.result(arguments, "{}")
+        if arguments[0] == "add":
+            rig, pod_id, path = arguments[1], arguments[2], Path(arguments[3])
+            member = json.loads(path.read_text())
+            pod = next(pod for pod in self.specs[rig]["pods"] if pod["id"] == pod_id)
+            pod.setdefault("members", []).append(member)
+            self.start_session(f"{pod_id}-{member['id']}@{rig}")
+            return self.result(arguments, "{}")
         if arguments[0] == "launch":
             self.start_session(f"{arguments[2]}@{arguments[1]}")
             return self.result(arguments, "{}")
@@ -61,7 +74,7 @@ class SimulatedSeats:
             return self.result(arguments, "{}")
         if arguments[:2] == ("telemetry", "transitions"):
             return self.result(arguments, '{"transitions": [], "page": {"hasMore": false}}')
-        if arguments[0] in {"expand", "add", "remove", "edge"}:
+        if arguments[0] in {"remove", "edge"}:
             return self.result(arguments, "{}")
         return self.result(arguments, "", 2, f"unsupported simulated OpenRig call: {' '.join(arguments)}")
 

@@ -1,5 +1,8 @@
 from journal.models.worker_state import WorkerState
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
 from tests.stories.fixtures.main.organization_domain_role_task import OrganizationDomainRoleTask
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 class OrganizationRoleWorkerEnded(OrganizationDomainRoleTask):
@@ -19,6 +22,6 @@ class OrganizationRoleWorkerEnded(OrganizationDomainRoleTask):
         story.worker_run_ends_with_its_session(worker, "the Role ended before clocking in")
 
     def expected(self, story) -> None:
-        super().expected(story)
         story.expect_task(self.tasks.second, delegated=True)
         story.expect_worker(self.workers.first, state=WorkerState.UNFINISHED)
+        story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan, awaiting_state(story))

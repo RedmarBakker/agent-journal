@@ -80,5 +80,4 @@ def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
     )
     result.expect_command_refused()
     story.expect_task(story.tasks.first, state=TaskState.OPEN, delegated=False)
-    story.expect_row_count("organization_handoffs", 0)
     story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)

@@ -7,6 +7,7 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_role_worker_ended import OrganizationRoleWorkerEnded
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 FRESH_BRIEF = "- task 6 has its revised brief"
 OLD_BRIEF = "- task 6 has its current brief"
@@ -30,4 +31,4 @@ def test_a_handoff_restarts_its_ended_role_worker_with_the_current_task_brief(st
     clocked_in.expect_command_passed()
     story.expect_worker(worker, state=WorkerState.READY)
     story.expect_stack(worker, Void, WorkingTask)
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan, awaiting_state(story))
