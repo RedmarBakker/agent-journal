@@ -29,6 +29,7 @@ def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actua
     forecast = story.user_opens(f"/journal/plans/{story.plans.second}/forecast")
     forecast.expect_viewer_part(("duration_ranges", "history", "completed_observations"), 2)
     forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "comparable_examples", 0, "task_id"), story.tasks.first)
+    forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "comparable_examples", 0, "plan_id"), story.plans.first)
     forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "comparable_examples", 0, "original_size_points"), 3)
     forecast.expect_viewer_part(("duration_calibration", "status"), "not_enough_history")
     story.expect_stack(story.agents.main, Ready)
