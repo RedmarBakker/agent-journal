@@ -13,11 +13,12 @@ class FixtureCopy:
     line_keys: frozenset[str]
     main_session_id: str
     session_environments: tuple[tuple[str, str], ...]
+    worker_sessions: tuple[tuple[int, str], ...]
 
     @staticmethod
     def journal_copy(story, fixture: StateFixture) -> "FixtureCopy":
         return FixtureCopy(SharedJournal(story.app), fixture, frozenset(story.line_keys), story.main_session_id,
-                           tuple(story.session_environments.items()))
+                           tuple(story.session_environments.items()), tuple(story.worker_sessions.items()))
 
     def restore(self, story) -> StateFixture:
         self.journal.put_back()
@@ -27,4 +28,5 @@ class FixtureCopy:
         story.replace_main_session(self.main_session_id, story.provider,
                                    environments.get(self.main_session_id, "main"))
         story.session_environments = environments
+        story.worker_sessions = dict(self.worker_sessions)
         return self.fixture.copied()
