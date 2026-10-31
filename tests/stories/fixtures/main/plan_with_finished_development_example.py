@@ -55,6 +55,9 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.agent_runs_from_plan_organization_seat(
             story.agents.main, "plan", f"organization handoff {self.tasks.first} domain:development",
         ).expect_command_passed()
+        organization = story.agent_runs_from_organization_seat(story.agents.main, "domain:development", "organization list")
+        organization.expect_command_passed()
+        organization.expect_command_text("role delivery")
         story.agent_runs_from_organization_seat(
             story.agents.main, "domain:development", f"organization handoff {self.tasks.first} role:development/delivery",
         ).expect_command_passed()
