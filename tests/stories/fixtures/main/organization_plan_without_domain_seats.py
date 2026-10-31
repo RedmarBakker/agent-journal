@@ -14,7 +14,7 @@ class OrganizationPlanWithoutDomainSeats(OrganizationPlanSeat):
     """A started organization plan rig has only its Plan seat."""
 
     parent = OrganizationPlanSeat
-    settings = (*OrganizationPlanSeat.settings, (WorkersOptions.MODE, ORCHESTRATOR_MODE))
+    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
         story.user_rewrites_the_brief(self.tasks.first, TASK_BRIEF)

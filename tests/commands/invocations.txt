@@ -373,3 +373,6 @@ user library withdraw --help
 user library delete --help
 agent organization handoff --help
 agent organization inbox --help
+agent organization part --help
+agent organization other --help
+agent organization parts --help

@@ -10,6 +10,7 @@ class OrganizationPlanWithDomainSeats(OrganizationPlanSeat):
     """A started organization plan has all its generated Domain seats in its plan rig."""
 
     parent = OrganizationPlanSeat
+    settings = ()
 
     def steps(self, story) -> None:
         plan = self.plans.first

@@ -8,14 +8,14 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
-from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
+from tests.stories.fixtures.main.organization_plan_without_domain_seats import OrganizationPlanWithoutDomainSeats
 
 
-class OrganizationPlanHandoffSeat(OrganizationPlanSeat):
+class OrganizationPlanHandoffSeat(OrganizationPlanWithoutDomainSeats):
     """The Plan seat has started on its organization plan and task."""
 
-    parent = OrganizationPlanSeat
-    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
+    parent = OrganizationPlanWithoutDomainSeats
+    settings = ()
 
     def start_plan_seat(self, story) -> None:
         seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
@@ -25,10 +25,10 @@ class OrganizationPlanHandoffSeat(OrganizationPlanSeat):
         overview.expect_command_passed()
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, story.app.container.get(SeatRuntime))
-        story.plays_in(BUILDER_MODE)
-        self.start_plan_seat(story)
+        boards = story.agent_runs(story.agents.main, "organization plans")
+        boards.expect_command_passed()
+        boards.expect_command_text("no plans")
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.STARTED)

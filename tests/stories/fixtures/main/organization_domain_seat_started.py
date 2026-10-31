@@ -10,6 +10,7 @@ class OrganizationDomainSeatStarted(OrganizationPlanWithoutDomainSeats):
     """An organization plan has handed its first task to a started Domain seat."""
 
     parent = OrganizationPlanWithoutDomainSeats
+    settings = ()
 
     def steps(self, story) -> None:
         plan, task = story.plans.first, story.tasks.first

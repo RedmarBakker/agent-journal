@@ -74,7 +74,7 @@ def test_a_plan_agent_creates_its_worktree_before_the_branch_guard_checks_it(sto
         (root / ".plan-agent-start-check").write_text("|".join((choice.environment, launch.worktree, str(folder.relative_to(root)), branch.read_text())))
         return 0
 
-    def launched(launcher, environment, arguments):
+    def launched(launcher, environment, arguments, worktree=None):
         (root / ".plan-agent-launch-arguments").write_text(" ".join(arguments))
         running.add(environments.existing(environment).row_id)
         result = Launch.parse(arguments, launcher.config.root).run()

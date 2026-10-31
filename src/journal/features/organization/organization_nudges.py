@@ -17,7 +17,7 @@ class OrganizationNudges:
     ROLE_WORK_AWAITS_CHECK = Nudge(
         "organization", "role_work_waiting_for_check", "task {{task}} from worker {{worker}} waits for your check",
         "`journal worker check {{worker}} <point>`; then `journal organization handoff {{task}} plan`",
-        repeat=Timeout.seconds(0), longest_characters=160,
+        repeat=Timeout.seconds(0), longest_characters=151,
         longest_reason="it names the waiting task and both commands to check and return it",
     )
     TASK_CAN_BE_SPLIT = Nudge(
@@ -46,6 +46,6 @@ class OrganizationNudges:
     )
     SPLIT_OTHER_DOMAIN = Nudge(
         "organization", "split_part_for_another_domain", "this task belongs to {{domain}}",
-        "Use `journal organization other` to ask the Plan seat for another Domain",
+        "Use `journal organization other {{task}} domain:<domain> \"<title>\" --brief \"<what>\"` to ask the Plan seat for another Domain",
         repeat=Timeout.seconds(0),
     )

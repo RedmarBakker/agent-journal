@@ -1802,13 +1802,19 @@ messages.write_held_until_read  [messages]  {{count}} unread messages. run `jour
 messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
 organization.action_waits_for_the_user  [organization]  {{action}} waits for the user: ask with `journal question ask "<may I?>"`, act once the answer allows it
+organization.all_split_parts_cancelled  [organization]  all parts of task {{task}} were cancelled. Return it with `journal organization handoff {{task}} plan`
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
 organization.organization_handoff_waiting_in_inbox  [organization]  you have an unread handoff; run `journal organization inbox`
+organization.plan_task_can_be_split  [organization]  task {{task}} can be split between its Roles. Use `journal organization part {{task}} role:{{domain}}/<role> "<title>" --brief "<what>"`
 organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
 organization.role_task_returns_by_clocking_out  [organization]  Role work returns with `journal proof <point> "<file:line and test>"`, then `journal clock-out "<report>"`
 organization.role_work_waiting_for_check  [organization]  task {{task}} from worker {{worker}} waits for your check. `journal worker check {{worker}} <point>`; then `journal organization handoff {{task}} plan`
+organization.split_part_for_another_domain  [organization]  this task belongs to {{domain}}. Use `journal organization other {{task}} domain:<domain> "<title>" --brief "<what>"` to ask the Plan seat for another Domain
+organization.split_part_ready_for_role  [organization]  task {{task}} is ready for {{role}}. Run `journal organization handoff {{task}} {{role}}`
+organization.split_task_completed  [organization]  task {{task}} is complete after all its parts were merged
+organization.split_task_handoff_requires_a_part  [organization]  task {{task}} has Role parts. Hand off one of its parts to a Role
 organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
 organization.you_act_as_the_role  [organization]  you act as {{role}} for this step; `journal role done` when it ends. {{guidance|cap=3000}}
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual
@@ -2024,7 +2030,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-314 nudges
+320 nudges
 
 $ agent: journal worker list
 exit 0
@@ -3039,6 +3045,44 @@ options:
 $ agent: journal organization inbox --help
 exit 0
 usage: journal organization inbox [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal organization part --help
+exit 0
+usage: journal organization part [-h] --brief BRIEF [--after AFTER]
+                                 task target title
+
+positional arguments:
+  task
+  target         role:<domain>/<role>
+  title
+
+options:
+  -h, --help     show this help message and exit
+  --brief BRIEF
+  --after AFTER  a part of this plan task that must finish first
+
+$ agent: journal organization other --help
+exit 0
+usage: journal organization other [-h] --brief BRIEF task target title
+
+positional arguments:
+  task
+  target         domain:<id>
+  title
+
+options:
+  -h, --help     show this help message and exit
+  --brief BRIEF
+
+$ agent: journal organization parts --help
+exit 0
+usage: journal organization parts [-h] task
+
+positional arguments:
+  task
 
 options:
   -h, --help  show this help message and exit
