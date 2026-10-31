@@ -37,6 +37,9 @@ def test_a_new_enforced_plan_refuses_an_unknown_size_with_a_correction(story):
 def test_a_new_enforced_plan_refuses_a_sized_task_without_an_accountable_domain(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
+    result = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'build' --brief 'the artifact builds' --domain development --size 3 --phase 1")
+    result.expect_command_passed()
+    first = story.created_number("task")
     result = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'release' --brief 'the release is deployed' --size 3 --phase 1")
     result.expect_command_passed()
     task = story.created_number("task")
@@ -46,6 +49,7 @@ def test_a_new_enforced_plan_refuses_a_sized_task_without_an_accountable_domain(
     result.expect_command_text(f"plan add {story.plans.first}")
     result.expect_command_text("--domain")
     story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    story.expect_task(first, state=TaskState.OPEN, size=3)
     story.expect_task(task, state=TaskState.OPEN, size=3)
     story.expect_stack(story.agents.subject, Ready)
 
