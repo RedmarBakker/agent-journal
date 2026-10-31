@@ -51,6 +51,11 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                    plan_ref in self.links.targets(row, PLAN_HANDOFF)
                    for row in rows)
 
+    def unread_in_plan(self, plan: Plan, target: str) -> bool:
+        plan_ref = Ref.build(plan)
+        rows = self.selected_globally(self.query().filter(target=target).filter_null("read_at"))
+        return any(plan_ref in self.links.targets(row, PLAN_HANDOFF) for row in rows)
+
     def in_plan(self, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], plan: Plan) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
         return tuple(row for row in rows if row[1].row_id == plan.row_id)
 

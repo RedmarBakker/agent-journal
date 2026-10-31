@@ -39,8 +39,7 @@ class OrganizationDataReader:
     def unread_domain_handoff(self, plan: Plan | None, identity: str) -> bool:
         if plan is None or not identity.startswith("domain:"):
             return False
-        with self.scope.environment(plan.environment_id):
-            return bool(self.handoffs.pending(identity))
+        return self.handoffs.unread_in_plan(plan, identity)
 
     def organization_seat_for_session(self, agent: Agent, plan: Plan | None) -> tuple[Plan | None, str]:
         plans = self.plans.global_matching(state=PlanState.STARTED)
