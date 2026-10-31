@@ -6,11 +6,19 @@ from tests.organization_fixture import OrganizationFixture
 
 
 def setup_domain(story, fixture, folder_name: str, domain: str, definition: dict | None) -> None:
+    prepare_domain(story, fixture, folder_name, domain, definition)
+    record_estimates(story)
+
+
+def prepare_domain(story, fixture, folder_name: str, domain: str, definition: dict | None) -> None:
     folder = story.app.config.root / folder_name
     write_domain(folder, domain, definition)
     load_domain(story, folder)
-    story.user_sets(EstimatesOptions.MODE, "record")
     fixture.domain_folder = folder
+
+
+def record_estimates(story) -> None:
+    story.user_sets(EstimatesOptions.MODE, "record")
 
 
 def add_domain_plan(story, fixture, domain: str) -> None:
