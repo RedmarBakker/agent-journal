@@ -26,6 +26,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.shell_runner import ShellRunner
 from journal.features.shell.support.chain_worker import ChainWorker
+from journal.features.shell.support.shell_record import ShellRecord
 from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -390,6 +391,22 @@ class AgentSteps:
             self.shell_text = runner.background_move(folder, line, running, caller, 1, [])
         self.observed(f"agent has a background run {line.split()[0]}", None, None)
         return folder.number()
+
+    def agent_has_a_watched_foreground_run(self, agent: StoryAgent, line: str) -> int:
+        runner, caller = self.app.container.get(ShellRunner), self.seated_caller_of(agent)
+        with self.app.container.get(Scope).environment(1):
+            folder = runner.split_folder(line)
+            runner.recorded(folder, line, caller, str(self.app.config.root))
+            runner.test_run_watched(folder, line, caller)
+        self.observed(f"agent has a watched foreground run {line.split()[0]}", None, None)
+        return folder.number()
+
+    def foreground_run_ends(self, agent: StoryAgent, output: int, status: int = 0) -> StepResult:
+        with self.app.container.get(Scope).environment(1):
+            folder = OutputFiles(Path(self.app.container.get(CommandOutputs).find(output).folder))
+            folder.ended_with(len(folder.kinds()) - 1, status)
+            self.app.container.get(ShellRecord).foreground_end(folder.folder.name, status, self.seated_caller_of(agent))
+        return self.observed(f"the foreground run ends {'failing' if status else 'passing'}", None, None)
 
     def recorded_run_ends(self, output: int) -> StepResult:
         return self.recorded_run_ends_with(output, 0)

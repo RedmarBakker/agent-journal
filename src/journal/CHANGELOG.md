@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.17
+
+- A command run in the foreground whose card had shown in the chat turns that card to how it ended. Before, the card kept its spinner after the run finished, since ending a foreground run unwatches it and the card listener then passed it by.
+
 ## 4.69.16
 
 - A subagent may read the chat thread with journal message list and journal message recent, so a reviewer can check the work against what was agreed in the chat. journal message read stays refused, since it marks the user's messages read.
