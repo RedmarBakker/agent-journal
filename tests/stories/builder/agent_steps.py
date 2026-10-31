@@ -318,13 +318,6 @@ class AgentSteps:
             self.hooked(agent, "agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
         return self.last_step
 
-    def agent_reads_in_environment(self, agent: StoryAgent, environment: str, path: str) -> StepResult:
-        call = {"tool_name": self.tools.read, "tool_input": {"file_path": path}}
-        status, answer = self.session_posted_hook(
-            self.session_of(agent), {"X-Journal-Env": environment}, "PreToolUse", call,
-        )
-        return self.hook_observed(f"agent reads {path} in {environment}", status, answer, environment)
-
     def agent_writes_in_one_firing(self, agent: StoryAgent, path: str, firing: str) -> StepResult:
         headers = {**self.headers_of(agent), FIRING_HEADER: firing}
         call = dict(tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
@@ -366,15 +359,6 @@ class AgentSteps:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
         self.hooked(agent, "agent reads a skill", "PreToolUse", **call)
         return self.hooked(agent, "agent has read the skill", "PostToolUse", **call, tool_response={})
-
-    def agent_reads_a_skill_in_environment(self, agent: StoryAgent, environment: str, folder: str) -> StepResult:
-        call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
-        headers = {"X-Journal-Env": environment}
-        self.session_posted_hook(self.session_of(agent), headers, "PreToolUse", call)
-        status, answer = self.session_posted_hook(
-            self.session_of(agent), headers, "PostToolUse", {**call, "tool_response": {}},
-        )
-        return self.hook_observed(f"agent has read the {folder} skill in {environment}", status, answer, environment)
 
     def agent_cats_a_skill_through_the_runner(self, agent: StoryAgent, home: str, folder: str) -> StepResult:
         line = f"cat {home}/{folder}/{SKILL_FILE}"

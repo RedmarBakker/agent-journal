@@ -283,18 +283,6 @@ class UserSteps:
         self.set_positions[option.key] = position
         return result
 
-    def user_sets_in_environment(self, option: Option, value: object, environment: str) -> StepResult:
-        top, _, name = option.key.partition(".")
-        position = self.reads.position()
-        headers = {**MAIN, "X-Journal-Env": environment}
-        status, answer = posted(self.app, "/journal/settings", {top: {name: value}}, headers)
-        assert status < 300, f"the viewer could not set {option.key} in {environment}: {answer}"
-        self.viewer_status, self.viewer_answer = status, answer
-        stored = get_answer(self.app, "/journal/settings", headers)[1].get(top, {}).get(name, option.default)
-        assert stored == value, f"{option.key} was set to {value!r} in {environment} but the journal holds {stored!r}"
-        self.set_positions[option.key] = position
-        return self.observed(f"user sets {option.key} in {environment} to {value}", None, None, environment)
-
     def user_creates_trigger(self, phrases: list[str], text: str, action: str) -> int:
         return self.user_posted("/journal/triggers", {"phrases": phrases, "text": text, "action": action}, "user creates a trigger")["id"]
 
