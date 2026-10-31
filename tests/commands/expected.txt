@@ -1531,6 +1531,11 @@ estimates.sprint_length_days = 14  (the user sets it)
 estimates.size_scale = 1 | 2 | 3 | 5 | 8 | 13  (the user sets it)
 estimates.forecast_trials = 10000  (the user sets it)
 estimates.forecast_horizon_sprints = 6  (the user sets it)
+estimates.scope_growth_warning_points = 1  (the user sets it)
+estimates.aging_p85_multiplier = 1.0  (the user sets it)
+estimates.aging_minimum_outcomes = 5  (the user sets it)
+estimates.sprint_miss_warning_percent = 70  (the user sets it)
+estimates.risk_repeat_minutes = 30  (the user sets it)
 
 $ agent: journal settings show tasks.auto
 exit 0
@@ -1741,6 +1746,11 @@ engine.helper_has_no_job  [engine]  you have no job yet. wait for the journal to
 engine.journal_answers_again  [engine]  your journal was down for {{seconds}} seconds and is back. tools wait a few seconds until it is steady; try again then
 engine.stop_held_in_a_loop  [engine]  stop held five times; the next goes through. fix the state with `journal panic <state>`, then `journal panic report`
 engine.worker_ends_after_the_grace  [engine]  your journal was down {{seconds}} seconds, past a worker's {{grace}}-second limit. stop now; you will be sent again
+estimates.critical_prerequisite_open  [estimates]  plan {{n}}: task {{task}} waits on prerequisite {{prerequisite}}. resolve it or justify a change
+estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance this sprint; P85 {{p85}}. review scope with the owner
+estimates.plan_forecast_basis  [estimates]  plan {{n}} forecast: {{basis|cap=240}}
+estimates.plan_scope_growth  [estimates]  plan {{n}} scope grew: {{change|cap=55}}. ask the owner before changing it
+estimates.task_past_historical_range  [estimates]  task {{task}} worked {{age}}; historical P85 is {{p85}}. check its wait, scope and next step
 etiquette.a_line_is_an_instruction  [etiquette]  a [journal] line is an instruction, not a message. act on it; never answer or mention it in the chat
 etiquette.blank_lines_between_paragraphs  [etiquette]  put a blank line between paragraphs
 etiquette.no_em_dashes  [etiquette]  no em dashes in the chat; use a full stop
@@ -2020,7 +2030,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-310 nudges
+315 nudges
 
 $ agent: journal worker list
 exit 0

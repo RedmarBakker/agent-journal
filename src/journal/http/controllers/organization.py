@@ -57,7 +57,7 @@ class OrganizationController:
         summaries = {plan_id: self.plan(plan, estimates[plan_id]) for plan_id, plan in known_plans.items()}
         return {"folder": contracts.folder, "commit": contracts.commit, "version": contracts.version, "problems": [asdict(problem) for problem in contracts.problems],
                 "plans": [summaries[plan.id] for plan in all_plans], "scheduled_plans": self.scheduled_plans(),
-                "sprint_forecasts": self.forecasts.organization(actor),
+                "sprint_forecasts": self.forecasts.organization(actor) if actor.is_desk_user() else [],
                 "domains": [self.domain(domain, contracts.roles_of(domain.id), counts.get(domain.id), domain_plans[domain.id], summaries) for domain in contracts.domains]}
 
     def role_contract(self, request: Request) -> Response:

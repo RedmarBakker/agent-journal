@@ -80,7 +80,7 @@ class TaskDependencies:
         prerequisites = {task.row_id: self.prerequisites(task) for task in tasks}
         for task in tasks:
             if prerequisites[task.row_id] and not self.has_declaration_reason(task, prerequisites[task.row_id]):
-                raise Rejection(f"task {task.row_id} has an invalid prerequisite declaration: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+                raise Rejection(f"task {task.row_id} has a dependency with no reason; add one")
         visited: set[int] = set()
         visiting: set[int] = set()
         for task in tasks:
@@ -89,15 +89,15 @@ class TaskDependencies:
     def prerequisites(self, task: Task) -> list[int]:
         refs = self.links.targets(task, DEPENDENCY_LINK)
         if any(ref.type != Task.table() for ref in refs):
-            raise Rejection(f"task {task.row_id} has an invalid prerequisite reference: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+            raise Rejection(f"task {task.row_id} has a non-task prerequisite link; remove it")
         task_ids = [ref.id for ref in refs]
         if task.row_id in task_ids or len(set(task_ids)) != len(task_ids):
-            raise Rejection(f"task {task.row_id} has an invalid prerequisite declaration: remove the self-reference or duplicate with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`")
+            raise Rejection(f"task {task.row_id} repeats a prerequisite or depends on itself")
         try:
             for task_id in task_ids:
                 self.tasks.find(task_id)
         except MissingRow as error:
-            raise Rejection(f"task {task.row_id} names a missing prerequisite: revise it with `journal task depends {task.row_id} --on <task> --reason \"why it must wait\"`") from error
+            raise Rejection(f"task {task.row_id} names missing prerequisite {task_id}; fix it") from error
         return task_ids
 
     def has_declaration_reason(self, task: Task, prerequisite_ids: list[int]) -> bool:
@@ -109,7 +109,7 @@ class TaskDependencies:
 
     def visit(self, task_id: int, visited: set[int], visiting: set[int]) -> None:
         if task_id in visiting:
-            raise Rejection(f"planned prerequisites contain a cycle at task {task_id}: revise the dependency with `journal task depends {task_id} --on <task> --reason \"why the order is valid\"`")
+            raise Rejection(f"planned dependencies cycle at task {task_id}; revise the order")
         if task_id in visited:
             return
         visiting.add(task_id)
