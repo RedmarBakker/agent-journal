@@ -58,9 +58,10 @@ def test_with_no_start_skills_set_a_new_session_is_asked_for_none(story):
 
 @story(SessionOpening, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_start_skill_loaded_by_the_skill_tool_counts_as_read(story):
-    story.agent_loads_a_skill(story.agents.subject, JOURNAL_SKILL)
-    story.agent_loads_a_skill(story.agents.subject, ETIQUETTE_SKILL)
-    story.agent_loads_a_skill(story.agents.subject, MESSAGES_SKILL)
+    for name in (JOURNAL_SKILL, ETIQUETTE_SKILL, MESSAGES_SKILL):
+        result = story.agent_loads_a_skill(story.agents.subject, name)
+        result.expect_allowed()
+        result.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_allowed()

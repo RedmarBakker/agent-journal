@@ -18,4 +18,6 @@ class SkillCard:
 
     def matches_read(self, call: ToolCall) -> bool:
         paths = tuple(f"{home}/{Path(self.path).parent.name}/{SKILL_FILE}" for home in HOMES)
-        return self.name == call.skill_loaded or any(path.endswith(candidate) for path in call.read_paths for candidate in paths)
+        loaded = call.skill_loaded in {self.name, Path(self.path).parent.name}
+        read = any(path.endswith(candidate) for path in call.read_paths for candidate in paths)
+        return loaded or read

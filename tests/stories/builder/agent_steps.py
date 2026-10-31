@@ -353,7 +353,16 @@ class AgentSteps:
         return self.hook_observed("agent has read skills at once", *answers[-1])
 
     def agent_loads_a_skill(self, agent: StoryAgent, name: str) -> StepResult:
-        return self.hooked(agent, "agent loads a skill by the skill tool", "PostToolUse", tool_name="Skill", tool_input={"skill": name}, tool_response="")
+        result = self.hooked(
+            agent, "agent loads a skill by the skill tool", "PreToolUse", tool_name="Skill", tool_input={"skill": name}
+        )
+        if result.verdict.refused():
+            return result
+        self.hooked(
+            agent, "agent has read the skill through the skill tool", "PostToolUse",
+            tool_name="Skill", tool_input={"skill": name}, tool_response=""
+        )
+        return result
 
     def agent_reads_a_skill(self, agent: StoryAgent, folder: str) -> StepResult:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
