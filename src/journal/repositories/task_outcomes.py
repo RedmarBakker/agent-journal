@@ -47,7 +47,6 @@ OUTCOME_TASK_LINK = "task_outcome_task"
 OUTCOME_PLAN_LINK = "task_outcome_plan"
 OUTCOME_DOMAIN_LINK = "task_outcome_domain"
 OUTCOME_COHORT_VERSION = "plan4-outcome-cohort-v1"
-OUTCOME_SEQUENCE = {"task_completed": 0, "worker_work_merged": 1, "delivery_accepted": 2}
 
 
 class TaskOutcomes(ScopedRepository[TaskOutcome]):
@@ -73,7 +72,7 @@ class TaskOutcomes(ScopedRepository[TaskOutcome]):
     def facts(self, task_id: int) -> list[TaskOutcome]:
         task = self.tasks.find(task_id)
         return sorted((self.find(ref.id) for ref in self.links.targets(task, OUTCOME_TASK_LINK)),
-                      key=lambda row: (row.occurred_at, OUTCOME_SEQUENCE.get(row.kind, 0), row.row_id))
+                      key=lambda row: (row.occurred_at, row.row_id))
 
     def record_row_event(self, event: RowEvent) -> TaskOutcome | None:
         if isinstance(event, TaskStarted):
