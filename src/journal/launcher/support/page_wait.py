@@ -1,10 +1,10 @@
 import json
 import threading
-from typing import Callable
 import time
 import urllib.request
 import webbrowser
 from pathlib import Path
+from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 from journal.http.support.project_check import PROJECT_HEADER
@@ -13,6 +13,8 @@ from journal.support.supervisor_socket import SupervisorSocket
 
 WAIT_LIMIT_SECONDS = 600.0
 TAB_WAIT_SECONDS = 8.0
+BAND_WAIT_SECONDS = 8.0
+BAND_POLL_SECONDS = 0.1
 
 
 class PageWait:
@@ -46,10 +48,7 @@ class PageWait:
             return ""
 
     def shown(self, url: str) -> None:
-        try:
-            SupervisorSocket.ask(self.socket, {"verb": "band", "left": self.band[0], "middle": self.band[1], "right": url})
-        except OSError:
-            pass
+        self.update_band(url)
         if not self.viewer:
             return
         if self.tab_open(url):
@@ -58,6 +57,20 @@ class PageWait:
             return
         opened = webbrowser.open(url + self.viewer, new=2)
         self.log(f"viewer: opened {url + self.viewer}" if opened else f"viewer: the browser would not open {url + self.viewer}")
+
+    def update_band(self, url: str) -> None:
+        if not self.socket:
+            return
+        request = {"verb": "band", "left": self.band[0], "middle": self.band[1], "right": url}
+        began = time.monotonic()
+        while time.monotonic() - began < BAND_WAIT_SECONDS:
+            try:
+                if SupervisorSocket.ask(self.socket, request).success:
+                    return
+            except OSError:
+                pass
+            time.sleep(BAND_POLL_SECONDS)
+        self.log(f"viewer: the supervisor did not update the launch band within {int(BAND_WAIT_SECONDS)} seconds")
 
     def follow_open_viewer(self, url: str) -> None:
         environments = parse_qs(urlsplit(self.viewer).query).get("env", [])
