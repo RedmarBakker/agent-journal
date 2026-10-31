@@ -112,7 +112,7 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     await nextTick();
 
     expect(host.textContent).toContain("Delivery forecast");
-    expect(host.textContent).toContain("Sprint ends");
+    expect(host.textContent).toContain("Sprint ends 8 Nov");
     expect(host.textContent).toContain("Almost certain by 12 Nov");
     expect(host.textContent).toContain("71% this sprint");
     expect(host.textContent).toContain("Delivered task #101");

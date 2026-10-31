@@ -37,11 +37,12 @@ async function mount(props) {
 test("a closed sprint can be carried to a later open sprint with a reason", async () => {
     await mount({planId: 31, sprint: current});
     host.querySelector("button").click();
-    await vi.waitFor(() => expect(api.sprints).toHaveBeenCalledOnce());
-
+    await vi.waitFor(() => expect(document.body.querySelector('[role="dialog"]')?.textContent || "").toContain("Sprint 23"));
+    expect(api.sprints).toHaveBeenCalledOnce();
     const dialog = document.body.querySelector('[role="dialog"]');
     expect(dialog.textContent).toContain("Sprint 23");
     expect(dialog.textContent).not.toContain("Sprint 22");
+    expect(dialog.textContent).not.toContain("Reading later sprints");
     const reason = dialog.querySelector("textarea");
     reason.value = "The deployment is scheduled for the next period.";
     reason.dispatchEvent(new Event("input", {bubbles: true}));

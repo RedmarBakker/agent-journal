@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {formatForecastDay, sprintEnd, sprintRange} from "../domain/deliveryForecast.js";
+import {formatForecastDay, sprintEnd} from "../domain/deliveryForecast.js";
 
 const props = defineProps({forecast: {type: Object, default: null}, sprint: {type: Object, default: null}, plan: {type: Object, required: true}, loading: Boolean});
 const expected = computed(() => props.forecast?.status === "forecast");
@@ -54,7 +54,7 @@ const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
                 <p v-if="expected && forecast.p85" class="almost-certain">Almost certain by {{ formatForecastDay(forecast.p85) }}</p>
                 <p v-else-if="forecast?.status === 'unknown constraints'" class="forecast-unknown">Forecast constraints are unknown. No date or percentage is shown.</p>
                 <p v-else-if="!expected" class="forecast-unknown">Not enough history yet. No date or percentage is shown.</p>
-                <p class="sprint-end">Sprint {{ sprint.id }} · {{ sprintRange(sprint) }} · ends {{ sprintEnd(sprint) }}</p>
+                <p class="sprint-end">Sprint ends {{ sprintEnd(sprint) }}</p>
                 <div v-if="expected" class="forecast-bands" aria-label="Chance of delivery by sprint">
                     <div><span>Sprint {{ sprint.id }} (this sprint)</span><strong>{{ forecast.probability_this_sprint }}%</strong><progress :value="forecast.probability_this_sprint" max="100" /></div>
                     <div><span>Next sprint</span><strong>{{ forecast.probability_next_sprint }}%</strong><progress :value="forecast.probability_next_sprint" max="100" /></div>

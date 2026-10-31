@@ -14,8 +14,10 @@ export function sprintRange(sprint) {
 }
 
 export function sprintEnd(sprint) {
-    if (!sprint?.ends_at) return formatForecastDay(sprint?.ends_on);
-    return new Intl.DateTimeFormat("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: sprint.timezone, timeZoneName: "short"}).format(new Date(sprint.ends_at));
+    if (!sprint?.ends_on) return "Dates not set";
+    const end = new Date(`${sprint.ends_on}T12:00:00`);
+    end.setDate(end.getDate() - 1);
+    return formatForecastDay(end);
 }
 
 export function forecastTone(probability) {
