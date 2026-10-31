@@ -19,6 +19,8 @@ class OrganizationRoleWorkerEnded(OrganizationDomainRoleTask):
         self.workers.first = story.newest("workers")
         worker = story.agents.workers.first()
         story.agent_starts_role_session(worker)
+        story.expect_worker_role_job(worker, task, "- task 6 has its current brief", "the earlier task brief")
+        story.expect_role_job_prompt(worker, "- task 6 has its current brief", "the earlier task brief", "journal clock-in")
         story.worker_run_ends_with_its_session(worker, "the Role ended before clocking in")
 
     def expected(self, story) -> None:
