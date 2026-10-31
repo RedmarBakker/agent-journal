@@ -44,11 +44,11 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
-        self.add_domain_seats(story)
         story.plays_in(BUILDER_MODE)
         plan_seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
         plan_seat.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                                     task=self.tasks.first, domain="development")
+        self.add_domain_seats(story)
         story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "environment overview").expect_command_passed()
         story.agent_runs_from_plan_organization_seat(
             story.agents.main, "plan", f"organization handoff {self.tasks.first} domain:development",
