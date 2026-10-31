@@ -68,6 +68,7 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     launches: list[dict[str, str]] = []
     launches_ready = threading.Condition()
     original_run = HelperRunner.run
+    original_worker_start = WorkerRunner.start
 
     def capture_launch(runner, helper, command, environ) -> None:
         if runner.config.root == root:
@@ -81,6 +82,7 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     ReleaseCheckMemory().store(ReleaseCheck(TimeSource().seconds()))
     app = booted(root, patch)
     patch.setattr(WorkerRunner, "start", worker_session_given)
+    app.original_worker_start = original_worker_start
     app.helper_launches = launches
     app.helper_launches_ready = launches_ready
     return app

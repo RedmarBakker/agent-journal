@@ -7,6 +7,7 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
+from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.providers.providers import Providers
@@ -32,6 +33,7 @@ class OrganizationDomainRoleTask(OrganizationHubPlan):
         story.openrig = SimulatedSeats()
         runtime = story.app.container.get(SeatRuntime)
         story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
+        story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, runtime)
         story.plays_in(BUILDER_MODE)
