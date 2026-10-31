@@ -58,7 +58,7 @@ def test_merging_releases_execution_wip_but_awaiting_deployment_stays_in_deliver
     result.expect_viewer_shows("execution_wip_task_ids", [])
     result.expect_viewer_shows("delivery_wip_task_ids", [story.tasks.first])
     result.expect_viewer_shows("wip_total", None)
-    story.expect_task(story.tasks.second, state=TaskState.OPEN)
+    story.expect_task(story.tasks.second, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     sprint = story.user_opens(f"/journal/sprints/{story.sprints.first}")
     sprint.expect_viewer_passed()
