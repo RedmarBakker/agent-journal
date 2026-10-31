@@ -231,9 +231,11 @@ class AgentSteps:
     def agent_runs_from_seat(self, agent: StoryAgent, seat: str, arguments: list[str], member,
                              organization_seat: str, organization_rig: str, journal_environment: str,
                              actor_token: str) -> StepResult:
-        answer = posted(self.app, "/cli", {"argv": arguments, "env": journal_environment, "agent": True, "provider": member.provider,
-                                             "session": self.session_of(agent), "organization_seat": organization_seat,
-                                             "organization_rig": organization_rig, "actor_token": actor_token},
+        caller = {"argv": arguments, "env": journal_environment, "provider": member.provider,
+                  "session": self.session_of(agent), "organization_seat": organization_seat,
+                  "organization_rig": organization_rig, "actor_token": actor_token}
+        caller["worker" if agent.role == AgentRole.WORKER else "agent"] = agent.number if agent.role == AgentRole.WORKER else True
+        answer = posted(self.app, "/cli", caller,
                         {**MAIN, "X-Journal-Env": journal_environment})[1]
         outcome = Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
         return self.record_command(f"agent runs {' '.join(arguments[:2])} from organization seat {seat}{', refused' if outcome.code else ''}", outcome)
