@@ -1,22 +1,24 @@
 from journal.features.tasks.states.ready import Ready
+from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
-from tests.stories.fixtures.main.domain_delivery_setup import add_domain_plan, report_worker, setup_domain
-from tests.stories.fixtures.main.working_agent import WorkingAgent
-from tests.stories.fixtures.state_fixture import StateFixture
+from tests.stories.fixtures.main.domain_delivery_setup import merge_worker, replace_domain_definition
+from tests.stories.fixtures.main.domain_delivery_task_with_checked_work import DomainDeliveryTaskWithCheckedWork
 
 
-class DomainVerifiedDelivered(StateFixture):
-    """The user composed a verification task and its worker reported checked work, waiting for the user's merge: story.plans.first, story.tasks.first and story.agents.workers.first()."""
+class DomainVerifiedDelivered(DomainDeliveryTaskWithCheckedWork):
+    """A checked merge satisfies the task's verified-output policy."""
 
-    stack = (Ready,)
-    parent = WorkingAgent
+    parent = DomainDeliveryTaskWithCheckedWork
 
     def steps(self, story) -> None:
-        setup_domain(story, self, "r02-verified", "verification", {"criterion": "The output is verified by the checked worker merge.", "evidence": "verified_output", "target": "checked worker merge"})
-        add_domain_plan(story, self, "verification")
-        story.user_approves_plan(self.plans.first)
-        report_worker(story, self)
+        replace_domain_definition(story, "r02-verified-delivery", "release", {
+            "criterion": "The output is verified by the checked worker merge.",
+            "evidence": "verified_output",
+            "target": "checked worker merge",
+        })
+        merge_worker(story)
 
     def expected(self, story) -> None:
-        story.expect_worker(self.workers.first, state=WorkerState.DELIVERED)
+        story.expect_worker(self.workers.first, state=WorkerState.MERGED)
+        story.expect_task(self.tasks.first, state=TaskState.COMPLETED)
         story.expect_stack(story.agents.main, Ready)

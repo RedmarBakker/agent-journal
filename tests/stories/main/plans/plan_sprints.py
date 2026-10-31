@@ -5,6 +5,7 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
+from tests.stories.fixtures.main.active_sprint_with_draft_plan import ActiveSprintWithDraftPlan
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
@@ -67,15 +68,9 @@ def test_calendar_edits_apply_to_drafts_and_length_changes_only_apply_to_future_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ActiveSprintWithDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_starting_a_sprint_freezes_plan_scope_without_approving_or_starting_it(story):
-    result = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
-    result.expect_viewer_passed()
-    sprint = result.viewer_answer["id"]
-    result = story.user_presses(f"/journal/sprints/{sprint}/plans", {"plan_id": story.plans.first})
-    result.expect_viewer_passed()
-    result = story.user_presses(f"/journal/sprints/{sprint}/start", {})
-    result.expect_viewer_passed()
+    sprint = story.sprints.first
     other_plan = story.user_creates_plan("after the sprint started", "new scope")
     story.user_adds_plan_task(other_plan, "new task")
     result = story.user_presses(f"/journal/sprints/{sprint}/plans", {"plan_id": other_plan, "reason": "expanded commitment"})

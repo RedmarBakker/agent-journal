@@ -3,7 +3,7 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.domain_development_delivered import DomainDevelopmentDelivered
+from tests.stories.fixtures.main.domain_development_delivery_accepted import DomainDevelopmentDeliveryAccepted
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
@@ -25,20 +25,14 @@ def test_a_blocked_task_keeps_its_wait_interval_and_execution_attempt(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainDevelopmentDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDeliveryAccepted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_deployment_wait_ends_at_accepted_evidence_and_keeps_its_commitment(story):
-    worker = story.agents.workers.first()
-    result = story.agent_runs(story.agents.subject, f"worker check {worker} 1")
-    result.expect_command_passed()
-    result = story.agent_runs(story.agents.subject, f"worker merge {worker}")
-    result.expect_command_passed()
-    story.time_travel(minutes=2 * 24 * 60)
     task, plan = story.tasks.first, story.plans.first
-    evidence = {"action": "accept", "evidence": {"kind": "production_deployment", "source": "deployment pipeline", "reference": "release-52",
-                "artifact": "sha256:revision-52", "environment": "production", "result": "succeeded", "task_ids": [task],
-                "occurred_at": "2026-10-30T10:00:00+00:00"}}
-    result = story.user_presses(f"/journal/plans/{plan}/delivery", evidence)
+    result = story.user_opens(f"/journal/plans/{plan}/outcomes")
     result.expect_viewer_passed()
+    result.expect_viewer_shows("schema_version", "plan-outcome-history-v1")
+    result.expect_viewer_part(("delivery", "status"), "delivered")
+    result.expect_viewer_part(("delivery", "history", 0, "state"), "accepted")
     story.expect_task_outcome_kinds(task, "task_completed", "worker_work_merged", "delivery_accepted")
     story.expect_task_outcome_summary(task, delivery_wait_seconds=172800, execution_status="completed", artifact_accepted=True, right_censored=False)
     story.expect_task_outcome_fact(task, "delivery_accepted", "policy_version")
