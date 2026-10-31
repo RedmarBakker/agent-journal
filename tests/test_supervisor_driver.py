@@ -70,13 +70,18 @@ def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatc
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     server.listen(1)
+    server.settimeout(5)
     received = []
 
     def accept_request():
         connection, _ = server.accept()
         with connection:
+            connection.settimeout(5)
             data, ancillary, _, _ = connection.recvmsg(65536, socket.CMSG_SPACE(array.array("i").itemsize))
-            received.append(json.loads(data))
+            chunks = [data]
+            while part := connection.recv(4096):
+                chunks.append(part)
+            received.append(json.loads(b"".join(chunks)))
             for level, kind, payload in ancillary:
                 if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                     descriptor = array.array("i")
@@ -85,7 +90,7 @@ def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatc
                         os.close(item)
             connection.sendall(b'{"pid":4321}')
 
-    listener = threading.Thread(target=accept_request)
+    listener = threading.Thread(target=accept_request, daemon=True)
     listener.start()
     monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SOCKET", str(socket_path))
     launcher = AgentLauncher(Config(tmp_path))
