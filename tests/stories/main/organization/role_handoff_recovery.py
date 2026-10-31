@@ -75,5 +75,5 @@ def test_a_domain_can_release_an_ended_worker_and_handoff_its_task_to_the_role(s
     story.expect_organization_handoff_pending(plan, task, "role:alpha/builder")
     story.expect_worker_role_job(role_worker, task, brief, old_brief)
     story.expect_organization_domain_can_release_workers(f"plan-{plan}", "alpha")
-    story.expect_plan(plan, state=PlanState.DELEGATED)
+    story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
