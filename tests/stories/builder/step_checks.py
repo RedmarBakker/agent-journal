@@ -60,8 +60,9 @@ class StepChecks:
         said = str(self.verdict.body) if self.verdict else ""
         assert part not in said, f"the refusal says {part!r}: {said}"
 
-    def expect_allowed(self) -> None:
-        assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
+    def expect_allowed(self, agent: StoryAgent | None = None) -> None:
+        session = self.story.session_of(agent) if agent else ""
+        assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account(session)}"
 
     def expect_shell_text(self, *parts: str) -> None:
         assert all(part in self.shell_text for part in parts), f"the command showed {self.shell_text!r}, not {parts}"

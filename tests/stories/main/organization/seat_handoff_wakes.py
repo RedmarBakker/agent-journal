@@ -46,6 +46,9 @@ def test_a_domain_seat_with_an_unread_handoff_is_told_at_start_and_stop(story):
     story.expect_agent_session_in_environment(domain, f"plan-{plan}")
     started.expect_agent_told(domain, OrganizationNudges.UNREAD_HANDOFF)
 
+    overview = story.agent_runs_as_organization_seat(domain, "domain:alpha", "environment overview")
+    overview.expect_command_passed()
+
     stopped = story.agent_stops_organization_seat(domain, "domain:alpha")
     stopped.expect_refused(domain, OrganizationNudges.UNREAD_HANDOFF)
 
@@ -53,6 +56,6 @@ def test_a_domain_seat_with_an_unread_handoff_is_told_at_start_and_stop(story):
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
     stopped = story.agent_stops_organization_seat(domain, "domain:alpha")
-    stopped.expect_allowed()
+    stopped.expect_allowed(domain)
 
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
