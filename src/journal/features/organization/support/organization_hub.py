@@ -47,6 +47,8 @@ class OrganizationHub:
         task = self.tasks.find(task_id)
         plan = self.validate_task(source, task, member.rig)
         role = self.role(target)
+        if role and role.writes:
+            self.workers.require_role_task_available(task, caller)
         if domain := self.domain(target):
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)

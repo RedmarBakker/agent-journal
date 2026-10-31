@@ -11,7 +11,7 @@ from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
-from journal.repositories.organization_handoffs import OrganizationHandoffs
+from journal.repositories.organization_handoffs import OrganizationHandoffs, PLAN_HANDOFF, TASK_HANDOFF
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -266,6 +266,29 @@ class StoryChecks:
             handoffs = self.app.container.get(OrganizationHandoffs).pending(target)
         assert any(row_plan.id == plan_id and row_task.id == task_id for _, row_plan, row_task in handoffs), \
             f"plan {plan_id} task {task_id} is not unread in {target}'s inbox: {handoffs}"
+
+    def expect_organization_handoff_absent(self, plan_id: int, task_id: int, target: str) -> None:
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        with self.app.container.get(Scope).environment(plan.environment_id):
+            handoffs = self.app.container.get(OrganizationHandoffs)
+            rows = handoffs.all_matching(target=target)
+            links = self.app.container.get(Links)
+            task = Ref("tasks", task_id)
+            plan_ref = Ref.build(plan)
+            found = [row.id for row in rows if task in links.targets(row, TASK_HANDOFF)
+                     and plan_ref in links.targets(row, PLAN_HANDOFF)]
+        assert not found, f"plan {plan_id} task {task_id} has handoffs to {target}: {found}"
+
+    def expect_organization_domain_can_release_workers(self, rig: str, domain: str) -> None:
+        spec = self.app.container.get(SeatRuntime).read_spec(rig)
+        placed = next(pod for pod in spec["pods"] if pod["id"] == domain)
+        member = next(member for member in placed["members"] if member.get("id") == DOMAIN_AGENT)
+        provider = self.app.container.get(Providers).lookup(self.provider)
+        permissions = member[provider.openrig_permissions_field]
+        if provider.openrig_permissions_field == "claude_permissions":
+            assert "Bash(journal worker release *)" in permissions["allow"], f"Domain seat {domain} cannot release an ended Role worker: {permissions}"
+        else:
+            assert permissions["approval"] == "never", f"Domain seat {domain} would wait to release an ended Role worker: {permissions}"
 
     def expect_plan_rig(self, plan_id: int, name: str) -> None:
         with self.app.container.get(Scope).environment(1):
