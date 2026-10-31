@@ -7,7 +7,7 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_domain_task import OrganizationDomainTask
+from tests.stories.fixtures.main.organization_domain_role_task import OrganizationDomainRoleTask
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 
 
@@ -24,7 +24,7 @@ def test_a_plan_seat_hands_a_task_to_its_domain_seat(story):
     story.expect_stack(story.agents.main, Ready)
 
 
-@story(OrganizationDomainTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(story):
     task = story.tasks.second
     brief = "- task 6 has its current brief"
@@ -78,7 +78,7 @@ def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(sto
     story.expect_stack(story.agents.main, LeadingPlan)
 
 
-@story(OrganizationDomainTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_read_only_role_receives_its_inbox_handoff_without_a_worker_job(story):
     task = story.tasks.second
     result = story.agent_runs_from_organization_seat(
