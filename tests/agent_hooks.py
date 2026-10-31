@@ -60,9 +60,13 @@ def woken_capture(app, monkeypatch, keystrokes: list) -> None:
 
 
 def pinned_clock(app, monkeypatch) -> None:
-    """The journal's time source pinned at the whole second the replay starts, so every hook and every row notes its time there, a tick says how long after it was, and each later moment is exact."""
+    """The story clock pinned at the process's whole-second start, so each story starts from the same moment and later moments advance only in its steps."""
     clock = app.container.get(Clock)
-    clock.held_at = float(int(timing.time()))
+    origin = getattr(app, "story_clock_origin", None)
+    if origin is None:
+        origin = float(int(timing.time()))
+        app.story_clock_origin = origin
+    clock.held_at = origin
     monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", clock.held_at)
 
 

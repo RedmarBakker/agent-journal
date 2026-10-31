@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from collections.abc import Callable
 
+from journal.engine.clock import Clock
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.support.time_source import TimeSource
 from tests.lab.simulated_seats import SimulatedSeats
 from tests.shared_journal import SharedJournal
 from tests.stories.fixtures.state_fixture import StateFixture
@@ -30,7 +32,16 @@ class FixtureCopy:
         )
 
     def restore(self, story) -> StateFixture:
+        pinned = story.app.container.get(TimeSource).pinned_seconds
+        story.drain_seat_runner()
         self.journal.reset()
+        story.clear_seat_runner()
+        time_source = story.app.container.get(TimeSource)
+        if pinned is None:
+            time_source.unpin()
+        else:
+            time_source.pin(pinned)
+            story.app.container.get(Clock).held_at = pinned
         story.openrig = self.openrig.copied() if self.openrig is not None else None
         story.monkeypatch.setattr(WorkerRunner, "start", self.worker_runner_start)
         if story.openrig is not None:

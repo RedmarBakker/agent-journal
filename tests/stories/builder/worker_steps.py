@@ -38,6 +38,7 @@ class WorkerSteps:
         return self.agent_runs_cleanly(agent, "clock-in")
 
     def agent_starts_role_session(self, agent: StoryAgent) -> StepResult:
+        self.settle()
         deadline = time.monotonic() + 5
         with self.app.container.get(Scope).environment(1):
             worker = self.app.container.get(Workers).find(agent.number)
@@ -51,6 +52,7 @@ class WorkerSteps:
         assert (
             worker.session and worker.began >= worker.job_start_time()
         ), f"Role worker {worker.id} did not receive its current OpenRig session"
+        self.settle()
         self.worker_sessions[agent.number] = worker.session
         environment = self.app.container.get(Environments).find(worker.environment_id).name
         self.session_environments[worker.session] = environment
@@ -121,6 +123,7 @@ class WorkerSteps:
         return self.worker_run_ends_printing(agent, "")
 
     def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> StepResult:
+        self.settle()
         runner = self.app.container.get(WorkerRunner)
         with self.app.container.get(Scope).environment(1):
             worker = self.app.container.get(Workers).find(agent.number)

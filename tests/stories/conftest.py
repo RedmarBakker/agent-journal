@@ -135,6 +135,7 @@ def story(app, monkeypatch, request, copies):
     yield played
     for close in played.closers:
         close()
+    played.drain_seat_runner()
     app.container.get(ListenerQueue).drain()
     if request.node.rep_call.failed:
         return

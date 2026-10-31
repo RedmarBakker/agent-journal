@@ -14,6 +14,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
+from journal.support.listener_queue import ListenerQueue
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers as WorkerRows
 from journal.repositories.plans import Plans
@@ -262,6 +263,7 @@ class StoryChecks:
         self.expect_row("tasks", n, fields)
 
     def expect_task_unheld(self, n: int) -> None:
+        self.settle()
         tasks = self.app.container.get(Tasks)
         task = tasks.global_matching(id=n)[0]
         with self.app.container.get(Scope).environment(task.environment_id):
@@ -269,11 +271,13 @@ class StoryChecks:
         assert holder is None, f"task {n} is held by {holder}, not open plan work"
 
     def expect_task_tied_to_domain(self, task: int, domain: str) -> None:
+        self.settle()
         with self.app.container.get(Scope).environment(1):
             names = self.app.container.get(DomainRows).domain_names(self.app.container.get(Tasks).find(task))
         assert names == [domain], f"task {task} is tied to {names}, expected {domain}"
 
     def expect_organization_handoff_pending(self, plan_id: int, task_id: int, target: str) -> None:
+        self.settle()
         plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
         with self.app.container.get(Scope).environment(plan.environment_id):
             handoffs = self.app.container.get(OrganizationHandoffs).pending(target)
@@ -281,6 +285,7 @@ class StoryChecks:
             f"plan {plan_id} task {task_id} is not unread in {target}'s inbox: {handoffs}"
 
     def expect_plan_rig(self, plan_id: int, name: str) -> None:
+        self.settle()
         with self.app.container.get(Scope).environment(1):
             plans = self.app.container.get(Plans)
             rig = self.app.container.get(Rigs).find(plans.rig_id(plans.find(plan_id)))
@@ -387,6 +392,7 @@ class StoryChecks:
                         assert "clock in on your assigned task" not in guidance, f"read-only Role seat {agent} is told to clock in"
 
     def expect_worker_role_job(self, worker: StoryAgent, task: int, brief: str, stale_brief: str) -> None:
+        self.settle()
         with self.app.container.get(Scope).environment(1):
             row = self.app.container.get(WorkerRows).find(worker.number)
             task_row = self.app.container.get(Tasks).find(task)
@@ -397,6 +403,11 @@ class StoryChecks:
         assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
 
     def expect_role_job_prompt(self, worker: StoryAgent, brief: str, stale_brief: str, *parts: str) -> None:
+        prompt = self.role_job_prompt(worker, brief, *parts)
+        assert stale_brief not in prompt, f"Role seat received an old brief: {prompt!r}"
+
+    def role_job_prompt(self, worker: StoryAgent, brief: str, *parts: str) -> str:
+        self.app.container.get(ListenerQueue).drain()
         with self.app.container.get(Scope).environment(1):
             row = self.app.container.get(WorkerRows).find(worker.number)
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
@@ -412,7 +423,7 @@ class StoryChecks:
             prompts = [prompt for prompt in received if all(part in prompt for part in expected)]
         prompt = prompts[-1] if prompts else ""
         assert prompt, f"Role seat {member.logical_id} never received worker {row.id}'s current job: {received}"
-        assert stale_brief not in prompt, f"Role seat {member.logical_id} received an old brief: {prompt!r}"
+        return prompt
 
     def expect_role_guidance_and_skills_omit(self, worker: StoryAgent, *job_text: str) -> None:
         with self.app.container.get(Scope).environment(1):

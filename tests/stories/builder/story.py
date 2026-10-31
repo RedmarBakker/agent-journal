@@ -3,6 +3,13 @@ from journal.support.agent_role import AgentRole
 from journal.support.agent_token import AgentToken
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_agents import StoryAgents
+from journal.support.actor import Actor
+from journal.support.listener_queue import ListenerQueue
+from journal.features.workers.support.owned_task_line import owned_task_line
+from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.models.worker_state import WorkerState
+import threading
+import time
 from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.scope import Scope
@@ -105,6 +112,86 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
     def simulated_seats(self):
         return self.app.container.get(SeatRuntime).execute.__self__
 
+    def settle(self) -> None:
+        self.app.container.get(ListenerQueue).drain()
+        if self.openrig is not None and WorkerRunner.start is self.app.original_worker_start:
+            self.settle_seat_jobs()
+        self.app.container.get(ListenerQueue).drain()
+
+    def settle_seat_jobs(self) -> None:
+        runner = self.app.container.get(WorkerRunner)
+        deadline = time.monotonic() + 5
+        while True:
+            pending = []
+            ready = []
+            with self.app.container.get(Scope).environment(1):
+                for worker in runner.seat_workers():
+                    if not runner.seats.applies(worker):
+                        continue
+                    task = runner.seats.job_task(worker)
+                    if task is None:
+                        continue
+                    if not worker.session or worker.began < worker.job_start_time():
+                        pending.append(worker.id)
+                    else:
+                        ready.append((worker, task))
+            for worker, task in ready:
+                self.role_job_prompt(StoryAgent(AgentRole.WORKER, worker.id), worker.brief,
+                                     owned_task_line(worker.id, task.id))
+            if not pending:
+                return
+            self.app.container.get(ListenerQueue).drain()
+            if time.monotonic() >= deadline:
+                raise AssertionError(f"Role seats did not start their current jobs: {pending}")
+            time.sleep(0.01)
+
+    def drain_seat_runner(self) -> None:
+        runtime = self.app.container.get(SeatRuntime)
+        simulated = isinstance(getattr(runtime.execute, "__self__", None), SimulatedSeats)
+        while True:
+            self.app.container.get(ListenerQueue).drain()
+            if simulated:
+                self.stop_simulated_seat_jobs()
+            threads = self.seat_runner_threads()
+            if not threads:
+                return
+            self.join_seat_runner_threads(threads)
+
+    def stop_simulated_seat_jobs(self) -> None:
+        runner = self.app.container.get(WorkerRunner)
+        with runner.seats._guard:
+            active = tuple(runner.seats._active)
+        for worker_id in active:
+            matches = runner.workers.global_matching(id=worker_id)
+            if not matches:
+                continue
+            worker = matches[0]
+            with self.app.container.get(Scope).environment(worker.environment_id):
+                worker = runner.workers.find(worker.row_id)
+                if not runner.seats.applies(worker):
+                    continue
+                if worker.state in (WorkerState.DISPATCHED, WorkerState.READY):
+                    runner.recorded_end(worker, Actor.system())
+                runner.seats.stop(worker, "the story restores its fixture")
+
+    def clear_seat_runner(self) -> None:
+        seats = self.app.container.get(WorkerRunner).seats
+        with seats._guard:
+            seats._active.clear()
+            seats._active_jobs.clear()
+            seats._finishing.clear()
+
+    @staticmethod
+    def seat_runner_threads() -> tuple[threading.Thread, ...]:
+        return tuple(thread for thread in threading.enumerate()
+                     if thread.name.startswith(("seat-worker-", "seat-recovery-")))
+
+    @staticmethod
+    def join_seat_runner_threads(threads: tuple[threading.Thread, ...]) -> None:
+        for thread in threads:
+            thread.join(5)
+            assert not thread.is_alive(), f"seat runner thread {thread.name} did not finish before the fixture was restored"
+
     def openrig_starts(self, rig: str) -> StepResult:
         self.openrig = SimulatedSeats()
         runtime = self.app.container.get(SeatRuntime)
@@ -161,7 +248,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]
 
     def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None, environment: str = "main") -> StepResult:
-        self.said, steps = self.log.new_entries(environment)
+        self.said, steps = self.log.unread_entries(environment)
         self.line_keys |= {line.key for line in self.said}
         self.verdict, self.command = verdict, outcome
         self.path += [action, *steps] if action else list(steps)

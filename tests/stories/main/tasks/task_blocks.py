@@ -158,3 +158,4 @@ def test_a_block_that_waits_on_a_check_is_never_named_as_a_block_with_no_wait(st
         result = story.agent_runs(story.agents.subject, f"task complete {task} --how done")
     result.expect_agent_not_told(story.agents.subject, TasksNudges.LOOSE_BLOCKS)
     story.expect_stack(story.agents.subject, Ready)
+
