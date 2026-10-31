@@ -198,7 +198,11 @@ class Worker(Helper):
         return self.moved(QUEUE_TURN_END, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="").with_event(WorkerQueueTurnEnded(environment_id=self.environment_id, time=time, worker=self.mention(), task=task))
 
     def merged(self, task: int, time: float) -> "Worker":
-        return self.moved(MERGED, time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task, clashes=0).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
+        merged = self.moved(MERGED, time).with_(
+            state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task, clashes=0,
+            review_pending=False, review_queued_at=0.0,
+        )
+        return merged.with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def released(self, time: float) -> "Worker":
         return self.moved("released", time).with_(state=WorkerState.RELEASED, token_hash="").with_event(WorkerReleased(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, released"))
