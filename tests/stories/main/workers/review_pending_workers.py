@@ -53,3 +53,14 @@ def test_a_failed_review_names_its_task_after_the_user_cancels_it(story):
     story.expect_worker(worker, state=WorkerState.RELEASED)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing, Ended)
     story.expect_stack(story.agents.subject, Orchestrating)
+
+
+@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+def test_an_old_reviewer_run_does_not_end_the_reviewers_replacement(story):
+    worker = story.agents.workers.first()
+    story.an_old_reviewer_run_ends_after_its_row_is_reused(story.agents.reviewers.first())
+    story.expect_worker(worker, state=WorkerState.DELIVERED, review_pending=True)
+    story.expect_task(story.tasks.briefed, delegated=True)
+    story.expect_agent_not_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
+    story.expect_stack(story.agents.reviewers.first(), Void, Reviewing)
+    story.expect_stack(story.agents.subject, Orchestrating)

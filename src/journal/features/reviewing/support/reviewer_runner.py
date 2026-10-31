@@ -27,13 +27,18 @@ class ReviewerRunner(HelperRunner[Reviewer]):
         self.workers, self.links = workers, links
 
     def ended(self, reviewer: Reviewer) -> None:
+        current = self.rows.find(reviewer.row_id)
+        if current.token_hash != reviewer.token_hash:
+            return
         try:
             with self.rows.writing():
                 current = self.rows.find(reviewer.row_id)
-                if current.is_reviewing():
+                if current.token_hash == reviewer.token_hash and current.is_reviewing():
                     self.return_work(current)
         finally:
-            super().ended(reviewer)
+            current = self.rows.find(reviewer.row_id)
+            if current.token_hash == reviewer.token_hash:
+                super().ended(current)
 
     def return_work(self, reviewer: Reviewer) -> None:
         worker = self.workers.find(self.links.worker(reviewer).id)
