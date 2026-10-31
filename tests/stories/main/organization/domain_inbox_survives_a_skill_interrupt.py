@@ -20,10 +20,13 @@ def test_a_domain_keeps_its_inbox_handoff_after_a_plans_skill_interrupts_it(stor
     inbox.expect_agent_not_told(domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                                 task=task, domain="alpha")
 
-    interrupted = story.agent_reads(domain, "source/NOTES.md")
+    environment = story.openrig_organization_seat_environment("domain:alpha")["JOURNAL_ENV"]
+    prompt = story.agent_is_prompted_in_environment(domain, environment, f"Help me with the plan for task {task}")
+    prompt.expect_agent_told(domain, SkillsNudges.SKILL_READ_REQUEST)
+    interrupted = story.agent_reads_in_environment(domain, environment, "source/NOTES.md")
     interrupted.expect_refused(domain, SkillsNudges.SKILL_READ_REQUEST)
     interrupted.expect_agent_told_words(domain, SkillsNudges.SKILL_READ_REQUEST, "the plans skill")
-    read = story.agent_reads_a_skill(domain, Plans.skill.folder)
+    read = story.agent_reads_a_skill_in_environment(domain, environment, Plans.skill.folder)
     read.expect_allowed(domain)
 
     inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
