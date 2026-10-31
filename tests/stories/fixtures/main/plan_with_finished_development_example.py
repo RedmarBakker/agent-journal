@@ -22,9 +22,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "evidence": "production_deployment",
             "target": "production",
         })
-        story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
-        story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
         worker = story.agents.workers.first()
         story.agent_starts_a_session(worker)
