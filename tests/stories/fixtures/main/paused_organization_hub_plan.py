@@ -1,6 +1,5 @@
 import json
 
-from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
@@ -42,10 +41,10 @@ class PausedOrganizationHubPlan(OrganizationHubPlan):
         folder = runtime.spec_folder(rig)
         (folder / "saved-conversation.json").write_text("previous conversation")
         spec = runtime.read_spec(rig)
-        plan = next(pod for pod in spec["pods"] if pod["id"] == PLAN_POD)
-        member = next(member for member in plan["members"] if member["id"] == PLAN_AGENT)
-        member["env"].pop(ORGANIZATION_SEAT)
-        member["env"].pop(ORGANIZATION_RIG)
+        for pod in spec["pods"]:
+            for member in pod["members"]:
+                member["env"].pop(ORGANIZATION_SEAT)
+                member["env"].pop(ORGANIZATION_RIG)
         spec_path = folder / "rig.yaml"
         spec_path.write_text(json.dumps(spec))
         story.openrig.remember_spec(rig, spec_path)

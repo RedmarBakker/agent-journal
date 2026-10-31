@@ -76,17 +76,45 @@ class RigSpecs:
     def refresh_plan(self, rig: str, cwd: Path, environment: str, provider: Provider) -> Path:
         seat = self.seats.plan_agent(rig, provider)
         path, spec = self.read_rig_spec(rig)
-        pod, member = self.plan_member(spec)
-        try:
-            old = member["env"]
-            worker = SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), environment, seat.qualified, rig)
-        except (KeyError, ValueError) as failed:
-            raise Rejection(f"OpenRig Plan seat in rig {rig} has no actor token to preserve: {failed}") from failed
+        _, member = self.plan_member(spec)
+        worker = self.refresh_worker(rig, member, environment, seat.qualified)
         _, refreshed = self.member_fragment(rig, seat, cwd, worker)
         member.update(refreshed)
-        self.write_pod_fragment(rig, pod)
+        for placed in spec.get("pods", []):
+            for candidate in placed.get("members", []):
+                if candidate is not member:
+                    self.refresh_member(rig, placed, candidate, environment)
+            self.write_pod_fragment(rig, placed)
         self.written(path, spec).chmod(OWNER_ONLY)
         return path
+
+    def refresh_member(self, rig: str, pod: dict, member: dict, environment: str) -> None:
+        identity = self.generated_identity(rig, member)
+        worker = self.refresh_worker(rig, member, environment, identity)
+        member["env"] = {**member["env"], **self.variables(worker)}
+        fragment = self.spec_folder(rig) / "members" / f"{pod['id']}-{member['id']}.json"
+        self.written(fragment, member).chmod(OWNER_ONLY)
+
+    def generated_identity(self, rig: str, member: dict) -> str:
+        agent = str(member.get("agent_ref", "")).removeprefix("local:agents/")
+        path = self.spec_folder(rig) / "agents" / agent / "agent.yaml"
+        try:
+            spec = json.loads(path.read_text())
+        except (OSError, ValueError) as failed:
+            raise Rejection(f"OpenRig seat in rig {rig} has no generated agent identity at {path}: {failed}") from failed
+        description = spec.get("description") if isinstance(spec, dict) else None
+        prefix = "The journal's "
+        if not isinstance(description, str) or not description.startswith(prefix):
+            raise Rejection(f"OpenRig seat in rig {rig} has no generated organization identity in {path}")
+        return description.removeprefix(prefix)
+
+    @staticmethod
+    def refresh_worker(rig: str, member: dict, environment: str, identity: str) -> SeatWorker:
+        try:
+            old = member["env"]
+            return SeatWorker(Actor.parse(old[ACTOR]), AgentToken(old[ACTOR_TOKEN]), environment, identity, rig)
+        except (KeyError, ValueError) as failed:
+            raise Rejection(f"OpenRig organization seat {identity} in rig {rig} has no actor token to preserve: {failed}") from failed
 
     def read_rig_spec(self, rig: str) -> tuple[Path, dict]:
         path = self.spec_folder(rig) / "rig.yaml"

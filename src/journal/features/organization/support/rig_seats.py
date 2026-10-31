@@ -46,7 +46,7 @@ class RigSeats:
         model = domain.models.for_provider(provider.name)
         if self.settings.option(OrganizationOptions.DOMAIN_AGENT_MODEL_TIER) == "lowest_allowed":
             model = self.allowed.weakest(provider.name, "domain-agent")
-        guidance = f"{domain.body()}\n\n{OrganizationSeatRouting.guidance} Hand work to a Role with `journal organization handoff <task> role:{domain.id}/<role>`. Return completed work to the Plan seat with `journal organization handoff <task> plan`."
+        guidance = f"{domain.body()}\n\n{OrganizationSeatRouting.guidance} {OrganizationSeatRouting.domain_guidance} Return completed work to the Plan seat with `journal organization handoff <task> plan`."
         skills = (*domain.skills, OrganizationSeatRouting.skill.name)
         return Seat(Contracts.domain_id(domain.id), domain.id, DOMAIN_AGENT, "", provider.name, model, effort, guidance, skills, self.tools.provider_tools(LEADER_TOOLS), False)
 
@@ -55,6 +55,7 @@ class RigSeats:
 
     def role_seat(self, role: Role, domain: Domain, provider: Provider) -> Seat:
         effort = role.models.effort if provider.supports_reasoning_effort else ""
-        guidance = f"{role.body(domain.guidance)}\n\n{OrganizationSeatRouting.guidance} Return work to your Domain agent with `journal organization handoff <task> domain:{domain.id}`."
+        clock_in = f" {OrganizationSeatRouting.role_guidance}" if role.writes else ""
+        guidance = f"{role.body(domain.guidance)}\n\n{OrganizationSeatRouting.guidance}{clock_in} Return work to your Domain agent with `journal organization handoff <task> domain:{domain.id}`."
         skills = (*role.skills, OrganizationSeatRouting.skill.name)
         return Seat(Contracts.role_id(role), domain.id, role.id, role.id, provider.name, RoleBoot.model(role, provider.name), effort, guidance, skills, self.tools.provider_tools(role.tools), role.writes)

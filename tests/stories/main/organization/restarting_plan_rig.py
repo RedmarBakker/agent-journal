@@ -20,7 +20,8 @@ def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     story.expect_task_tied_to_domain(story.tasks.first, "alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_plan_rig(plan, rig)
-    story.expect_plan_seat_settings(rig)
+    story.expect_plan_rig_seat_settings(rig)
+    story.expect_organization_seat_routing_guidance(rig)
     story.expect_runtime_file(f"rigs/{rig}/saved-conversation.json", "previous conversation")
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
 
@@ -37,5 +38,5 @@ def test_a_restarted_plan_starts_its_stopped_rig_from_refreshed_settings(story):
     story.expect_task_tied_to_domain(story.tasks.first, "alpha")
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_plan_rig(plan, rig)
-    story.expect_plan_seat_settings(rig)
+    story.expect_plan_rig_seat_settings(rig)
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)

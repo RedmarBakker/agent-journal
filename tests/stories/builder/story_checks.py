@@ -257,13 +257,20 @@ class StoryChecks:
             rig = self.app.container.get(Rigs).find(plans.rig_id(plans.find(plan_id)))
         assert rig.name == name, f"plan {plan_id} uses rig {rig.name}, not {name}"
 
-    def expect_plan_seat_settings(self, rig: str) -> None:
+    def expect_plan_rig_seat_settings(self, rig: str) -> None:
         runtime = self.app.container.get(SeatRuntime)
-        member = runtime.member(rig, PLAN_POD, PLAN_AGENT, self.provider)
-        variables = self.organization_seat_variables(runtime, rig, PLAN_POD, PLAN_AGENT)
-        assert member.organization_seat == "plan", f"plan seat has organization identity {member.organization_seat!r}"
-        assert member.root == str(self.app.config.root), f"plan seat reaches journal root {member.root}, not {self.app.config.root}"
-        assert variables.get(ORGANIZATION_RIG) == rig, f"plan seat has organization rig {variables.get(ORGANIZATION_RIG)!r}, not {rig}"
+        spec = runtime.read_spec(rig)
+        for pod in spec["pods"]:
+            for member in pod["members"]:
+                agent = member["agent_ref"].removeprefix("local:agents/")
+                agent_path = runtime.spec_folder(rig) / "agents" / agent / "agent.yaml"
+                description = json.loads(agent_path.read_text())["description"]
+                prefix = "The journal's "
+                assert description.startswith(prefix), f"{agent} has no generated organization identity: {description!r}"
+                identity = description.removeprefix(prefix)
+                environment = member["env"]
+                assert environment.get(ORGANIZATION_SEAT) == identity, f"{pod['id']}.{member['id']} has organization identity {environment.get(ORGANIZATION_SEAT)!r}, not {identity!r}"
+                assert environment.get(ORGANIZATION_RIG) == rig, f"{pod['id']}.{member['id']} has organization rig {environment.get(ORGANIZATION_RIG)!r}, not {rig!r}"
 
     def expect_plan_seat_journal_reads_allowed(self, rig: str) -> None:
         runtime = self.app.container.get(SeatRuntime)
@@ -280,14 +287,16 @@ class StoryChecks:
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:
         agents = self.app.config.home / "runtime" / "rigs" / rig / "agents"
         spec = self.app.container.get(SeatRuntime).read_spec(rig)
+        contracts = self.app.container.get(Organization).contracts()
         for pod in spec["pods"]:
             for member in pod["members"]:
                 agent = member["agent_ref"].removeprefix("local:agents/")
                 folder = agents / agent
                 guidance = (folder / "guidance" / "role.md").read_text()
                 skill = (folder / "skills" / "journal-organization-seat-routing" / "SKILL.md").read_text()
-                spec = json.loads((folder / "agent.yaml").read_text())
-                skills = spec["profiles"]["default"]["uses"]["skills"]
+                agent_spec = json.loads((folder / "agent.yaml").read_text())
+                identity = agent_spec["description"].removeprefix("The journal's ")
+                skills = agent_spec["profiles"]["default"]["uses"]["skills"]
                 assert "journal-organization-seat-routing" in skills, f"{agent} does not load its routing skill"
                 instructions = (
                     "journal organization handoff",
@@ -303,8 +312,26 @@ class StoryChecks:
                     assert "journal task show" in skill, "the Plan seat routing skill does not name task show for its plan tasks"
                 elif member["id"] == DOMAIN_AGENT:
                     assert "`journal organization handoff <task> plan`" in guidance, "the Domain seat guidance does not give the Plan return route"
+                    domain_steps = (
+                        "As the Domain seat, read your inbox with `journal organization inbox`, then hand each task to one of your Roles",
+                        "`journal organization handoff <task> role:<domain>/<role>`",
+                    )
+                    for step in domain_steps:
+                        assert step in guidance, f"the Domain seat guidance does not say {step!r}"
+                        assert step in skill, f"the Domain seat routing skill does not say {step!r}"
                 else:
                     assert f"`journal organization handoff <task> domain:{pod['id']}`" in guidance, f"{agent} guidance does not give its Domain return route"
+                    role = contracts.role(identity.split("/", 1)[1])
+                    if role and role.writes:
+                        role_steps = (
+                            "As a writing Role seat, read your inbox with `journal organization inbox`, then clock in on your assigned task",
+                            "`journal clock-in`",
+                        )
+                        for step in role_steps:
+                            assert step in guidance, f"{agent} guidance does not say {step!r}"
+                            assert step in skill, f"{agent} routing skill does not say {step!r}"
+                    else:
+                        assert "clock in on your assigned task" not in guidance, f"read-only Role seat {agent} is told to clock in"
 
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()
