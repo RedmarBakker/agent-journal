@@ -28,6 +28,12 @@ class Proofs(ScopedRepository[Proof], LinkedRows):
         latest = {proof.point: proof for proof in sorted(self.children(task), key=lambda proof: proof.row_id)}
         return all(point in latest and latest[point].state in PROVED_STATES for point in range(1, len(task.points()) + 1))
 
+    def is_checkable(self, task: Task) -> bool:
+        return task.delegated and not task.is_closed() and self.is_proved(task)
+
+    def checkable_ids(self, tasks: list[Task]) -> list[int]:
+        return [task.id for task in tasks if self.is_checkable(task)]
+
     def short_proofs(self, task: Task) -> list[Proof]:
         return [proof for proof in self.children(task) if proof.state == ProofState.SHORT]
 

@@ -38,11 +38,9 @@ class PlanOutline:
     def outline(self, plan: Plan, task_ids: list[int], phases: list[dict], current_phase: int, checkpoint_pause: bool, is_delegated: bool) -> dict:
         members = {n for phase in phases for n in phase["task_ids"]}
         return {**ModelFields.build(plan), "task_ids": task_ids, "task_count": self.plans.uncancelled_count(task_ids), "phases": phases, "unphased_task_ids": [n for n in task_ids if n not in members],
-                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "proved_task_ids": self.proved_task_ids(task_ids, is_delegated), "testing": [template.title for template in self.testing.chosen(plan)],
+                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "proved_task_ids": self.proved_task_ids(task_ids), "testing": [template.title for template in self.testing.chosen(plan)],
                 "reviews": [{**ModelFields.build(review), "report_ids": self.rounds.report_ids(review)} for review in self.reviews.reviews(plan)],
                 "comment_count": self.plans.linking_counts(Messages.COMMENT_LINK, [plan.id]).get(plan.id, 0)}
 
-    def proved_task_ids(self, task_ids: list[int], is_delegated: bool) -> list[int]:
-        worker_holdings = self.tasks.task_worker_holdings(set(task_ids)) if is_delegated else {}
-        tasks = (self.tasks.find(task_id) for task_id in task_ids if task_id in worker_holdings)
-        return [task.id for task in tasks if not task.is_closed() and self.proofs.is_proved(task)]
+    def proved_task_ids(self, task_ids: list[int]) -> list[int]:
+        return self.proofs.checkable_ids(self.tasks.tasks_numbered(task_ids))

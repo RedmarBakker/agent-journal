@@ -355,7 +355,7 @@ class PlanCommand(Command):
         return 0
 
     def task_line(self, task: Task) -> str:
-        proved = task.delegated and not task.is_closed() and self.proofs.is_proved(task)
+        proved = self.proofs.is_checkable(task)
         return f"{task.id:>4}  {'proved' if proved else task.state:<8} {task.title}" + ("  (finished by its worker, waiting for your check)" if proved else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:

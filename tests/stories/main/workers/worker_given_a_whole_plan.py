@@ -63,4 +63,6 @@ def test_a_worker_goes_on_to_the_next_task_as_it_proves_the_last_point_and_the_p
     result = story.agent_runs(story.agents.subject, f"plan show {story.plans.first}")
     result.expect_command_text(f"{story.tasks.first:>4}  proved")
     result.expect_command_text("finished by its worker, waiting for your check")
+    result = story.user_opens(f"/journal/plans?ids={story.plans.first}")
+    result.expect_viewer_part(("rows", 0, "proved_task_ids"), [story.tasks.first])
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

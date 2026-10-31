@@ -45,6 +45,13 @@ def test_a_worker_runs_any_other_program_by_default(story):
 
 
 @story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_worker_runs_a_journal_alias_as_a_journal_command(story):
+    story.agent_runs(story.agents.main, "alias add judge 'echo judged'").expect_command_passed()
+    story.agent_runs_in_the_shell(story.agents.subject, "journal judge tools/journal-hook").expect_allowed()
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
 @setting(WorkersOptions.COMMAND_KINDS, "read, search, edit")
 def test_a_worker_the_user_allows_no_other_programs_is_refused_one(story):
     result = story.agent_runs_in_the_shell(story.agents.subject, "python3 scripts/fix_names.py")

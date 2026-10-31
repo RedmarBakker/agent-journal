@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.69.14
+
+- A plan handed whole to a worker shows its proved tasks on the plan card as To check, as journal plan show does. Before, the card counted only the task the worker held at that moment, so it read 0 tasks done with nothing to check.
+- A worker may run a journal alias, such as journal sins, like any other journal command. Before, an alias was refused as a program the worker may not run.
+
 ## 4.69.13
 
 - Workers may run any program by default, including one the journal does not know, such as the code-commandments judge or a binary the worker just built. Before, an unknown program was always refused, whatever the setting said. A user who leaves "unknown" out of Commands workers may run still refuses them.
