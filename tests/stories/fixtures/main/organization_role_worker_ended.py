@@ -8,7 +8,6 @@ class OrganizationRoleWorkerEnded(OrganizationDomainRoleTask):
     parent = OrganizationDomainRoleTask
 
     def steps(self, story) -> None:
-        super().steps(story)
         task = self.tasks.second
         result = story.agent_runs_from_organization_seat(
             story.agents.main, "domain:alpha", f"organization handoff {task} role:alpha/builder",
