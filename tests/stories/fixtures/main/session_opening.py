@@ -1,6 +1,7 @@
 from journal.features.skills.feature import Skills
 from journal.features.skills.skills_options import SkillsOptions
 from journal.features.tasks.states.ready import Ready
+from journal.features.voices.feature import Voices
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
@@ -12,6 +13,7 @@ class SessionOpening(StateFixture):
     settings = ((SkillsOptions.START_SKILLS, SkillsOptions.START_SKILLS.default),)
 
     def steps(self, story) -> None:
+        story.user_switches_on(Voices)
         story.user_switches_on(Skills)
         story.agent_starts_a_session(story.agents.main)
 
