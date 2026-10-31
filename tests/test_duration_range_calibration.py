@@ -28,7 +28,7 @@ def test_rolling_origin_calibration_uses_only_saved_predictions_and_past_outcome
     assert by_id[3]["calibration_samples"] == 2
     assert result["coverage"]["p50"] == {"covered": 0, "observed": 3, "percent": 0}
     assert result["coverage"]["raw_p85"]["observed"] == 3
-    assert result["label"] == "Observed held-out coverage; nominal P85 is a target, not a guarantee."
+    assert result["label"] == "How often past tasks finished inside their range; 85% is the aim, not a promise."
 
 
 def test_censored_outcomes_are_reported_but_do_not_count_as_coverage():

@@ -25,7 +25,7 @@ const waitingLine = computed(() => {
 const historyLine = computed(() => {
     const deliveries = props.forecast?.delivered_outcomes;
     const capacity = props.forecast?.observed_capacity_days;
-    return `${deliveries ?? 0} comparable ${deliveries === 1 ? "delivery" : "deliveries"} · ${capacity ?? 0} ${capacity === 1 ? "day" : "days"} of observed capacity`;
+    return `${deliveries ?? 0} delivered ${deliveries === 1 ? "plan" : "plans"} · ${capacity ?? 0} ${capacity === 1 ? "day" : "days"} of observed capacity`;
 });
 const capacityLine = computed(() => {
     const through = props.forecast?.capacity_observed_through;
@@ -114,9 +114,9 @@ const independentTasks = computed(() => (criticalPath.value?.independent_groups 
                 <div><dt>History</dt><dd>{{ historyLine }}</dd></div>
                 <div><dt>Capacity</dt><dd>{{ capacityLine }}</dd></div>
                 <div><dt>Updated</dt><dd>{{ forecast?.as_of ? formatForecastDay(forecast.as_of) : "Not estimated" }}</dd></div>
-                <div><dt>Delivery chance</dt><dd>Based on past sprint results.<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'"> The shared dependency estimate is shown for comparison only.</span></dd></div>
+                <div><dt>Delivery estimate</dt><dd>Delivery chance uses past sprint results.<span v-if="forecast?.network_forecast?.comparison?.selection === 'none'"> The shared dependency estimate is shown for comparison only.</span></dd></div>
                 <div v-if="durationRanges"><dt>Task-time ranges</dt><dd>{{ learnedRangeSummary }} These ranges do not change the delivery chance. {{ durationHistoryLine }}</dd></div>
-                <div v-if="durationCalibration"><dt>Saved estimates and later results</dt><dd>{{ calibrationSummary }}</dd></div>
+                <div v-if="durationCalibration"><dt>Saved estimates and later results</dt><dd>{{ calibrationSummary }} <span v-if="durationCalibration.label">{{ durationCalibration.label }}</span></dd></div>
                 <div v-for="stage in biasStages" :key="stage.key"><dt>{{ stage.key === 'execution_cycle' ? 'Work-time estimate' : 'Delivery-time estimate' }}</dt><dd><template v-if="sizingBias[stage.key].status === 'measured'">Across {{ sizingBias[stage.key].observed }} finished tasks, {{ stage.key === 'execution_cycle' ? 'work' : 'time from finishing work to delivery' }} took {{ Number(sizingBias[stage.key].actual_to_predicted_p50_ratio).toFixed(1) }} times as long as estimated.</template><template v-else>Not enough finished tasks to compare {{ stage.key === 'execution_cycle' ? 'work-time' : 'delivery-time' }} estimates ({{ sizingBias[stage.key].observed }} of {{ durationCalibration.minimum_calibration_samples }}).</template></dd></div>
             </dl>
             <section v-if="comparableExamples.length" class="duration-examples" aria-label="Similar finished tasks">

@@ -28,7 +28,7 @@ class DurationRangeCalibration:
         coverage = {self.coverage_name(name): value for name, value in coverage.items()}
         drift = self.drift(observed)
         return {"status": "measured" if observed else "not_enough_history", "method_version": "rolling-duration-calibration-v1",
-                "label": "Observed held-out coverage; nominal P85 is a target, not a guarantee.",
+                "label": "How often past tasks finished inside their range; 85% is the aim, not a promise.",
                 "prediction_count": len(eligible), "observed_count": len(observed), "censored_predictions": censored,
                 "minimum_calibration_samples": self.minimum_calibration_samples, "coverage": coverage,
                 "sizing_bias": {stage: self.sizing_bias(observed, stage)

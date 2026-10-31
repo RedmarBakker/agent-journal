@@ -147,7 +147,7 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.textContent).toContain("15 delivered plans");
     expect(host.textContent).toContain("28 days of observed capacity");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");
-    expect(host.textContent).toContain("Based on past sprint results.");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
     expect(host.textContent).toContain("A successful production deployment of the committed revision.");
     expect(host.textContent).toContain("1 task awaiting deployment for 3 days");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");
@@ -183,10 +183,11 @@ test("the dashboard compares saved estimates with later task times while keeping
     app.mount(host);
     await nextTick();
 
-    expect(host.textContent).toContain("Based on past sprint results.");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
     expect(host.textContent).toContain("Ranges come from past delivered tasks; they are advice only. The wider range included 80% of 10 finished task times.");
     expect(host.textContent).toContain("24 finished task times · last observed 29 Oct · 1 day old · fresh");
     expect(host.textContent).toContain("Compared with 10 later task results from 14 saved estimates, the usual range included 50% and the wider range included 80%.");
+    expect(host.textContent).toContain("How often past tasks finished inside their range; 85% is the aim, not a promise.");
     expect(host.textContent).toContain("Past task times alone included 40% in the usual range and 60% in the wider range.");
     expect(host.textContent).toContain("These ranges do not change the delivery chance.");
     expect(host.textContent).toContain("Across 5 finished tasks, work took 1.5 times as long as estimated.");
@@ -213,7 +214,7 @@ test("cold history explains the missing task results and keeps learned ranges ad
     app.mount(host);
     await nextTick();
 
-    expect(host.textContent).toContain("Based on past sprint results.");
+    expect(host.textContent).toContain("Delivery chance uses past sprint results");
     expect(host.textContent).toContain("Learned ranges: not enough history yet.");
     expect(host.textContent).toContain("Not enough finished tasks to compare work-time estimates (0 of 5).");
     expect(host.textContent).not.toContain("actual durations were");
