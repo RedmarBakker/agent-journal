@@ -11,6 +11,7 @@ class ReviewerEndsAfterWorkerMerge(ReviewerAtWork):
     """A worker merges its task while its reviewer is still running."""
 
     parent = ReviewerAtWork
+    settings = ()
 
     def steps(self, story) -> None:
         with story.app.container.get(Scope).environment(1):
