@@ -3,11 +3,10 @@ import json
 from datetime import datetime
 
 from journal.engine.clock import Clock
-from journal.support.time_source import TimeSource
 from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.providers.codex import Codex
 from journal.support.heartbeat import Heartbeat
-from tests.agent_hooks import pass_time, silent_tick
+from tests.agent_hooks import pass_time, silent_tick, story_seconds
 from tests.stories.builder.step_result import StepResult
 
 # the context window a Codex session's rollout reports in a story
@@ -33,8 +32,7 @@ class TimeSteps:
         return self.observed(f"{agent_kind} is quiet past {seconds} seconds", None, None)
 
     def silent_tick(self, seconds: float) -> None:
-        clock = self.app.container.get(Clock)
-        self.refresh_background_heartbeats(clock.held_at + seconds)
+        self.refresh_background_heartbeats(story_seconds(self.app) + seconds)
         silent_tick(self.app, seconds)
 
     def refresh_background_heartbeats(self, at: float) -> None:
@@ -43,24 +41,26 @@ class TimeSteps:
 
     def time_travel(self, seconds: float = 0, minutes: float = 0) -> StepResult:
         pass_time(self.app, seconds + minutes * 60)
-        self.refresh_background_heartbeats(self.app.container.get(Clock).held_at)
+        self.refresh_background_heartbeats(story_seconds(self.app))
         return self.observed(f"the clock moves on {seconds + minutes * 60} seconds", None, None)
 
     def local_time_after(self, minutes: float) -> str:
-        return datetime.fromtimestamp(self.app.container.get(TimeSource).seconds() + minutes * 60).strftime("%Y-%m-%d %H:%M")
+        return datetime.fromtimestamp(story_seconds(self.app) + minutes * 60).strftime("%Y-%m-%d %H:%M")
 
     def clock_ticks(self, seconds: float) -> StepResult:
         pass_time(self.app, seconds)
-        self.refresh_background_heartbeats(self.app.container.get(Clock).held_at)
+        at = story_seconds(self.app)
+        self.refresh_background_heartbeats(at)
         self.app.runtime().deferred.drain()
-        self.app.container.get(Clock).tick(self.app.container.get(Clock).held_at)
+        self.app.container.get(Clock).tick(at)
         self.app.runtime().deferred.drain()
         return self.observed(f"the clock ticks {seconds} seconds later", None, None)
 
     def running_commands_are_read_again(self, seconds: float) -> StepResult:
         pass_time(self.app, seconds)
-        self.refresh_background_heartbeats(self.app.container.get(Clock).held_at)
-        self.app.container.get(WatchRefresh).tick(self.app.container.get(Clock).held_at)
+        at = story_seconds(self.app)
+        self.refresh_background_heartbeats(at)
+        self.app.container.get(WatchRefresh).tick(at)
         self.app.runtime().deferred.drain()
         return self.observed(f"the running commands are read again {seconds} seconds later", None, None)
 
@@ -81,7 +81,7 @@ class TimeSteps:
             records.write(json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": usage}}) + "\n")
 
     def local_moment(self, minutes: float) -> str:
-        return datetime.fromtimestamp(self.app.container.get(Clock).held_at + minutes * 60).strftime("%Y-%m-%d %H:%M")
+        return datetime.fromtimestamp(story_seconds(self.app) + minutes * 60).strftime("%Y-%m-%d %H:%M")
 
     def main_context_reaches(self, percent: int) -> StepResult:
         self.app.config.status_home.mkdir(parents=True, exist_ok=True)

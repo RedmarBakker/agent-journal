@@ -69,8 +69,16 @@ def pinned_clock(app, monkeypatch) -> None:
 def pass_time(app, seconds: float) -> None:
     """The held moment moved on, so the hooks after it come so many seconds later."""
     clock = app.container.get(Clock)
-    clock.held_at += seconds
-    app.container.get(TimeSource).pin(clock.held_at)
+    source = app.container.get(TimeSource)
+    clock.held_at = story_seconds(app) + seconds
+    source.pin(clock.held_at)
+
+
+def story_seconds(app) -> float:
+    """The story's pinned moment."""
+    pinned = app.container.get(TimeSource).pinned_seconds
+    assert pinned is not None, "story clock is not pinned"
+    return pinned
 
 
 def silent_tick(app, silent: float) -> list:
@@ -86,10 +94,11 @@ def tick_at(app, later: float, silence_seconds: float) -> list:
     clock = app.container.get(Clock)
     environment = app.container.get(Environments).lookup("main").id
     source = app.container.get(TimeSource)
+    held_at = story_seconds(app)
     with clock.tick_lock:
-        source.pin(clock.held_at + later)
+        source.pin(held_at + later)
         try:
             agent = app.container.get(SessionAgents).agent("s1", environment)
-            return clock.ticked(Ticked(silence_seconds=silence_seconds, agent=agent).placed(agent, None, source.seconds()))
+            return clock.ticked(Ticked(silence_seconds=silence_seconds, agent=agent).placed(agent, None, story_seconds(app)))
         finally:
-            source.pin(clock.held_at)
+            source.pin(held_at)

@@ -25,7 +25,7 @@ from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
 from journal.support.caller import ACTOR_TOKEN, ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.models.support.ref import Ref
-from journal.support.time_source import TimeSource
+from tests.agent_hooks import story_seconds
 from tests.full_project import MAIN
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
@@ -76,7 +76,7 @@ class StoryChecks:
         return bool(data.get("docked")) and not (data.get("undock_at") and not data.get("held_at") and now >= data["undock_at"])
 
     def expect_docked_cards(self, *texts: str) -> None:
-        now = self.app.container.get(TimeSource).seconds()
+        now = story_seconds(self.app)
         docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages?docked=1", MAIN)[1]["rows"] if self.is_shown_docked(row.get("data") or {}, now))
         assert docked == sorted(texts), f"the cards docked above the chat are {docked}, not {sorted(texts)}"
 

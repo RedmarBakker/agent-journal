@@ -20,7 +20,6 @@ from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.sequences import Sequences
 from journal.repositories.templates import Templates
-from journal.support.time_source import TimeSource
 from journal.features.health.support.journal_repository import JOURNAL_HOOK_SCRIPT
 from journal.support.actor import Actor
 from journal.providers.claude import Claude
@@ -42,7 +41,6 @@ from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.repositories.plugins import Plugins
 from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
 from journal.features.shell.support.shell_runner import EXIT
-from journal.engine.clock import Clock
 from journal.http.controllers.hooks import FIRING_HEADER, SILENCE_HEADER
 from journal.features.usage.support.process_usage_store import ProcessUsageStore
 from journal.support.process_usage import ProcessUsage
@@ -51,7 +49,7 @@ from journal.support.researcher_session import ResearcherSession
 from journal.console.support.outcome import Outcome
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
-from tests.agent_hooks import pass_time
+from tests.agent_hooks import pass_time, story_seconds
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
 from tests.stories.builder.step_result import StepResult
@@ -112,7 +110,7 @@ class AgentSteps:
         return self.hooked(agent, "agent closes its turn", "MessageDisplay", delta=text, message_id=f"turn-{len(self.path)}", index=0, final=True)
 
     def agent_has_written(self, agent: StoryAgent, text: str, seconds_ago: float = 0) -> StepResult:
-        written_at = datetime.fromtimestamp(self.app.container.get(Clock).held_at - seconds_ago, timezone.utc).isoformat().replace("+00:00", "Z")
+        written_at = datetime.fromtimestamp(story_seconds(self.app) - seconds_ago, timezone.utc).isoformat().replace("+00:00", "Z")
         self.transcript_record(agent, {"type": "assistant", "timestamp": written_at, "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}})
         return self.observed(f"the {agent.role} writes a text block in its transcript", None, None)
 
@@ -297,7 +295,7 @@ class AgentSteps:
         return self.hook_observed(f"agent writes in firing {firing}", *self.session_posted_hook(self.session_of(agent), headers, "PreToolUse", call))
 
     def agent_reads_after_the_journal_was_down(self, agent: StoryAgent, seconds: float) -> StepResult:
-        silence_start = self.app.container.get(Clock).held_at - seconds
+        silence_start = story_seconds(self.app) - seconds
         headers = {**self.headers_of(agent), SILENCE_HEADER: str(silence_start)}
         call = dict(tool_name=self.tools.read, tool_input={"file_path": "a.py"})
         return self.hook_observed("agent reads after the journal was down", *self.session_posted_hook(self.session_of(agent), headers, "PreToolUse", call))
@@ -517,7 +515,7 @@ class AgentSteps:
             for part in range(running):
                 folder.ended_with(part, 0)
             (folder.folder / f"{running}.out").write_text("".join(f"{row}\n" for row in printed))
-            Heartbeat(folder.folder).write(self.app.container.get(TimeSource).seconds())
+            Heartbeat(folder.folder).write(story_seconds(self.app))
             self.background_heartbeats.add(folder.folder)
             runner.test_run_watched(folder, line, caller)
             self.shell_text = runner.background_move(folder, line, running, caller, 1, [])
@@ -553,7 +551,7 @@ class AgentSteps:
             files = OutputFiles(Path(run.folder))
             files.ended_with(0, status)
             files.finish(status)
-            outputs.save(run.ended_with(status, self.app.container.get(TimeSource).seconds()), Actor.system())
+            outputs.save(run.ended_with(status, story_seconds(self.app)), Actor.system())
         self.background_heartbeats.discard(Path(run.folder))
         return self.observed(f"the background run ends {'passing' if status == 0 else 'failing'}", None, None)
 
@@ -787,13 +785,13 @@ class AgentSteps:
     def a_hook_went_around_the_journal(self) -> StepResult:
         (self.app.config.home / "runtime").mkdir(parents=True, exist_ok=True)
         with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
-            log.write(f"{int(self.app.container.get(TimeSource).seconds())} hook {self.provider}\n")
+            log.write(f"{int(story_seconds(self.app))} hook {self.provider}\n")
         return self.observed("a hook went around the journal", None, None)
 
     def a_shell_line_went_around_the_journal(self, line: str) -> StepResult:
         (self.app.config.home / "runtime").mkdir(parents=True, exist_ok=True)
         with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
-            log.write(f"{int(self.app.container.get(TimeSource).seconds())} shell {line}\n")
+            log.write(f"{int(story_seconds(self.app))} shell {line}\n")
         return self.observed("a shell line ran around the journal", None, None)
 
     def the_supervisor_stopped_without_closing_its_inbox(self, agent: StoryAgent) -> StepResult:
