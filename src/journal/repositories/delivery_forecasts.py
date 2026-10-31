@@ -7,6 +7,7 @@ from journal.features.estimates.support.critical_path import CriticalPath
 from journal.features.estimates.support.duration_range_calibration import DurationRangeCalibration
 from journal.features.estimates.support.duration_range_history import DurationRangeHistory
 from journal.features.estimates.support.learned_duration_ranges import METHOD_VERSION, LearnedDurationRanges
+from journal.features.estimates.support.network_forecast import NetworkForecast
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
 from journal.models.sprint_state import SprintState
@@ -27,11 +28,11 @@ class DeliveryForecasts:
                  calculator: BaselineForecast, snapshots: ForecastSnapshots, settings: SettingRows,
                  time_source: TimeSource, duration_history: DurationRangeHistory,
                  duration_ranges: LearnedDurationRanges, duration_calibration: DurationRangeCalibration,
-                 dependencies: TaskDependencies, critical_path: CriticalPath) -> None:
+                 dependencies: TaskDependencies, critical_path: CriticalPath, network_forecast: NetworkForecast) -> None:
         self.sprints, self.metrics, self.history = sprints, metrics, history
         self.calculator, self.snapshots, self.settings, self.time_source = calculator, snapshots, settings, time_source
         self.duration_history, self.duration_ranges, self.duration_calibration = duration_history, duration_ranges, duration_calibration
-        self.dependencies, self.critical_path = dependencies, critical_path
+        self.dependencies, self.critical_path, self.network_forecast = dependencies, critical_path, network_forecast
 
     def sprint(self, sprint_id: int, actor: Actor) -> dict:
         sprint, source, forecast = self.sprint_read(sprint_id, actor)
@@ -69,8 +70,10 @@ class DeliveryForecasts:
 
     def plan_forecast(self, plan: Plan, history: dict, actor: Actor) -> tuple[dict, dict]:
         sprint = self.plan_sprint(plan)
+        network_baseline = None
         if sprint:
             _sprint, source, shared = self.sprint_read(sprint.row_id, actor)
+            network_baseline = shared
             forecast = self.plan_result(shared, plan.row_id, source)
             histories = self.plan_histories(actor, plan.row_id)
         else:
@@ -78,7 +81,7 @@ class DeliveryForecasts:
             forecast = self.calculator.estimate(source)
             forecast = {**forecast, **self.capacity_freshness(forecast, source)}
         scopes = [plan, *([sprint] if sprint else [])]
-        forecast = self.with_duration_ranges(forecast, source, scopes, histories, plan.row_id)
+        forecast = self.with_duration_ranges(forecast, source, scopes, histories, plan.row_id, network_baseline)
         forecast = {**forecast, **self.delivery_summary(history),
                     "sprint": self.sprints.summary(sprint) if sprint else None}
         forecast = self.with_critical_path(plan, source, forecast)
@@ -335,21 +338,148 @@ class DeliveryForecasts:
             forecast.get("as_of"), tasks, self.dependencies.graph(plan))}
 
     def with_duration_ranges(self, forecast: dict, source: dict, scopes: list[object], histories: list[dict],
-                             plan_id: int = 0) -> dict:
+                             plan_id: int = 0, network_baseline: dict | None = None) -> dict:
         tasks = [row for row in source.get("scope", ()) if not plan_id or row.get("plan_id") == plan_id]
+        network_tasks = source.get("scope", ())
         as_of = self.time_source.seconds()
         observations = self.duration_history.observations(histories, as_of)
-        ranges = [self.duration_ranges.estimate_task(observations, row, as_of) for row in tasks]
-        predictions = [{"plan_id": row.get("plan_id"), "task_id": row.get("task_id"),
-                        "size_points": row.get("size_points"), "cohort": row.get("cohort") or {},
-                        "stages": result["stages"]}
-                       for row, result in zip(tasks, ranges)]
+        network_ranges = [self.duration_ranges.estimate_task(observations, row, as_of) for row in network_tasks]
+        network_predictions = [self.duration_prediction(row, result)
+                               for row, result in zip(network_tasks, network_ranges)]
+        predictions = [prediction for row, prediction in zip(network_tasks, network_predictions)
+                       if not plan_id or row.get("plan_id") == plan_id]
+        ranges = [result for row, result in zip(network_tasks, network_ranges)
+                  if not plan_id or row.get("plan_id") == plan_id]
         duration_status = "forecast" if any(result["status"] == "forecast" for result in ranges) else "not_enough_history"
         duration = {"status": duration_status, "input_cut": self.duration_history.input_cut(observations, as_of),
                     "method_version": METHOD_VERSION, "as_of": as_of, "tasks": predictions}
         snapshots = {snapshot.id: snapshot for scope in scopes for snapshot in self.snapshots.for_scope(scope)}
         calibration = self.duration_calibration.replay(list(snapshots.values()), observations, as_of)
-        return {**forecast, "duration_ranges": duration, "duration_calibration": calibration}
+        result = {**forecast, "duration_ranges": duration, "duration_calibration": calibration}
+        active_scope, active_predictions = self.active_network_scope(network_tasks, network_predictions)
+        graph, plan_graphs = self.network_graph(active_scope, histories)
+        network_source = {**source, "scope": self.network_scope(active_scope, active_predictions, histories, as_of),
+                          "graph": graph, "wip_limits": self.network_wip_limits(),
+                          "mode": str(self.settings.option(EstimatesOptions.MODE)),
+                          "sprint_miss_warning_percent": self.settings.integer(EstimatesOptions.SPRINT_MISS_WARNING_PERCENT),
+                          "horizon_days": forecast.get("horizon_sprints", source.get("horizon_sprints", 6))
+                          * source.get("calendar", {}).get("sprint_length_days", 14),
+                          "ready_forecasts": self.network_ready_forecasts(
+                              active_scope, network_baseline or forecast, source, plan_graphs)}
+        network = self.network_forecast.estimate(network_source, network_baseline or forecast)
+        plan_networks = {row["plan_id"]: row for row in network.get("plan_forecasts", ())}
+        result["network_forecast"] = network
+        result["plan_forecasts"] = [{**row, "network_forecast": plan_networks.get(row.get("plan_id"), {})}
+                                    for row in result.get("plan_forecasts", ())]
+        return result
+
+    @staticmethod
+    def active_network_scope(scope: list[dict], predictions: list[dict]) -> tuple[list[dict], list[dict]]:
+        active = [(row, prediction) for row, prediction in zip(scope, predictions)
+                  if row.get("delivery_status") not in ("delivered", "removed")]
+        return [row for row, _prediction in active], [prediction for _row, prediction in active]
+
+    @staticmethod
+    def duration_prediction(row: dict, result: dict) -> dict:
+        return {"plan_id": row.get("plan_id"), "task_id": row.get("task_id"),
+                "size_points": row.get("size_points"), "cohort": row.get("cohort") or {},
+                "stages": result["stages"]}
+
+    def network_scope(self, scope: list[dict], predictions: list[dict], histories: list[dict], as_of: float) -> list[dict]:
+        prediction_by_task = {row["task_id"]: row for row in predictions}
+        history_by_task, environment_by_task = self.network_history_tasks(histories)
+        grouped = {}
+        for row in scope:
+            task_id = row.get("task_id")
+            if not isinstance(task_id, int) or task_id not in prediction_by_task:
+                continue
+            plans = grouped.setdefault(task_id, {**row, "plan_ids": []})
+            if isinstance(row.get("plan_id"), int):
+                plans["plan_ids"].append(row["plan_id"])
+        output = []
+        for task_id, row in sorted(grouped.items()):
+            prediction = prediction_by_task[task_id]
+            history = history_by_task.get(task_id, {"scope": {}, "task": {}})
+            environment_id = environment_by_task.get(task_id)
+            with self.history.tasks.scope.environment(environment_id):
+                task = self.history.tasks.find(task_id)
+            stage, age = self.network_stage(history["scope"], history["task"], as_of)
+            cohort = row.get("cohort") or {}
+            output.append({**row, **prediction, "plan_ids": sorted(set(row["plan_ids"])),
+                           "domain": cohort.get("domain"), "cohort_key": BaselineForecast.cohort_key(cohort),
+                           "stage_cohort": cohort,
+                           "current_stage": stage, "age_seconds": age,
+                           "started": task.started_at is not None, "priority": task.priority,
+                           "size": task.size, "created_at": task.created_at})
+        return output
+
+    @staticmethod
+    def network_history_tasks(histories: list[dict]) -> tuple[dict[int, dict], dict[int, int]]:
+        tasks, environments = {}, {}
+        for history in histories:
+            environment_id = history.get("scope", {}).get("environment_id")
+            for task in history.get("tasks", ()):
+                task_id = task.get("task_id")
+                if isinstance(task_id, int):
+                    tasks.setdefault(task_id, {"scope": history.get("scope", {}), "task": task})
+                    environments.setdefault(task_id, environment_id)
+        return tasks, environments
+
+    def network_stage(self, scope: dict, history: dict, as_of: float) -> tuple[str, float]:
+        censored = next((row for row in self.duration_history.task_observations(
+            {"scope": scope}, history, as_of) if row["right_censored"]), None)
+        if censored:
+            return censored["stage"], censored["duration_seconds"]
+        if history.get("execution", {}).get("artifact_accepted") is True:
+            completion = max((self.duration_history.moment(row.get("occurred_at")) or 0
+                              for row in history.get("outcomes", ())
+                              if row.get("kind") in ("task_completed", "worker_work_merged")), default=0)
+            return "delivery_delay", max(0, as_of - completion) if completion else 0
+        return "execution_cycle", 0
+
+    def network_graph(self, scope: list[dict], histories: list[dict]) -> tuple[dict, dict[int, dict]]:
+        plan_ids = {row.get("plan_id") for row in scope if isinstance(row.get("plan_id"), int)}
+        history_by_plan = {row.get("scope", {}).get("plan_id"): row for row in histories}
+        graphs, edges, external = {}, [], []
+        for plan_id in sorted(plan_ids):
+            history = history_by_plan.get(plan_id)
+            if history is None:
+                continue
+            environment_id = history["scope"]["environment_id"]
+            with self.history.plans.scope.environment(environment_id):
+                plan = self.history.plans.find(plan_id)
+                graph = self.dependencies.graph(plan)
+            graphs[plan_id] = graph
+            edges.extend(graph["edges"])
+            external.extend(graph["external_conditions"])
+        return {"edges": self.unique_edges(edges), "external_conditions": self.unique_edges(external)}, graphs
+
+    @staticmethod
+    def unique_edges(edges: list[dict]) -> list[dict]:
+        values = {(row["task_id"], row["prerequisite_id"], row["kind"], row.get("status")): row for row in edges}
+        return [values[key] for key in sorted(values)]
+
+    def network_ready_forecasts(self, scope: list[dict], baseline: dict, source: dict,
+                                graphs: dict[int, dict]) -> dict[str, dict]:
+        forecasts = {}
+        baseline_plans = {row.get("plan_id"): row for row in baseline.get("plan_forecasts", ())}
+        baseline_tasks = {row.get("task_id"): row for row in baseline.get("task_forecasts", ())}
+        for plan_id in sorted({row.get("plan_id") for row in scope if isinstance(row.get("plan_id"), int)}):
+            plan_forecast = baseline_plans.get(plan_id, baseline)
+            tasks = [{"task_id": row["task_id"],
+                      "p50_duration_days": baseline_tasks.get(row["task_id"], {}).get("p50_duration_days")}
+                     for row in scope if row.get("plan_id") == plan_id]
+            critical = self.critical_path.project(source.get("as_of"), tasks, graphs.get(plan_id, {"edges": [], "external_conditions": []}))
+            forecasts[str(plan_id)] = {"probability_this_sprint": plan_forecast.get("probability_this_sprint", baseline.get("probability_this_sprint")),
+                                       "sprint": {"ends_on": source.get("calendar", {}).get("current_end")},
+                                       "critical_path": critical}
+        return forecasts
+
+    def network_wip_limits(self) -> dict[str, int]:
+        return {"execution": self.settings.integer(EstimatesOptions.EXECUTION_WIP_LIMIT),
+                "worker_queue": self.settings.integer(EstimatesOptions.WORKER_QUEUE_WIP_LIMIT),
+                "plan_delivery": self.settings.integer(EstimatesOptions.PLAN_DELIVERY_WIP_LIMIT),
+                "domain_delivery": self.settings.integer(EstimatesOptions.DOMAIN_DELIVERY_WIP_LIMIT)}
 
     def delivery_summary(self, history: dict) -> dict:
         delivery_tasks = history["delivery"]["tasks"]

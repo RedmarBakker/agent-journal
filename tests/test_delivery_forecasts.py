@@ -102,3 +102,17 @@ def test_plan_projection_keeps_task_p50s_from_its_shared_forecast_only():
 
     assert result["p50"] == "2026-10-31"
     assert result["task_forecasts"] == [first]
+
+
+def test_network_scope_excludes_delivered_and_removed_tasks():
+    scope = [
+        {"task_id": 1, "delivery_status": "delivered"},
+        {"task_id": 2, "delivery_status": "awaiting deployment"},
+        {"task_id": 3, "delivery_status": "removed"},
+    ]
+    predictions = [{"task_id": row["task_id"]} for row in scope]
+
+    active, active_predictions = DeliveryForecasts.active_network_scope(scope, predictions)
+
+    assert active == [scope[1]]
+    assert active_predictions == [predictions[1]]

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.support.estimates_forecast import EstimatesForecast
 from journal.features.estimates.support.work_in_progress import WorkInProgress
+from journal.features.tasks.support.ready_order import ReadyOrder
 from journal.models.plan import Plan
 from journal.models.sprint import Sprint
 from journal.models.task import Task
@@ -65,34 +66,16 @@ class ReadyQueue:
 
     @staticmethod
     def rank_key(task: Task, forecast: dict | None, now: datetime, threshold: int) -> tuple:
-        created = task.created_at or datetime.min.replace(tzinfo=timezone.utc)
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        local_now = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
-        age_days = max(0, (local_now.date() - created.astimezone(local_now.tzinfo).date()).days)
-        probability = ReadyQueue.probability(forecast)
-        risk = ReadyQueue.risk_group(probability, forecast, threshold)
-        slack = ReadyQueue.slack(task.row_id, forecast)
-        return (*risk, slack is None, slack if slack is not None else 0, -age_days,
-                -task.priority, task.size is None, task.size if task.size is not None else 0,
-                created.timestamp(), task.row_id)
+        return ReadyOrder.rank_key(task, forecast, now, threshold)
 
     @staticmethod
     def probability(forecast: dict | None) -> int | None:
-        probability = forecast.get("probability_this_sprint") if forecast else None
-        return probability if isinstance(probability, int) and not isinstance(probability, bool) else None
+        return ReadyOrder.probability(forecast)
 
     @staticmethod
     def risk_group(probability: int | None, forecast: dict | None, threshold: int) -> tuple[int, int, str]:
-        sprint = forecast.get("sprint") if forecast else None
-        ends_on = sprint.get("ends_on", "") if isinstance(sprint, dict) else ""
-        if not ends_on or probability is None:
-            return 1, 0, ends_on or "9999-12-31"
-        return (0 if probability < threshold else 2), probability, ends_on
+        return ReadyOrder.risk_group(probability, forecast, threshold)
 
     @staticmethod
     def slack(task_id: int, forecast: dict | None) -> int | None:
-        path = forecast.get("critical_path", {}) if forecast else {}
-        task = next((row for row in path.get("tasks", ()) if row.get("task_id") == task_id), None)
-        slack = task.get("slack_days") if task else None
-        return slack if isinstance(slack, int) and not isinstance(slack, bool) else None
+        return ReadyOrder.slack(task_id, forecast)
