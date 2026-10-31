@@ -8,6 +8,7 @@ from journal.models.agent import Agent
 from journal.models.link import Link
 from journal.models.phase import Phase
 from journal.models.plan import AGENT_PAUSER, Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.rig import Rig
 from journal.support.rejection import Rejection
@@ -317,6 +318,8 @@ class Plans(ScopedRepository[Plan]):
         return max(((task.completed_at or task.update_time).timestamp() for task in self.phase_tasks(phase)), default=0.0)
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
+        if plan.mode == PlanMode.ORGANIZATION:
+            return self.opened(plan, actor)
         time = self.time_source.moment()
         task = self.following_task(plan)
         if task is None or self.is_complete(plan):
@@ -328,8 +331,19 @@ class Plans(ScopedRepository[Plan]):
         return started
 
     def opened(self, plan: Plan, actor: Actor) -> Plan:
-        time = self.time_source.moment().timestamp()
+        moment = self.time_source.moment()
+        if plan.mode == PlanMode.ORGANIZATION and plan.state == PlanState.PAUSED:
+            self.reopen_plan_paused_tasks(plan, actor, moment)
+        time = moment.timestamp()
         return self.save(plan.finished(time) if self.is_complete(plan) else plan.started_without_task(time), actor)
+
+    def reopen_plan_paused_tasks(self, plan: Plan, actor: Actor, moment: datetime) -> None:
+        with self.scope.environment(plan.environment_id):
+            paused = self.plan_task_query(plan).filter(state=TaskState.PAUSED).filter(pause_reason=self.task_pause_reason(plan))
+            for task in self.tasks.selected(paused.order("id")):
+                if holder := self.tasks.holder(task):
+                    self.tasks.release_task(holder, task.row_id, actor)
+                self.tasks.save(task.reopened_for_plan(f"plan {plan.id} restarted", moment), actor)
 
     def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
@@ -359,5 +373,9 @@ class Plans(ScopedRepository[Plan]):
         time = self.time_source.moment()
         postponed = self.save(postponed_plan(time.timestamp()), actor)
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
-            self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
+            self.tasks.save(task.paused(self.task_pause_reason(plan), time), actor)
         return postponed
+
+    @staticmethod
+    def task_pause_reason(plan: Plan) -> str:
+        return f"plan {plan.id} was paused"

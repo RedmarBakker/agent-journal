@@ -5,7 +5,7 @@ from journal.events.rows.task_assignment_opportunity import TaskAssignmentOpport
 
 @dataclass(frozen=True, kw_only=True)
 class TaskReopened(TaskAssignmentOpportunity):
-    """A blocked task was opened again, with the reason it opened as a clause: question 12 was answered or closed."""
+    """A task became open again after a wait ended or its plan restarted."""
 
     feature_name = "tasks"
 

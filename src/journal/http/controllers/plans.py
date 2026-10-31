@@ -121,7 +121,7 @@ class PlanController(Controller[Plan]):
     def start(self, request: Request) -> Response:
         with self.repository.writing():
             plan = self.repository.find(request.number("id"))
-            if task := self.repository.following_task(plan):
+            if plan.mode != PlanMode.ORGANIZATION and (task := self.repository.following_task(plan)):
                 self.taking.require_start(task)
             return self.answered(self.repository.start(plan, self.taking.holder(Caller.user(request.environment)), request.actor))
 

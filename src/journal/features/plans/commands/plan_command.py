@@ -282,9 +282,13 @@ class PlanCommand(Command):
             plan = self.plans.find(args.n)
             if self.phase_testing.is_refused(plan):
                 raise Rejection(self.phase_testing.refusal(plan))
-            if not self.orchestrator.delegates_work() and (task := self.plans.following_task(plan)):
+            if (plan.mode != PlanMode.ORGANIZATION and not self.orchestrator.delegates_work()
+                    and (task := self.plans.following_task(plan))):
                 self.taking.require_start(task)
-            plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
+            if self.orchestrator.delegates_work() and plan.mode != PlanMode.ORGANIZATION:
+                plan = self.plans.opened(plan, caller.actor)
+            else:
+                plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)
             current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0

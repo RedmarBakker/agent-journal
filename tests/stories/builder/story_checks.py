@@ -255,6 +255,13 @@ class StoryChecks:
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
+    def expect_task_unheld(self, n: int) -> None:
+        tasks = self.app.container.get(Tasks)
+        task = tasks.global_matching(id=n)[0]
+        with self.app.container.get(Scope).environment(task.environment_id):
+            holder = tasks.holder(task)
+        assert holder is None, f"task {n} is held by {holder}, not open plan work"
+
     def expect_task_tied_to_domain(self, task: int, domain: str) -> None:
         with self.app.container.get(Scope).environment(1):
             names = self.app.container.get(DomainRows).domain_names(self.app.container.get(Tasks).find(task))
