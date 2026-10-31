@@ -103,6 +103,7 @@ def test_only_a_worker_ready_after_a_usage_limit_records_a_usage_resumption(app)
     with app.container.get(Scope).environment(1):
         _plan, task, outcomes = planned_task(app, size=3)
         actor = Actor.system()
+        task = app.container.get(Tasks).save(task.with_(state=TaskState.STARTED, delegated=True), actor)
         worker = app.container.get(Workers).save(Worker(name="Lady Lovelace", model="test-model"), actor)
         app.container.get(Links).linked(Ref.build(worker), Ref.build(task), CURRENT_TASK_LINK, actor)
         dispatched = worker.dispatched(10)
