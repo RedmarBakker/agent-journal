@@ -15,6 +15,8 @@ from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.seat_runtime import SeatAddress, SeatMember, SeatRuntime
 from journal.features.organization.support.usage_ledger import UsageLedger
+from journal.features.workers.support.owned_task_line import owned_task_line
+from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.plan import Plan
@@ -25,7 +27,6 @@ from journal.models.task import Task
 from journal.models.worker import JOB_STARTS, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
-from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
@@ -114,19 +115,29 @@ class SeatRunner:
 
     def job_context(self, worker: Worker, prompt: str, actor: Actor) -> tuple[Worker, SeatJobIdentity, str]:
         role = self.role_for(worker)
-        if role is None or role.cardinality is not Cardinality.JOURNAL:
+        if role is None:
             return worker, SeatJobIdentity.from_worker(worker), prompt
         task = self.job_task(worker)
+        if role.cardinality is not Cardinality.JOURNAL:
+            return worker, SeatJobIdentity.from_worker(worker), self.with_job_identity(worker, task, prompt)
         plan = self.job_plan(worker, task)
         plan_id = plan.row_id if plan else worker.plan_id
         if plan_id and worker.plan_id != plan_id:
             worker = self.workers.save(worker.with_(plan_id=plan_id), actor)
         identity = SeatJobIdentity.from_worker(worker, task.id if task else 0, plan_id)
         if task and plan:
-            prompt = "\n\n".join((f"This job is task {task.id} ({task.title}) in plan {plan.id} ({plan.title}). Keep the work and report with this plan.", prompt))
+            prompt = "\n\n".join((owned_task_line(worker.id, task.id),
+                                     f"This job is task {task.id} ({task.title}) in plan {plan.id} ({plan.title}). Keep the work and report with this plan.", prompt))
         elif task:
-            prompt = "\n\n".join((f"This job is task {task.id} ({task.title}).", prompt))
+            prompt = "\n\n".join((owned_task_line(worker.id, task.id),
+                                     f"This job is task {task.id} ({task.title}).", prompt))
         return worker, identity, prompt
+
+    @staticmethod
+    def with_job_identity(worker: Worker, task: Task | None, prompt: str) -> str:
+        if task is None:
+            return prompt
+        return "\n\n".join((owned_task_line(worker.id, task.id), prompt))
 
     def member(self, worker: Worker) -> SeatMember:
         role = self.role_for(worker)

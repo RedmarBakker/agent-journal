@@ -2,6 +2,7 @@ from argparse import Namespace
 from datetime import datetime, timezone
 
 from journal.console.command import Command
+from journal.features.workers.support.owned_task_line import owned_task_line
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.repositories.tasks import Tasks
@@ -38,5 +39,5 @@ class ArrivalCommand(Command):
         if not task.is_started():
             self.tasks.save(task.worker_started(moment), caller.actor)
         self.workers.save(worker.ready(moment.timestamp()), caller.actor)
-        print(f"worker {worker.id} clocked in on task {task.id}: {task.title}")
+        print(f"{owned_task_line(worker.id, task.id)}: {task.title}")
         return 0

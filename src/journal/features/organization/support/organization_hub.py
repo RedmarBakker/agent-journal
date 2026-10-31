@@ -6,8 +6,10 @@ from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.role import Role
 from journal.features.workers.commands.worker_command import WorkerCommand
+from journal.features.workers.support.owned_task_line import owned_task_line
 from journal.models.organization_handoff import OrganizationHandoff
 from journal.models.plan import Plan
+from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.repositories.domain_rows import DomainRows
@@ -15,7 +17,6 @@ from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
-from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
@@ -79,18 +80,26 @@ class OrganizationHub:
         if member.rig.startswith("plan-"):
             plan = self.plan_for_rig(member.rig)
             with self.scope.environment(plan.environment_id):
-                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan), caller.actor)
+                self.print_inbox(seat, self.handoffs.in_plan(self.handoffs.pending(seat), plan), caller)
             return
-        self.print_inbox(seat, self.handoffs.pending(seat), caller.actor)
+        self.print_inbox(seat, self.handoffs.pending(seat), caller)
 
-    def print_inbox(self, seat: str, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], actor: Actor) -> None:
+    def print_inbox(self, seat: str, rows: tuple[tuple[OrganizationHandoff, Plan, Task], ...], caller: Caller) -> None:
         if not rows:
             print(f"no tasks handed to {seat}")
         for handoff, plan, task in rows:
-            self.handoffs.read(handoff, actor)
+            self.handoffs.read(handoff, caller.actor)
             holder = self.tasks.holder(task)
-            assignment = f"\nworker {holder.id} holds this task" if holder and holder.type == Worker.table() else ""
+            assignment = self.assignment(holder, task, caller)
             print(f"plan {plan.id} task {task.id}: {task.title}{assignment}\n{task.brief}")
+
+    @staticmethod
+    def assignment(holder: Ref | None, task: Task, caller: Caller) -> str:
+        if holder is None or holder.type != Worker.table():
+            return ""
+        if caller.worker_number == holder.id:
+            return f"\n{owned_task_line(holder.id, task.id)}"
+        return f"\nworker {holder.id} holds this task"
 
     def seat(self, caller: Caller) -> SeatMember:
         return self.runtime.member_for_caller(caller)

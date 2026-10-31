@@ -5430,7 +5430,7 @@ def test_the_second_task_of_a_queue_sent_back_short_stays_in_its_workers_hands_a
         tasks = app.container.get(Tasks)
         assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.finished_task_ids(Ref("workers", 1)) == (1,), "the task sent back is the worker's current task, and the first waits for the merge"
     arrived = app.console().run(["clock-in"], caller)
-    assert arrived.code == 0 and "clocked in on task 2" in arrived.text, arrived.error
+    assert arrived.code == 0 and "You are worker 1; task 2 is yours" in arrived.text, arrived.error
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Tasks).find(2).state == "started", "its task is started under it"
 

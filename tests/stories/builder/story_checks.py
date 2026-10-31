@@ -395,6 +395,21 @@ class StoryChecks:
         assert not missing, f"Role seat {member.logical_id} received no {missing}: {prompt!r}"
         assert stale_brief not in prompt, f"Role seat {member.logical_id} received an old brief: {prompt!r}"
 
+    def expect_role_guidance_and_skills_omit(self, worker: StoryAgent, *job_text: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+        role = self.app.container.get(Organization).at(row.contract).role(row.role)
+        runtime = self.app.container.get(SeatRuntime)
+        member = runtime.member(f"plan-{row.plan_id}", role.domain, role.id, row.provider)
+        folder = runtime.spec_folder(member.rig) / "agents" / f"{member.pod}-{member.member}"
+        guidance = folder / "guidance" / "role.md"
+        skills = tuple((folder / "skills").rglob("SKILL.md"))
+        assert guidance.is_file(), f"Role seat {member.logical_id} has no standing guidance"
+        resources = (guidance, *skills)
+        text = "\n".join(path.read_text() for path in resources)
+        found = [part for part in job_text if part and part in text]
+        assert not found, f"Role seat {member.logical_id} keeps job text in its guidance or skills: {found}"
+
     def expect_organization_domains(self, *expected: str) -> None:
         contracts = self.app.container.get(Organization).contracts()
         found = tuple(domain.id for domain in contracts.domains)
