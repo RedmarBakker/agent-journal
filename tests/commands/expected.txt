@@ -1705,7 +1705,7 @@ journal-dumps        File what the user dropped in a dump: sort the material by 
 journal-pinned-links Pin what the user must see on coming back and put a button under a message for an action now; load it when you point the user at a design, a page or anything else outside the journal
 journal-etiquette    Behave in the chat with the user and keep the journal's own mechanics out of it; read at the start of every session, with the journal skill
 journal-plugins      Work with the plugins the user installs, which receive the journal's events; load it when a plugin blocks you, its card or line appears, or a plugin would help
-journal-organization-seat-routing Route organization work through the journal handoff and inbox commands
+journal-organization-seat-routing Route organization work between seats; load it when a seat receives work or hands it off
 
 $ agent: journal skill write --help
 exit 0
@@ -1748,8 +1748,8 @@ engine.journal_answers_again  [engine]  your journal was down for {{seconds}} se
 engine.stop_held_in_a_loop  [engine]  stop held five times; the next goes through. fix the state with `journal panic <state>`, then `journal panic report`
 engine.worker_ends_after_the_grace  [engine]  your journal was down {{seconds}} seconds, past a worker's {{grace}}-second limit. stop now; you will be sent again
 estimates.critical_path_work  [estimates]  plan {{n}} delivery graph: {{work|cap=160}}. keep the critical tasks or independent work visible; prerequisite changes need a reason
-estimates.critical_prerequisite_open  [estimates]  plan {{n}}: task {{task}} waits on prerequisite {{prerequisite}}. resolve it or justify a change
-estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance this sprint; P85 {{p85}}. review scope with the owner
+estimates.critical_prerequisite_open  [estimates]  plan {{n}}: task {{task}} waits on task {{prerequisite}}. resolve it or justify a change
+estimates.likely_sprint_miss  [estimates]  plan {{n}} has {{chance}}% chance this sprint; P85 is {{p85}}. review scope with the owner
 estimates.plan_forecast_basis  [estimates]  plan {{n}} forecast: {{basis|cap=240}}
 estimates.plan_scope_growth  [estimates]  plan {{n}} scope grew: {{change|cap=55}}. ask the owner before changing it
 estimates.task_past_historical_range  [estimates]  task {{task}} worked {{age}}; historical P85 is {{p85}}. check its wait, scope and next step

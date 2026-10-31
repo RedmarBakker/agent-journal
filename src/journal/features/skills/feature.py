@@ -69,4 +69,5 @@ message: the pinned-links and messages skills say which to use.
 | sequences, docs, reports, templates | steps; lasting knowledge; what was checked; templates | their commands |
 | checks, dumps, collections, flowcharts | checks; dropped material; groups of rows; flowcharts | their commands, a check failing, a dump |
 | pinned-links, plugins, secrets | links for the user; plugins; keys and logins | their commands and words |
+| organization-seat-routing | route work between organization seats | a seat receives or hands off work |
 """)

@@ -486,7 +486,7 @@
         "\" the user answered",
         "\"<job>\"`, or wait for its report and merge",
         "\"<job>\"`; if not, repeat the command with `--why \"<why>\"`",
-        "% chance this sprint; P85",
+        "% chance this sprint; P85 is",
         "% of context: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`",
         "%: keep, raise or correct",
         "&& \u2026 )` or pass the folder, such as `git -C`",

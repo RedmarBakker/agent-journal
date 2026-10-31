@@ -9,7 +9,7 @@ class OrganizationSeatRouting:
         "Route every handoff with `journal organization handoff <task> <target>`. "
         "This is the only route between seats; do not use `rig send` or `rig queue`."
     )
-    skill = Skill("organization-seat-routing", "Route organization work through the journal handoff and inbox commands", f"""
+    skill = Skill("organization-seat-routing", "Route organization work between seats; load it when a seat receives work or hands it off", f"""
 # Organization seat routing
 
 {guidance}
