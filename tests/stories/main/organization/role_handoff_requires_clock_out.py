@@ -52,6 +52,7 @@ def test_a_role_handoff_before_clock_out_is_refused_with_proof_and_clock_out(sto
     worker = story.agents.workers.first()
     story.agent_starts_role_session(worker).expect_allowed(worker)
     story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in").expect_command_passed()
+    story.expect_openrig_seat_environment(worker, "role:alpha/builder")
 
     attempted = story.agent_runs_from_openrig_organization_seat(
         worker, "role:alpha/builder", f"organization handoff {task} domain:alpha",
