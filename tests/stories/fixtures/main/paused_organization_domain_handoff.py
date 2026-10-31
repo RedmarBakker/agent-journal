@@ -1,17 +1,16 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.paused_organization_plan_task import PausedOrganizationPlanTask
+from tests.stories.fixtures.main.started_organization_plan_task import StartedOrganizationPlanTask
 
 
-class PausedOrganizationDomainHandoff(PausedOrganizationPlanTask):
+class PausedOrganizationDomainHandoff(StartedOrganizationPlanTask):
     """A paused organization plan has a read handoff to its Domain seat."""
 
-    parent = PausedOrganizationPlanTask
+    parent = StartedOrganizationPlanTask
 
     def steps(self, story) -> None:
         plan, task = self.plans.first, self.tasks.first
-        story.user_starts_plan(plan).expect_viewer_passed()
         plan_seat = story.organization_seat_agent("plan")
         started = story.agent_starts_plan_seat(plan_seat, plan)
         started.expect_agent_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
@@ -23,8 +22,7 @@ class PausedOrganizationDomainHandoff(PausedOrganizationPlanTask):
         domain = story.organization_seat_agent("domain:alpha")
         domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
         domain_started.expect_agent_told(domain, OrganizationNudges.UNREAD_HANDOFF)
-        inbox = story.agent_runs_as_organization_seat(domain, "domain:alpha", "organization inbox")
-        inbox.expect_command_passed()
+        story.agent_runs_as_organization_seat(domain, "domain:alpha", "organization inbox").expect_command_passed()
         story.user_pauses_plan(plan).expect_viewer_passed()
 
     def expected(self, story) -> None:

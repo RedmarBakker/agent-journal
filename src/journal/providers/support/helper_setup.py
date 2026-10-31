@@ -25,7 +25,10 @@ class HelperSetup:
 
     def hook_settings(self, provider: Provider, folder: Path, runtime: Path) -> Path:
         path = provider.worker_hook_file(folder, runtime)
-        if not path.exists():
+        settings = json.loads(path.read_text()) if path.is_file() else {}
+        updated = {**settings, **provider.settings_extras}
+        updated.setdefault("hooks", provider.hook_block(provider.hook_command(self.config.root)))
+        if updated != settings:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"hooks": provider.hook_block(provider.hook_command(self.config.root))}, indent=2) + "\n")
+            path.write_text(json.dumps(updated, indent=2) + "\n")
         return path

@@ -59,7 +59,17 @@ class RigStaffing:
         provider = self.providers.lookup(agent.provider)
         path = self.specs.write(rig_name, self.organization.contracts(), (), self.config.root,
                                 lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig_name), provider)
-        self.runtime.start_rig(path)
+        already_running = self.runtime.rig_exists(rig_name)
+        try:
+            self.runtime.start_rig(path)
+        except Rejection:
+            if already_running or not self.runtime.rig_exists(rig_name):
+                raise
+            self.record_plan_rig(plan, rig_name, actor)
+            raise
+        self.record_plan_rig(plan, rig_name, actor)
+
+    def record_plan_rig(self, plan: Plan, rig_name: str, actor: Actor) -> None:
         rig = self.rigs.save(Rig(environment_id=plan.environment_id, name=rig_name), actor)
         self.plans.rig_linked(plan, rig, actor)
 

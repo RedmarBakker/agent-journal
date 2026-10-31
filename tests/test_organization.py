@@ -3,6 +3,7 @@ from datetime import timedelta
 import hashlib
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 import shutil
 import subprocess
@@ -513,6 +514,7 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(SeatRuntime, "version", lambda _self: "0.7.6")
     agent, user = Caller.agent("main", "s1", "claude"), Caller.user("main")
     hook(app, "SessionStart")
     console = app.console()
@@ -564,6 +566,7 @@ def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(SeatRuntime, "version", lambda _self: "0.7.6")
     actor = Actor.system()
     with app.container.get(Scope).environment(1):
         plans, workers, runner = (app.container.get(kind) for kind in (Plans, Workers, SeatRunner))
@@ -594,6 +597,7 @@ def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(SeatRuntime, "version", lambda _self: "0.7.6")
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, _actor: self.seats.member(worker))
 
     def git(*arguments):
@@ -1677,7 +1681,7 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
         def option(option):
             return "0.7.5" if option == OrganizationOptions.OPENRIG_VERSION else ""
 
-    calls = []
+    calls, health_calls = [], []
 
     def execute(arguments, **kwargs):
         calls.append(arguments)
@@ -1692,19 +1696,26 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
                                   "sampledAt": "2026-10-29T15:00:00Z", "evidence": None},
             }]), "")
         if arguments[1:] == ["--version"]:
-            return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.5\n", "")
+            return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.6\n", "")
         if arguments[1:2] == ["send"]:
             assert arguments == ["rig", "send", "alpha-builder@release", "write the patch", "--json"], "0.7.5 treats --rig as fan-out; a seat send has only the bare seat and text positionals"
             return subprocess.CompletedProcess(arguments, 0, "{}", "")
         return subprocess.CompletedProcess(arguments, 0, "{}", "")
 
     monkeypatch.setattr(shutil, "which", lambda program: "/usr/bin/rig")
-    runtime = SeatRuntime(config, Settings(), execute)
+    monkeypatch.setenv("OPENRIG_URL", "http://127.0.0.1:7433")
+
+    def health_request(url, timeout):
+        health_calls.append((url, timeout))
+        return BytesIO(json.dumps({"semver": "0.7.5"}).encode())
+
+    runtime = SeatRuntime(config, Settings(), execute, health_request)
     member = runtime.member("release", "alpha", "builder", "codex")
     token = runtime.worker_token(member, "codex", "gpt-6-luna", "worker:7", "development")
     assert (member.logical_id, member.target, member.provider, member.model, member.runtime) == ("alpha.builder", "alpha-builder@release", "codex", "gpt-6-luna", "codex")
     assert token.text == "seat-token"
     assert runtime.check_version() == "0.7.5"
+    assert health_calls == [("http://127.0.0.1:7433/healthz", 3)], "version checks read the running daemon, not the installed CLI"
     reason = "journal worker 7 starts a fresh context"
     runtime.launch(member, reason)
     assert calls[-1] == ["rig", "seat", "launch", member.target, "--fresh", "--stop", "--reason", reason,
@@ -1718,12 +1729,11 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     assert ["rig", "send", member.target, "write the patch", "--json"] in calls
 
 
-@pytest.mark.parametrize(("rig_on_path", "installed", "expected"), [
-    (False, "", "OpenRig's rig command is not on PATH"),
-    (True, "", "could not read the installed OpenRig version"),
-    (True, "0.7.4", "OpenRig is 0.7.4; workers.openrig_version requires 0.7.5"),
+@pytest.mark.parametrize(("health", "expected"), [
+    ({}, "OpenRig daemon healthz at http://127.0.0.1:7433/healthz does not report a semver"),
+    ({"semver": "0.7.4"}, "OpenRig daemon is 0.7.4; workers.openrig_version requires 0.7.5; restart the OpenRig daemon"),
 ])
-def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_pinned_in_settings(app, tmp_path, monkeypatch, rig_on_path, installed, expected):
+def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_pinned_in_settings(app, tmp_path, monkeypatch, health, expected):
     worker, workers, escalated, actor = _seat_failure_world(app, tmp_path)
     finisher = _seat_failure_finisher(workers, tmp_path)
 
@@ -1736,10 +1746,13 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
 
     def execute(arguments, **_kwargs):
         calls.append(arguments)
-        return subprocess.CompletedProcess(arguments, 0, f"rig version {installed}\n", "")
+        return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.6\n", "")
 
-    monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda _program: "/usr/bin/rig" if rig_on_path else None)
-    runtime = SeatRuntime(SimpleNamespace(), Settings(), execute)
+    def health_request(url, timeout):
+        return BytesIO(json.dumps(health).encode())
+
+    monkeypatch.setenv("OPENRIG_URL", "http://127.0.0.1:7433")
+    runtime = SeatRuntime(SimpleNamespace(), Settings(), execute, health_request)
     runtime.session = lambda *_args: session_calls.append(True)
     member = SimpleNamespace(openrig_version="0.7.4", target="alpha-builder@release")
     runner = object.__new__(SeatRunner)
@@ -1762,7 +1775,7 @@ def test_boot_recovery_refuses_an_organization_seat_without_the_openrig_version_
     assert current.run_end.startswith(f"seat failed: {expected}"), "boot recovery leaves a clear failure on the organization job"
     assert len(escalated) == 1 and expected in escalated[0][1], "the Domain agent receives the version refusal"
     assert session_calls == [] and not runner._active, "recovery refuses before attaching to a session and releases its monitor"
-    assert calls == ([["rig", "--version"]] if rig_on_path else [])
+    assert calls == [], "boot checks do not use the local CLI version"
 
 
 @pytest.mark.parametrize(("rig_on_path", "installed"), [(False, ""), (True, "0.7.4")])
@@ -1892,12 +1905,12 @@ def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitor
     finisher = _seat_failure_finisher(workers, tmp_path)
     calls = []
 
-    def unreachable(arguments, **kwargs):
-        calls.append((arguments, kwargs))
-        raise subprocess.TimeoutExpired(arguments, kwargs["timeout"])
+    def unreachable(url, timeout):
+        calls.append((url, timeout))
+        raise TimeoutError("daemon health request timed out")
 
-    monkeypatch.setattr(seat_runtime_module.shutil, "which", lambda _program: "/usr/bin/rig")
-    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace(option=lambda _option: ""), unreachable)
+    monkeypatch.setenv("OPENRIG_URL", "http://127.0.0.1:7433")
+    runtime = SeatRuntime(SimpleNamespace(home=tmp_path), SimpleNamespace(option=lambda _option: ""), health_request=unreachable)
     identity = SeatJobIdentity.from_worker(worker)
     seat = object.__new__(SeatRunner)
     seat._guard = Lock()
@@ -1916,8 +1929,8 @@ def test_an_unreachable_openrig_times_out_and_requeues_without_leaving_a_monitor
     with app.container.get(Scope).environment(worker.environment_id):
         current = workers.find(worker.row_id)
     assert current.state == WorkerState.UNFINISHED and "seat failed:" in current.run_end
-    assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "OpenRig --version failed" in escalated[0][1]
-    assert calls[0][0] == ["rig", "--version"] and calls[0][1]["timeout"] == 30 and not seat._active
+    assert len(escalated) == 1 and escalated[0][0] == "domain-alpha" and "could not read the running OpenRig daemon version" in escalated[0][1]
+    assert calls == [("http://127.0.0.1:7433/healthz", 3)] and not seat._active
 
 
 def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_for_journal_and_plan_and_a_worktree_of_its_own_for_many(app, tmp_path, monkeypatch):
@@ -2326,6 +2339,7 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
         return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
 
     monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(SeatRuntime, "version", lambda _self: "0.7.6")
     runtime = app.container.get(SeatRuntime)
     launch_state = {"started": False}
     seat_changes = []

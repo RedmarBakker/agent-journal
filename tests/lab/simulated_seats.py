@@ -1,4 +1,5 @@
 import json
+from io import BytesIO
 import os
 import subprocess
 from copy import deepcopy
@@ -11,6 +12,7 @@ class SimulatedSeats:
     def __init__(self) -> None:
         self.pid = os.getpid()
         self.version = "0.7.6"
+        self.cli_version = "0.7.6"
         self.calls: list[tuple[str, ...]] = []
         self.rigs: set[str] = set()
         self.stopped_rigs: set[str] = set()
@@ -19,11 +21,18 @@ class SimulatedSeats:
         self.environments: dict[str, dict[str, str]] = {}
         self.messages: list[tuple[str, str]] = []
         self.session_number = 0
+        self.attention: dict[str, str] = {}
+        self.next_attention_reason = ""
+        self.health_requests: list[tuple[str, int]] = []
+
+    def health_request(self, url: str, timeout: int = 3) -> BytesIO:
+        self.health_requests.append((url, timeout))
+        return BytesIO(json.dumps({"semver": self.version}).encode())
 
     def run(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
         self.calls.append(arguments)
         if arguments == ("--version",):
-            return self.result(arguments, f"OpenRig {self.version}\n")
+            return self.result(arguments, f"OpenRig {self.cli_version}\n")
         if arguments[0] == "up":
             path = Path(arguments[1])
             rig = path.parent.name
@@ -31,6 +40,14 @@ class SimulatedSeats:
             self.stopped_rigs.discard(rig)
             self.specs[rig] = json.loads(path.read_text())
             self.start_members(rig, self.specs[rig])
+            reason = self.next_attention_reason or self.project_mcp_attention(path.parent, self.specs[rig])
+            self.next_attention_reason = ""
+            if reason:
+                self.attention[rig] = reason
+                return self.result(arguments, json.dumps({
+                    "status": "partial",
+                    "results": [{"step": "import_rig", "status": "blocked", "code": "attention_required", "reason": reason}],
+                }), 1)
             return self.result(arguments, "{}")
         if arguments[0] == "down":
             rig = arguments[1]
@@ -93,6 +110,47 @@ class SimulatedSeats:
         if arguments[0] == "edge":
             return self.result(arguments, "{}")
         return self.result(arguments, "", 2, f"unsupported simulated OpenRig call: {' '.join(arguments)}")
+
+    @staticmethod
+    def project_mcp_attention(folder: Path, spec: dict) -> str:
+        for pod in spec.get("pods", []):
+            for member in pod.get("members", []):
+                if member.get("runtime") != "claude-code":
+                    continue
+                project_mcp = Path(member.get("cwd", "")) / ".mcp.json"
+                try:
+                    servers = json.loads(project_mcp.read_text()).get("mcpServers", {})
+                except (OSError, ValueError):
+                    continue
+                if not servers or SimulatedSeats.project_mcp_servers_selected(folder, member):
+                    continue
+                return f"OpenRig seat {pod['id']}.{member['id']} needs approval for project MCP servers"
+        return ""
+
+    @staticmethod
+    def project_mcp_servers_selected(folder: Path, member: dict) -> bool:
+        agent_name = str(member.get("agent_ref", "")).removeprefix("local:agents/")
+        try:
+            agent = json.loads((folder / "agents" / agent_name / "agent.yaml").read_text())
+        except (OSError, ValueError):
+            return False
+        profiles = agent.get("profiles", {})
+        resources = agent.get("resources", {}).get("runtime_resources", [])
+        selected = {
+            resource
+            for profile in profiles.values() if isinstance(profile, dict)
+            for resource in profile.get("uses", {}).get("runtime_resources", [])
+        }
+        for resource in resources:
+            if resource.get("id") not in selected or resource.get("type") != "claude_settings_fragment":
+                continue
+            try:
+                settings = json.loads((folder / "agents" / agent_name / resource["path"]).read_text())
+            except (OSError, ValueError):
+                continue
+            if settings.get("enableAllProjectMcpServers") is True:
+                return True
+        return False
 
     def execute(self, command: list[str], **kwargs) -> subprocess.CompletedProcess:
         return self.run(*command[1:], check=False)

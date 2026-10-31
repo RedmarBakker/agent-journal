@@ -68,11 +68,12 @@ def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
 @story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_refuses_to_expand_a_domain_on_openrig_that_drops_member_environment(story):
     story.simulated_seats().version = "0.7.5"
+    story.simulated_seats().cli_version = "0.7.6"
     task = story.tasks.first
     result = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )
     result.expect_command_refused()
-    result.expect_command_text("OpenRig 0.7.5; dynamic organization seat placement requires OpenRig 0.7.6 or later")
+    result.expect_command_text("OpenRig daemon 0.7.5 is too old; dynamic organization seat placement requires OpenRig 0.7.6 or later; restart the OpenRig daemon")
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)

@@ -1,4 +1,5 @@
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_specs import RigSpecs
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.seat_worker import SeatWorker
@@ -7,8 +8,8 @@ from journal.providers.providers import Providers
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from journal.repositories.environments import Environments
+from journal.repositories.plans import Plans
 from tests.stories.fixtures.main.organization_setup import OrganizationSetup
-from tests.lab.simulated_seats import SimulatedSeats
 
 
 class OrganizationHubPlan(OrganizationSetup):
@@ -19,8 +20,7 @@ class OrganizationHubPlan(OrganizationSetup):
     task_domain = ""
 
     def steps(self, story) -> None:
-        story.openrig = SimulatedSeats()
-        story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
+        story.configure_simulated_openrig()
         self.plans.first = story.user_creates_plan("p", "b")
         self.tasks.first = story.user_adds_plan_task(self.plans.first, "first", self.task_domain)
         rig = f"plan-{story.plans.first}"
@@ -47,4 +47,6 @@ class OrganizationHubPlan(OrganizationSetup):
             rig, contracts, tuple(domain.id for domain in contracts.domains), story.app.config.root,
             lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig), provider,
         )
-        runtime.replace_rig(rig, path)
+        plan = story.app.container.get(Plans).global_matching(id=self.plans.first)[0]
+        if story.app.container.get(RigStaffing).is_running(plan, provider.name):
+            runtime.replace_rig(rig, path)

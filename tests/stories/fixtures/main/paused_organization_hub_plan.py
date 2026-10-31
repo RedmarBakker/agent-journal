@@ -11,7 +11,6 @@ from journal.repositories.rigs import Rigs
 from journal.support.caller import ORGANIZATION_RIG, ORGANIZATION_SEAT
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
-from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan_with_plan_agents import OrganizationHubPlanWithPlanAgents
 
 
@@ -22,9 +21,8 @@ class PausedOrganizationHubPlan(OrganizationHubPlanWithPlanAgents):
     settings = ()
 
     def steps(self, story) -> None:
-        story.openrig = SimulatedSeats()
+        story.configure_simulated_openrig()
         runtime = story.app.container.get(SeatRuntime)
-        story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         rig = f"plan-{self.plans.first}"

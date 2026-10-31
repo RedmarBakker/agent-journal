@@ -4,38 +4,34 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
-from tests.stories.fixtures.main.paused_organization_plan_task import PausedOrganizationPlanTask
+from tests.stories.fixtures.main.started_organization_plan_task import StartedOrganizationPlanTask
 
 
-class PausedOrganizationPlanRoleRoute(PausedOrganizationPlanTask):
+class PausedOrganizationPlanRoleRoute(StartedOrganizationPlanTask):
     """A paused organization plan has a read Domain handoff and all its plan seats."""
 
-    parent = PausedOrganizationPlanTask
+    parent = StartedOrganizationPlanTask
 
     def steps(self, story) -> None:
-        plan, task = self.plans.first, self.tasks.first
-        story.plays_in(BUILDER_MODE)
-        story.user_starts_plan(plan).expect_viewer_passed()
         runtime = story.app.container.get(SeatRuntime)
         OrganizationPlanWithDomainSeats.add_domain_seats(self, story, runtime)
-
+        story.observed("OpenRig refreshes the plan rig with all Domain seats", None, None)
+        plan, task = self.plans.first, self.tasks.first
         plan_seat = story.organization_seat_agent("plan")
         plan_started = story.agent_starts_plan_seat(plan_seat, plan)
         plan_started.expect_agent_told(
             plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha",
         )
-        handoff = story.agent_runs_as_organization_seat(
+        story.agent_runs_as_organization_seat(
             plan_seat, "plan", f"organization handoff {task} domain:alpha",
-        )
-        handoff.expect_command_passed()
-        domain = story.organization_seat_agent("domain:alpha")
-        self.domain_agent = domain
-        domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
-        domain_started.expect_agent_told(domain, OrganizationNudges.UNREAD_HANDOFF)
-        inbox = story.agent_runs_as_organization_seat(domain, "domain:alpha", "organization inbox")
-        inbox.expect_command_passed()
+        ).expect_command_passed()
+        self.domain_agent = story.organization_seat_agent("domain:alpha")
+        domain_started = story.agent_starts_organization_seat(self.domain_agent, "domain:alpha")
+        domain_started.expect_agent_told(self.domain_agent, OrganizationNudges.UNREAD_HANDOFF)
+        story.agent_runs_as_organization_seat(
+            self.domain_agent, "domain:alpha", "organization inbox",
+        ).expect_command_passed()
         story.user_pauses_plan(plan).expect_viewer_passed()
 
     def expected(self, story) -> None:

@@ -6,7 +6,6 @@ from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan_with_plan_agents import OrganizationHubPlanWithPlanAgents
 
 
@@ -22,9 +21,8 @@ class OrganizationDomainRoleTask(OrganizationHubPlanWithPlanAgents):
         story.user_completes_task(self.tasks.first, "task 5 was already complete")
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
-        story.openrig = SimulatedSeats()
+        story.configure_simulated_openrig()
         runtime = story.app.container.get(SeatRuntime)
-        story.monkeypatch.setattr(runtime, "execute", story.openrig.execute)
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, runtime)

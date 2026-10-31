@@ -2,6 +2,7 @@ from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
+from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
@@ -63,8 +64,15 @@ class OrganizationHub:
             if role.writes:
                 self.workers.require_role_task_dispatchable(task, role, caller)
         if domain := self.domain(target):
-            if source == "plan" and target.startswith("domain:") and self.plans.rig_id(plan):
-                self.staffing.place_domain(plan, domain, member.provider, member.environment)
+            if target.startswith("domain:"):
+                if source == "plan" and self.plans.rig_id(plan):
+                    self.staffing.place_domain(plan, domain, member.provider, member.environment)
+                recipient = self.runtime.organization_member(self.target_rig(target, plan, role, member), target, member.provider)
+                self.domains.task_tied(task, domain, caller.actor)
+                self.handoffs.handoff(task, plan, target, caller.actor)
+                self.runtime.send(recipient, OrganizationSeatRouting.handoff_prompt)
+                print(f"task {task.id} routed from {member.organization_seat} to {target}")
+                return
             self.domains.task_tied(task, domain, caller.actor)
         self.handoffs.handoff(task, plan, target, caller.actor)
         if role and role.writes:

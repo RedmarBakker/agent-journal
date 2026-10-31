@@ -193,11 +193,17 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
             assert not thread.is_alive(), f"seat runner thread {thread.name} did not finish before the fixture was restored"
 
     def openrig_starts(self, rig: str) -> StepResult:
+        self.configure_simulated_openrig()
+        runtime = self.app.container.get(SeatRuntime)
+        runtime.start_rig(runtime.spec_folder(rig) / "rig.yaml")
+        return self.observed(f"OpenRig starts rig {rig}", None, None)
+
+    def configure_simulated_openrig(self) -> SimulatedSeats:
         self.openrig = SimulatedSeats()
         runtime = self.app.container.get(SeatRuntime)
         self.monkeypatch.setattr(runtime, "execute", self.openrig.execute)
-        runtime.start_rig(runtime.spec_folder(rig) / "rig.yaml")
-        return self.observed(f"OpenRig starts rig {rig}", None, None)
+        self.monkeypatch.setattr(runtime, "health_request", self.openrig.health_request, raising=False)
+        return self.openrig
 
     def replace_main_session(self, session: str, provider: str, environment: str = "main") -> None:
         self.main_session_id, self.agent = session, Caller.agent("main", session, provider)

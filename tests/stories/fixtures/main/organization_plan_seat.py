@@ -3,7 +3,6 @@ from journal.features.organization.support.organization import Organization
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.models.plan_state import PlanState
-from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 from tests.stories.fixtures.main.organization_setup import OrganizationSetup
 
@@ -18,8 +17,7 @@ class OrganizationPlanSeat(OrganizationHubPlan):
     def steps(self, story) -> None:
         story.app.container.get(Organization).reload()
         super().steps(story)
-        story.openrig = SimulatedSeats()
-        story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
+        story.configure_simulated_openrig()
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
 

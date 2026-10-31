@@ -46,6 +46,7 @@ class FixtureCopy:
         story.monkeypatch.setattr(WorkerRunner, "start", self.worker_runner_start)
         if story.openrig is not None:
             story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
+            story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "health_request", story.openrig.health_request, raising=False)
         story.team_servers_restarted()
         story.line_keys |= self.line_keys
         environments = dict(self.session_environments)

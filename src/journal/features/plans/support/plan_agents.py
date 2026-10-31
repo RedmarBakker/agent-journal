@@ -10,7 +10,9 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.models.agent import Agent
+from journal.models.author import Author
 from journal.models.environment import Environment
+from journal.models.message import Message
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
@@ -18,23 +20,26 @@ from journal.models.task import Task
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
+from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.support.missing_row import MissingRow
 from journal.support.actor import Actor
 from journal.support.inner_repositories import InnerRepositories
+from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 
 
 class PlanAgents:
     """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation, the environment made by whoever started the plan and seen as the plan's own environment is, shared with its team or private, set again at each start; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
-    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource, scope: Scope) -> None:
+    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource, scope: Scope, messages: Messages) -> None:
         self.config, self.inner_repositories = config, InnerRepositories(config.root)
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
         self.places, self.settings, self.staffing = places, settings, staffing
         self.usage, self.time_source = usage, time_source
         self.scope = scope
+        self.messages = messages
 
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
@@ -83,7 +88,15 @@ class PlanAgents:
             self.bindings.bind(plan, environment.row_id, actor)
             agent = agent or self.prepared(plan, environment, event.environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
-                self.staffing.start_plan(plan, environment, agent, actor)
+                try:
+                    self.staffing.start_plan(plan, environment, agent, actor)
+                except Rejection as reason:
+                    self.messages.save(Message(
+                        environment_id=event.environment_id,
+                        author=Author.SYSTEM,
+                        text=f"Plan {plan.id} needs OpenRig attention: {reason}",
+                        data={"kind": "plan_attention", "plan": plan.id},
+                    ), Actor.system())
             else:
                 self.places.launched(environment, agent, self.repository_folders(plan))
 

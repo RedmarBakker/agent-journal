@@ -265,6 +265,14 @@ class StoryChecks:
         rows = get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]
         assert len(rows) == count, f"{len(rows)} {table} through the API, not {count}"
 
+    def expect_organization_handoff_count(self, plan_id: int, count: int) -> None:
+        self.settle()
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        with self.app.container.get(Scope).environment(plan.environment_id):
+            handoffs = self.app.container.get(OrganizationHandoffs)
+            found = handoffs.counted(handoffs.query())
+        assert found == count, f"plan {plan_id} has {found} organization handoffs, not {count}"
+
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
@@ -296,6 +304,14 @@ class StoryChecks:
             plans = self.app.container.get(Plans)
             rig = self.app.container.get(Rigs).find(plans.rig_id(plans.find(plan_id)))
         assert rig.name == name, f"plan {plan_id} uses rig {rig.name}, not {name}"
+
+    def expect_openrig_no_attention(self, rig: str) -> None:
+        reason = self.simulated_seats().attention.get(rig, "")
+        assert not reason, f"OpenRig rig {rig} stopped for attention: {reason}"
+
+    def expect_openrig_attention(self, rig: str, reason: str) -> None:
+        actual = self.simulated_seats().attention.get(rig, "")
+        assert actual == reason, f"OpenRig rig {rig} needs attention for {actual!r}, not {reason!r}"
 
     def expect_plan_rig_seat_settings(self, rig: str) -> None:
         runtime = self.app.container.get(SeatRuntime)

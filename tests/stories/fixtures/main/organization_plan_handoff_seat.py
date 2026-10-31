@@ -6,7 +6,6 @@ from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.lab.simulated_seats import SimulatedSeats
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import OrganizationPlanWithoutDomainSeats
 
@@ -48,8 +47,7 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
         story.user_approves_plan(self.plans.first)
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
         story.user_sets(PlansOptions.PLAN_AGENTS, True)
-        story.openrig = SimulatedSeats()
-        story.monkeypatch.setattr(story.app.container.get(SeatRuntime), "execute", story.openrig.execute)
+        story.configure_simulated_openrig()
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, story.app.container.get(SeatRuntime))
         story.plays_in(BUILDER_MODE)

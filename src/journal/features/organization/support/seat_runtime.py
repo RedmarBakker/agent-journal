@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 from typing import Callable
+from urllib.request import urlopen
 
 from journal.config import Config
 from journal.features.organization.support.usage_ledger import UsageReading
@@ -69,8 +70,9 @@ class SeatSession:
 class SeatRuntime:
     """Consume the selected-provider spec; it does not generate rig or agent specs."""
 
-    def __init__(self, config: Config, settings: SettingRows, execute: Callable = subprocess.run) -> None:
-        self.config, self.settings, self.execute = config, settings, execute
+    def __init__(self, config: Config, settings: SettingRows, execute: Callable = subprocess.run,
+                 health_request: Callable = urlopen) -> None:
+        self.config, self.settings, self.execute, self.health_request = config, settings, execute, health_request
 
     def roster(self, rig: str) -> tuple[SeatAddress, ...]:
         spec = self.read_spec(rig)
@@ -212,23 +214,37 @@ class SeatRuntime:
         return AgentToken(member.token)
 
     def version(self) -> str:
-        result = self.run("--version", check=False)
-        found = VERSION.search(result.stdout or result.stderr)
-        if result.returncode or found is None:
-            raise Rejection(f"could not read the installed OpenRig version: {(result.stderr or result.stdout).strip()}")
+        url = f"{self.daemon_url()}/healthz"
+        try:
+            with self.health_request(url, timeout=3) as response:
+                payload = json.loads(response.read())
+        except (OSError, TimeoutError, ValueError) as failed:
+            raise Rejection(f"could not read the running OpenRig daemon version from {url}: {failed}") from failed
+        semver = payload.get("semver") if isinstance(payload, dict) else None
+        found = VERSION.search(semver) if isinstance(semver, str) else None
+        if found is None:
+            raise Rejection(f"OpenRig daemon healthz at {url} does not report a semver")
         return found.group(1)
+
+    @staticmethod
+    def daemon_url() -> str:
+        if address := os.environ.get("OPENRIG_URL", "").rstrip("/"):
+            return address
+        host = os.environ.get("OPENRIG_HOST", "127.0.0.1")
+        port = os.environ.get("OPENRIG_PORT", "7433")
+        return f"http://{host}:{port}"
 
     def check_version(self, spec_version: str = "") -> str:
         installed = self.version()
         expected = str(self.settings.option(OrganizationOptions.OPENRIG_VERSION) or spec_version or "").strip()
         if expected and installed != expected:
-            raise Rejection(f"OpenRig is {installed}; workers.openrig_version requires {expected}")
+            raise Rejection(f"OpenRig daemon is {installed}; workers.openrig_version requires {expected}; restart the OpenRig daemon")
         return installed
 
     def check_expand_version(self, minimum: str) -> str:
         installed = self.check_version()
         if self.version_number(installed) < self.version_number(minimum):
-            raise Rejection(f"OpenRig {installed}; dynamic organization seat placement requires OpenRig {minimum} or later")
+            raise Rejection(f"OpenRig daemon {installed} is too old; dynamic organization seat placement requires OpenRig {minimum} or later; restart the OpenRig daemon")
         return installed
 
     @staticmethod
@@ -295,7 +311,24 @@ class SeatRuntime:
         self.run("send", seat.target, text, "--json")
 
     def start_rig(self, spec: Path) -> None:
-        self.run("up", str(spec), "--json")
+        arguments = ("up", str(spec), "--json")
+        result = self.run(*arguments, check=False)
+        if reason := self.startup_attention(result.stdout, result.stderr):
+            raise Rejection(f"OpenRig rig {spec.parent.name} needs attention: {reason}")
+        if result.returncode:
+            raise Rejection(f"OpenRig {' '.join(arguments)} failed: {(result.stderr or result.stdout).strip()}")
+
+    @classmethod
+    def startup_attention(cls, *outputs: str) -> str:
+        for output in outputs:
+            try:
+                payload = json.loads(output)
+            except ValueError:
+                continue
+            for value in cls.objects(payload):
+                if value.get("code") == "attention_required":
+                    return str(value.get("reason") or value.get("message") or "OpenRig requires operator attention")
+        return ""
 
     def replace_rig(self, rig: str, spec: Path) -> None:
         self.run("down", rig, "--yes", "--json")
