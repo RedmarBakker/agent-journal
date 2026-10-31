@@ -41,11 +41,16 @@ class WorkerSteps:
         deadline = time.monotonic() + 5
         with self.app.container.get(Scope).environment(1):
             worker = self.app.container.get(Workers).find(agent.number)
-        while not worker.session and time.monotonic() < deadline:
+        while (
+            (not worker.session or worker.began < worker.job_start_time())
+            and time.monotonic() < deadline
+        ):
             time.sleep(0.01)
             with self.app.container.get(Scope).environment(1):
                 worker = self.app.container.get(Workers).find(agent.number)
-        assert worker.session, f"Role worker {worker.id} did not receive its OpenRig session"
+        assert (
+            worker.session and worker.began >= worker.job_start_time()
+        ), f"Role worker {worker.id} did not receive its current OpenRig session"
         self.worker_sessions[agent.number] = worker.session
         environment = self.app.container.get(Environments).find(worker.environment_id).name
         self.session_environments[worker.session] = environment
