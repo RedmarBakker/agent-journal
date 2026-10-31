@@ -1,5 +1,6 @@
 from journal.console.support.outcome import Outcome
 from journal.support.agent_role import AgentRole
+from journal.support.agent_token import AgentToken
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_agents import StoryAgents
 from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
@@ -114,7 +115,25 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         return {ACTOR_HEADER: stamp, ACTOR_TOKEN_HEADER: self.helper_token(stamp)}
 
     def helper_token(self, stamp: str) -> str:
-        return next(launch[ACTOR_TOKEN] for launch in reversed(self.app.helper_launches) if launch.get(ACTOR) == stamp)
+        kind, _, number = stamp.partition(":")
+        repository = {"reviewer": Reviewers, "verifier": Verifiers}[kind]
+        with self.app.container.get(Scope).environment(1):
+            token_hash = self.app.container.get(repository).find(int(number)).token_hash
+        with self.app.helper_launches_ready:
+            found = self.app.helper_launches_ready.wait_for(
+                lambda: bool(self.helper_launch_token(stamp, token_hash)),
+                timeout=5,
+            )
+            if not found:
+                raise AssertionError(f"the current run of {stamp} did not reach the story")
+            return self.helper_launch_token(stamp, token_hash)
+
+    def helper_launch_token(self, stamp: str, token_hash: str) -> str:
+        return next(
+            (launch[ACTOR_TOKEN] for launch in reversed(self.app.helper_launches)
+             if launch.get(ACTOR) == stamp and AgentToken.is_proof(launch.get(ACTOR_TOKEN), token_hash)),
+            "",
+        )
 
     def record_command(self, action: str, outcome: Outcome) -> StepResult:
         return self.observed(action, None, outcome)

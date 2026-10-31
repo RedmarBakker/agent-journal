@@ -68,7 +68,8 @@ def test_task_handoffs_keep_the_planned_domain_and_append_each_domain_to_history
 
 def test_worker_proposal_is_scoped_and_never_grants_delivery_acceptance(app, tmp_path):
     contract = OrganizationFixture(tmp_path / "organization").write()
-    contract.domain("development", roles=[], definition_of_done={
+    contract.role("development", "deployer")
+    contract.domain("development", roles=["deployer"], definition_of_done={
         "criterion": "Deploy the committed revision successfully to production.",
         "evidence": "production_deployment",
         "target": "production",
