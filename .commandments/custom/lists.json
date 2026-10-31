@@ -498,6 +498,7 @@
         "): `journal dump items",
         "); sum it up, start nothing: `journal dump propose",
         "--changed \"<what this round changed>\"`",
+        "Role work returns with `journal proof <point> \"<file:line and test>\"`, then `journal clock-out \"<report>\"`",
         "__authenticate`, then `complete_authentication`; tell the user",
         "` and act on it",
         "` and prove it again if you had",
