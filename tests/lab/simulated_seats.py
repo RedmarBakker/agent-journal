@@ -1,7 +1,8 @@
 import json
 import os
-from pathlib import Path
 import subprocess
+from copy import deepcopy
+from pathlib import Path
 
 
 class SimulatedSeats:
@@ -90,6 +91,9 @@ class SimulatedSeats:
 
     def member_environment(self, rig: str, pod: str, member: str) -> dict[str, str]:
         return self.environments[f"{pod}-{member}@{rig}"]
+
+    def copied(self) -> "SimulatedSeats":
+        return deepcopy(self)
 
     def start_members(self, rig: str, spec: dict) -> None:
         for pod in spec.get("pods", []):

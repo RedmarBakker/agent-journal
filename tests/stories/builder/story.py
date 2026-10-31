@@ -54,6 +54,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
         self.closers: list = []
         self.team_addresses: dict[str, str] = {}
         self.worker_sessions: dict[int, str] = {}
+        self.openrig: SimulatedSeats | None = None
         self.typed: list[str] = []
         self.typed_from = 0
         self.mode = BUILDER_MODE
