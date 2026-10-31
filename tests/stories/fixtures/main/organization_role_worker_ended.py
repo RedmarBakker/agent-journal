@@ -11,7 +11,10 @@ class OrganizationRoleWorkerEnded(OrganizationRoleTaskOnSeat):
     parent = OrganizationRoleTaskOnSeat
 
     def steps(self, story) -> None:
-        story.worker_run_ends_without_clocking_out(story.agents.workers.first())
+        worker = story.agents.workers.first()
+        story.expect_worker_role_job(worker, self.tasks.second, "- task 6 has its current brief", "the earlier task brief")
+        story.expect_role_job_prompt(worker, "- task 6 has its current brief", "the earlier task brief", "journal clock-in")
+        story.worker_run_ends_without_clocking_out(worker)
 
     def expected(self, story) -> None:
         story.expect_task(self.tasks.second, delegated=True)

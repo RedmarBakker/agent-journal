@@ -6,6 +6,7 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from tests.stories.fixtures.main.organization_domain_role_task import OrganizationDomainRoleTask
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 class OrganizationRoleTaskOnSeat(OrganizationDomainRoleTask):
@@ -21,8 +22,6 @@ class OrganizationRoleTaskOnSeat(OrganizationDomainRoleTask):
         self.workers.first = story.newest("workers")
         worker = story.agents.workers.first()
         story.agent_starts_role_session(worker).expect_allowed(worker)
-        story.expect_worker_role_job(worker, task, "- task 6 has its current brief", "the earlier task brief")
-        story.expect_role_job_prompt(worker, "- task 6 has its current brief", "the earlier task brief", "journal clock-in")
         story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in").expect_command_passed()
 
     def expected(self, story) -> None:
@@ -32,4 +31,4 @@ class OrganizationRoleTaskOnSeat(OrganizationDomainRoleTask):
         story.expect_worker_role_job(story.agents.workers.first(), self.tasks.second, "- task 6 has its current brief", "- first is done")
         story.expect_worker(self.workers.first, state=WorkerState.READY)
         story.expect_stack(story.agents.workers.first(), Void, WorkingTask)
-        story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+        story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan, awaiting_state(story))
