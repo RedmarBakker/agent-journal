@@ -213,8 +213,6 @@ class WorkerCommand(Command):
         )
         return self.dispatch(args, caller)
 
-    def require_role_task_available(self, task: Task, caller: Caller) -> None:
-        self.assignment(task.row_id, caller)
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:
         try:
@@ -249,11 +247,6 @@ class WorkerCommand(Command):
             self.tasks.require_assignment_ready(task)
             return task
         if task.delegated and not task.state.is_closed():
-            holder = self.tasks.holder(task)
-            if holder and holder.type == Worker.table():
-                worker = self.workers.find(holder.id)
-                if worker.state == WorkerState.UNFINISHED and caller.organization_seat:
-                    raise Rejection(f"task {n} is held by worker {worker.id}, which ended without clocking out: run `journal worker release {worker.id}` to free it, then retry the handoff")
             raise Rejection(DELEGATED_REFUSAL.format(n=n))
         raise Rejection(ASSIGNMENT_REFUSALS.get(task.state, EMPTY_BRIEF_REFUSAL).format(n=n, state=task.state))
 
@@ -445,13 +438,6 @@ class WorkerCommand(Command):
         return 0
 
     def release(self, args: Namespace, caller: Caller) -> int:
-        if caller.organization_seat:
-            worker = self.worker_for_check(args.n, caller)
-            with self.scope.environment(worker.environment_id):
-                return self.release_in_scope(args, caller)
-        return self.release_in_scope(args, caller)
-
-    def release_in_scope(self, args: Namespace, caller: Caller) -> int:
         worker = self.actions.release_dropping(args.n, caller.actor) if args.drop else self.actions.release(args.n, caller.actor)
         print(f"worker {worker.id} {worker.name} released; its task is free again")
         return 0

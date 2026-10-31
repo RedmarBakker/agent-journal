@@ -261,8 +261,6 @@ class RigSpecs:
         journal_command = os.path.relpath(self.command(), cwd.resolve())
         journal_commands = tuple(dict.fromkeys(("journal", str(self.command()), journal_command)))
         worker_verbs = ("send", "check", "merge")
-        if seat.qualified.startswith("domain:"):
-            worker_verbs = (*worker_verbs, "release")
         read_only_commands = ("Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)")
         worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in journal_commands for verb in worker_verbs)
         scoped_commands = tuple(f"JOURNAL_ENV=* {command}" for command in journal_commands)

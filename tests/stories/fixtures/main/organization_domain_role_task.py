@@ -20,8 +20,8 @@ class OrganizationDomainRoleTask(OrganizationHubPlan):
     def steps(self, story) -> None:
         self.tasks.second = story.user_adds_plan_task(self.plans.first, "task 6 current", "alpha")
         story.user_rewrites_the_brief(self.tasks.second, "- task 6 has its current brief")
-        story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_completes_task(self.tasks.first, "task 5 was already complete")
+        story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         story.openrig = SimulatedSeats()
         runtime = story.app.container.get(SeatRuntime)
