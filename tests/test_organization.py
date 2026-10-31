@@ -276,7 +276,7 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
     shell_guidance = (
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, "
-        "or another shell command. If needed, read /journal/health in a separate command."
+        "or another shell command. If needed, read the local /journal/health endpoint with a separate curl command."
     )
     health_read = "Bash(curl -s http://127.0.0.1:*/journal/health)"
 
