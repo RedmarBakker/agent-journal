@@ -5,15 +5,14 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
+from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
 
 
-@story(OrganizationPlanSeat, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
     plan = story.plans.first
     task = story.tasks.first
-    started = story.agent_runs(story.agents.main, f"plan start {plan}")
-    started.expect_command_passed()
+    story.openrig_starts(f"plan-{plan}")
     domain = story.organization_seat_agent("domain:alpha")
     domain_started = story.agent_starts_organization_seat(domain, "domain:alpha")
     domain_started.expect_agent_not_told(domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha")
@@ -30,11 +29,11 @@ def test_a_plan_handoff_wakes_an_idle_domain_seat_to_read_its_inbox(story):
     story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
 
 
-@story(OrganizationPlanSeat, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_domain_seat_with_an_unread_handoff_is_told_at_start_and_stop(story):
     plan = story.plans.first
     task = story.tasks.first
-    story.agent_runs(story.agents.main, f"plan start {plan}").expect_command_passed()
+    story.openrig_starts(f"plan-{plan}")
     handoff = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {task} domain:alpha",
     )

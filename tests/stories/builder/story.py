@@ -10,6 +10,8 @@ from journal.repositories.verifiers import Verifiers
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.features.organization.support.seat_runtime import SeatRuntime
+from tests.lab.simulated_seats import SimulatedSeats
 from tests.in_process import posted
 from tests.agent_hooks import TOOLS
 from tests.stories.builder.agent_steps import AgentSteps
@@ -97,6 +99,16 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
 
     def main_session(self) -> str:
         return self.main_session_id
+
+    def simulated_seats(self):
+        return self.app.container.get(SeatRuntime).execute.__self__
+
+    def openrig_starts(self, rig: str) -> StepResult:
+        self.openrig = SimulatedSeats()
+        runtime = self.app.container.get(SeatRuntime)
+        self.monkeypatch.setattr(runtime, "execute", self.openrig.execute)
+        runtime.start_rig(runtime.spec_folder(rig) / "rig.yaml")
+        return self.observed(f"OpenRig starts rig {rig}", None, None)
 
     def replace_main_session(self, session: str, provider: str, environment: str = "main") -> None:
         self.main_session_id, self.agent = session, Caller.agent("main", session, provider)

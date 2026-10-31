@@ -288,7 +288,7 @@ class StoryChecks:
 
     def expect_openrig_seat_received(self, agent: StoryAgent, rig: str, seat: str, text: str) -> None:
         member = self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
-        messages = [message for target, message in self.openrig.messages if target == member.target]
+        messages = [message for target, message in self.simulated_seats().messages if target == member.target]
         assert text in messages, f"OpenRig seat {member.logical_id} for {agent.session} received {messages}, not {text!r}"
 
     def expect_organization_seat_routing_guidance(self, rig: str) -> None:

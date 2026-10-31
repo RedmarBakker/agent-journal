@@ -186,13 +186,13 @@ class AgentSteps:
 
     def organization_seat_agent(self, seat: str) -> StoryAgent:
         member = self.organization_seat_member(seat)
-        session = self.openrig.sessions[member.target]["sessionId"]
+        session = self.simulated_seats().sessions[member.target]["sessionId"]
         self.session_environments[str(session)] = member.environment
         return StoryAgent(AgentRole.MAIN, session=str(session))
 
     def organization_seat_goes_idle(self, agent: StoryAgent, seat: str) -> StepResult:
         member = self.organization_seat_member(seat)
-        self.openrig.idle(member.target)
+        self.simulated_seats().idle(member.target)
         return self.observed(f"{agent.role} seat {seat} waits for work", None, None)
 
     def agent_starts_organization_seat(self, agent: StoryAgent, seat: str) -> StepResult:

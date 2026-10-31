@@ -9,6 +9,7 @@ from journal.models.plan_state import PlanState
 from journal.providers.providers import Providers
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
+from journal.repositories.environments import Environments
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.lab.simulated_seats import SimulatedSeats
 
@@ -39,3 +40,14 @@ class OrganizationHubPlan(WorkingAgent):
         super().expected(story)
         story.expect_plan(self.plans.first, state=PlanState.DRAFT)
         story.expect_organization_domains("alpha", "beta")
+
+    def add_domain_seats(self, story, runtime: SeatRuntime) -> None:
+        rig = f"plan-{self.plans.first}"
+        environment = story.app.container.get(Environments).existing(rig)
+        contracts = story.app.container.get(Organization).reload()
+        provider = story.app.container.get(Providers).lookup(story.provider)
+        path = story.app.container.get(RigSpecs).write(
+            rig, contracts, tuple(domain.id for domain in contracts.domains), story.app.config.root,
+            lambda seat: SeatWorker(Actor.agent(""), AgentToken.random(), environment.name, seat.qualified, rig), provider,
+        )
+        runtime.replace_rig(rig, path)
