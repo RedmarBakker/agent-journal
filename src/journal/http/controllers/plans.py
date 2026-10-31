@@ -119,7 +119,11 @@ class PlanController(Controller[Plan]):
         return comments[0].id if comments else None
 
     def start(self, request: Request) -> Response:
-        return self.answered(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor))
+        with self.repository.writing():
+            plan = self.repository.find(request.number("id"))
+            if task := self.repository.following_task(plan):
+                self.taking.require_start(task)
+            return self.answered(self.repository.start(plan, self.taking.holder(Caller.user(request.environment)), request.actor))
 
     def dismiss(self, request: Request) -> Response:
         return self.answered(self.repository.save(self.repository.find(request.number("id")).card_dismissed(), request.actor))

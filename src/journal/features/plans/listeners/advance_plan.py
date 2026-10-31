@@ -1,5 +1,6 @@
 
 from journal.events.rows.task_closed import TaskClosed
+from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.events.listener import Listener
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
@@ -17,10 +18,12 @@ from journal.support.time_source import TimeSource
 class AdvancePlan(Listener[TaskClosed]):
     """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. A task an agent held is followed by that agent's plan task assigner; for a task a worker or nobody held, for each started plan it is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in orchestrator mode, whose open tasks wait for workers, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
-    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, assigner: PlanTaskAssigner, testing: PhaseTesting, orchestrator: WorkMode, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, assigner: PlanTaskAssigner,
+                 testing: PhaseTesting, orchestrator: WorkMode, time_source: TimeSource,
+                 flow: WorkInProgress) -> None:
         self.time_source = time_source
         self.orchestrator = orchestrator
-        self.plans, self.tasks, self.agents, self.assigner, self.testing = plans, tasks, agents, assigner, testing
+        self.plans, self.tasks, self.agents, self.assigner, self.testing, self.flow = plans, tasks, agents, assigner, testing, flow
 
     def handle(self, event: TaskClosed) -> None:
         task = self.tasks.find(event.task_id)
@@ -32,9 +35,10 @@ class AdvancePlan(Listener[TaskClosed]):
         if self.is_agent_close(task):
             return
         for plan in self.plans.started_plans(task):
-            following, holder = self.assigner.following_task(plan), self.next_holder(task)
-            if following is not None and self.is_advancing(plan, holder):
-                self.tasks.holder_started(following.plan_started(time, plan.row_id), holder, actor)
+            with self.tasks.writing():
+                following, holder = self.assigner.following_task(plan), self.next_holder(task)
+                if following is not None and not self.flow.block_reason(following) and self.is_advancing(plan, holder):
+                    self.tasks.holder_started(following.plan_started(time, plan.row_id), holder, actor)
 
     def is_agent_close(self, task: Task) -> bool:
         holder = self.tasks.holder(task)

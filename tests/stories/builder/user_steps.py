@@ -165,6 +165,10 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, {"X-Journal-Env": environment})
         return self.observed(f"user opens {route} in {environment}", None, None)
 
+    def user_presses_in(self, environment: str, path: str, body: dict) -> StepResult:
+        self.viewer_status, self.viewer_answer = posted(self.app, path, body, {"X-Journal-Env": environment})
+        return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)} in {environment}", None, None)
+
     def user_presses(self, path: str, body: dict) -> StepResult:
         self.viewer_status, self.viewer_answer = posted(self.app, path, body, MAIN)
         return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)}", None, None)

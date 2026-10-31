@@ -2,6 +2,7 @@ from journal.engine.support.lazy_facts import LazyFacts
 from journal.features.estimates.support.baseline_forecast import BaselineForecast
 from journal.features.estimates.support.estimates_forecast import EstimatesForecast
 from journal.features.estimates.support.estimates_risk_data import EstimatesRiskData
+from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.repositories.plans import Plans
@@ -16,9 +17,9 @@ class EstimatesDataReader:
     """Reads current plan risk facts for the estimates conduct."""
 
     def __init__(self, plans: Plans, scope: Scope, forecasts: EstimatesForecast, dependencies: TaskDependencies,
-                 sizes: TaskSizes, outcomes: TaskOutcomes, stages: StageTimes) -> None:
+                 sizes: TaskSizes, outcomes: TaskOutcomes, stages: StageTimes, flow: WorkInProgress) -> None:
         self.plans, self.scope, self.forecasts, self.dependencies = plans, scope, forecasts, dependencies
-        self.sizes, self.outcomes, self.stages = sizes, outcomes, stages
+        self.sizes, self.outcomes, self.stages, self.flow = sizes, outcomes, stages, flow
 
     def read(self, agent: Agent) -> LazyFacts:
         return LazyFacts("estimates", {"risk": self.risk},
@@ -32,12 +33,14 @@ class EstimatesDataReader:
         current = self.current_task(plan)
         aging = self.aging(plan, current, history)
         growth_points, growth = self.scope_growth(plan)
+        following = self.plans.following_task(plan)
+        wip_advice = self.flow.block_reason(following) if following is not None else ""
         sprint = forecast.get("sprint") if forecast else None
         return EstimatesRiskData(plan.row_id, self.forecasts.basis(forecast), growth_points, growth,
                                  *aging, self.critical_prerequisites(plan), sprint["ends_on"] if sprint else "",
                                  forecast.get("probability_this_sprint") if forecast else None,
                                  forecast.get("p85") or "" if forecast else "",
-                                 self.critical_path_advice(forecast))
+                                 self.critical_path_advice(forecast), wip_advice)
 
     def active_plan(self) -> Plan | None:
         plan = next(iter(self.plans.running_plans()), None)

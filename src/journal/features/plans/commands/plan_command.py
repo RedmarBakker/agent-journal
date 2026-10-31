@@ -275,11 +275,14 @@ class PlanCommand(Command):
         return caller.is_main_agent() and self.orchestrator.delegates_work()
 
     def start(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.find(args.n)
-        if self.phase_testing.is_refused(plan):
-            raise Rejection(self.phase_testing.refusal(plan))
-        plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
-        current = self.plans.started_task(plan)
+        with self.tasks.writing():
+            plan = self.plans.find(args.n)
+            if self.phase_testing.is_refused(plan):
+                raise Rejection(self.phase_testing.refusal(plan))
+            if not self.orchestrator.delegates_work() and (task := self.plans.following_task(plan)):
+                self.taking.require_start(task)
+            plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
+            current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0
 
@@ -323,13 +326,16 @@ class PlanCommand(Command):
         return self.plan_return(plan, caller)
 
     def plan_return(self, plan: Plan, caller: Caller) -> int:
-        moment = self.time_source.moment()
-        current_task = self.tasks.holder_task(self.taking.holder(caller))
-        self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
-        self.tasks.save(current_task.paused(f"plan {plan.id} goes first", moment), caller.actor)
-        self.plans.start(plan, self.taking.holder(caller), caller.actor)
-        self.taking.paused_current(current_task, caller)
-        self.taking.start(self.tasks.find(current_task.id), caller)
+        with self.tasks.writing():
+            moment = self.time_source.moment()
+            if task := self.plans.following_task(plan):
+                self.taking.require_start(task)
+            current_task = self.tasks.holder_task(self.taking.holder(caller))
+            self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
+            self.tasks.save(current_task.paused(f"plan {plan.id} goes first", moment), caller.actor)
+            self.plans.start(plan, self.taking.holder(caller), caller.actor)
+            self.taking.paused_current(current_task, caller)
+            self.taking.start(self.tasks.find(current_task.id), caller)
         print(f"plan {plan.id} started again under task {current_task.id}, which stays in hand; the plan goes on once it is done")
         return 0
 

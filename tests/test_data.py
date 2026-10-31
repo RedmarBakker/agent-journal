@@ -43,6 +43,7 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.phases import Phases
 from journal.repositories.plans import Plans
 from journal.repositories.rows import Rows
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.workers import Workers
 from journal.support.scope_missing import ScopeMissing
 from journal.features.voices.voices_options import VoicesOptions
@@ -63,7 +64,7 @@ class Heard(Listener[ModelEvent]):
 
 def tasks_of(connection, bus, scope) -> Tasks:
     time_source = TimeSource()
-    return Tasks(connection, bus, scope, Links(connection, bus, time_source), Questions(connection, bus, scope, time_source), Checks(connection, bus, time_source), time_source, Rows(connection), Agents(connection, bus, scope, time_source))
+    return Tasks(connection, bus, scope, Links(connection, bus, time_source), Questions(connection, bus, scope, time_source), Checks(connection, bus, time_source), time_source, Rows(connection), Agents(connection, bus, scope, time_source), SettingRows(connection, bus, scope, time_source))
 
 
 class SayNo(Listener[Creating]):

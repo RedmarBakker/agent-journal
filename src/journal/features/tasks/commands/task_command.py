@@ -286,10 +286,12 @@ class TaskCommand(Command):
         return self.claimed_task(args.n, caller, "resumed")
 
     def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
-        task = self.tasks.find(n)
-        self.tasks.require_prerequisites(task)
-        previous = self.taking.paused_current(task, caller)
-        task = self.taking.start(task, caller)
+        with self.tasks.writing():
+            task = self.tasks.find(n)
+            self.tasks.require_prerequisites(task)
+            self.taking.require_start(task)
+            previous = self.taking.paused_current(task, caller)
+            task = self.taking.start(task, caller)
         paused = [f"task {previous.row_id} paused"] if previous is not None else []
         print("\n".join([*paused, f"task {task.row_id} {manner}", *self.briefing.lines(task)]))
         return 0

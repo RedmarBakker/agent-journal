@@ -7,6 +7,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.rows.plan_readied import PlanReadied
+from journal.events.rows.task_closed import TaskClosed
 from journal.features.estimates.estimates_nudges import EstimatesNudges
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.estimates_part import EstimatesPart
@@ -32,6 +33,14 @@ class EstimatesConduct(Conduct):
             return self.none()
         return risk(self, event, settings)
 
+    def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
+        if not advises(settings):
+            return self.none()
+        advice = event.data.part(EstimatesPart).risk
+        if not isinstance(advice, EstimatesRiskData) or not advice.wip_limit_advice:
+            return self.none()
+        return self.none(repeated(EstimatesNudges.WIP_LIMIT, settings).create(reason=advice.wip_limit_advice))
+
 
 def risk(state: Conduct, event: Stop | Ticked, settings: Settings) -> Transition:
     if not advises(settings):
@@ -45,6 +54,8 @@ def risk(state: Conduct, event: Stop | Ticked, settings: Settings) -> Transition
 
 def risk_lines(advice: EstimatesRiskData, settings: Settings) -> list[Nudge]:
     lines = []
+    if advice.wip_limit_advice:
+        lines.append(repeated(EstimatesNudges.WIP_LIMIT, settings).create(reason=advice.wip_limit_advice))
     if advice.scope_growth_points and advice.scope_growth_points >= positive(settings, EstimatesOptions.SCOPE_GROWTH_WARNING_POINTS):
         lines.append(repeated(EstimatesNudges.SCOPE_GROWTH, settings).create(n=advice.plan_id, change=advice.scope_growth))
     if aging_over_range(advice, settings):

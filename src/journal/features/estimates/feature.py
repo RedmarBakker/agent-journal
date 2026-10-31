@@ -17,7 +17,9 @@ class Estimates(Feature[object]):
     name = EstimatesPart.name
     title = "Plan estimates"
     help = "Fixed sprint calendars and delivery estimates for existing plans."
-    options = (EstimatesOptions.MODE, EstimatesOptions.SPRINT_LENGTH_DAYS, EstimatesOptions.SIZE_SCALE,
+    options = (EstimatesOptions.EXECUTION_WIP_LIMIT, EstimatesOptions.PLAN_DELIVERY_WIP_LIMIT,
+               EstimatesOptions.DOMAIN_DELIVERY_WIP_LIMIT, EstimatesOptions.WORKER_QUEUE_WIP_LIMIT,
+               EstimatesOptions.MODE, EstimatesOptions.SPRINT_LENGTH_DAYS, EstimatesOptions.SIZE_SCALE,
                EstimatesOptions.FORECAST_TRIALS, EstimatesOptions.FORECAST_HORIZON_SPRINTS,
                EstimatesOptions.SCOPE_GROWTH_WARNING_POINTS, EstimatesOptions.AGING_P85_MULTIPLIER,
                EstimatesOptions.AGING_MINIMUM_OUTCOMES, EstimatesOptions.SPRINT_MISS_WARNING_PERCENT,
@@ -27,4 +29,5 @@ class Estimates(Feature[object]):
     conduct = (EstimatesConduct,)
     data = (EstimatesDataReader,)
     nudges = (EstimatesNudges.FORECAST_BASIS, EstimatesNudges.SCOPE_GROWTH, EstimatesNudges.AGING_TASK,
-              EstimatesNudges.CRITICAL_PREREQUISITE, EstimatesNudges.CRITICAL_PATH, EstimatesNudges.SPRINT_MISS)
+              EstimatesNudges.CRITICAL_PREREQUISITE, EstimatesNudges.CRITICAL_PATH, EstimatesNudges.SPRINT_MISS,
+              EstimatesNudges.WIP_LIMIT)

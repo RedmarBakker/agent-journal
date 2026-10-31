@@ -18,3 +18,4 @@ class EstimatesRiskData:
     sprint_probability: int | None = None
     sprint_p85: str = ""
     critical_path_advice: str = ""
+    wip_limit_advice: str = ""

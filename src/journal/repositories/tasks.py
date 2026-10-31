@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from journal.db.connection import Connection
 from journal.db.query import Query
+from journal.features.estimates.estimates_options import EstimatesOptions, wip_limit
 from journal.events.bus import Bus
 from journal.events.rows.released_tasks import ReleasedTasks
 from journal.events.rows.task_started import TaskStarted
@@ -28,6 +29,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.agents import Agents
 from journal.repositories.repository import PAGE_ROWS
 from journal.repositories.rows import Rows
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 from journal.models.agent import ENDED_STATE
@@ -59,10 +61,11 @@ class Tasks(ScopedRepository[Task]):
 
     model = Task
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource, rows: Rows, agents: Agents) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions,
+                 checks: Checks, time_source: TimeSource, rows: Rows, agents: Agents, settings: SettingRows) -> None:
         super().__init__(connection, bus, scope, time_source)
         self.row_reader = rows
-        self.links, self.checks, self.agents = links, checks, agents
+        self.links, self.checks, self.agents, self.settings = links, checks, agents, settings
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 
     def open_waits(self, row: Task | Plan) -> list[Ref]:
@@ -245,6 +248,10 @@ class Tasks(ScopedRepository[Task]):
         query = self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned())
         return self.next_unblocked(query, count)
 
+    def open_candidates(self) -> list[Task]:
+        query = self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_absent(self.user_paused_planned())
+        return self.next_unblocked(query, self.counted(query))
+
     def open_page_ids(self, rows: int) -> list[int]:
         return [task.row_id for task in self.next_unblocked(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES), rows)]
 
@@ -323,13 +330,14 @@ class Tasks(ScopedRepository[Task]):
         return {link.target.id: link.source for link in self.links.model_links("target", rows, CURRENT_TASK_LINK)}
 
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
-        self.assign_holder(started, holder, actor)
-        if holder is not None and holder.type == Agent.table():
-            agent = next(iter(self.agents.global_matching(id=holder.id)), None)
-            if agent is None:
-                raise MissingRow(self.agents.table, holder.id)
-            started = started.with_events(tuple(replace(event, session=agent.session) if isinstance(event, TaskStarted) else event for event in started.events))
-        return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
+        with self.writing():
+            self.assign_holder(started, holder, actor)
+            if holder is not None and holder.type == Agent.table():
+                agent = next(iter(self.agents.global_matching(id=holder.id)), None)
+                if agent is None:
+                    raise MissingRow(self.agents.table, holder.id)
+                started = started.with_events(tuple(replace(event, session=agent.session) if isinstance(event, TaskStarted) else event for event in started.events))
+            return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
 
     def assign_holder(self, started: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None:
@@ -345,44 +353,67 @@ class Tasks(ScopedRepository[Task]):
             raise Rejection(HOLDER_REFUSAL.format(task=task.id, worker=owner.id))
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:
-        self.guard_worker_task(task, holder, actor)
-        if task.started_at is None:
-            self.require_assignment_ready(task)
-        owner = self.holder(task)
-        target = Ref.build(task)
-        for link in self.links.all_matching(target=target, link_type=CURRENT_TASK_LINK):
-            if link.source != holder:
+        with self.writing():
+            self.guard_worker_task(task, holder, actor)
+            if task.started_at is None:
+                self.require_assignment_ready(task)
+            if holder.type == WORKERS:
+                self.require_worker_assignment_room(task, holder)
+            owner = self.holder(task)
+            target = Ref.build(task)
+            for link in self.links.all_matching(target=target, link_type=CURRENT_TASK_LINK):
+                if link.source != holder:
+                    self.links.delete(link, actor)
+            if owner != holder:
+                self.links.save(Link(source=holder, target=target, link_type=CURRENT_TASK_LINK), actor)
+            if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, link_type=WORKED_LINK):
+                self.links.save(Link(source=holder, target=target, link_type=WORKED_LINK), actor)
+            if holder.type == WORKERS and not task.delegated:
+                self.save(task.delegate(self.time_source.moment()), actor)
+            for link in self.links.all_matching(source=holder, target=target, link_type=QUEUED_LINK):
                 self.links.delete(link, actor)
-        if owner != holder:
-            self.links.save(Link(source=holder, target=target, link_type=CURRENT_TASK_LINK), actor)
-        if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, link_type=WORKED_LINK):
-            self.links.save(Link(source=holder, target=target, link_type=WORKED_LINK), actor)
-        if holder.type == WORKERS and not task.delegated:
-            self.save(task.delegate(self.time_source.moment()), actor)
-        for link in self.links.all_matching(source=holder, target=target, link_type=QUEUED_LINK):
-            self.links.delete(link, actor)
 
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
-        if not self.is_free(task):
-            raise Rejection(f"task {task.id} is {task.state}: only an open task, or one in your hands, goes in a worker's queue")
-        self.require_assignment_ready(task)
-        if not self.links.all_matching(source=worker, target=Ref.build(task), link_type=QUEUED_LINK):
-            self.links.save(Link(source=worker, target=Ref.build(task), link_type=QUEUED_LINK), actor)
-        return self.save(task.delegate(self.time_source.moment()), actor)
+        with self.writing():
+            if not self.is_free(task):
+                raise Rejection(f"task {task.id} is {task.state}: only an open task, or one in your hands, goes in a worker's queue")
+            self.require_assignment_ready(task)
+            self.require_worker_assignment_room(task, worker)
+            if not self.links.all_matching(source=worker, target=Ref.build(task), link_type=QUEUED_LINK):
+                self.links.save(Link(source=worker, target=Ref.build(task), link_type=QUEUED_LINK), actor)
+            return self.save(task.delegate(self.time_source.moment()), actor)
 
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
-        queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
-        if not self.is_free(task) and not (task.delegated and queue_links):
-            raise Rejection(f"task {task.id} is {task.state}: only an open task, one in your hands, or a queued one goes first")
-        self.require_assignment_ready(task)
-        for link in queue_links:
-            self.links.delete(link, actor)
-        remaining = [queued for queued in self.queue(worker) if queued.id != task.id]
-        for link in self.links.all_matching(source=worker, link_type=QUEUED_LINK):
-            self.links.delete(link, actor)
-        for queued in (task, *remaining):
-            self.links.save(Link(source=worker, target=Ref.build(queued), link_type=QUEUED_LINK), actor)
-        return task if task.delegated else self.save(task.delegate(self.time_source.moment()), actor)
+        with self.writing():
+            queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
+            if not self.is_free(task) and not (task.delegated and queue_links):
+                raise Rejection(f"task {task.id} is {task.state}: only an open task, one in your hands, or a queued one goes first")
+            self.require_assignment_ready(task)
+            self.require_worker_assignment_room(task, worker)
+            for link in queue_links:
+                self.links.delete(link, actor)
+            remaining = [queued for queued in self.queue(worker) if queued.id != task.id]
+            for link in self.links.all_matching(source=worker, link_type=QUEUED_LINK):
+                self.links.delete(link, actor)
+            for queued in (task, *remaining):
+                self.links.save(Link(source=worker, target=Ref.build(queued), link_type=QUEUED_LINK), actor)
+            return task if task.delegated else self.save(task.delegate(self.time_source.moment()), actor)
+
+    def require_worker_assignment_room(self, task: Task, worker: Ref) -> None:
+        if self.settings.option(EstimatesOptions.MODE) != "enforce":
+            return
+        value = wip_limit(self.settings.option(EstimatesOptions.WORKER_QUEUE_WIP_LIMIT), EstimatesOptions.WORKER_QUEUE_WIP_LIMIT.key)
+        if value < 1:
+            return
+        assigned = {row.row_id for row in self.queue(worker)}
+        assigned.update(self.holder_task_ids(worker))
+        assigned.update(self.finished_task_ids(worker))
+        if task.row_id in assigned or len(assigned) < value:
+            return
+        finished = set(self.finished_task_ids(worker))
+        action = ("merge its finished work" if assigned & finished
+                  else f"finish or release its current task or drain its queue with worker drain {worker.id}")
+        raise Rejection(f"worker assignment WIP limit {value} is full at worker {worker.id}: {action} before queuing task {task.id}")
 
     def drop_holder(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):

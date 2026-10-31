@@ -3,6 +3,7 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.rows.row_event import RowEvent
 from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.events.rows.task_closed import TaskClosed
+from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.features.tasks.tasks_options import TasksOptions
@@ -27,8 +28,11 @@ FOLLOWING_PLAN = "following_plan"
 class PlanTaskAssigner:
     """The task assigner a followed plan names: ordinary task completion may pass an owner checkpoint in auto mode, while supervisor work signals stop there; blocked tasks, unpassed phase tests, orchestrator mode and work already in hand hold both paths."""
 
-    def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource, scope: Scope) -> None:
-        self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source, self.scope = default, plans, tasks, testing, orchestrator, settings, time_source, scope
+    def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting,
+                 orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource, scope: Scope,
+                 flow: WorkInProgress) -> None:
+        self.default, self.plans, self.tasks, self.testing = default, plans, tasks, testing
+        self.orchestrator, self.settings, self.time_source, self.scope, self.flow = orchestrator, settings, time_source, scope, flow
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if isinstance(event, PlanWorkAvailable):
@@ -82,11 +86,14 @@ class PlanTaskAssigner:
                 return self.default.next_task(agent, event, quantity)
             return Assignment()
         with self.scope.environment(plan.environment_id):
-            task = self.following_task(plan)
-            if task is None:
-                return Assignment()
-            self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
-            return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
+            with self.tasks.writing():
+                task = self.following_task(plan)
+                if task is None:
+                    return Assignment()
+                if reason := self.flow.block_reason(task):
+                    return Assignment(reason=reason)
+                self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
+                return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
 
     def following_ids(self, plan: Plan, quantity: int) -> tuple[int, ...]:
         if quantity <= 1:

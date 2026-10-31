@@ -8,6 +8,7 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.support.task_state_names import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
+from journal.features.tasks.support.ready_queue import ReadyQueue
 from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.support.ref import Ref
@@ -22,10 +23,11 @@ FINISHED = ("completed", "cancelled", "testing")
 
 
 class DefaultTaskAssigner:
-    """The task assigner the idle floor names: at a stop, or when the main agent finishes the task it held, with no task in progress and auto mode on, it starts the agent's own paused task, those paused while it held them and waiting on nothing still open, else the first free open task by priority and then by number; never a blocked task, a task another agent or a worker holds, or a task of a plan not started. Its queries name, without starting it, the task it would take next and, in auto mode, the paused, blocked and open work the lines tell of, so auto mode is read here alone."""
+    """The idle floor's task assigner: at an eligible stop it resumes the agent's own task, offers eligible paused work, or starts the first free task in the shared ready order, with priority and number order preserved while estimates are off; it never starts blocked, held or unapproved-plan work."""
 
-    def __init__(self, tasks: Tasks, active: ActiveTask, environments: Environments, settings: SettingRows) -> None:
-        self.tasks, self.active, self.environments, self.settings = tasks, active, environments, settings
+    def __init__(self, tasks: Tasks, active: ActiveTask, environments: Environments,
+                 settings: SettingRows, ready: ReadyQueue) -> None:
+        self.tasks, self.active, self.environments, self.settings, self.ready = tasks, active, environments, settings, ready
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if not self.is_free_moment(agent, event):
@@ -38,7 +40,7 @@ class DefaultTaskAssigner:
         return replace(assignment, following_ids=tuple(task.row_id for task in self.free_tasks(quantity) if task.row_id != assignment.task_id)[:quantity - 1])
 
     def free_tasks(self, count: int) -> list[Task]:
-        return self.tasks.next_open_tasks(count + 1) if self.is_auto() else []
+        return self.ready.open_tasks(count + 1) if self.is_auto() else []
 
     def is_free_moment(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
         return agent.is_main() and self.is_moment(agent, event) and not self.is_working(agent)
@@ -73,13 +75,13 @@ class DefaultTaskAssigner:
         return int((top.get("data") or {}).get("refusals", 0)) if top.get("state") == CHOOSING_PAUSED_WORK else 0
 
     def free_task(self) -> Task | None:
-        return self.tasks.next_open_task() if self.is_auto() else None
+        return self.ready.open_task() if self.is_auto() else None
 
     def offered(self, agent: Agent) -> OpenTask | None:
         return self.open_task(self.paused_task(agent) or self.free_task() or next(iter(self.choosable_work(agent)), None))
 
     def open_work(self, agent: Agent) -> OpenTask | None:
-        return self.open_task(self.tasks.holder_paused_task(Ref.build(agent)) or self.tasks.next_open_task())
+        return self.open_task(self.tasks.holder_paused_task(Ref.build(agent)) or self.ready.open_task())
 
     @staticmethod
     def open_task(task: Task | None) -> OpenTask | None:
@@ -95,7 +97,7 @@ class DefaultTaskAssigner:
         return self.tasks.blocked_without_wait() if self.is_auto() else []
 
     def open_ids(self, count: int) -> tuple[int, ...]:
-        return tuple(self.tasks.open_page_ids(count)) if self.is_auto() else ()
+        return self.ready.open_ids(count) if self.is_auto() else ()
 
     def started(self, agent: Agent, task: Task | None) -> Assignment:
         if task is None:

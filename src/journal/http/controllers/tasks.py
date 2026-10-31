@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from journal.db.query import Query
 from journal.features.tasks.active_task import ActiveTask
+from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.features.tasks.support.task_holders import TaskHolders
 from journal.features.tasks.support.waits import Waits
 from journal.http.controllers.controller import Controller
@@ -32,10 +33,13 @@ class TaskController(Controller[Task]):
 
     repository: Tasks
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs, time_source: TimeSource, task_sizes: TaskSizes) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask,
+                 task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs, time_source: TimeSource,
+                 task_sizes: TaskSizes, flow: WorkInProgress) -> None:
         self.time_source = time_source
         self.repository, self.task_logs, self.workers, self.waits, self.taking, self.task_holders, self.todos, self.proofs = tasks, logs, workers, waits, taking, task_holders, todos, proofs
         self.task_sizes = task_sizes
+        self.flow = flow
 
     def open_rows(self, query: Query) -> Query:
         return query.filter_unlisted("state", CLOSED_STATES)
@@ -80,6 +84,9 @@ class TaskController(Controller[Task]):
 
     def size(self, request: Request) -> Response:
         return Response.json(self.task_sizes.show(request.number("id")))
+
+    def wip(self, request: Request) -> Response:
+        return Response.json(self.flow.task(request.number("id")))
 
     def revise_size(self, request: Request) -> Response:
         task_id = request.number("id")

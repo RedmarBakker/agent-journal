@@ -24,9 +24,9 @@ POLL_COMMANDS = 3
 COMMAND_LINE_COUNT = 6
 # the tasks an agent took in hand most recently, the one an event names among them: a main agent keeps the link to every task it ever held
 RECENT_OWNED_TASKS = 8
-# the open tasks a line names, the first by priority; the count says how many there are in all
+# the open tasks a line names without starting, ordered by the shared ready queue
 OPEN_TASKS_SHOWN = 5
-# the open tasks a line names as next, by number
+# the next open tasks named in the shared ready order
 OPEN_TASKS_NEXT = 3
 
 
@@ -59,7 +59,7 @@ class TasksDataReader:
             "wake_count": lambda: self.entries.nudge_count(agent.session, (TasksNudges.STOPPED_WITH_WORK.key,), agent.tool_uses),
             "open_ids": lambda: self.assigner.open_ids(OPEN_TASKS_SHOWN),
             "open_count": lambda: self.tasks.open_count(),
-            "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
+            "open_next": lambda: ", ".join(str(n) for n in self.assigner.ready.open_ids(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_OWNED_TASKS),
             "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_person_wait(t)),
