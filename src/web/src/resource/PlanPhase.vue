@@ -37,7 +37,7 @@ const holders = computed(() => workersHolding(rows.value, props.workers));
 const runs = computed(() => holdingRuns(rows.value, props.workers));
 const closedHolder = (worker) => FINISHED_STATES.has(workerState(worker));
 const holdersLoading = computed(() => !props.workersLoaded && rows.value.length > 0);
-const detailsOf = (task) => props.taskDetails[task.id] || {domain: null, route_state: "With the Plan", subtasks: []};
+const detailsOf = (task) => props.taskDetails[task.id] || {id: task.id, domain: null, route_state: "With the Plan", subtasks: []};
 const ROW_BARS = [{width: "58%", height: 11}];
 const HOLDER_BARS = [{width: "64px", height: 14}];
 </script>
