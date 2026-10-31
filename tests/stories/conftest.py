@@ -19,6 +19,7 @@ from tests.test_features import booted
 from journal.app import App
 from journal.config import Config
 from journal.events.rows.worker_session_bound import WorkerSessionBound
+from journal.support.listener_queue import ListenerQueue
 from journal.providers.support.helper_runner import HelperRunner
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import Worker
@@ -135,6 +136,7 @@ def story(app, monkeypatch, request, copies):
     yield played
     for close in played.closers:
         close()
+    app.container.get(ListenerQueue).drain()
     if request.node.rep_call.failed:
         return
     assert played.is_stack_checked_last(), f"{request.node.originalname} does not close with story.expect_stack(story.agents.subject, ...) after its last step: every story says the stack it ends on"
