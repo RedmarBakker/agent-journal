@@ -104,7 +104,13 @@ int main(int argc, char **argv) {
 def staging_root(tmp_path):
     work = tmp_path / "project"
     (work / "docs/supervisor/v1").mkdir(parents=True)
-    (work / COMPOSE).write_text('"image":"ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5"\n')
+    (work / COMPOSE).write_text('"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"\n')
+    (work / "docs/supervisor/v1/Dockerfile.gateway").write_text(
+        "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5\n"
+        "RUN apt-get install -y --no-install-recommends python3\n"
+        "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge\n"
+        "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge\n"
+    )
     config = work / "docs/supervisor/v1/openclaw-live.json"
     config.write_text(json.dumps({
         "models": {"providers": {"anthropic": {"baseUrl": "http://127.0.0.1:17840", "api": "anthropic-messages", "maxTokens": 8000}}},
@@ -122,7 +128,7 @@ def staging_root(tmp_path):
         (secrets / name).chmod(0o600)
     gateway_state = tmp_path / "gateway-state"
     gateway_state.mkdir(mode=0o700)
-    (work / ENV_FILE).write_text(f"TENANT_SECRET_SOURCE_DIR={secrets}\nOPENCLAW_CONFIG_FILE={config}\nGATEWAY_STATE_PATH={gateway_state}\n")
+    (work / ENV_FILE).write_text(f"TENANT_SECRET_SOURCE_DIR={secrets}\nOPENCLAW_CONFIG_FILE={config}\nGATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
     home = tmp_path / "secret-run-home"
     home.mkdir(mode=0o700)
     return work, secrets, home
@@ -202,6 +208,19 @@ def test_launcher_refuses_a_direct_provider_route_or_model_fallback(compiled_lau
 
     assert direct_route.returncode != 0
     assert fallback_route.returncode != 0
+    assert not (home / "docker-calls").exists()
+
+
+def test_launcher_refuses_a_gateway_package_without_the_pinned_runtime(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    dockerfile = work / "docs/supervisor/v1/Dockerfile.gateway"
+    dockerfile.write_text("FROM ghcr.io/openclaw/openclaw:latest\n")
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode != 0
     assert not (home / "docker-calls").exists()
 
 

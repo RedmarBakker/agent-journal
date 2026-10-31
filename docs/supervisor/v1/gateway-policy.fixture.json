@@ -3,7 +3,8 @@
   "is_openclaw_config": false,
   "status": "inert policy fixture; task 111 must assemble and validate the pinned OpenClaw config",
   "runtime": {
-    "image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+    "image": "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
+    "base_image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
     "version": "v2026.10.8",
     "source_commit": "dc2523e5a5c7a309517fd7fa834add938231d526"
   },

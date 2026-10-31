@@ -36,6 +36,7 @@ from supervisor_bridge.contracts import (
     validate_pinned_fixture,
     validate_operation,
 )
+from supervisor_bridge.__main__ import service_client
 from supervisor_bridge.hints import HintSpool
 from supervisor_bridge.mcp import McpServer
 from supervisor_bridge.metering import (
@@ -403,6 +404,17 @@ def test_reference_only_hook_cannot_override_agent_session_or_scope():
     assert "sessionKey" not in body and "sessionId" not in body
     assert json.dumps(run.to_dict(), sort_keys=True, separators=(",", ":")) in body["message"]
     assert headers == {"Content-Type": "application/json", "Idempotency-Key": "run-1"}
+
+
+def test_service_client_uses_the_admission_url_and_token_environment(monkeypatch):
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_URL", "https://writer:8421")
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_TOKEN", "tenant-admission-token")
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_CREDENTIAL", "unused-legacy-name")
+
+    client = service_client()
+
+    assert client.connection.base_url == "https://writer:8421"
+    assert client.connection.token == "tenant-admission-token"
 
 
 def test_private_adapters_use_only_fixed_authenticated_routes():

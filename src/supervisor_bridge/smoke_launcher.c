@@ -22,6 +22,7 @@
 
 #define ENV_FILE "docs/supervisor/v1/live-smoke.env"
 #define COMPOSE_FILE "docs/supervisor/v1/compose.json"
+#define GATEWAY_DOCKERFILE "docs/supervisor/v1/Dockerfile.gateway"
 #define PROJECT_NAME "journal-supervisor-smoke"
 #define MAX_SECRET_BYTES 4096
 #define MAX_PATH_BYTES 4096
@@ -209,15 +210,28 @@ static int valid_profile(const char *config_path) {
         "journal__journal_supervisor-apply_maintenance",
         "journal__journal_supervisor-receipt",
     };
-    char *compose = NULL, *config = NULL;
-    if (read_file(COMPOSE_FILE, &compose, 131072) != 0 || read_file(config_path, &config, 131072) != 0) {
+    static const char *required_gateway_image[] = {
+        "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
+    };
+    static const char *required_gateway_package[] = {
+        "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+        "apt-get install -y --no-install-recommends python3",
+        "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge",
+        "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge",
+    };
+    char *compose = NULL, *gateway_package = NULL, *config = NULL;
+    if (read_file(COMPOSE_FILE, &compose, 131072) != 0
+        || read_file(GATEWAY_DOCKERFILE, &gateway_package, 131072) != 0
+        || read_file(config_path, &config, 131072) != 0) {
         free(compose);
+        free(gateway_package);
         free(config);
         return -1;
     }
     char *compact = compact_json(config);
     bool valid = compact
-        && strstr(compose, "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5")
+        && contains_all(compose, required_gateway_image, sizeof(required_gateway_image) / sizeof(required_gateway_image[0]))
+        && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
         && all_values_equal(compact, "api", "\"anthropic-messages\"")
         && all_values_equal(compact, "maxTokens", "8000")
@@ -228,6 +242,7 @@ static int valid_profile(const char *config_path) {
         && !strstr(compact, "https://api.anthropic.com");
     free(compact);
     free(compose);
+    free(gateway_package);
     free(config);
     return valid ? 0 : -1;
 }

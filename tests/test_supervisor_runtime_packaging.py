@@ -48,6 +48,15 @@ def test_profile_is_single_tenant_and_off_by_default():
     assert compose["services"]["backup"]["image"].startswith("restic/restic@sha256:")
     assert compose["services"]["writer"]["image"] == "agent-journal-supervisor-writer:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"
     assert "build" not in compose["services"]["writer"]
+    gateway = topology["openclaw-gateway-and-stdio-client"]
+    assert gateway["image"] == "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"
+    assert gateway["base_image"] == "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5"
+    assert gateway["supervisor_admission"] == {
+        "url": "https://writer:8421",
+        "network": "gateway_link",
+        "token_secret": "journal_supervisor_credential",
+        "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN",
+    }
 
 
 def test_gateway_has_no_writer_data_or_host_socket_mounts():
@@ -60,7 +69,7 @@ def test_gateway_has_no_writer_data_or_host_socket_mounts():
     assert not any("writer_state" in mount or "/data" in mount or "worker" in mount or "sock" in mount for mount in mounts)
     assert not gateway.get("ports")
     assert set(gateway["networks"]) == {"gateway_link", "provider_egress"}
-    assert gateway["image"].startswith("ghcr.io/openclaw/openclaw@sha256:")
+    assert gateway["image"] == "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"
     assert "supervisor_hints:/var/lib/journal-supervisor/hints:ro" in mounts
     assert "journal_management" not in gateway["networks"]
     assert set(compose["services"]["backup"]["networks"]) == {"backup_egress"}
@@ -139,12 +148,36 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert '"$BUILD_CONTEXT"' in script
 
 
+def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
+    script = (PROFILE / "build-gateway.sh").read_text()
+    dockerfile = (PROFILE / "Dockerfile.gateway").read_text()
+    wrapper = (PROFILE / "journal-supervisor-bridge").read_text()
+
+    assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in script
+    assert "status --porcelain --untracked-files=all" in script
+    assert 'git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION"' in script
+    assert "src/supervisor_bridge" in script
+    assert "docs/supervisor/v1/Dockerfile.gateway" in script
+    assert "docs/supervisor/v1/journal-supervisor-bridge" in script
+    assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
+    assert '--tag "agent-journal-supervisor-gateway:$PROFILE_REVISION"' in script
+    assert "--pull" in script
+    assert "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5" in dockerfile
+    assert "apt-get install -y --no-install-recommends python3" in dockerfile
+    assert "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge" in dockerfile
+    assert "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge" in dockerfile
+    assert "ENV PYTHONPATH=/opt/journal-supervisor/lib" in dockerfile
+    assert "USER 1000:1000" in dockerfile
+    assert 'exec python3 -m supervisor_bridge "$@"' in wrapper
+
+
 def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     fixture = read_json(PROFILE / "gateway-policy.fixture.json")
     compose = read_json(PROFILE / "compose.json")
 
     assert fixture["is_openclaw_config"] is False
     assert compose["services"]["gateway"]["image"] == fixture["runtime"]["image"]
+    assert fixture["runtime"]["base_image"] == "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5"
     assert fixture["runtime"]["version"] == "v2026.10.8"
     assert fixture["agent"]["model"] == "anthropic/claude-sonnet-5"
     assert fixture["agent"]["thinking_default"] == "high"
@@ -167,7 +200,21 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
     assert "cat /run/secrets/supervisor_anthropic_api_key" in entrypoint
     assert "cat /run/secrets/openclaw_hook_token" in entrypoint
-    assert "cat /run/secrets/journal_supervisor_credential" in entrypoint
+    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in entrypoint
+    assert "JOURNAL_SUPERVISOR_ADMISSION_URL" in entrypoint
+    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN" in entrypoint
+    assert "JOURNAL_SUPERVISOR_CREDENTIAL" not in entrypoint
+
+
+def test_gateway_admission_url_targets_the_private_writer_network():
+    compose = read_json(PROFILE / "compose.json")
+    gateway = compose["services"]["gateway"]
+    writer = compose["services"]["writer"]
+
+    assert gateway["environment"]["JOURNAL_SUPERVISOR_ADMISSION_URL"] == "https://writer:8421"
+    assert writer["expose"] == ["8421"]
+    assert "gateway_link" in gateway["networks"] and "gateway_link" in writer["networks"]
+    assert "journal_management" not in gateway["networks"]
 
 
 def test_plugin_is_uninstalled_guarded_and_uses_plugin_health_contract():
@@ -238,4 +285,9 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     assert "developer laptop" in runbook
     assert "Cold-reboot the disposable VM" in runbook
     assert "No OpenRig fleet or build worker launcher" in runbook
+    assert "build-gateway.sh" in runbook
+    assert "PROFILE_REVISION" in runbook
+    staging_report = (PROFILE / "STAGING-REPORT.md").read_text()
+    assert "build-gateway.sh" in staging_report
+    assert "this worker did not run Docker or build the image" in staging_report
     assert "kill switch" in runbook

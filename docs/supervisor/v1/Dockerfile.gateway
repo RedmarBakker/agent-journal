@@ -1,0 +1,13 @@
+FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge
+COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge
+ENV PYTHONPATH=/opt/journal-supervisor/lib
+RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge
+
+USER 1000:1000

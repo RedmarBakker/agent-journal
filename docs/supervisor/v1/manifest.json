@@ -24,7 +24,15 @@
     {
       "name": "openclaw-gateway-and-stdio-client",
       "identity": "uid 1000, gid 1000, supplementary gid 10030 for read-only hint and Gateway-state backup access",
-      "image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+      "image": "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
+      "base_image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
+      "runtime_packaging": "docs/supervisor/v1/build-gateway.sh builds Dockerfile.gateway from PROFILE_REVISION and packages /opt/journal-supervisor/bin/journal-supervisor-bridge with Python",
+      "supervisor_admission": {
+        "url": "https://writer:8421",
+        "network": "gateway_link",
+        "token_secret": "journal_supervisor_credential",
+        "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN"
+      },
       "release": "v2026.10.8",
       "source_commit": "dc2523e5a5c7a309517fd7fa834add938231d526",
       "state_volume": "gateway_state",
@@ -58,7 +66,7 @@
     }
   ],
   "source_evidence": {
-    "gateway_image_digest": "https://github.com/openclaw/openclaw/pkgs/container/openclaw/versions",
+    "gateway_base_image_digest": "https://github.com/openclaw/openclaw/pkgs/container/openclaw/versions",
     "gateway_source": "https://github.com/openclaw/openclaw/tree/dc2523e5a5c7a309517fd7fa834add938231d526",
     "gateway_health": "https://docs.openclaw.ai/gateway/health",
     "backup_image_tags": "https://hub.docker.com/r/restic/restic/tags"
