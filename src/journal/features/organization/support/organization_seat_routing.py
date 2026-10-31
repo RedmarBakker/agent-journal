@@ -12,7 +12,8 @@ class OrganizationSeatRouting:
     handoff_prompt = "Read your new handoff with `journal organization inbox`."
     domain_guidance = (
         "As the Domain seat, read your inbox with `journal organization inbox`, then hand each task to one of your Roles with "
-        "`journal organization handoff <task> role:<domain>/<role>`."
+        "`journal organization handoff <task> role:<domain>/<role>`. If your inbox has no handoff, wait for a journal handoff "
+        "and do not ask the operator for task details."
     )
     role_guidance = (
         "As a writing Role seat, read your inbox with `journal organization inbox`, then clock in on your assigned task with "

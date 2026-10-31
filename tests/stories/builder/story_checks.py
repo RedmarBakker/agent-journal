@@ -336,6 +336,8 @@ class StoryChecks:
                     domain_steps = (
                         "As the Domain seat, read your inbox with `journal organization inbox`, then hand each task to one of your Roles",
                         "`journal organization handoff <task> role:<domain>/<role>`",
+                        "wait for a journal handoff",
+                        "do not ask the operator for task details",
                     )
                     for step in domain_steps:
                         assert step in guidance, f"the Domain seat guidance does not say {step!r}"

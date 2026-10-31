@@ -1,3 +1,4 @@
+from dataclasses import replace
 import json
 import os
 import shlex
@@ -7,7 +8,7 @@ from typing import Callable
 
 from journal.config import Config
 from journal.features.organization.support.contract_folder import ContractFolder
-from journal.features.organization.support.contracts import Contracts
+from journal.features.organization.support.contracts import PLAN, Contracts
 from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD, RigSeats
 from journal.features.organization.support.seat import Seat
@@ -73,27 +74,47 @@ class RigSpecs:
     def write_shared(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> Path:
         return self.write_seats(rig, seats, links, cwd, workers, f"The journal's shared organization Roles in {rig}.")
 
-    def refresh_plan(self, rig: str, cwd: Path, environment: str, provider: Provider) -> Path:
-        seat = self.seats.plan_agent(rig, provider)
+    def refresh_plan(self, rig: str, cwd: Path, environment: str, provider: Provider, contracts: Contracts) -> Path:
         path, spec = self.read_rig_spec(rig)
-        _, member = self.plan_member(spec)
-        worker = self.refresh_worker(rig, member, environment, seat.qualified)
-        _, refreshed = self.member_fragment(rig, seat, cwd, worker)
-        member.update(refreshed)
+        _, plan_member = self.plan_member(spec)
         for placed in spec.get("pods", []):
             for candidate in placed.get("members", []):
-                if candidate is not member:
-                    self.refresh_member(rig, placed, candidate, environment)
+                member_cwd = cwd if candidate is plan_member else Path(candidate["cwd"])
+                self.refresh_member(rig, placed, candidate, member_cwd, environment, contracts, provider)
             self.write_pod_fragment(rig, placed)
         self.written(path, spec).chmod(OWNER_ONLY)
         return path
 
-    def refresh_member(self, rig: str, pod: dict, member: dict, environment: str) -> None:
-        identity = self.generated_identity(rig, member)
-        worker = self.refresh_worker(rig, member, environment, identity)
-        member["env"] = {**member["env"], **self.variables(worker)}
+    def refresh_member(self, rig: str, pod: dict, member: dict, cwd: Path, environment: str, contracts: Contracts, provider: Provider) -> None:
+        seat = self.refreshed_seat(rig, pod, member, contracts, provider)
+        worker = self.refresh_worker(rig, member, environment, seat.qualified)
+        folder = self.spec_folder(rig) / "agents" / seat.agent()
+        self.refresh_agent(folder, seat)
+        refreshed = self.member(seat, cwd, worker)
+        refreshed["env"] = {**member["env"], **self.variables(worker)}
+        member.update(refreshed)
         fragment = self.spec_folder(rig) / "members" / f"{pod['id']}-{member['id']}.json"
         self.written(fragment, member).chmod(OWNER_ONLY)
+
+    def refreshed_seat(self, rig: str, pod: dict, member: dict, contracts: Contracts, provider: Provider) -> Seat:
+        identity = self.generated_identity(rig, member)
+        if identity == PLAN:
+            seat = self.seats.plan_agent(rig, provider)
+        elif identity.startswith("domain:"):
+            domain_id = identity.removeprefix("domain:")
+            domain = contracts.domain(domain_id)
+            if domain is None:
+                raise Rejection(f"OpenRig seat in rig {rig} names unknown Domain {domain_id}")
+            seat = self.seats.domain_agent(domain, provider)
+        elif identity.startswith("role:"):
+            domain_id, _, role_id = identity.removeprefix("role:").partition("/")
+            domain, role = contracts.domain(domain_id), contracts.role(role_id)
+            if domain is None or role is None or role.domain != domain_id:
+                raise Rejection(f"OpenRig seat in rig {rig} names unknown Role {identity}")
+            seat = self.seats.role_seat(role, domain, provider)
+        else:
+            raise Rejection(f"OpenRig seat in rig {rig} has unknown organization identity {identity}")
+        return replace(seat, pod=pod["id"], member=member["id"])
 
     def generated_identity(self, rig: str, member: dict) -> str:
         agent = str(member.get("agent_ref", "")).removeprefix("local:agents/")
@@ -265,6 +286,12 @@ class RigSpecs:
         provider = self.providers.lookup(seat.provider)
         hooks = self.hook_resource(provider, folder)
         self.written(folder / "agent.yaml", self.agent_spec(seat, self.skills_written(folder / "skills", seat), provider, folder, hooks))
+
+    def refresh_agent(self, folder: Path, seat: Seat) -> None:
+        skills = folder / "skills"
+        if skills.exists():
+            shutil.rmtree(skills)
+        self.agent(folder, seat)
 
     def hook_resource(self, provider: Provider, folder: Path) -> Path:
         path = folder / provider.openrig_hook_resource_path

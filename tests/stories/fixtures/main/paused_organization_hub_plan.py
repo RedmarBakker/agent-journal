@@ -45,6 +45,19 @@ class PausedOrganizationHubPlan(OrganizationHubPlan):
             for member in pod["members"]:
                 member["env"].pop(ORGANIZATION_SEAT)
                 member["env"].pop(ORGANIZATION_RIG)
+                if pod["id"] == "alpha" and member["id"] == "domain-agent":
+                    agent = member["agent_ref"].removeprefix("local:agents/")
+                    agent_folder = runtime.spec_folder(rig) / "agents" / agent
+                    profile_path = agent_folder / "agent.yaml"
+                    profile = json.loads(profile_path.read_text())
+                    profile["profiles"]["default"]["uses"]["skills"].remove("journal-organization-seat-routing")
+                    profile["resources"]["skills"] = [
+                        skill for skill in profile["resources"]["skills"]
+                        if skill["id"] != "journal-organization-seat-routing"
+                    ]
+                    profile_path.write_text(json.dumps(profile, indent=2) + "\n")
+                    (agent_folder / "guidance" / "role.md").write_text("The Domain seat has stale guidance.\n")
+                    (agent_folder / "skills" / "journal-organization-seat-routing" / "SKILL.md").write_text("The Domain seat has a stale routing skill.\n")
         spec_path = folder / "rig.yaml"
         spec_path.write_text(json.dumps(spec))
         story.openrig.remember_spec(rig, spec_path)
