@@ -85,6 +85,7 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     hook.join(5), viewer.join(5)
     assert answers["hook"][0] == 200 and answers["viewer"][0] == 200, answers
     assert not lifecycle.marker().exists() and sent(app, "GET", "/journal/health")[1]["phase"] == "booted"
+    app.container.get(ListenerQueue).drain()
     with app.container.get(Scope).environment(MAIN):
         [entry] = [entry for entry in app.container.get(Entries).scoped() if entry.entry_type == "ToolStarting" and "hook_ms" in entry.data]
     assert entry.data["boot_wait_ms"] >= 350, "the hook's entry says how long it waited for the boot"
