@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from collections.abc import Callable
 
+from journal.engine.clock import Clock
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.support.time_source import TimeSource
@@ -31,8 +32,10 @@ class FixtureCopy:
         )
 
     def restore(self, story) -> StateFixture:
+        held_at = story.app.container.get(Clock).held_at
         pinned_time = story.app.container.get(TimeSource).pinned_seconds
         self.journal.put_back()
+        story.app.container.get(Clock).held_at = held_at
         time_source = story.app.container.get(TimeSource)
         if pinned_time is None:
             time_source.unpin()
