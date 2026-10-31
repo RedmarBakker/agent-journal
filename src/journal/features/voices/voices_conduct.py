@@ -26,10 +26,11 @@ class VoicesConduct(Conduct):
         return self.none(VoicesNudges.VOICE_CHANGE.create(voice=event.data.part(VoicesPart).instruction))
 
     def on_skill_read(self, event: SkillRead, settings: Settings) -> Transition:
-        if event.skill not in settings.texts(SkillsOptions.START_SKILLS):
+        start_skills = settings.texts(SkillsOptions.START_SKILLS)
+        if event.skill not in start_skills:
             return self.none()
         skills = event.data.part(SkillsPart)
-        if (set(skills.skills_due) - {event.skill}) & set(settings.texts(SkillsOptions.START_SKILLS)):
+        if skills.unread([card for card in skills.skills if card.name in start_skills]):
             return self.none()
         if event.data.part(VoicesPart).introduction_sent:
             return self.none()

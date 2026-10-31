@@ -140,6 +140,7 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
         result.expect_command_passed()
         for word in words:
             result.expect_command_text(word)
+    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
@@ -155,4 +156,5 @@ def test_a_user_message_about_organization_domains_or_roles_requires_the_organiz
     story.agent_reads_a_skill(story.agents.subject, OrganizationSeatRouting.skill.folder)
     result = story.agent_writes(story.agents.subject, "plan-notes.md")
     result.expect_allowed()
+    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
     story.expect_stack(story.agents.subject, Ready)
