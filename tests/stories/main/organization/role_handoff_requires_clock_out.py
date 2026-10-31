@@ -6,21 +6,13 @@ from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_domain_role_task import OrganizationDomainRoleTask
+from tests.stories.fixtures.main.organization_role_task_clocked_in import OrganizationRoleTaskClockedIn
 
 
-@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleTaskClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     task = story.tasks.second
-    routed = story.agent_runs_from_organization_seat(
-        story.agents.main, "domain:alpha", f"organization handoff {task} role:alpha/builder",
-    )
-    routed.expect_command_passed()
-    story.fixture.workers.first = story.newest("workers")
     worker = story.agents.workers.first()
-    story.agent_starts_role_session(worker).expect_allowed(worker)
-    clocked_in = story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in")
-    clocked_in.expect_command_passed()
 
     story.agent_proves(worker, 1, "the current task brief is met: task 6 has its current brief")
     clocked_out = story.agent_clocks_out(worker, "task 6 is complete")
@@ -41,17 +33,10 @@ def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleTaskClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_a_role_handoff_before_clock_out_is_refused_with_proof_and_clock_out(story):
     task = story.tasks.second
-    routed = story.agent_runs_from_organization_seat(
-        story.agents.main, "domain:alpha", f"organization handoff {task} role:alpha/builder",
-    )
-    routed.expect_command_passed()
-    story.fixture.workers.first = story.newest("workers")
     worker = story.agents.workers.first()
-    story.agent_starts_role_session(worker).expect_allowed(worker)
-    story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in").expect_command_passed()
 
     attempted = story.agent_runs_from_organization_seat(
         worker, "role:alpha/builder", f"organization handoff {task} domain:alpha",
