@@ -59,6 +59,10 @@ class OrganizationDataReader:
         with self.scope.environment(plan.environment_id):
             task = self.plans.started_task(plan) or self.plans.following_task(plan)
             if task is None:
+                task = self.plans.first_planned(
+                    plan, self.plans.plan_task_query(plan).filter(state=TaskState.OPEN, delegated=True),
+                )
+            if task is None:
                 return None
             domain = self.domains.planned_domain_name(task)
             if not domain or contracts.domain(domain) is None or self.handoffs.domain_handoff_exists(task, plan, domain):
