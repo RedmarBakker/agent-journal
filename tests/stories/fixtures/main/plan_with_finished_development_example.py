@@ -4,6 +4,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.engine.clock import Clock
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
@@ -15,6 +16,11 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
     parent = ReportSizedPlan
 
     def steps(self, story) -> None:
+        setup_domain(story, self, "l03-example-development", "development", {
+            "criterion": "A successful production deployment of the committed revision.",
+            "evidence": "production_deployment",
+            "target": "production",
+        })
         sprint = story.user_presses("/journal/sprints", {
             "starts_on": story.local_moment(0).split(" ")[0], "timezone": "Europe/Amsterdam",
         })
