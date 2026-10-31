@@ -59,7 +59,7 @@ class Plans(Feature[PlansData]):
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     mode_conduct = ((CoordinatingPlans, CoordinatorConduct),)
-    data = (PlansDataReader, TaskSuccessionReader)
+    data = (PlansDataReader,)
     seeds = (ClosedPlans,)
     jobs = (TemplatePlanStart,)
 
