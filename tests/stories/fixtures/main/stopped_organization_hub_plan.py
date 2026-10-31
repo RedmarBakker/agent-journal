@@ -16,4 +16,5 @@ class StoppedOrganizationHubPlan(PausedOrganizationHubPlan):
         rig = f"plan-{self.plans.first}"
         story.openrig.rigs.add(rig)
         story.openrig.remember_spec(rig, runtime.spec_folder(rig) / "rig.yaml")
-        story.openrig.run("down", f"plan-{self.plans.first}", "--yes", "--json")
+        story.openrig.run("down", rig, "--yes", "--json")
+        story.observed(f"OpenRig stops {rig}", None, None)
