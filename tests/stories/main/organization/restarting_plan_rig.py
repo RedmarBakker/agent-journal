@@ -1,4 +1,5 @@
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.workers_options import BUILDER_MODE
@@ -59,4 +60,4 @@ def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.expect_plan(plan, state=PlanState.DELEGATED)
     story.expect_plan_rig(plan, rig)
     story.expect_plan_rig_seat_settings(rig)
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan, ExternalWait)
