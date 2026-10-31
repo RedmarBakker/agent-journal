@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
@@ -17,6 +18,9 @@ class OrchestratingPlan(Delegation, FollowingPlan):
 
     def is_mode_bound(self) -> bool:
         return True
+
+    def plan_state(self, **fields) -> BaseState:
+        return OrchestratingPlan(**fields)
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if self.task_id or self.checkpoint_pause:
