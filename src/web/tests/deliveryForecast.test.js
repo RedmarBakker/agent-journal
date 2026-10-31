@@ -114,7 +114,9 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.textContent).toContain("Delivery forecast");
     expect(host.textContent).toContain("Sprint ends 8 Nov");
     expect(host.textContent).toContain("Almost certain by 12 Nov");
-    expect(host.textContent).toContain("71% this sprint");
+    const currentBand = host.querySelector(".forecast-bands div");
+    expect(currentBand.querySelector("span").textContent).toBe("Sprint 22 (its sprint, 26 Oct to 8 Nov)");
+    expect(currentBand.querySelector("strong").textContent).toBe("71%");
     expect(host.textContent).toContain("Delivered task #101");
     expect(host.textContent).toContain("Current tasks #101, #102, #103");
     expect(host.textContent).toContain("27% next sprint");
