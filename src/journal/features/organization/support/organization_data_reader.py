@@ -81,7 +81,8 @@ class OrganizationDataReader:
                        for _, row_plan, task in self.handoffs.pending(identity))
 
     def organization_seat_for_session(self, agent: Agent, plan: Plan | None) -> tuple[Plan | None, str]:
-        plans = self.plans.global_matching(state=PlanState.STARTED)
+        plans = [candidate for candidate in self.plans.global_matching()
+                 if candidate.state in (PlanState.STARTED, PlanState.DELEGATED)]
         candidates = (plan, *(candidate for candidate in plans if candidate != plan)) if plan else tuple(plans)
         for candidate in candidates:
             for rig in RigStaffing.rigs_for_plan(candidate):

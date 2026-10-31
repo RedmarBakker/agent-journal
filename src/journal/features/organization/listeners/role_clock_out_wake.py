@@ -20,14 +20,19 @@ class RoleClockOutWake(Listener[WorkerDelivered]):
         worker = self.workers.find(event.worker.id)
         if not worker.role:
             return
-        plans = [plan for plan in self.plans.global_matching(state=PlanState.STARTED)
-                 if self.plans.includes_task_or_part(plan.id, event.task_id)]
+        plans = [plan for plan in self.plans.global_matching()
+                 if plan.state in (PlanState.STARTED, PlanState.DELEGATED)
+                 and self.plans.includes_task_or_part(plan.id, event.task_id)]
         for plan in plans:
-            domain = self.checks.domain_for_task(worker, event.task_id, plan)
-            if not domain or not self.checks.is_waiting_for_check(worker, event.task_id, plan, domain):
+            waiting = next(
+                (domain for worker_id, task_id, domain in self.checks.waiting_for_check_in_plan(plan)
+                 if worker_id == worker.id and task_id == event.task_id),
+                "",
+            )
+            if not waiting:
                 continue
             rig = f"plan-{plan.id}"
-            recipient = self.runtime.organization_member(rig, f"domain:{domain}", worker.provider)
+            recipient = self.runtime.organization_member(rig, f"domain:{waiting}", worker.provider)
             nudge = OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker.id, task=event.task_id)
             self.runtime.send(recipient, nudge.rendered())
             return

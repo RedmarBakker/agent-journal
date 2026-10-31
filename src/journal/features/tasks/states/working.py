@@ -22,6 +22,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.git.feature import Git
+from journal.features.organization.organization_part import OrganizationPart
 
 OPEN_TASK_LIMIT_SECONDS = 900.0
 COMPACT = "compact"
@@ -94,6 +95,8 @@ class Working(BaseState):
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if not self.task_id:
+            return self.none()
+        if event.data.part(OrganizationPart).role_work_waiting_for_check:
             return self.none()
         if self.is_log_due(event.time, settings):
             return self.refuse(TasksNudges.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command()))

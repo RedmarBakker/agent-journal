@@ -49,6 +49,9 @@ class OrganizationConduct(Conduct):
         return self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        if waiting := event.data.part(OrganizationPart).role_work_waiting_for_check:
+            worker, task = waiting[0]
+            return self.refuse(OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker, task=task))
         if nudge := OrganizationConduct.unread_handoff(event):
             return self.refuse(nudge)
         nudge = OrganizationConduct.waiting_handoff(event)

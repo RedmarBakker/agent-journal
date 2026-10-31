@@ -6,6 +6,7 @@ from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.role import Role
+from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.features.organization.support.task_parts import TaskParts
 from journal.features.workers.commands.worker_command import WorkerCommand
 from journal.features.workers.support.owned_task_line import owned_task_line
@@ -31,11 +32,12 @@ class OrganizationHub:
     def __init__(self, routes: HubRoutes, runtime: SeatRuntime, handoffs: OrganizationHandoffs,
                  tasks: Tasks, domains: DomainRows, plans: Plans, scope: Scope,
                  organization: Organization, workers: WorkerCommand, staffing: RigStaffing,
-                 task_parts: TaskParts) -> None:
+                 task_parts: TaskParts, role_work_checks: RoleWorkChecks) -> None:
         self.routes, self.runtime, self.handoffs = routes, runtime, handoffs
         self.tasks, self.domains, self.plans, self.scope = tasks, domains, plans, scope
         self.organization, self.workers, self.staffing = organization, workers, staffing
         self.task_parts = task_parts
+        self.role_work_checks = role_work_checks
 
     def handoff(self, task_id: int, target: str, caller: Caller) -> None:
         source = caller.organization_seat
@@ -143,10 +145,15 @@ class OrganizationHub:
             if not parts:
                 print(f"task {parent.id} has no parts")
                 return
+            workers_waiting = {
+                task_id: worker for worker, task_id, _ in self.role_work_checks.waiting_for_check_in_plan(plan)
+            }
             for part in parts:
                 target = self.handoffs.latest_target(part, plan)
                 waiting = ", ".join(f"task {ref.id}" for ref in self.tasks.open_waits(part))
                 line = f"task {part.id} {part.state.value}, {target or 'not assigned'}"
+                if worker := workers_waiting.get(part.id):
+                    line = f"{line}, waits for check from worker {worker}"
                 print(f"{line}, waits for {waiting}" if waiting else line)
 
     def task(self, task_id: int) -> Task:
