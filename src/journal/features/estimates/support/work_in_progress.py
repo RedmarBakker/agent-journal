@@ -1,14 +1,20 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from journal.features.estimates.estimates_options import EstimatesOptions, wip_limit
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.models.task_state import TaskState
-from journal.repositories.delivery_records import DeliveryRecords
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import FINISHED_LINK, Tasks, WORKERS
 from journal.support.rejection import Rejection
+
+if TYPE_CHECKING:
+    from journal.repositories.delivery_records import DeliveryRecords
 
 
 class WorkInProgress:
@@ -57,7 +63,7 @@ class WorkInProgress:
         if execution_limit and len(self.execution_tasks()) >= execution_limit:
             return self.execution_limit_message(task, execution_limit)
         for plan in self.task_plans(task):
-            block = self.plan_delivery_block(task, plan, limits)
+            block = self.plan_delivery_block(task, plan)
             if block:
                 return block
         return ""
@@ -77,7 +83,7 @@ class WorkInProgress:
             return "finished unmerged"
         return task.state.value
 
-    def plan_delivery_block(self, candidate: Task, plan: Plan, limits: dict) -> str:
+    def plan_delivery_block(self, candidate: Task, plan: Plan) -> str:
         pending = self.delivery_tasks(plan)
         plan_limit = wip_limit(self.settings.option(EstimatesOptions.PLAN_DELIVERY_WIP_LIMIT), EstimatesOptions.PLAN_DELIVERY_WIP_LIMIT.key)
         if plan_limit and len(pending) >= plan_limit:
