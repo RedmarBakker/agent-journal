@@ -15,5 +15,6 @@ class UnfinishedClockOut(Listener[WorkerUnfinished]):
         self.actions, self.workers, self.resumes = actions, workers, resumes
 
     def handle(self, event: WorkerUnfinished) -> None:
-        if event.times == 1 and self.resumes.is_resumable(self.workers.find(event.worker.id)):
+        worker = self.workers.find(event.worker.id)
+        if event.times == 1 and not worker.role and self.resumes.is_resumable(worker):
             self.actions.send(event.worker.id, CLOCK_OUT_REQUEST, None, Actor.system())
