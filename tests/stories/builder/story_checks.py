@@ -20,6 +20,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.role_instances import RoleInstances
 from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
@@ -389,6 +390,19 @@ class StoryChecks:
         assert holder == Ref.build(row), f"task {task} is held by {holder}, not Role worker {row.id}"
         assert brief in row.brief and brief in task_row.brief, f"worker {row.id} has not received task {task}'s brief {task_row.brief!r}: {row.brief!r}"
         assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
+
+    def expect_worker_is_role_instance_for_task(self, worker: StoryAgent, task: int, plan: int) -> None:
+        plans = self.app.container.get(Plans)
+        plan_row = plans.global_matching(id=plan)[0]
+        with self.app.container.get(Scope).environment(plan_row.environment_id):
+            row = self.app.container.get(WorkerRows).find(worker.number)
+            task_row = self.app.container.get(Tasks).find(task)
+            holder = self.app.container.get(Tasks).holder(task_row)
+            role = self.app.container.get(Organization).at(row.contract).role(row.role)
+            instance = self.app.container.get(RoleInstances).existing(role, task_row) if role else None
+        assert instance is not None and instance.row_id == row.row_id, \
+            f"worker {row.id} is not the Role instance for plan {plan}: role {role}, plan_id {row.plan_id}, environment {row.environment_id}"
+        assert holder == Ref.build(row), f"task {task} is held by {holder}, not Role worker {row.id}"
 
     def expect_role_job_prompt(self, worker: StoryAgent, brief: str, stale_brief: str, *parts: str) -> None:
         with self.app.container.get(Scope).environment(1):

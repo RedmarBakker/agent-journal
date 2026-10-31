@@ -70,12 +70,14 @@ def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
     inbox.expect_command_text(f"worker {ended_worker} holds this task")
+    story.expect_worker_is_role_instance_for_task(ended_worker, task, plan)
 
     handed_to_role = story.agent_runs_as_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/builder",
     )
     handed_to_role.expect_command_passed()
     handed_to_role.expect_command_text(f"task {task} routed from domain:alpha to role:alpha/builder")
+    handed_to_role.expect_command_text(f"worker {ended_worker} Builder task {task} told")
 
     story.fixture.workers.first = story.newest("workers")
     worker = story.agents.workers.first()
