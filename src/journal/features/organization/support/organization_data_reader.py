@@ -3,6 +3,7 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.organization_data import OrganizationData
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.role_approvals import RoleApprovals
+from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.agent import Agent
@@ -22,10 +23,10 @@ class OrganizationDataReader:
 
     def __init__(self, organization: Organization, approvals: RoleApprovals, plan_agents: PlanAgents,
                  plans: Plans, domains: DomainRows, handoffs: OrganizationHandoffs, scope: Scope,
-                 runtime: SeatRuntime) -> None:
+                 runtime: SeatRuntime, role_work_checks: RoleWorkChecks) -> None:
         self.organization, self.approvals = organization, approvals
         self.plan_agents, self.plans, self.domains, self.handoffs, self.scope = plan_agents, plans, domains, handoffs, scope
-        self.runtime = runtime
+        self.runtime, self.role_work_checks = runtime, role_work_checks
 
     def read(self, agent: Agent) -> OrganizationData:
         contracts = self.organization.contracts()
@@ -33,8 +34,13 @@ class OrganizationDataReader:
         identity = ""
         if agent.role == AgentRole.MAIN:
             plan, identity = self.organization_seat_for_session(agent, plan)
+        role_work = (
+            self.role_work_checks.waiting_for_check(agent.session, plan, identity.removeprefix("domain:"))
+            if plan and identity.startswith("domain:") else ()
+        )
         return OrganizationData(contracts, dict(self.organization.history), self.approvals,
-                                self.waiting_plan_handoff(plan, contracts, identity), self.unread_domain_handoff(plan, identity))
+                                self.waiting_plan_handoff(plan, contracts, identity),
+                                self.unread_domain_handoff(plan, identity), role_work)
 
     def unread_domain_handoff(self, plan: Plan | None, identity: str) -> bool:
         if plan is None or not identity.startswith("domain:"):
@@ -47,7 +53,7 @@ class OrganizationDataReader:
         plans = self.plans.global_matching(state=PlanState.STARTED)
         candidates = (plan, *(candidate for candidate in plans if candidate != plan)) if plan else tuple(plans)
         for candidate in candidates:
-            for rig in (f"plan-{candidate.id}", RigStaffing.shared_rig_name(candidate.environment_id)):
+            for rig in RigStaffing.rigs_for_plan(candidate):
                 identity = self.runtime.organization_seat_for_session(rig, agent.provider, agent.session)
                 if identity:
                     return candidate, identity

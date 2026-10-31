@@ -185,6 +185,10 @@ class RigStaffing:
     def shared_rig_name(environment_id: int) -> str:
         return f"organization-{environment_id}"
 
+    @staticmethod
+    def rigs_for_plan(plan: Plan) -> tuple[str, str]:
+        return f"plan-{plan.id}", RigStaffing.shared_rig_name(plan.environment_id)
+
     def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
                    worker: int, environment: str, cwd: Path, running: bool) -> None:
         path = self.specs.spec_folder(rig.name) / "rig.yaml"

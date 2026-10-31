@@ -4,6 +4,7 @@ from journal.features.organization.commands.role_command import RoleCommand
 from journal.features.organization.hub_conduct import HubConduct
 from journal.features.organization.listeners.board_standing_record import BoardStandingRecord
 from journal.features.organization.listeners.domain_count_record import DomainCountRecord
+from journal.features.organization.listeners.role_clock_out_wake import RoleClockOutWake
 from journal.features.organization.listeners.role_ending_report import RoleEndingReport
 from journal.features.organization.listeners.role_queue_feeder import RoleQueueFeeder
 from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
@@ -28,8 +29,8 @@ class OrganizationFeature(Feature[OrganizationData]):
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
     conduct = (OrganizationConduct, HubConduct)
-    listeners = (RoleTaskDomain, RoleQueueFeeder, BoardStandingRecord, DomainCountRecord, RoleEndingReport)
+    listeners = (RoleTaskDomain, RoleQueueFeeder, BoardStandingRecord, DomainCountRecord, RoleEndingReport, RoleClockOutWake)
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
     helper_listeners = {AgentRole.WORKER: (RoleStuckReport, RoleRefusalReport)}
-    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME, OrganizationNudges.ROLE_REPORTED, OrganizationNudges.ROLE_TASK_RETURN, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, OrganizationNudges.UNREAD_HANDOFF)
+    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME, OrganizationNudges.ROLE_REPORTED, OrganizationNudges.ROLE_TASK_RETURN, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, OrganizationNudges.UNREAD_HANDOFF, OrganizationNudges.ROLE_WORK_AWAITS_CHECK)

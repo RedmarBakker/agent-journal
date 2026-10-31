@@ -14,3 +14,9 @@ class OrganizationNudges:
     ROLE_TASK_RETURN = Nudge("organization", "role_task_returns_by_clocking_out", "Role work returns with `journal proof <point> \"<file:line and test>\"`, then `journal clock-out \"<report>\"`", repeat=Timeout.seconds(0))
     PLAN_TASK_AWAITS_HANDOFF = Nudge("organization", "plan_task_waiting_for_handoff", "plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`", repeat=Timeout.seconds(0))
     UNREAD_HANDOFF = Nudge("organization", "organization_handoff_waiting_in_inbox", "you have an unread handoff; run `journal organization inbox`", repeat=Timeout.seconds(0))
+    ROLE_WORK_AWAITS_CHECK = Nudge(
+        "organization", "role_work_waiting_for_check", "task {{task}} from worker {{worker}} waits for your check",
+        "`journal worker check {{worker}} <point>`; then `journal organization handoff {{task}} plan`",
+        repeat=Timeout.seconds(0), longest_characters=160,
+        longest_reason="it names the waiting task and both commands to check and return it",
+    )

@@ -22,7 +22,7 @@ class OrganizationConduct(Conduct):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.none(*(nudge for nudge in (
             OrganizationConduct.unread_handoff(event), OrganizationConduct.waiting_handoff(event),
-        ) if nudge))
+        ) if nudge), *OrganizationConduct.role_work_awaiting_check(event))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if nudge := OrganizationConduct.unread_handoff(event):
@@ -41,3 +41,10 @@ class OrganizationConduct(Conduct):
             return None
         task, domain = waiting
         return OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF.create(task=task, domain=domain)
+
+    @staticmethod
+    def role_work_awaiting_check(event: AgentEvent) -> tuple[Nudge, ...]:
+        return tuple(
+            OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker, task=task)
+            for worker, task in event.data.part(OrganizationPart).role_work_waiting_for_check
+        )

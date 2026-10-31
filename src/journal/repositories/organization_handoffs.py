@@ -51,6 +51,14 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                    plan_ref in self.links.targets(row, PLAN_HANDOFF)
                    for row in rows)
 
+    def latest_target(self, task: Task, plan: Plan) -> str:
+        plan_ref = Ref.build(plan)
+        for reference in reversed(self.links.typed_sources(task, TASK_HANDOFF, OrganizationHandoff.table())):
+            row = self.find(reference.id)
+            if plan_ref in self.links.targets(row, PLAN_HANDOFF):
+                return row.target
+        return ""
+
     def reopen_domain_inboxes(self, plan: Plan, actor: Actor) -> None:
         with self.scope.environment(plan.environment_id):
             unfinished = {task.row_id for task in self.plans.plan_tasks(plan) if not task.state.is_closed()}
