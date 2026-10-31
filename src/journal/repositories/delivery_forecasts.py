@@ -43,7 +43,7 @@ class DeliveryForecasts:
             sprint = self.sprints.find(summary["id"])
             source = self.source_from(reports_by_id[summary["id"]], reports, histories)
             forecast = self.calculator.estimate(source)
-            forecast = self.sprint_forecast(forecast, source, summary, histories)
+            forecast = self.sprint_forecast(forecast, source, summary, histories, sprints)
             rows.append({"sprint": summary, "forecast": self.snapshots.capture(sprint, source, forecast, actor)})
         return rows
 
@@ -81,17 +81,18 @@ class DeliveryForecasts:
 
     def sprint_read(self, sprint_id: int, actor: Actor) -> tuple[Sprint, dict, dict]:
         report = self.metrics.read(sprint_id, actor)
-        source, histories = self.source(report, actor)
+        source, histories, sprints = self.source(report, actor)
         sprint = self.sprints.find(sprint_id)
         forecast = self.calculator.estimate(source)
-        forecast = self.sprint_forecast(forecast, source, self.sprints.summary(sprint), histories)
+        forecast = self.sprint_forecast(forecast, source, self.sprints.summary(sprint), histories, sprints)
         return sprint, source, forecast
 
-    def source(self, current: dict, actor: Actor) -> tuple[dict, list[dict]]:
-        reports = [current, *(self.metrics.read(row["id"], actor) for row in self.sprints.index(actor)
+    def source(self, current: dict, actor: Actor) -> tuple[dict, list[dict], list[dict]]:
+        sprints = self.sprints.index(actor)
+        reports = [current, *(self.metrics.read(row["id"], actor) for row in sprints
                               if row["id"] != current["sprint"]["id"])]
-        plans = self.plan_histories(actor)
-        return self.source_from(current, reports, plans), plans
+        plans = self.plan_histories_for(sprints, actor)
+        return self.source_from(current, reports, plans), plans, sprints
 
     def source_from(self, current: dict, reports: list[dict], plans: list[dict]) -> dict:
         batches = self.delivery_batches(plans, current["sprint"]["timezone"])
@@ -293,7 +294,8 @@ class DeliveryForecasts:
                 "unknown_sizes": unknown_sizes, "unknown_domains": unknown_domains,
                 "unknown_constraints": sorted(set(unknown_cohorts) | unknown_scope), "plan_forecasts": [plan]}
 
-    def sprint_forecast(self, forecast: dict, source: dict, sprint: dict, histories: list[dict]) -> dict:
+    def sprint_forecast(self, forecast: dict, source: dict, sprint: dict, histories: list[dict],
+                        sprints: list[dict]) -> dict:
         history_by_plan = {row["scope"]["plan_id"]: row for row in histories}
         distributions = {row["plan_id"]: row for row in forecast.get("plan_forecasts", ())}
         freshness = self.capacity_freshness(forecast, source)
@@ -306,7 +308,9 @@ class DeliveryForecasts:
                          **distributions.get(plan_id, {}), "plan_id": plan_id,
                          "scope": BaselineForecast.scope_summary(scope, scope_rows),
                          **self.delivery_summary(history)})
-        result = {**forecast, **freshness, "sprint": sprint, "plan_forecasts": rows}
+        next_sprint = self.next_sprint(sprint, sprints)
+        result = {**forecast, **freshness, "sprint": sprint,
+                  "next_sprint_id": next_sprint["id"] if next_sprint else None, "plan_forecasts": rows}
         sprint_row = self.sprints.find(sprint["id"])
         plan_rows = [self.sprints.plans.find(history["scope"]["plan_id"]) for history in histories]
         return self.with_duration_ranges(result, source, [sprint_row, *plan_rows], histories)
@@ -442,5 +446,10 @@ class DeliveryForecasts:
 
     @staticmethod
     def next_end(sprint: dict, reports: list[dict]) -> str | None:
-        later = [row["sprint"] for row in reports if row["sprint"]["starts_at"] >= sprint["ends_at"]]
-        return min(later, key=lambda row: row["starts_at"])["ends_on"] if later else None
+        next_sprint = DeliveryForecasts.next_sprint(sprint, [row["sprint"] for row in reports])
+        return next_sprint["ends_on"] if next_sprint else None
+
+    @staticmethod
+    def next_sprint(sprint: dict, sprints: list[dict]) -> dict | None:
+        later = [row for row in sprints if row["starts_at"] >= sprint["ends_at"]]
+        return min(later, key=lambda row: row["starts_at"], default=None)

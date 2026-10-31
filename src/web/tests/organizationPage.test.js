@@ -29,7 +29,7 @@ const organization = (sha = commit) => ({
     problems: [{path: "domains/sales/roles/ghost/role.toml", rule: "role", message: "Add a role.toml file or remove this folder."}],
     sprint_forecasts: [{
         sprint: {id: 4, starts_on: "2026-10-26", ends_on: "2026-11-09", state: "active", plan_ids: [42]},
-        forecast: {as_of: "2026-10-30", status: "forecast", plan_forecasts: [{plan_id: 42, status: "forecast", p50: "2026-11-06", probability_this_sprint: 71, probability_next_sprint: 22, probability_later: 7, carry_over: 29, delivered_outcomes: 12, method_version: "baseline-v1", capacity_freshness: "fresh"}]},
+        forecast: {as_of: "2026-10-30", status: "forecast", next_sprint_id: 5, plan_forecasts: [{plan_id: 42, status: "forecast", p50: "2026-11-06", probability_this_sprint: 71, probability_next_sprint: 22, probability_later: 7, carry_over: 29, delivered_outcomes: 12, method_version: "baseline-v1", capacity_freshness: "fresh"}]},
     }],
     domains: [{
         id: "sales",

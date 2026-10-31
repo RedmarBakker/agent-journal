@@ -57,7 +57,7 @@ const missingCriteria = computed(() => props.forecast?.missing_criteria || []);
                 <p class="sprint-end">Sprint ends {{ sprintEnd(sprint) }}</p>
                 <div v-if="expected" class="forecast-bands" aria-label="Chance of delivery by sprint">
                     <div><span>Sprint {{ sprint.id }} (its sprint, {{ sprintRange(sprint) }})</span><strong>{{ forecast.probability_this_sprint }}%</strong><progress :value="forecast.probability_this_sprint" max="100" /></div>
-                    <div><span>Next sprint</span><strong>{{ forecast.probability_next_sprint }}%</strong><progress :value="forecast.probability_next_sprint" max="100" /></div>
+                    <div v-if="forecast.probability_next_sprint != null && forecast.next_sprint_id != null"><span>Sprint {{ forecast.next_sprint_id }}</span><strong>{{ forecast.probability_next_sprint }}%</strong><progress :value="forecast.probability_next_sprint" max="100" /></div>
                     <div><span>Later</span><strong>{{ forecast.probability_later }}%</strong><progress :value="forecast.probability_later" max="100" /></div>
                     <p>Chance it carries over: {{ forecast.carry_over }}%</p>
                 </div>

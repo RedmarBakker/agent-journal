@@ -17,9 +17,13 @@ def test_a_merged_development_plan_remains_awaiting_deployment_in_all_forecast_v
     sprint_id = sprint.viewer_answer["id"]
     story.user_presses(f"/journal/sprints/{sprint_id}/plans", {"plan_id": story.plans.first}).expect_viewer_passed()
     story.user_presses(f"/journal/sprints/{sprint_id}/start", {}).expect_viewer_passed()
+    next_sprint = story.user_presses("/journal/sprints", {"starts_on": "2026-11-09", "timezone": "Europe/Amsterdam"})
+    next_sprint.expect_viewer_passed()
+    next_sprint_id = next_sprint.viewer_answer["id"]
 
     plan = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     plan.expect_viewer_shows("status", "not enough history")
+    plan.expect_viewer_shows("next_sprint_id", next_sprint_id)
     plan.expect_viewer_shows("p50", None)
     plan.expect_viewer_shows("probability_this_sprint", None)
     plan.expect_viewer_shows("delivery_status", "awaiting deployment")
@@ -34,6 +38,7 @@ def test_a_merged_development_plan_remains_awaiting_deployment_in_all_forecast_v
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "delivery_status"), "awaiting deployment")
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "p50"), None)
     organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "plan_forecasts", 0, "probability_this_sprint"), plan.viewer_answer["probability_this_sprint"])
+    organization.expect_viewer_part(("sprint_forecasts", 0, "forecast", "next_sprint_id"), next_sprint_id)
     organization.expect_viewer_part(("plans", 0, "id"), story.plans.first)
     organization.expect_viewer_part(("plans", 0, "story_points", "unknown_tasks"), 1)
     story.expect_stack(story.agents.subject, Ready)

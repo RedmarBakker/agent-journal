@@ -20,6 +20,7 @@ const mature = {
     p85: "2026-11-12",
     probability_this_sprint: 71,
     probability_next_sprint: 27,
+    next_sprint_id: 23,
     probability_later: 2,
     carry_over: 29,
     delivered_outcomes: 15,
@@ -62,7 +63,8 @@ test("the plan label shows a likely finish and uses the delivery chance", async 
 
     expect(host.textContent).toContain("Likely finish 6 Nov");
     expect(host.textContent).toContain("71% chance in Sprint 22");
-    expect(host.textContent).toContain("Next sprint 27% · later 2% · carry-over 29%");
+    expect(host.textContent).toContain("Sprint 23 27% · later 2% · carry-over 29%");
+    expect(host.querySelector(".delivery-probability").getAttribute("aria-label")).toBe("71% in Sprint 22, 27% in Sprint 23, 2% later");
     expect(host.textContent).toContain("15 comparable deliveries");
     expect(host.textContent).toContain("delivery-baseline-v1");
     expect(host.querySelector("[data-chance-tone]").dataset.chanceTone).toBe("good");
@@ -114,13 +116,17 @@ test("the plan forecast explains scope, delivery policy, ranges, history and fre
     expect(host.textContent).toContain("Delivery forecast");
     expect(host.textContent).toContain("Sprint ends 8 Nov");
     expect(host.textContent).toContain("Almost certain by 12 Nov");
-    const currentBand = host.querySelector(".forecast-bands div");
+    const bands = [...host.querySelectorAll(".forecast-bands div")];
+    const currentBand = bands[0];
     expect(currentBand.querySelector("span").textContent).toBe("Sprint 22 (its sprint, 26 Oct to 8 Nov)");
     expect(currentBand.querySelector("strong").textContent).toBe("71%");
+    expect(bands[1].querySelector("span").textContent).toBe("Sprint 23");
+    expect(bands[1].querySelector("strong").textContent).toBe("27%");
+    expect(bands[2].querySelector("span").textContent).toBe("Later");
+    expect(bands[2].querySelector("strong").textContent).toBe("2%");
     expect(host.textContent).toContain("Delivered task #101");
     expect(host.textContent).toContain("Current tasks #101, #102, #103");
-    expect(host.textContent).toContain("27% next sprint");
-    expect(host.textContent).toContain("2% later");
+    expect(host.textContent).not.toContain("Next sprint");
     expect(host.textContent).toContain("15 comparable deliveries");
     expect(host.textContent).toContain("28 days of observed capacity");
     expect(host.textContent).toContain("Capacity last observed 29 Oct · 1 day old");

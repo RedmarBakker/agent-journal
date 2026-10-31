@@ -64,6 +64,17 @@ def test_capacity_freshness_uses_current_observations_and_marks_a_sprint_old_sam
     assert stale == {"capacity_observed_through": "2026-11-15", "capacity_age_days": 15, "capacity_freshness": "stale"}
 
 
+def test_next_sprint_is_selected_by_calendar_order_not_row_number():
+    current = {"ends_at": "2026-11-08T23:00:00+00:00"}
+    sprints = [
+        {"id": 23, "starts_at": "2026-11-22T23:00:00+00:00"},
+        {"id": 47, "starts_at": "2026-11-08T23:00:00+00:00"},
+        {"id": 21, "starts_at": "2026-10-25T22:00:00+00:00"},
+    ]
+
+    assert DeliveryForecasts.next_sprint(current, sprints) == sprints[1]
+
+
 def test_latest_delivery_time_matches_only_the_current_accepted_evidence():
     history = {"tasks": [{
         "delivery": {"evidence_id": 9},

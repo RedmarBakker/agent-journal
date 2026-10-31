@@ -46,13 +46,13 @@ const waitingLine = computed(() => {
             <p class="delivery-likely-finish" :class="`tone-${tone}`">
                 Likely finish {{ formatForecastDay(forecast.p50) }} · {{ chance }}% chance in Sprint {{ sprint.id }}
             </p>
-            <div v-if="forecast.probability_next_sprint != null && forecast.probability_later != null" class="delivery-probability" :aria-label="`${chance}% this sprint, ${forecast.probability_next_sprint}% next sprint, ${forecast.probability_later}% later`">
+            <div v-if="forecast.probability_next_sprint != null && forecast.next_sprint_id != null && forecast.probability_later != null" class="delivery-probability" :aria-label="`${chance}% in Sprint ${sprint.id}, ${forecast.probability_next_sprint}% in Sprint ${forecast.next_sprint_id}, ${forecast.probability_later}% later`">
                 <span class="this-sprint" :style="{width: `${chance}%`}" />
                 <span class="next-sprint" :style="{width: `${forecast.probability_next_sprint}%`}" />
                 <span class="later" :style="{width: `${forecast.probability_later}%`}" />
             </div>
-            <p v-if="forecast.probability_next_sprint != null" class="delivery-split">
-                Next sprint {{ forecast.probability_next_sprint }}% · later {{ forecast.probability_later }}% · carry-over {{ forecast.carry_over }}%
+            <p v-if="forecast.probability_next_sprint != null && forecast.next_sprint_id != null" class="delivery-split">
+                Sprint {{ forecast.next_sprint_id }} {{ forecast.probability_next_sprint }}% · later {{ forecast.probability_later }}% · carry-over {{ forecast.carry_over }}%
             </p>
             <p v-if="tone === 'risk'" class="delivery-carry-over">Likely to carry over.</p>
         </template>
