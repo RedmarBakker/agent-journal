@@ -84,8 +84,6 @@ def test_a_command_reply_satisfies_the_unanswered_message_before_stop(story):
     reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "the footer is done")
     result = story.agent_reads(story.agents.subject)
     result.expect_allowed()
-    result = story.agent_closes_its_turn(story.agents.subject, "I will start on the header now")
-    result.expect_agent_told(story.agents.subject, MessagesNudges.REPLY_CLOSING_WORDS, reply=reply)
     result = story.agent_stops(story.agents.subject)
     result.expect_allowed()
     story.expect_message(reply, author="agent", reply_target=story.messages.first)

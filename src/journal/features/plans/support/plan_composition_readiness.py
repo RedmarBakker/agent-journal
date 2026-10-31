@@ -56,7 +56,7 @@ class PlanCompositionReadiness:
     def require_size(task, scale: tuple[int, ...]) -> None:
         if task.size in scale:
             return
-        raise Rejection(f"task {task.row_id} size is not in estimates.size_scale: `journal task size {task.row_id} <points> --reason <why>`")
+        raise Rejection(f"task {task.row_id}: size must use estimates.size_scale; run `journal task size {task.row_id} <points> --reason <why>`")
 
     def require_domain(self, plan: Plan, task, contracts) -> None:
         name = self.domains.planned_domain_name(task)

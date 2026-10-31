@@ -361,6 +361,31 @@ $ agent: journal plan add 1 'A card pays the total' --brief 'Done when a test ca
 exit 0
 task 4 added to plan 1
 
+$ agent: journal plan add --help
+exit 0
+usage: journal plan add [-h] [--brief BRIEF] [--domain DOMAIN] [--size SIZE]
+                        [--first] [--phase PHASE] [--after AFTER]
+                        [--delivery-gate-for DELIVERY_GATE_FOR]
+                        [--reason REASON]
+
+positional arguments:
+  n
+  title
+
+options:
+  -h, --help            show this help message and exit
+  --brief BRIEF
+  --domain DOMAIN
+  --size SIZE           a value in configured estimates.size_scale, or unknown
+  --first               put it before the tasks the plan has
+  --phase PHASE         the phase it goes under, by its number from 1, in the
+                        same step
+  --after AFTER         a task that must be accepted first; repeat for more
+  --delivery-gate-for DELIVERY_GATE_FOR
+                        require accepted domain delivery evidence for this
+                        task before this task can complete
+  --reason REASON       why this task depends on the named task or delivery
+
 $ agent: journal plan complete-phase --help
 exit 0
 usage: journal plan complete-phase [-h] --how HOW n phase

@@ -1,7 +1,6 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.estimates_nudges import EstimatesNudges
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
-from journal.features.sequences.sequences_nudges import SequencesNudges
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.tasks.states.ready import Ready
@@ -113,14 +112,18 @@ def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
     result.expect_command_text("domain:development")
     result.expect_command_text(f"after:{story.tasks.first}")
     result.expect_command_text("size:5")
+    story.expect_task(story.tasks.second, state=TaskState.OPEN, size=5)
     story.expect_stack(story.agents.subject, Ready)
 
 
 @story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
 def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(story):
-    story.agent_runs(story.agents.subject, "sequence follow")
-    story.agent_runs(story.agents.subject, "sequence next")
-    story.agent_runs(story.agents.subject, "sequence next")
+    result = story.agent_runs(story.agents.subject, "sequence follow")
+    result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "sequence next")
+    result.expect_command_passed()
+    result = story.agent_runs(story.agents.subject, "sequence next")
+    result.expect_command_passed()
     for words in (
         ("estimates.size_scale",),
         ("--after",),
@@ -130,8 +133,9 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
         ("journal plan ready",),
     ):
         result = story.agent_runs(story.agents.subject, "sequence next")
+        result.expect_command_passed()
         for word in words:
-            result.expect_agent_told_words(story.agents.subject, SequencesNudges.PENDING_STEP, word)
+            result.expect_command_text(word)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 

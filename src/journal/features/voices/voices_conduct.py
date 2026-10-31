@@ -29,7 +29,7 @@ class VoicesConduct(Conduct):
         if event.skill not in settings.texts(SkillsOptions.START_SKILLS):
             return self.none()
         skills = event.data.part(SkillsPart)
-        if set(skills.skills_due) & set(settings.texts(SkillsOptions.START_SKILLS)):
+        if (set(skills.skills_due) - {event.skill}) & set(settings.texts(SkillsOptions.START_SKILLS)):
             return self.none()
         if event.data.part(VoicesPart).introduction_sent:
             return self.none()

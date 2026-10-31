@@ -1,4 +1,5 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
+from journal.features.skills.feature import Skills
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.models.plan_state import PlanState
@@ -25,6 +26,7 @@ class EnforcedDraftPlan(StateFixture):
         story.user_sets(OrganizationOptions.FOLDER, str(folder))
         story.user_presses("/journal/organization/reload", {}).expect_viewer_passed()
         story.user_sets(EstimatesOptions.MODE, "enforce")
+        story.user_switches_on(Skills)
         self.plans.first = story.user_creates_plan("the delivery", "production receives the revision")
 
     def expected(self, story) -> None:
