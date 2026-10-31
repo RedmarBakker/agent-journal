@@ -565,6 +565,7 @@ class AgentSteps:
         with self.app.container.get(Scope).environment(1):
             self.app.container.get(ChainWorker).chain_ended(folder, status, self.seated_caller_of(agent))
         self.background_heartbeats.discard(folder.folder)
+        self.settle()
         return self.observed(f"the background run ends {'failing' if status else 'passing'}", None, None)
 
     def running_part_printed(self, output: int, *printed: str) -> OutputFiles:
