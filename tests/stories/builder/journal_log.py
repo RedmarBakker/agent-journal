@@ -8,18 +8,18 @@ from tests.stories.builder.nudge_record import NudgeRecord
 
 
 class JournalLog:
-    """What the journal did in the main environment since the step before, read from its entries once the worker thread has settled: the lines the nudger gave, by key and values, and each move of a stack as a path step, the top before, the top after and its cause."""
+    """What the journal did in one environment since the step before, read from its entries once the worker thread has settled: the lines the nudger gave, by key and values, and each move of a stack as a path step, the top before, the top after and its cause."""
 
     def __init__(self, app) -> None:
         self.app, self.last_read_id = app, 0
         self.walked: set[str] = set()
 
-    def new_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
+    def new_entries(self, environment: str = "main") -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
         self.app.runtime().deferred.drain()
-        return self.unread_entries()
+        return self.unread_entries(environment)
 
-    def unread_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
-        with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
+    def unread_entries(self, environment: str = "main") -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
+        with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup(environment).id):
             unread_entries = self.app.container.get(Entries).later_kind_entries(self.last_read_id, (NUDGE, StackHistory.KIND))
         self.last_read_id = max((entry.row_id for entry in unread_entries), default=self.last_read_id)
         lines = tuple(NudgeRecord(entry.data["key"], entry.data.get("values", {}), entry.data.get("session", "")) for entry in unread_entries if entry.entry_type == NUDGE)

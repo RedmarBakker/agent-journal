@@ -158,8 +158,8 @@ class Story(AgentSteps, UserSteps, WorkerSteps, ReviewerSteps, TimeSteps, Develo
     def unread_settings(self) -> list[str]:
         return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]
 
-    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> StepResult:
-        self.said, steps = self.log.new_entries()
+    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None, environment: str = "main") -> StepResult:
+        self.said, steps = self.log.new_entries(environment)
         self.line_keys |= {line.key for line in self.said}
         self.verdict, self.command = verdict, outcome
         self.path += [action, *steps] if action else list(steps)

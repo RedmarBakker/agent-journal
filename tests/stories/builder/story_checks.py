@@ -130,8 +130,8 @@ class StoryChecks:
         assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
     def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
-        lines = self.log.environment_lines("main")
         session = self.session_of(agent)
+        lines = self.log.environment_lines(self.session_environments.get(session, "main"))
         assert any(line.session == session and line.matches(nudge.key, values) for line in lines), f"{session} was not told {nudge.key} {values}: {lines}"
 
     def expect_typed_nudge(self, nudge: Nudge, count: int = 1, **values) -> None:
@@ -149,6 +149,12 @@ class StoryChecks:
         stack = self.session_stack(self.session_of(agent))
         assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack of the {agent.role} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
+
+    def expect_agent_session_in_environment(self, agent: StoryAgent, environment: str) -> None:
+        session = self.session_of(agent)
+        headers = {**MAIN, "X-Journal-Env": environment}
+        rows = get_answer(self.app, "/journal/agents", headers)[1]["rows"]
+        assert any(row.get("session") == session for row in rows), f"{session} has no agent row in {environment}"
 
     def expect_task_in(self, environment: str, n: int, state: str) -> None:
         states = self.task_states_in(environment)

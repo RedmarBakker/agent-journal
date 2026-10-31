@@ -24,27 +24,29 @@ class StepChecks:
         holding = [line for line in self.command.text.splitlines() if part in line] if self.command else []
         assert len(holding) == count, f"{len(holding)} lines of the command hold {part!r}, not {count}: {holding}"
 
-    def account(self) -> str:
-        return f"told {[(lines.session, lines.key, lines.values) for lines in self.said]}; stack {self.story.stack()}"
+    def account(self, session: str = "") -> str:
+        stack = self.story.session_stack(session) if session else self.story.stack()
+        return f"told {[(lines.session, lines.key, lines.values) for lines in self.said]}; stack {stack}"
 
     def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
         self.expect_told_to(self.story.session_of(agent), nudge, values)
 
     def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
-        assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account()}"
+        assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account(session)}"
 
     def expect_agent_not_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
         self.expect_not_told_to(self.story.session_of(agent), nudge, values)
 
     def expect_not_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
-        assert not any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} told {nudge.key} {values}; {self.account()}"
+        assert not any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} told {nudge.key} {values}; {self.account(session)}"
 
     def expect_agent_told_nothing(self, agent: StoryAgent) -> None:
-        told = [line for line in self.said if line.session == self.story.session_of(agent)]
-        assert not told, f"told something; {self.account()}"
+        session = self.story.session_of(agent)
+        told = [line for line in self.said if line.session == session]
+        assert not told, f"told something; {self.account(session)}"
 
     def expect_refused(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
-        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
+        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account(self.story.session_of(agent))}"
         self.expect_agent_told(agent, nudge, **values)
 
     def expect_refused_by_anything(self) -> None:

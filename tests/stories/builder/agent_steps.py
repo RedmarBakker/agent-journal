@@ -206,7 +206,7 @@ class AgentSteps:
         status, answer = self.session_posted_hook(
             self.session_of(agent), {"X-Journal-Env": member.environment}, event, body,
         )
-        return self.hook_observed(action, status, answer)
+        return self.hook_observed(action, status, answer, member.environment)
 
     def agent_runs_as_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
@@ -416,9 +416,9 @@ class AgentSteps:
     def hooked(self, agent: StoryAgent, action: str, type_name: str, **body) -> StepResult:
         return self.hook_observed(action, *self.posted_hook(agent, type_name, **body))
 
-    def hook_observed(self, action: str, status: int, answer: object) -> StepResult:
+    def hook_observed(self, action: str, status: int, answer: object, environment: str = "main") -> StepResult:
         verdict = HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {})
-        return self.observed(f"{action}, {'refused' if verdict.refused() else 'let through'}", verdict, None)
+        return self.observed(f"{action}, {'refused' if verdict.refused() else 'let through'}", verdict, None, environment)
 
     def agent_creates_task(self, agent: StoryAgent, title: str) -> int:
         self.agent_runs(agent, f"task create '{title}'")
