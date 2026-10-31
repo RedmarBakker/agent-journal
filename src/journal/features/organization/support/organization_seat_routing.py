@@ -5,6 +5,8 @@ class OrganizationSeatRouting:
     """The route instructions shared by every generated organization seat."""
 
     guidance = (
+        "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
+        "Use Edit for file changes only when this seat is allowed to write. "
         "Read work sent to your seat with `journal organization inbox`. "
         "Route every handoff with `journal organization handoff <task> <target>`. "
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, or another shell command. "

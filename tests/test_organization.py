@@ -195,7 +195,8 @@ def test_a_domain_pod_lead_routes_by_domain_rules_and_returns_role_reports_over_
         {"kind": "delegates_to", "from": "domain-agent", "to": "reviewer"},
     ], "a Role result follows the same Plan -> Domain -> Role delegation path back to the Plan agent"
     assert {"Edit", "Write"}.issubset(members["domain-agent"]["claude_permissions"]["deny"])
-    assert {"Edit", "Write"}.issubset(members["primary"]["claude_permissions"]["allow"])
+    assert "Edit" in members["primary"]["claude_permissions"]["allow"]
+    assert "Write" in members["primary"]["claude_permissions"]["deny"]
 
 
 def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models_and_permissions(app, tmp_path, monkeypatch):
@@ -217,10 +218,10 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert environment[AGENT_SHELL] == environment[JOURNAL_ACTIVE] == "1" and environment["JOURNAL_ENV"] == "main"
     assert environment["JOURNAL_ROOT"] == str(app.config.root)
     assert environment["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
-    assert planner["claude_permissions"]["deny"] == list(DENIED)
-    assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" not in planner["claude_permissions"]["deny"]
+    assert planner["claude_permissions"]["deny"] == [*DENIED, "Write"]
+    assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" in planner["claude_permissions"]["deny"]
     assert "Bash(journal *)" in planner["claude_permissions"]["allow"]
-    assert {"Edit", "Write", "Bash"}.issubset(planner["claude_permissions"]["allow"])
+    assert {"Edit", "Bash"}.issubset(planner["claude_permissions"]["allow"])
     assert all({"Bash(rig send *)", "Bash(rig queue *)"}.issubset(member["claude_permissions"]["deny"]) for member in members.values()), "every seat denies direct sends and all queue mutation verbs, including create, handoff and inbox-drop"
     domain = members["domain-agent"]
     assert {"Edit", "Write"}.issubset(domain["claude_permissions"]["deny"])
@@ -271,12 +272,19 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
     spec = json.loads(path.read_text())
     members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
-    read_commands = {"Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)"}
+    read_commands = {
+        "Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(awk *)", "Bash(sed -n *)",
+        "Bash(head *)", "Bash(tail *)", "Bash(grep *)", "Bash(wc *)", "Bash(cat *)",
+    }
     journal_commands = tuple(dict.fromkeys(("journal", str(writer.command()), os.path.relpath(writer.command(), app.config.root))))
     scoped_journal_commands = {f"Bash(JOURNAL_ENV=* {command} *)" for command in journal_commands}
     shell_guidance = (
         "Run each journal command on its own. Do not combine it with curl, cd, a pipe, semicolon, &&, "
         "or another shell command. If needed, read the local /journal/health endpoint with a separate curl command."
+    )
+    file_guidance = (
+        "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
+        "Use Edit for file changes only when this seat is allowed to write."
     )
     health_read = "Bash(curl -s http://127.0.0.1:*/journal/health)"
 
@@ -286,7 +294,12 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
         assert scoped_journal_commands.issubset(permissions["allow"]), f"{member_id} can run its scoped journal without approval"
         assert health_read in permissions["allow"], f"{member_id} can read the local journal health endpoint without approval"
         assert "Bash(curl *)" not in permissions["allow"], f"{member_id} can curl only the local journal health endpoint"
+        assert "Bash(tee *)" not in permissions["allow"] and "Bash(sed -i *)" not in permissions["allow"], f"{member_id} cannot use shell commands to write files"
         assert set(DENIED).issubset(permissions["deny"]), f"{member_id} still denies git and direct hub changes"
+        if member_id == "planner":
+            assert "Edit" in permissions["allow"] and "Write" in permissions["deny"], "a writing Role changes files with Edit only"
+        else:
+            assert {"Edit", "Write"}.issubset(permissions["deny"]), f"{member_id} cannot write files"
         agent = path.parent / "agents" / members[member_id]["agent_ref"].removeprefix("local:agents/")
         guidance = (agent / "guidance" / "role.md").read_text()
         spec = json.loads((agent / "agent.yaml").read_text())
@@ -295,7 +308,11 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
             for resource in spec["resources"]["skills"]
             if "organization-seat-routing" in resource["id"]
         ]
+        assert file_guidance in guidance, f"{member_id} guidance does not prefer Read and keep shell use read-only"
         assert shell_guidance in guidance, f"{member_id} guidance does not keep journal commands separate"
+        assert routing_skills and all(file_guidance in skill.read_text() for skill in routing_skills), (
+            f"{member_id} routing skill does not prefer Read and keep shell use read-only"
+        )
         assert routing_skills and all(shell_guidance in skill.read_text() for skill in routing_skills), (
             f"{member_id} routing skill does not keep journal commands separate"
         )

@@ -262,7 +262,11 @@ class RigSpecs:
         journal_command = os.path.relpath(self.command(), cwd.resolve())
         journal_commands = tuple(dict.fromkeys(("journal", str(self.command()), journal_command)))
         worker_verbs = ("send", "check", "merge")
-        read_only_commands = ("Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(grep *)", "Bash(tail *)")
+        read_only_commands = (
+            "Bash(echo *)", "Bash(pwd)", "Bash(ls *)", "Bash(awk *)", "Bash(sed -n *)",
+            "Bash(head *)", "Bash(tail *)", "Bash(grep *)", "Bash(wc *)", "Bash(cat *)",
+        )
+        write_denials = ("Write",) if seat.writes else EDIT_TOOLS
         worker_commands = tuple(f"Bash({command} worker {verb} *)" for command in journal_commands for verb in worker_verbs)
         scoped_commands = tuple(f"JOURNAL_ENV=* {command}" for command in journal_commands)
         scoped_journal_commands = tuple(f"Bash({command} *)" for command in scoped_commands)
@@ -275,9 +279,9 @@ class RigSpecs:
             *WORKER_COMMANDS, JOURNAL_HEALTH_READ, *read_only_commands, f"Bash({self.command()} *)", "Bash(journal *)", *worker_commands,
             *scoped_journal_commands,
             *scoped_worker_commands, *scoped_task_commands, *scoped_proof_commands,
-            *(tool for tool in seat.tools if tool != "Read"),
+            *(tool for tool in seat.tools if tool not in ("Read", "Write")),
         ))
-        return {"allow": allow, "deny": [*DENIED, *(() if seat.writes else EDIT_TOOLS)]}
+        return {"allow": allow, "deny": [*DENIED, *write_denials]}
 
     def command(self) -> Path:
         return self.config.home / "bin" / "journal"
