@@ -306,15 +306,17 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
 def test_codex_secret_stage_writes_one_owner_only_file_without_echoing_the_key(compiled_launcher, tmp_path):
     _launcher, _docker_stub, secret_stage = compiled_launcher
     work, secrets, _home = staging_root(tmp_path)
+    secret = secrets / "codex_driver_credentials"
+    secret.unlink()
     key = b"sk-proj-supervisor-test-key-123456789\n"
 
     result = run_secret_stage(secret_stage, work, key)
 
-    secret = secrets / "codex_driver_credentials"
+    assert result.returncode == 0, result.stderr
+    assert result.args == [str(secret_stage)]
+    assert key.strip() not in result.stdout + result.stderr
     details = secret.stat()
     expected_owner = 10001 if os.geteuid() == 0 else os.geteuid()
-    assert result.returncode == 0, result.stderr
-    assert key.strip() not in result.stdout + result.stderr
     assert secret.read_bytes() == key
     assert stat.S_IMODE(details.st_mode) == 0o400 and details.st_uid == expected_owner
 
@@ -333,6 +335,7 @@ def test_codex_secret_stage_rejects_arguments_malformed_lines_and_unbounded_inpu
     unbounded = run_secret_stage(secret_stage, work, b"sk-" + b"a" * 4096 + b"\n")
 
     assert all(result.returncode != 0 for result in (argument, malformed, anthropic, multiple, unbounded))
+    assert b"this stager accepts no arguments" in argument.stderr
     assert not (secrets / "codex_driver_credentials").exists()
     assert all(key.strip() not in result.stdout + result.stderr for result in (argument, malformed, anthropic, multiple, unbounded))
     assert anthropic_key.strip() not in anthropic.stdout + anthropic.stderr

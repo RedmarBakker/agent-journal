@@ -102,7 +102,10 @@ int main(int argc, char **argv) {
     char directory[MAX_PATH_BYTES];
     char key[MAX_SECRET_BYTES] = {0};
     size_t length = 0;
-    if (argc != 1) return 2;
+    if (argc != 1) {
+        fputs("this stager accepts no arguments\n", stderr);
+        return 2;
+    }
     if (live_smoke_setting_value(ENV_FILE, "TENANT_SECRET_SOURCE_DIR", directory, sizeof(directory)) != 0) {
         fputs("invalid tenant secret source setting\n", stderr);
         return 2;
