@@ -1526,6 +1526,10 @@ health.boot_seconds = 60
 health.hook_health_seconds = 3
 health.backup_minutes = 15
 health.backup_count = 2
+estimates.execution_wip = 0  (the user sets it)
+estimates.delivery_wip_per_plan = 0  (the user sets it)
+estimates.delivery_wip_per_domain = 0  (the user sets it)
+estimates.worker_queue = 0  (the user sets it)
 estimates.mode = 'off'  (the user sets it)
 estimates.sprint_length_days = 14  (the user sets it)
 estimates.size_scale = 1 | 2 | 3 | 5 | 8 | 13  (the user sets it)
@@ -2033,7 +2037,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-316 nudges
+317 nudges
 
 $ agent: journal worker list
 exit 0
