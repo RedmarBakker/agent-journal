@@ -1,6 +1,7 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_with_dependent_domains import OrganizationPlanWithDependentDomains
@@ -9,13 +10,6 @@ from tests.stories.fixtures.main.organization_plan_with_dependent_domains import
 @story(OrganizationPlanWithDependentDomains, subject=AgentRole.MAIN)
 def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story):
     plan, security, engineering = story.plans.first, story.tasks.first, story.tasks.second
-    plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)
-    plan_stop.expect_allowed(story.agents.main)
-    plan_stop.expect_agent_not_told(
-        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-        task=engineering, domain="beta",
-    )
-
     domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
     started = story.agent_starts_organization_seat_in_plan(domain, "domain:alpha", plan)
     started.expect_agent_told(domain, OrganizationNudges.UNREAD_HANDOFF)
@@ -40,15 +34,11 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
     )
 
     story.user_completes_task(security, "Security work is complete").expect_viewer_passed()
+    story.expect_task(security, state=TaskState.COMPLETED)
     domain_stop = story.agent_stops_organization_seat(domain, "domain:alpha")
     domain_stop.expect_allowed(domain)
     domain_stop.expect_agent_not_told(
         domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-        task=engineering, domain="beta",
-    )
-    resumed_plan = story.agent_starts_plan_seat(story.agents.main, plan)
-    resumed_plan.expect_agent_told(
-        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
     plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)

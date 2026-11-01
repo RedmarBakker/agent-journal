@@ -18,8 +18,9 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     domain = story.organization_seat_agent("domain:alpha")
     story.organization_seat_goes_idle(domain, "domain:alpha")
 
-    story.agent_proves(second_worker, 1, "the current task brief is met: the part work is met")
-    story.agent_clocks_out(second_worker, "the part work is met").expect_command_passed()
+    story.agent_proves(second_worker, 1, "the first maker point is met")
+    story.agent_proves(second_worker, 2, "the second maker point is met")
+    story.agent_clocks_out(second_worker, "both maker points are met").expect_command_passed()
     story.expect_openrig_seat_received(
         domain, story.plan_rig_name(plan), "domain:alpha",
         OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=second_worker.number, task=second_part).rendered(),
@@ -63,6 +64,9 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     )
     story.agent_runs_as_organization_seat(
         domain, "domain:alpha", f"worker check {second_worker.number} 1",
+    ).expect_command_passed()
+    story.agent_runs_as_organization_seat(
+        domain, "domain:alpha", f"worker check {second_worker.number} 2",
     ).expect_command_passed()
     story.agent_runs_as_organization_seat(
         domain, "domain:alpha", f"organization handoff {second_part} plan",

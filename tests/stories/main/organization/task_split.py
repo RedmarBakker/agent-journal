@@ -16,9 +16,6 @@ from tests.stories.fixtures.main.organization_task_part_clocked_in import (
 from tests.stories.fixtures.main.organization_task_split_domain_read import OrganizationTaskSplitDomainRead
 from tests.stories.fixtures.main.organization_task_split_plan import OrganizationTaskSplitPlan
 from tests.stories.fixtures.main.organization_task_two_parts_clocked_in import OrganizationTaskTwoPartsClockedIn
-from tests.stories.fixtures.main.organization_task_two_parts_multi_point_builder import (
-    OrganizationTaskTwoPartsMultiPointBuilder,
-)
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
@@ -67,7 +64,7 @@ def _return_part_to_plan(story, part: int, worker, role: str):
     return worker
 
 
-@story(OrganizationTaskTwoPartsMultiPointBuilder, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
 def test_a_domain_splits_a_task_into_two_parts_and_each_role_gets_its_job(story):
     parent = story.tasks.first
     first_part, second_part = story.tasks.first_part, story.tasks.second_part

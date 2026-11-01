@@ -41,6 +41,10 @@ class OrganizationPlanWithDependentDomains(OrganizationSetup):
             story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
             task=self.tasks.first, domain="alpha",
         )
+        started.expect_agent_not_told(
+            story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+            task=self.tasks.second, domain="beta",
+        )
         story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "environment overview").expect_command_passed()
         handoff = story.agent_runs_from_openrig_organization_seat(
             story.agents.main, "plan", f"organization handoff {self.tasks.first} domain:alpha",
