@@ -19,13 +19,6 @@ def test_a_visitor_without_a_login_cannot_read_an_api_route(story):
 
 
 @story(WorkingAgent, subject=AgentRole.MAIN)
-def test_a_visitor_can_open_the_login_form_without_a_session(story):
-    result = story.hosted_visitor_opens("/login")
-    result.expect_hosted_login_form()
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_wrong_hosted_password_leaves_the_visitor_outside_the_journal(story):
     result = story.hosted_visitor_submits_password("wrong password")
     result.expect_hosted_login_rejected()

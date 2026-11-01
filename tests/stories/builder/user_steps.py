@@ -189,7 +189,7 @@ class UserSteps:
         if cookie.startswith("journal_hosted_session="):
             self.hosted_login_cookie = cookie.split(";", 1)[0]
         connection.close()
-        return self.observed(f"a visitor requests {route}", None, None)
+        return self.observed(f"a visitor makes a {method} request to {route}", None, None)
 
     def hosted_front_started(self) -> None:
         if getattr(self, "hosted_front_address", None):
