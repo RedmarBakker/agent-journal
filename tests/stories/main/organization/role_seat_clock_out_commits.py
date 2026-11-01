@@ -69,8 +69,9 @@ def test_a_shared_role_cannot_clock_out_changed_files_that_failed_to_commit(stor
     hook = story.app.config.root / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\nexit 1\n")
     hook.chmod(0o755)
-    refused = story.agent_clocks_out(worker, "the shared file is ready")
+    refused = story.agent_runs(worker, "clock-out 'the shared file is ready'")
     refused.expect_command_refused()
+    refused.expect_command_text("still not committed after the journal's commit: SECURITY.md")
 
     story.expect_commit_in(story.app.config.root, "start")
     story.expect_task(task, state=TaskState.STARTED, delegated=True)
