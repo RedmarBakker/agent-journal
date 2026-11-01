@@ -48,10 +48,10 @@ class JournalController:
         return Response.json(self.boot.assembled(self.opening_environment()))
 
     def opening_environment(self) -> str:
-        active = sorted(self.agents.active_main_agents(), key=lambda agent: agent.update_time)
-        if active:
-            return self.environments.find(active[-1].environment_id).name
-        return next((environment.name for environment in self.environments.all()), "")
+        launched = {environment.row_id for environment in self.environments.all() if not environment.generated_for}
+        sessions = [agent.session for agent in self.agents.active_main_agents() if agent.session and agent.environment_id in launched]
+        latest = self.entries.latest_session_start(sessions)
+        return self.environments.find(latest.environment_id).name if latest else "main"
 
     def identity(self, request: Request) -> Response:
         return Response.json({"project": self.config.root.name, "color": COLOR, "root": str(self.config.home), "version": VERSION, "pid": os.getpid(), "parent": os.getppid(),
