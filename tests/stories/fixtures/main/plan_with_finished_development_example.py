@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
@@ -22,8 +23,17 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "evidence": "production_deployment",
             "target": "production",
         })
+        story.agent_runs(story.agents.main, f"plan ready {self.plans.first}").expect_command_passed()
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
-        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
+        started_on = datetime.fromtimestamp(story.app.container.get(Clock).held_at, ZoneInfo("Europe/Amsterdam")).date().isoformat()
+        sprint = story.user_presses("/journal/sprints", {"starts_on": started_on, "timezone": "Europe/Amsterdam"})
+        sprint.expect_viewer_passed()
+        sprint_id = sprint.viewer_answer["id"]
+        story.user_presses(f"/journal/sprints/{sprint_id}/plans", {"plan_id": self.plans.first}).expect_viewer_passed()
+        story.user_presses(f"/journal/sprints/{sprint_id}/start", {}).expect_viewer_passed()
+        story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
+        self.workers.first = story.agent_dispatches_worker(story.agents.main, "Lady Lovelace", self.tasks.first)
+        story.last_step.expect_command_passed()
         worker = story.agents.workers.first()
         story.agent_starts_a_session(worker)
         story.agent_clocks_in(worker)

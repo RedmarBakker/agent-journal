@@ -36,8 +36,7 @@ class PlanCompositionReadiness:
     def require_organization_mode(plan: Plan, folder: str) -> None:
         if folder and plan.mode == PlanMode.SOLO and not plan.mode_chosen:
             raise Rejection(
-                f"plan {plan.id} needs a mode: `journal plan mode {plan.id} solo` or "
-                f"`journal plan mode {plan.id} organization`"
+                f"plan {plan.id} needs a mode: `journal plan mode {plan.id} solo` or organization"
             )
 
     def is_new_enforced_plan(self, plan: Plan) -> bool:
