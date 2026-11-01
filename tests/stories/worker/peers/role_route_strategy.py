@@ -24,7 +24,7 @@ def test_a_role_worker_cannot_send_a_job_to_a_peer_in_another_domain(story):
     task = story.agent_creates_briefed_task(story.agents.main, "beta review", "- beta work is ready")
     result = story.agent_runs(
         story.agents.main,
-        f"worker dispatch 'Grace Hopper' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests' --role reviewer",
+        f"worker dispatch 'Grace Hopper' --task {task} --changes 'the files of its task' --model sonnet --tests 'Scoped tests' --role reviewer",
     )
     result.expect_command_passed()
     peer = story.agents.workers.get(story.newest("workers"))
