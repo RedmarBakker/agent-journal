@@ -1,15 +1,13 @@
 from pathlib import Path
 
-from journal.features.plans.plans_options import PlansOptions
-from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.agent_role import AgentRole
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
-from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.new_session import NewSession
+from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.plan_agent_worktree_setup import PlanAgentWorktreeSetup
 from tests.stories.fixtures.main.started_solo_plan_branch import PLAN_AGENT_SESSION, StartedSoloPlanBranch
 
 
@@ -27,13 +25,8 @@ def write_installed_file(tree: Worktree, name: str, text: str) -> None:
     target.write_text(text)
 
 
-def start_plan_agent(story, monkeypatch, plan: int, source: str, source_session: str) -> tuple[str, str, Worktree]:
+def start_plan_agent(story, plan: int, source: str, source_session: str) -> tuple[str, str, Worktree]:
     root = story.app.config.root
-    monkeypatch.setattr(
-        AgentEnvironments,
-        "launched",
-        lambda places, environment, agent, repositories=None: WorkspaceWorktree.chosen(root, environment.name, repositories).created(),
-    )
     result = story.agent_in_runs(story.agents.subject, source, source_session, f"plan start {plan}")
     result.expect_command_passed()
     environment = story.app.container.get(Environments).existing(f"plan-{plan}")
@@ -108,13 +101,9 @@ def test_a_finished_plan_conflict_is_explained_in_both_chats(story):
     story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
-@story(NewSession, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_finished_plan_started_from_a_worktree_merges_into_that_environment_branch(story, monkeypatch):
+@story(PlanAgentWorktreeSetup, subject=AgentRole.MAIN)
+def test_a_finished_plan_started_from_a_worktree_merges_into_that_environment_branch(story):
     root = story.app.config.root
-    story.project_is_a_git_repository()
-    story.git_in(root, "config", "user.name", "Story")
-    story.git_in(root, "config", "user.email", "story@example.com")
     source = story.another_environment("smoke-1")
     source_tree = WorkspaceWorktree.chosen(root, source)
     source_tree.created()
@@ -136,7 +125,7 @@ def test_a_finished_plan_started_from_a_worktree_merges_into_that_environment_br
 
     source_session = "smoke-agent-session"
     story.session_starts_in(source, source_session)
-    environment, session, tree = start_plan_agent(story, monkeypatch, plan, source, source_session)
+    environment, session, tree = start_plan_agent(story, plan, source, source_session)
     commit_plan_change(story, tree)
     complete_plan_tasks(story, environment, session, (task,))
 

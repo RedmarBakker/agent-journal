@@ -1,5 +1,4 @@
 from journal.features.plans.plans_options import PlansOptions
-from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.models.task_state import TaskState
@@ -7,6 +6,7 @@ from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.workspace_worktree import WorkspaceWorktree
+from tests.stories.builder.plan_agent_worktree import prepare_plan_agent_worktrees
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.main_ready_plan import MainReadyPlan
 from tests.stories.fixtures.main.main_user_plan import MainUserPlan
@@ -14,18 +14,6 @@ from tests.stories.fixtures.main.main_user_plan import MainUserPlan
 PLAN_AGENT_SESSION = "plan-agent-plan-read-session"
 WORKTREE_AGENT_SESSION = "worktree-agent-plan-read-session"
 WORKTREE_PLAN_AGENT_SESSION = "worktree-plan-agent-read-session"
-
-
-def prepare_plan_agent_worktrees(story, monkeypatch) -> None:
-    root = story.app.config.root
-    story.project_is_a_git_repository()
-    story.git_in(root, "config", "user.name", "Story")
-    story.git_in(root, "config", "user.email", "story@example.com")
-    monkeypatch.setattr(
-        AgentEnvironments,
-        "launched",
-        lambda places, environment, agent, repositories=None: WorkspaceWorktree.chosen(root, environment.name, repositories).created(),
-    )
 
 
 def plan_agent_starts(story, plan: int, source: str, source_session: str, session: str) -> tuple[str, str]:

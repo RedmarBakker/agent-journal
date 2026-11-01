@@ -6,7 +6,6 @@ from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_specs import RigSpecs
 from journal.features.organization.support.seat_worker import SeatWorker
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.organization_options import OrganizationOptions
@@ -22,9 +21,8 @@ from journal.support.agent_role import AgentRole
 from journal.support.agent_token import AgentToken
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_agent import StoryAgent
-from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.organization_setup import OrganizationSetup
-from tests.stories.main.plans.plan_agent_reads_its_plan import prepare_plan_agent_worktrees
+from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.organization_plan_agent_worktree import OrganizationPlanAgentWorktree
 
 
 WORKTREE_AGENT_SESSION = "dependent-domain-worktree-session"
@@ -32,11 +30,9 @@ TASK_BRIEF = "- Engineering uses the Security result and saves SECURITY.md"
 SECURITY_BRIEF = "- Security records the policy decision"
 
 
-@story(OrganizationSetup, subject=AgentRole.MAIN)
-@setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_plan_branch(story, monkeypatch):
+@story(OrganizationPlanAgentWorktree, subject=AgentRole.MAIN)
+def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_plan_branch(story):
     root = story.app.config.root
-    prepare_plan_agent_worktrees(story, monkeypatch)
     story.configure_simulated_openrig()
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
 
