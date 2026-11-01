@@ -8,27 +8,14 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.organization_role_part_clocked_out import OrganizationRolePartClockedOut
+from tests.stories.fixtures.main.organization_second_plan_domain_ready import (
+    OrganizationSecondPlanDomainReady,
+    second_plan_with_domain_ready,
+)
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 PART_BRIEF = "- the part work is met"
-
-
-def _start_second_plan(story):
-    plan = story.user_creates_plan("Second plan", "Finish the second organization plan")
-    task = story.user_adds_plan_task(plan, "second parent", "alpha")
-    story.agent_runs(story.agents.subject, f"plan mode {plan} organization").expect_command_passed()
-    story.user_approves_plan(plan).expect_viewer_passed()
-    story.user_starts_plan(plan).expect_viewer_passed()
-    plan_seat = story.organization_seat_agent_in_plan("plan", plan)
-    story.agent_starts_organization_seat_in_plan(plan_seat, "plan", plan).expect_allowed(plan_seat)
-    story.agent_runs_as_organization_seat_in_plan(
-        plan_seat, "plan", plan, f"organization handoff {task} domain:alpha",
-    ).expect_command_passed()
-    domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
-    story.agent_starts_organization_seat_in_plan(domain, "domain:alpha", plan).expect_allowed(domain)
-    story.agent_runs_as_organization_seat_in_plan(domain, "domain:alpha", plan, "organization inbox").expect_command_passed()
-    return plan, task, domain
 
 
 def _make_part(story, domain, plan, parent, role):
@@ -59,7 +46,8 @@ def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_an
     story.expect_plan(paused_plan, state=PlanState.PAUSED)
     _stop_plan_rig(story, paused_plan)
 
-    plan, parent, domain = _start_second_plan(story)
+    plan, parent = second_plan_with_domain_ready(story)
+    domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
     dispatched = _make_part(story, domain, plan, parent, "maker")
     dispatched.expect_command_passed()
     dispatched.expect_command_text("dispatched on")
@@ -71,14 +59,15 @@ def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_an
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
+@story(OrganizationSecondPlanDomainReady, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     lost_rig_plan = story.plans.first
+    plan, parent = story.plans.second, story.tasks.second
+    domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
     _forget_plan_rig(story, lost_rig_plan)
     story.expect_plan(lost_rig_plan, state=PlanState.STARTED)
 
-    plan, parent, domain = _start_second_plan(story)
     dispatched = _make_part(story, domain, plan, parent, "maker")
     dispatched.expect_command_passed()
     dispatched.expect_command_text("dispatched on")
@@ -90,11 +79,12 @@ def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
+@story(OrganizationSecondPlanDomainReady, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_full_place_refusal_routes_another_plans_clocked_out_work_to_its_plan_seat(story):
     old_worker = story.agents.workers.first()
-    plan, parent, domain = _start_second_plan(story)
+    plan, parent = story.plans.second, story.tasks.second
+    domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     refused = _make_part(story, domain, plan, parent, "maker")
     refused.expect_command_refused()
