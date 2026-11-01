@@ -23,7 +23,8 @@ def test_a_worker_with_a_task_queued_is_handed_it_as_it_proves_the_last_point_an
     result.expect_command_text("your tests did not pass")
     result = story.agent_runs(story.agents.subject, "clock-out 'the queue is done' --tests passing_story.py")
     result.expect_command_passed()
-    result.expect_agent_told(story.agents.main, WorkersNudges.WORK_READY)
+    result.expect_agent_told(story.agents.main, WorkersNudges.WORK_READY,
+                             n=story.agents.workers.first(), task=story.tasks.queued)
     story.expect_stack(story.agents.subject, Void)
 
 

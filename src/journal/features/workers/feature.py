@@ -90,8 +90,8 @@ class Workers(Feature[WorkersData]):
     seeds = (WorkersSeed, SubagentsSeed, TestTurnsResume)
     jobs = (WorkerWatch, WorkerMemoryWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
-    answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER), (WorkerAssignment, Blocking.NEXT_DECISION), (WorkerSessionAssignment, Blocking.NEXT_DECISION), (WorkerTaskChanges, Blocking.NEXT_DECISION))
-    listeners = (WorkerProgressRecord, MergedTestRunStop, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerBriefBinding, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord)
+    answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER), (WorkerAssignment, Blocking.NEXT_DECISION), (WorkerSessionAssignment, Blocking.NEXT_DECISION), (WorkerTaskChanges, Blocking.NEXT_DECISION), (WorkerProgressRecord, Blocking.NEXT_DECISION))
+    listeners = (MergedTestRunStop, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerBriefBinding, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord)
     data = (WorkersDataReader,)
     helper_data = {AgentRole.WORKER: (SessionWorkersReader,)}
     helper_commands = {AgentRole.WORKER: (WorkerPeerCommand, ArrivalCommand, DepartureCommand, ProofCommand, TodoCommand, WorkerTestsCommand, WorkerBuildCommand)}
