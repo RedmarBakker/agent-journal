@@ -21,8 +21,8 @@ def test_a_successful_plan_agent_launch_adds_no_failure_to_the_start_answer(stor
     result.expect_command_passed()
     result.expect_command_text_without("Plan agent did not start")
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, state=TaskState.STARTED)
-    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
+    story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
 @setting(PlansOptions.PLAN_AGENTS, True)
@@ -49,11 +49,12 @@ def test_a_failed_plan_agent_launch_is_reported_and_can_be_retried(story):
         f"Plan {plan}'s Plan agent did not start: the worktree plan-{plan} could not be made: permission denied while making the plan worktree"
     )
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
 
     result = story.agent_runs(story.agents.subject, f"plan start {plan}")
     result.expect_command_passed()
     result.expect_command_text_without("Plan agent did not start")
     result = story.agent_runs(story.agents.subject, f"plan show {plan}")
     result.expect_command_text(f"Plan agent: environment plan-{plan}, running")
-    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
+    story.expect_stack(story.agents.subject, CoordinatingPlans)
