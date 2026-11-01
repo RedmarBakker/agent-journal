@@ -25,6 +25,7 @@ def test_a_compaction_start_keeps_a_live_launched_environment_open_after_a_later
         result.expect_viewer_shows("environment", "smoke-3")
 
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
 
