@@ -198,8 +198,8 @@ def test_a_domain_pod_lead_routes_by_domain_rules_and_returns_role_reports_over_
         {"kind": "delegates_to", "from": "domain-agent", "to": "reviewer"},
     ], "a Role result follows the same Plan -> Domain -> Role delegation path back to the Plan agent"
     assert {"Edit", "Write"}.issubset(members["domain-agent"]["claude_permissions"]["deny"])
-    assert "Edit" in members["primary"]["claude_permissions"]["allow"]
-    assert "Write" in members["primary"]["claude_permissions"]["deny"]
+    assert {"Edit", "Write"}.issubset(members["primary"]["claude_permissions"]["allow"])
+    assert not {"Edit", "Write"}.intersection(members["primary"]["claude_permissions"]["deny"])
 
 
 def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models_and_permissions(app, tmp_path, monkeypatch):
@@ -221,8 +221,9 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert environment[AGENT_SHELL] == environment[JOURNAL_ACTIVE] == "1" and environment["JOURNAL_ENV"] == "main"
     assert environment["JOURNAL_ROOT"] == str(app.config.root)
     assert environment["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
-    assert planner["claude_permissions"]["deny"] == [*DENIED, "Write"]
-    assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" in planner["claude_permissions"]["deny"]
+    assert planner["claude_permissions"]["deny"] == list(DENIED)
+    assert {"Edit", "Write"}.issubset(planner["claude_permissions"]["allow"])
+    assert not {"Edit", "Write"}.intersection(planner["claude_permissions"]["deny"])
     assert "Bash(journal *)" in planner["claude_permissions"]["allow"]
     assert {"Edit", "Bash"}.issubset(planner["claude_permissions"]["allow"])
     assert all({"Bash(rig send *)", "Bash(rig queue *)"}.issubset(member["claude_permissions"]["deny"]) for member in members.values()), "every seat denies direct sends and all queue mutation verbs, including create, handoff and inbox-drop"
@@ -288,7 +289,7 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
     )
     file_guidance = (
         "Prefer the Read tool for files. Use awk, sed -n, head, tail, grep, wc, or cat only to read files in this mission. "
-        "Use Edit for file changes only when this seat is allowed to write."
+        "Use Edit or Write for file changes only when this seat is allowed to write."
     )
     health_read = f"Bash({OrganizationSeatRouting.health_command})"
 
@@ -302,9 +303,11 @@ def test_generated_claude_plan_domain_and_role_seats_allow_read_commands_without
         assert "Bash(tee *)" not in permissions["allow"] and "Bash(sed -i *)" not in permissions["allow"], f"{member_id} cannot use shell commands to write files"
         assert set(DENIED).issubset(permissions["deny"]), f"{member_id} still denies git and direct hub changes"
         if member_id == "planner":
-            assert "Edit" in permissions["allow"] and "Write" in permissions["deny"], "a writing Role changes files with Edit only"
+            assert {"Edit", "Write"}.issubset(permissions["allow"]), "a writing Role can use Edit and Write"
+            assert not {"Edit", "Write"}.intersection(permissions["deny"]), "a writing Role's edit tools are not denied"
         else:
             assert {"Edit", "Write"}.issubset(permissions["deny"]), f"{member_id} cannot write files"
+            assert not {"Edit", "Write"}.intersection(permissions["allow"]), f"{member_id} cannot use an edit tool"
         agent = path.parent / "agents" / members[member_id]["agent_ref"].removeprefix("local:agents/")
         guidance = (agent / "guidance" / "role.md").read_text()
         spec = json.loads((agent / "agent.yaml").read_text())
