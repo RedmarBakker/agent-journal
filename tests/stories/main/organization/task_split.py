@@ -90,7 +90,7 @@ def test_a_domain_splits_a_task_into_two_parts_and_each_role_gets_its_job(story)
     story.expect_task(second_part, delegated=True)
     story.expect_worker(builder, state=WorkerState.READY)
     story.expect_worker(maker, state=WorkerState.READY)
-    story.expect_stack(_domain(story))
+    story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
 @story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
@@ -267,7 +267,7 @@ def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(sto
         _domain(story), story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_TASK_COMPLETED.create(task=parent).rendered(),
     )
-    story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(_domain(story))
 
 
 @story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)

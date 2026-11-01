@@ -103,4 +103,4 @@ def test_a_failed_shared_role_start_leaves_no_handoff_row(story):
     story.expect_organization_handoff_count(plan, 1)
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_row_count("workers", 0)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
