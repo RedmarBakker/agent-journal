@@ -15,7 +15,7 @@ def test_a_role_worker_can_send_a_job_to_an_idle_peer_in_its_domain(story):
     story.expect_worker(peer, state="dispatched")
     story.expect_task(story.tasks.first, title="alpha build")
     story.expect_task(story.tasks.second, title="alpha research")
-    story.expect_worker(story.agents.workers.get(story.workers.third), role="reviewer", state="reported")
+    story.expect_worker(story.agents.workers.third(), role="reviewer", state="reported")
     story.expect_task(story.tasks.third, title="beta review")
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
@@ -23,7 +23,7 @@ def test_a_role_worker_can_send_a_job_to_an_idle_peer_in_its_domain(story):
 @story(RolePeerWorkers, subject=AgentRole.WORKER)
 @setting(OrganizationOptions.HUB_ROUTE_STRATEGY, "same_domain_peers")
 def test_a_role_worker_cannot_send_a_job_to_a_peer_in_another_domain(story):
-    peer = story.agents.workers.get(story.workers.third)
+    peer = story.agents.workers.third()
     result = story.agent_runs(story.agents.subject, f"worker send {peer} 'check the beta review'")
     result.expect_command_refused()
     result.expect_command_text("Send it to your Domain agent, domain:alpha")

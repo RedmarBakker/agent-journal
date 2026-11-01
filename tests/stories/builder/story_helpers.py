@@ -15,5 +15,8 @@ class StoryHelpers:
     def second(self) -> StoryAgent:
         return self.get(self.rows.row("second", 0))
 
+    def third(self) -> StoryAgent:
+        return self.get(self.rows.row("third", 0))
+
     def get(self, number: int) -> StoryAgent:
         return StoryAgent(self.role, number)
