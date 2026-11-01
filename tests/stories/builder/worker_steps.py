@@ -106,8 +106,8 @@ class WorkerSteps:
         return self.organization_role_tool(agent, seat, self.tools.write, {"file_path": path, "content": "x"})
 
     def organization_role_tool(self, agent: StoryAgent, seat: str, tool: str, tool_input: dict) -> StepResult:
-        member = self.organization_seat_member(seat)
-        environment = self.openrig_organization_seat_environment(seat)
+        member = self.organization_role_member(agent)
+        environment = self.simulated_seats().member_environment(member.rig, member.pod, member.member)
         session = self.session_of(agent)
         journal_environment = environment["JOURNAL_ENV"]
         self.worker_sessions[agent.number] = session
