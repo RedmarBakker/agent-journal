@@ -33,7 +33,7 @@ SECURITY_BRIEF = "- Security records the policy decision"
 
 @story(OrganizationPlanAgentWorktreeProject, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_plan_branch(story):
+def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_dependent_task(story):
     root = story.app.config.root
     story.configure_simulated_openrig()
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
@@ -121,7 +121,12 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
         plan_seat, "plan", f"task complete {security} --how 'Security recorded the policy decision'",
     )
     completed.expect_command_passed()
+    story.organization_seat_goes_idle(plan_seat, "plan")
     story.settle()
+    story.expect_openrig_seat_received(
+        plan_seat, story.plan_rig_name(plan), "plan",
+        OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF.create(task=engineering, domain="engineering").rendered(),
+    )
     story.expect_task_in(source, security, TaskState.COMPLETED.value)
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
     running_plan = story.user_opens_in(source, f"/journal/plans?ids={plan}")
