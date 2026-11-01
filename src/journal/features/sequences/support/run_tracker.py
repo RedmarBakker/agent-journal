@@ -40,7 +40,10 @@ class RunTracker:
         agent = self.sessions.agent(session, environment_id)
         if any(run.sequence_id == sequence.id for run in self.runs(agent)) or not sequence.steps or not self.states.stack(agent).top().takes_pushes():
             return ""
-        steps = tuple(replace(step, instructions=step.instructions.replace("{size_scale_values}", self.size_scale.display_values())) for step in sequence.steps)
+        steps = sequence.steps
+        if any("{size_scale_values}" in step.instructions for step in steps):
+            values = self.size_scale.display_values()
+            steps = tuple(replace(step, instructions=step.instructions.replace("{size_scale_values}", values)) for step in steps)
         run = SequenceRun(sequence.row_id, sequence.title, steps, subject=topic, started_at=self.timestamp(), announced_at=self.timestamp(), end_condition=tuple(sequence.end_condition))
         liabilities = self.requiring.require(agent, self.requiring.obligations(agent, self.requiring.lookup("sequences")))
         self.moved(agent, lambda current: current.sequence_started(run, self.time_source.seconds()))

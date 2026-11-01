@@ -247,7 +247,7 @@ class PlanCommand(Command):
         empty = [i for i, phase in enumerate(phases, 1) if not self.plans.phase_tasks(phase)]
         if empty:
             raise Rejection(f"phase {', '.join(str(i) for i in empty)} of plan {plan.id} has no task yet: journal plan todos {plan.id} <phase> <tasks>")
-        self.composition.validate(plan)
+        definitions = self.composition.validate(plan)
         output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.is_reviewing() and caller.session is not None else 0
         if output:
             raise Rejection(f"plan {plan.id} is in review, {output} reviewers still out: wait, add what they found, then ready it")
@@ -255,7 +255,7 @@ class PlanCommand(Command):
             self.close_round(plan, args.changed, caller)
         forecast_basis = self.estimates_forecast.basis(self.estimates_forecast.forecast(plan)) if self.settings.option(EstimatesOptions.MODE) in ("report", "enforce") else ""
         plan = self.plans.save(plan.ready(self.time_source.seconds(), forecast_basis), caller.actor)
-        print(f"plan {plan.id} ready: the user approves it on the plan page")
+        print("\n".join((f"plan {plan.id} ready: the user approves it on the plan page", *definitions)))
         return 0
 
     def close_round(self, plan: Plan, changed: str | None, caller: Caller) -> None:

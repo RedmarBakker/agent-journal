@@ -2,14 +2,22 @@ from dataclasses import dataclass
 
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.contract_problem import ContractProblem
+from journal.features.organization.support.definition_of_done import DefinitionOfDone
 from journal.features.organization.support.domain import Domain
 from journal.features.organization.support.edge_kind import EdgeKind
+from journal.features.organization.support.evidence_requirement import EvidenceRequirement
 from journal.features.organization.support.graph_edge import GraphEdge
 from journal.features.organization.support.role import Role
 
 PLAN = "plan"
 MAIN = "main"
 CONTAINMENT = "contains"
+
+ORGANIZATION_DEFAULT_DEFINITION_OF_DONE = DefinitionOfDone(
+    "The change is merged and every point of the brief has a checked proof.",
+    EvidenceRequirement.VERIFIED_OUTPUT,
+    "the plan's branch",
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +39,12 @@ class Contracts:
 
     def domain(self, domain_id: str) -> Domain | None:
         return next((domain for domain in self.domains if domain.id == domain_id), None)
+
+    @staticmethod
+    def definition_of_done_for(domain: Domain) -> tuple[DefinitionOfDone, bool]:
+        if domain.definition_of_done is None:
+            return ORGANIZATION_DEFAULT_DEFINITION_OF_DONE, True
+        return domain.definition_of_done, False
 
     def roles_of(self, domain_id: str) -> tuple[Role, ...]:
         return tuple(role for role in self.roles if role.domain == domain_id)

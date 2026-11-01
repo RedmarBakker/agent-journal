@@ -8,11 +8,11 @@ from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.draft_plan import DraftPlan
 from tests.stories.fixtures.main.domain_policy_plan import DomainPolicyPlan
 from tests.stories.fixtures.main.enforced_dependency_plan import EnforcedDependencyPlan
 from tests.stories.fixtures.main.enforced_draft_plan import EnforcedDraftPlan
 from tests.stories.fixtures.main.enforced_draft_without_done import EnforcedDraftWithoutDone
+from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 @story(EnforcedDraftPlan, subject=AgentRole.MAIN)
@@ -54,7 +54,7 @@ def test_a_new_enforced_plan_refuses_a_sized_task_without_an_accountable_domain(
 
 
 @story(EnforcedDraftWithoutDone, subject=AgentRole.MAIN)
-def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
+def test_a_new_enforced_plan_uses_the_organization_default_for_a_domain_without_criteria(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
     result = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'release' --brief 'the release is deployed' --domain development --size 3 --phase 1")
@@ -62,10 +62,12 @@ def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
     task = story.created_number("task")
 
     result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
-    result.expect_command_refused()
-    result.expect_command_text("definition of done")
-    result.expect_command_text("domain.toml")
-    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    result.expect_command_passed()
+    result.expect_command_text("organization default definition of done")
+    result.expect_command_text("change is merged and every point of the brief has a checked proof")
+    result.expect_command_text("verified_output")
+    result.expect_command_text("the plan's branch")
+    story.expect_plan(story.plans.first, state=PlanState.READY)
     story.expect_task(task, state=TaskState.OPEN, size=3)
     story.expect_stack(story.agents.subject, Ready)
 
@@ -74,6 +76,9 @@ def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
 def test_a_fully_sized_domain_scoped_plan_with_valid_prerequisites_can_be_readied(story):
     result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     result.expect_command_passed()
+    result.expect_command_text("domain development uses domain.toml definition of done")
+    result.expect_command_text("production_deployment")
+    result.expect_command_text("target: production")
     result.expect_agent_told_words(story.agents.subject, EstimatesNudges.FORECAST_BASIS, "Not enough history yet")
     story.expect_plan(story.plans.first, state=PlanState.READY)
     story.expect_task(story.tasks.first, state=TaskState.OPEN, size=3)
@@ -138,8 +143,9 @@ def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
 
 
 @setting(EstimatesOptions.SIZE_SCALE, [2, 4, 6])
-@story(DraftPlan, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(story):
+    story.agent_creates_plan(story.agents.subject, "the site", "the site is built")
     result = story.agent_runs(story.agents.subject, "sequence follow")
     result.expect_command_passed()
     result = story.agent_runs(story.agents.subject, "sequence next")
