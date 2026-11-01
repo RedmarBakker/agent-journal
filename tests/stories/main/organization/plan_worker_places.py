@@ -87,7 +87,7 @@ def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     story.expect_task(new_part, delegated=True)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
     story.expect_worker(new_worker, state=WorkerState.DISPATCHED)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
 @story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
