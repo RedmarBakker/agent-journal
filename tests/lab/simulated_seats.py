@@ -176,7 +176,7 @@ class SimulatedSeats:
 
     def processes(self, arguments: tuple[str, ...]) -> subprocess.CompletedProcess:
         rig = self.argument(arguments, "--rig")
-        if rig not in self.rigs or rig in self.stopped_rigs:
+        if rig not in self.rigs:
             return self.result(arguments, "[]", 1, f"simulated rig {rig} is not running")
         rows = [
             {"name": target, **session}
@@ -210,6 +210,15 @@ class SimulatedSeats:
     def stop_session(self, target: str) -> None:
         if target in self.sessions:
             self.sessions[target].update(pid=0, status="stopped")
+
+    def forget_rig(self, rig: str) -> None:
+        self.rigs.discard(rig)
+        self.stopped_rigs.discard(rig)
+        self.specs.pop(rig, None)
+        for target in tuple(self.sessions):
+            if target.endswith(f"@{rig}"):
+                self.sessions.pop(target)
+                self.environments.pop(target, None)
 
     @staticmethod
     def argument(arguments: tuple[str, ...], name: str) -> str:

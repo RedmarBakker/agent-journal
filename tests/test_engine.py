@@ -1201,7 +1201,6 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     from journal.features.plans.states.plans_ready import PlansReady
     from dataclasses import replace
     from journal.features.tasks.support.tasks_data import TasksData
-    from journal.features.tasks.tasks_conduct import TasksConduct
     from journal.features.plans.support.plans_data import PlansData
     from journal.models.open_task import OpenTask
     from journal.events.agent.stop import Stop
@@ -1237,6 +1236,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     from journal.features.plans.states.plans_working import PlansWorking
     from dataclasses import replace
     from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.tasks.tasks_conduct import TasksConduct
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.git.support.git_data import GitData
     from journal.events.agent.stop import Stop

@@ -8,6 +8,7 @@ class OrganizationRolePartClockedOut(OrganizationTaskPartClockedIn):
     """A Role worker has clocked out of its split part while its plan still runs."""
 
     parent = OrganizationTaskPartClockedIn
+    settings = ()
 
     def steps(self, story) -> None:
         worker = story.agents.workers.first()

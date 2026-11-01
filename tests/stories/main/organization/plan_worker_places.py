@@ -44,6 +44,12 @@ def _stop_plan_rig(story, plan):
     story.observed(f"OpenRig stops {rig}", None, None)
 
 
+def _forget_plan_rig(story, plan):
+    rig = story.plan_rig_name(plan)
+    story.openrig.forget_rig(rig)
+    story.observed(f"OpenRig removes {rig}", None, None)
+
+
 @story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_another_plan(story):
@@ -56,6 +62,7 @@ def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_an
     plan, parent, domain = _start_second_plan(story)
     dispatched = _make_part(story, domain, plan, parent, "maker")
     dispatched.expect_command_passed()
+    dispatched.expect_command_text("dispatched on")
     new_part = story.newest("tasks")
     new_worker = story.newest("workers")
     story.expect_task(new_part, delegated=True)
@@ -68,17 +75,19 @@ def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_an
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     lost_rig_plan = story.plans.first
-    _stop_plan_rig(story, lost_rig_plan)
+    _forget_plan_rig(story, lost_rig_plan)
     story.expect_plan(lost_rig_plan, state=PlanState.STARTED)
 
     plan, parent, domain = _start_second_plan(story)
     dispatched = _make_part(story, domain, plan, parent, "maker")
     dispatched.expect_command_passed()
+    dispatched.expect_command_text("dispatched on")
     new_part = story.newest("tasks")
+    new_worker = story.newest("workers")
     story.expect_task(new_part, delegated=True)
     story.expect_worker(story.agents.workers.first(), state=WorkerState.DELIVERED)
-    story.expect_worker(story.agents.workers.second(), state=WorkerState.DISPATCHED)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_worker(new_worker, state=WorkerState.DISPATCHED)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
 @story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
@@ -93,7 +102,7 @@ def test_a_full_place_refusal_routes_another_plans_clocked_out_work_to_its_plan_
     refused.expect_command_text_without(f"worker {old_worker.number}")
     story.expect_row_count("workers", 1)
     story.expect_task(story.tasks.first_part, state=TaskState.STARTED, delegated=True)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
 @story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
