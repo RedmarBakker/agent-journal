@@ -190,9 +190,11 @@ class WorkerCommand(Command):
             task = self.tasks.find(args.task)
             instance = self.role_task_instance(role, task, caller)
             if instance and instance.state == WorkerState.UNFINISHED and self.tasks.holder(task) == Ref.build(instance):
+                self.runner.prepare(instance)
                 return self.resend_role_job(instance, task, args, caller)
             role_task = task
             if instance:
+                self.runner.prepare(instance)
                 return self.queue(Namespace(n=instance.id, tasks=[role_task.id], first=False), caller)
         output = [worker for worker in self.workers.busy_workers() if self.worker_uses_place(worker)]
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
@@ -218,6 +220,11 @@ class WorkerCommand(Command):
         worktree = args.worktree or bool(organization_plan and role and role.cardinality is Cardinality.MANY and role.has_worktree())
         worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=plan_id, worktree=worktree, library_links=links, library_copies=copies, dispatcher=caller.session)
         worker = self.workers.save(worker.contacted(moment), caller.actor)
+        try:
+            self.runner.prepare(worker)
+        except Rejection:
+            self.workers.delete(worker, caller.actor)
+            raise
         for queued_task in planned[1:]:
             self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
         if planned:

@@ -77,10 +77,14 @@ class OrganizationHub:
                 print(f"task {task.id} routed from {member.organization_seat} to {target}")
                 return
             self.domains.task_tied(task, domain, caller.actor)
-        self.handoffs.handoff(task, plan, target, caller.actor)
         if role and role.writes:
             self.workers.dispatch_role_task(task, role, caller)
-        elif target != "main":
+        elif role and role.cardinality is Cardinality.JOURNAL:
+            self.staffing.shared_read_only_role_rig(
+                plan, self.organization.at(member.contract), role, member.provider, member.environment,
+            )
+        self.handoffs.handoff(task, plan, target, caller.actor)
+        if not (role and role.writes) and target != "main":
             self.wake(target, plan, role, member)
         print(f"task {task.id} routed from {member.organization_seat} to {target}")
 

@@ -1,0 +1,20 @@
+id = "security-owner"
+title = "Security owner"
+domain = "alpha"
+description = "Reviews security work shared across plans."
+cardinality = "journal"
+writes = false
+responsible = ["the assigned research"]
+not_responsible = ["other work"]
+inputs = ["a task"]
+outputs = ["research findings"]
+skills = []
+tools = ["read_files"]
+approval_required = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

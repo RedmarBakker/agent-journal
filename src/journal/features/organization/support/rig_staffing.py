@@ -29,7 +29,6 @@ from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR
-from journal.support.process_check import ProcessCheck
 from journal.support.rejection import Rejection
 
 
@@ -143,7 +142,7 @@ class RigStaffing:
             session = self.runtime.session(seat)
         except Rejection:
             return False
-        return session is not None and ProcessCheck.is_running(session.pid)
+        return session is not None and session.status not in {"stopped", "ended", "failed", "crashed"}
 
     def stop_plan(self, plan: Plan, provider: str) -> None:
         rig_id = self.plans.rig_id(plan)
@@ -160,8 +159,9 @@ class RigStaffing:
         provider = self.providers.lookup(provider_name)
         domain_seat = self.seats.domain_agent(domain, provider)
         role_seat = self.worker_seat(role, domain, worker, provider)
+        worker_for = lambda seat, rig: self.seat_worker(seat, role_seat, worker, environment, rig)
         if role.cardinality is Cardinality.JOURNAL:
-            rig = self.shared_rig(plan, contracts, domain_seat, role_seat, worker, environment, cwd)
+            rig = self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, cwd)
             return rig, role_seat
 
         rig_id = self.plans.rig_id(plan)
@@ -169,17 +169,31 @@ class RigStaffing:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {role.id}")
         rig = self.find_rig(rig_id)
         plan_seat = self.seats.plan_agent(rig.name, provider)
-        self.place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker, environment, cwd, True)
+        self.place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker_for, True)
         return rig, role_seat
 
     def shared_rig(self, plan: Plan, contracts: Contracts, domain_seat: Seat, role_seat: Seat, worker: int, environment: str, cwd: Path) -> Rig:
+        worker_for = lambda seat, rig: self.seat_worker(seat, role_seat, worker, environment, rig)
+        return self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, cwd)
+
+    def shared_read_only_role_rig(self, plan: Plan, contracts: Contracts, role: Role, provider_name: str, environment: str) -> Rig:
+        domain = contracts.domain(role.domain)
+        if domain is None:
+            raise Rejection(f"Role {role.id} has no Domain {role.domain} in its contract")
+        provider = self.providers.lookup(provider_name)
+        domain_seat = self.seats.domain_agent(domain, provider)
+        role_seat = self.seats.role_seat(role, domain, provider)
+        worker_for = lambda seat, rig: SeatWorker(Actor.agent(""), AgentToken.random(), environment, seat.qualified, rig)
+        return self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, self.config.root)
+
+    def shared_rig_for(self, plan: Plan, contracts: Contracts, domain_seat: Seat, role_seat: Seat,
+                       worker_for: Callable[[Seat, str], SeatWorker], cwd: Path) -> Rig:
         name = self.shared_rig_name(plan.environment_id)
         matches = self.rigs.global_matching(name=name, environment_id=plan.environment_id)
         if not matches:
             seats = (domain_seat, role_seat)
             links = self.seats.links(contracts, seats)
-            path = self.specs.write_shared(name, seats, links, cwd,
-                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment, name))
+            path = self.specs.write_shared(name, seats, links, cwd, lambda seat: worker_for(seat, name))
             self.runtime.start_rig(path)
             return self.rigs.save(Rig(environment_id=plan.environment_id, name=name), Actor.system())
 
@@ -188,13 +202,12 @@ class RigStaffing:
         if not path.exists():
             seats = (domain_seat, role_seat)
             links = self.seats.links(contracts, seats)
-            path = self.specs.write_shared(rig.name, seats, links, cwd,
-                                           lambda seat: self.seat_worker(seat, role_seat, worker, environment, rig.name))
+            path = self.specs.write_shared(rig.name, seats, links, cwd, lambda seat: worker_for(seat, rig.name))
             self.runtime.start_rig(path)
             return rig
 
         running = self.runtime.rig_exists(rig.name)
-        self.place_role(rig, plan, contracts, None, domain_seat, role_seat, worker, environment, cwd, running)
+        self.place_role(rig, plan, contracts, None, domain_seat, role_seat, worker_for, running)
         if not running:
             self.runtime.start_rig(path)
         return rig
@@ -224,7 +237,7 @@ class RigStaffing:
         return self.plan_rig_name(plan), self.shared_rig_name(plan.environment_id)
 
     def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
-                   worker: int, environment: str, cwd: Path, running: bool) -> None:
+                   worker_for: Callable[[Seat, str], SeatWorker], running: bool) -> None:
         path = self.specs.spec_folder(rig.name) / "rig.yaml"
         try:
             spec = json.loads(path.read_text())
@@ -244,21 +257,21 @@ class RigStaffing:
             fragment, pod = self.specs.pod_fragment(
                 rig.name, domain_seat.pod, (domain_seat, role_seat), links,
                 lambda seat: cwd if seat.qualified == role_seat.qualified else self.config.root,
-                lambda seat: self.seat_worker(seat, role_seat, worker, environment, rig.name),
+                lambda seat: worker_for(seat, rig.name),
             )
             expansion = fragment
             pods.append(pod)
         elif not any(member.get("id") == role_seat.member for member in pod.get("members", [])):
             fragment, member = self.specs.member_fragment(
                 rig.name, role_seat, cwd,
-                self.seat_worker(role_seat, role_seat, worker, environment, rig.name),
+                worker_for(role_seat, rig.name),
             )
             pod.setdefault("members", []).append(member)
             role_fragment = fragment
         else:
             index = next(index for index, member in enumerate(pod["members"]) if member.get("id") == role_seat.member)
             previous = pod["members"][index]
-            assigned = self.seat_worker(role_seat, role_seat, worker, environment, rig.name)
+            assigned = worker_for(role_seat, rig.name)
             if previous.get("env", {}).get(ACTOR) != assigned.actor.stamp:
                 fragment, member = self.specs.member_fragment(rig.name, role_seat, cwd, assigned)
                 pod["members"][index] = member

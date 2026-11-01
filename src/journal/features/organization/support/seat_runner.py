@@ -95,6 +95,11 @@ class SeatRunner:
         plan = next(iter(self.plans.global_matching(id=worker.plan_id)), None) if worker.plan_id else None
         return bool(plan and plan.mode is PlanMode.ORGANIZATION and role.cardinality in (Cardinality.PLAN, Cardinality.MANY))
 
+    def prepare(self, worker: Worker) -> None:
+        role = self.role_for(worker)
+        if role and role.cardinality is Cardinality.JOURNAL and self.applies(worker):
+            self.member(worker)
+
     def role_for(self, worker: Worker) -> Role | None:
         return self.organization.at(worker.contract).role(worker.role) if worker.contract and worker.role else None
 

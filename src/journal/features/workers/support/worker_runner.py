@@ -82,6 +82,9 @@ class WorkerRunner:
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session, self.roles.effort(worker)), *provider.worker_settings_flags(self.hook_settings(worker))]
         threading.Thread(target=self.run_scoped, args=(worker, command, actor, token), name=f"worker-{worker.id}", daemon=True).start()
 
+    def prepare(self, worker: Worker) -> None:
+        self.seats.prepare(worker)
+
     def hook_settings(self, worker: Worker) -> Path:
         folder = self.branch.place(worker)
         path = self.setup.hook_settings(self.providers.lookup(worker.provider), folder, self.outputs(worker)[0].with_suffix(".settings.json"))
