@@ -1,3 +1,4 @@
+from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
@@ -341,7 +342,7 @@ def test_a_cancelled_part_does_not_stop_the_task_but_all_cancelled_parts_are_han
         domain, story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_ALL_PARTS_CANCELLED.create(task=parent).rendered(),
     )
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
 @story(OrganizationTaskSplitPlan, subject=AgentRole.MAIN)
@@ -433,4 +434,4 @@ def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
     story.expect_task(second_parent, state=TaskState.COMPLETED)
     story.expect_worker(second_role_worker, state=WorkerState.MERGED)
     story.expect_plan(second_plan, state=PlanState.FINISHED)
-    story.expect_stack(second_domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(second_domain, LeadingPlan, Ended)

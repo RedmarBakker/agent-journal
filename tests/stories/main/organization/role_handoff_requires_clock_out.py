@@ -1,3 +1,4 @@
+from journal.engine.states.ended import Ended
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
@@ -29,7 +30,7 @@ def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan, Ended)
 
 
 @story(OrganizationRoleTaskClockedIn, subject=AgentRole.MAIN)

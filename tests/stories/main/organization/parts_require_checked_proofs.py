@@ -1,5 +1,5 @@
+from journal.engine.states.ended import Ended
 from journal.features.organization.organization_nudges import OrganizationNudges
-from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -7,7 +7,6 @@ from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_task_two_parts_clocked_in import OrganizationTaskTwoPartsClockedIn
-from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
@@ -79,4 +78,4 @@ def test_a_domain_checks_unchecked_role_proofs_before_returning_parts_to_the_pla
     story.expect_worker(first_worker, state=WorkerState.MERGED)
     story.expect_worker(second_worker, state=WorkerState.MERGED)
     story.expect_plan(plan, state=PlanState.FINISHED)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(domain, LeadingPlan, Ended)
