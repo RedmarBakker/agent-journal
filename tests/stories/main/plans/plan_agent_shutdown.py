@@ -2,6 +2,7 @@ from journal.engine.states.ended import Ended
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from journal.support.card_type import CardType
@@ -73,6 +74,7 @@ def test_releasing_a_worker_ends_the_plan_agents_wait_on_it(story):
     )
     cancelled.expect_viewer_passed()
     story.expect_worker_in(f"plan-{story.plans.first}", worker, state=WorkerState.RELEASED)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_stack(agent, LeadingPlan, FollowingPlan)
 
 
