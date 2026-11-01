@@ -3,6 +3,7 @@ from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.states.working_task import WorkingTask
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
+from tests.stories.fixtures.worker.role_cross_domain_workers import RoleCrossDomainWorkers
 from tests.stories.fixtures.worker.role_peer_workers import RolePeerWorkers
 
 
@@ -18,24 +19,14 @@ def test_a_role_worker_can_send_a_job_to_an_idle_peer_in_its_domain(story):
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(RolePeerWorkers, subject=AgentRole.WORKER)
+@story(RoleCrossDomainWorkers, subject=AgentRole.WORKER)
 @setting(OrganizationOptions.HUB_ROUTE_STRATEGY, "same_domain_peers")
 def test_a_role_worker_cannot_send_a_job_to_a_peer_in_another_domain(story):
-    task = story.agent_creates_briefed_task(story.agents.main, "beta review", "- beta work is ready")
-    result = story.agent_runs(
-        story.agents.main,
-        f"worker dispatch 'Grace Hopper' --task {task} --changes 'the files of its task' --model sonnet --tests 'Scoped tests' --role reviewer",
-    )
-    result.expect_command_passed()
-    peer = story.agents.workers.get(story.newest("workers"))
-    story.agent_starts_a_session(peer)
-    story.worker_run_ends_with_its_session(peer, "waiting for a task")
-    result = story.agent_runs(peer, f"worker report {peer} 'waiting for a task'")
-    result.expect_command_passed()
+    peer = story.agents.workers.second()
     result = story.agent_runs(story.agents.subject, f"worker send {peer} 'check the beta review'")
     result.expect_command_refused()
     result.expect_command_text("Send it to your Domain agent, domain:alpha")
     story.expect_worker(peer, state="reported")
     story.expect_task(story.tasks.first, title="alpha build")
-    story.expect_task(task, title="beta review")
+    story.expect_task(story.tasks.second, title="beta review")
     story.expect_stack(story.agents.subject, Void, WorkingTask)
