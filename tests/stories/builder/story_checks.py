@@ -129,7 +129,7 @@ class StoryChecks:
         assert not (self.app.config.root / path).exists(), f"{path} is still in the project"
 
     def expect_environment_absent(self, name: str) -> None:
-        rows = self.app.container.get(Environments).global_matching(name=name)
+        rows = self.app.container.get(Environments).all_matching(name=name)
         assert not rows, f"environment {name} exists"
 
     def expect_project_file_holds(self, path: str, data: bytes) -> None:
