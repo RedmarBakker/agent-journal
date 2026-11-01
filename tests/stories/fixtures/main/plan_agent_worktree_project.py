@@ -7,3 +7,6 @@ class PlanAgentWorktreeProject(NewSession):
 
     def steps(self, story) -> None:
         prepare_plan_agent_worktrees(story, story.monkeypatch)
+
+    def expected(self, story) -> None:
+        story.expect_stack(story.agents.main)
