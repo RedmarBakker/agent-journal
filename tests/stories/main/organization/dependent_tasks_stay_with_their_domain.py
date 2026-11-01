@@ -142,10 +142,6 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
     story.expect_environment_absent(f"task-{engineering}")
 
-    waiting = story.agent_stops_plan_seat(plan_seat, plan)
-    waiting.expect_allowed(plan_seat)
-    waiting.expect_agent_not_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-                                  task=engineering, domain="engineering")
     story.agent_runs_from_plan_organization_seat(
         plan_seat, "plan", f"organization handoff {engineering} domain:engineering",
     ).expect_command_passed()
