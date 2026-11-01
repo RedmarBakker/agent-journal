@@ -28,6 +28,9 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
     inbox = story.agent_runs_as_organization_seat_in_plan(domain, "domain:alpha", plan, "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {security}: Security task")
+    story.agent_runs_as_organization_seat_in_plan(
+        domain, "domain:alpha", plan, "environment overview",
+    ).expect_command_passed()
 
     domain_stop = story.agent_stops_organization_seat(domain, "domain:alpha")
     domain_stop.expect_allowed(domain)
