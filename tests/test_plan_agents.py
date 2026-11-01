@@ -373,7 +373,6 @@ def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing
 def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors):
     from journal.features.plans.plans_nudges import PlansNudges
     from journal.features.plans.support.task_agents import TASK_AGENT_LINK
-    from journal.features.workers.workers_nudges import WorkersNudges
     from journal.models.support.ref import Ref
     from journal.repositories.links import Links
     from journal.repositories.tasks import Tasks
@@ -414,7 +413,7 @@ def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main
         "journal worker send 1 'finish the floor'",
     ):
         status, body = task_hook("Bash", {"command": command})
-        assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SOLO_DISPATCH), f"the task agent refuses {command.split()[2]}"
+        assert status == 200, f"the task agent may use {command.split()[2]}: {body}"
     task_caller = Caller.agent(f"task-{task.id}", "task-session", "claude")
     assert console.run(["environment", "overview"], task_caller).code == 0, "the task agent reads its environment before working"
     status, body = task_hook("Write", {"file_path": "src/footer.py", "content": "x"})

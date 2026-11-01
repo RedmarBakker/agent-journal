@@ -10,4 +10,6 @@ class TimedLineSeries(Migration):
     number: ClassVar[int] = 60
 
     def apply(self, connection: Connection) -> None:
-        connection.execute("UPDATE agents SET edited_lines = '[]', merged_lines = '[]'")
+        columns = self.column_names(connection, "agents")
+        for column in (column for column in ("edited_lines", "merged_lines") if column in columns):
+            connection.execute(f"UPDATE agents SET {column} = '[]'")

@@ -13,6 +13,6 @@ def test_a_dispatch_past_the_most_workers_out_at_once_is_refused(story):
     lexer = story.agent_creates_briefed_task(story.agents.subject, "the lexer", "- splits the words")
     result = story.agent_runs(story.agents.subject, f"worker dispatch 'Ada Byron' --task {lexer} --changes 'the lexer' --tests 'Scoped tests' --profile journal-medior --model sonnet")
     result.expect_command_refused()
-    result.expect_command_text(WorkersNudges.WORKER_OVERFLOW.create(out=1).rendered().partition(":")[0].partition(".")[0])
+    result.expect_command_text(WorkersNudges.PLACES_FULL_OWNER.create(owner="the main agent").rendered())
     story.expect_task(story.tasks.briefed, delegated=True)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)

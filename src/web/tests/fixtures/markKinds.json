@@ -121,13 +121,6 @@
    "colouring": "outcome"
   },
   {
-   "key": "fitness",
-   "title": "Fitness",
-   "icon": "activity",
-   "group": "agent",
-   "colouring": "none"
-  },
-  {
    "key": "worker_steps",
    "title": "Workers' own steps",
    "icon": "agents",
@@ -486,19 +479,6 @@
    "icon": "agents",
    "group": "agent",
    "colouring": "outcome"
-  },
-  {
-   "key": "fitness",
-   "label": "Drops in the fitness",
-   "family": "fitness",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": [],
-   "icon": "activity",
-   "group": "agent",
-   "colouring": "none"
   },
   {
    "key": "worker_steps",

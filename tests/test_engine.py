@@ -1916,6 +1916,7 @@ def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_eng
 
 def test_old_line_pairs_keyed_by_tool_use_are_cleared(connection):
     from journal.db.migrations.timed_line_series import TimedLineSeries
+    TimedLineSeries().apply(connection)
     connection.execute("ALTER TABLE agents ADD COLUMN edited_lines TEXT")
     connection.execute("ALTER TABLE agents ADD COLUMN merged_lines TEXT")
     connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, edited_lines, merged_lines, created_at, creator) VALUES (1, 'old', 'main', 'idle', '{}', '[]', ?, ?, '2026-10-26', 'system')", (json.dumps([[12, 40], [30, 5]]), json.dumps([[20, 80]])))

@@ -1,5 +1,6 @@
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.workspace_worktree import WorkspaceWorktree
@@ -50,4 +51,4 @@ class StartedSoloPlanBranch(StateFixture):
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.STARTED)
-        story.expect_stack(story.agents.main, CoordinatingPlans)
+        story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan)

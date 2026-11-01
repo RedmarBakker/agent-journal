@@ -3665,7 +3665,7 @@ def failed_path(app: App, version: str) -> dict:
     return record
 
 
-def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_until_retried(app: App):
+def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_until_retried(app: App, monkeypatch):
     import time as timing
     from journal.features.updates.support.update_card import UpdateCard
     from journal.features.updates.support.update_path_file import UpdatePathFile
@@ -3676,6 +3676,10 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     card, paths = app.container.get(UpdateCard), app.container.get(UpdatePathFile)
     installer = Installer()
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), installer, auto=True)
+    def install_now(_updater, work):
+        work()
+        return True
+    monkeypatch.setattr(type(updating), "separate", install_now)
     with pytest.raises(Rejection, match="nothing to retry"):
         updating.retry(Actor.user(1))
     record = failed_path(app, VERSION)
@@ -3690,7 +3694,6 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     updating.checked()
     assert installer.ran == [], "a closed path is not tried again on its own"
     updating.retry(Actor.user(1))
-    updates_joined()
     assert installer.ran == ["v4.99.0"] and paths.record() == UpdatePathRecord.empty(), "retry installs the newest release again from the version still running, so its path starts at the step that failed"
 
 
@@ -4041,7 +4044,8 @@ def test_a_hook_on_a_started_plan_reads_the_plans_tree_once(app: App, monkeypatc
 def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_repeat(app: App, monkeypatch):
     from journal.features.workers.support.load_items import LoadItems
     from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.repositories.agents import Agents
+    from journal.features.workers.workers_options import WorkersOptions
+    from journal.repositories.setting_rows import SettingRows
     from journal.repositories.workers import Workers
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     kept_conversation(app, monkeypatch)
@@ -4057,8 +4061,7 @@ def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_re
     assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        reports = app.container.get(Agents).session_agent("s1").first_reports
-    assert [task for _, task in reports] == [1], "the first clock-out is recorded before a send-back"
+        assert workers.find(1).is_first_report(), "the first clock-out is the worker's first report"
     assert console.run(["worker", "check", "1", "1", "--short", "the rules are not named"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
@@ -4067,39 +4070,47 @@ def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_re
     assert console.run(["clock-out", "the rules are named"], lovelace).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        items, _ = app.container.get(LoadItems).read(0.0)
-        reports = app.container.get(Agents).session_agent("s1").first_reports
+        items = app.container.get(LoadItems).read(0.0)
+        first_report = workers.find(1).is_first_report()
     worker_items = [item for item in items if item.ref == "workers:1"]
-    assert [task for _, task in reports] == [1], "the clock-out that ends the job sent is a first report; the return after the send-back is not"
-    assert [item.is_repeat for item in worker_items] == [False, True], "the load holds both clock-outs, the second marked a repeat"
+    resend_weight = app.container.get(SettingRows).decimal(WorkersOptions.RESEND_WEIGHT)
+    assert not first_report, "the return after a send-back is not a first report"
+    assert [item.weight for item in worker_items] == [1.0, resend_weight], "the repeated clock-out receives the resend weight"
 
 
 def test_only_a_merge_a_checked_proof_or_a_reply_clears_a_waiting_item(app: App):
     from journal.features.workers.support.load_item import LoadItem
     from journal.features.workers.support.load_items import LoadItems
-    from journal.features.workers.support.load_series import LoadSeries
+    from journal.models.proof import Proof
+    from journal.models.proof_state import ProofState
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
     from journal.models.worker import Worker
     from journal.models.support.worker_moves import WorkerMoves
+    from journal.repositories.proofs import Proofs
+    from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
-    workers = app.container.get(Workers)
+    workers, tasks, proofs = app.container.get(Workers), app.container.get(Tasks), app.container.get(Proofs)
     moves = lambda *steps: WorkerMoves(tuple(steps))
     with app.container.get(Scope).environment(MAIN):
         merged = workers.save(Worker(environment_id=1, name="Mr. Merged", brief="m", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("merged", 200.0))), Actor.system())
         sent_back = workers.save(Worker(environment_id=1, name="Mr. Back", brief="b", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("sent back", 150.0))), Actor.system())
         released = workers.save(Worker(environment_id=1, name="Mr. Gone", brief="g", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("released", 160.0))), Actor.system())
+        checked_worker = workers.save(Worker(environment_id=1, name="Ms. Checked", brief="c", moves=moves(("dispatched", 10.0), ("clocked out", 100.0))), Actor.system())
+        checked_task = tasks.save(Task(environment_id=1, title="checked proof", brief="the proof passes"), Actor.system())
+        tasks.handover(checked_task, Ref.build(checked_worker), Actor.system())
+        checked_proof = proofs.added(Proof(environment_id=1, point=1, text="the proof passes", state=ProofState.CHECKED), checked_task, Actor.worker(checked_worker.id))
+        checked_item = app.container.get(LoadItems).worker_items(checked_worker)[0]
         items = {item.ref: item for worker in (merged, sent_back, released) for item in app.container.get(LoadItems).worker_items(worker)}
     assert items[f"workers:{merged.id}"].cleared_at == 200.0, "a merge clears the item"
     assert items[f"workers:{sent_back.id}"].cleared_at == 0.0 and items[f"workers:{sent_back.id}"].ended_at == 150.0, "a send-back ends it without a clearing"
     assert items[f"workers:{released.id}"].ended_at == 160.0 and not items[f"workers:{released.id}"].is_waiting(170.0)
-    load = LoadSeries(30, 10, 0.8, 0.3).measured(list(items.values()), [], 300.0)
-    assert (load.clearings_counted, load.removals) == (1, 2), "the load counts the merge as a clearing and the send-back and the release as removals"
+    assert checked_item.cleared_at == checked_proof.update_time.timestamp(), "a checked proof clears the worker's waiting item"
     replied = LoadItem("messages:1", 50.0, 1.0, 60.0)
     assert replied.is_cleared_in(0.0, 100.0) and not LoadItem("messages:2", 50.0, 1.0).is_cleared_in(0.0, 100.0), "a reply clears a message; one with only a reaction stays waiting"
 
 
-def test_a_codex_main_agents_patch_and_commit_land_in_its_own_series(app: App):
-    from journal.events.announcer import Announcer
-    from journal.events.moments.git_committed import GitCommitted
+def test_a_codex_main_agents_patch_counts_as_a_code_edit(app: App):
     from journal.repositories.agents import Agents
     from tests.agent_hooks import hook_as
     hook_as(app, "codex", "SessionStart", "c1", source="startup")
@@ -4108,10 +4119,8 @@ def test_a_codex_main_agents_patch_and_commit_land_in_its_own_series(app: App):
     hook_as(app, "codex", "PostToolUse", "c1", tool_name="apply_patch", tool_input={"command": patch}, tool_response={"output": "Success"})
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(Announcer).announce(GitCommitted(environment_id=1, session="c1", sha="c0ffee", branch="main", subject="the footer", files=1, lines=(("src/footer.py", 2),)))
         row = app.container.get(Agents).session_agent("c1")
-    assert sum(lines for _, lines in row.edited_lines) == 2, "a Codex agent's patch counts as its provisional lines, as a Claude agent's edit does"
-    assert [lines for _, lines in row.committed_lines] == [2], "and its commit counts once as its own"
+    assert row.code_edits == 1, "the main agent's Codex patch is counted with its code edits"
 
 
 def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one_that_does_not(app: App):
@@ -4917,15 +4926,14 @@ def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_
     assert stopped.state == WorkerState.STOPPED and "its processes used 9000 MB, past the limit of 8192 MB" in stopped.retire_reason, "past the limit it is stopped, the reason written on it"
 
 
-def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_an_opus_worker_spending_much_on_settled_work_is_named_once(app: App, monkeypatch):
+def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_its_spend_is_shown(app: App, monkeypatch):
     from journal.features.workers.support.worker_branch import WorkerBranch
     from journal.providers.claude import Claude
-    from journal.repositories.entries import NUDGE, Entries
     from journal.repositories.workers import Workers
     started = []
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     kept_conversation(app, monkeypatch)
-    console, settings = app.console(), app.container.get(SettingRows)
+    console = app.console()
     hook(app, "SessionStart")
     import subprocess
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
@@ -4945,17 +4953,13 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
     listed = console.run(["worker", "list"], AGENT).text
     assert "on opus, $0.00 at API prices, sent back 0 times on this task" in listed, listed
-    costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
     runner = app.container.get(WorkerRunner)
     runner.cost_recorded(workers.find(1), 1.5, Actor.system())
     app.runtime().deferred.drain()
-    assert costly() == [], "under the setting's dollars nothing is said"
     runner.cost_recorded(workers.find(1), 0.75, Actor.system())
     app.runtime().deferred.drain()
-    assert costly() == [WorkersNudges.COSTLY_SHAPED_WORK.create(n=1, dollars="2.25", model="opus").rendered()], costly()
     runner.cost_recorded(workers.find(1), 3.0, Actor.system())
     app.runtime().deferred.drain()
-    assert len(costly()) == 1, "it is said once"
     assert "on opus, $5.25 at API prices" in console.run(["worker", "list"], AGENT).text, "the status names the spend so far"
     assert Claude().worker_outcome('{"type":"result","result":"done","session_id":"w-1","total_cost_usd":0.42}\n', "").cost_dollars == 0.42, "the spend is read from the run's result line"
     refused = console.run(["worker", "send", "1", "more", "--profile", "journal-researcher"], AGENT)

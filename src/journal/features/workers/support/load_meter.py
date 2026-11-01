@@ -9,6 +9,7 @@ from journal.models.agent import Agent
 from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
+from journal.support.actor import Actor
 
 WORKER_REF = "workers:"
 
