@@ -6,6 +6,8 @@ from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_specs import RigSpecs
 from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.plans.plans_options import PlansOptions
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
