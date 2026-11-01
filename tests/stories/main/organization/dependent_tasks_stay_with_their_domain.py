@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from journal.engine.states.void import Void
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_staffing import RigStaffing
@@ -206,4 +207,4 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     plan_status = story.user_opens_in(source, f"/journal/plans?ids={plan}")
     plan_status.expect_viewer_passed()
     plan_status.expect_viewer_rows("rows", "state", [PlanState.FINISHED.value])
-    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
+    story.expect_stack(worker, Void)
