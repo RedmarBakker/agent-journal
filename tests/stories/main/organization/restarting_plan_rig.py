@@ -1,11 +1,12 @@
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.tasks.states.external_wait import ExternalWait
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.paused_organization_hub_plan import PausedOrganizationHubPlan
 from tests.stories.fixtures.main.stopped_organization_hub_plan import StoppedOrganizationHubPlan
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(PausedOrganizationHubPlan, subject=AgentRole.MAIN)
@@ -58,4 +59,4 @@ def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_plan_rig(plan, rig)
     story.expect_plan_rig_seat_settings(rig)
-    story.expect_stack(story.agents.main, CoordinatingPlans, ExternalWait)
+    story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan, awaiting_state(story))
