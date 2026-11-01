@@ -22,12 +22,15 @@ class SharedRoleQueue(WorkingAgent):
 
     def steps(self, story) -> None:
         super().steps(story)
+        story.configure_simulated_openrig()
         self.plans.first = story.user_creates_plan("Alpha delivery", "Complete the first alpha plan")
         self.tasks.active = story.user_adds_plan_task(self.plans.first, "Active task")
         self.tasks.first_queued = story.user_adds_plan_task(self.plans.first, "First queued task")
         self.tasks.second_queued = story.user_adds_plan_task(self.plans.first, "Second queued task")
         self.plans.second = story.user_creates_plan("Beta delivery", "Complete the second plan")
         self.tasks.other_plan = story.user_adds_plan_task(self.plans.second, "Other plan task")
+        for plan in (self.plans.first, self.plans.second):
+            story.agent_runs(story.agents.main, f"plan mode {plan} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         story.user_approves_plan(self.plans.second)
         result = story.agent_runs(
