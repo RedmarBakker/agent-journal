@@ -14,7 +14,8 @@ class OrganizationPartReturnedUnchecked(OrganizationTaskTwoPartsClockedIn):
     def steps(self, story) -> None:
         worker = story.agents.workers.second()
         story.agent_proves(worker, 1, "the first maker point is met")
-        story.agent_clocks_out(worker, "the first maker point is met").expect_command_passed()
+        story.agent_proves(worker, 2, "the second maker point is met")
+        story.agent_clocks_out(worker, "both maker points are met").expect_command_passed()
         scope = story.app.container.get(Scope)
         plan = story.app.container.get(Plans).global_matching(id=self.plans.first)[0]
         with scope.environment(plan.environment_id):

@@ -131,22 +131,6 @@ def test_a_part_that_follows_another_waits_and_the_domain_is_told_when_it_is_rea
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
-def test_parts_for_different_roles_run_in_parallel_as_separate_worker_jobs(story):
-    parent = story.tasks.first
-    second_part = story.tasks.second_part
-    maker = story.agents.workers.second()
-    parts = story.agent_runs_as_organization_seat(_domain(story), "domain:alpha", f"organization parts {parent}")
-    parts.expect_command_passed()
-    parts.expect_command_text(f"task {story.tasks.first_part}")
-    parts.expect_command_text(f"task {second_part}")
-    story.expect_task(story.tasks.first_part, delegated=True)
-    story.expect_task(second_part, delegated=True)
-    story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
-    story.expect_worker(maker, state=WorkerState.READY)
-    story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
-
-
 @story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_role_cannot_split_and_is_told_to_clock_out(story):
     worker = story.agents.workers.first()

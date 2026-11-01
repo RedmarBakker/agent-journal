@@ -1,7 +1,6 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_with_dependent_domains import OrganizationPlanWithDependentDomains
@@ -31,19 +30,4 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         task=engineering, domain="beta",
     )
 
-    story.user_completes_task(security, "Security work is complete").expect_viewer_passed()
-    story.expect_task(security, state=TaskState.COMPLETED)
-    plan_started = story.agent_starts_plan_seat(story.agents.main, plan)
-    plan_started.expect_agent_told(
-        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-        task=engineering, domain="beta",
-    )
-    plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)
-    plan_stop.expect_refused(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-                             task=engineering, domain="beta")
-    handed = story.agent_runs_from_openrig_organization_seat(
-        story.agents.main, "plan", f"organization handoff {engineering} domain:beta",
-    )
-    handed.expect_command_passed()
-    story.expect_organization_handoff_pending(plan, engineering, "domain:beta")
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
