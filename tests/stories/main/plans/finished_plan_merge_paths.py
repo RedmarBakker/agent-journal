@@ -1,13 +1,14 @@
 from pathlib import Path
 
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.plans_options import PlansOptions
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.agent_role import AgentRole
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
-from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.plan_agent_worktree_setup import PlanAgentWorktreeSetup
+from tests.stories.builder.story_marks import setting, story
+from tests.stories.fixtures.main.plan_agent_worktree_project import PlanAgentWorktreeProject
 from tests.stories.fixtures.main.started_solo_plan_branch import PLAN_AGENT_SESSION, StartedSoloPlanBranch
 
 
@@ -101,7 +102,8 @@ def test_a_finished_plan_conflict_is_explained_in_both_chats(story):
     story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
-@story(PlanAgentWorktreeSetup, subject=AgentRole.MAIN)
+@story(PlanAgentWorktreeProject, subject=AgentRole.MAIN)
+@setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_finished_plan_started_from_a_worktree_merges_into_that_environment_branch(story):
     root = story.app.config.root
     source = story.another_environment("smoke-1")
