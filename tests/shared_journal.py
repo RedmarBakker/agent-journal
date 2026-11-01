@@ -70,8 +70,18 @@ class SharedJournal:
         folders, files = set(), []
         for folder, inner, names in os.walk(self.app.config.root):
             folders.update(os.path.join(folder, name) for name in inner)
-            files.extend(os.path.join(folder, name) for name in names)
+            files.extend(
+                os.path.join(folder, name) for name in names
+                if not self.is_temporary_usage_file(folder, name)
+            )
         return folders, files
+
+    def is_temporary_usage_file(self, folder: str, name: str) -> bool:
+        return (
+            Path(folder) == self.app.config.home / "runtime" / "organization"
+            and name.startswith("usage-")
+            and name != "usage-ledger.json"
+        )
 
     def put_back_files(self) -> None:
         folders, files = self.tree()

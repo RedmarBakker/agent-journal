@@ -12,7 +12,6 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.references import events
 from journal.support.rejection import Rejection
 from journal.repositories.scope import PROJECT
-from journal.events.agent.session_started import COMPACTION_SOURCE
 
 
 ENTRIES = Query.build(Entry)
@@ -350,14 +349,6 @@ class Entries(ScopedRepository[Entry]):
 
     def kind_entries(self, type_name: str, last: int = 50) -> list[Entry]:
         return self.selected(self.query().filter(entry_type=type_name).order_descending("id").limit(last))
-
-    def latest_session_start(self, sessions: Sequence[str]) -> Entry | None:
-        if not sessions:
-            return None
-        actors = [Actor.agent(session) for session in sessions]
-        starts = self.query().filter(entry_type=events.SESSION_STARTED).filter_listed("actor", actors).filter_unequal("data->source", COMPACTION_SOURCE)
-        rows = self.selected_globally(starts.order_descending("created_at").order_descending("id").limit(1))
-        return rows[0] if rows else None
 
     def undelivered_lines(self, type_name: str, session: str) -> list[Entry]:
         return [entry for entry in self.selected(self.query().filter(entry_type=type_name).filter_json("data->session", session).order_descending("id").limit(200)) if not entry.data.get("delivered")]

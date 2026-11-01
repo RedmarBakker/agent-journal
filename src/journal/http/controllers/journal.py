@@ -49,8 +49,8 @@ class JournalController:
 
     def opening_environment(self) -> str:
         launched = {environment.row_id for environment in self.environments.all() if not environment.generated_for}
-        sessions = [agent.session for agent in self.agents.active_main_agents() if agent.session and agent.environment_id in launched]
-        latest = self.entries.latest_session_start(sessions)
+        sessions = [agent for agent in self.agents.active_main_agents() if agent.session_started_at and agent.environment_id in launched]
+        latest = max(sessions, key=lambda agent: agent.session_started_at, default=None)
         return self.environments.find(latest.environment_id).name if latest else "main"
 
     def identity(self, request: Request) -> Response:

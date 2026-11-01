@@ -63,3 +63,17 @@ def test_story_seconds_requires_the_pinned_story_clock(app, monkeypatch):
 
     with pytest.raises(AssertionError, match="story clock is not pinned"):
         story_seconds(app)
+
+
+def test_shared_journal_tree_leaves_temporary_usage_writes_out_of_its_snapshot(journal):
+    folder = journal.app.config.home / "runtime" / "organization"
+    folder.mkdir(parents=True, exist_ok=True)
+    temporary = folder / "usage-in-flight"
+    ledger = folder / "usage-ledger.json"
+    temporary.touch()
+    ledger.write_text("{}")
+
+    _, files = journal.tree()
+
+    assert str(temporary) not in files, "a writer may rename its temporary usage file after the tree is listed"
+    assert str(ledger) in files, "the final usage ledger is a kept file"

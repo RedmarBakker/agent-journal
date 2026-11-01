@@ -597,10 +597,11 @@ def test_a_session_change_keeps_unrelated_sessions_and_marks_when_the_old_sessio
     from datetime import datetime, timezone
     from journal.models.agent import Agent
     updated_at = datetime.fromtimestamp(1234.5, timezone.utc)
-    agent = Agent(session="old", provider="claude", previous_sessions=("gemini:other", "codex:new", "gemini:old"), updated_at=updated_at)
+    agent = Agent(session="old", provider="claude", previous_sessions=("gemini:other", "codex:new", "gemini:old"), updated_at=updated_at, session_started_at=updated_at)
     changed = agent.with_session("new", "codex")
     assert changed.previous_sessions == ("gemini:other", "claude:old")
     assert changed.previous_session_updated_at == updated_at.timestamp()
+    assert changed.session_started_at is None
     assert changed.last_sessions() == {"gemini": "other", "claude": "old", "codex": "new"}
 
 
@@ -610,7 +611,19 @@ def test_registered_migrations_keep_unique_numbers_across_the_merged_migration_i
     assert len(numbers) == len(MIGRATIONS)
     assert tuple(numbers[number] for number in range(78, 83)) == ("PoolDrop", "TeamColumnsDrop", "FoldSettingDrop", "BrowserSessionsDrop", "DeveloperSwitchRename")
     assert (numbers[76], numbers[77], numbers[83], numbers[84]) == ("BlankAbsenceNulls", "PlanModes", "DuplicateSettingsDrop", "SyncTablesDrop")
-    assert numbers[89] == "AgentModesAndProfiles"
+    assert (numbers[89], numbers[90]) == ("AgentModesAndProfiles", "AgentSessionStartTimes")
+
+
+def test_a_live_agent_keeps_its_compaction_start_on_the_row_after_old_entries_are_trimmed(connection):
+    from journal.db.migrations.agent_session_start_times import AgentSessionStartTimes
+    started = "2026-10-29T12:34:56+00:00"
+    connection.execute("INSERT INTO agents (environment_id, session, role, state, created_at, creator) VALUES (1, 'smoke-session', 'main', 'ready', ?, 'system')", (started,))
+    connection.execute("INSERT INTO entries (environment_id, entry_type, actor, data, created_at, creator) VALUES (1, 'SessionStarted', 'agent:smoke-session', '{\"source\": \"compact\"}', ?, 'agent:smoke-session')", (started,))
+
+    AgentSessionStartTimes().apply(connection)
+    connection.execute("DELETE FROM entries WHERE actor = 'agent:smoke-session'")
+
+    assert connection.one("SELECT session_started_at FROM agents WHERE session = 'smoke-session'")["session_started_at"] == started
 
 
 def test_the_agent_modes_and_worker_profiles_migration_moves_legacy_rows_to_the_current_model(connection):

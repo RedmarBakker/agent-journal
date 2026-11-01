@@ -26,6 +26,8 @@ class HookSeats:
             return self.workers.bind(hook, environment)
         if hook.is_sent():
             return self.checkers.bind(hook, environment)
+        if hook.is_session_start():
+            return self.sessions.started_agent(hook.session, environment.row_id, hook.provider)
         return self.sessions.agent(hook.session, environment.row_id, hook.provider)
 
     def is_unknown_session_end(self, hook: Hook) -> bool:

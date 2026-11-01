@@ -674,10 +674,14 @@ class AgentSteps:
         assert outcome.code == 0, outcome.error
         return max(self.task_numbers_in(environment))
 
-    def session_starts_in(self, environment: str, session: str) -> StepResult:
+    def session_starts_in(self, environment: str, session: str, source: str = "startup") -> StepResult:
         self.session_environments[session] = environment
-        status, answer = posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}, {"X-Journal-Env": environment})
-        return self.observed(f"a session starts in {environment}", HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None)
+        status, answer = posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "SessionStart", "session_id": session, "source": source}, {"X-Journal-Env": environment})
+        return self.observed(f"a session starts in {environment}", HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None, environment)
+
+    def session_ends_in(self, environment: str, session: str) -> StepResult:
+        status, answer = posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "SessionEnd", "session_id": session, "reason": "exit"}, {"X-Journal-Env": environment})
+        return self.observed(f"a session ends in {environment}", HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None, environment)
 
     def expect_told_in(self, environment: str, nudge: Nudge, **values) -> None:
         lines = self.log.environment_lines(environment)

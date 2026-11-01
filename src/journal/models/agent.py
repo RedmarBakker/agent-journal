@@ -1,5 +1,6 @@
-from typing import ClassVar
 from dataclasses import dataclass, field, replace
+from datetime import datetime
+from typing import ClassVar
 
 from journal.support.timeout import Timeout
 from journal.events.rows.user_paused import UserPaused
@@ -34,7 +35,7 @@ ENDED_STATE = "ended"
 @dataclass(frozen=True)
 
 class Agent(Scoped):
-    unshown_fields: ClassVar[tuple[str, ...]] = ("work_queue", "message_queue")
+    unshown_fields: ClassVar[tuple[str, ...]] = ("work_queue", "message_queue", "session_started_at")
 
 
     session: str = ""
@@ -57,6 +58,7 @@ class Agent(Scoped):
     message_queue: AgentLoad = AgentLoad()
     previous_sessions: tuple[str, ...] = ()
     previous_session_updated_at: float = 0.0
+    session_started_at: datetime | None = None
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -110,7 +112,10 @@ class Agent(Scoped):
         kept = tuple(entry for entry in self.previous_sessions if entry.partition(":")[2] not in (session, self.session))
         earlier = (f"{self.provider}:{self.session}",) if self.session else ()
         updated_at = self.updated_at.timestamp() if self.updated_at else 0.0
-        return self.with_(session=session, provider=provider, previous_sessions=(*kept, *earlier), previous_session_updated_at=updated_at)
+        return self.with_(session=session, provider=provider, previous_sessions=(*kept, *earlier), previous_session_updated_at=updated_at, session_started_at=None)
+
+    def session_started(self, at: datetime) -> "Agent":
+        return self.with_(session_started_at=at)
 
     def last_sessions(self) -> dict[str, str]:
         sessions = dict(entry.split(":", 1) for entry in self.previous_sessions)
