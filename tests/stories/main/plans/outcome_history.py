@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.domain_development_delivery_accepted import Dom
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_blocked_task_keeps_its_wait_interval_and_execution_attempt(story):
     task = story.tasks.started
     result = story.agent_runs(story.agents.subject, f"task block {task} 'waiting for user acceptance'")
@@ -25,7 +24,7 @@ def test_a_blocked_task_keeps_its_wait_interval_and_execution_attempt(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainDevelopmentDeliveryAccepted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDeliveryAccepted, subject=AgentRole.MAIN)
 def test_a_deployment_wait_ends_at_accepted_evidence_and_keeps_its_commitment(story):
     task, plan = story.tasks.first, story.plans.first
     result = story.user_opens(f"/journal/plans/{plan}/outcomes")

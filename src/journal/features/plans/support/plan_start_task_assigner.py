@@ -11,7 +11,7 @@ from journal.repositories.tasks import Tasks
 
 
 class PlanStartTaskAssigner:
-    """The task assigner the builder's and the solo agent's floor names: the default one's rules, with, before a free task, the next task of the started plan the closed task was in, else the oldest approved plan started, its first task put in the agent's hand."""
+    """The main agent's task assigner while following a plan: the default one's rules, with, before a free task, the next task of the started plan the closed task was in, else the oldest approved plan started, its first task put in the agent's hand."""
 
     def __init__(self, default: DefaultTaskAssigner, start: ApprovedPlanStart, plan_assigner: PlanTaskAssigner, tasks: Tasks) -> None:
         self.default, self.start, self.plan_assigner, self.tasks = default, start, plan_assigner, tasks

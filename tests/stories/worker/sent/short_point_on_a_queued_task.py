@@ -1,14 +1,13 @@
 from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.queued_worker import QueuedWorker
 
 
-@story(QueuedWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(QueuedWorker, subject=AgentRole.WORKER)
 def test_a_worker_whose_queued_task_comes_back_short_takes_that_task_in_hand_and_proves_it_again(story):
     docs = story.tasks.queued
     story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")

@@ -7,7 +7,7 @@ from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.features.tasks.tasks_options import TasksOptions
-from journal.features.workers.support.work_mode import WorkMode
+from journal.features.plans.support.plan_agent_coordinator import PlanAgentCoordinator
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
@@ -26,13 +26,13 @@ FOLLOWING_PLAN = "following_plan"
 
 
 class PlanTaskAssigner:
-    """The task assigner a followed plan names: ordinary task completion may pass an owner checkpoint in auto mode, while supervisor work signals stop there; blocked tasks, unpassed phase tests, orchestrator mode and work already in hand hold both paths."""
+    """The task assigner a followed plan names: ordinary task completion may pass an owner checkpoint in auto mode, while supervisor work signals stop there; blocked tasks, unpassed phase tests, Plan agents and work already in hand hold both paths."""
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting,
-                 orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource, scope: Scope,
+                 settings: SettingRows, time_source: TimeSource, scope: Scope, coordinator: PlanAgentCoordinator,
                  flow: WorkInProgress) -> None:
         self.default, self.plans, self.tasks, self.testing = default, plans, tasks, testing
-        self.orchestrator, self.settings, self.time_source, self.scope, self.flow = orchestrator, settings, time_source, scope, flow
+        self.settings, self.time_source, self.scope, self.coordinator, self.flow = settings, time_source, scope, coordinator, flow
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if isinstance(event, PlanWorkAvailable):
@@ -116,7 +116,7 @@ class PlanTaskAssigner:
     def advancement_block(self, plan: Plan) -> str:
         if not plan.is_started():
             return "plan_not_started"
-        if plan.mode == PlanMode.ORGANIZATION or self.orchestrator.delegates_work():
+        if plan.mode == PlanMode.ORGANIZATION or self.coordinator.is_coordinator():
             return "work_delegated"
         with self.scope.environment(plan.environment_id):
             if self.checkpoint_blocks(plan):

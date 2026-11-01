@@ -5,7 +5,6 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.ended_session import EndedSession
@@ -15,14 +14,14 @@ from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 
 
-@story(TwoUnreadMessages, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TwoUnreadMessages, subject=AgentRole.MAIN)
 def test_two_unread_messages_are_named_by_number_at_the_stop(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_agent_told(story.agents.subject, MessagesNudges.NEW_MESSAGES, ns=f"{story.messages.first}, {story.messages.second}")
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(TwoUnreadMessages, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TwoUnreadMessages, subject=AgentRole.MAIN)
 def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
     third = story.user_sends_message("one more thing")
     fourth = story.user_sends_message("and the last one")
@@ -33,7 +32,7 @@ def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_a_message_read_is_not_named_again_at_the_stop(story):
     story.agent_replies(story.agents.subject, story.messages.first, "it is")
     result = story.agent_stops(story.agents.subject)
@@ -41,7 +40,7 @@ def test_a_message_read_is_not_named_again_at_the_stop(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EndedSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EndedSession, subject=AgentRole.MAIN)
 def test_a_message_left_while_no_session_ran_is_named_at_the_next_start(story):
     message = story.user_sends_message("start with the header tomorrow")
     result = story.agent_starts_a_session(story.agents.subject)
@@ -49,7 +48,7 @@ def test_a_message_left_while_no_session_ran_is_named_at_the_next_start(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EndedSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EndedSession, subject=AgentRole.MAIN)
 def test_a_message_is_named_when_the_user_resumes_the_session(story):
     message = story.user_sends_message("the header first")
     result = story.agent_resumes_the_session(story.agents.subject)
@@ -57,7 +56,7 @@ def test_a_message_is_named_when_the_user_resumes_the_session(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_message_to_an_agent_with_a_task_in_hand_leaves_its_task_as_it_was(story):
     story.user_sends_message("is the footer done?")
     story.agent_reads(story.agents.subject)
@@ -65,7 +64,7 @@ def test_a_message_to_an_agent_with_a_task_in_hand_leaves_its_task_as_it_was(sto
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_message_to_an_agent_following_a_plan_leaves_the_plan_as_it_was(story):
     story.user_sends_message("how far is the plan?")
     story.agent_reads(story.agents.subject)
@@ -74,7 +73,7 @@ def test_a_message_to_an_agent_following_a_plan_leaves_the_plan_as_it_was(story)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_the_users_prompt_ends_the_agents_wait(story):
     story.agent_runs(story.agents.subject, "await 'the build' --until false")
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)

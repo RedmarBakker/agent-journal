@@ -3,7 +3,6 @@ import pytest
 from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.reviewing.states.reviewing import Reviewing
-from journal.features.workers.workers_options import ORCHESTRATOR_MODE
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
@@ -13,7 +12,7 @@ from tests.stories.fixtures.reviewer.reviewer_at_work import ReviewerAtWork
 pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 152 (R04: Persist execution outcomes, waiting intervals and delivery history).")
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+@story(ReviewerAtWork, subject=AgentRole.REVIEWER)
 def test_a_review_that_passes_every_point_records_signoff_before_merge(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
     plan.expect_viewer_shows("id", story.plans.first)
@@ -28,7 +27,7 @@ def test_a_review_that_passes_every_point_records_signoff_before_merge(story):
     story.expect_stack(story.agents.subject, Void, Reviewing, Ended)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+@story(ReviewerAtWork, subject=AgentRole.REVIEWER)
 def test_a_review_shortfall_stays_in_the_outcome_and_returns_work_for_rework(story):
     task = story.user_opens(f"/journal/tasks/{story.tasks.briefed}")
     task.expect_viewer_shows("id", story.tasks.briefed)
@@ -43,7 +42,7 @@ def test_a_review_shortfall_stays_in_the_outcome_and_returns_work_for_rework(sto
     story.expect_stack(story.agents.subject, Void, Reviewing, Ended)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+@story(ReviewerAtWork, subject=AgentRole.REVIEWER)
 def test_an_undecided_review_keeps_completion_open_for_the_dispatching_agent(story):
     worker = story.user_opens("/journal/workers/activity")
     worker.expect_viewer_passed()
@@ -56,7 +55,7 @@ def test_an_undecided_review_keeps_completion_open_for_the_dispatching_agent(sto
     story.expect_stack(story.agents.subject, Void, Reviewing, Ended)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+@story(ReviewerAtWork, subject=AgentRole.REVIEWER)
 def test_a_reviewer_that_ends_without_a_report_records_a_failed_review_without_completion(story):
     story.agent_ends_the_session(story.agents.subject)
     result = story.user_opens(f"/journal/tasks/{story.tasks.briefed}/outcomes")

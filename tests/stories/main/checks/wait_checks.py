@@ -1,14 +1,13 @@
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.lifted_wait_beside_a_block import LiftedWaitBesideABlock
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_checks_a_block_and_a_wait_made_are_listed_apart_and_left_out_of_the_agents_check_list(story):
     story.agent_runs(story.agents.subject, "check create lint --command true --brief 'the code is clean'")
     lint = story.created_number("check")
@@ -28,7 +27,7 @@ def test_the_checks_a_block_and_a_wait_made_are_listed_apart_and_left_out_of_the
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(LiftedWaitBesideABlock, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(LiftedWaitBesideABlock, subject=AgentRole.MAIN)
 def test_a_lifted_waits_check_stays_and_a_blocks_check_goes_when_its_task_opens(story):
     story.agent_runs(story.agents.subject, f"task unblock {story.tasks.blocked}")
     story.expect_row("checks", story.checks.wait, {"wait_target": True})
@@ -36,7 +35,7 @@ def test_a_lifted_waits_check_stays_and_a_blocks_check_goes_when_its_task_opens(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(LiftedWaitBesideABlock, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(LiftedWaitBesideABlock, subject=AgentRole.MAIN)
 def test_a_journal_start_deletes_a_lifted_waits_check_and_keeps_the_one_a_blocked_task_waits_on(story):
     story.journal_starts_again()
     story.expect_row_absent("checks", story.checks.wait)

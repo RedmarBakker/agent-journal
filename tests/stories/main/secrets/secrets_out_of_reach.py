@@ -2,7 +2,6 @@ from pathlib import Path
 
 from journal.features.secrets.secrets_nudges import SecretsNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from journal.support.secret_values import SecretValues
 from tests.stories.builder.story_marks import story
@@ -11,7 +10,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 GITHUB = "secret create Github --kind 'api key' --brief 'Run `curl -H @- https://api.github.com/user`, with GITHUB_KEY'"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_agent_is_refused_every_read_of_the_secrets_and_the_mcp_keys(story):
     values = story.app.container.get(SecretValues).path
     keys = Path.home() / ".journal" / "keys"
@@ -28,7 +27,7 @@ def test_the_agent_is_refused_every_read_of_the_secrets_and_the_mcp_keys(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_agent_is_told_when_the_user_allows_a_program_its_secret_proposed(story):
     story.agent_runs(story.agents.subject, GITHUB)
     secret = story.created_number("secret")

@@ -4,7 +4,6 @@ from journal.console.command import Command
 from journal.features.reviewing.support.review_queue import ReviewQueue
 from journal.features.reviewing.support.review_routing import ReviewRouting
 from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
-from journal.features.workers.workers_options import WorkersOptions
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
@@ -14,7 +13,7 @@ from journal.support.rejection import Rejection
 
 
 class ReviewerCommand(Command):
-    """journal reviewer add|retire|list: the reviewers the journal hands the review queue to, in orchestrator mode with the reviewer on. add starts another, which takes the next review in the queue at once; retire lets an idle one go; list names each reviewer and the reviews waiting, in their order."""
+    """journal reviewer add|retire|list: the reviewers the journal hands the review queue to when review is on. add starts another, which takes the next review in the queue at once; retire lets an idle one go; list names each reviewer and the reviews waiting, in their order."""
 
     noun = "reviewer"
     default_verb = "list"
@@ -29,7 +28,7 @@ class ReviewerCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         if not self.routing.is_enabled():
-            raise Rejection("the reviewer is off: turn the Reviewer switch on, in orchestrator mode, first")
+            raise Rejection("the reviewer is off: turn the Reviewer switch on first")
         limit = self.settings.integer(WorkersOptions.REVIEWER_LIMIT)
         if len(self.reviewers.active()) >= limit:
             raise Rejection(f"{limit} reviewers are out, the limit workers.reviewers_most sets; {self.standing()}")

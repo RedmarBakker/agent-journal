@@ -1,6 +1,5 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.estimates.estimates_options import EstimatesOptions
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -10,7 +9,7 @@ from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_sprint_calendar_keeps_local_days_across_daylight_saving(story):
     result = story.user_presses("/journal/sprints", {"starts_on": "2026-03-23", "timezone": "Europe/Amsterdam"})
     result.expect_viewer_passed()
@@ -26,7 +25,7 @@ def test_a_sprint_calendar_keeps_local_days_across_daylight_saving(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_an_unscheduled_plan_stays_visible_in_the_existing_plan_list(story):
     result = story.user_opens("/journal/sprints")
     result.expect_viewer_list_count(0)
@@ -39,7 +38,7 @@ def test_an_unscheduled_plan_stays_visible_in_the_existing_plan_list(story):
 
 
 @setting(EstimatesOptions.SPRINT_LENGTH_DAYS, 14)
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_calendar_edits_apply_to_drafts_and_length_changes_only_apply_to_future_periods(story):
     result = story.user_presses("/journal/sprints", {"starts_on": "2026-11-02", "timezone": "Europe/Amsterdam"})
     result.expect_viewer_passed()
@@ -68,7 +67,7 @@ def test_calendar_edits_apply_to_drafts_and_length_changes_only_apply_to_future_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ActiveSprintWithDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ActiveSprintWithDraftPlan, subject=AgentRole.MAIN)
 def test_starting_a_sprint_freezes_plan_scope_without_approving_or_starting_it(story):
     sprint = story.sprints.first
     other_plan = story.user_creates_plan("after the sprint started", "new scope")
@@ -92,7 +91,7 @@ def test_starting_a_sprint_freezes_plan_scope_without_approving_or_starting_it(s
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_carrying_a_plan_to_the_next_sprint_keeps_its_identity_and_old_commitment(story):
     result = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
     result.expect_viewer_passed()
@@ -128,7 +127,7 @@ def test_carrying_a_plan_to_the_next_sprint_keeps_its_identity_and_old_commitmen
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_overlapping_sprints_and_active_boundary_edits_are_refused_without_changes(story):
     result = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
     result.expect_viewer_passed()

@@ -6,7 +6,7 @@ from journal.models.plan_mode import PlanMode
 
 @dataclass(frozen=True, kw_only=True)
 class PlanFinished(RowEvent):
-    """A plan finished, with its work mode."""
+    """A plan finished, with its plan mode."""
 
     feature_name = "plans"
 

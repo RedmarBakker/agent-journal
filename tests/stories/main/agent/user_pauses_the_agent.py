@@ -2,14 +2,13 @@ from journal.features.pausing.pausing_nudges import PausingNudges
 from journal.features.pausing.states.user_pause import UserPause
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_paused_agent_is_refused_its_writes_and_told_to_carry_on_when_resumed(story):
     story.user_pauses_the_agent()
     story.expect_stack(story.agents.subject, Ready, Working, UserPause)
@@ -21,7 +20,7 @@ def test_a_paused_agent_is_refused_its_writes_and_told_to_carry_on_when_resumed(
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_paused_agent_reads_and_journals_through_the_pause_while_its_work_waits(story):
     story.user_pauses_the_agent()
     message = story.user_sends_message("look at the footer")

@@ -2,7 +2,6 @@ import json
 
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -10,7 +9,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 NONE_LEFT = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "blocked"]}, "is": 0})
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_reminder_on_a_moment_waits_for_its_condition_and_a_single_use_one_is_struck_once_told(story):
     story.user_types(f"reminder create 'release 4.48.0' --on task_completed --when '{NONE_LEFT}' --once")
     reminder = story.created_number("reminder")
@@ -27,7 +26,7 @@ def test_a_reminder_on_a_moment_waits_for_its_condition_and_a_single_use_one_is_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_then_struck(story):
     story.user_types(f"reminder create 'water the plants' --at '{story.local_moment(minutes=120)}'")
     story.user_types(f"reminder create 'call the plumber' --at '{story.local_moment(minutes=-5)}'")

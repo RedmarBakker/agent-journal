@@ -2,13 +2,12 @@ from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.worker_state import WorkerState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_create_a_task(story):
     result = story.agent_runs(story.agents.workers.first(), "task create 'more work'")
     result.expect_command_refused()
@@ -16,7 +15,7 @@ def test_a_worker_may_not_create_a_task(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_create_a_plan(story):
     result = story.agent_runs(story.agents.workers.first(), "plan create p --brief b")
     result.expect_command_refused()
@@ -24,7 +23,7 @@ def test_a_worker_may_not_create_a_plan(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_send_a_message_to_the_user(story):
     result = story.agent_runs(story.agents.workers.first(), "message send hello")
     result.expect_command_refused()
@@ -32,7 +31,7 @@ def test_a_worker_may_not_send_a_message_to_the_user(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_change_a_setting(story):
     result = story.agent_runs(story.agents.workers.first(), "settings set tasks.auto off")
     result.expect_command_refused()
@@ -40,7 +39,7 @@ def test_a_worker_may_not_change_a_setting(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_ask_the_user_a_question(story):
     result = story.agent_runs(story.agents.workers.first(), "question ask 'go on?' --options yes no")
     result.expect_command_refused()
@@ -48,7 +47,7 @@ def test_a_worker_may_not_ask_the_user_a_question(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_run_its_own_verbs(story):
     story.agent_runs_cleanly(story.agents.workers.first(), f"task show {story.tasks.briefed}")
     story.agent_runs_cleanly(story.agents.workers.first(), "todo add 'read the parser'")
@@ -58,7 +57,7 @@ def test_a_worker_may_run_its_own_verbs(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_may_not_dispatch_a_worker(story):
     result = story.agent_runs(story.agents.workers.first(), f"worker dispatch 'Mr. Babbage' --task {story.tasks.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     result.expect_command_refused()

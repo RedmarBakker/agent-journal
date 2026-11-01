@@ -1,15 +1,10 @@
 from datetime import datetime
 from journal.models.report import UPDATE, Report
-from journal.db.query import Query
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.repositories.unacted_writing import UnactedWriting
 
 
-class Reports(ScopedRepository[Report], UnactedWriting):
+class Reports(ScopedRepository[Report]):
     model = Report
-
-    def unsigned_query(self) -> Query:
-        return self.query().filter(settled_reason="").filter_null("read_at").filter_unequal("report_type", UPDATE)
 
     def latest_update(self) -> list[Report]:
         return self.selected(self.query().filter(report_type=UPDATE).order_descending("id").limit(1))

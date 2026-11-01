@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_search_is_one_mark_naming_its_result_count_with_a_child_per_row_newest_first(story):
     scoped = story.agent_creates_briefed_task(story.agents.subject, "Scope the reads", "the base repository adds the environment")
     paged = story.agent_creates_briefed_task(story.agents.subject, "Page the lists", "the base repository bounds every list")
@@ -15,7 +14,7 @@ def test_a_search_is_one_mark_naming_its_result_count_with_a_child_per_row_newes
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_search_with_one_result_names_one_result(story):
     story.agent_creates_briefed_task(story.agents.subject, "Scope the reads", "the base repository adds the environment")
     story.agent_runs(story.agents.subject, "search environment")
@@ -23,7 +22,7 @@ def test_a_search_with_one_result_names_one_result(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_search_that_finds_nothing_is_marked_with_no_results_to_open(story):
     story.agent_creates_task(story.agents.subject, "the whole of it")
     story.agent_runs(story.agents.subject, "search zebra")

@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_journal_panic_pushes_pops_and_empties_the_stack_by_hand_naming_it_bottom_to_top(story):
     result = story.agent_runs(story.agents.subject, "panic working focus=parsing")
     result.expect_command_text("the stack, bottom to top: idle, working(focus=parsing)")
@@ -20,7 +19,7 @@ def test_journal_panic_pushes_pops_and_empties_the_stack_by_hand_naming_it_botto
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_panic_pause_holds_every_tool_but_a_panic_line_alone(story):
     story.agent_runs(story.agents.subject, "panic paused")
     result = story.agent_writes(story.agents.subject, "a.py")

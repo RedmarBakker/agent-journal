@@ -4,7 +4,6 @@ from journal.features.organization.support.organization_seat_routing import Orga
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.states.working_task import WorkingTask
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -69,7 +68,7 @@ def _return_part_to_plan(story, part: int, worker, role: str):
     return merged
 
 
-@story(OrganizationTaskSplitDomainRead, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
 def test_a_domain_splits_a_task_into_two_parts_and_each_role_gets_its_job(story):
     parent = story.tasks.first
     first = _part(story, parent, "builder", "first part", PART_BRIEF)
@@ -98,7 +97,7 @@ def test_a_domain_splits_a_task_into_two_parts_and_each_role_gets_its_job(story)
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_part_that_follows_another_waits_and_the_domain_is_told_when_it_is_ready(story):
     parent, first_part = story.tasks.first, story.tasks.first_part
     worker = story.agents.workers.first()
@@ -139,7 +138,7 @@ def test_a_part_that_follows_another_waits_and_the_domain_is_told_when_it_is_rea
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskTwoPartsClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
 def test_parts_for_different_roles_run_in_parallel_as_separate_worker_jobs(story):
     parent = story.tasks.first
     second_part = story.tasks.second_part
@@ -155,7 +154,7 @@ def test_parts_for_different_roles_run_in_parallel_as_separate_worker_jobs(story
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_role_cannot_split_and_is_told_to_clock_out(story):
     worker = story.agents.workers.first()
     result = story.agent_runs_from_openrig_organization_seat(
@@ -167,7 +166,7 @@ def test_a_role_cannot_split_and_is_told_to_clock_out(story):
     story.expect_stack(worker, Void, WorkingTask)
 
 
-@story(OrganizationTaskSplitDomainRead, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
 def test_a_domain_cannot_hand_a_part_to_another_domains_role_and_is_pointed_to_other(story):
     parts = story.agent_runs_as_organization_seat(
         _domain(story), "domain:alpha", f"organization parts {story.tasks.first}",
@@ -181,7 +180,7 @@ def test_a_domain_cannot_hand_a_part_to_another_domains_role_and_is_pointed_to_o
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationTaskSplitDomainRead, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
 def test_a_part_for_another_domain_goes_to_the_plan_which_hands_it_on(story):
     result = story.agent_runs_as_organization_seat(
         _domain(story), "domain:alpha",
@@ -207,7 +206,7 @@ def test_a_part_for_another_domain_goes_to_the_plan_which_hands_it_on(story):
     story.expect_stack(beta, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_part_cannot_have_parts_and_an_after_cycle_is_refused(story):
     nested = _part(story, story.tasks.first_part, "maker", "nested part", "- nested work")
     nested.expect_command_refused()
@@ -230,7 +229,7 @@ def test_a_part_cannot_have_parts_and_an_after_cycle_is_refused(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskTwoPartsClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
 def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(story):
     parent, first_part, second_part = story.tasks.first, story.tasks.first_part, story.tasks.second_part
     builder, maker = story.agents.workers.first(), story.agents.workers.second()
@@ -247,7 +246,7 @@ def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(sto
     story.expect_stack(_domain(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_the_plan_seat_sees_split_progress_and_is_not_nudged_again(story):
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
     story.expect_task(story.tasks.first_part, delegated=True)
@@ -265,7 +264,7 @@ def test_the_plan_seat_sees_split_progress_and_is_not_nudged_again(story):
     story.expect_stack(_plan_agent(story), LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_restarted_plan_reopens_the_domain_inbox_for_unfinished_parts(story):
     plan, part = story.plans.first, story.tasks.first_part
     story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
@@ -282,7 +281,7 @@ def test_a_restarted_plan_reopens_the_domain_inbox_for_unfinished_parts(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_an_ended_role_on_a_part_is_sent_the_part_again(story):
     worker = story.agents.workers.first()
     story.worker_run_ends_without_clocking_out(worker)
@@ -297,7 +296,7 @@ def test_an_ended_role_on_a_part_is_sent_the_part_again(story):
     story.expect_stack(worker, Void, WorkingTask)
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_part_the_domain_refuses_goes_back_to_the_same_role(story):
     worker = story.agents.workers.first()
     story.agent_proves(worker, 1, "the part work is met")
@@ -316,7 +315,7 @@ def test_a_part_the_domain_refuses_goes_back_to_the_same_role(story):
     story.expect_stack(worker, Void, WorkingTask)
 
 
-@story(OrganizationTaskPartClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)
 def test_a_cancelled_part_does_not_stop_the_task_but_all_cancelled_parts_are_handed_back(story):
     parent, first_part = story.tasks.first, story.tasks.first_part
     second = _part(story, parent, "maker", "waiting part", MAKER_BRIEF, first_part)
@@ -337,7 +336,7 @@ def test_a_cancelled_part_does_not_stop_the_task_but_all_cancelled_parts_are_han
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationTaskSplitPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskSplitPlan, subject=AgentRole.MAIN)
 def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
     first_plan, first_parent = story.plans.first, story.tasks.first
     first_handoff = story.agent_runs_from_plan_organization_seat(

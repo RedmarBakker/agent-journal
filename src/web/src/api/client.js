@@ -514,11 +514,6 @@ export class ApiClient {
         return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/update`, {replace, team});
     }
 
-    // the work mode the plan bar's buttons set, and the pause of an agent
-    saveMode(mode) {
-        return this.post(this.here("/mode"), {mode});
-    }
-
     // the project's conversations Claude Code and Codex kept on this machine, newest first, for a new environment to carry on from
     pastSessions() {
         return this.get("/environments/sessions");

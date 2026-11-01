@@ -102,9 +102,6 @@ class BaseState:
     def wait_output_ids(self) -> set[int]:
         return set()
 
-    def is_mode_bound(self) -> bool:
-        return False
-
     def targets(self) -> list[str]:
         return []
 
@@ -131,12 +128,8 @@ class BaseState:
         return ""
 
     @classmethod
-    def delegates_work(cls) -> bool:
-        return False
-
-    @classmethod
     def keeps_floor(cls) -> bool:
-        """A floor no work mode replaces."""
+        """A floor a feature setting does not replace."""
         return False
 
     def blocks_tools(self) -> bool:
@@ -145,7 +138,7 @@ class BaseState:
     def takes_pushes(self) -> bool:
         return True
 
-    def mode_lines(self) -> tuple[Nudge, ...]:
+    def floor_lines(self) -> tuple[Nudge, ...]:
         return ()
 
     def on_enter(self, typist: Typist) -> None:
@@ -161,8 +154,8 @@ class BaseState:
         set_fields = [f"{field.name}={getattr(self, field.name)}" for field in fields(self) if getattr(self, field.name) != field.default and not isinstance(getattr(self, field.name), (float, Timeout))]
         return f"{self.name}({', '.join(set_fields)})" if set_fields else self.name
 
-    def floored(self, mode: type["BaseState"]) -> "BaseState":
-        return self if type(self) is mode else mode.restored(self.serialized())
+    def floored(self, floor: type["BaseState"]) -> "BaseState":
+        return self if type(self) is floor else floor.restored(self.serialized())
 
     def reset_states(self, states: tuple["BaseState", ...]) -> tuple["BaseState", ...]:
         return (self.restored({}),)

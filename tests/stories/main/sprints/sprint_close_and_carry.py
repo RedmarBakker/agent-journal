@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -11,7 +10,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.closed_development_sprint import ClosedDevelopmentSprint
 
 
-@story(ClosedDevelopmentSprint, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ClosedDevelopmentSprint, subject=AgentRole.MAIN)
 def test_a_missed_sprint_keeps_its_promise_and_carries_only_the_real_remainder(story):
     period = story.user_opens(f"/journal/sprints/{story.sprints.first}")
     committed_tasks = period.viewer_answer["commitments"][0]["tasks"]
@@ -91,7 +90,7 @@ def test_a_missed_sprint_keeps_its_promise_and_carries_only_the_real_remainder(s
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ClosedDevelopmentSprint, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ClosedDevelopmentSprint, subject=AgentRole.MAIN)
 def test_a_sprint_owner_can_return_the_remaining_scope_to_backlog(story):
     period = story.user_opens(f"/journal/sprints/{story.sprints.first}")
     close_sprint(story, story.sprints.first, period.viewer_answer["ends_at"])

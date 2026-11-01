@@ -13,7 +13,7 @@ FREE_PAGES = ("Pages free", "Pages inactive", "Pages speculative")
 
 @dataclass(frozen=True)
 class MachineLoad:
-    """The machine's load as the orchestrator reads it: its load averages over one, five and fifteen minutes, its cores, and the memory it can hand out at once, in megabytes, read from vm_stat on macOS and MemAvailable elsewhere, 0 where neither tells it; and the load beyond what the test runs going explain, one each."""
+    """The machine's load: its load averages over one, five and fifteen minutes, its cores, and the memory it can hand out at once, in megabytes, read from vm_stat on macOS and MemAvailable elsewhere, 0 where neither tells it; and the load beyond what the test runs going explain, one each."""
 
     averages: tuple[float, float, float]
     cores: int

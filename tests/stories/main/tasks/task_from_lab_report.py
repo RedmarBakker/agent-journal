@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_task_from_a_lab_report_links_to_the_report(story):
     report = story.user_writes_a_report("Lab finding", "A measured route change", "Metric and scenario evidence.")
 
@@ -18,7 +17,7 @@ def test_a_task_from_a_lab_report_links_to_the_report(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_task_with_a_missing_report_is_refused_without_creating_a_task(story):
     result = story.agent_runs(story.agents.subject, "task create 'Orphan finding' --report 999")
 

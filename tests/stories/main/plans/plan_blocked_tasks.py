@@ -3,14 +3,13 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.started_plan import StartedPlan
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_plan_whose_every_remaining_task_is_blocked_blocks_itself_and_opens_with_it(story):
     story.agent_runs(story.agents.subject, f"task block {story.tasks.second} 'waits on the designer'")
     result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
@@ -22,7 +21,7 @@ def test_a_plan_whose_every_remaining_task_is_blocked_blocks_itself_and_opens_wi
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_plan_blocked_with_no_reason_is_refused(story):
     result = story.agent_runs(story.agents.subject, f"plan block {story.plans.first}")
     result.expect_command_refused()
@@ -32,7 +31,7 @@ def test_a_plan_blocked_with_no_reason_is_refused(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_a_plan_started_while_its_first_task_waits_on_another_hands_out_the_next(story):
     dependency = story.agent_creates_task(story.agents.subject, "dependency")
     story.agent_runs(story.agents.subject, f"task block {story.tasks.first} --on task:{dependency}")
@@ -42,7 +41,7 @@ def test_a_plan_started_while_its_first_task_waits_on_another_hands_out_the_next
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_plan_that_blocks_itself_hands_out_the_next_open_task_and_takes_its_own_up_again_once_it_opens(story):
     outside = story.agent_creates_task(story.agents.subject, "outside work")
     story.agent_runs(story.agents.subject, f"task block {story.tasks.second} 'waits on the designer'")

@@ -1,13 +1,13 @@
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE, WorkersOptions
+from journal.features.workers.workers_options import WorkersOptions
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_dispatch_past_the_most_workers_out_at_once_is_refused(story):
     lexer = story.agent_creates_briefed_task(story.agents.subject, "the lexer", "- splits the words")

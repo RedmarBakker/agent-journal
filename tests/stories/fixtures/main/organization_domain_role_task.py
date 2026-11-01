@@ -2,7 +2,6 @@ from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -13,7 +12,6 @@ class OrganizationDomainRoleTask(OrganizationHubPlanWithPlanAgents):
     """A started organization plan has a completed task and a current task waiting with its Domain."""
 
     parent = OrganizationHubPlanWithPlanAgents
-    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
         self.tasks.second = story.user_adds_plan_task(self.plans.first, "task 6 current", "alpha")
@@ -26,7 +24,6 @@ class OrganizationDomainRoleTask(OrganizationHubPlanWithPlanAgents):
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, runtime)
-        story.plays_in(BUILDER_MODE)
         seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
         seat.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                                task=self.tasks.second, domain="alpha")

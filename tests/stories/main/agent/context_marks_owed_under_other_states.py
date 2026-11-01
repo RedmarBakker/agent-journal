@@ -9,7 +9,6 @@ from journal.features.sequences.states.following_sequence import FollowingSequen
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.build_wait import BuildWait
@@ -20,7 +19,7 @@ from tests.stories.fixtures.main.started_plan import StartedPlan
 FIRST = MemoryThresholds.CONTEXT[0]
 
 
-@story(CompactedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactedTask, subject=AgentRole.MAIN)
 def test_a_mark_reached_while_the_overview_is_owed_is_asked_once_the_overview_is_read(story):
     story.context_reaches(FIRST)
     result = story.agent_reads(story.agents.subject)
@@ -32,7 +31,7 @@ def test_a_mark_reached_while_the_overview_is_owed_is_asked_once_the_overview_is
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
 
-@story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(BuildWait, subject=AgentRole.MAIN)
 def test_a_mark_reached_while_the_agent_waits_is_asked_when_it_works_again(story):
     story.agent_consumes_context(story.agents.subject, FIRST)
     story.agent_reads(story.agents.subject)
@@ -40,7 +39,7 @@ def test_a_mark_reached_while_the_agent_waits_is_asked_when_it_works_again(story
     story.expect_stack(story.agents.subject, Ready, Working, WeighingMemories)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_mark_reached_in_a_followed_plan_is_weighed_on_top_of_the_plan(story):
     story.agent_consumes_context(story.agents.subject, FIRST)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan, WeighingMemories)
@@ -49,7 +48,7 @@ def test_a_mark_reached_in_a_followed_plan_is_weighed_on_top_of_the_plan(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(ContextMarkSequence, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ContextMarkSequence, subject=AgentRole.MAIN)
 def test_a_mark_reached_in_a_running_sequence_holds_writes_for_the_memories_then_says_the_step_again(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, MemoryNudges.DECISION_EDIT_BLOCK)
@@ -58,7 +57,7 @@ def test_a_mark_reached_in_a_running_sequence_holds_writes_for_the_memories_then
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(ContextMarkSequence, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ContextMarkSequence, subject=AgentRole.MAIN)
 def test_a_stop_at_the_mark_inside_a_sequence_is_held_by_the_memories_first(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_refused(story.agents.subject, MemoryNudges.UNDECIDED_STOP, percent=FIRST)

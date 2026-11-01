@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -10,7 +9,7 @@ PICTURE = "logo.png"
 PICTURE_BYTES = bytes(range(256)) * 4
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_document_and_a_binary_file_go_through_the_library_byte_for_byte_and_no_markdown_is_no_document(story):
     story.the_project_holds_a_file(DOCUMENT, DOCUMENT_BYTES)
     story.the_project_holds_a_file(PICTURE, PICTURE_BYTES)

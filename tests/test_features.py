@@ -34,7 +34,6 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.workers.support.work_mode import WorkMode
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
@@ -66,7 +65,6 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.support.message_thread import MessageThread
 from journal.features.briefing.briefing_options import BriefingOptions
 from journal.features.messages.messages_nudges import MessagesNudges
-from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.time_source import TimeSource
 from journal.console.commands.environment_command import MEMORY_LINE
@@ -555,41 +553,11 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
 
 
 
-def test_plan_agents_instead_of_work_modes_sets_the_old_modes_conduct_aside_while_on_and_brings_it_back_when_off(app: App):
-    """The switch picks the floor of the main agent's stack, and a mode's conduct is given to its floor alone: on, the floor coordinates the plans and no work mode's conduct is heard; off, the work mode set is the floor again."""
-    from journal.features.plans.plans_options import PlansOptions
-    from journal.repositories.agents import Agents
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    use = lambda name: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
-    dispatch = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal worker dispatch 'Ada Lovelace' 'the job' --changes 'the files of its task' --tests 'Scoped tests' --profile journal-medior --model sonnet"}, tool_use_id=f"t-{timing.time()}")[1])
-    floor = lambda: app.container.get(Agents).session_agent("s1").stack[0]["state"]
-    assert app.container.get(SettingRows).option(PlansOptions.PLAN_AGENTS) is False, "the switch is off until the user turns it on"
-    user_set(app, "workers.builder_may_dispatch", False)
-    assert nudge_reached(app, dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "off, the builder's conduct refuses the dispatch it was not allowed"
-    user_set(app, "plans.plan_agents", True)
-    assert nudge_reached(app, use("a.py"), PlansNudges.COORDINATOR_MODE) and floor() == "coordinating_plans", "on, the floor coordinates the plans and says so once"
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(WorkMode).state().name == "coordinating_plans", "the listener's work mode reads the main agent's role-aware floor"
-    assert not has_nudge(dispatch(), WorkersNudges.MODE_REFUSAL, mode="builder"), "and the builder's conduct is not heard"
-    user_set(app, "workers.mode", "solo")
-    assert floor() == "coordinating_plans" and not has_nudge(use("b.py"), WorkersNudges.SOLO_MODE), "the work mode set is not used while the switch is on"
-    user_set(app, "plans.plan_agents", False)
-    assert nudge_reached(app, use("c.py"), WorkersNudges.SOLO_MODE) and floor() == "soloing", "off again, the work mode set is the floor"
-
-
-def test_a_conduct_given_to_the_plan_agents_floor_is_folded_only_there_and_the_old_modes_conduct_never_is(app: App):
+def test_a_conduct_given_to_the_plan_agents_floor_is_folded_only_there(app: App):
     from journal.engine.conduct import Conduct
     from journal.features.feature import Feature
     from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-    from journal.features.plans.states.plans_ready import PlansReady
     from journal.features.registry import Registry
-    from journal.features.reports.orchestrator_reports_conduct import OrchestratorReportsConduct
-    from journal.features.workers.builder_conduct import BuilderConduct
-    from journal.features.workers.orchestrator_conduct import OrchestratorConduct
-    from journal.features.workers.solo_conduct import SoloConduct
-    from journal.features.workers.states.orchestrating import Orchestrating
-    from journal.features.workers.states.soloing import Soloing
     from journal.support.agent_role import AgentRole
 
     class TrialConduct(Conduct):
@@ -597,14 +565,12 @@ def test_a_conduct_given_to_the_plan_agents_floor_is_folded_only_there_and_the_o
 
     class Trial(Feature[None]):
         name = "trial"
-        mode_conduct = ((CoordinatingPlans, TrialConduct),)
+        floor_conduct = ((CoordinatingPlans, TrialConduct),)
 
     registry = app.container.get(Registry)
     trial = Registry((*registry.features, Trial), registry.settings, registry.standard_commands, tuple(registry.helper(role) for role in AgentRole.helpers()))
-    old_floors, old_conducts = (PlansReady, Orchestrating, Soloing), {BuilderConduct, OrchestratorConduct, SoloConduct, OrchestratorReportsConduct}
-    assert TrialConduct in trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans) and not old_conducts & set(trial.mode_conducts(AgentRole.MAIN, CoordinatingPlans)), "a new-model conduct is folded on the Plan agents floor, and no old mode's conduct is"
-    assert {conduct for floor in old_floors for conduct in trial.mode_conducts(AgentRole.MAIN, floor)} == old_conducts, "each old mode's conduct is folded on its own floor, never a new-model one"
-    assert CoordinatingPlans in trial.mode_states(), "the listener index is built for the Plan agents floor"
+    assert TrialConduct in trial.floor_conducts(AgentRole.MAIN, CoordinatingPlans), "the Plan agents conduct is folded on its selected floor"
+    assert CoordinatingPlans in trial.floor_states(), "the listener index is built for the Plan agents floor"
 
 
 def test_with_plan_agents_on_the_main_agent_writes_no_code_and_hears_every_started_plan_at_a_stop(app: App):
@@ -644,19 +610,19 @@ def clocked_out(app: App, at: float):
     return workers.save(saved.delivered(at), Actor.system())
 
 
-def test_with_the_reviewer_on_the_orchestrators_answer_time_runs_from_the_review_and_merge_preparation_is_no_longer_measured_on_purpose(app: App):
+def test_with_the_reviewer_on_the_main_agents_answer_time_runs_from_the_review_and_merge_preparation_is_no_longer_measured_on_purpose(app: App):
     from journal.models.reviewer import Reviewer
     from journal.models.worker import Worker
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
     clocked = worker.delivered(100.0)
-    assert clocked.is_unanswered(500.0, 300), "with the reviewer off a clock-out waits on the orchestrator from the clock-out"
+    assert clocked.is_unanswered(500.0, 300), "with the reviewer off a clock-out waits on the main agent from the clock-out"
     sent = worker.review_requested(100.0, "the parser is done")
-    assert not sent.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the orchestrator"
+    assert not sent.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the main agent"
     reviewed = sent.reviewed(900.0, 1, Reviewer(id=9, environment_id=1, session="r-1"), "1 passed")
     assert not reviewed.is_unanswered(1000.0, 300) and reviewed.is_unanswered(1300.0, 300), "its answer time runs from the reviewer's report"
     failed = sent.review_failed(900.0, 1)
-    assert not failed.review_pending and type(failed.events[-1]).__name__ == "WorkerReviewFailed" and failed.events[-1].task == 1, "a failed review clears the worker's review and carries the event that tells the orchestrator"
-    assert failed.is_unanswered(1300.0, 300), "and from then the work waits on the orchestrator"
+    assert not failed.review_pending and type(failed.events[-1]).__name__ == "WorkerReviewFailed" and failed.events[-1].task == 1, "a failed review clears the worker's review and carries the event that tells the main agent"
+    assert failed.is_unanswered(1300.0, 300), "and from then the work waits on the main agent"
 
 
 def ticked_minutes(app: App, *minutes: int) -> None:
@@ -1041,7 +1007,7 @@ def test_how_a_watched_run_ended_is_told_without_its_progress_lines_in_a_few_lin
     assert app.container.get(OutputViews).ended_summary(output) == "24 tests, 0 failed", "the agent is told how the run ended, its progress lines left on the card"
 
 
-def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_settings_page_shows_it_and_its_own_suite_never_waits(app: App, tmp_path):
+def test_the_agent_reads_the_load_with_the_turns_sets_the_budget_as_the_settings_page_shows_it_and_its_own_suite_never_waits(app: App, tmp_path):
     import threading
     from journal.repositories.environments import Environments
     import time
@@ -1101,7 +1067,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     assert "waiting: turn" in load and ", worker 103: tests/test_103.py" in load, "and the turn waiting"
     hook(app, "SessionStart")
     status, _ = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal suite"}, tool_use_id="suite-1")
-    assert status == 200, "the orchestrator's own suite goes at once while a turn waits: the budget gates only workers' turns"
+    assert status == 200, "the main agent's own suite goes at once while a turn waits: the budget gates only workers' turns"
     budget = app.console().run(["tests", "budget", "1", "10"], AGENT)
     assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TEST_ID_LIMIT) == 10
     page = get_answer(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
@@ -1124,69 +1090,6 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     user_set(app, WorkersOptions.TEST_RUNS.key, WorkersOptions.TEST_RUNS.default)
     user_set(app, WorkersOptions.TEST_ID_LIMIT.key, WorkersOptions.TEST_ID_LIMIT.default)
     user_set(app, WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default)
-
-
-def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_general_verifier_and_a_mismatch_is_named_and_kept_unscored_on_purpose(app: App, monkeypatch):
-    from journal.features.verification.support.verifier_runner import VerifierRunner
-    from journal.models.edit import Edit
-    from journal.models.link import Link
-    from journal.models.support.ref import Ref
-    from journal.models.support.worker_moves import WorkerMoves
-    from journal.models.worker import Worker
-    from journal.repositories.edits import Edits
-    from journal.repositories.links import Links
-    from journal.repositories.agents import Agents
-    from journal.repositories.verifiers import Verifiers
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
-    user_set(app, WorkersOptions.MODE.key, "orchestrator")
-    user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, 1)
-    user_set(app, WorkersOptions.VERIFIER_LIMIT.key, 10)
-    hook(app, "SessionStart")
-
-    # a worker's job on `model`, `lines` lines over `files` files, sent back `rejections` times over `minutes`, merged now
-    def merged(name, model, lines, files, rejections, minutes):
-        now = timing.time()
-        start = now - minutes * 60
-        steps = [("dispatched", start), *[move for back in range(rejections) for move in (("clocked out", start + 60 + back), ("sent back", start + 90 + back))], ("clocked out", now - 30)]
-        with app.container.get(Scope).environment(MAIN):
-            worker = workers.save(Worker(environment_id=MAIN, name=name, model=model, session=f"ws-{name}", dispatcher="s1", brief="Change src/parser.py; done when its test passes", moves=WorkerMoves(tuple(steps))), Actor.system())
-            for n in range(files):
-                edits.save(Edit(environment_id=MAIN, session=f"ws-{name}", path=f"src/part_{n}.py" if n else "tests/test_parser.py", added=lines // files, removed=0, time=start + 120, new_text="x = 1"), Actor.system())
-            worker = workers.save(workers.find(worker.row_id).merged(0, now), Actor.system())
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            return workers.find(worker.row_id)
-
-    small, large = dict(lines=20, files=1, rejections=0, minutes=8), dict(lines=900, files=14, rejections=2, minutes=150)
-    fits = {(size, model): merged(f"{size}-{model}", f"claude-{model}-5-5", **work).model_fit for size, work in (("small", small), ("large", large)) for model in ("haiku", "sonnet", "opus")}
-    assert fits[("small", "haiku")].called_for.value == "fast" and fits[("large", "opus")].called_for.value == "strongest", "small work calls for the fast model, large for the strongest"
-    assert fits[("small", "haiku")].points < fits[("large", "haiku")].points
-    assert {key: fit.measured for key, fit in fits.items()} == {("small", "haiku"): "right", ("small", "sonnet"): "too strong", ("small", "opus"): "too strong", ("large", "haiku"): "too weak", ("large", "sonnet"): "too weak", ("large", "opus"): "right"}
-    answer = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_use_id="fit-read")[1]
-    heard = "\n".join([*keystrokes, str(answer)])
-    small_opus = next(w.id for w in workers.global_matching(name="small-opus"))
-    assert nudge_reached(app, heard, WorkersNudges.MODEL_OVERPOWERED, n=small_opus, model="claude-opus-5-5"), heard
-    assert nudge_reached(app, heard, WorkersNudges.MODEL_UNDERPOWERED, model="claude-haiku-5-5", send_backs=2), heard
-    assert "ran on claude-haiku-5-5 for work" not in heard, "a fit is never named"
-    agent = app.container.get(Agents).session_agent("s1")
-    assert len(agent.model_fits) == 6 and sum(entry.endswith(":right") for entry in agent.model_fits) == 2, agent.model_fits
-    with app.container.get(Scope).environment(MAIN):
-        sampled = next(w for w in workers.global_matching(name="large-opus"))
-        judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), link_type="verifies")]
-        verifier = app.container.get(Verifiers).find(judging[-1].id)
-    assert verifier.model == "sonnet" and "## The diff" in verifier.brief and "Change src/parser.py" in verifier.brief and "journal verdict model" in verifier.brief, "a merge sampled is judged by a verifier on the general model, never the fast one, handed the brief, the diff and the report"
-    answer = app.console().run(["verdict", "model", "too-strong", "one parser module and its test"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
-    assert answer.code == 0, answer.error
-    with app.container.get(Scope).environment(MAIN):
-        judged = workers.find(sampled.row_id).model_fit
-    assert (judged.verdict, judged.reason, judged.fit()) == ("too strong", "one parser module and its test", "too strong"), "the verdict is recorded on the worker and counts over the measure"
-    assert f"{sampled.row_id}:too strong" in app.container.get(Agents).session_agent("s1").model_fits, "and among its dispatcher's model fits"
-    user_set(app, WorkersOptions.MODE.key, WorkersOptions.MODE.default)
-    user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, WorkersOptions.MODEL_FIT_SAMPLE.default)
 
 
 def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_else_waits_in_order_and_one_past_the_waiting_cap_is_refused(app: App, tmp_path):
@@ -3677,17 +3580,6 @@ def test_the_journal_skill_is_a_short_map_naming_every_skill_and_listing_no_comm
     assert len(journal.body.strip().splitlines()) <= 35 and journal.body.count("[journal]") == 1, "the map is about 30 lines and says the line rule once"
 
 
-def test_the_work_modes_skill_holds_the_mode_and_fitness_paragraphs_and_the_workers_skill_stays_short(app: App):
-    from journal.features.registry import Registry
-    registry = app.container.get(Registry)
-    workers, modes, journal = (registry.skill(name) for name in ("workers", "work-modes", "journal"))
-    assert "The work mode is the bottom state of your stack" in modes.body and "Your fitness is worked out" in modes.body, "the work-modes skill holds the mode and fitness paragraphs"
-    assert "The work mode is the bottom state" not in workers.body and "Your fitness is worked out" not in workers.body, "the workers skill no longer holds them"
-    assert set(modes.keywords) == {"orchestrator", "builder", "solo", "fitness"} and set(modes.required_states) == {"orchestrating", "soloing"}
-    assert len(workers.body.strip().splitlines()) < 70, f"the workers skill is {len(workers.body.strip().splitlines())} lines"
-    assert "workers, work-modes" in journal.body, "the journal map names both"
-
-
 def test_the_pinned_links_and_messages_skills_both_say_what_a_pin_is_and_what_a_button_is_in_the_same_words(app: App):
     from journal.features.pins.support.pin_and_button_text import PinAndButtonText
     from journal.features.registry import Registry
@@ -5035,7 +4927,6 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     kept_conversation(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
     import subprocess
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
@@ -5069,43 +4960,6 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert Claude().worker_outcome('{"type":"result","result":"done","session_id":"w-1","total_cost_usd":0.42}\n', "").cost_dollars == 0.42, "the spend is read from the run's result line"
     refused = console.run(["worker", "send", "1", "more", "--profile", "journal-researcher"], AGENT)
     assert refused.code != 0 and "no worker profile" in refused.error, "a send names a worker profile"
-
-
-def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_sample_judges_the_worker_with_no_reader_report_looked_up(app: App, monkeypatch):
-    from journal.features.verification.support.verifier_dispatch import VERIFIES
-    from journal.features.verification.support.verifier_runner import VerifierRunner
-    from journal.models.support.ref import Ref
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    from journal.repositories.reader_reports import ReaderReports
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.verifiers import Verifiers
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "workers.model_fit_sample", 1)
-    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
-    assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
-    workers = app.container.get(Workers)
-    assert not app.container.get(ReaderReports).all(), "no reader report has the worker's number"
-    workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    assert console.run(["proof", "1", "parser.py:3, test_reads_the_grammar passes"], lovelace).code == 0
-    assert console.run(["clock-out", "the parser reads the grammar"], lovelace).code == 0
-    assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
-    merged = console.run(["worker", "merge", "1"], AGENT)
-    app.runtime().deferred.drain()
-    assert merged.code == 0, merged.error
-    worker, task = workers.find(1), app.container.get(Tasks).find(1)
-    assert worker.state == WorkerState.MERGED and task.is_closed(), f"the work is in, the task closed and the worker merged, never released: {worker.state}"
-    verifiers = app.container.get(Verifiers).all()
-    assert len(verifiers) == 1 and app.container.get(Links).targets(verifiers[0], VERIFIES) == [Ref.build(worker)], "the model-fit sample sent a verifier on the merged worker"
-    app.container.get(Verifiers).save(verifiers[0].with_(session="v-1"), Actor.system())
-    cards = [message for message in app.container.get(Messages).all() if message.data.get("shows") == "verifiers"]
-    assert cards and cards[-1].data["row"] == "workers:1" and "checking whether Lady Lovelace's model fit its work" in cards[-1].text, [message.text for message in cards]
 
 
 def test_a_worker_messages_only_its_own_dispatchers_other_workers_and_starts_no_loop(app: App, tmp_path, monkeypatch):
@@ -5640,7 +5494,7 @@ def test_a_rebase_conflict_in_an_inner_repository_merges_nothing_anywhere(app: A
     assert git_run(root, "rev-parse", "HEAD").stdout.strip() == project_head and git_run(root / "platform", "rev-parse", "HEAD").stdout.strip() == platform_head
 
 
-def test_a_merge_refused_on_a_clash_records_the_files_for_the_orchestrator_and_sends_the_worker_back_by_itself(app: App, monkeypatch):
+def test_a_merge_refused_on_a_clash_records_the_files_for_the_main_agent_and_sends_the_worker_back_by_itself(app: App, monkeypatch):
     import json as json_module
     from journal.db.connection import Connection
     from journal.repositories.proofs import Proofs
@@ -5664,79 +5518,10 @@ def test_a_merge_refused_on_a_clash_records_the_files_for_the_orchestrator_and_s
     line = "worker 1's work was not merged: its branch clashes\nrebased onto the branch of"
     assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'went back to the worker to rebase by itself' in refused.error and refused.error.count("\n") == 3, refused.error
     cards = [(row["text"], json_module.loads(row["data"])) for row in app.container.get(Connection).all("SELECT text, data FROM messages WHERE text LIKE '%merge of task 1 refused%'")]
-    assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.splitlines()[0] and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the orchestrator as a card in its chat"
+    assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.splitlines()[0] and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the main agent as a card in its chat"
     app.runtime().deferred.drain()
     assert proofs() == checked and task_state() != "done", "the worker's proofs and task are kept"
     assert worker_row(app).state == WorkerState.DISPATCHED and "conflict in platform/app.php" in worker_row(app).brief and worker_row(app).clashes == 1, "and the branch went back to the worker to rebase, with no send by hand"
-
-
-def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_suite_after_it_names_the_merged_worker(app: App, monkeypatch):
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import NUDGE, Entries
-    root = workspace_made(app, ("platform",))
-    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    user_set(app, "workers.mode", "orchestrator")
-    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
-    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
-    merged = checked_and_merged(app)
-    assert merged.code == 0 and "run the whole suite now: it has not passed since the merges of worker 1, Worker 1 (task 1)" in merged.text, merged.text + merged.error
-
-    def ran(command: str, status: int) -> None:
-        with app.container.get(Scope).environment(MAIN):
-            app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"chain-{command}-{status}", command=command, session="s1", ended=True, status=status), Actor.agent("s1"))
-
-    broken = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.suite_failed_after_merges"]
-    ran("journal suite tests/test_data.py -k unrelated", 1)
-    hook(app, "Stop")
-    assert broken() == [], "a failed run of part of the suite names nobody"
-    ran("journal suite", 1)
-    hook(app, "Stop")
-    hook(app, "Stop")
-    [line] = broken()
-    assert nudge_reached(app, line, WorkersNudges.SUITE_BROKEN, workers="worker 1, Worker 1 (task 1)", n=1), "a failing whole suite after the merge names the merged worker once, with the send-back"
-    ran("journal suite", 0)
-    ran("journal suite", 1)
-    hook(app, "Stop")
-    assert len(broken()) == 1, "once the whole suite has passed, a later failure names no merge it passed after"
-
-
-def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_test_run_in_a_clocked_out_workers_worktree(app: App, monkeypatch):
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    workspace_made(app, ("platform",))
-    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    user_set(app, "workers.mode", "orchestrator")
-    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
-    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
-    with app.container.get(Scope).environment(MAIN):
-        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-worker-tests", command="python3 -m pytest tests", session="s1", ran_in=str(folder / "platform")), Actor.agent("s1"))
-    awaited = app.console().run(["await", "begin", "the worker's tests", "--output", str(run.id)], AGENT)
-    assert awaited.code == 0, awaited.error
-    body = hook(app, "Stop")[1]
-    assert "clocked out and their work waits" not in body.get("reason", ""), "while it awaits a test run in the worker's worktree the stop is let through"
-    with app.container.get(Scope).environment(MAIN):
-        outputs = app.container.get(CommandOutputs)
-        outputs.save(outputs.find(run.id).ended_with(1, timing.time()), Actor.agent("s1"))
-    app.runtime().deferred.drain()
-    again = hook(app, "Stop", stop_hook_active=True)[1]
-    assert again.get("decision") == "block" and nudge_reached(app, again["reason"], WorkersNudges.DELIVERED_WAITING, workers="worker 1 (Worker 1)"), again
-
-
-def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a_cd_into_a_clocked_out_workers_worktree(app: App, monkeypatch):
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    workspace_made(app, ("platform",))
-    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    user_set(app, "workers.mode", "orchestrator")
-    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
-    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
-    with app.container.get(Scope).environment(MAIN):
-        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-cd-tests", command=f'(cd "{folder}" && python3 scripts/suite.py)', session="s1", ran_in=str(folder.parent)), Actor.agent("s1"))
-    awaited = app.console().run(["await", "begin", "the worker's suite", "--output", str(run.id)], AGENT)
-    assert awaited.code == 0, awaited.error
-    body = hook(app, "Stop")[1]
-    assert "clocked out and their work waits" not in body.get("reason", ""), "a run started by a cd into the worker's worktree counts as a run in it"
 
 
 def test_a_worker_sent_a_new_job_naming_another_repository_gets_its_worktree_and_records_it(app: App, monkeypatch):
@@ -5978,143 +5763,6 @@ def synced(check) -> bool:
             return True
         timing.sleep(0.05)
     return False
-
-
-def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1066():
-    import importlib
-    from journal.engine.nudge import Nudge
-    features = Path(__file__).resolve().parents[1] / "src" / "journal" / "features"
-    nudges = {}
-    for module in sorted(features.glob("*/*_nudges.py")):
-        loaded = importlib.import_module(f"journal.features.{module.parent.name}.{module.stem}")
-        for holder in vars(loaded).values():
-            if isinstance(holder, type) and holder.__module__ == loaded.__name__:
-                nudges.update({nudge.key: nudge for nudge in vars(holder).values() if isinstance(nudge, Nudge)})
-    assert len(nudges) > 100, "every nudge of every feature is looked at"
-    named = [key for key, nudge in nudges.items() if key.startswith("workers.") and "{{n}}" in nudge.title and "{{name}}" in nudge.title + nudge.brief]
-    assert not named, f"a worker is named by its number alone, never also by its name: {named}"
-    titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
-    assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
-    short = {"workers.work_ready": 40, "workers.worker_quiet": 80, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
-             "shell.reader_report_raised": 100, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
-    values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
-    for key, limit in short.items():
-        line = nudges[key].create(**values).rendered()
-        assert len(line) <= limit and "Lady" not in line and "{{" not in line, f"{key} is said short: {line!r}"
-    assert "workers.worker_clocked_in" not in nudges, "an arrival the orchestrator dispatched is not told back to it"
-
-
-def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environments_worktree_and_main_is_untouched(app: App):
-    import subprocess
-    from journal.features.workers.support.worker_branch import WorkerBranch
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.worker import Worker
-    from journal.repositories.environments import Environments
-    from journal.repositories.workers import Workers
-    from journal.support.worktree import Worktree
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-
-    root = app.config.root
-
-    def git(*arguments, cwd=root):
-        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
-
-    git("init", "-q")
-    git("-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
-    main_before = git("rev-parse", "HEAD")
-    environment = app.container.get(Environments).find(MAIN)
-    own = Worktree(root, environment.name).created()
-    (own / "env.txt").write_text("the environment's own work\n")
-    git("add", "env.txt", cwd=own)
-    git("-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "-m", "environment work", cwd=own)
-    try:
-        app.container.get(TeamAccount).write({"account_id": 1, "device": "d1"})
-        worker = Worker(environment_id=MAIN, name="Mr Faraday", worktree=True, id=9001)
-        branch = app.container.get(WorkerBranch)
-        assert branch.checkout(worker) == own, "on a shared journal a worker's checkout is its environment's worktree"
-        app.container.get(WorkerRunner).workplace(worker)
-        folder = branch.folder(worker)
-        assert (folder / "env.txt").is_file(), "the worker's branch is cut from the environment's branch, with its unmerged work"
-        (folder / "worker.txt").write_text("the worker's work\n")
-        git("add", "worker.txt", cwd=folder)
-        git("-c", "user.name=Worker", "-c", "user.email=w@example.com", "commit", "-q", "-m", "worker work", cwd=folder)
-        repository = branch.repositories(worker)[0]
-        branch.merged(repository, worker)
-        assert (own / "worker.txt").is_file(), "the worker's work is merged into the environment's worktree"
-        assert git("rev-parse", "main" if git("branch", "--list", "main") else "master") == main_before, "and main is untouched"
-    finally:
-        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
-
-
-def updates_joined() -> None:
-    import threading
-    for thread in threading.enumerate():
-        if thread.name == "updates":
-            thread.join(10)
-
-
-def came_back(updater: Updater, monkeypatch, version: str) -> None:
-    """The journal booted on the version an update went to: the version it runs and the card the update left."""
-    import time as timing
-    from journal.features.updates.support import updater as updater_module
-    from journal.features.updates.support.update_pause import UpdatePause
-    monkeypatch.setattr(updater_module, "VERSION", version)
-    updater.card.write(UpdatePause("4.0.0", version, "Restarting the journal", timing.time(), -1))
-    updater.reconcile(timing.time())
-    updates_joined()
-
-
-def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app: App):
-    from journal.features.shell.support.reader_commands import ReaderCommands
-    from journal.features.shell.support.reader import Reader
-    from journal.features.shell.support.reader_judge import ReaderJudge
-    reader, judge = Reader("pytest", "the tests", pattern=".", commands=ReaderCommands(("pytest",))), app.container.get(ReaderJudge)
-    assert judge.is_shown_run(judge.readers.read_part(reader, "python3 -m pytest -p no:warnings tests/test_x.py 2>&1")), "a plain run, its errors joined to its output, is shown"
-    assert not judge.is_shown_run(judge.readers.read_part(reader, "S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py")), "a run whose output goes to a file shows nothing on the card"
-    assert not judge.is_shown_run(judge.readers.read_part(reader, "command -v uv\npython3 -m pytest --version")), "asking the tool its version is no run of it"
-    from journal.features.shell.support.card_line import CardLine
-    assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
-    assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"
-    assert not CardLine.is_poor("ba2703f07 The Go facts the contract lacks, each with the rule that reads it (plan 4, task 101)"), "a commit subject is prose, however long"
-    assert CardLine.is_poor('{"id": 12, "name": "' + "a" * 180 + '", "tags": ["x", "y"]}') and CardLine.is_poor('  File "/home/app/src/journal/features/shell/support/card_line.py", line 42, in is_poor'), "a long JSON line and a stack frame stay flagged"
-    vitest = "   × the telephone rings at most once in two minutes, gathering every worker given work into one call that names each in turn 32ms"
-    assert not CardLine.is_poor(CardLine.plain(vitest)) and not CardLine.is_poor(CardLine.plain(" FAIL  tests/figureVisor.test.js > the crosses and the ticks are the pixel pictures on the visor's screen in the run's colour")), "a test vitest or jest marks failed is named however long, as pytest's are"
-
-
-def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopped_beating_is_ended_and_holds_no_restart(app: App, monkeypatch):
-    import os
-    from journal.events.agent.ticked import Ticked
-    from journal.features.shell.listeners.stopped_output_end import StoppedOutputEnd
-    from journal.features.shell.support.restart_queue import RestartQueue
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.support.heartbeat import Heartbeat
-    from journal.support.time_source import TimeSource
-    sent = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: sent.append((environment_id, verb, fields.get("name"))))
-    monkeypatch.setattr(SupervisorLink, "hosting", lambda link: MAIN)
-    monkeypatch.setattr(SupervisorLink, "running", lambda link, environments: [e for e in environments if e.row_id == MAIN])
-    clock = app.container.get(TimeSource)
-    clock.pin(timing.time())
-    folder = app.config.root / "cut-run"
-    folder.mkdir()
-    (folder / "line").write_text("python3 scripts/suite.py -k x")
-    outputs = app.container.get(CommandOutputs)
-    with app.container.get(Scope).environment(MAIN):
-        output = outputs.save(CommandOutput(chain="cut-run", command="python3 scripts/suite.py -k x", session="s1", folder=str(folder)).backgrounded(), Actor.system())
-        assert [o.id for o in outputs.running(MAIN)] == [output.id], "a run that has not beaten yet counts as running for its first 30 seconds"
-        before = clock.seconds() - 120
-        os.utime(folder, (before, before))
-        assert outputs.running(MAIN) == [], "a run that never beat 30 seconds after it began is not running"
-        Heartbeat(folder).write(clock.seconds() - 10)
-        assert [o.id for o in outputs.running(MAIN)] == [output.id] and [o.id for o in outputs.background("s1")] == [output.id], "a beat ten seconds ago keeps it running, in the background list too, however long since it began"
-        clock.pin(clock.seconds() + 25)
-        assert outputs.running(MAIN) == [] and outputs.background("s1") == [], "35 seconds after its last beat it is not running"
-    assert app.container.get(RestartQueue).restart(MAIN, "") == [] and sent == [(MAIN, "restart", "journal")], "it never holds a restart"
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(StoppedOutputEnd).handle(Ticked(agent=agent_row(app), session="s1", environment_id=MAIN, time=clock.seconds(), silence_seconds=0.0))
-        ended = outputs.find(output.id)
-    assert ended.ended and ended.is_interrupted, "the next tick ends it as cut off"
 
 
 def test_unended_command_outputs_are_cut_off_in_their_own_environments_at_boot(app: App, tmp_path):
@@ -6978,7 +6626,7 @@ def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorde
     assert not talked.is_refuted and not talked.verdict and verifier.state == VerifierState.ENDED, "words besides the one line record nothing"
 
 
-def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewers_the_orchestrator_adds(app: App, monkeypatch):
+def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewers_the_main_agent_adds(app: App, monkeypatch):
     from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
     from journal.repositories.entries import Entries
     from journal.repositories.reviewers import Reviewers
@@ -6988,7 +6636,6 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
     kept_conversation(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
     user_set(app, "reviewing.reviewer", True)
     user_set(app, "workers.most_out", 0)
     with app.container.get(Scope).environment(MAIN):
@@ -7031,7 +6678,7 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
     hook(app, "Stop")
     with app.container.get(Scope).environment(MAIN):
         waiting = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "reviewing.reviews_wait_for_a_reviewer"]
-    assert waiting and has_nudge(waiting[-1], ReviewingNudges.REVIEWS_WAITING, waiting=2, reviewers=1), "the orchestrator is told how many reviews wait"
+    assert waiting and has_nudge(waiting[-1], ReviewingNudges.REVIEWS_WAITING, waiting=2, reviewers=1), "the main agent is told how many reviews wait"
     added = console.run(["reviewer", "add"], AGENT).text
     app.runtime().deferred.drain()
     both = reviewing()
@@ -7051,7 +6698,7 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
     clocked_out(turing)
     with app.container.get(Scope).environment(MAIN):
         off = workers.find(turing)
-    assert off.state == WorkerState.DELIVERED and not off.review_pending and queued() == [], "with the reviewer off a clock-out waits for the orchestrator, and there is no queue"
+    assert off.state == WorkerState.DELIVERED and not off.review_pending and queued() == [], "with the reviewer off a clock-out waits for the main agent, and there is no queue"
     assert "the reviewer is off" in console.run(["reviewer", "add"], AGENT).error, "and no reviewer is added"
     with app.container.get(Scope).environment(MAIN):
         for reviewer in reviewers.scoped():
@@ -7502,31 +7149,6 @@ def test_a_commit_is_one_card_whichever_session_sees_it_and_a_merge_read_twice_a
     assert "task 1 is worker 1's" in json.dumps(merged[0]) and "task 1 is worker 1's" not in json.dumps(merged[1]), "a merged commit's trailer is acted on once, by the same check as a commit read at the head"
 
 
-def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: App):
-    from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
-    from journal.features.tasks.support.round_robin_delivery import RoundRobinDelivery
-    from journal.models.task_state import TaskState
-    from journal.repositories.plans import Plans
-    from journal.repositories.tasks import Tasks
-    console, plans, tasks = app.console(), app.container.get(Plans), app.container.get(Tasks)
-    for title in ("first", "second"):
-        console.run(["plan", "create", title, "--brief", "b"], USER)
-    for plan, titles in ((1, ("a1", "a2")), (2, ("b1", "b2"))):
-        for title in titles:
-            console.run(["plan", "add", str(plan), title], USER)
-    for plan in (1, 2):
-        console.run(["plan", "approve", str(plan)], USER)
-    user_set(app, "workers.mode", "orchestrator")
-    with app.container.get(Scope).environment(MAIN):
-        for plan in (1, 2):
-            plans.opened(plans.find(plan), Actor.user(1))
-        tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
-        assert app.container.get(PlanTaskAssigner).following_task(plans.find(1)).title == "a2", "a builder goes on in the plan it follows"
-        round_robin = app.container.get(RoundRobinDelivery)
-        assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
-        assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
-
-
 def test_the_git_page_reads_branches_with_their_distance_from_the_base_the_recent_commits_and_the_open_pull_requests(app: App, monkeypatch):
     import subprocess
     from journal.http.git.git_overview import GitOverview
@@ -7727,22 +7349,6 @@ def test_the_organization_settings_default_and_only_the_user_sets_them(app: App)
     assert console.run(["settings", "set", "workers.seat_cap", "4"], AGENT).code != 0, "the agent may not set a cap"
 
 
-def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in(app: App):
-    """The mode is the floor of the agent's stack; when the user switches it, the next step says once what the new mode asks."""
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    use = lambda name: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
-    assert "you now work" not in use("a.py"), "nothing is said while the mode stays"
-    user_set(app, "workers.mode", "orchestrator")
-    switched = use("b.py")
-    assert nudge_reached(app, switched, WorkersNudges.ORCHESTRATOR_MODE), "the switch is told at the next step, naming the command that says what the mode asks"
-    assert "you now work" not in use("c.py"), "and only once"
-    user_set(app, "workers.mode", "solo")
-    assert nudge_reached(app, use("d.py"), WorkersNudges.SOLO_MODE)
-    user_set(app, "workers.mode", "builder")
-    assert nudge_reached(app, use("e.py"), PlansNudges.BUILDER_MODE)
-
-
 def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_told_once_and_linked_by_one_command(app: App, monkeypatch):
     from journal.features.messages.support import unlinked_row_numbers
     from journal.support.agent_role import AgentRole
@@ -7810,26 +7416,6 @@ def test_retiring_an_idle_worker_asks_once_whether_it_could_be_reused_and_the_re
         assert status != 200 and "if worker 1 can do this" in json.dumps(body) and "--why" in json.dumps(body)
         assert run(f"{verb} 1 --why 'its branch is merged and the work is done'")[0] == 200, "the repeat with its reason pays the question"
     assert run("stop 2")[0] == 200, "a worker out is never asked"
-
-
-def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_still_nor_at_the_stop(app: App, monkeypatch):
-    from journal.repositories.entries import NUDGE, Entries
-    console = app.console()
-    pinned_clock(app, monkeypatch)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    for title in ("the colour", "the parser"):
-        console.run(["task", "create", title, "--brief", "b"], AGENT)
-    assert console.run(["task", "block", "1", "waits for the user's word on the colour"], AGENT).code == 0
-    assert console.run(["task", "block", "2", "the schema has to settle"], AGENT).code == 0
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "tasks.auto", True)
-    tick_at(app, 61 * 60, 1.0)
-    app.runtime().deferred.drain()
-    still = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.blocked_work_stands_still"]
-    assert still == [WorkersNudges.UNMOVED_TASKS.create(tasks=2).rendered()], f"after the interval the task waiting on the user is not named as standing still, the other is: {still}"
-    stopped = json.dumps(hook(app, "Stop")[1])
-    assert "tasks 2 are blocked" in stopped and "tasks 1" not in stopped and "1, 2" not in stopped, f"the stop names the blocked task a command or a decision of the agent's can move, not the one waiting on the user: {stopped}"
 
 
 def test_runs_started_together_prune_each_old_output_once_and_every_start_returns_its_row(app: App):

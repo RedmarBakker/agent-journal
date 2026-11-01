@@ -5,7 +5,6 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_plan import StartedPlan
@@ -13,7 +12,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_task_in_progress_moves_only_by_force_and_arrives_in_progress(story):
     second_environment = story.another_environment("second_environment")
     story.session_starts_in(second_environment, "s9")
@@ -29,7 +28,7 @@ def test_a_task_in_progress_moves_only_by_force_and_arrives_in_progress(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_task_in_progress_arrives_blocked_where_a_task_is_already_in_progress(story):
     second_environment = story.another_environment("second_environment")
     theirs = story.agent_in_starts_task(story.agents.subject, second_environment, "s9", "Their own work")
@@ -39,7 +38,7 @@ def test_a_task_in_progress_arrives_blocked_where_a_task_is_already_in_progress(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_task_in_testing_moves_only_by_force_and_stays_in_testing(story):
     second_environment = story.another_environment("second_environment")
     story.agent_runs(story.agents.subject, f"task test {story.tasks.started}")
@@ -50,7 +49,7 @@ def test_a_task_in_testing_moves_only_by_force_and_stays_in_testing(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_blocked_task_arrives_blocked_and_is_no_longer_offered_here(story):
     second_environment = story.another_environment("second_environment")
     story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'the second_environment environment takes it'")
@@ -62,7 +61,7 @@ def test_a_blocked_task_arrives_blocked_and_is_no_longer_offered_here(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_plan_task_moves_only_by_force_and_the_plan_finishes_without_it(story):
     second_environment = story.another_environment("second_environment")
     result = story.agent_runs(story.agents.subject, f"task transfer {story.tasks.second} {second_environment}")
@@ -75,7 +74,7 @@ def test_a_plan_task_moves_only_by_force_and_the_plan_finishes_without_it(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerDelivered, subject=AgentRole.MAIN)
 def test_a_task_a_worker_holds_is_never_transferred(story):
     second_environment = story.another_environment("second_environment")
     result = story.agent_runs(story.agents.subject, f"task transfer {story.tasks.briefed} {second_environment} --force")

@@ -3,20 +3,19 @@ from journal.features.briefing.listeners.end_silent_sessions import SILENCE_SECO
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_session_silent_for_less_than_its_span_is_kept(story):
     story.agent_is_quiet_just_under(story.agents.subject, SILENCE_SECONDS)
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_retired_session_that_speaks_again_is_back_at_its_work(story):
     story.agent_is_quiet_past(story.agents.subject, SILENCE_SECONDS)
     story.expect_stack(story.agents.subject, Ready, Working, Ended)

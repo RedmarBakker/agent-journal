@@ -10,9 +10,6 @@ from journal.events.rows.worker_spent import WorkerSpent
 from journal.models.model_tier import ModelTier
 from journal.events.rows.worker_keeps_clashing import WorkerKeepsClashing
 from journal.events.rows.worker_rebased import WorkerRebased
-from journal.events.rows.worker_model_judged import WorkerModelJudged
-from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
-from journal.models.support.model_fit import ModelFit
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_memory_warning import WorkerMemoryWarning
@@ -88,7 +85,6 @@ class Worker(Helper):
     edited_task: int = 0
     review_pending: bool = False
     failing_runs: int = 0
-    model_fit: ModelFit = ModelFit()
     review_queued_at: float = 0.0
     merged_at: float = 0.0
     merged_task: int = 0
@@ -133,15 +129,6 @@ class Worker(Helper):
 
     def rejections(self) -> int:
         return self.moves.recent_count(REJECTION_MOVE, MERGED)
-
-    def model_measured(self, fit: ModelFit, rejections: int, time: float) -> "Worker":
-        measured = self.with_(model_fit=fit)
-        if not fit.is_mismatch():
-            return measured
-        return measured.with_event(WorkerModelMismatch(environment_id=self.environment_id, time=time, worker=self.mention(), fit=fit.measured, model=self.model, points=fit.points, rejections=rejections))
-
-    def model_judged(self, verdict: str, reason: str, verifier_session: str, time: float) -> "Worker":
-        return self.with_(model_fit=self.model_fit.judged(verdict, reason)).with_event(WorkerModelJudged(environment_id=self.environment_id, time=time, worker=self.mention(), verdict=verdict, reason=reason, verifier_session=verifier_session))
 
     def rebased(self, outcome: str, time: float) -> "Worker":
         return self.with_(rebase_due=False, edit_lock=False).with_event(WorkerRebased(environment_id=self.environment_id, time=time, worker=self.mention(), outcome=outcome))

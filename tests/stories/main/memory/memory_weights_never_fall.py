@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 WEIGHT = 6
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_weighing_a_memory_lower_is_refused_naming_its_weight_while_keeping_and_raising_pass(story):
     story.agent_runs(story.agents.subject, f"memory add 'the parser reads left to right' --weight {WEIGHT}")
     memory = story.created_number("memory")
@@ -22,7 +21,7 @@ def test_weighing_a_memory_lower_is_refused_naming_its_weight_while_keeping_and_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_memory_that_is_mostly_true_is_corrected_in_place_and_keeps_its_weight(story):
     story.agent_runs(story.agents.subject, f"memory add 'the parser reads right to left' --weight {WEIGHT}")
     memory = story.created_number("memory")
@@ -34,7 +33,7 @@ def test_a_memory_that_is_mostly_true_is_corrected_in_place_and_keeps_its_weight
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_memory_tied_to_a_task_stays_until_the_first_compaction_after_the_task_is_completed_and_a_compaction_lowers_the_others_by_one(story):
     task = story.agent_creates_task(story.agents.subject, "the parser")
     story.agent_runs(story.agents.subject, f"memory add 'the parser task needs the old grammar' --weight {WEIGHT} --for task:{task}")

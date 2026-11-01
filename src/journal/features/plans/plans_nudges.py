@@ -11,7 +11,6 @@ class PlansNudges:
     MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end", "to run one now: `journal plan allow-tests {{n}} --why \"<reason>\"`", repeat=Timeout.seconds(0), longest_characters=170, longest_reason="it shows the plan, its phase and the command that lets one test run through")
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     LEADING_PLAN = Nudge("plans", "you_lead_the_plan", "you lead plan {{n}} in this worktree; work its tasks here", repeat=Timeout.seconds(0))
-    BUILDER_MODE = Nudge("plans", "now_building", "you are now the builder", "`journal mode show` prints what the mode asks", repeat=Timeout.seconds(0))
     COORDINATOR_MODE = Nudge("plans", "now_coordinating_plans", "you now coordinate the plans: each plan's own Plan agent does its work; write no code", repeat=Timeout.seconds(0))
     COORDINATOR_WRITES_NO_CODE = Nudge("plans", "coordinator_writes_no_code", "you coordinate the plans and write no code", "put the change in a task of a plan instead", repeat=Timeout.seconds(0))
     COORDINATOR_SENDS_NO_WORKER = Nudge("plans", "coordinator_sends_no_worker", "you run plans through their Plan agents, never a worker of your own", "`journal plan tell <n> \"<what>\"`", repeat=Timeout.seconds(0))

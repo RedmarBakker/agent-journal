@@ -10,7 +10,7 @@ from journal.features.plans.states.plans_ready import PlansReady
 
 @dataclass(frozen=True)
 class LeadingPlan(PlansReady):
-    """The floor of a Plan agent, in its plan's own environment: no work mode replaces it, a session start names its plan before the plan's state is pushed, and every other moment is PlansReady's."""
+    """The floor of a Plan agent, in its plan's own environment: a session start names its plan before the plan's state is pushed."""
 
     name = "leading_plan"
     title = "Leading a plan"
@@ -23,9 +23,6 @@ class LeadingPlan(PlansReady):
 
     def subject(self) -> str:
         return f"plan {self.plan_id}"
-
-    def mode_lines(self) -> tuple[Nudge, ...]:
-        return ()
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         answer = super().on_session_started(event, settings)

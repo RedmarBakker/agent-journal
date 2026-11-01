@@ -5,17 +5,17 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.task_started import TaskStarted
 from journal.features.plans.plans_nudges import PlansNudges
-from journal.features.workers.states.orchestrating import Orchestrating
+from journal.features.plans.states.plans_ready import PlansReady
 
 
 @dataclass(frozen=True)
-class CoordinatingPlans(Orchestrating):
-    """The main agent's floor while Plan agents replace the work modes: it coordinates each plan through its agent, writes no code and sends no worker of its own; the conduct of the new model is given to this state alone, so none of the old modes' conduct reaches it."""
+class CoordinatingPlans(PlansReady):
+    """The main agent's floor while Plan agents are on: it coordinates each plan through its agent and writes no code or worker of its own."""
 
     name = "coordinating_plans"
     title = "Coordinating plans"
 
-    def mode_lines(self) -> tuple[Nudge, ...]:
+    def floor_lines(self) -> tuple[Nudge, ...]:
         return (PlansNudges.COORDINATOR_MODE.create(),)
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:

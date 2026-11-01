@@ -14,7 +14,7 @@ from journal.models.alias import Alias
 from journal.features.aliases.support.plain_alias_line import PlainAliasLine
 
 class MainRole(Role):
-    """The main agent's role: every feature's conduct, mode conduct and demands reach it, every listener hears it, no part is refused it and it runs every verb."""
+    """The main agent's role: every feature's conduct and demands reach it, every listener hears it, no part is refused it and it runs every verb."""
 
     role: ClassVar[AgentRole] = AgentRole.MAIN
 
@@ -23,8 +23,8 @@ class MainRole(Role):
         return (SafetyConduct, DemandConduct, *(conduct for feature in features for conduct in feature.conduct))
 
     @classmethod
-    def mode_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
-        return tuple(conduct for feature in features for mode_state, conduct in feature.mode_conduct if lowest_state is mode_state)
+    def floor_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+        return tuple(conduct for feature in features for floor_state, conduct in feature.floor_conduct if lowest_state is floor_state)
 
     @classmethod
     def demands(cls, features: tuple[type[Feature], ...]) -> tuple[Demand, ...]:

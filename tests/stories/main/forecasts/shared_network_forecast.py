@@ -1,12 +1,11 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_a_shared_sprint_forecast_keeps_an_unresolved_cross_plan_delivery_gate_bounded(story):
     source_task = story.tasks.first
     other_plan = story.user_creates_plan("dependent delivery", "use the deployed source")
@@ -37,7 +36,7 @@ def test_a_shared_sprint_forecast_keeps_an_unresolved_cross_plan_delivery_gate_b
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_a_report_forecast_reads_the_owners_shared_wip_ceilings(story):
     settings = [
         (EstimatesOptions.EXECUTION_WIP_LIMIT, 1, "execution"),

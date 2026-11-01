@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_row_docks_above_the_chat_by_noun_and_number_in_either_order_once(story):
     notes = story.agent_creates_briefed_task(story.agents.subject, "write the notes", "what and where")
     result = story.agent_runs(story.agents.subject, f"task {notes} dock")
@@ -15,7 +14,7 @@ def test_a_row_docks_above_the_chat_by_noun_and_number_in_either_order_once(stor
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_row_that_does_not_exist_is_named_when_asked_to_dock(story):
     result = story.agent_runs(story.agents.subject, "task 12 dock")
     result.expect_command_refused()
@@ -23,7 +22,7 @@ def test_a_row_that_does_not_exist_is_named_when_asked_to_dock(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_an_undocked_row_leaves_the_chat_and_cannot_be_undocked_again(story):
     notes = story.agent_creates_task(story.agents.subject, "write the notes")
     story.agent_runs(story.agents.subject, f"task dock {notes}")
@@ -35,7 +34,7 @@ def test_an_undocked_row_leaves_the_chat_and_cannot_be_undocked_again(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_row_docked_again_after_its_card_was_taken_down_shows_again(story):
     notes = story.agent_creates_task(story.agents.subject, "write the notes")
     story.user_docks("tasks", notes)

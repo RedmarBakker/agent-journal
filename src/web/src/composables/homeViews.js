@@ -1,4 +1,4 @@
-import {feedOn, reviewerOn, workMode} from "./settings.js";
+import {feedOn, reviewerOn} from "./settings.js";
 import {meta, tables} from "../domain/tables.js";
 import {computed} from "vue";
 import {open, recordCount, unreadByUser} from "../domain/records.js";
@@ -6,8 +6,7 @@ import {VIEWS} from "../domain/panes.js";
 
 const OWN_TABS = ["questions"];
 
-// the reviewer pane is Home's only while the reviewer is on, which is in orchestrator mode
-export const reviewing = computed(() => workMode.value === "orchestrator" && reviewerOn.value);
+export const reviewing = computed(() => reviewerOn.value);
 
 export function useHomeViews() {
     const views = computed(() => ({

@@ -1,6 +1,5 @@
 from journal.engine.states.void import Void
 from journal.features.workers.states.working_task import WorkingTask
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -9,7 +8,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_role_task_clocked_in import OrganizationRoleTaskClockedIn
 
 
-@story(OrganizationRoleTaskClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleTaskClockedIn, subject=AgentRole.MAIN)
 def test_a_role_seat_keeps_its_clocked_in_job_when_its_hook_session_changes(story):
     task = story.tasks.second
     worker = story.agents.workers.first()

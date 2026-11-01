@@ -16,7 +16,7 @@ const {store} = await import("../src/state/store.js");
 const {default: StatusBar} = await import("../src/layout/StatusBar.vue");
 
 let app = null;
-const lead = (fitness) => ({id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", fitness});
+const lead = () => ({id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00"});
 
 beforeEach(() => {
     choose("main");
@@ -42,26 +42,24 @@ async function bar() {
     return host;
 }
 
-test("the top bar shows the lead agent's fitness score left of the mode buttons, and a dash while it is not measured yet", async () => {
-    store.agents = [lead({mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6})];
+test("the top bar has no agent mode or fitness controls", async () => {
+    store.agents = [lead()];
     const host = await bar();
-    expect(host.querySelector(".statusbar-fitness").textContent.trim()).toBe("88");
-    store.agents = [lead({mode: "builder", score: 100, is_measured: false, lines: [], timeline: [], timeline_hours: 6})];
-    await nextTick();
-    expect(host.querySelector(".statusbar-fitness").textContent.trim()).toBe("–");
+    expect(host.querySelector(".statusbar-mode")).toBeNull();
+    expect(host.querySelector(".statusbar-fitness")).toBeNull();
 });
 
-test("the load shows for the builder and the orchestrator and is hidden in solo, and the builder's warns at its own ceiling", async () => {
-    const withLoad = (rho) => ({...lead(null), load: {rho, work: {rho, arrivals: 10, clearings: 20, waiting: 1, wait_minutes: 1, waiting_refs: []}, messages: null}});
-    store.settings = {features: {}, tasks: {}, workers: {mode: "builder", builder_load_ceiling: 0.5}, reviewing: {}};
+test("the top bar shows the generic load and uses the configured warning levels", async () => {
+    const withLoad = (rho) => ({...lead(), load: {rho, work: {rho, arrivals: 10, clearings: 20, waiting: 1, wait_minutes: 1, waiting_refs: []}, messages: null}});
+    store.settings = {features: {}, tasks: {}, workers: {load_warn: 0.5, load_critical: 0.9}, reviewing: {}};
     store.agents = [withLoad(0.6)];
     const host = await bar();
     expect(host.querySelector(".statusbar-load").classList.contains("warn")).toBe(true);
     expect(host.querySelector(".statusbar-load").textContent.trim()).toBe("0.60");
-    store.settings = {...store.settings, workers: {mode: "solo"}};
-    await nextTick();
-    expect(host.querySelector(".statusbar-load")).toBeNull();
-    store.settings = {...store.settings, workers: {mode: "orchestrator"}};
+    store.settings = {...store.settings, workers: {load_warn: 0.7, load_critical: 0.9}};
     await nextTick();
     expect(host.querySelector(".statusbar-load").classList.contains("warn")).toBe(false);
+    store.settings = {...store.settings, workers: {load_warn: 0.7, load_critical: 0.55}};
+    await nextTick();
+    expect(host.querySelector(".statusbar-load").classList.contains("critical")).toBe(true);
 });

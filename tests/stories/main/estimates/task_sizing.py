@@ -3,7 +3,6 @@ import pytest
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.states.external_wait import ExternalWait
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
@@ -13,7 +12,7 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 151 (R03: Record builder sizes and estimate revisions).")
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_an_owner_can_set_a_story_size_on_an_open_plan_task(story):
     result = story.user_presses(f"/journal/tasks/{story.tasks.first}/size", {"size": 3, "reason": "a reviewed relative estimate"})
     result.expect_viewer_passed()
@@ -23,7 +22,7 @@ def test_an_owner_can_set_a_story_size_on_an_open_plan_task(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_null_is_unknown_and_zero_or_off_scale_story_sizes_are_refused(story):
     result = story.user_opens(f"/journal/tasks/{story.tasks.first}")
     result.expect_viewer_shows("size", None)
@@ -33,7 +32,7 @@ def test_null_is_unknown_and_zero_or_off_scale_story_sizes_are_refused(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_an_authorized_resize_keeps_first_ready_and_sprint_commitment_sizes(story):
     result = story.user_presses(f"/journal/tasks/{story.tasks.first}/size", {"size": 3, "reason": "first ready estimate"})
     result.expect_viewer_passed()
@@ -52,7 +51,7 @@ def test_an_authorized_resize_keeps_first_ready_and_sprint_commitment_sizes(stor
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_a_worker_can_propose_a_resize_without_changing_the_accepted_size(story):
     result = story.agent_runs(story.agents.workers.first(), f"task size {story.tasks.briefed} 5 --why 'the work is larger'")
     result.expect_command_passed()
@@ -61,7 +60,7 @@ def test_a_worker_can_propose_a_resize_without_changing_the_accepted_size(story)
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_partial_execution_does_not_reduce_the_accepted_story_size(story):
     result = story.user_presses(f"/journal/tasks/{story.tasks.started}/size", {"size": 5, "reason": "planned scope"})
     result.expect_viewer_passed()

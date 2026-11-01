@@ -14,7 +14,7 @@ export const NOT_STARTED = {
 export const PLANNED = ["draft", "ready", "reviewing"];
 export const PLAN_RUNNING = ["started", "waiting", "delegated", "blocked", "approved"];
 
-// The plan the agent is working: a builder or a solo agent has one, an orchestrator may have several.
+// The plan the agent is working; Plan agents may work on several at once.
 export const isActivePlan = (p) => p.state === "started";
 export const PLAN_STATES = {
     draft: "Being planned",

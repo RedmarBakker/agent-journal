@@ -8,18 +8,16 @@ from journal.repositories.tasks import Tasks
 from journal.models.support.ref import Ref
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
-from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.code_files import CodeFiles
 from journal.support.recorded_call import RecordedCall
-from journal.features.workers.workers_options import WorkersOptions
 
 
 class ToolUses:
     """One tool-use counter per session, stored on the agent's row and carried on every tool event: a plain tool use of the agent's own moves it by one as its ToolStarting is placed; a journal command and a subagent's tool use leave it where it is and carry the unchanged number; a compaction sets it back to zero, with the inbox mark, since the agent after it is as good as new. An edit of a code file by the agent itself moves its count of code edits by one too, and the task in progress in its hand counts the tool use as well. A plain tool use also carries how many times the agent has run its command's shape, counted here once for every listener."""
 
-    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks, scope: Scope) -> None:
-        self.agents, self.entries, self.settings, self.tasks = agents, entries, settings, tasks
+    def __init__(self, agents: Agents, entries: Entries, tasks: Tasks, scope: Scope) -> None:
+        self.agents, self.entries, self.tasks = agents, entries, tasks
         self.scope = scope
 
     def counted(self, event: AgentEvent) -> AgentEvent:
@@ -35,7 +33,7 @@ class ToolUses:
         call = event.call.recorded()
         if event.call.is_journal:
             return event.counted(agent)
-        agent = self.agents.rewritten(agent, Actor.system(), lambda row: self.used(row, call, event.time))
+        agent = self.agents.rewritten(agent, Actor.system(), lambda row: self.used(row, call))
         self.task_counted(agent)
         return event.counted(agent).shape_counted(self.entries.shape_count(event.session, call.shape) + 1 if call.shape else 0)
 
@@ -45,9 +43,7 @@ class ToolUses:
             with self.scope.environment(task.environment_id):
                 self.tasks.save(task.tool_used(), Actor.system())
 
-    def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
-        mode = str(self.settings.option(WorkersOptions.MODE))
-        agent = agent.mode_changed(mode).tool_used()
+    def used(self, agent: Agent, call: RecordedCall) -> Agent:
+        agent = agent.tool_used()
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
-        agent = agent.lines_edited(call.operation.changed_lines()[0], time, time - self.settings.decimal(WorkersOptions.SERIES_HOURS) * 3600) if CodeFiles.has_code(call.edited_paths) else agent
         return agent

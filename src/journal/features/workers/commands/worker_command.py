@@ -7,7 +7,6 @@ from journal.features.organization.support.cardinality import Cardinality
 
 from journal.repositories.setting_rows import SettingRows
 from journal.features.tasks.active_task import ActiveTask
-from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.worktree_failure import WorktreeFailure
 from journal.console.command import Command
@@ -50,7 +49,6 @@ from journal.engine.command_events import CommandEvents
 from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.support.work_mode import WorkMode
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.templates.shipped import JOURNAL_TESTS
 from journal.support.time_source import TimeSource
@@ -77,14 +75,22 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge", "send"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation, runtime: SeatRuntime, names: RigNames) -> None:
+    def __init__(
+        self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope,
+        profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows,
+        allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents,
+        events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule,
+        launch: WorkerLaunch, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase,
+        time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation,
+        runtime: SeatRuntime, names: RigNames,
+    ) -> None:
         self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
         self.targets, self.rebases = targets, rebases
-        self.launch, self.checks, self.taking = launch, checks, taking
+        self.launch, self.taking = launch, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
-        self.branch, self.settings, self.actions, self.subagents, self.work_mode = branch, settings, actions, subagents, work_mode
+        self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
         self.roles, self.instances = roles, instances
         self.runtime = runtime
@@ -395,8 +401,6 @@ class WorkerCommand(Command):
             print(f"closed with it, from its queue: {', '.join(f'task {task.id}' for task in outcome.finished)}")
         if outcome.next_task:
             print(outcome.next_task)
-        if self.work_mode.delegates_work():
-            print(f"run the whole suite now: it has not passed since the merges of {self.checks.check().workers_line()}")
         return 0
 
     def worker_for_check(self, number: int, caller: Caller) -> Worker:

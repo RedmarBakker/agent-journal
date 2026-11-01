@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_tasks_filed_from_a_message_are_one_mark_naming_each_and_replies_naming_them_keep_it(story):
     message = story.user_sends_message("see the picture")
     result = story.agent_runs(story.agents.subject, f"task create 'look at the picture' --from {message}")
@@ -21,7 +20,7 @@ def test_tasks_filed_from_a_message_are_one_mark_naming_each_and_replies_naming_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_task_created_right_after_a_reply_is_linked_to_the_message_it_answers(story):
     message = story.user_sends_message("please fix the footer")
     story.agent_creates_task(story.agents.subject, "the menu")
@@ -32,7 +31,7 @@ def test_a_task_created_right_after_a_reply_is_linked_to_the_message_it_answers(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_a_priority_change_right_after_a_reply_is_never_put_down_to_the_message(story):
     menu = story.agent_creates_task(story.agents.subject, "the menu")
     story.agent_replies(story.agents.subject, story.messages.first, "on it")
@@ -41,7 +40,7 @@ def test_a_priority_change_right_after_a_reply_is_never_put_down_to_the_message(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(TwoUnreadMessages, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TwoUnreadMessages, subject=AgentRole.MAIN)
 def test_a_task_made_from_one_message_and_edited_from_another_has_a_mark_under_each_and_one_mark_per_move(story):
     notes, tags = story.messages.first, story.messages.second
     story.agent_runs(story.agents.subject, f"task create 'write the notes' --from {notes}")
@@ -52,7 +51,7 @@ def test_a_task_made_from_one_message_and_edited_from_another_has_a_mark_under_e
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(TwoUnreadMessages, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TwoUnreadMessages, subject=AgentRole.MAIN)
 def test_a_task_created_with_from_right_after_a_reply_to_another_message_is_linked_to_the_one_it_names(story):
     footer, width = story.messages.first, story.messages.second
     story.agent_replies(story.agents.subject, footer, "noted")

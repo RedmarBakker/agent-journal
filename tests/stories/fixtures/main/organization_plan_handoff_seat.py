@@ -3,7 +3,6 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.organization.support.seat_runtime import SeatRuntime
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
@@ -39,7 +38,6 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     """The Plan seat starts while its open Domain task is delegated to a worker."""
 
     parent = OrganizationHubPlan
-    settings = ((WorkersOptions.MODE, ORCHESTRATOR_MODE),)
 
     def steps(self, story) -> None:
         OrganizationHubPlan.steps(self, story)
@@ -50,7 +48,6 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
         story.configure_simulated_openrig()
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, story.app.container.get(SeatRuntime))
-        story.plays_in(BUILDER_MODE)
         self.start_plan_seat(story)
 
     def expected(self, story) -> None:

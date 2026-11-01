@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 COPY = "Review Day (from the library)"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_library_copy_takes_a_new_version_while_unedited_and_once_edited_waits_for_replace(story):
     original = story.a_library_holds_a_sequence_imported_here("Review Day", "read it")
     copy = story.sequence_number(COPY)
@@ -29,7 +28,7 @@ def test_a_library_copy_takes_a_new_version_while_unedited_and_once_edited_waits
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_what_was_imported_keeps_working_once_the_library_is_gone(story):
     story.a_library_holds_a_sequence_imported_here("Tea Time", "brew")
     story.library_server_stops()
@@ -42,7 +41,7 @@ def test_what_was_imported_keeps_working_once_the_library_is_gone(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_library_commands_with_no_library_connected_name_the_connect_line(story):
     result = story.user_types("library list")
     result.expect_command_text("journal team connect")

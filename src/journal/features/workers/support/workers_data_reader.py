@@ -1,5 +1,4 @@
 from journal.features.workers.support.merge_checks import MergeChecks
-from journal.features.workers.support.orchestrator_task_assigner import OrchestratorTaskAssigner
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
 from journal.engine.support.lazy_facts import LazyFacts
@@ -30,8 +29,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, delegation: OrchestratorTaskAssigner, plans: Plans, text: CommandText) -> None:
-        self.delegation, self.plans, self.text = delegation, plans, text
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, plans: Plans, text: CommandText) -> None:
+        self.plans, self.text = plans, text
         self.checks, self.scope, self.stages, self.entries, self.resumes = checks, scope, stages, entries, resumes
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
@@ -49,7 +48,7 @@ class WorkersDataReader:
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("workers", {
             "session_subagent_rows": lambda: self.subagents.session_subagents(agent.session),
-            "delegable": lambda: tuple(task.row_id for task in self.delegation.delegable_tasks()),
+            "delegable": lambda: tuple(task.row_id for plan in self.plans.running_plans() for task in self.plans.queued_tasks(plan)),
             "plan_tasks": lambda: tuple(tuple(self.plans.plan_task_ids(plan)) for plan in self.plans.running_plans()),
             "dispatched_workers": lambda: tuple(self.workers.running_workers()),
             "idle_workers": lambda: tuple(self.workers.idle_workers()),
@@ -64,9 +63,6 @@ class WorkersDataReader:
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
             "resumable": lambda: tuple(w.id for w in self.workers.unfinished_accepted(agent.session, self.resumes.is_resumable)),
-            "band": lambda: agent.band,
-            "band_changed_at": lambda: agent.band_changed_at,
-            "measures": lambda: agent.measures,
             "queues": lambda: {worker: tuple(task.row_id for task in tasks) for worker, tasks in self.tasks.queues(self.workers.scoped()).items()},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

@@ -5,7 +5,6 @@ from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -15,7 +14,7 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(HeldStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(HeldStops, subject=AgentRole.MAIN)
 def test_held_stops_count_from_nothing_again_once_the_agent_works_between_them(story):
     story.agent_reads(story.agents.subject)
     for _ in range(PANIC_REFUSAL_COUNT - 1):
@@ -25,7 +24,7 @@ def test_held_stops_count_from_nothing_again_once_the_agent_works_between_them(s
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(LoopedStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(LoopedStops, subject=AgentRole.MAIN)
 def test_after_a_dead_loop_let_a_stop_through_the_agents_next_work_holds_its_stops_again_from_nothing(story):
     story.agent_stops(story.agents.subject)
     story.agent_reads(story.agents.subject)
@@ -36,7 +35,7 @@ def test_after_a_dead_loop_let_a_stop_through_the_agents_next_work_holds_its_sto
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(HeldStops, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(HeldStops, subject=AgentRole.MAIN)
 def test_held_stops_count_from_nothing_again_after_the_users_message(story):
     story.agent_is_prompted(story.agents.subject, "go on with the footer")
     for _ in range(PANIC_REFUSAL_COUNT - 1):
@@ -46,7 +45,7 @@ def test_held_stops_count_from_nothing_again_after_the_users_message(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_a_stop_held_for_closing_words_after_a_reply_does_not_count_towards_a_dead_loop(story):
     task = story.agent_takes_a_task(story.agents.subject, "the header")
     story.agent_is_prompted(story.agents.subject, "is the footer done?")
@@ -61,7 +60,7 @@ def test_a_stop_held_for_closing_words_after_a_reply_does_not_count_towards_a_de
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_in_auto_mode_an_agent_that_says_it_is_stuck_may_stop_with_its_task_in_hand(story):
     result = story.agent_runs_in_the_shell(story.agents.subject, "journal stuck 'the build needs a key only the user has'")
     result.expect_allowed()
@@ -74,7 +73,7 @@ def test_in_auto_mode_an_agent_that_says_it_is_stuck_may_stop_with_its_task_in_h
     story.expect_stack(story.agents.subject, Ready, Working, Impasse)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_in_auto_mode_an_agent_waiting_on_something_may_stop_with_its_task_in_hand(story):
     story.agent_runs(story.agents.subject, "await 'the build' --until 'test -f build.done'")
     result = story.agent_stops(story.agents.subject)

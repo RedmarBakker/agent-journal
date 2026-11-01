@@ -37,7 +37,7 @@ class Helper(Role):
         return (SafetyConduct, DemandConduct, *(conduct for feature in cls.features for conduct in feature.helper_conduct.get(cls.role, ())))
 
     @classmethod
-    def mode_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+    def floor_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
         return ()
 
     @classmethod

@@ -1,8 +1,6 @@
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.tasks.states.external_wait import ExternalWait
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -10,7 +8,7 @@ from tests.stories.fixtures.main.paused_organization_hub_plan import PausedOrgan
 from tests.stories.fixtures.main.stopped_organization_hub_plan import StoppedOrganizationHubPlan
 
 
-@story(PausedOrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationHubPlan, subject=AgentRole.MAIN)
 def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     plan = story.plans.first
     rig = story.plan_rig_name(plan)
@@ -25,10 +23,10 @@ def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     story.expect_plan_rig_seat_settings(rig)
     story.expect_organization_seat_routing_guidance(rig)
     story.expect_runtime_file(f"rigs/{rig}/saved-conversation.json", "previous conversation")
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.main, CoordinatingPlans)
 
 
-@story(StoppedOrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StoppedOrganizationHubPlan, subject=AgentRole.MAIN)
 def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
     plan = story.plans.first
@@ -60,4 +58,4 @@ def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.expect_plan(plan, state=PlanState.DELEGATED)
     story.expect_plan_rig(plan, rig)
     story.expect_plan_rig_seat_settings(rig)
-    story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan, ExternalWait)
+    story.expect_stack(story.agents.main, CoordinatingPlans, ExternalWait)

@@ -1,13 +1,11 @@
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
 
 
-@story(OrganizationPlanSeat, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-@setting(WorkersOptions.MODE, ORCHESTRATOR_MODE)
+@story(OrganizationPlanSeat, subject=AgentRole.MAIN)
 def test_a_plan_seat_reads_its_plan_tasks_and_handoff_targets_without_an_environment_override(story):
     plan = story.plans.first
     task = story.tasks.first

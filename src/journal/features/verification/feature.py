@@ -5,7 +5,6 @@ from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
 from journal.features.verification.commands.verdict_command import VerdictCommand
-from journal.features.verification.listeners.model_fit_sample import ModelFitSample
 from journal.features.verification.listeners.verifier_card import VerifierCard
 from journal.features.verification.listeners.verifier_release import VerifierRelease
 from journal.features.verification.listeners.verifier_retirement import VerifierRetirement
@@ -28,5 +27,5 @@ class Verification(Feature):
     states = (Verifying,)
     process_cards = (VerifierProcessCard,)
     helper_commands = {AgentRole.VERIFIER: (VerdictCommand,)}
-    listeners = (VerifierStart, VerifierCard, VerifierRetirement, VerifierRelease, ModelFitSample, TypedVerdict)
+    listeners = (VerifierStart, VerifierCard, VerifierRetirement, VerifierRelease, TypedVerdict)
     nudges = (VerificationNudges.VERIFIER_REFUSAL,)

@@ -4,19 +4,18 @@ from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.organization.support.organization import Organization
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from tests.stories.fixtures.main.organization_plan_orchestrator import OrganizationPlanOrchestrator
+from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
 
 
-class OrganizationTaskSplitPlan(OrganizationPlanOrchestrator):
+class OrganizationTaskSplitPlan(OrganizationPlanSeat):
     """An organization plan uses two writing Roles for task parts."""
 
-    parent = OrganizationPlanOrchestrator
+    parent = OrganizationPlanSeat
     settings = (
         (OrganizationOptions.FOLDER, str(Path(__file__).resolve().with_name("organization_task_split"))),
     )
@@ -33,7 +32,6 @@ class OrganizationTaskSplitPlan(OrganizationPlanOrchestrator):
         story.user_rewrites_the_brief(self.tasks.first, TASK_BRIEF)
         story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
-        story.plays_in(BUILDER_MODE)
         seat = story.agent_starts_plan_seat(story.agents.main, self.plans.first)
         story.expect_openrig_seat_environment(story.agents.main, "plan")
         seat.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,

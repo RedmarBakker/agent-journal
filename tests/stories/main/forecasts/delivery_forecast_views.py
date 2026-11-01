@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.domain_development_delivered import DomainDevelopmentDelivered
 
 
-@story(DomainDevelopmentDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDelivered, subject=AgentRole.MAIN)
 def test_a_merged_development_plan_remains_awaiting_deployment_in_all_forecast_views(story):
     worker = story.agents.workers.first()
     story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.first}")

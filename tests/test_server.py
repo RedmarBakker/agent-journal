@@ -1276,11 +1276,7 @@ def test_the_search_page_finds_a_task_by_its_words(server):
     assert rows["found"] == [], "narrowed to plans and messages, the task is not found"
 
 
-def test_the_plan_bars_work_mode_and_the_top_bars_pause_are_version_fours_own(server):
-    assert call(server, "GET", "/journal/mode")[1] == {"mode": "builder", "modes": ["builder", "orchestrator", "solo"]}
-    assert call(server, "POST", "/journal/mode", {"mode": "orchestrator"})[1]["mode"] == "orchestrator"
-    assert call(server, "GET", "/journal/settings")[1]["workers"]["mode"] == "orchestrator"
-    assert call(server, "POST", "/journal/mode", {"mode": "boss"})[0] == 409
+def test_the_top_bar_pause_and_resume_are_version_fours_own(server):
     machine_answer = lambda type_name, **body: call(server, "POST", "/hooks/claude", {"hook_event_name": type_name, "session_id": "s7", **body})
     machine_answer("SessionStart")
     agent = call(server, "GET", "/journal/agents")[1]["rows"][0]

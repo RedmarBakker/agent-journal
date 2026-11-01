@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.message_with_file import MessageWithFile
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(MessageWithFile, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(MessageWithFile, subject=AgentRole.MAIN)
 def test_reading_a_message_names_its_file_and_how_to_caption_it_and_then_its_caption(story):
     message = story.messages.first
     result = story.agent_runs(story.agents.subject, f"message read {message}")
@@ -20,7 +19,7 @@ def test_reading_a_message_names_its_file_and_how_to_caption_it_and_then_its_cap
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(MessageWithFile, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(MessageWithFile, subject=AgentRole.MAIN)
 def test_unread_messages_read_together_ask_a_caption_only_of_the_one_with_a_picture(story):
     plain = story.user_sends_message("and the header too")
     result = story.agent_runs(story.agents.subject, "message unread")
@@ -29,7 +28,7 @@ def test_unread_messages_read_together_ask_a_caption_only_of_the_one_with_a_pict
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_reading_a_message_the_user_reacted_to_names_the_reaction_and_asks_no_caption_of_a_message_without_a_file(story):
     message = story.user_sends_message("see the picture")
     story.user_reacts(message, "👍")

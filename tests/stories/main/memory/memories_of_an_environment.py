@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 WEIGHT = 5
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_two_environments_memories_never_mix_and_one_from_another_cannot_be_weighed_here(story):
     other = story.another_environment("other")
     story.agent_adds_memory(story.agents.subject, "the main project ships on fridays", WEIGHT)
@@ -22,7 +21,7 @@ def test_two_environments_memories_never_mix_and_one_from_another_cannot_be_weig
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_subagents_compaction_fades_no_memory_and_the_main_agents_fades_its_own(story):
     memory = story.agent_adds_memory(story.agents.subject, "the main project ships on fridays", WEIGHT)
     story.subagent_compaction_begins("sub-1")

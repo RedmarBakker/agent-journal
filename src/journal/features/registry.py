@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import CardTypeCatalogue
-from journal.engine.support.modes import Modes
+from journal.engine.support.state_floor import StateFloor
 from journal.support.agent_role import AgentRole
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
@@ -52,8 +52,8 @@ class Registry:
     @staticmethod
     def registered_classes(feature: type[Feature]) -> set[type]:
         helper_conducts = {conduct for conducts in feature.helper_conduct.values() for conduct in conducts}
-        mode_conducts = {conduct for mode_state, conduct in feature.mode_conduct}
-        return {*(listener for listener, _ in feature.answer_listeners), *feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *(reader for readers in feature.helper_data.values() for reader in readers), *(command for commands in feature.helper_commands.values() for command in commands)}
+        floor_conducts = {conduct for floor_state, conduct in feature.floor_conduct}
+        return {*(listener for listener, _ in feature.answer_listeners), *feature.listeners, *feature.conduct, *helper_conducts, *floor_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *(reader for readers in feature.helper_data.values() for reader in readers), *(command for commands in feature.helper_commands.values() for command in commands)}
 
     def helper_files(self, helpers: tuple[type[Helper], ...]) -> dict[AgentRole, type[Helper]]:
         for role in AgentRole.helpers():
@@ -114,11 +114,11 @@ class Registry:
     def conducts(self, role: AgentRole) -> tuple[type[Conduct], ...]:
         return self.role_file(role).conducts(self.features)
 
-    def mode_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
-        return self.role_file(role).mode_conducts(self.features, lowest_state)
+    def floor_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+        return self.role_file(role).floor_conducts(self.features, lowest_state)
 
-    def mode_states(self) -> tuple[type[BaseState], ...]:
-        return tuple(dict.fromkeys(mode_state for feature in self.features for mode_state, conduct in feature.mode_conduct))
+    def floor_states(self) -> tuple[type[BaseState], ...]:
+        return tuple(dict.fromkeys(floor_state for feature in self.features for floor_state, conduct in feature.floor_conduct))
 
     def demands(self, role: AgentRole) -> tuple[Demand, ...]:
         return self.role_file(role).demands(self.features)
@@ -126,8 +126,8 @@ class Registry:
     def states(self) -> list[type[BaseState]]:
         return [state for feature in self.features for state in feature.states]
 
-    def modes(self) -> list[Modes]:
-        return [feature.modes for feature in self.features if feature.modes]
+    def state_floors(self) -> list[StateFloor]:
+        return [feature.state_floor for feature in self.features if feature.state_floor]
 
     def floors(self) -> dict[AgentRole, type[BaseState]]:
         return {role: helper.first_state for role, helper in self._helpers.items()}

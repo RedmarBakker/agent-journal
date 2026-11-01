@@ -1,7 +1,3 @@
-$ agent: journal mode show
-exit 0
-you are the builder: Builder, the default: you build it yourself and send a worker when a job is better done beside you.
-
 $ agent: journal task create 'Write the footer' --brief 'The footer names the shop' --start
 exit 0
 task 1 started
@@ -168,62 +164,62 @@ options:
 $ agent: journal todo --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal todo add --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal todo check --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal todo list --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'todo' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal clock-in record --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'clock-in' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'clock-in' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal clock-out record --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'clock-out' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'clock-out' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal proof record --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'proof' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'proof' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal verdict give --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'verdict' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'verdict' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal verdict model --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'verdict' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'verdict' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal review record --help
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'review' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'review' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal reviewer add --help
 exit 0
@@ -909,20 +905,20 @@ notice 1 closed
 $ agent: journal dashboard set build Build --badge green --tone good --note 'all tests pass' --heading Health
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal dashboard unset build
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal dashboard clear
 exit 2
 usage: journal [-h]
-               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
-argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,mode,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'mode', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
+               {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role} ...
+argument {setup,environment,panic,nudge,settings,skill,rule,reminder,memory,task,await,stuck,message,question,plan,sequence,worker,subagent,tests,trigger,check,output,reader,reviewer,alias,mcp,secret,share,template,report,doc,collection,dump,notice,voice,worktree,plugin,developer,search,update,team,library,supervision,organization,role}: invalid choice: 'dashboard' (choose from 'setup', 'environment', 'panic', 'nudge', 'settings', 'skill', 'rule', 'reminder', 'memory', 'task', 'await', 'stuck', 'message', 'question', 'plan', 'sequence', 'worker', 'subagent', 'tests', 'trigger', 'check', 'output', 'reader', 'reviewer', 'alias', 'mcp', 'secret', 'share', 'template', 'report', 'doc', 'collection', 'dump', 'notice', 'voice', 'worktree', 'plugin', 'developer', 'search', 'update', 'team', 'library', 'supervision', 'organization', 'role')
 
 $ agent: journal alias add greet 'echo hello' --about 'says hello'
 exit 0
@@ -1396,41 +1392,13 @@ workers.lockout_seconds = 30
 workers.memory_warning_megabytes = 4096
 workers.memory_limit_megabytes = 8192
 workers.memory_total_megabytes = 16384
-workers.write_block_minutes = 15
-workers.builder_active_workers = 2
-workers.score_warmup_minutes = 30
-workers.orchestrator_high_entry = 0.8
-workers.orchestrator_high_exit = 0.65
-workers.orchestrator_low_entry = 0.5
-workers.orchestrator_low_exit = 0.65
-workers.builder_high_entry = 0.5
-workers.builder_high_exit = 0.4
-workers.builder_low_entry = 0.3
-workers.builder_low_exit = 0.4
-workers.band_minutes = 30
-workers.empty_queue_minutes = 15
-workers.series_hours = 3
-workers.commit_line_cap = 400
+workers.load_window_minutes = 30
+workers.load_half_life_minutes = 10
 workers.idle_hours = 4
-workers.fitness_warnings = True  (the user sets it)
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
 workers.clashes_named = 3
-workers.orchestrator_writes_plans = True  (the user sets it)
-workers.orchestrator_approves_plans = False  (the user sets it)
-workers.orchestrator_plan_approval = 'can approve only its own plans'  (the user sets it)
-workers.orchestrator_releases = False  (the user sets it)
-workers.plan_stall_minutes = 60
-workers.load_window_minutes = 30
-workers.load_half_life_minutes = 10
 workers.load_warn = 0.7
-workers.builder_load_ceiling = 0.5
-workers.reviewers_most = 2
-workers.verifiers_most = 2
-workers.builder_may_dispatch = True  (the user sets it)
-workers.builder_may_queue = True  (the user sets it)
-workers.builder_may_subagents = True  (the user sets it)
-workers.solo_may_subagents = True  (the user sets it)
 workers.load_critical = 0.9
 workers.scale_up_at = 0.8
 workers.scale_down_at = 0.5
@@ -1440,14 +1408,7 @@ workers.place_floor = ''  (the user sets it)
 workers.place_ceiling = ''  (the user sets it)
 workers.weight_user_message = 3
 workers.weight_repeat_send_back = 1.5
-workers.held_still_minutes = 60
-workers.held_share = 0.4
-workers.unordered_plan_tasks = 10
-workers.priorities_minutes = 45
-workers.model_fit_sample = 5
-workers.costly_shaped_work_dollars = 2.0
 workers.timeout_minutes = 60
-workers.mode = 'builder'  (the user sets it)
 workers.test_runs = 3
 workers.test_waiting = ''
 workers.tests_per_run = 20
@@ -1495,7 +1456,6 @@ shell.reader_suggestion_runs = 50
 reviewing.reviewer = False  (the user sets it)
 sharing.host = ''  (the user sets it)
 reports.update_every = 60
-reports.unacted_minutes = 60
 docs.revision_window = 30
 pins.suggest_every = 50
 etiquette.remind_every = 50
@@ -1566,7 +1526,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 6
+created: setting 5
 
 $ agent: journal environment list
 exit 0
@@ -1696,12 +1656,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 7
+created: setting 6
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 8
+created: setting 7
 
 $ agent: journal skill list
 exit 0
@@ -1712,7 +1672,6 @@ journal-messages     Read and answer the user's messages and ask the user questi
 journal-plans        Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap
 journal-sequences    Follow a sequence of steps one at a time; load it when a sequence is run or written
 journal-workers      Send a worker to write a bounded job and wait for its report; load it before dispatching one
-journal-work-modes   Work as the builder, the orchestrator or solo, as its fitness measures tell it; load it when the work mode or its fitness comes up
 journal-checks       Write and run scripts that pass or fail about the project; load it when a check is created, run or fails
 journal-shell        Run shell commands through the journal: in parts, timed, and in the background past the limit; load it when a command moves to the background, or before reading an output or writing a reader or an alias
 journal-secrets      Use keys and logins without seeing them; load it when a task needs a key, a login or a site you must be logged in to
@@ -1852,7 +1811,6 @@ plans.coordinator_writes_no_code  [plans]  you coordinate the plans and write no
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing|cap=1500}}
-plans.now_building  [plans]  you are now the builder. `journal mode show` prints what the mode asks
 plans.now_coordinating_plans  [plans]  you now coordinate the plans: each plan's own Plan agent does its work; write no code
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
@@ -1882,7 +1840,6 @@ questions.ask_through_the_journal  [questions]  ask with `journal question ask "
 questions.question_answered  [questions]  question {{n}} is answered. read it with `journal question show {{n}}` and act on it
 questions.question_closed  [questions]  the user closed question {{n}} unanswered. go on without it
 reports.write_an_update  [reports]  after major work, check `journal report changes`, then tell the user: `journal report recap "<one or two sentences>"`
-reports.written_work_never_acted_on  [reports]  {{row_type}} {{n}} was never read or linked: act on it, or `journal {{row_type}} settle {{n}} --why "<why>"`
 reviewing.review_failed  [reviewing]  worker {{n}}'s reviewer gave no report. read `journal task show {{task}}`, then `journal worker check {{n}} <point>`
 reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: change and merge nothing. run the proofs' tests, then `journal review "<one line per point>"`
 reviewing.reviewer_could_not_decide  [reviewing]  {{reviewer}} left worker {{n}} undecided: {{report|cap=600}}. check each point: `journal worker check {{n}} <point>`
@@ -1989,58 +1946,31 @@ voices.introduce_yourself  [voices]  introduce yourself in the chat in one or tw
 voices.say_you_are_back  [voices]  you are back in an earlier conversation. say so in a line in your voice, then carry on
 voices.the_voice_changed  [voices]  from now on talk to the user like this: {{voice|cap=1500}} use it from your next chat line; say nothing of the change
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported. give it its next job with `journal worker send <n> "<job>"`, stop it, or mark it done
-workers.blocked_work_stands_still  [workers]  blocked tasks not moving: {{tasks|cap=33}}. unblock what is ready; split or reorder the rest
 workers.branch_keeps_clashing  [workers]  worker {{n}}'s branch rebased {{clashes}} times in a row, clashing in {{clashing|cap=25}}. let it merge before the others
-workers.builder_clear_oldest  [workers]  the worker queue has been high for {{minutes}} minutes. check and merge worker {{n}} first
-workers.builder_take_in_first  [workers]  on average {{count}} workers were active at once this hour. merge worker {{n}} next, then hand out the next task
-workers.builder_write_next  [workers]  you wrote {{share}} of the code this hour. write task {{n}} yourself
-workers.check_blocked_tasks  [workers]  tasks {{tasks|cap=15}} are blocked. free what you can: `journal task unblock <n>`
 workers.clocked_out_work_waits  [workers]  {{workers|cap=16}} clocked out. check each point with `journal worker check <n> <point>`, then `journal worker merge <n>`
 workers.could_it_be_reused  [workers]  if worker {{n}} can do this, run `journal worker send {{n}} "<job>"`; if not, repeat the command with `--why "<why>"`
-workers.delegate_the_task  [workers]  you orchestrate but do {{name|cap=38}} yourself. give it to a worker with journal worker dispatch
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
 workers.make_the_wait_a_block  [workers]  block instead of waiting: `journal task block <n> --on task:<m>` or `journal task block <n> --until '<command>'`
-workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}; the user turned it off
-workers.model_too_strong  [workers]  worker {{n}} ran on {{model}}; a cheaper model would do. choose a cheaper one for work like this
-workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times. use a stronger model for work like this
-workers.no_workers_when_solo  [workers]  you work solo: dispatch no workers
-workers.now_orchestrating  [workers]  you are now the orchestrator. `journal mode show` prints what the mode asks
-workers.now_solo  [workers]  you are now the solo worker. `journal mode show` prints what the mode asks
 workers.open_todos  [workers]  {{count}} to-dos open: {{items|cap=34}}. finish them, or say why in `journal clock-out "<report>"`
-workers.orchestrate  [workers]  {{count}} tasks open; next: {{tasks|cap=26}}. dispatch a worker on each you can with journal worker dispatch
-workers.orchestrator_check_worker  [workers]  worker {{n}} has waited {{minutes}} minutes, too long. check it now
-workers.orchestrator_clear_oldest  [workers]  the worker queue has been high for {{minutes}} minutes. clear worker {{n}}, the oldest, first
-workers.orchestrator_dispatched_under_load  [workers]  the worker queue is high and worker {{n}} waits. check and merge it next
-workers.orchestrator_hand_out  [workers]  hand out more of the work. {{handout}}
-workers.orchestrator_queue_more  [workers]  workers report every {{tasks|cap=21}} merges. queue more: `journal worker queue {{n}} <task> <task>`
 workers.own_output_ended  [workers]  output {{n}} ended with code {{status}}. read it with `journal output read {{n}} --summary`
 workers.own_output_running  [workers]  output {{n}} still runs and ends when you stop. wait for it, then stop
 workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places|cap=28}} workers out at once
 workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places|cap=29}} workers out at once
 workers.places_full_check_work  [workers]  all places full. check worker {{n}} first to free one
-workers.plan_order_without_dependencies  [workers]  plan {{plan}}: {{open}} open tasks, none blocked. set what each waits on: `journal task block <n> --on task:<m>`
-workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
 workers.queue_the_build  [workers]  do not run {{command|cap=24}}; queue the build. `journal build`
 workers.queue_the_related_tasks  [workers]  queue tasks {{listed|cap=16}} of task {{task}}'s plan on {{worker}}: `journal worker queue {{n}} {{tasks|cap=16}}`
 workers.queue_the_tests  [workers]  do not run {{command|cap=24}}; queue the tests. `journal tests turn <test>`, single tests
-workers.release_waits_for_the_user  [workers]  {{line|cap=37}} waits for the user: "Orchestrator may release" is off. ask the user to release it
-workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: order the queues, most unblocking first: `journal plan priorities '<the order and why>'`
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause|cap=82}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of {{total}} {{profile}} workers are idle: {{workers|cap=400}}. send the job to one
 workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers worked on this job's files: {{workers|cap=400}}. send the job to one, or add `--fresh` to the dispatch
 workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on this job's files: {{subagents|cap=400}}. send the job to one with SendMessage
 workers.started_plans  [workers]  started plans: {{plans|cap=400}}
 workers.subagents_only_read  [workers]  a subagent only reads and searches, not {{command|cap=24}}
-workers.suite_failed_after_merges  [workers]  suite output {{run}} failed after merging {{workers|cap=22}}. send it back: `journal worker send {{n}} "<what failed>"`
-workers.take_up_next_work  [workers]  you spent {{share}} of the last hour waiting while other work was open. take up task {{n}} while the run goes on
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
-workers.task_names_another_without_a_wait  [workers]  task {{task}} mentions open task {{other}}: `journal task block {{task}} --on task:{{other}}`
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most allowed. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most allowed. run `journal worker wait <n>`, or send the job to one that reported
-workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you, at place {{place}} in worker {{n}}'s queue: `journal worker queue {{n}} {{task}} --first`
 workers.wait_for_running_workers  [workers]  {{workers|cap=19}} are still out and nothing waits to be checked. wait with `journal worker wait {{numbers|cap=19}}`
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
-workers.worker_costly_on_shaped_work  [workers]  {{model}} cost ${{dollars}} on routine work. use a cheaper model: `journal worker send {{n}} --model <model> "<job>"`
 workers.worker_has_no_work_left  [workers]  worker {{n}} idle: queue it tasks or `journal worker complete {{n}} --why "<why>"`
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_log_due  [workers]  you logged nothing for {{minutes}} min. log where you stand: `journal todo add "<step>"` or `journal proof <point> "<proof>"`
@@ -2056,7 +1986,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-320 nudges
+292 nudges
 
 $ agent: journal worker list
 exit 0

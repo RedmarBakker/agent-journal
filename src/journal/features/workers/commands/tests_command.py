@@ -21,7 +21,7 @@ COUNTED_HOURS = 1
 
 
 class TestsCommand(Command):
-    """The project's test command, set only once a run of it with the arguments of one test passes; the machine's load with the turns going and waiting, for the orchestrator to judge the budget by; and the budget set, written as the Settings page writes it, the next turns following it and runs already going left to end."""
+    """The project's test command, set only once a run of it with the arguments of one test passes; the machine's load with the turns going and waiting; and the budget set, written as the Settings page writes it, the next turns following it and runs already going left to end."""
 
     noun = "tests"
 

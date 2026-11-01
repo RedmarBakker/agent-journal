@@ -1,14 +1,13 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_options import TasksOptions
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_aged_work_with_unknown_delivery_history_is_not_starved_by_new_priority_work(story):
     changed = story.user_presses("/journal/settings", {"estimates": {"mode": "report"}})

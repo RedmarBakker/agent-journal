@@ -6,7 +6,7 @@ from journal.support.timeout import Timeout
 
 @dataclass(frozen=True)
 class PlanStatus:
-    """A started plan as the orchestrator is reminded of it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, when it last moved, and how many of its tasks are blocked."""
+    """A started plan as the main agent reads it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, when it last moved, and how many of its tasks are blocked."""
 
     plan_id: int
     title: str

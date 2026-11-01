@@ -36,9 +36,7 @@ from journal.repositories.plans import PHASE_LINK, PHASE_TASK_LINK, PLAN_LINK, P
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
-from journal.features.workers.support.plan_approval import PlanApproval
-from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.support.work_mode import WorkMode
+from journal.features.plans.support.plan_agent_coordinator import PlanAgentCoordinator
 from journal.support.time_source import TimeSource
 from journal.models.task_log import TaskLog
 from journal.repositories.task_logs import TaskLogs
@@ -58,14 +56,14 @@ class PlanCommand(Command):
     def __init__(
         self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, domains: DomainRows, organization: Organization,
         subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting,
-        settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, orchestrator: WorkMode,
+        settings: SettingRows, statuses: PlanStatuses, phase_testing: PhaseTesting, coordinator: PlanAgentCoordinator,
         plan_agents: PlanAgents, plan_owners: PlanOwners, time_source: TimeSource, messages: Messages, scope: Scope,
         logs: TaskLogs, branch_merge: PlanBranchMerge, task_sizes: TaskSizes, task_dependencies: TaskDependencies,
         composition: PlanCompositionReadiness, estimates_forecast: EstimatesForecast, proofs: Proofs,
         staffing: RigStaffing,
     ) -> None:
         self.time_source, self.logs, self.proofs = time_source, logs, proofs
-        self.orchestrator, self.plan_agents, self.plan_owners, self.messages, self.scope = orchestrator, plan_agents, plan_owners, messages, scope
+        self.coordinator, self.plan_agents, self.plan_owners, self.messages, self.scope = coordinator, plan_agents, plan_owners, messages, scope
         self.plans, self.phases, self.tasks, self.links, self.domains, self.organization, self.subagents, self.waits = plans, phases, tasks, links, domains, organization, subagents, waits
         self.rounds, self.taking, self.plan_testing = rounds, taking, testing
         self.settings, self.statuses, self.phase_testing = settings, statuses, phase_testing
@@ -159,8 +157,6 @@ class PlanCommand(Command):
         mode.add_argument("mode", choices=[choice.value for choice in PlanMode])
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
-            raise Rejection("the user writes the plans here: Orchestrator may write plans is off, so ask them for one")
         plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
         print(f"plan {plan.row_id} {plan.state}")
         return 0
@@ -273,30 +269,22 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.can_approve_plans_alone() and not self.is_approving_orchestrator(caller):
+        if not caller.actor.can_approve_plans_alone():
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.can_approve_plans_alone() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
-            raise Rejection(APPROVAL_REFUSAL)
         plan = caller.actor.chosen_way(self.plans.user_approved, self.plans.agent_approved)(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
-
-    def is_approving_orchestrator(self, caller: Caller) -> bool:
-        return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
-
-    def is_orchestrator(self, caller: Caller) -> bool:
-        return caller.is_main_agent() and self.orchestrator.delegates_work()
 
     def start(self, args: Namespace, caller: Caller) -> int:
         with self.tasks.writing():
             plan = self.plans.find(args.n)
             if self.phase_testing.is_refused(plan):
                 raise Rejection(self.phase_testing.refusal(plan))
-            if (plan.mode != PlanMode.ORGANIZATION and not self.orchestrator.delegates_work()
+            if (plan.mode != PlanMode.ORGANIZATION and not self.coordinator.is_coordinator()
                     and (task := self.plans.following_task(plan))):
                 self.taking.require_start(task)
-            if self.orchestrator.delegates_work() and plan.mode != PlanMode.ORGANIZATION:
+            if self.coordinator.is_coordinator() and plan.mode != PlanMode.ORGANIZATION:
                 plan = self.plans.opened(plan, caller.actor)
             else:
                 plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)

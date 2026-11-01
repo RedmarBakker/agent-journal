@@ -1,14 +1,13 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.estimates.estimates_nudges import EstimatesNudges
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_a_plan_forecast_shows_declared_dependencies_and_independent_work_as_a_structural_graph(story):
     prerequisite = story.tasks.first
     dependent = story.agent_runs(
@@ -41,7 +40,7 @@ def test_a_plan_forecast_shows_declared_dependencies_and_independent_work_as_a_s
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
     existing_task = story.tasks.first
     source_plan = story.user_creates_plan("source delivery", "the source artifact is deployed")
@@ -67,7 +66,7 @@ def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_a_plan_builder_is_told_about_a_truly_independent_task(story):
     prerequisite = story.tasks.first
     dependent = story.agent_runs(

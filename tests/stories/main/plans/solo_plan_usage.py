@@ -7,7 +7,7 @@ from journal.models.plan_state import PlanState
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import BUILDER_MODE, story
+from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.coordinating_plan_agent import CoordinatingPlanAgent
 
 
@@ -17,7 +17,7 @@ def recorded_cost(story, session: str, amount: float) -> None:
     path.write_text(json.dumps({"session_id": session, "cost": {"total_cost_usd": amount}}))
 
 
-@story(CoordinatingPlanAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CoordinatingPlanAgent, subject=AgentRole.MAIN)
 def test_a_solo_plan_records_its_plan_agent_session_cost(story):
     story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=(): None)
     plan = story.plans.first

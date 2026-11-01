@@ -4,14 +4,13 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.started_plan import StartedPlan
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_plans_tasks_follow_in_order_until_it_finishes(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.first} --how done")
     story.expect_task(story.tasks.second, state=TaskState.STARTED)
@@ -23,7 +22,7 @@ def test_a_plans_tasks_follow_in_order_until_it_finishes(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_starting_an_approved_plan_puts_its_first_task_in_hand(story):
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
@@ -32,7 +31,7 @@ def test_starting_an_approved_plan_puts_its_first_task_in_hand(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_an_approved_plan_starts_by_itself_at_a_session_start(story):
     story.agent_resumes_the_session(story.agents.subject)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
@@ -41,7 +40,7 @@ def test_an_approved_plan_starts_by_itself_at_a_session_start(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_blocked_plan_task_taken_up_again_carries_on_the_plan(story):
     story.agent_runs(story.agents.subject, f"task block {story.tasks.first} 'a look at the logs first'")
     story.agent_runs(story.agents.subject, f"task start {story.tasks.first}")

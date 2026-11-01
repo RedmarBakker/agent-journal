@@ -1,6 +1,5 @@
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from journal.support.foreground_option import FOREGROUND_OPTION
 from tests.stories.builder.story_marks import story
@@ -8,7 +7,7 @@ from tests.stories.fixtures.main.message_to_stopped_agent import MessageToStoppe
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(MessageToStoppedAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(MessageToStoppedAgent, subject=AgentRole.MAIN)
 def test_after_the_woken_agent_stops_again_the_next_line_is_typed_at_once(story):
     story.agent_is_woken_by_the_typed_line(story.agents.subject)
     story.agent_replies(story.agents.subject, story.messages.first, "it is")
@@ -19,7 +18,7 @@ def test_after_the_woken_agent_stops_again_the_next_line_is_typed_at_once(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(MessageToStoppedAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(MessageToStoppedAgent, subject=AgentRole.MAIN)
 def test_a_second_line_before_the_woken_agents_prompt_is_never_typed_and_rides_that_prompt(story):
     second = story.user_sends_message("and the header?")
     story.expect_typed()
@@ -29,7 +28,7 @@ def test_a_second_line_before_the_woken_agents_prompt_is_never_typed_and_rides_t
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_line_for_a_working_agent_quiet_past_the_foreground_time_is_never_typed_and_rides_its_next_hook(story):
     story.agent_reads(story.agents.subject)
     message = story.user_sends_message("is the footer done?")

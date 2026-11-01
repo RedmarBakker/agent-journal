@@ -1,12 +1,11 @@
 from journal.features.health.health_nudges import HealthNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_what_went_around_the_journal_while_it_did_not_answer_is_told_once_at_the_next_hook(story):
     story.a_hook_went_around_the_journal()
     story.a_hook_went_around_the_journal()

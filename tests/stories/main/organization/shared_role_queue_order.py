@@ -1,6 +1,5 @@
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -8,7 +7,7 @@ from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.shared_role_queue import SharedRoleQueue, awaiting_state
 
 
-@story(SharedRoleQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SharedRoleQueue, subject=AgentRole.MAIN)
 @setting(OrganizationOptions.SHARED_ROLE_QUEUE_ORDER, "arrival")
 def test_a_shared_role_keeps_queue_arrival_order_when_the_trial_setting_is_selected(story):
     worker = story.agents.workers.first()

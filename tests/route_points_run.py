@@ -1,4 +1,4 @@
-"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind as the agent orchestrates, the commands an agent runs on its plan and those it runs as its session starts, and a settings save of a whole group, are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read, a read the viewer polls, a list it reads whole as a page opens and a command run as a session starts."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind as the main agent works, the commands an agent runs on its plan and those it runs as its session starts, and a settings save of a whole group, are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read, a read the viewer polls, a list it reads whole as a page opens and a command run as a session starts."""
 
 import json
 import math
@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 
 from journal.app import App
-from journal.features.workers.workers_options import WorkersOptions
 from journal.db.connection import Connection
 from journal.features.faults.support.request_time_recorder import UNMEASURED_PATHS, RequestTimeRecorder
 from journal.models.support.request_loads import RequestLoads
@@ -91,8 +90,6 @@ SHELL_OUTPUT = "\n".join(f"src/parser.py:{line}: the parser reads the header row
 TURN_SHELL_CALLS = 3
 # the plan the full project has started, its first task in the agent's hand
 STARTED_PLAN = 1
-# the hooks are answered as the agent orchestrates, the mode whose listeners read the most: its workers, its load, its suite runs and what it never acted on
-ORCHESTRATOR = "orchestrator"
 # a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
 POINTS_BUDGET = 30
 # the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
@@ -219,10 +216,6 @@ def test_every_route_answers_within_its_budget_on_a_full_project(full_project: A
     assert not routes, "\n".join(routes)
 
 
-def orchestrating(app: App) -> None:
-    user_set(app, WorkersOptions.MODE.key, ORCHESTRATOR)
-
-
 def hook_cases(app: App) -> dict[str, tuple[HookType, dict]]:
     """Every hook kind with its body, and after the tool call a shell call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran, and an edit in a worker's worktree, which asks whose worktree it is."""
     edit = {"tool_name": "Edit", "tool_input": {"file_path": str(app.config.home / "worktrees" / WORKTREE / "src" / "parser.py"), "old_string": "a", "new_string": "b"}}
@@ -234,8 +227,7 @@ def hook_body(type_name: HookType, body: dict, try_name: str) -> tuple[str, byte
     return JSON, json.dumps({"hook_event_name": type_name.value, "session_id": "s1", "tool_use_id": f"{try_name}-{type_name.value}", **body}).encode()
 
 
-def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent_orchestrates(full_project: App):
-    orchestrating(full_project)
+def test_every_hook_kind_answers_within_its_budget_on_a_full_project(full_project: App):
     cases = hook_cases(full_project)
     for name, (type_name, body) in cases.items():
         answer_loads(full_project, "POST", HOOK_PATH, hook_body(type_name, body, f"warm {name}"))
@@ -244,7 +236,6 @@ def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent
 
 
 def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget(full_project: App):
-    orchestrating(full_project)
     full_project.runtime().deferred.drain()
     with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
         polled_to = full_project.container.get(Entries).last_id()
@@ -291,8 +282,8 @@ def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_bu
     assert not commands, "\n".join(commands)
 
 
-def test_a_settings_save_of_a_whole_group_with_the_mode_changed_answers_within_its_budget(full_project: App):
-    group = {**get_answer(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
+def test_a_settings_save_of_a_whole_group_answers_within_its_budget(full_project: App):
+    group = {**get_answer(full_project, "/journal/settings", MAIN)[1]["workers"], "worker_limit": 4}
     saved = over(recorded({"POST /journal/settings a group": answer_loads(full_project, "POST", "/journal/settings", (JSON, json.dumps({"workers": group}).encode()))}))
     assert not saved, "\n".join(saved)
 

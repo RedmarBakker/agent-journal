@@ -1,6 +1,5 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
@@ -9,8 +8,8 @@ from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 
 
 @setting(EstimatesOptions.MODE, "report")
-@story(PlanWithFinishedDevelopmentExample, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actual_durations(story):
+@story(PlanWithFinishedDevelopmentExample, subject=AgentRole.MAIN)
+def test_the_main_agent_sees_same_cohort_examples_with_their_original_sizes_and_actual_durations(story):
     result = story.agent_runs(story.agents.main,
                               f"plan add {story.plans.second} 'next change' --brief 'deploy the next revision' --domain development")
 
@@ -37,7 +36,7 @@ def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actua
     story.expect_stack(story.agents.main, Ready)
 
 
-@story(ReportSizedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReportSizedPlan, subject=AgentRole.MAIN)
 def test_cold_composition_shows_no_personalized_bias_and_keeps_the_empirical_baseline(story):
     result = story.agent_runs(story.agents.main,
                               f"plan add {story.plans.first} 'another change' --brief 'deploy another revision' --domain development --size 5 --phase 1 --after {story.tasks.first} --reason 'the change follows the existing release task'")

@@ -1,12 +1,11 @@
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_closing_words_after_a_reply_in_the_same_turn_are_named_back_once_at_the_stop(story):
     story.agent_is_prompted(story.agents.subject, "is the footer done?")
     reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "the footer is done")
@@ -22,7 +21,7 @@ def test_closing_words_after_a_reply_in_the_same_turn_are_named_back_once_at_the
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_closing_words_of_a_later_turn_than_the_reply_reach_the_chat_and_are_not_named_back(story):
     reply = story.agent_replies_with_number(story.agents.subject, story.messages.first, "the footer is done")
     story.agent_is_prompted_in_a_new_turn(story.agents.subject, "go on")

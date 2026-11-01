@@ -1,12 +1,11 @@
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingWorker, subject=AgentRole.MAIN)
 def test_tasks_queued_for_a_busy_worker_are_delegated_at_once_shown_on_its_row_and_never_queued_twice(story):
     worker = story.agents.workers.first()
     docs = story.agent_creates_task(story.agents.subject, "the docs")

@@ -1,11 +1,8 @@
 <script setup>
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
-import {autoOn, workMode} from "../composables/settings.js";
-import {MODES, modeToggles, switchQuestion, toggleOn, toggleValue} from "../domain/modes.js";
+import {autoOn} from "../composables/settings.js";
 import {api} from "../api/client.js";
-import {saveSettings} from "../actions/settings.js";
-import Segmented from "../kit/Segmented.vue";
 import Spinner from "../kit/Spinner.vue";
 import {relativeText} from "../format/relativeText.js";
 import {store} from "../state/store.js";
@@ -27,7 +24,6 @@ import {useEveryWorker, useWorkerActivity, useWorkers} from "../composables/work
 import {useEveryReviewer} from "../composables/reviewers.js";
 import AgentDropdown from "../chat/AgentDropdown.vue";
 import {newestFirst, reviewerEntry} from "../domain/agentEntries.js";
-import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
 
@@ -54,40 +50,11 @@ const {rows: everyWorker, loaded: everyWorkerLoaded, refresh: refreshEveryWorker
 const {rows: workerMoments, loaded: workerMomentsLoaded, refresh: refreshWorkerMoments} = useWorkerActivity(workersOpen);
 const workersAnchor = ref(null);
 
-const fitness = computed(() => agent.value?.fitness || null);
-const fitnessShown = computed(() => (fitness.value.is_measured ? fitness.value.score : "–"));
-const modeOptions = computed(() =>
-    MODES.map((one) => ({
-        ...one,
-        label: one.label,
-        opens: "dialog",
-        tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
-    }))
-);
-// the score below which the fitness is shown as low
-const LOW_FITNESS = 75;
-const DANGER_FITNESS = 25;
-const fitnessTip = computed(
-    () =>
-        fitness.value &&
-        (fitness.value.is_measured
-            ? {title: `Fitness ${fitness.value.score} of 100`, line: "Opens the measures furthest off this mode's ideal and the scores of the last hours."}
-            : {title: "Fitness not measured yet", line: "The agent has not made enough tool uses in this mode to be scored. Opens the scores of the last hours."})
-);
-const fitnessOpen = ref(false);
-const fitnessAnchor = ref(null);
-
-function toggleFitness(e) {
-    fitnessAnchor.value = e.currentTarget;
-    fitnessOpen.value = !fitnessOpen.value;
-}
-// the load of the work mode the agent is in, arrivals over clearings, shown beside the fitness and never scored, none in solo, where it is still counted; toned by workers.load_warn and workers.load_critical, the builder's by workers.builder_load_ceiling
-const load = computed(() => (workMode.value === "solo" ? null : agent.value?.load || null));
+const load = computed(() => agent.value?.load || null);
 // the user's messages measured apart from the workers' items, arrivals over clearings
 const loadLevel = computed(() => {
     const levels = store.settings?.workers || {};
     if (!load.value) return "";
-    if (workMode.value === "builder") return load.value.rho >= (levels.builder_load_ceiling ?? 0.5) ? "warn" : "";
     if (load.value.rho >= (levels.load_critical ?? 0.9)) return "critical";
     return load.value.rho >= (levels.load_warn ?? 0.7) ? "warn" : "";
 });
@@ -103,55 +70,6 @@ const loadTip = computed(
             line: [workLine(load.value.work), messagesLine(load.value.messages)].filter(Boolean).join(" "),
         }
 );
-const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});
-
-const modeAsk = ref(null);
-const modeAnchor = ref(null);
-
-function askMode(key) {
-    const question = key === workMode.value ? "" : switchQuestion(key, {task: current.value, workersOut: workersOut.value, state: stateOf(agent.value)});
-    if (!question) return pickMode(key);
-    modeAsk.value = {key, question};
-}
-
-function confirmMode() {
-    const key = modeAsk.value.key;
-    modeAsk.value = null;
-    pickMode(key);
-}
-
-async function pickMode(key) {
-    const was = workMode.value;
-    keepMode(key);
-    try {
-        await api.saveMode(key);
-    } catch (e) {
-        keepMode(was);
-        toast.value = {text: e.message};
-    }
-}
-
-// a mode's settings as toggles in its button's hover panel, each saved as the user's own
-const toggles = (mode) =>
-    modeToggles(mode).map((toggle) => ({
-        key: toggle.name,
-        label: toggle.label,
-        note: toggle.note,
-        on: toggleOn(toggle, store.settings),
-        change: (on) => saveToggle(toggle, on),
-        choices: toggle.children && toggleOn(toggle, store.settings) ? childChoices(toggle.children) : [],
-        pick: (value) => saveToggle(toggle.children, value),
-    }));
-const childChoices = (children) => children.choices.map((choice) => ({...choice, current: choice.value === toggleValue(children, store.settings)}));
-
-async function saveToggle(toggle, value) {
-    try {
-        await saveSettings({[toggle.feature]: {[toggle.name]: value}});
-    } catch (e) {
-        toast.value = {text: e.message};
-    }
-}
-
 async function pauseOrResume() {
     const next = !paused.value;
     wanted.value = next;
@@ -255,33 +173,8 @@ watch(line, (now, before) => (was.value = before || ""));
         </template>
         <span class="statusbar-tools">
             <span class="statusbar-agentset">
-                <template v-if="fitness">
-                    <button
-                        type="button"
-                        :class="['statusbar-fitness', {low: fitness.is_measured && fitness.score < LOW_FITNESS, danger: fitness.is_measured && fitness.score < DANGER_FITNESS}]"
-                        v-tip:fitness="fitnessTip"
-                        :aria-expanded="fitnessOpen"
-                        @click.stop="toggleFitness"
-                    >
-                        {{ fitnessShown }}
-                    </button>
-                </template>
                 <template v-if="load">
                     <span :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">{{ load.rho.toFixed(2) }}</span>
-                </template>
-                <span ref="modeAnchor" class="statusbar-mode-wrap">
-                    <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="askMode" />
-                </span>
-                <template v-if="modeAsk">
-                    <MenuPanel :anchor="modeAnchor" :gap="8" :max-width="320" @click.stop @close="modeAsk = null">
-                        <div class="mode-ask">
-                            <p>{{ modeAsk.question }}</p>
-                            <div class="mode-ask-actions">
-                                <Btn small @click="modeAsk = null">Keep the mode</Btn>
-                                <Btn small kind="primary" @click="confirmMode">Switch</Btn>
-                            </div>
-                        </div>
-                    </MenuPanel>
                 </template>
                 <button
                     type="button"
@@ -321,11 +214,6 @@ watch(line, (now, before) => (was.value = before || ""));
                     <WorkerList :rows="everyWorker" :loading="!everyWorkerLoaded" :moments="workerMoments" :moments-loading="!workerMomentsLoaded" @changed="refreshEveryWorker(), refreshWorkers()" @close="workersOpen = false" />
                 </MenuPanel>
             </template>
-            <template v-if="fitnessOpen && fitness">
-                <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
-                    <FitnessTimeline :score="fitness.score" :points="fitness.timeline" :measures="fitness.measures || []" :band="fitness.band || 'none'" :band-changed-at="fitness.band_changed_at || 0" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
-                </MenuPanel>
-            </template>
             <template v-if="reviewersOpen">
                 <MenuPanel
                     :anchor="reviewersAnchor"
@@ -341,7 +229,7 @@ watch(line, (now, before) => (was.value = before || ""));
                         title="Reviewers"
                         :entries="reviewerEntries"
                         :counts="reviewing ? `${reviewing} reviewing` : ''"
-                        none="No reviewer has been sent here yet. The journal sends one when a worker clocks out, in orchestrator mode with the reviewer on."
+                        none="No reviewer has been sent here yet. The journal sends one when a worker clocks out, with review on."
                         :loading="!everyReviewerLoaded"
                         @close="reviewersOpen = false"
                     />
@@ -365,24 +253,6 @@ watch(line, (now, before) => (was.value = before || ""));
 </template>
 
 <style scoped>
-.mode-ask {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 12px;
-}
-
-.mode-ask p {
-    margin: 0;
-    font-size: 13px;
-}
-
-.mode-ask-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
 .statusbar {
     height: 52px;
     flex: none;
@@ -554,26 +424,6 @@ watch(line, (now, before) => (was.value = before || ""));
     padding: 3px 4px 3px 8px;
     border: 1px solid var(--border-2);
     border-radius: 8px;
-}
-
-.statusbar-fitness {
-    padding: 1px 6px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--tone-good) 18%, transparent);
-    color: var(--text-2);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    border: none;
-    font-family: inherit;
-    cursor: pointer;
-}
-
-.statusbar-fitness.low {
-    background: color-mix(in srgb, var(--tone-warn) 22%, transparent);
-}
-
-.statusbar-fitness.danger {
-    background: color-mix(in srgb, var(--tone-bad) 24%, transparent);
 }
 
 .statusbar-load {

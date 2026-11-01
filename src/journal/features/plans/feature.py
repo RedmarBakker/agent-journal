@@ -20,14 +20,14 @@ from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.features.plans.listeners.plan_finished_plan_start import PlanFinishedPlanStart
 from journal.features.plans.plans_conduct import PlansConduct
 from journal.features.plans.coordinator_conduct import CoordinatorConduct
-from journal.features.plans.listeners.builder_plan_focus import BuilderPlanFocus
+from journal.features.plans.listeners.plan_agent_focus import PlanAgentFocus
 from journal.features.plans.listeners.started_plan_focus import StartedPlanFocus
 from journal.features.plans.seeds.closed_plans import ClosedPlans
 from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.engine.support.modes import Modes
+from journal.engine.support.state_floor import StateFloor
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.states.leading_task import LeadingTask, LeadingTaskWorking
 from journal.features.plans.listeners.plan_agent_start import PlanAgentStart
@@ -52,19 +52,19 @@ class Plans(Feature[PlansData]):
     title = "Plans"
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn, CoordinatingPlans, LeadingPlan, LeadingTask, LeadingTaskWorking)
-    modes = Modes(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
+    state_floor = StateFloor(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
     commands = (PlanCommand,)
     answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION), (ClearPlanWaits, Blocking.NEXT_DECISION), (ReleasePlanWaits, Blocking.NEXT_DECISION), (PlanBlockade, Blocking.NEXT_DECISION))
-    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
+    listeners = (AllowedTestRunUse, PlanAgentFocus, StartedPlanFocus, PlanTestingDefault, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
-    mode_conduct = ((CoordinatingPlans, CoordinatorConduct),)
+    floor_conduct = ((CoordinatingPlans, CoordinatorConduct),)
     data = (PlansDataReader,)
     seeds = (ClosedPlans,)
     jobs = (TemplatePlanStart,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS, PlansOptions.PLAN_AGENTS)
-    nudges = (PlansNudges.LEADING_PLAN, PlansNudges.PLAN_RETURN_QUESTION, PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.SUPERVISOR_WORK_AVAILABLE, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_MERGE_READY, PlansNudges.PLAN_AGENT_WRITE_SCOPE, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.BUILDER_MODE, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.COORDINATOR_SENDS_NO_WORKER, PlansNudges.WORKING_TASK_ALONE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
+    nudges = (PlansNudges.LEADING_PLAN, PlansNudges.PLAN_RETURN_QUESTION, PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.SUPERVISOR_WORK_AVAILABLE, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_MERGE_READY, PlansNudges.PLAN_AGENT_WRITE_SCOPE, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.COORDINATOR_SENDS_NO_WORKER, PlansNudges.WORKING_TASK_ALONE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans
@@ -84,10 +84,10 @@ by you, approved by them, and then followed: finishing one task starts the next 
   plan gives every task a Domain. Set each task's priority with `journal task edit <task> --priority <level>`.
 - `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
-  A builder or a solo agent has one started plan: starting or resuming one pauses the others, and a switch out of the
-  orchestrator's mode keeps the one furthest along. An orchestrator keeps every plan it starts. A plan one of whose tasks
-  goes to a worker while you hold none of its tasks is delegated: it is no started plan, so you may start another beside
-  it; starting one of its tasks yourself makes it started again, and when its last worker task closes it is paused.
+  The main agent works through one plan at a time. With Plan agents on, each started plan has its own agent, and the main
+  agent can coordinate several plans at once. A plan one of whose tasks goes to a worker while you hold none of its tasks
+  is delegated: it is no started plan, so you may start another beside it; starting one of its tasks yourself makes it
+  started again, and when its last worker task closes it is paused.
 - Before readying a plan, open a review with `journal plan review <n>` and send a `journal-plan-reviewer` to review it.
   In review it cannot be approved,
   and `journal plan ready <n>` waits until every subagent is back. Put what they find straight into the plan as tasks
@@ -109,4 +109,4 @@ by you, approved by them, and then followed: finishing one task starts the next 
   tested; it comes with the plan's start and with each task the plan hands you, and you are told when the user changes
   it: follow it, such as writing each task's tests and running them only at a phase's end.
 - `journal plan cancel <n>` abandons it, with the tasks that belong to it alone; tasks another active plan has stay.
-""", keywords=('plan', 'plans', 'roadmap', 'phases'), required_states=('following_plan', 'orchestrating_plan'), commands=('plan',), events=(PlanApproved,))
+""", keywords=('plan', 'plans', 'roadmap', 'phases'), required_states=('following_plan',), commands=('plan',), events=(PlanApproved,))

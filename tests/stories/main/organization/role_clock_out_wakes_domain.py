@@ -1,7 +1,6 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -12,7 +11,7 @@ from tests.stories.fixtures.main.organization_role_worker_clocked_in import Orga
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
-@story(OrganizationRoleWorkerClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleWorkerClockedIn, subject=AgentRole.MAIN)
 def test_a_role_clock_out_wakes_its_domain_seat_to_check_and_return_the_task(story):
     plan, task = story.plans.first, story.tasks.first
     domain = story.organization_seat_agent("domain:alpha")

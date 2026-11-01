@@ -1,6 +1,5 @@
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -8,7 +7,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 PLAN_CREATED = {"trigger_type": "row", "moment": "plan.created"}
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_shipped_sequence_shows_what_starts_it_and_its_triggers_are_locked(story):
     building = story.sequence_number("Building a plan")
     story.expect_row("sequences", building, {"triggers": [PLAN_CREATED]})
@@ -17,7 +16,7 @@ def test_a_shipped_sequence_shows_what_starts_it_and_its_triggers_are_locked(sto
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_sequence_made_with_triggers_says_what_starts_it(story):
     story.agent_runs(story.agents.subject, "sequence create 'Ship it' --steps 'bump | tag' --trigger row:plan.created --trigger 'file-text:src/*.py:TODO'")
     ship = story.created_number("sequence")
@@ -26,7 +25,7 @@ def test_a_sequence_made_with_triggers_says_what_starts_it(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_page_sets_a_phrase_trigger_and_the_users_words_start_the_sequence(story):
     story.agent_runs(story.agents.subject, "sequence create 'Ship it' --steps 'bump | tag'")
     ship = story.created_number("sequence")
@@ -37,7 +36,7 @@ def test_the_page_sets_a_phrase_trigger_and_the_users_words_start_the_sequence(s
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_page_refuses_bad_triggers_in_plain_words(story):
     story.agent_runs(story.agents.subject, "sequence create 'Ship it' --steps 'bump | tag'")
     ship = story.created_number("sequence")
@@ -50,7 +49,7 @@ def test_the_page_refuses_bad_triggers_in_plain_words(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_command_refuses_a_bad_trigger_in_plain_words(story):
     story.agent_runs(story.agents.subject, "sequence create 'Ship it' --steps 'bump | tag'")
     ship = story.created_number("sequence")

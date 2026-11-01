@@ -1,13 +1,12 @@
 from journal.engine.states.void import Void
 from journal.features.workers.states.working_task import WorkingTask
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_may_list_its_outputs(story):
     result = story.agent_runs(story.agents.subject, "output list")
     result.expect_command_passed()
@@ -15,7 +14,7 @@ def test_a_worker_may_list_its_outputs(story):
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_stopping_with_its_own_output_running_is_refused_with_its_number(story):
     output = story.agent_has_a_background_run_printing(story.agents.subject, "sleep 2")
     result = story.agent_stops(story.agents.subject)

@@ -6,7 +6,6 @@ from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.build_wait import BuildWait
@@ -18,7 +17,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 EM_DASHES = "The build — the one from last night — is green."
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_remark_waiting_when_the_agent_stops_holds_that_stop_once_and_the_next_stop_goes_through(story):
     story.agent_closes_its_turn(story.agents.subject, "I ran journal task start 3 because the user wants it.")
     result = story.agent_stops(story.agents.subject)
@@ -31,7 +30,7 @@ def test_a_remark_waiting_when_the_agent_stops_holds_that_stop_once_and_the_next
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_refused_for_the_task_in_hand_beside_the_refusal(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
     result = story.agent_stops(story.agents.subject)
@@ -41,7 +40,7 @@ def test_a_remark_rides_a_stop_refused_for_the_task_in_hand_beside_the_refusal(s
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(BuildWait, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_made_while_the_agent_waits(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
     story.agent_stops(story.agents.subject)
@@ -49,7 +48,7 @@ def test_a_remark_rides_a_stop_made_while_the_agent_waits(story):
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
 
-@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SequenceRun, subject=AgentRole.MAIN)
 def test_a_remark_rides_a_stop_made_while_a_sequence_runs(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
     story.agent_stops(story.agents.subject)
@@ -58,7 +57,7 @@ def test_a_remark_rides_a_stop_made_while_a_sequence_runs(story):
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(ContextMarkTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ContextMarkTask, subject=AgentRole.MAIN)
 def test_a_remark_rides_the_stop_held_at_a_context_mark_beside_its_hold(story):
     story.agent_closes_its_turn(story.agents.subject, EM_DASHES)
     result = story.agent_stops(story.agents.subject)

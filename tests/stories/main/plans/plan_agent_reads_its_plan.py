@@ -1,16 +1,15 @@
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
-from journal.features.workers.workers_options import ORCHESTRATOR_MODE
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.models.task_state import TaskState
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.orchestrator_ready_plan import OrchestratorReadyPlan
-from tests.stories.fixtures.main.orchestrator_user_plan import OrchestratorUserPlan
+from tests.stories.fixtures.main.main_ready_plan import MainReadyPlan
+from tests.stories.fixtures.main.main_user_plan import MainUserPlan
 
 PLAN_AGENT_SESSION = "plan-agent-plan-read-session"
 WORKTREE_AGENT_SESSION = "worktree-agent-plan-read-session"
@@ -73,7 +72,7 @@ def plan_agent_lists_and_dispatches(story, environment: str, session: str, plan:
         story.expect_task_in(source, task, TaskState.OPEN.value)
 
 
-@story(OrchestratorReadyPlan, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(MainReadyPlan, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_plan_agent_started_from_main_reads_its_plan_and_dispatches_its_first_task(story, monkeypatch):
     prepare_plan_agent_worktrees(story, monkeypatch)
@@ -85,10 +84,10 @@ def test_a_plan_agent_started_from_main_reads_its_plan_and_dispatches_its_first_
 
     environment, session = plan_agent_starts(story, plan, "main", story.main_session(), PLAN_AGENT_SESSION)
     plan_agent_lists_and_dispatches(story, environment, session, plan, (first,), ("pour the slab",), "Lay the floor", "main")
-    story.expect_stack(story.agents.subject, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
 
-@story(OrchestratorUserPlan, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(MainUserPlan, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_plan_agent_started_from_a_worktree_reads_its_plan_and_dispatches_its_first_task(story, monkeypatch):
     prepare_plan_agent_worktrees(story, monkeypatch)
@@ -119,4 +118,4 @@ def test_a_plan_agent_started_from_a_worktree_reads_its_plan_and_dispatches_its_
 
     environment, session = plan_agent_starts(story, plan, source, WORKTREE_AGENT_SESSION, WORKTREE_PLAN_AGENT_SESSION)
     plan_agent_lists_and_dispatches(story, environment, session, plan, (first, second), ("the first worktree task", "the second worktree task"), "Work", source)
-    story.expect_stack(story.agents.subject, CoordinatingPlans)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)

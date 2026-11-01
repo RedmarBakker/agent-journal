@@ -1,7 +1,6 @@
 import json
 
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -9,7 +8,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 MINE = {"hooks": [{"type": "command", "command": "echo mine"}]}
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_setup_wires_the_hooks_the_skills_and_the_law_and_keeps_the_projects_own_rules(story):
     story.project_file_holding("AGENTS.md", "# my project\n\nMy own rules.\n")
     result = story.user_types("setup")
@@ -25,7 +24,7 @@ def test_setup_wires_the_hooks_the_skills_and_the_law_and_keeps_the_projects_own
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_setup_run_twice_changes_nothing_the_second_time_and_keeps_the_users_own_hooks(story):
     story.project_file_holding(".claude/settings.local.json", json.dumps({"hooks": {"PreToolUse": [MINE]}, "theme": "dark"}))
     story.user_types("setup")
@@ -36,7 +35,7 @@ def test_setup_run_twice_changes_nothing_the_second_time_and_keeps_the_users_own
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_setup_wires_codex_where_its_folder_exists(story):
     story.project_file_holding(".codex/config.toml", "")
     result = story.user_types("setup")
@@ -44,7 +43,7 @@ def test_setup_wires_codex_where_its_folder_exists(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_setup_takes_out_version_3s_hooks_wherever_they_were_wired_and_keeps_the_users_own(story):
     old = {"hooks": [{"type": "command", "command": f"sh {story.project_root()}/.journal/src/hook.sh claude {story.project_root()}/.journal"}]}
     story.project_file_holding(".claude/settings.local.json", json.dumps({"hooks": {"PreToolUse": [old, MINE]}, "model": "opus"}))
@@ -56,7 +55,7 @@ def test_setup_takes_out_version_3s_hooks_wherever_they_were_wired_and_keeps_the
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_setup_takes_the_journals_hooks_another_machine_committed_out_of_the_shared_settings_and_wires_this_machines_own(story):
     elsewhere = "/Users/someone-else/code/app/.journal/src/journal/hooks/hook.sh"
     committed = {"hooks": [{"type": "command", "command": f"test -f {elsewhere} && exec sh {elsewhere} claude /Users/someone-else/code/app; exit 0"}]}

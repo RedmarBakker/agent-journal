@@ -4,7 +4,7 @@ from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.author import Author
 from journal.models.support.ref import Ref
-from journal.models.worker import DELIVERY_MOVE, ENDED_UNFINISHED, JOB_MOVE, JOB_STARTS, MERGED, REJECTION_MOVE, Worker
+from journal.models.worker import DELIVERY_MOVE, ENDED_UNFINISHED, JOB_MOVE, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.repositories.proofs import Proofs
@@ -13,22 +13,21 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 
-# the moves that end what a worker brought the orchestrator without clearing it
+# the moves that end what a worker brought without clearing it
 ENDING = (REJECTION_MOVE, "released", "retired", "stopped", JOB_MOVE)
 
 
 class LoadItems:
-    """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, and its end without clocking out from the second, since the journal itself asks it to clock out the first time, each cleared by its merge or a checked proof and ended without a clearing by a send-back, a release, a retirement, a stop or a new job; a user's message, cleared by the agent's first reply naming it or its first reaction to it, never by a read; with the times the orchestrator dispatched or sent a job."""
+    """What waits in the worker and message queues, read from the rows it is about: a worker's clock-out, cleared by its merge or a checked proof and ended without a clearing by a send-back, a release, a retirement, a stop or a new job; and a user's message, cleared by the agent's first reply naming it or its first reaction to it, never by a read."""
 
     def __init__(self, workers: Workers, messages: Messages, reactions: Reactions, tasks: Tasks, settings: SettingRows, proofs: Proofs) -> None:
         self.workers, self.messages, self.reactions, self.tasks, self.settings, self.proofs = workers, messages, reactions, tasks, settings, proofs
 
-    def read(self, start: float) -> tuple[list[LoadItem], list[float]]:
+    def read(self, start: float) -> list[LoadItem]:
         window_start = datetime.fromtimestamp(start, timezone.utc)
         workers = self.workers.selected(self.workers.query().filter_greater_equal("updated_at", window_start).order("id"))
         items = [item for worker in workers for item in self.worker_items(worker) if item.cleared_at == 0.0 or item.cleared_at >= start]
-        dispatches = [time for worker in workers for word, time in worker.moves.steps if word in JOB_STARTS and time >= start]
-        return [*items, *self.message_items(window_start)], dispatches
+        return [*items, *self.message_items(window_start)]
 
     def worker_items(self, worker: Worker) -> list[LoadItem]:
         ref, repeat, pending, items, checks, unfinished_ends = str(Ref.build(worker)), False, None, [], self.check_times(worker), 0
@@ -38,7 +37,7 @@ class LoadItems:
             unfinished_ends += word == ENDED_UNFINISHED
             if word in weights and pending is None and self.is_agents_item(word, unfinished_ends):
                 is_return = word == DELIVERY_MOVE and repeat
-                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.RESEND_WEIGHT) if is_return else weights[word], is_repeat=is_return)
+                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.RESEND_WEIGHT) if is_return else weights[word])
             elif word == MERGED or word in ENDING:
                 items += self.closed(pending, word, time)
                 pending, repeat = None, word == REJECTION_MOVE

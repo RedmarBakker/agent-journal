@@ -15,7 +15,6 @@ from journal.http.controllers.journal import JournalController
 from journal.http.controllers.mcp import McpController
 from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
-from journal.http.controllers.mode import ModeController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.worktrees import WorktreeController
 from journal.http.controllers.notices import NoticeController
@@ -133,9 +132,6 @@ class Routes:
         router.post(f"{API}/updates/force", get(UpdateController).force_update)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
         router.get(f"{API}/people", get(PeopleController).show)
-        mode = get(ModeController)
-        router.get(f"{API}/mode", mode.show)
-        router.post(f"{API}/mode", mode.choose)
         router.get(f"{API}/migration", migration.show)
         router.post(f"{API}/migration/later", migration.postpone)
         router.post(f"{API}/migration/start", migration.start)

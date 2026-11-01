@@ -362,6 +362,7 @@ def test_the_load_keys_migration_lets_a_load_stored_with_the_dropped_minutes_rea
     from journal.db.migrations.load_keys_drop import LoadKeysDrop
     from journal.models.support.agent_load import AgentLoad
     stale = {"rho": 0.5, "over_full_minutes": 10.0, "over_zero_minutes": 60.0}
+    connection.execute("ALTER TABLE agents ADD COLUMN mode_loads TEXT")
     connection.execute("INSERT INTO agents (environment_id, session, created_at, creator, work_queue, message_queue, mode_loads) VALUES (1, 's1', '2026-10-26', 'system', ?, ?, ?)", (json.dumps(stale), json.dumps(stale), json.dumps({"builder": stale})))
     LoadKeysDrop().apply(connection)
     row = connection.one("SELECT work_queue, message_queue, mode_loads FROM agents")
@@ -724,23 +725,23 @@ def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_o
     from journal.repositories.setting_rows import SettingRows
     settings = SettingRows(connection, bus, scope, TimeSource())
 
-    class ModeReader(Listener[Saved]):
+    class SettingReader(Listener[Saved]):
         def __init__(self) -> None:
             self.seen = []
 
         def handle(self, event: Saved) -> None:
-            self.seen.append(settings.project("workers.mode"))
+            self.seen.append(settings.project("tasks.auto"))
 
     with scope.environment(1):
-        settings.set("workers.mode", "builder", USER)
+        settings.set("tasks.auto", True, USER)
         LoadTally.begin()
-        settings.set("workers.mode", "builder", USER)
+        settings.set("tasks.auto", True, USER)
         loads = LoadTally.ended()
-        reader = ModeReader()
+        reader = SettingReader()
         bus.listen(Saved, reader)
-        settings.set("workers.mode", "orchestrator", USER)
+        settings.set("tasks.auto", False, USER)
         assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
-        assert reader.seen == ["orchestrator"] and settings.project("workers.mode") == "orchestrator", "a listener of the write reads the value written"
+        assert reader.seen == [False] and settings.project("tasks.auto") is False, "a listener of the write reads the value written"
 
 
 def test_a_setting_is_the_projects_read_the_same_in_every_environment_and_one_stored_for_an_environment_moves_to_the_project(connection, bus, scope):
@@ -749,20 +750,20 @@ def test_a_setting_is_the_projects_read_the_same_in_every_environment_and_one_st
     from journal.repositories.setting_rows import SettingRows
     settings = SettingRows(connection, bus, scope, TimeSource())
     with scope.environment(1):
-        settings.set("workers.mode", "orchestrator", USER)
+        settings.set("tasks.auto", True, USER)
     with scope.environment(2):
-        assert settings.project("workers.mode") == "orchestrator" and settings.tree()["workers"]["mode"] == "orchestrator", "set in one environment, it reads the same in another"
-        settings.set("workers.mode", "builder", USER)
+        assert settings.project("tasks.auto") is True and settings.tree()["tasks"]["auto"] is True, "set in one environment, it reads the same in another"
+        settings.set("tasks.auto", False, USER)
     with scope.environment(1):
-        assert settings.project("workers.mode") == "builder", "and written in that other, the first reads it too"
-    for environment_id, key, value in ((2, "faults.developer", True), (3, "faults.developer", False), (2, "workers.mode", "solo")):
+        assert settings.project("tasks.auto") is False, "and written in that other, the first reads it too"
+    for environment_id, key, value in ((2, "faults.developer", True), (3, "faults.developer", False), (2, "tasks.auto", True)):
         settings.save(Setting(environment_id=environment_id, key=key, value=value), USER)
     ProjectWideSettings().apply(connection)
     rows = {(row["environment_id"], row["key"]): json.loads(row["value"]) for row in connection.all("SELECT environment_id, key, value FROM settings")}
-    assert rows == {(0, "workers.mode"): "builder", (0, "faults.developer"): False}, "a key held only for environments moves to the project, its newest row kept, and the project's own value stands"
+    assert rows == {(0, "tasks.auto"): False, (0, "faults.developer"): False}, "a key held only for environments moves to the project, its newest row kept, and the project's own value stands"
     booted = SettingRows(connection, bus, scope, TimeSource())
     with scope.environment(3):
-        assert booted.project("faults.developer") is False and booted.project("workers.mode") == "builder", "after the move every environment reads the project's values"
+        assert booted.project("faults.developer") is False and booted.project("tasks.auto") is False, "after the move every environment reads the project's values"
 
 
 def test_the_settings_page_has_no_applies_to_environment_tag():
@@ -877,12 +878,13 @@ def test_the_load_dispatch_counts_migration_renames_the_keys_of_every_stored_loa
     from journal.db.migrations.load_dispatch_counts import LoadDispatchCounts
     from journal.models.support.agent_load import AgentLoad
     old = {"rho": 0.9, "dispatches_for": 1, "dispatches_against": 2, "over_minutes": 12.0, "under_minutes": 3.0}
+    connection.execute("ALTER TABLE agents ADD COLUMN mode_loads TEXT")
     connection.execute("INSERT INTO agents (session, work_queue, message_queue, mode_loads, created_at, creator) VALUES ('s1', ?, ?, ?, '2026-10-26', 'system')", (json.dumps(old), json.dumps({}), json.dumps({"builder": old})))
     LoadDispatchCounts().apply(connection)
     row = connection.one("SELECT work_queue, mode_loads FROM agents")
     load = AgentLoad.parsed(json.loads(row["work_queue"]))
-    assert (load.calm_dispatches, load.busy_dispatches, load.busy_minutes, load.low_minutes) == (1, 2, 12.0, 3.0), "the counts and stretches keep their values under their plain names"
-    assert AgentLoad.parsed(json.loads(row["mode_loads"])["builder"]).busy_dispatches == 2, "and so does the load of each work mode"
+    assert (load.busy_minutes, load.low_minutes) == (12.0, 3.0), "the time stretches keep their values under their plain names"
+    assert AgentLoad.parsed(json.loads(row["mode_loads"])["builder"]).busy_minutes == 12.0, "the stored loads keep their time stretches"
 
 
 def test_a_memory_fades_by_one_at_a_time_and_at_nought_is_stored_but_no_longer_shown(connection, bus, scope):
@@ -935,7 +937,7 @@ def test_the_fact_table_drop_moves_each_fact_card_to_its_memory_and_drops_the_ta
 def test_a_load_stored_by_an_older_version_reads_with_its_keys_renamed_and_the_retired_ones_left_out():
     from journal.models.support.agent_load import AgentLoad
     load = AgentLoad.parsed({"under_minutes": 3.0, "over_minutes": 2.0, "dispatches_for": 1, "a_retired_key": 7, "waiting_refs": ["tasks:1"]})
-    assert (load.low_minutes, load.busy_minutes, load.calm_dispatches, load.waiting_refs) == (3.0, 2.0, 1, ("tasks:1",)), "an agent row an older journal wrote boots with its load read, never a crash at the start"
+    assert (load.low_minutes, load.busy_minutes, load.waiting_refs) == (3.0, 2.0, ("tasks:1",)), "an agent row an older journal wrote boots with its load read, never a crash at the start"
 
 
 def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_values_read_back(connection, bus, scope):

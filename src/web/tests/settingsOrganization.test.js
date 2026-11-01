@@ -13,7 +13,7 @@ const spec = {
             option("workers.cost_cap_dollars", "Most a plan may cost", "The dollars one plan may spend", "number", 0, {unit: "$"}),
             option("workers.timeout_minutes", "Time limit of a worker run", "Minutes", "number", 60),
         ]},
-        {name: "plans", title: "Plans", help: "", default: true, fixed: false, options: [option("plans.plan_agents", "Plan agents instead of work modes", "On: plan agents", "switch", false)]},
+        {name: "plans", title: "Plans", help: "", default: true, fixed: false, options: [option("plans.plan_agents", "Plan agents", "On: plan agents", "switch", false)]},
     ],
     groups: [
         {key: "workers", title: "Workers", line: "", section: "Agent", tab: "agent", lead: "workers"},
@@ -31,7 +31,7 @@ test("the Organization section holds the five organization settings, each with i
     expect(organization[3].value).toBe(4);
     expect(organization[1].options.map((o) => o.key)).toEqual(["organization", "solo"]);
     expect(rowsOf(sections, "workers").map((r) => r.label)).toEqual(["Time limit of a worker run"]);
-    expect(rowsOf(sections, "plans").map((r) => r.label)).toEqual(["Plan agents instead of work modes"]);
+    expect(rowsOf(sections, "plans").map((r) => r.label)).toEqual(["Plan agents"]);
 });
 
 test("a row of the Organization section writes its setting under its own feature", () => {

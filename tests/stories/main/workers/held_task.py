@@ -1,13 +1,12 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerDelivered, subject=AgentRole.MAIN)
 def test_a_task_a_worker_holds_is_started_by_no_agent_until_the_worker_lets_it_go(story):
     result = story.agent_runs(story.agents.subject, f"task start {story.tasks.briefed}")
     result.expect_command_refused()

@@ -1,13 +1,12 @@
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_the_agents_page_shows_the_stack_top_first_with_what_the_top_waits_for(story):
     story.agent_runs(story.agents.subject, "stuck lost")
     result = story.user_opens(f"/journal/agents?ids={story.main_agent_id()}")

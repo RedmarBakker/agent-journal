@@ -25,7 +25,7 @@ IDLE_CHECK_DELAY_SECONDS = 30 * 60.0
 
 @dataclass(frozen=True)
 class Ready(BaseState):
-    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by a blocked task whose check cannot run; an open task is the assigner's to start before the stack answers. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
+    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by a blocked task whose check cannot run; an open task is the assigner's to start before the stack answers. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature can extend this state under the same name."""
 
     name = "idle"
     assigner = DefaultTaskAssigner

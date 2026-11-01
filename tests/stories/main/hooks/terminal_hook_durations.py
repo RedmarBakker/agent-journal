@@ -1,7 +1,6 @@
 from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.faults.faults_options import FaultsOptions
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.support.agent_role import AgentRole
@@ -10,7 +9,7 @@ from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @provider(Claude)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
@@ -23,7 +22,7 @@ def test_each_hook_shows_its_duration_to_the_user_alone_until_the_setting_is_swi
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(NewSession, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(NewSession, subject=AgentRole.MAIN)
 @provider(Claude)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)
@@ -34,7 +33,7 @@ def test_a_refused_hook_shows_its_duration_to_the_user_and_keeps_it_out_of_the_r
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @provider(Codex)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.HOOK_TIME_COPY, True)

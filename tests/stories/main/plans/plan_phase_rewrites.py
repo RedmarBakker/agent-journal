@@ -1,12 +1,11 @@
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_plans_phase_is_retitled_and_its_complete_when_line_written_anew(story):
     plan = story.agent_creates_plan(story.agents.subject, "release", "ship it")
     story.agent_runs(story.agents.subject, f"plan phase {plan} 'Build it' --when 'it builds'")

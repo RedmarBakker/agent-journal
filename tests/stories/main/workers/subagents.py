@@ -3,7 +3,7 @@ from journal.engine.states.void import Void
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.states.researching import Researching
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE, WorkersOptions
+from journal.features.workers.workers_options import WorkersOptions
 from journal.support.agent_role import AgentRole
 from journal.models.subagent_state import SubagentState
 from journal.support.card_outcome import CardOutcome
@@ -17,7 +17,7 @@ REVIEWER = "journal-plan-reviewer"
 SUBAGENT = "agent-held"
 
 
-@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UnansweredMessage, subject=AgentRole.MAIN)
 def test_a_subagents_tool_use_is_never_held_by_the_agents_hold(story):
     story.subagent_starts(SUBAGENT, RESEARCHER)
     result = story.subagent_writes(SUBAGENT, "notes.md")
@@ -25,7 +25,7 @@ def test_a_subagents_tool_use_is_never_held_by_the_agents_hold(story):
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedSubagent, subject=AgentRole.MAIN)
 @setting(WorkersOptions.SUBAGENT_LIMIT, 1)
 def test_a_subagent_sent_past_the_running_limit_is_refused(story):
     story.expect_stack(story.agents.subagent, Void, Researching)
@@ -34,7 +34,7 @@ def test_a_subagent_sent_past_the_running_limit_is_refused(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedSubagent, subject=AgentRole.MAIN)
 @setting(WorkersOptions.SUBAGENT_LIMIT, 0)
 def test_a_running_limit_of_zero_lets_every_subagent_through(story):
     story.expect_stack(story.agents.subagent, Void, Researching)
@@ -44,7 +44,7 @@ def test_a_running_limit_of_zero_lets_every_subagent_through(story):
 
 
 
-@story(EndedBackgroundSubagent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EndedBackgroundSubagent, subject=AgentRole.MAIN)
 def test_a_background_subagent_that_ended_reads_finished_then_runs_again_when_it_is_sent_a_message_and_is_counted_open(story):
     story.agent_messages_subagent(story.agents.subject, MAPPER, "one more")
     result = story.user_opens("/journal/subagents")

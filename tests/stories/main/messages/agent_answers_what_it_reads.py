@@ -7,7 +7,6 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.briefed_task import BriefedTask
@@ -17,7 +16,7 @@ from tests.stories.fixtures.main.unanswered_message import UnansweredMessage
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(MessagesOptions.ANSWER_REQUEST_LIMIT, 2)
 def test_a_message_read_and_not_answered_is_asked_about_before_tools_wait(story):
     message = story.user_sends_message("is the footer done?")
@@ -28,7 +27,7 @@ def test_a_message_read_and_not_answered_is_asked_about_before_tools_wait(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 2)
 def test_every_tool_waits_after_the_set_uses_until_the_agent_replies(story):
     message = story.user_sends_message("is the footer done?")
@@ -44,7 +43,7 @@ def test_every_tool_waits_after_the_set_uses_until_the_agent_replies(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UnansweredMessage, subject=AgentRole.MAIN)
 def test_a_reaction_instead_of_a_reply_lifts_the_hold(story):
     story.agent_reacts(story.agents.subject, story.messages.first, "👍")
     result = story.agent_reads(story.agents.subject)
@@ -52,7 +51,7 @@ def test_a_reaction_instead_of_a_reply_lifts_the_hold(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 0)
 def test_one_reply_to_a_group_of_messages_read_together_lifts_the_hold(story):
     first = story.user_sends_message("is the footer done?")
@@ -66,7 +65,7 @@ def test_one_reply_to_a_group_of_messages_read_together_lifts_the_hold(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UnansweredMessage, subject=AgentRole.MAIN)
 def test_a_stop_under_the_hold_goes_through(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_allowed()
@@ -75,7 +74,7 @@ def test_a_stop_under_the_hold_goes_through(story):
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
-@story(UnansweredMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UnansweredMessage, subject=AgentRole.MAIN)
 def test_a_command_reply_satisfies_the_unanswered_message_before_stop(story):
     story.agent_is_prompted(story.agents.subject, "answer the message")
     result = story.agent_reads(story.agents.subject)
@@ -91,7 +90,7 @@ def test_a_command_reply_satisfies_the_unanswered_message_before_stop(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 0)
 def test_the_hold_leaves_the_task_in_hand_as_it_was(story):
     message = story.user_sends_message("is the footer done?")
@@ -105,7 +104,7 @@ def test_the_hold_leaves_the_task_in_hand_as_it_was(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 0)
 def test_the_hold_over_a_plan_returns_to_the_plan(story):
     message = story.user_sends_message("how far is the plan?")
@@ -120,7 +119,7 @@ def test_the_hold_over_a_plan_returns_to_the_plan(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_message_the_agent_never_read_never_holds_its_tools(story):
     story.user_sends_message("is the footer done?")
     story.agent_consumes(story.agents.subject, MessagesOptions.TOOL_BLOCK_LIMIT)
@@ -129,7 +128,7 @@ def test_a_message_the_agent_never_read_never_holds_its_tools(story):
     story.expect_stack(story.agents.subject, Ready, DemandBlock)
 
 
-@story(BriefedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(BriefedTask, subject=AgentRole.MAIN)
 def test_a_worker_is_never_held_for_the_agents_messages(story):
     worker = story.agent_dispatches_worker(story.agents.subject, "Lady Lovelace", story.tasks.briefed)
     story.agent_clocks_in(story.agents.workers.get(worker))
@@ -140,7 +139,7 @@ def test_a_worker_is_never_held_for_the_agents_messages(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 1)
 def test_a_reply_to_a_later_message_leaves_the_first_one_owed(story):
     first = story.user_sends_message("is the footer done?")

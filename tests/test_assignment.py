@@ -11,7 +11,6 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.assigner_resolution import AssignerResolution
 from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
 from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
-from journal.features.workers.support.orchestrator_task_assigner import OrchestratorTaskAssigner
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
@@ -20,7 +19,6 @@ from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.test_features import booted, hook, viewer
-from tests.user_settings import user_set
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -100,7 +98,7 @@ class Outcome:
 
 @dataclass(frozen=True)
 class Case:
-    """One situation: a name in plain words, how it is built, auto mode on or off, the event played and the outcome expected; the built situation hands the event the numbers of the tasks it made."""
+    """One situation: a name in plain words, how it is built, automatic assignment on or off, the event played and the outcome expected; the built situation hands the event the numbers of the tasks it made."""
 
     name: str
     auto: bool
@@ -224,24 +222,6 @@ def started_by_the_agent_itself(app: App) -> dict:
     return rows
 
 
-def orchestrating_with_an_approved_plan(app: App) -> dict:
-    user_set(app, "workers.mode", "orchestrator")
-    _, (first,) = approved(app, [["the parser"]])
-    return {"first": first}
-
-
-def orchestrator_starting_a_task_itself(app: App) -> dict:
-    user_set(app, "workers.mode", "orchestrator")
-    rows = {"a": opened(app, "the parser")}
-    run(app, ["task", "start", str(rows["a"])])
-    return rows
-
-
-def orchestrating_with_open_work(app: App) -> dict:
-    user_set(app, "workers.mode", "orchestrator")
-    return {"a": opened(app, "the parser")}
-
-
 ASSIGNMENT_CASES = [
     Case("off auto mode an idle agent with open tasks may stop and is handed nothing", False, two_open, stop, lambda rows: Outcome(0, True)),
     Case("in auto mode an idle agent's stop starts the first open task", True, two_open, stop, lambda rows: Outcome(rows["a"], False)),
@@ -260,10 +240,6 @@ ASSIGNMENT_CASES = [
     Case("a task blocked by starting another is started once that one closes", True, blocked_on_the_next, complete("lexer"), lambda rows: Outcome(rows["parser"])),
     Case("a blocked task is never started, so with nothing else the stop goes through", True, blocked_only, stop, lambda rows: Outcome(0, True)),
     Case("in auto mode a task the user added while the agent worked is next", True, user_adds_a_task_mid_work, complete("a"), lambda rows: Outcome(rows["new"])),
-    Case("the orchestrator never starts a task on itself", True, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),
-    Case("off auto mode the orchestrator never starts a task on itself either", False, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),
-    Case("an orchestrator asked to do a task itself starts it and keeps it in hand", True, orchestrator_starting_a_task_itself, stop, lambda rows: Outcome(rows["a"])),
-    Case("the orchestrator's stop opens an approved plan for the workers and starts none of its tasks on itself", True, orchestrating_with_an_approved_plan, stop, lambda rows: Outcome(0)),
     Case("a task a worker holds is never started on the main agent", True, held_by_a_worker_and_open, stop, lambda rows: Outcome(rows["open"], False)),
     Case("a new session keeps the task in hand and its stop is refused", False, started_then_a_new_session, stop, lambda rows: Outcome(rows["a"], False)),
     Case("at a stop an approved plan waiting is started, its first task in hand, never a free task beside it", True, approved_plan_and_open_work, stop, lambda rows: Outcome(rows["first"], False)),
@@ -278,9 +254,7 @@ RESOLUTION_CASES = [
     (AgentRole.MAIN, (), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("idle",), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("idle", "working"), PlanStartTaskAssigner),
-    (AgentRole.MAIN, ("soloing", "working"), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "sorting_dump"), PlanStartTaskAssigner),
-    (AgentRole.MAIN, ("orchestrating",), OrchestratorTaskAssigner),
     (AgentRole.MAIN, ("idle", "following_plan"), PlanTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "paused"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "awaiting"), PlanStartTaskAssigner),
@@ -308,7 +282,7 @@ def test_the_state_closest_to_the_top_that_names_an_assigner_decides(app: App, r
 
 def test_every_floor_names_an_assigner(app: App):
     catalogue = app.container.get(StatesCatalogue)
-    floors = [catalogue.first(), *(state() for state in catalogue.role_floors.values()), *(state() for modes in catalogue.modes for state in modes.states.values())]
+    floors = [catalogue.first(), *(state() for state in catalogue.role_floors.values())]
     assert [type(state).__name__ for state in floors if state.assigner is None] == []
 
 

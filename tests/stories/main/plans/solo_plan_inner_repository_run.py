@@ -4,11 +4,11 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.support.agent_role import AgentRole
 from journal.support.workspace_worktree import WorkspaceWorktree
-from tests.stories.builder.story_marks import BUILDER_MODE, setting, story
+from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
 def test_a_solo_plan_commits_and_automatically_merges_its_inner_repository_edit(story, monkeypatch):
     root = story.app.config.root

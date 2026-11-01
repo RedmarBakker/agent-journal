@@ -1,13 +1,12 @@
 from journal.engine.states.void import Void
 from journal.features.workers.states.working_task import WorkingTask
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_resize_proposal_is_visible_without_changing_the_current_task_size(story):
     task = story.tasks.briefed
     result = story.agent_runs(story.agents.subject, f"task propose-size {task} 5 --reason 'the integration requires another test path'")

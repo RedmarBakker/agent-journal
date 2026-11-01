@@ -2,14 +2,13 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_commit_naming_the_task_done_closes_it(story):
     story.project_is_a_git_repository()
     commit = f"git -c user.email=story@example.com -c user.name=Story commit --allow-empty -q -m 'the footer' -m 'Journal: tasks done {story.tasks.started}'"
@@ -20,7 +19,7 @@ def test_a_commit_naming_the_task_done_closes_it(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_commit_closing_the_task_in_hand_takes_up_at_once_the_task_it_was_started_over(story):
     story.project_is_a_git_repository()
     footer = story.agent_creates_task(story.agents.subject, "footer")

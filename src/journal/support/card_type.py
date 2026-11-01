@@ -35,7 +35,6 @@ class CardType(StrEnum):
     TASK_PAUSES = "task_pauses"
     FAULTS = "faults"
     UPDATES = "updates"
-    FITNESS = "fitness"
     PUSHES = "pushes"
     BRANCH_SWITCHES = "branch_switches"
 

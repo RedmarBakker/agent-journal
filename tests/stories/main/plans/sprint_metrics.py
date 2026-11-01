@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.active_sprint_with_draft_plan import ActiveSprintWithDraftPlan
 
 
-@story(ActiveSprintWithDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ActiveSprintWithDraftPlan, subject=AgentRole.MAIN)
 def test_the_owner_reads_frozen_scope_and_unmeasured_availability_for_a_sprint(story):
     result = story.user_opens(f"/journal/sprints/{story.sprints.first}/metrics")
     result.expect_viewer_shows("schema_version", "sprint-metrics-v1")

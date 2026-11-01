@@ -1,6 +1,5 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
@@ -8,7 +7,7 @@ from tests.stories.fixtures.main.domain_development_delivered import DomainDevel
 
 
 @setting(EstimatesOptions.MODE, "record")
-@story(DomainDevelopmentDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDelivered, subject=AgentRole.MAIN)
 def test_the_owner_reads_and_exports_one_scoped_auditable_plan_history(story):
     plan, task = story.plans.first, story.tasks.first
     result = story.user_presses(f"/journal/tasks/{task}/size", {"size": 5, "reason": "the owner sized the committed scope"})

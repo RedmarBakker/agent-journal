@@ -2,7 +2,6 @@ from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.manual_draft_plan import ManualDraftPlan
@@ -12,7 +11,7 @@ from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_the_users_approval_is_told_to_the_agent(story):
     result = story.user_approves_plan(story.plans.first)
     result.expect_agent_told(story.agents.subject, PlansNudges.PLAN_APPROVED, n=story.plans.first)
@@ -22,7 +21,7 @@ def test_the_users_approval_is_told_to_the_agent(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_the_agent_cancelling_its_plan_cancels_the_open_tasks_and_frees_the_stack(story):
     story.agent_runs(story.agents.subject, f"plan cancel {story.plans.first}")
     story.expect_plan(story.plans.first, state=PlanState.CANCELLED)
@@ -31,7 +30,7 @@ def test_the_agent_cancelling_its_plan_cancels_the_open_tasks_and_frees_the_stac
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_a_plan_the_user_cancelled_and_its_tasks_are_shown_with_the_closed_ones(story):
     story.user_cancels_plan(story.plans.first)
     result = story.user_opens("/journal/plans?closed=1")
@@ -41,7 +40,7 @@ def test_a_plan_the_user_cancelled_and_its_tasks_are_shown_with_the_closed_ones(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_plan_closed_on_its_card_stays_a_draft_and_the_agent_brings_the_card_back(story):
     plan = story.user_creates_plan("the floors", "the floors are laid")
     story.user_closes_the_plan_card(plan)
@@ -51,7 +50,7 @@ def test_a_plan_closed_on_its_card_stays_a_draft_and_the_agent_brings_the_card_b
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_cancelled_plan_is_shown_with_its_phases_and_their_tasks(story):
     plan = story.user_creates_plan("release", "ship it")
     story.agent_runs(story.agents.subject, f"plan phase {plan} build --when built")
@@ -64,7 +63,7 @@ def test_a_cancelled_plan_is_shown_with_its_phases_and_their_tasks(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_cancelled_plan_takes_its_own_open_tasks_and_leaves_its_done_ones_and_those_another_plan_holds(story):
     old, own, finished = story.plans.first, story.tasks.first, story.tasks.second
     story.agent_runs(story.agents.subject, f"task start {finished}")
@@ -80,7 +79,7 @@ def test_a_cancelled_plan_takes_its_own_open_tasks_and_leaves_its_done_ones_and_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ManualDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ManualDraftPlan, subject=AgentRole.MAIN)
 def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(story):
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} Server --when 'it answers'")
     tables = story.agent_adds_plan_task(story.agents.subject, story.plans.first, "Tables")

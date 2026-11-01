@@ -1,7 +1,6 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -9,7 +8,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.paused_organization_plan_task import PausedOrganizationPlanTask
 
 
-@story(PausedOrganizationPlanTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationPlanTask, subject=AgentRole.MAIN)
 def test_a_user_restarting_an_organization_plan_opens_its_task_for_the_plan_seat(story):
     plan, task = story.plans.first, story.tasks.first
 
@@ -33,7 +32,7 @@ def test_a_user_restarting_an_organization_plan_opens_its_task_for_the_plan_seat
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
-@story(PausedOrganizationPlanTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationPlanTask, subject=AgentRole.MAIN)
 def test_an_operator_console_restart_opens_its_task_for_the_plan_seat(story):
     plan, task = story.plans.first, story.tasks.first
 

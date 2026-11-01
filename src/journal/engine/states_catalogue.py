@@ -15,7 +15,7 @@ from journal.support.agent_role import AgentRole
 
 
 class StatesCatalogue:
-    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode picked by the first feature, in the registry's order, whose setting picks one, Idle when none does, while every helper's is Void, with the state its role works in from its start pushed over it when it has one."""
+    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state picked by the first feature, in the registry's order, whose setting picks one, Idle when none does, while every helper's is Void, with the state its role works in from its start pushed over it when it has one."""
 
     ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Void, DemandBlock, Panicking, LockedOut)
 
@@ -23,7 +23,7 @@ class StatesCatalogue:
         self._states: dict[str, type[BaseState]] = {}
         for state in [*features.states(), *self.ENGINE_STATES]:
             self._states[state.name] = self.derived(self._states.get(state.name, state), state)
-        self.modes, self.role_floors = features.modes(), features.floors()
+        self.state_floors, self.role_floors = features.state_floors(), features.floors()
 
     @staticmethod
     def derived(registered: type[BaseState], state: type[BaseState]) -> type[BaseState]:
@@ -76,25 +76,25 @@ class StatesCatalogue:
     def sent_first(self, role: AgentRole) -> BaseState:
         return self.role_floors.get(role, Void)()
 
-    def mode_state(self, settings: Settings) -> type[BaseState]:
-        picks = [modes.states.get(settings.value(modes.option)) for modes in self.modes]
+    def selected_floor(self, settings: Settings) -> type[BaseState]:
+        picks = [floor.states.get(settings.value(floor.option)) for floor in self.state_floors]
         return next((state for state in picks if state), type(self.first()))
 
-    def mode_options(self) -> list[Option]:
-        return [modes.option for modes in self.modes]
+    def floor_options(self) -> list[Option]:
+        return [floor.option for floor in self.state_floors]
 
-    def is_mode_floor(self, state: BaseState) -> bool:
-        return any(type(state) in modes.states.values() for modes in self.modes)
+    def is_selected_floor(self, state: BaseState) -> bool:
+        return any(type(state) in floor.states.values() for floor in self.state_floors)
 
     def floor(self, stack: Stack, settings: Settings, role: AgentRole) -> Stack:
-        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack)
+        return self.apply_floor(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack)
 
     @staticmethod
     def helper_floor(stack: Stack) -> Stack:
         return Stack((stack.bottom().floored(Void), *stack.states[1:]))
 
-    def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
-        state = self.mode_state(settings)
+    def apply_floor(self, stack: Stack, settings: Settings) -> Stack:
+        state = self.selected_floor(settings)
         if type(stack.states[0]) is state or stack.states[0].keeps_floor():
             return stack
         return Stack((state.restored(stack.states[0].serialized()), *stack.states[1:]))

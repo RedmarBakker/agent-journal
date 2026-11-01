@@ -1,6 +1,5 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.organization.support.organization import Organization
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -8,7 +7,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.domain_policy_plan import DomainPolicyPlan
 
 
-@story(DomainPolicyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainPolicyPlan, subject=AgentRole.MAIN)
 def test_a_closed_sprint_keeps_its_done_policy_version_when_the_domain_policy_changes(story):
     result = story.user_presses("/journal/sprints", {"starts_on": "2026-10-26", "timezone": "Europe/Amsterdam"})
     result.expect_viewer_passed()

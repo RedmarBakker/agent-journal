@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.domain_delivery_setup import merge_worker, production_record
@@ -10,7 +9,7 @@ from tests.stories.fixtures.main.domain_unknown_plan import DomainUnknownPlan
 from tests.stories.fixtures.main.domain_verified_delivered import DomainVerifiedDelivered
 
 
-@story(DomainDevelopmentDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDelivered, subject=AgentRole.MAIN)
 def test_a_development_task_waits_for_accepted_production_evidence_after_merge_and_replay_credits_once(story):
     plan, task = story.plans.first, story.tasks.first
     delivery = f"/journal/plans/{plan}/delivery"
@@ -53,7 +52,7 @@ def test_a_development_task_waits_for_accepted_production_evidence_after_merge_a
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainVerifiedDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainVerifiedDelivered, subject=AgentRole.MAIN)
 def test_a_domain_with_verified_output_accepts_a_checked_merge_through_the_same_evidence_origin(story):
     result = story.user_opens(f"/journal/plans/{story.plans.first}/delivery")
     result.expect_viewer_shows("status", "delivered")
@@ -64,7 +63,7 @@ def test_a_domain_with_verified_output_accepts_a_checked_merge_through_the_same_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainPublishedDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainPublishedDelivered, subject=AgentRole.MAIN)
 def test_a_published_output_domain_needs_its_configured_evidence_not_a_deployment(story):
     delivery = f"/journal/plans/{story.plans.first}/delivery"
     result = story.user_opens(delivery)
@@ -78,7 +77,7 @@ def test_a_published_output_domain_needs_its_configured_evidence_not_a_deploymen
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainUnknownPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainUnknownPlan, subject=AgentRole.MAIN)
 def test_a_domain_without_a_done_policy_stays_unknown_and_rejects_delivery_credit(story):
     delivery = f"/journal/plans/{story.plans.first}/delivery"
     result = story.user_opens(delivery)
@@ -92,7 +91,7 @@ def test_a_domain_without_a_done_policy_stays_unknown_and_rejects_delivery_credi
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainDevelopmentDeliveryAccepted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDeliveryAccepted, subject=AgentRole.MAIN)
 def test_reopening_delivery_keeps_prior_evidence_and_a_new_generation_earns_credit_once(story):
     delivery = f"/journal/plans/{story.plans.first}/delivery"
     result = story.user_presses(delivery, {"action": "reopen", "task_ids": [story.tasks.first], "reason": "the deployment was rolled back"})

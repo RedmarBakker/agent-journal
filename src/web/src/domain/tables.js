@@ -118,7 +118,7 @@ export const TABLES = {
     workers: kind("Worker", "bot", "An agent sent to write one bounded job, in a working copy of its own"),
     verifiers: kind("Verifier", "verifier", "An agent the journal sends by itself to judge whether a dismissed reader report was dismissed rightly"),
     test_turns: kind("Test turn", "terminal", "A worker's turn to run the tests it named, under the test budget"),
-    reviewers: kind("Reviewer", "reviewer", "An agent the journal sends by itself, in orchestrator mode with the reviewer on, to test and check each worker's work and report each point to the agent"),
+    reviewers: kind("Reviewer", "reviewer", "An agent the journal sends by itself, with review on, to test and check each worker's work and report each point to the agent"),
     subagents: kind("Subagent", "bot", "A helper the agent started inside its own session for one job", {nested: true}),
     sequences: kind("Sequence", "list", "Steps the agent follows in order, one at a time, started by hand or by its triggers", {
         view: "document",

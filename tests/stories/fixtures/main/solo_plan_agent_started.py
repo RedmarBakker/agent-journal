@@ -1,8 +1,8 @@
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.workspace_worktree import WorkspaceWorktree
@@ -44,4 +44,4 @@ class SoloPlanAgentStarted(StateFixture):
     def expected(self, story) -> None:
         story.expect_plan(story.plans.first, state=PlanState.STARTED)
         story.expect_task(story.tasks.first)
-        story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+        story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan)

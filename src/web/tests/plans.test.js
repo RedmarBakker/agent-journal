@@ -35,8 +35,8 @@ test("starting a plan pauses the started ones before the server answers", async 
     expect(api.act).toHaveBeenCalledWith("plans", 3, "start");
 });
 
-test("an orchestrator starting a plan keeps its other started plans", async () => {
-    store.settings = {features: {}, workers: {mode: "orchestrator"}};
+test("with plan agents on, starting a plan keeps the other started plans", async () => {
+    store.settings = {features: {}, plans: {plan_agents: true}};
     const [, , ready] = rows("plans");
     const sending = startPlan(ready);
     expect(states()).toEqual(["started", "started", "started"]);

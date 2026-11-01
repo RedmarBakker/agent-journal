@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.providers.codex import Codex
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import provider, story
@@ -9,7 +8,7 @@ from tests.stories.fixtures.subagent.started_subagent import RESEARCHER
 SUBAGENT = "sub1"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_subagents_command_is_told_by_the_hook_that_announced_it_and_the_announcement_is_used_up_by_it(story):
     story.subagent_starts(SUBAGENT, RESEARCHER)
     result = story.subagent_runs_in_the_shell(SUBAGENT, "journal task create x")
@@ -23,7 +22,7 @@ def test_a_subagents_command_is_told_by_the_hook_that_announced_it_and_the_annou
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_command_under_the_subagent_actor_runs_the_journals_reads_and_files_its_own_documents_only(story):
     subagent = {"X-Journal-Actor": "sub-agent"}
     result = story.command_from_a_shell("task list", subagent, {})
@@ -36,7 +35,7 @@ def test_a_command_under_the_subagent_actor_runs_the_journals_reads_and_files_it
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @provider(Codex)
 def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_subagents(story):
     shell = {"agent": True, "provider": "codex"}

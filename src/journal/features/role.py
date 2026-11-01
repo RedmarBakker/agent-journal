@@ -21,7 +21,7 @@ class Role:
         raise NotImplementedError
 
     @classmethod
-    def mode_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+    def floor_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
         raise NotImplementedError
 
     @classmethod

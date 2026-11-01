@@ -71,7 +71,7 @@ const settled = async () => {
 };
 
 test("with the reviewer on, Home shows the reviewer pane beside the chat, with no input box and the review's steps oldest first", async () => {
-    store.settings = {features: {}, viewer: {}, tasks: {auto: true}, workers: {mode: "orchestrator"}, reviewing: {reviewer: true}};
+    store.settings = {features: {}, viewer: {}, tasks: {auto: true}, reviewing: {reviewer: true}};
     const host = mount();
     await settled();
     const chat = host.querySelector(".home-view.chat");
@@ -90,7 +90,7 @@ test("with the reviewer on, Home shows the reviewer pane beside the chat, with n
 });
 
 test("with the reviewer off, Home shows no reviewer pane, and turning it off takes the pane away", async () => {
-    store.settings = {features: {}, viewer: {}, tasks: {auto: true}, workers: {mode: "orchestrator"}, reviewing: {reviewer: true}};
+    store.settings = {features: {}, viewer: {}, tasks: {auto: true}, reviewing: {reviewer: true}};
     const host = mount();
     await settled();
     expect(host.querySelector(".home-view.reviewer")).not.toBe(null);
@@ -98,11 +98,4 @@ test("with the reviewer off, Home shows no reviewer pane, and turning it off tak
     await folded();
     expect(host.querySelector(".home-view.reviewer")).toBe(null);
     expect(host.querySelector(".home-view.chat")).not.toBe(null);
-    app.unmount();
-    app = null;
-    document.body.innerHTML = "";
-    store.settings = {features: {}, viewer: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: true}};
-    const builder = mount();
-    await settled();
-    expect(builder.querySelector(".home-view.reviewer")).toBe(null);
 });

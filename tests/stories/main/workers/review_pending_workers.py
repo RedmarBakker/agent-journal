@@ -2,8 +2,7 @@ from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.reviewing.states.reviewing import Reviewing
-from journal.features.workers.states.orchestrating import Orchestrating
-from journal.features.workers.workers_options import ORCHESTRATOR_MODE
+from journal.features.tasks.states.ready import Ready
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
@@ -12,7 +11,7 @@ from tests.stories.fixtures.main.reviewer_ends_after_worker_merge import Reviewe
 from tests.stories.fixtures.reviewer.reviewer_at_work import ReviewerAtWork
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(ReviewerAtWork, subject=AgentRole.MAIN)
 def test_a_worker_waits_for_its_review_before_the_work_can_be_merged(story):
     worker = story.agents.workers.first()
     story.agent_runs(story.agents.subject, f"worker check {worker} 1")
@@ -26,10 +25,10 @@ def test_a_worker_waits_for_its_review_before_the_work_can_be_merged(story):
     story.expect_worker(worker, review_pending=False)
     story.expect_agent_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing, Ended)
-    story.expect_stack(story.agents.subject, Orchestrating)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(ReviewerAtWork, subject=AgentRole.MAIN)
 def test_a_worker_keeps_its_task_until_its_review_has_ended(story):
     worker = story.agents.workers.first()
     result = story.agent_runs(story.agents.subject, f"worker release {worker} --drop")
@@ -40,10 +39,10 @@ def test_a_worker_keeps_its_task_until_its_review_has_ended(story):
     story.reviewer_run_ends_without_a_report(story.agents.reviewers.first())
     story.expect_agent_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing, Ended)
-    story.expect_stack(story.agents.subject, Orchestrating)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(ReviewerAtWork, subject=AgentRole.MAIN)
 def test_a_failed_review_names_its_task_after_the_user_cancels_it(story):
     worker = story.agents.workers.first()
     result = story.user_cancels_task(story.tasks.briefed, "the request was withdrawn")
@@ -53,10 +52,10 @@ def test_a_failed_review_names_its_task_after_the_user_cancels_it(story):
     story.expect_agent_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
     story.expect_worker(worker, state=WorkerState.RELEASED)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing, Ended)
-    story.expect_stack(story.agents.subject, Orchestrating)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(ReviewerAtWork, subject=AgentRole.MAIN)
 def test_an_old_reviewer_run_does_not_end_the_reviewers_replacement(story):
     worker = story.agents.workers.first()
     result = story.an_old_reviewer_run_ends_after_its_row_is_reused(story.agents.reviewers.first())
@@ -64,10 +63,10 @@ def test_an_old_reviewer_run_does_not_end_the_reviewers_replacement(story):
     story.expect_task(story.tasks.briefed, delegated=True)
     result.expect_agent_not_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing)
-    story.expect_stack(story.agents.subject, Orchestrating)
+    story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReviewerEndsAfterWorkerMerge, mode=ORCHESTRATOR_MODE, subject=AgentRole.MAIN)
+@story(ReviewerEndsAfterWorkerMerge, subject=AgentRole.MAIN)
 def test_a_reviewer_ending_after_its_worker_merges_does_not_report_a_failed_review(story):
     worker = story.agents.workers.first()
 
@@ -78,4 +77,4 @@ def test_a_reviewer_ending_after_its_worker_merges_does_not_report_a_failed_revi
     story.expect_worker(worker, state=WorkerState.MERGED, review_pending=False)
     story.expect_task(story.tasks.briefed, state=TaskState.COMPLETED)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing, Ended)
-    story.expect_stack(story.agents.subject, Orchestrating)
+    story.expect_stack(story.agents.subject, Ready)

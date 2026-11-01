@@ -1,14 +1,13 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_domain_seat_started import OrganizationDomainSeatStarted
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
-@story(OrganizationDomainSeatStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainSeatStarted, subject=AgentRole.MAIN)
 def test_a_domain_keeps_its_inbox_handoff_until_it_hands_the_task_to_a_role(story):
     plan, task = story.plans.first, story.tasks.first
     domain = story.organization_seat_agent("domain:alpha")

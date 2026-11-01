@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.main.library.library_copies import COPY
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_library_page_reads_the_team_connection_without_its_token_and_publishes_and_imports_as_the_command_does(story):
     result = story.user_opens("/journal/team")
     result.expect_viewer_shows("connected", False)
@@ -30,7 +29,7 @@ def test_the_library_page_reads_the_team_connection_without_its_token_and_publis
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_library_page_names_the_fields_edited_in_the_copy_here_so_it_offers_the_replace(story):
     original = story.a_library_holds_a_sequence_imported_here("Review Day", "read it")
     result = story.user_opens("/journal/library/items/sequence/review-day")

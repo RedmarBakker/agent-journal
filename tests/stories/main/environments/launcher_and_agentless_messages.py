@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_an_open_viewer_tab_follows_the_environment_started_by_the_launcher(story):
     story.another_environment("task-1")
     result = story.user_opens_viewer_in("task-1")
@@ -18,7 +17,7 @@ def test_an_open_viewer_tab_follows_the_environment_started_by_the_launcher(stor
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_message_to_an_environment_without_a_live_agent_says_where_one_is_running(story):
     environment = story.another_environment("task-1")
     result = story.user_sends_message_in(environment, "Please start this work")

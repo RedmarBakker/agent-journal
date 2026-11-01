@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_a_second_reply_with_the_same_words_to_the_same_message_is_not_sent_again(story):
     story.agent_replies(story.agents.subject, story.messages.first, "Looking now.")
     result = story.agent_replies(story.agents.subject, story.messages.first, "Looking now.")
@@ -14,7 +13,7 @@ def test_a_second_reply_with_the_same_words_to_the_same_message_is_not_sent_agai
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_a_reply_the_user_edited_since_keeps_the_key_of_its_words_so_they_are_never_sent_again(story):
     story.agent_replies(story.agents.subject, story.messages.first, "Looking at the footer now.")
     reply = story.newest("messages")

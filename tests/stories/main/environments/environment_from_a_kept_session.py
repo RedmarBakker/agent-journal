@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -7,7 +6,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 SESSION = "old-session"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_new_environment_is_filled_from_a_kept_claude_session_once_and_the_form_names_where_it_went(story):
     story.a_claude_session_is_kept(SESSION, "Fix the login page", "Fixed the login page.")
     result = story.user_opens("/journal/environments/sessions")

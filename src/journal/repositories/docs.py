@@ -3,20 +3,15 @@ from datetime import datetime
 from journal.models.doc import Doc
 from journal.support.actor import Actor
 from journal.db.connection import Connection
-from journal.db.query import Query
 from journal.events.bus import Bus
 from journal.repositories.doc_scope import DocScope
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.repositories.unacted_writing import UnactedWriting
 from journal.support.time_source import TimeSource
 
 
-class Docs(ScopedRepository[Doc], UnactedWriting):
+class Docs(ScopedRepository[Doc]):
     model = Doc
-
-    def unsigned_query(self) -> Query:
-        return self.query().filter(settled_reason="")
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, visible: DocScope, time_source: TimeSource) -> None:
         super().__init__(connection, bus, scope, time_source)

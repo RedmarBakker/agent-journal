@@ -1,6 +1,6 @@
 from journal.references import events
 # the agent's own states of work, in which a quiet spell is thinking; waiting, asking, idle and ended are not
-WORKING_STATES = frozenset({"working", "following_plan", "delegating", "orchestrating_plan"})
+WORKING_STATES = frozenset({"working", "following_plan", "leading_task_working"})
 
 # the moves after which the agent's next step is its own to think out: a tool came back, or the user said something
 THINKING_MOVES = (events.TOOL_FINISHED, events.PROMPT_SUBMITTED)

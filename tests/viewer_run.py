@@ -7,6 +7,21 @@ import pytest
 
 WEB = Path(__file__).resolve().parents[1] / "src" / "web"
 VITEST_SECONDS = 240
+MAIN_AGENT_CONTROLS = (
+    "tests/topBar.test.js",
+    "tests/plans.test.js",
+    "tests/reviewerPane.test.js",
+    "tests/tooltip.test.js",
+    "tests/tipObvious.test.js",
+)
+SETTINGS_ORGANIZATION = (
+    "tests/settingsOrganization.test.js",
+    "tests/organizationRoutes.test.js",
+    "tests/organizationStates.test.js",
+    "tests/route.test.js",
+    "tests/settingsCatalog.test.js",
+    "tests/settingsSave.test.js",
+)
 SETS = {
     "chat_marks": (
         "tests/chatMarkSecondRound.test.js",
@@ -26,7 +41,6 @@ SETS = {
         "tests/thread.test.js",
         "tests/cardTimer.test.js",
         "tests/testRunCard.test.js",
-        "tests/fitnessCard.test.js",
     ),
     "chat_scroll": (
         "tests/chatPointerHold.test.js",
@@ -83,14 +97,6 @@ SETS = {
     ),
     "services": (
         "tests/settingsServices.test.js",
-    ),
-    "settings_organization": (
-        "tests/settingsOrganization.test.js",
-        "tests/organizationRoutes.test.js",
-        "tests/organizationStates.test.js",
-        "tests/route.test.js",
-        "tests/settingsCatalog.test.js",
-        "tests/settingsSave.test.js",
     ),
     "figure_sleep": (
         "tests/figureState.test.js",
@@ -171,9 +177,6 @@ SETS = {
         "tests/otherServer.test.js",
         "tests/forceUpdate.test.js",
     ),
-    "settings_catalog": (
-        "tests/settingsCatalog.test.js",
-    ),
     "sidebar_counts": (
         "tests/sidebarCounts.test.js",
         "tests/collectionsNavigation.test.js",
@@ -183,5 +186,17 @@ SETS = {
 
 @pytest.mark.parametrize("name", SETS)
 def test_the_viewer_tests_pass(name: str):
-    run = subprocess.run([str(WEB / "node_modules" / ".bin" / "vitest"), "run", *SETS[name]], cwd=WEB, capture_output=True, text=True, timeout=VITEST_SECONDS)
+    run_viewer_tests(SETS[name])
+
+
+def test_main_agent_controls():
+    run_viewer_tests(MAIN_AGENT_CONTROLS)
+
+
+def test_settings_organization():
+    run_viewer_tests(SETTINGS_ORGANIZATION)
+
+
+def run_viewer_tests(files: tuple[str, ...]) -> None:
+    run = subprocess.run([str(WEB / "node_modules" / ".bin" / "vitest"), "run", *files], cwd=WEB, capture_output=True, text=True, timeout=VITEST_SECONDS)
     assert run.returncode == 0, "\n".join((run.stdout + run.stderr).splitlines()[-80:])

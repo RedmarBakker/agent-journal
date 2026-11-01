@@ -1,7 +1,6 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.models.plan_state import PlanState
 from journal.models.worker_state import WorkerState
@@ -12,7 +11,7 @@ from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.domain_development_delivered import DomainDevelopmentDelivered
 from tests.stories.fixtures.worker.plan_worker import PlanWorker
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_planned_prerequisite_stays_open_until_its_task_is_accepted(story):
     dependent = story.tasks.second
     prerequisite = story.tasks.first
@@ -29,7 +28,7 @@ def test_a_planned_prerequisite_stays_open_until_its_task_is_accepted(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_the_viewer_cannot_start_a_task_with_an_unaccepted_prerequisite(story):
     story.agent_runs(story.agents.subject, f"task depends {story.tasks.second} --on {story.tasks.first} --reason 'the second task uses the first task output'").expect_command_passed()
     story.user_approves_plan(story.plans.first)
@@ -39,7 +38,7 @@ def test_the_viewer_cannot_start_a_task_with_an_unaccepted_prerequisite(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_cancelled_prerequisite_does_not_release_its_planned_dependent(story):
     dependent, prerequisite = story.tasks.second, story.tasks.first
     story.agent_runs(story.agents.subject, f"task depends {dependent} --on {prerequisite} --reason 'the second task uses the first task output'").expect_command_passed()
@@ -56,7 +55,7 @@ def test_a_cancelled_prerequisite_does_not_release_its_planned_dependent(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_started_task_keeps_its_planned_prerequisites(story):
     dependent, prerequisite = story.tasks.second, story.tasks.first
     story.agent_runs(story.agents.subject, f"task depends {dependent} --on {prerequisite} --reason 'the second task uses the first task output'").expect_command_passed()
@@ -74,7 +73,7 @@ def test_a_started_task_keeps_its_planned_prerequisites(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_finished_unmerged_worker_task_is_not_an_accepted_prerequisite(story):
     dependent, prerequisite = story.tasks.second, story.tasks.first
     dependency = story.user_presses(f"/journal/plans/{story.plans.first}/dependencies", {"task_id": dependent, "prerequisites": [prerequisite], "reason": "the second task uses the first task output"})
@@ -94,7 +93,7 @@ def test_a_finished_unmerged_worker_task_is_not_an_accepted_prerequisite(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_a_task_cannot_wait_on_its_own_plan(story):
     result = story.agent_runs(story.agents.subject, f"task block {story.tasks.first} --on plan:{story.plans.first}")
     result.expect_command_refused()
@@ -103,7 +102,7 @@ def test_a_task_cannot_wait_on_its_own_plan(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_one_cycle_check_rejects_a_mixed_planned_dependency_and_runtime_wait_without_partial_write(story):
     dependent, prerequisite = story.tasks.second, story.tasks.first
     story.agent_runs(story.agents.subject, f"task block {dependent} --on task:{prerequisite}").expect_command_passed()
@@ -117,7 +116,7 @@ def test_one_cycle_check_rejects_a_mixed_planned_dependency_and_runtime_wait_wit
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_phase_order_does_not_create_a_planned_dependency_by_itself(story):
     result = story.user_opens(f"/journal/plans/{story.plans.first}/dependencies")
     result.expect_viewer_shows("edges", [])
@@ -127,7 +126,7 @@ def test_phase_order_does_not_create_a_planned_dependency_by_itself(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(PlanWorker, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorker, subject=AgentRole.MAIN)
 def test_a_planned_dependency_change_cannot_take_a_task_from_its_worker(story):
     result = story.user_presses(f"/journal/plans/{story.plans.first}/dependencies", {"task_id": story.tasks.first, "prerequisites": [story.tasks.second], "reason": "the owner revised the plan"})
     result.expect_viewer_refused("worker")
@@ -138,7 +137,7 @@ def test_a_planned_dependency_change_cannot_take_a_task_from_its_worker(story):
     story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_plan_builder_can_set_prerequisites_while_composing_a_task(story):
     other = story.user_creates_plan("parallel work", "work that can run beside the first plan")
     independent = story.user_adds_plan_task(other, "independent work")
@@ -156,7 +155,7 @@ def test_a_plan_builder_can_set_prerequisites_while_composing_a_task(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_task_cannot_depend_on_itself(story):
     result = story.agent_runs(story.agents.subject, f"task depends {story.tasks.first} --on {story.tasks.first} --reason 'self reference'")
     result.expect_command_refused()
@@ -167,7 +166,7 @@ def test_a_task_cannot_depend_on_itself(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_a_hidden_prerequisite_is_refused_without_writing_an_edge(story):
     result = story.agent_runs(story.agents.subject, f"task depends {story.tasks.second} --on 999999 --reason 'the task needs a prerequisite'")
     result.expect_command_refused()
@@ -178,7 +177,7 @@ def test_a_hidden_prerequisite_is_refused_without_writing_an_edge(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_an_agent_that_is_not_the_owner_or_active_plan_builder_cannot_edit_prerequisites(story):
     result = story.agent_runs(story.agents.subject, f"task depends {story.tasks.second} --on {story.tasks.first} --reason 'the task order changed'")
     result.expect_command_refused()
@@ -188,7 +187,7 @@ def test_an_agent_that_is_not_the_owner_or_active_plan_builder_cannot_edit_prere
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainDevelopmentDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainDevelopmentDelivered, subject=AgentRole.MAIN)
 def test_a_delivery_gate_waits_for_the_existing_accepted_domain_evidence(story):
     added = story.user_presses(f"/journal/plans/{story.plans.first}/tasks", {
         "title": "deploy the committed revision", "brief": "- deployed revision is accepted", "delivery_gate_for": story.tasks.first,

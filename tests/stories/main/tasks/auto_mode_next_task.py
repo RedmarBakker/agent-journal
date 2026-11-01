@@ -6,7 +6,6 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
@@ -16,7 +15,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 
-@story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TaskQueue, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_with_auto_on_a_completed_task_is_followed_by_the_next_open_one(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
@@ -26,7 +25,7 @@ def test_with_auto_on_a_completed_task_is_followed_by_the_next_open_one(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(TaskQueue, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TaskQueue, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, False)
 def test_with_auto_off_a_completed_task_is_followed_by_nothing(story):
     story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how done")
@@ -36,7 +35,7 @@ def test_with_auto_off_a_completed_task_is_followed_by_nothing(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_the_next_task_is_the_one_of_highest_priority(story):
     low = story.agent_creates_task(story.agents.subject, "the logo")
@@ -48,7 +47,7 @@ def test_the_next_task_is_the_one_of_highest_priority(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_blocked_task_is_never_started(story):
     blocked = story.agent_creates_task(story.agents.subject, "the logo")
@@ -60,7 +59,7 @@ def test_a_blocked_task_is_never_started(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerDelivered, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_task_a_worker_holds_is_never_started_by_the_stop(story):
     story.agent_stops(story.agents.subject)
@@ -69,7 +68,7 @@ def test_a_task_a_worker_holds_is_never_started_by_the_stop(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanApproved, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanApproved, subject=AgentRole.MAIN)
 def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
     result = story.agent_stops(story.agents.subject)
     result.expect_refused(story.agents.subject, TasksNudges.TASK_CONTINUATION)
@@ -79,7 +78,7 @@ def test_an_approved_plan_is_started_at_the_stop_with_its_first_task(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_stop_with_several_open_tasks_starts_only_one(story):
     first = story.agent_creates_task(story.agents.subject, "the header")

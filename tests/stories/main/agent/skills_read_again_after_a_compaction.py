@@ -5,7 +5,6 @@ from journal.features.skills.skills_options import SkillsOptions
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.compacting_task import CompactingTask
@@ -13,7 +12,7 @@ from tests.stories.fixtures.main.compaction_skills import CompactionSkills
 from tests.stories.fixtures.main.compaction_skill_reads import CompactionSkillReads
 
 
-@story(CompactionSkills, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactionSkills, subject=AgentRole.MAIN)
 def test_a_write_after_a_compaction_is_told_every_skill_owed_and_the_overview(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, BriefingNudges.SKILLS_AND_OVERVIEW_REQUEST)
@@ -23,7 +22,7 @@ def test_a_write_after_a_compaction_is_told_every_skill_owed_and_the_overview(st
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
-@story(CompactionSkills, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactionSkills, subject=AgentRole.MAIN)
 def test_the_overview_alone_leaves_the_skills_owed(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_writes(story.agents.subject, "footer.py")
@@ -31,7 +30,7 @@ def test_the_overview_alone_leaves_the_skills_owed(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(CompactionSkillReads, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactionSkillReads, subject=AgentRole.MAIN)
 def test_the_skills_and_then_the_overview_free_every_tool(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_writes(story.agents.subject, "footer.py")
@@ -39,14 +38,14 @@ def test_the_skills_and_then_the_overview_free_every_tool(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(CompactionSkillReads, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactionSkillReads, subject=AgentRole.MAIN)
 def test_with_the_skills_read_a_write_is_told_only_the_overview(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_FIRST)
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
-@story(CompactingTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactingTask, subject=AgentRole.MAIN)
 @setting(SkillsOptions.COMPACTION_SKILLS, [])
 def test_with_no_compaction_skills_set_a_write_is_told_only_the_overview(story):
     story.compacted_session_starts()
@@ -56,7 +55,7 @@ def test_with_no_compaction_skills_set_a_write_is_told_only_the_overview(story):
     story.expect_stack(story.agents.subject, Ready, Working, ReadingOverview)
 
 
-@story(CompactionSkills, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(CompactionSkills, subject=AgentRole.MAIN)
 def test_a_task_finished_while_the_skills_are_owed_leaves_them_owed_until_they_are_read(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_runs(story.agents.subject, f"task complete {story.tasks.started} --how 'quick'")

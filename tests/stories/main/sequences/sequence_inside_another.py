@@ -1,13 +1,12 @@
 from journal.features.sequences.sequences_nudges import SequencesNudges
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.sequence_run import SequenceRun
 
 
-@story(SequenceRun, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SequenceRun, subject=AgentRole.MAIN)
 def test_a_sequence_started_inside_another_is_followed_first_holds_work_until_taken_up_and_the_outer_one_comes_back_after(story):
     story.agent_runs(story.agents.subject, "sequence follow")
     result = story.agent_runs_in_the_shell(story.agents.subject, "make build")

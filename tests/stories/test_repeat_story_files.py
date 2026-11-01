@@ -38,9 +38,8 @@ def play_story(app, copies, function, marks, monkeypatch):
     provider = next((mark.args[0] for mark in marks if mark.name == PROVIDER_MARK), VoidProvider)
     story = Story(app, provider, reads, copies, monkeypatch)
     story.typed = typed
-    fixture, mode, subject = next(mark.args for mark in marks if mark.name == START_MARK)
+    fixture, subject = next(mark.args for mark in marks if mark.name == START_MARK)
     story.reach(fixture)
-    story.plays_in(mode)
     story.scope = subject
     for mark in marks:
         if mark.name == SETTINGS_MARK:

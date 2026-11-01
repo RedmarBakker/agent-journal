@@ -4,7 +4,6 @@ from journal.features.organization.support.organization_seat_routing import Orga
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -16,7 +15,7 @@ from tests.stories.fixtures.main.enforced_draft_plan import EnforcedDraftPlan
 from tests.stories.fixtures.main.enforced_draft_without_done import EnforcedDraftWithoutDone
 
 
-@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftPlan, subject=AgentRole.MAIN)
 def test_a_new_enforced_plan_refuses_an_unknown_size_with_a_correction(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
@@ -33,7 +32,7 @@ def test_a_new_enforced_plan_refuses_an_unknown_size_with_a_correction(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftPlan, subject=AgentRole.MAIN)
 def test_a_new_enforced_plan_refuses_a_sized_task_without_an_accountable_domain(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
@@ -54,7 +53,7 @@ def test_a_new_enforced_plan_refuses_a_sized_task_without_an_accountable_domain(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDraftWithoutDone, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftWithoutDone, subject=AgentRole.MAIN)
 def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
@@ -71,7 +70,7 @@ def test_a_new_enforced_plan_refuses_a_domain_without_delivery_criteria(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDependencyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDependencyPlan, subject=AgentRole.MAIN)
 def test_a_fully_sized_domain_scoped_plan_with_valid_prerequisites_can_be_readied(story):
     result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     result.expect_command_passed()
@@ -82,7 +81,7 @@ def test_a_fully_sized_domain_scoped_plan_with_valid_prerequisites_can_be_readie
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DomainPolicyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DomainPolicyPlan, subject=AgentRole.MAIN)
 def test_a_plan_drafted_before_enforcement_is_not_retroactively_trapped(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} organization")
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")

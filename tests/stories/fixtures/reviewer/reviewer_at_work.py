@@ -1,15 +1,16 @@
 from journal.features.reviewing.reviewing_options import ReviewingOptions
-from journal.features.workers.states.orchestrating import Orchestrating
-from tests.stories.fixtures.main.orchestrator_worker import OrchestratorWorker
+from journal.features.tasks.states.external_wait import ExternalWait
+from journal.features.tasks.states.ready import Ready
+from tests.stories.fixtures.worker.working_worker import WorkingWorker
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class ReviewerAtWork(StateFixture):
-    """With a reviewer on in orchestrator mode, the working worker proved both points and clocked out, so the journal sent a reviewer on its work, whose session started: story.agents.reviewers.first()."""
+    """With the reviewer on, the working worker proved both points and clocked out, so the journal sent a reviewer on its work, whose session started: story.agents.reviewers.first()."""
 
-    stack = (Orchestrating,)
+    stack = (Ready,)
 
-    parent = OrchestratorWorker
+    parent = WorkingWorker
 
     settings = ((ReviewingOptions.REVIEWER, True),)
 
@@ -21,4 +22,4 @@ class ReviewerAtWork(StateFixture):
         story.agent_starts_a_session(story.agents.reviewers.first())
 
     def expected(self, story) -> None:
-        story.expect_stack(story.agents.main, Orchestrating)
+        story.expect_stack(story.agents.main, Ready, ExternalWait)

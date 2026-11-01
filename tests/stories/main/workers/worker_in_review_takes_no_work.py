@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerDelivered, subject=AgentRole.MAIN)
 def test_a_worker_whose_work_waits_for_its_check_is_queued_nothing_and_sent_no_job(story):
     docs = story.agent_creates_task(story.agents.subject, "the docs")
     result = story.agent_runs(story.agents.subject, f"worker queue {story.agents.workers.first()} {docs}")

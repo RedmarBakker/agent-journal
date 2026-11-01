@@ -34,8 +34,6 @@ from tests.agent_hooks import story_seconds
 from tests.full_project import MAIN
 from tests.in_process import get_answer
 from tests.stories.builder.story_agent import StoryAgent
-from journal.features.workers.feature import Workers
-from tests.stories.builder.mode_floor import ModeFloor
 
 
 # the duration a hook's answer shows the user, such as "PreToolUse: 12 ms"
@@ -160,7 +158,7 @@ class StoryChecks:
         session = self.session_of(agent)
         environment = self.session_environments.get(session, "main")
         stack = self.session_stack(session)
-        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
+        assert stack == [state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
     def expect_agent_session_in_environment(self, agent: StoryAgent, environment: str) -> None:
@@ -526,9 +524,6 @@ class StoryChecks:
         expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
         row_fields = {name: row.get(name) for name in expected_fields}
         assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
-
-    def floor(self) -> type:
-        return Workers.modes.states[self.mode]
 
     def expect_seconds_waited_with_work_open(self, seconds: int) -> None:
         agents = [row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.scoped_session()]

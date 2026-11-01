@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from journal.support.timeout import Timeout
 from journal.features.workers.support.half_life import HalfLife
 from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.support.queue_walk import QueueWalk
@@ -10,33 +9,29 @@ STEP_SECONDS = 60.0
 # how many half-lives of history the smoothing folds in before the measure, so what is older weighs under two per cent
 HALF_LIVES = 6
 # how far back a dispatch looks to see whether the queue was growing, in seconds
-GROWTH_SECONDS = 300.0
 # the oldest waiting items the load keeps the refs of on the agent's row; the rest it counts
 WAITING_REFS_STORED = 8
 
 
 @dataclass(frozen=True)
 class LoadSeries:
-    """The orchestrator measured as one server over its items, minute by minute: in each sliding window λ is the weight that arrived an hour, μ the weight cleared an hour of busy time, while something waited, and W the minutes from arrival to clearing of what was cleared; each smoothed with the half-life, μ only while something waits, ρ = λ/μ, μ counted as one clearing a window until one is measured, and L what waits now. The minutes ρ has stayed at or over the busy level while an item waited, or under the quiet level, end now; the clearings in the window are counted for taking the oldest waiting item first, and each dispatch in it for or against: against while the queue grew with ρ over the busy level, for while ρ was under the quiet level."""
+    """The worker or message queue's arrival rate, clearing rate and waiting time, smoothed over a sliding window, with the busy and quiet stretches used to scale worker places."""
 
     window_minutes: float
     half_life_minutes: float
     busy_at: float
     low_at: float
 
-    def measured(self, items: list[LoadItem], dispatches: list[float], moment: float) -> AgentLoad:
+    def measured(self, items: list[LoadItem], moment: float) -> AgentLoad:
         window = self.window_minutes * 60
         walk = self.walk(items, moment, window + HALF_LIVES * self.half_life_minutes * 60)
         series, arrivals, clearings, wait = list(walk.points), walk.arrivals, walk.clearings, walk.wait_minutes
         waiting = sum(item.weight for item in items if item.is_waiting(moment))
         rho = series[-1][1]
-        counted = [item for item in items if item.is_cleared_in(moment - window, moment)]
         sorted_waiting = sorted((item for item in items if item.is_waiting(moment)), key=lambda item: (item.arrived_at, item.ref))
-        calm_dispatches, busy_dispatches = self.dispatch_counts(series, [time for time in dispatches if Timeout.seconds(window).started(time).is_active(moment)])
         return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting), oldest_wait_minutes=round(sum((moment - item.arrived_at) / 60 for item in sorted_waiting[:1]), 2),
                          wait_minutes=round(wait, 2), little=round(arrivals * wait / 60, 2), busy_minutes=self.stretch(series, lambda point: point[1] >= self.busy_at and point[2] > 0),
-                         low_minutes=self.stretch(series, lambda point: point[1] < self.low_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),
-                         clearings_counted=len(counted), removals=sum(1 for item in items if item.is_removal(moment - window, moment)), calm_dispatches=calm_dispatches, busy_dispatches=busy_dispatches, measured_at=moment)
+                         low_minutes=self.stretch(series, lambda point: point[1] < self.low_at), measured_at=moment)
 
     def walk(self, items: list[LoadItem], moment: float, horizon: float) -> QueueWalk:
         window = self.window_minutes * 60
@@ -102,20 +97,3 @@ class LoadSeries:
             first_time = point[0]
         return round((series[-1][0] - first_time) / 60, 1)
 
-    @staticmethod
-    def was_oldest(items: list[LoadItem], item: LoadItem) -> bool:
-        prior_instant = item.cleared_at - 1e-6
-        waiting = [candidate for candidate in items if candidate.is_waiting(prior_instant)]
-        return bool(waiting) and min(waiting, key=lambda candidate: (candidate.arrived_at, candidate.ref)) == item
-
-    def dispatch_counts(self, series: list[tuple[float, float, float]], dispatches: list[float]) -> tuple[int, int]:
-        calm_count = busy_count = 0
-        for time in dispatches:
-            current, base = self.point(series, time), self.point(series, time - GROWTH_SECONDS)
-            busy_count += current[1] > self.busy_at and current[2] > base[2]
-            calm_count += current[1] < self.low_at
-        return calm_count, busy_count
-
-    @staticmethod
-    def point(series: list[tuple[float, float, float]], time: float) -> tuple[float, float, float]:
-        return next((point for point in reversed(series) if point[0] <= time), series[0])

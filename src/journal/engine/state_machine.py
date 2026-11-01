@@ -55,11 +55,11 @@ class StateMachine:
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
 
     def index_listeners(self) -> None:
-        conduct_sets = [self.agent_conducts(role, lowest_state) for role in self.features.roles() for lowest_state in (BaseState, *self.features.mode_states())]
+        conduct_sets = [self.agent_conducts(role, lowest_state) for role in self.features.roles() for lowest_state in (BaseState, *self.features.floor_states())]
         self.listener_index = ListenerIndex.built(list(self.states.classes()), list(dict.fromkeys(conduct_sets)), self.event_kinds(Event))
 
     def agent_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
-        return (*self.features.conducts(role), *self.features.mode_conducts(role, lowest_state))
+        return (*self.features.conducts(role), *self.features.floor_conducts(role, lowest_state))
 
     @classmethod
     def event_kinds(cls, type_name: type) -> list[type]:
@@ -89,9 +89,9 @@ class StateMachine:
         unended = list({agent.row_id: agent for agent in (*in_environment, *addressed)}.values())
         return [agent for agent in unended if self.features.receives_row_event(type(event).feature_name, agent.role)]
 
-    def mode_change(self, stored_stack: Stack, stack: Stack) -> tuple[Nudge, ...]:
+    def floor_change(self, stored_stack: Stack, stack: Stack) -> tuple[Nudge, ...]:
         bottom, previous_bottom = stack.bottom(), stored_stack.bottom()
-        return bottom.mode_lines() if type(bottom) is not type(previous_bottom) and self.states.is_mode_floor(previous_bottom) else ()
+        return bottom.floor_lines() if type(bottom) is not type(previous_bottom) and self.states.is_selected_floor(previous_bottom) else ()
 
     def row_assignments(self, event: RowEvent) -> None:
         for agent in self.audience(event):
@@ -110,7 +110,7 @@ class StateMachine:
         settings = self.top_state()
         stored_stack = self.states.stack(agent)
         stack = self.states.floor(stored_stack, settings, agent.role)
-        mode_change = self.mode_change(stored_stack, stack)
+        floor_change = self.floor_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
         if isinstance(event, ToolStarting):
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
@@ -119,7 +119,7 @@ class StateMachine:
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         agent = self._store(agent, machine_answer, event.key, Actor.system())
-        nudge_lines = [(nudge, line) for nudge in (*mode_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
+        nudge_lines = [(nudge, line) for nudge in (*floor_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
         queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(machine_answer.stack.bottom(), nudge, event))
         lines = [line for _, line in nudge_lines if line not in queued]
         lines, remarks = self.answer_lines(lines, event), (*queued, *self.overflow_lines(lines, event))

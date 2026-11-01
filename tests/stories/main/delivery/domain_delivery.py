@@ -4,7 +4,6 @@ import pytest
 
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
@@ -18,7 +17,7 @@ def check_plan_worker_proofs(story):
     story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.second}")
 
 
-@story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorkerDelivered, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_a_plan_merged_before_sprint_end_is_awaiting_delivery_until_production_evidence_arrives(story):
     created = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})
@@ -46,7 +45,7 @@ def test_a_plan_merged_before_sprint_end_is_awaiting_delivery_until_production_e
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorkerDelivered, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_a_deployment_at_the_exclusive_sprint_end_is_recorded_after_that_sprint(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
@@ -75,7 +74,7 @@ def test_a_deployment_at_the_exclusive_sprint_end_is_recorded_after_that_sprint(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorkerDelivered, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_a_worker_report_and_accepted_merge_do_not_stand_in_for_deployment(story):
     check_plan_worker_proofs(story)
@@ -88,7 +87,7 @@ def test_a_worker_report_and_accepted_merge_do_not_stand_in_for_deployment(story
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_pending_or_failed_deployment_evidence_earns_no_delivery_credit(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
@@ -101,7 +100,7 @@ def test_pending_or_failed_deployment_evidence_earns_no_delivery_credit(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_owner_attested_evidence_is_labelled_and_missing_domain_policy_stays_unknown(story):
     evidence = story.user_presses(f"/journal/plans/{story.plans.first}/delivery", {"kind": "owner_attestation", "source": "release-review", "artifact": "edition-9", "environment": "published", "scope": [story.tasks.first], "assurance": "owner-attested", "accepted": True})
@@ -112,7 +111,7 @@ def test_owner_attested_evidence_is_labelled_and_missing_domain_policy_stays_unk
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PublishingDomainPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PublishingDomainPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_owner_attested_evidence_satisfies_the_policy_of_a_non_development_domain(story):
     assigned = story.user_presses(f"/journal/tasks/{story.tasks.first}/domain", {"domain": "publishing", "kind": "planned", "reason": "the edition's accountable domain"})
@@ -126,7 +125,7 @@ def test_owner_attested_evidence_satisfies_the_policy_of_a_non_development_domai
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_replaying_the_same_accepted_evidence_does_not_credit_the_scope_twice(story):
     evidence = {"kind": "production_deployment", "source": "deploy-10", "artifact": "revision-10", "environment": "production", "scope": [story.tasks.first], "succeeded": True, "idempotency": "deploy-10"}
@@ -138,7 +137,7 @@ def test_replaying_the_same_accepted_evidence_does_not_credit_the_scope_twice(st
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 152 (R04: Persist execution outcomes, waiting intervals and delivery history).")
 def test_rollback_retains_the_old_delivery_and_reopens_one_new_work_generation(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
@@ -154,7 +153,7 @@ def test_rollback_retains_the_old_delivery_and_reopens_one_new_work_generation(s
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 150 (R02: Version domain definitions of done and accepted delivery evidence).")
 def test_a_domain_policy_change_does_not_rewrite_the_current_commitment(story):
     created = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})

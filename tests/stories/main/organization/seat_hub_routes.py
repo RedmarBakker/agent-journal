@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.support.agent_role import AgentRole
@@ -11,7 +10,7 @@ from tests.stories.fixtures.main.organization_domain_role_task import Organizati
 from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 
 
-@story(OrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationHubPlan, subject=AgentRole.MAIN)
 def test_a_plan_seat_hands_a_task_to_its_domain_seat(story):
     task = story.tasks.first
     result = story.agent_runs_from_organization_seat(story.agents.main, "plan", f"organization handoff {task} domain:alpha")
@@ -24,7 +23,7 @@ def test_a_plan_seat_hands_a_task_to_its_domain_seat(story):
     story.expect_stack(story.agents.main, Ready)
 
 
-@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainRoleTask, subject=AgentRole.MAIN)
 def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(story):
     task = story.tasks.second
     brief = "- task 6 has its current brief"
@@ -86,7 +85,7 @@ def test_a_domain_handoff_gives_its_role_the_brief_before_the_plan_merges_it(sto
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationDomainRoleTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationDomainRoleTask, subject=AgentRole.MAIN)
 def test_a_read_only_role_receives_its_inbox_handoff_without_a_worker_job(story):
     task = story.tasks.second
     result = story.agent_runs_from_organization_seat(
@@ -104,7 +103,7 @@ def test_a_read_only_role_receives_its_inbox_handoff_without_a_worker_job(story)
     story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationHubPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationHubPlan, subject=AgentRole.MAIN)
 def test_a_role_seat_sending_sideways_is_refused_with_its_domain_hub(story):
     task = story.tasks.first
     result = story.agent_runs_from_organization_seat(story.agents.main, "role:alpha/builder", f"organization handoff {task} role:beta/reviewer")

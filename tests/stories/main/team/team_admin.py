@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_team_admin_invites_with_a_code_and_lists_its_people_and_devices(story):
     story.user_connects_to_a_team()
     result = story.agent_runs(story.agents.subject, "team invite bob@example.com")
@@ -17,7 +16,7 @@ def test_a_team_admin_invites_with_a_code_and_lists_its_people_and_devices(story
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_team_member_is_refused_an_invite_since_only_an_admin_invites(story):
     story.user_is_a_team_member()
     result = story.agent_runs(story.agents.subject, "team invite dan@example.com")

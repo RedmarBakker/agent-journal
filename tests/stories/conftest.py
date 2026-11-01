@@ -128,7 +128,6 @@ def story(app, monkeypatch, request, copies):
     played.typed = typed
     for mark in request.node.iter_markers(START_MARK):
         played.reach(mark.args[0])
-        played.plays_in(request.param if isinstance(mark.args[1], tuple) else mark.args[1])
     played.scope = story_scope(request)
     for mark in request.node.iter_markers(SETTINGS_MARK):
         played.user_sets(*mark.args)
@@ -148,15 +147,9 @@ def story(app, monkeypatch, request, copies):
     gaps.known([nudge.key for nudge in app.container.get(NudgeRegistry).all()], [option.key for option in app.container.get(Registry).options()])
     gaps.played(played.line_keys, set(reads.keys))
     overlays = request.config.stash.setdefault(OVERLAYS, {})
-    overlays.setdefault(f"{played.program.__name__} {played.mode}", PathOverlay()).add(request.node.name, played.path)
+    overlays.setdefault(played.program.__name__, PathOverlay()).add(request.node.name, played.path)
     request.config.stash.setdefault(WALKED, set()).update(played.log.walked)
     request.config.stash[SCENARIOS_RUN] = request.config.stash.get(SCENARIOS_RUN, 0) + 1
-
-
-def pytest_generate_tests(metafunc) -> None:
-    start = metafunc.definition.get_closest_marker(START_MARK)
-    if start is not None and isinstance(start.args[1], tuple):
-        metafunc.parametrize("story", start.args[1], indirect=True, ids=list(start.args[1]))
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -189,7 +182,7 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
 
 def story_scope(request) -> AgentRole:
-    named, folder = request.node.get_closest_marker(START_MARK).args[2], AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
+    named, folder = request.node.get_closest_marker(START_MARK).args[1], AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
     assert named == folder, f"{request.node.originalname} names subject {named.value} on its mark but lives under {folder.value}/: the mark and the folder name the same subject"
     return named
 

@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_wait_lifted_by_working_tells_the_agent_once_when_its_check_passes(story):
     story.agent_runs(story.agents.subject, "await 'the nightly build' --until 'exit 0'")
     check = story.newest("checks")
@@ -18,7 +17,7 @@ def test_a_wait_lifted_by_working_tells_the_agent_once_when_its_check_passes(sto
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_cleared_await_removes_its_check(story):
     story.agent_runs(story.agents.subject, "await 'the second build' --until 'exit 0'")
     check = story.newest("checks")

@@ -6,20 +6,20 @@ from journal.models.task import Task
 from journal.repositories.plans import Plans
 from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
-from journal.features.workers.support.work_mode import WorkMode
+from journal.features.plans.support.plan_agent_coordinator import PlanAgentCoordinator
 
 MOVES = {PlanState.STARTED: Plan.reopened, PlanState.DELEGATED: Plan.delegated, PlanState.PAUSED: Plan.agent_postponed}
 
 
 class PlanDelegation(Listener[Updated]):
-    """A plan's state follows who works its tasks: the agent starting one of them makes it its active plan, one of them handed to a worker while the agent holds none makes it delegated, which is no active plan, and a delegated plan whose last worker task closes or is released is paused again; an orchestrator keeps all its plans started, so its plans are left as they are."""
+    """A plan's state follows who works its tasks: the agent starting one of them makes it its active plan, one of them handed to a worker while the agent holds none makes it delegated, which is no active plan, and a delegated plan whose last worker task closes or is released is paused again; Plan agents manage their own plan state."""
 
-    def __init__(self, plans: Plans, time_source: TimeSource, work_mode: WorkMode) -> None:
-        self.plans, self.time_source, self.work_mode = plans, time_source, work_mode
+    def __init__(self, plans: Plans, time_source: TimeSource, coordinator: PlanAgentCoordinator) -> None:
+        self.plans, self.time_source, self.coordinator = plans, time_source, coordinator
 
     def handle(self, event: Updated) -> None:
         task, previous = event.model, event.previous_row(Task)
-        if self.work_mode.delegates_work() or not isinstance(task, Task) or previous is None or (task.state, task.delegated) == (previous.state, previous.delegated):
+        if self.coordinator.is_coordinator() or not isinstance(task, Task) or previous is None or (task.state, task.delegated) == (previous.state, previous.delegated):
             return
         for plan in self.plans.working_plans(task):
             self.state_update(plan, task, previous)

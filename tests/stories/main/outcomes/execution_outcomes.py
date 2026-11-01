@@ -4,7 +4,6 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -18,7 +17,7 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 pytestmark = pytest.mark.xfail(strict=True, reason="Plan 4 task 152 (R04: Persist execution outcomes, waiting intervals and delivery history).")
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_task_closed_for_testing_is_not_recorded_as_successful_completion(story):
     story.agent_runs(story.agents.subject, f"task test {story.tasks.first}")
     story.expect_task(story.tasks.first, state=TaskState.TESTING)
@@ -28,7 +27,7 @@ def test_a_task_closed_for_testing_is_not_recorded_as_successful_completion(stor
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_blocked_or_cancelled_task_never_receives_completed_credit(story):
     blocked = story.agent_creates_task(story.agents.subject, "waiting for a certificate")
     story.agent_runs(story.agents.subject, f"task block {blocked} 'waiting on the certificate'")
@@ -43,7 +42,7 @@ def test_a_blocked_or_cancelled_task_never_receives_completed_credit(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_reopening_blocked_work_closes_one_block_interval_without_success_credit(story):
     blocked = story.agent_creates_task(story.agents.subject, "the certificate")
     story.agent_runs(story.agents.subject, f"task block {blocked} 'waiting for the certificate'")
@@ -58,7 +57,7 @@ def test_reopening_blocked_work_closes_one_block_interval_without_success_credit
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(TaskInTesting, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TaskInTesting, subject=AgentRole.MAIN)
 def test_a_failed_test_and_rework_keep_separate_execution_intervals(story):
     run = story.agent_runs_a_command(story.agents.subject, "sh -c 'seq 1 300; exit 3'")
     story.agent_runs(story.agents.subject, f"output test {run}")
@@ -69,7 +68,7 @@ def test_a_failed_test_and_rework_keep_separate_execution_intervals(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_resolved_wait_unblocks_a_task_before_it_starts_again(story):
     blocked = story.agent_creates_task(story.agents.subject, "the dependency")
     story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waiting for the dependency' --on task:{blocked}")
@@ -86,7 +85,7 @@ def test_a_resolved_wait_unblocks_a_task_before_it_starts_again(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_reopening_blocked_work_keeps_each_attempt_and_duplicate_completion_gets_one_credit(story):
     story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waiting on review'")
     story.agent_runs(story.agents.subject, f"task unblock {story.tasks.started}")
@@ -101,7 +100,7 @@ def test_reopening_blocked_work_keeps_each_attempt_and_duplicate_completion_gets
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorkerDelivered, subject=AgentRole.MAIN)
 def test_a_proof_sendback_stays_in_outcome_history_without_becoming_a_merge(story):
     worker = story.agents.workers.first()
     result = story.agent_runs(story.agents.subject, f"worker check {worker} 1 --task {story.tasks.first} --short 'the first change is missing'")
@@ -113,7 +112,7 @@ def test_a_proof_sendback_stays_in_outcome_history_without_becoming_a_merge(stor
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(PlanWorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PlanWorkerDelivered, subject=AgentRole.MAIN)
 def test_a_worker_report_does_not_close_the_task_outcome(story):
     result = story.user_opens(f"/journal/plans/{story.plans.first}/forecast")
     result.expect_viewer_shows("worker_reported", True)
@@ -122,7 +121,7 @@ def test_a_worker_report_does_not_close_the_task_outcome(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkerDelivered, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerDelivered, subject=AgentRole.MAIN)
 def test_checking_proofs_and_merging_records_accepted_artifact_completion(story):
     worker = story.agents.workers.first()
     story.agent_runs(story.agents.subject, f"worker check {worker} 1")
@@ -136,7 +135,7 @@ def test_checking_proofs_and_merging_records_accepted_artifact_completion(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_paused_and_open_work_remains_censored_with_unknown_cost(story):
     story.agent_runs(story.agents.subject, f"task block {story.tasks.first} 'waiting for owner review' --on task:{story.tasks.second}")
     story.time_travel(minutes=60)

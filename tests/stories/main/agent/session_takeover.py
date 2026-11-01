@@ -5,7 +5,6 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from journal.providers.claude import Claude
 from tests.stories.builder.story_marks import provider, story
@@ -15,7 +14,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.task_takeover import TaskTakeover
 
 
-@story(TaskTakeover, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(TaskTakeover, subject=AgentRole.MAIN)
 def test_the_session_that_took_over_reads_the_overview_before_it_writes(story):
     result = story.agent_writes(story.agents.subject, "footer.py")
     result.expect_refused(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
@@ -26,7 +25,7 @@ def test_the_session_that_took_over_reads_the_overview_before_it_writes(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_session_of_the_other_provider_takes_over_too(story):
     story.other_provider_session_starts()
     story.expect_agent_session(story.main_session())
@@ -34,7 +33,7 @@ def test_a_session_of_the_other_provider_takes_over_too(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedPlan, subject=AgentRole.MAIN)
 def test_a_takeover_keeps_the_followed_plan_in_hand(story):
     story.second_session_starts()
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
@@ -42,14 +41,14 @@ def test_a_takeover_keeps_the_followed_plan_in_hand(story):
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(BuildWait, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(BuildWait, subject=AgentRole.MAIN)
 def test_a_takeover_while_the_agent_waits_keeps_the_wait(story):
     story.second_session_starts()
     story.expect_task(story.tasks.started, state=TaskState.STARTED)
     story.expect_stack(story.agents.subject, Ready, Working, ExternalWait)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_new_one(story):
     first = story.main_session()
     story.second_session_starts()
@@ -60,7 +59,7 @@ def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_n
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(StartedTask, subject=AgentRole.MAIN)
 @provider(Claude)
 def test_a_session_of_the_other_provider_shows_none_of_the_status_the_first_session_reported(story):
     story.status_line_reports()

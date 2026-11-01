@@ -1,7 +1,6 @@
 import pytest
 
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.engine.clock import Clock
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -11,7 +10,7 @@ from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_a_fourteen_calendar_day_sprint_keeps_local_midnight_across_daylight_saving(story):
     created = story.user_presses("/journal/sprints", {"start": "2027-03-21", "timezone": "Europe/Amsterdam"})
@@ -25,7 +24,7 @@ def test_a_fourteen_calendar_day_sprint_keeps_local_midnight_across_daylight_sav
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_an_owner_can_edit_a_draft_period_and_the_edit_applies_before_activation(story):
     created = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})
@@ -38,7 +37,7 @@ def test_an_owner_can_edit_a_draft_period_and_the_edit_applies_before_activation
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_an_active_period_keeps_its_dates_and_timezone_when_the_owner_changes_future_settings(story):
     created = story.user_presses("/journal/sprints", {"start": "2027-03-21", "timezone": "Europe/Amsterdam"})
@@ -54,7 +53,7 @@ def test_an_active_period_keeps_its_dates_and_timezone_when_the_owner_changes_fu
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_starting_a_sprint_freezes_a_draft_plan_without_approving_or_starting_it(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
@@ -75,7 +74,7 @@ def test_starting_a_sprint_freezes_a_draft_plan_without_approving_or_starting_it
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_scope_additions_and_removals_after_activation_are_audited_deltas(story):
     task = story.user_opens(f"/journal/tasks/{story.tasks.second}")
@@ -99,7 +98,7 @@ def test_scope_additions_and_removals_after_activation_are_audited_deltas(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 149 (R01: Store fixed-length sprints and plan commitments).")
 def test_a_plan_has_only_one_current_sprint_commitment(story):
     plan = story.user_opens(f"/journal/plans/{story.plans.first}")
@@ -117,7 +116,7 @@ def test_a_plan_has_only_one_current_sprint_commitment(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @pytest.mark.xfail(strict=True, reason="Plan 4 task 155 (D02: Add baseline finish ranges and sprint probability).")
 def test_a_sprint_without_a_following_period_does_not_invent_one(story):
     created = story.user_presses("/journal/sprints", {"start": story.local_moment(0), "timezone": "Europe/Amsterdam"})

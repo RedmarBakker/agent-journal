@@ -34,11 +34,6 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
 from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
-from journal.features.workers.support.fitness_point import FitnessPoint
-from journal.features.workers.support.fitness_scoring import FitnessScoring
-from journal.features.workers.support.measure_spec import MeasureSpec
-from journal.features.workers.support.mode_measures import ModeMeasures
-from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
 from journal.features.usage.support.process_usage_store import ProcessUsageStore
 
@@ -46,18 +41,13 @@ STATUS = {events.STOP: "idle", events.SESSION_STARTED: "idle", events.SESSION_EN
 HISTORY_ENTRIES = 5
 TOOL_KINDS = (events.TOOL_STARTING, events.TOOL_FINISHED)
 OPERATION_VERBS = {FileRead.operation_type: "reading a file", FileEdit.operation_type: "editing files", FileWrite.operation_type: "writing a file", SubagentDispatch.operation_type: "waiting for a subagent", SkillLoad.operation_type: "reading a skill", AgentMessage.operation_type: "messaging an agent", UserQuestion.operation_type: "asking you"}
-# how far back the fitness timeline reaches, and the most points it reads
-TIMELINE_HOURS = 6
-TIMELINE_POINTS = 200
-
-
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText, process_usage: ProcessUsageStore) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, time_source: TimeSource, labels: ActivityLabel, text: CommandText, process_usage: ProcessUsageStore) -> None:
         self.time_source, self.labels, self.text, self.process_usage = time_source, labels, text, process_usage
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.settings, self.scoring, self.measures = jobs, numbers, settings, scoring, measures
+        self.jobs, self.numbers, self.settings = jobs, numbers, settings
 
     def page(self, agents: list[Agent]) -> list[dict]:
         return [self.row(item, [] if self.states.has_ended(item) else self.session_entries(item.session)) for item in agents]
@@ -106,26 +96,10 @@ class AgentActivity:
             "trail": [self.trail_entry(e) for e in [e for e in entries if Entries.is_kind(e, (StackHistory.KIND,))][-HISTORY_ENTRIES:]],
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if Entries.is_kind(e, (RUN,))])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
-            "fitness": self.fitness(agent),
             "load": StatusLoad.measured(agent),
             "processes": self.process_usage.agent_fields(agent),
             **self.rolling(),
         }
-
-    def fitness(self, agent: Agent) -> dict:
-        fitness = self.scoring.scored(agent)
-        measures = [self.measure(state, spec) for state, spec in self.measures.paired(agent.measures)]
-        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "measures": measures, "band": agent.band.value, "band_changed_at": agent.band_changed_at, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
-
-    @staticmethod
-    def measure(state: MeasureState, spec: MeasureSpec) -> dict:
-        return {"key": state.key, "label": spec.label, "value": state.value, "is_measured": state.is_measured, "is_failing": state.is_failing, "changed_at": state.changed_at, "last_line_at": state.last_line_at,
-                "fail_level": spec.range.fail_level if spec.weight else None, "pass_level": spec.range.pass_level if spec.weight else None}
-
-    def timeline(self, session: str) -> list[dict]:
-        start_at = self.time_source.seconds() - TIMELINE_HOURS * 3600
-        points = [FitnessPoint.parsed(entry.data) for entry in reversed(self.entries.session_kind_newest(session, FitnessPoint.KIND, TIMELINE_POINTS))]
-        return [point.shown() for point in points if point.scored_at >= start_at]
 
     def rolling(self) -> dict:
         if not self.settings.option(FaultsOptions.PERFORMANCE):

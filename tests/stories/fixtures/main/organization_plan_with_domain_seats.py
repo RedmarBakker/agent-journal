@@ -1,6 +1,6 @@
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.models.plan_state import PlanState
 from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
 
@@ -20,4 +20,4 @@ class OrganizationPlanWithDomainSeats(OrganizationPlanSeat):
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.STARTED)
-        story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+        story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan)

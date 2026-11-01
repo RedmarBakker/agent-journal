@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
@@ -7,7 +6,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worker_run_ended import WorkerRunEnded
 
 
-@story(WorkerRunEnded, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerRunEnded, subject=AgentRole.MAIN)
 def test_the_user_checks_sends_back_and_merges_a_workers_work_from_the_viewer(story):
     worker = story.agents.workers.first()
     result = story.user_presses(f"/journal/workers/{worker}/check", {"point": 1})

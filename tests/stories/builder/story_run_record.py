@@ -9,7 +9,7 @@ STORY_RECORDS_VARIABLE = "JOURNAL_STORY_RECORDS"
 
 
 class StoryRunRecord:
-    """What a story run leaves to be checked once it has ended: each story's path by provider and mode, each fixture's seeding path by provider, the nudges and settings the stories reached, and the stack changes they walked; written by each shard of a sharded run to a file, merged by the run that started them, and checked the same way as a run in one process."""
+    """What a story run leaves to be checked once it has ended: each story's path by provider, each fixture's seeding path by provider, the nudges and settings the stories reached, and the stack changes they walked; written by each shard of a sharded run to a file, merged by the run that started them, and checked the same way as a run in one process."""
 
     def __init__(self, story_paths: dict[str, dict[str, list[str]]], fixture_paths: dict[str, dict[str, list[str]]], gaps: CoverageGaps, walked: set[str]) -> None:
         self.story_paths, self.fixture_paths, self.gaps, self.walked = story_paths, fixture_paths, gaps, walked

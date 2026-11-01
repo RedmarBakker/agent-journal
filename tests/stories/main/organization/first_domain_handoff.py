@@ -1,7 +1,6 @@
 from journal.engine.states.void import Void
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -17,7 +16,7 @@ from tests.stories.fixtures.main.organization_role_worker_clocked_in import (
 )
 
 
-@story(OrganizationRoleWorkerClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleWorkerClockedIn, subject=AgentRole.MAIN)
 def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_sends_work_to_a_role(story):
     plan, task = story.plans.first, story.tasks.first
     worker = story.agents.workers.first()
@@ -52,7 +51,7 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     story.expect_stack(worker, Void)
 
 
-@story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithoutDomainSeats, subject=AgentRole.MAIN)
 def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
     inbox = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "organization inbox")
     inbox.expect_command_passed()
@@ -65,7 +64,7 @@ def test_a_plan_refuses_to_handoff_to_a_domain_outside_its_contract(story):
     story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationPlanWithoutDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithoutDomainSeats, subject=AgentRole.MAIN)
 def test_a_plan_refuses_to_expand_a_domain_on_openrig_that_drops_member_environment(story):
     story.simulated_seats().version = "0.7.5"
     story.simulated_seats().cli_version = "0.7.6"

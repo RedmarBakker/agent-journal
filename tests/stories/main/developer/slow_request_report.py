@@ -3,7 +3,6 @@ from journal.features.faults.faults_options import FaultsOptions
 from journal.features.faults.support.slow_request_tally import GATHERED
 from journal.features.faults.support.request_time_recorder import CHECK_INTERVAL_SECONDS
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -11,7 +10,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 MESSAGES_ROUTE = "/journal/messages"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.REPORT, True)
 @setting(FaultsOptions.REQUEST, 1)
@@ -25,7 +24,7 @@ def test_reads_of_fresh_rows_over_their_points_budget_are_reported_to_the_agent_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.REPORT, False)
 def test_with_the_report_off_nothing_is_told_while_the_requests_are_still_listed(story):
@@ -39,7 +38,7 @@ def test_with_the_report_off_nothing_is_told_while_the_requests_are_still_listed
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 @setting(FaultsOptions.DEVELOPER, True)
 @setting(FaultsOptions.REPORT, True)
 @setting(FaultsOptions.REQUEST, 0)

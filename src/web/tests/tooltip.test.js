@@ -3,7 +3,7 @@ import {createApp, h, nextTick, ref, withDirectives} from "vue";
 import Tooltip from "../src/kit/Tooltip.vue";
 import {HIDE_AFTER, LEAVE_FOR, hide, place, shown, tip} from "../src/kit/tip.js";
 
-const words = ref({title: "Builder", line: "Builds it itself."});
+const words = ref({title: "Settings", line: "Open settings."});
 const identity = ref(0);
 const withTip = (node, key, value) => withDirectives(node, [[tip, value, key]]);
 let app;
@@ -11,9 +11,9 @@ let app;
 const Bar = {
     render: () =>
         h("div", [
-            withTip(h("button", {id: "one", key: identity.value}, "Builder"), "mode:one", words.value),
-            withTip(h("button", {id: "two"}, "Solo"), "mode:two", {title: "Solo", line: "No helpers."}),
-            withTip(h("button", {id: "three", "aria-haspopup": "dialog"}, "Orchestrator"), "mode:three", {title: "Orchestrator", line: "Asks before it switches."}),
+            withTip(h("button", {id: "one", key: identity.value}, "Settings"), "tip:one", words.value),
+            withTip(h("button", {id: "two"}, "Pause"), "tip:two", {title: "Pause", line: "Wait until you resume."}),
+            withTip(h("button", {id: "three", "aria-haspopup": "dialog"}, "Create task"), "tip:three", {title: "Create task", line: "Add a task to the list."}),
             h(Tooltip),
         ]),
 };
@@ -30,7 +30,7 @@ async function settle() {
 beforeEach(() => {
     vi.useFakeTimers();
     document.elementFromPoint = () => null;
-    words.value = {title: "Builder", line: "Builds it itself."};
+    words.value = {title: "Settings", line: "Open settings."};
     Object.defineProperty(HTMLElement.prototype, "offsetWidth", {configurable: true, get: () => 200});
     Object.defineProperty(HTMLElement.prototype, "offsetHeight", {configurable: true, get: () => 40});
     app = createApp(Bar);
@@ -51,7 +51,7 @@ test("pointing at a button shows its words at once, under it, and points the but
     await settle();
     expect(bubble().hidden).toBe(false);
     expect(bubble().getAttribute("role")).toBe("tooltip");
-    expect(bubble().textContent).toContain("Builds it itself.");
+    expect(bubble().textContent).toContain("Open settings.");
     expect(shown.side).toBe("below");
     expect(document.getElementById("one").getAttribute("aria-describedby")).toBe("kit-tooltip");
 });
@@ -59,10 +59,10 @@ test("pointing at a button shows its words at once, under it, and points the but
 test("a redraw keeps the bubble open and puts the new words in place", async () => {
     point("one");
     await settle();
-    words.value = {title: "Builder", line: "Now with helpers out."};
+    words.value = {title: "Settings", line: "The setting is now on."};
     await settle();
     expect(bubble().hidden).toBe(false);
-    expect(bubble().textContent).toContain("Now with helpers out.");
+    expect(bubble().textContent).toContain("The setting is now on.");
 });
 
 test("a button redrawn as a new element keeps the bubble, now measured against the new element", async () => {
@@ -85,7 +85,7 @@ test("a button that appears under a pointer that has not moved shows its words",
     identity.value += 1;
     document.elementFromPoint = () => document.getElementById("one");
     await settle();
-    expect(shown.key).toBe("mode:one");
+    expect(shown.key).toBe("tip:one");
 });
 
 test("near the bottom of the window the bubble opens above, and stays inside the sides", async () => {
@@ -106,7 +106,7 @@ test("Esc closes it and it stays closed until another button is reached", async 
     point("one");
     expect(shown.key).toBeNull();
     point("two");
-    expect(shown.key).toBe("mode:two");
+    expect(shown.key).toBe("tip:two");
 });
 
 test("pressing a button that opens a dialog closes its words, and they stay closed while the pointer stays on it", async () => {
@@ -131,7 +131,7 @@ test("scrolling a list that does not hold the button leaves the bubble open, and
     point("one");
     await settle();
     list.dispatchEvent(new Event("scroll"));
-    expect(shown.key).toBe("mode:one");
+    expect(shown.key).toBe("tip:one");
     document.dispatchEvent(new Event("scroll"));
     expect(shown.key).toBeNull();
 });

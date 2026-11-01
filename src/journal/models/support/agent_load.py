@@ -1,12 +1,12 @@
 from dataclasses import asdict, dataclass, fields, replace
 
 # the keys a load was stored under before they took their plain names, read as the names they have now
-OLD_KEY_NAMES = {"dispatches_for": "calm_dispatches", "dispatches_against": "busy_dispatches", "over_minutes": "busy_minutes", "under_minutes": "low_minutes"}
+OLD_KEY_NAMES = {"over_minutes": "busy_minutes", "under_minutes": "low_minutes"}
 
 
 @dataclass(frozen=True)
 class AgentLoad:
-    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes the oldest has waited, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, the items ended without a clearing in the window (sent back, released or stopped), shown as the send-back rate, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low; with when it was measured and when its places last changed; kept with only the values that differ from an empty load, and read from whatever version stored it."""
+    """The worker or message queue's load as last measured, kept on its agent: arrivals and clearings an hour, their ratio, what waits now and its oldest rows, how long the oldest has waited and what a cleared item waited on average; plus the busy and quiet stretches used to scale worker places, and when it was measured and last scaled."""
 
     arrivals: float = 0.0
     clearings: float = 0.0
@@ -19,11 +19,6 @@ class AgentLoad:
     little: float = 0.0
     busy_minutes: float = 0.0
     low_minutes: float = 0.0
-    oldest_first: int = 0
-    clearings_counted: int = 0
-    removals: int = 0
-    calm_dispatches: int = 0
-    busy_dispatches: int = 0
     measured_at: float = 0.0
     scaled_at: float = 0.0
 

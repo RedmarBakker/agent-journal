@@ -1,5 +1,4 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -9,7 +8,7 @@ from tests.stories.fixtures.subagent.started_subagent import RESEARCHER
 REVIEWER = "a7"
 
 
-@story(ManualDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ManualDraftPlan, subject=AgentRole.MAIN)
 def test_a_plan_in_review_is_neither_approved_nor_ready_again_until_its_reviewer_is_back_and_the_round_is_kept_with_its_reviewer_report_and_change(story):
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Lay the floor'")
     task = story.agent_creates_task(story.agents.subject, "pour the slab")

@@ -1,7 +1,6 @@
 import json
 
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from journal.version import VERSION
 from tests.stories.builder.story_marks import story
@@ -11,7 +10,7 @@ MANIFEST = {"name": "held", "version": "1", "program": "run.py", "hears": ["tool
 NEWER_JOURNAL = "99.0.0"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_plugin_whose_new_version_needs_a_newer_journal_stays_at_its_version_and_says_which_it_waits_for(story):
     story.project_file_holding("held/run.py", "print()")
     story.project_file_holding("held/journal-plugin.json", json.dumps(MANIFEST))

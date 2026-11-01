@@ -2,7 +2,6 @@ from journal.engine.states.void import Void
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.states.working_task import WorkingTask
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -13,7 +12,7 @@ FRESH_BRIEF = "- task 6 has its revised brief"
 OLD_BRIEF = "- task 6 has its current brief"
 
 
-@story(OrganizationRoleWorkerEnded, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleWorkerEnded, subject=AgentRole.MAIN)
 def test_a_handoff_restarts_its_ended_role_worker_with_the_current_task_brief(story):
     task = story.tasks.second
     worker = story.agents.workers.first()

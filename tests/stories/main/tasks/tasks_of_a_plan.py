@@ -1,12 +1,11 @@
 from journal.features.sequences.states.following_sequence import FollowingSequence
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_each_task_names_the_plan_it_is_in_so_the_tasks_list_leaves_it_to_its_plan(story):
     loose = story.agent_creates_task(story.agents.subject, "loose")
     plan = story.agent_creates_plan(story.agents.subject, "the release", "ship it")

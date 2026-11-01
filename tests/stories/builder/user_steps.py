@@ -7,7 +7,6 @@ from urllib.parse import urlsplit
 from dataclasses import replace
 
 from journal.features.library.support.library_account import LIBRARIES_FOLDER, LibraryAccount
-from journal.features.workers.workers_options import WorkersOptions
 from journal.support.caller import Caller
 from journal.support.option import Option
 from sync_server.team_server import TeamServer
@@ -268,11 +267,6 @@ class UserSteps:
     def user_switches_off(self, feature: type) -> StepResult:
         switches = get_answer(self.app, "/journal/settings", MAIN)[1][FEATURES]
         return self.user_did("/journal/settings", {FEATURES: {**switches, feature.name: False}}, f"user switches off {feature.name}")
-
-    def plays_in(self, mode: str) -> None:
-        self.mode = mode
-        if self.setting(WorkersOptions.MODE) != mode:
-            self.user_sets(WorkersOptions.MODE, mode)
 
     def user_sets(self, option: Option, value: object) -> StepResult:
         top, _, name = option.key.partition(".")

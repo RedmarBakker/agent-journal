@@ -64,7 +64,7 @@ message: the pinned-links and messages skills say which to use.
 |---|---|---|
 | etiquette, messages | the chat, messages, questions, pins and buttons | at every start; a message, a question |
 | tasks, plans | work in hand, blocks, waits, being stuck; ordered tasks | a task or plan command, a plan you follow |
-| workers, work-modes | workers and subagents; builder, orchestrator, solo and fitness | a worker command, your mode |
+| workers | workers and subagents | a worker command |
 | shell, memory | commands, outputs, readers, aliases; memories, rules, reminders | an output or alias; a context mark |
 | sequences, docs, reports, templates | steps; lasting knowledge; what was checked; templates | their commands |
 | checks, dumps, collections, flowcharts | checks; dropped material; groups of rows; flowcharts | their commands, a check failing, a dump |

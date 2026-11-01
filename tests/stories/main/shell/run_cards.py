@@ -3,13 +3,12 @@ from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.support.output_views import COMPLETE_UNENDED_LINE
 from journal.features.shell.support.silent_runs import SILENCE_SECONDS
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_background_test_run_that_prints_nothing_is_told_once_to_stream_and_a_sleep_is_never_told(story):
     nap = story.agent_has_a_background_run_printing(story.agents.subject, "sleep 5")
     run = story.agent_has_a_background_run_printing(story.agents.subject, "./quiet/gotestsum -q")
@@ -22,7 +21,7 @@ def test_a_background_test_run_that_prints_nothing_is_told_once_to_stream_and_a_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_run_whose_card_title_shows_a_path_is_told_once_to_name_it_in_words_and_a_title_in_words_is_not(story):
     run = story.agent_has_a_background_run_printing(story.agents.subject, "./checks.sh --all")
     result = story.agent_is_quiet_past(story.agents.subject, 1)
@@ -34,7 +33,7 @@ def test_a_run_whose_card_title_shows_a_path_is_told_once_to_name_it_in_words_an
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_chained_runs_card_is_titled_by_its_test_run_never_by_the_sed_before_it(story):
     run = story.agent_has_a_background_run_printing(story.agents.subject, "sed -n 1p notes.txt && ./chain/gotestsum -q")
     story.running_commands_are_read_again(1)
@@ -43,7 +42,7 @@ def test_a_chained_runs_card_is_titled_by_its_test_run_never_by_the_sed_before_i
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_two_run_lines_under_one_card_title_are_told_once_naming_both(story):
     first = story.agent_has_a_background_run_printing(story.agents.subject, "./unit/gotestsum -q")
     second = story.agent_has_a_background_run_printing(story.agents.subject, "./unit/gotestsum -x")
@@ -56,7 +55,7 @@ def test_two_run_lines_under_one_card_title_are_told_once_naming_both(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_runs_differing_only_in_their_arguments_under_a_readers_topic_are_never_told_to_share_a_title(story):
     story.agent_runs(story.agents.subject, r"reader add unit-runs --pattern '[0-9]+ passed' --about 'a unit runs summary' --label 'Running tests' --commands gotestsum --topic '(\S+\.py)'")
     first = story.agent_has_a_background_run_printing(story.agents.subject, "./topic/gotestsum a_test.py -x")
@@ -70,7 +69,7 @@ def test_runs_differing_only_in_their_arguments_under_a_readers_topic_are_never_
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_watched_run_standing_at_its_whole_bar_for_a_minute_is_named_once_to_the_agent_and_on_its_card(story):
     run = story.agent_has_a_background_run_printing(story.agents.subject, "./full/gotestsum", "a_test.go ok [100%]")
     result = story.agent_runs(story.agents.subject, r"reader add go-bar --pattern '^FAILED|[0-9]+ passed' --finished '[0-9]+ passed' --failed '^FAILED' --progress '\[ *([0-9]+)%\]' --label 'Running tests' --about 'a go run and its bar' --commands gotestsum")

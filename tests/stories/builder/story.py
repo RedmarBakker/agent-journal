@@ -16,7 +16,6 @@ from journal.repositories.scope import Scope
 from journal.repositories.verifiers import Verifiers
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.repositories.plans import Plans
@@ -68,7 +67,6 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         self.openrig: SimulatedSeats | None = None
         self.typed: list[str] = []
         self.typed_from = 0
-        self.mode = BUILDER_MODE
         self.last_step = StepResult(self, (), None, None, "", 0, 0, {})
 
     def reach(self, fixture: type[StateFixture]) -> None:

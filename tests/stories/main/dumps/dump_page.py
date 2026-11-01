@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.dump_with_a_file import DumpWithAFile
 
 
-@story(DumpWithAFile, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DumpWithAFile, subject=AgentRole.MAIN)
 def test_a_dump_is_dropped_with_files_named_stopped_and_dismissed_from_the_viewer(story):
     dump = story.newest("dumps")
     result = story.user_drops_a_file_in_the_dump(dump, "b.txt", b"more")

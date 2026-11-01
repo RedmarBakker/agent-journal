@@ -1,11 +1,10 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_published_sequence_is_imported_once_as_an_editable_copy_and_a_second_publish_is_its_version_two(story):
     story.user_connects_to_a_team()
     story.user_types("sequence create 'Ship Week' --steps 'tag it | push it'")

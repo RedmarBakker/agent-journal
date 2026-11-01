@@ -1,7 +1,6 @@
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worker_run_ended import WorkerRunEnded
@@ -10,7 +9,7 @@ POINT = 1
 FIRST, SECOND, THIRD = "the alias names are missing", "the tests do not run", "the lexer is still missing"
 
 
-@story(WorkerRunEnded, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkerRunEnded, subject=AgentRole.MAIN)
 def test_a_point_sent_back_again_names_the_earlier_reason_and_a_third_time_names_the_model_to_change(story):
     worker = story.agents.workers.first()
     result = story.agent_runs(story.agents.subject, f"worker check {worker} {POINT} --short '{FIRST}'")

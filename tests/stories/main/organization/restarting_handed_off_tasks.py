@@ -4,7 +4,6 @@ from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.workers.states.working_task import WorkingTask
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -17,7 +16,7 @@ from tests.stories.fixtures.main.paused_organization_plan_role_route import Paus
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
-@story(PausedOrganizationDomainHandoff, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationDomainHandoff, subject=AgentRole.MAIN)
 def test_restarting_a_plan_marks_its_read_domain_handoff_unread(story):
     plan, task = story.plans.first, story.tasks.first
     story.user_starts_plan(plan).expect_viewer_passed()
@@ -39,7 +38,7 @@ def test_restarting_a_plan_marks_its_read_domain_handoff_unread(story):
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationPlanWithDomainSeats, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationPlanWithDomainSeats, subject=AgentRole.MAIN)
 def test_a_running_plan_does_not_repeat_a_read_domain_handoff(story):
     plan, task = story.plans.first, story.tasks.first
 
@@ -72,10 +71,9 @@ def test_a_running_plan_does_not_repeat_a_read_domain_handoff(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
-@story(PausedOrganizationPlanRoleRoute, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationPlanRoleRoute, subject=AgentRole.MAIN)
 def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
-    story.plays_in(BUILDER_MODE)
     plan, task = story.plans.first, story.tasks.first
     story.user_rewrites_the_brief(task, "- the earlier task brief").expect_viewer_passed()
     story.user_rewrites_the_brief(task, "- the restarted Role gets this task").expect_viewer_passed()
@@ -133,7 +131,7 @@ def test_restarting_a_plan_sends_an_ended_role_task_to_a_fresh_role_job(story):
     story.expect_stack(worker, Void, WorkingTask)
 
 
-@story(PausedOrganizationPlanRoleRoute, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(PausedOrganizationPlanRoleRoute, subject=AgentRole.MAIN)
 def test_restarting_a_plan_tells_its_domain_to_check_finished_role_work(story):
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
     plan, task = story.plans.first, story.tasks.first
@@ -182,7 +180,7 @@ def test_restarting_a_plan_tells_its_domain_to_check_finished_role_work(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRoleWorkerClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRoleWorkerClockedIn, subject=AgentRole.MAIN)
 def test_a_refused_role_handoff_does_not_leave_a_role_inbox_row(story):
     task = story.tasks.first
     domain = story.organization_seat_agent("domain:alpha")

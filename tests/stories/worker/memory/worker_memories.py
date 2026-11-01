@@ -3,7 +3,6 @@ from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.memory.memory_thresholds import MemoryThresholds
 from journal.features.memory.states.weighing_memories import WeighingMemories
 from journal.features.workers.states.working_task import WorkingTask
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
@@ -14,7 +13,7 @@ FIRST_MARK = MemoryThresholds.CONTEXT[0]
 MEMORY_WEIGHT = 5
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_at_its_first_mark_weighs_its_memories_before_it_writes_again(story):
     result = story.agent_consumes_context(story.agents.subject, FIRST_MARK)
     result.expect_agent_told(story.agents.subject, MemoryNudges.CONTEXT_DECISION, percent=FIRST_MARK)
@@ -27,7 +26,7 @@ def test_a_worker_at_its_first_mark_weighs_its_memories_before_it_writes_again(s
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_and_the_main_agent_each_list_their_own_memories_alone(story):
     story.agent_runs(story.agents.main, f"memory add 'the main agent keeps the release notes' --weight {MEMORY_WEIGHT}")
     story.agent_adds_memory(story.agents.subject, "the parser reads tokens left to right", MEMORY_WEIGHT)
@@ -40,7 +39,7 @@ def test_a_worker_and_the_main_agent_each_list_their_own_memories_alone(story):
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_workers_compaction_fades_its_own_memory_and_leaves_the_main_agents(story):
     story.agent_runs(story.agents.main, f"memory add 'the main agent keeps the release notes' --weight {MEMORY_WEIGHT}")
     theirs = story.created_number("memory")
@@ -53,7 +52,7 @@ def test_a_workers_compaction_fades_its_own_memory_and_leaves_the_main_agents(st
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_the_main_agents_decision_at_its_mark_leaves_the_worker_weighing_its_own(story):
     story.agent_adds_memory(story.agents.subject, "the parser reads tokens", MEMORY_WEIGHT)
     story.agent_consumes_context(story.agents.subject, FIRST_MARK)
@@ -68,7 +67,7 @@ def test_the_main_agents_decision_at_its_mark_leaves_the_worker_weighing_its_own
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+@story(WorkingWorker, subject=AgentRole.WORKER)
 def test_a_worker_sent_its_next_job_is_shown_its_own_memories_at_clock_in_and_never_the_main_agents(story):
     story.agent_runs(story.agents.main, f"memory add 'the main agent keeps the release notes' --weight {MEMORY_WEIGHT}")
     story.agent_runs(story.agents.subject, f"memory add 'the parser reads tokens left to right' --weight {MEMORY_WEIGHT}")

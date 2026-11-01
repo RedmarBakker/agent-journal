@@ -14,6 +14,6 @@ describe("a control that already says what it does carries no tooltip", () => {
         expect(obvious(control(), wordsOf({title: "Pane menu", line: "Detach it, split it, dock it and more."}))).toBe(false);
         expect(obvious(control(), wordsOf({title: "Close", keys: "Esc"}))).toBe(false);
         expect(obvious(control("Close"), wordsOf("Close"))).toBe(false);
-        expect([wordsOf("Pause the plan"), wordsOf("Auto is on"), wordsOf("Builder")].map((words) => obvious(control(), words))).toEqual([false, false, false]);
+        expect([wordsOf("Pause the plan"), wordsOf("Auto is on"), wordsOf("Start task")].map((words) => obvious(control(), words))).toEqual([false, false, false]);
     });
 });

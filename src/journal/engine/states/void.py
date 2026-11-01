@@ -20,7 +20,7 @@ class Void(BaseState):
     conduct_free = True
     decision_return = QUEUED
 
-    def floored(self, mode: type[BaseState]) -> BaseState:
+    def floored(self, floor: type[BaseState]) -> BaseState:
         return self
 
     def reset_states(self, states: tuple[BaseState, ...]) -> tuple[BaseState, ...]:

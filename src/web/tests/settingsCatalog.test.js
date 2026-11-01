@@ -197,7 +197,7 @@ describe("the manifest's features", () => {
                 default: true,
                 options: [
                     option("timeout_minutes", "number", {default: 60, unit: "min"}),
-                    option("mode", "choice", {default: "builder", choices: ["builder", "orchestrator", "solo"]}),
+                    option("output", "choice", {default: "text", choices: ["json", "text"]}),
                     option("model", "model", {default: "sonnet", choices: ["opus", "sonnet"], provider: "claude"}),
                 ],
             },
@@ -207,19 +207,19 @@ describe("the manifest's features", () => {
     const rows = (settings) => groupRows(catalog(spec, settings)[0].groups[0]);
 
     test("a feature leads its group with its switch, then a row per option with its saved value", () => {
-        const got = rows({workers: {mode: "solo"}, features: {workers: true}});
+        const got = rows({workers: {output: "json"}, features: {workers: true}});
         expect(got.map((r) => [r.key, r.kind, r.value])).toEqual([
             ["workers", "switch", true],
             ["workers:timeout_minutes", "number", 60],
-            ["workers:mode", "choice", "solo"],
+            ["workers:output", "choice", "json"],
             ["workers:model", "model", "sonnet"],
         ]);
     });
 
     test("a choice offers its choices, and a saved value it no longer offers reads as the default", () => {
-        const mode = rows({workers: {mode: "boss"}}).find((r) => r.key === "workers:mode");
-        expect(mode.options.map((o) => o.label)).toEqual(["Builder", "Orchestrator", "Solo"]);
-        expect(mode.value).toBe("builder");
+        const output = rows({workers: {output: "unknown"}}).find((r) => r.key === "workers:output");
+        expect(output.options.map((o) => o.label)).toEqual(["Json", "Text"]);
+        expect(output.value).toBe("text");
     });
 
     test("an option's help says only what it does", () => {
@@ -230,8 +230,8 @@ describe("the manifest's features", () => {
     });
 
     test("changing an option writes it under its feature and leaves the rest of the feature alone", () => {
-        const mode = rows({}).find((r) => r.key === "workers:mode");
-        expect(settingChanges(mode.target, "solo", {workers: {timeout_minutes: 30}})).toEqual({workers: {timeout_minutes: 30, mode: "solo"}});
+        const output = rows({}).find((r) => r.key === "workers:output");
+        expect(settingChanges(output.target, "json", {workers: {timeout_minutes: 30}})).toEqual({workers: {timeout_minutes: 30, output: "json"}});
     });
 
     test("a feature switched off reads as off", () => {

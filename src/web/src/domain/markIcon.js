@@ -21,7 +21,6 @@ const KIND_ICONS = {
     agents: "send",
     subagents: "subagent",
     workers: "worker",
-    fitness: "fitness",
     worker_steps: "worker_step",
     worker_tests: "check",
     triggers: "trigger",

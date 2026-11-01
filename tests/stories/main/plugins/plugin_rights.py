@@ -1,6 +1,5 @@
 from journal.features.plugins.plugins_nudges import PluginsNudges
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.installed_plugin import ECHO, InstalledPlugin
@@ -9,7 +8,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 PLUGINS = "." + "journal/" + "plugins"
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_agent_may_not_install_a_plugin_and_proposes_it_to_the_user_instead(story):
     result = story.agent_runs(story.agents.subject, f"plugin install {ECHO} --yes")
     result.expect_command_text("only the user installs a plugin: `journal plugin propose")
@@ -18,7 +17,7 @@ def test_the_agent_may_not_install_a_plugin_and_proposes_it_to_the_user_instead(
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(InstalledPlugin, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(InstalledPlugin, subject=AgentRole.MAIN)
 def test_the_agent_may_switch_a_plugin_off_but_only_the_user_switches_it_on(story):
     story.agent_runs(story.agents.subject, f"plugin disable {story.plugins.first}")
     result = story.agent_runs(story.agents.subject, f"plugin enable {story.plugins.first}")
@@ -26,7 +25,7 @@ def test_the_agent_may_switch_a_plugin_off_but_only_the_user_switches_it_on(stor
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(InstalledPlugin, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(InstalledPlugin, subject=AgentRole.MAIN)
 def test_the_agent_may_run_an_installed_plugins_program_but_never_write_to_its_files(story):
     installed = f"{PLUGINS}/{story.plugins.first}"
     result = story.agent_writes(story.agents.subject, f"{story.project_root()}/{installed}/run.py")

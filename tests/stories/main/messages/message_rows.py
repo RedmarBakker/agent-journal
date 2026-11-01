@@ -1,12 +1,11 @@
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_the_agents_reply_is_a_message_row_of_its_own_answering_the_users_and_no_comment(story):
     story.agent_replies(story.agents.subject, story.messages.first, "Hello back.")
     reply = story.newest("messages")
@@ -16,7 +15,7 @@ def test_the_agents_reply_is_a_message_row_of_its_own_answering_the_users_and_no
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_reply_in_the_column_hangs_under_its_comment_and_one_in_the_chat_is_talk(story):
     footer = story.agent_creates_task(story.agents.subject, "the footer")
     comment = story.user_comments_on("tasks", footer, "is the footer fixed?")
@@ -30,7 +29,7 @@ def test_a_reply_in_the_column_hangs_under_its_comment_and_one_in_the_chat_is_ta
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ReadMessage, subject=AgentRole.MAIN)
 def test_the_same_face_again_takes_the_reaction_off(story):
     story.user_reacts(story.messages.first, "👍")
     result = story.user_opens("/journal/reactions")

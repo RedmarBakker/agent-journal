@@ -10,7 +10,7 @@ CLOCK_OUT_REQUEST = "Your run ended before you clocked out. Clock out now with j
 
 
 class UnfinishedClockOut(Listener[WorkerUnfinished]):
-    """A worker whose run ended without its clocking out is asked by the journal itself to clock out, in its last session, the first time; the orchestrator is told only when it ends so a second time, or at once when there is no session or conversation to ask in."""
+    """A worker whose run ended without its clocking out is asked by the journal itself to clock out, in its last session, the first time; the agent that sent it is told only when it ends so a second time, or at once when there is no session or conversation to ask in."""
 
     def __init__(self, actions: WorkerActions, workers: Workers, resumes: WorkerResumes) -> None:
         self.actions, self.workers, self.resumes = actions, workers, resumes

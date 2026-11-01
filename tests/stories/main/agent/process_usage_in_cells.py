@@ -1,7 +1,6 @@
 from dataclasses import asdict
 
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from journal.support.process_usage import ProcessUsage
 from tests.stories.builder.story_marks import story
@@ -11,7 +10,7 @@ MAIN_USAGE = ProcessUsage(34.4, 1_288_490_188)
 AGENT_PROCESSES = ("environments", 0, "agent", "processes")
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_the_environments_agent_carries_what_its_processes_take_once_the_machine_is_sampled(story):
     result = story.user_opens("/journal/summary")
     result.expect_viewer_part(AGENT_PROCESSES, None)

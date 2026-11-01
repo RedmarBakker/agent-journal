@@ -1,8 +1,7 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -13,7 +12,7 @@ from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
 
 @setting(EstimatesOptions.SIZE_SCALE, [1, 2, 3, 5, 8, 13])
-@story(ManualDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ManualDraftPlan, subject=AgentRole.MAIN)
 def test_a_plan_builder_keeps_initial_size_and_reasoned_revisions_separate(story):
     result = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'the contact page' --brief 'the page shows the address' --size 3")
     result.expect_command_passed()
@@ -39,7 +38,7 @@ def test_a_plan_builder_keeps_initial_size_and_reasoned_revisions_separate(story
 
 
 @setting(EstimatesOptions.SIZE_SCALE, [1, 2, 3, 5, 8, 13])
-@story(SoloPlanAgentStarted, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_a_solo_plan_agent_can_set_a_task_size_for_its_plan(story):
     result = story.agent_in_runs(
         story.agents.main,
@@ -53,10 +52,10 @@ def test_a_solo_plan_agent_can_set_a_task_size_for_its_plan(story):
     result.expect_viewer_shows("current_size", 3)
     result.expect_viewer_rows("history", "change_type", ["planning_baseline", "size_revision"])
     result.expect_viewer_rows("history", "actor", ["user:1", f"agent:{PLAN_AGENT_SESSION}"])
-    story.expect_stack(story.agents.subject, CoordinatingPlans, OrchestratingPlan)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
 
-@story(UserDraftedPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(UserDraftedPlan, subject=AgentRole.MAIN)
 def test_first_ready_sprint_commitment_and_current_size_remain_distinct(story):
     result = story.user_presses(f"/journal/plans/{story.plans.first}/tasks", {"title": "sized page", "brief": "the page has a complete proof", "size": 3})
     result.expect_viewer_passed()
@@ -90,7 +89,7 @@ def test_first_ready_sprint_commitment_and_current_size_remain_distinct(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ManualDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(ManualDraftPlan, subject=AgentRole.MAIN)
 def test_unknown_size_is_not_zero_and_invalid_or_generic_writes_leave_it_unknown(story):
     result = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'unestimated page' --brief 'the page displays the address'")
     result.expect_command_passed()

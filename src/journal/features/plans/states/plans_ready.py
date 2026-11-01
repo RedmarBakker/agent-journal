@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 
 from journal.engine.base_state import BaseState
-from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.states.ready import Ready
-from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.plans.states.following_plan import FollowingPlan
@@ -21,9 +19,6 @@ class PlansReady(Ready):
     """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and its task assigner starts the oldest approved plan before a free one; every other moment is Idle's."""
 
     assigner = PlanStartTaskAssigner
-
-    def mode_lines(self) -> tuple[Nudge, ...]:
-        return (PlansNudges.BUILDER_MODE.create(),)
 
     def plan_state(self, **fields) -> BaseState:
         return FollowingPlan(**fields)
