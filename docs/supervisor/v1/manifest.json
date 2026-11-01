@@ -29,8 +29,9 @@
         "launch_adapter": "the writer starts a fixed Unix-socket launcher as root with only SETUID, SETGID and SETPCAP; it accepts requests only from the designated journal server PID and uid10001, and only starts numbered Codex Plan environments",
         "identity_limit": "the package launches the Plan process as uid/gid 10003 with no capabilities, no-new-privileges, a read-only container root and an ACL limited to its Plan worktree; dedicated-VM B10 process and write probes remain pending"
       },
-      "ports": ["container 8421 on gateway_link", "container 8440 on journal_management; host loopback 18440 only"],
-      "health": "GET http://127.0.0.1:8440/ready"
+      "ports": ["container 8421 on gateway_link and journal_management; host loopback 18440 only"],
+      "health": "GET http://127.0.0.1:8421/journal/health",
+      "login_page": "none; Gateway uses the bounded supervisor routes on the journal API, and live setup uses the owner's local CLI and the same journal server"
     },
     {
       "name": "openclaw-gateway-and-stdio-client",
@@ -116,11 +117,11 @@
     "backup_egress": {"members": ["backup"], "allowed": ["the operator-selected encrypted backup repository only"]}
   },
   "network_enforcement": [
-    {"source": "Gateway", "destination": "writer", "allow": ["tcp/8421 supervisor routes only"], "deny": ["tcp/8440 admin UI", "database ports", "host services", "writer_state files"], "enforced_by": "tenant host firewall plus route-level credential scope"},
+    {"source": "Gateway", "destination": "writer", "allow": ["tcp/8421 supervisor routes with the scoped credential"], "deny": ["database ports", "host services", "writer_state files"], "enforced_by": "tenant host firewall plus route-level credential scope"},
     {"source": "execution or worker probe", "destination": "tenant private resources", "allow": ["the bound ordinary CLI/hook route when identity-verified"], "deny": ["database", "Gateway state", "provider secrets", "admin ports", "other tenant networks"], "enforced_by": "execution container profile and tenant host firewall; B10 probes required"}
   ],
   "host_ports": [
-    {"port": 18440, "bind": "127.0.0.1", "destination": "journal-writer:8440", "use": "owner/operator access through an SSH or tenant-VPN tunnel"}
+    {"port": 18440, "bind": "127.0.0.1", "destination": "journal-writer:8421", "use": "owner/operator access to the version 4 journal through an SSH or tenant-VPN tunnel"}
   ],
   "volumes": {
     "writer_state": {"mount": "/data", "owner": "journal:journal", "backup": true, "contains": ["journal record", "project checkout", "journal home"]},

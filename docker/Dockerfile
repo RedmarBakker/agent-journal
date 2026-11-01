@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
+FROM python:3.14.10-slim-bookworm@sha256:9974e24551f9e7ca172cf284d85b8ab3e031d22d945f7026ede7a8279118c9f1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends acl ca-certificates curl findutils git nodejs npm procps \
@@ -7,8 +7,7 @@ RUN apt-get update \
     && npm cache clean --force \
     && rm -rf /var/lib/apt/lists/*
 
-# Two users share the record through the journal group: journal runs the server and its agents, gateway runs
-# the login page and alone reads its password and logins.
+# The journal server and the pinned Plan driver use separate identities.
 RUN groupadd --gid 10001 journal \
     && groupadd --gid 10003 codex-driver \
     && useradd --uid 10001 --gid journal --home-dir /data/home --no-create-home --shell /bin/sh journal \
@@ -22,23 +21,24 @@ RUN groupadd --gid 10001 journal \
     && chmod 2770 /data/project
 
 COPY --chown=root:root src /opt/agent-journal/src
-COPY --chown=root:root install.py /opt/agent-journal/install.py
+COPY --chown=root:root install.sh update_steps.json /opt/agent-journal/
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher
 COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup
 
 ENV JOURNAL_PROJECT=/data/project \
-    JOURNAL_ROOT=/data/project/.journal \
+    JOURNAL_ROOT=/data/project \
+    JOURNAL_PORT=8421 \
     AGENT_JOURNAL_VAULT=/data/vault \
     AGENT_JOURNAL_SECRETS=/data/secrets \
     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /
 VOLUME /data
-EXPOSE 8440
+EXPOSE 8421
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8440/ready || exit 1
+    CMD curl -fsS http://127.0.0.1:8421/journal/health || exit 1
 
 ENTRYPOINT ["entrypoint.sh"]

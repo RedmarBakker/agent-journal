@@ -1,5 +1,6 @@
 """Static and pure-function checks for the inert supervisor v1 deployment package."""
 
+import ast
 import json
 import stat
 from pathlib import Path
@@ -13,6 +14,17 @@ PROFILE = ROOT / "docs" / "supervisor" / "v1"
 
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def journal_imports(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text())
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names if alias.name == "journal" or alias.name.startswith("journal."))
+        if isinstance(node, ast.ImportFrom) and node.module and (node.module == "journal" or node.module.startswith("journal.")):
+            imported.add(node.module)
+    return imported
 
 
 def test_profile_is_single_tenant_and_off_by_default():
@@ -36,15 +48,18 @@ def test_profile_is_single_tenant_and_off_by_default():
     assert "/var/lib/journal-codex" in manifest["backup"]["excluded_from_backup"]
     assert compose["services"]["writer"]["restart"] == "unless-stopped"
     assert compose["services"]["gateway"]["restart"] == "unless-stopped"
-    assert compose["services"]["writer"]["healthcheck"]["test"] == ["CMD-SHELL", "curl -fsS http://127.0.0.1:8440/ready"]
+    assert compose["services"]["writer"]["healthcheck"]["test"] == ["CMD-SHELL", "curl -fsS http://127.0.0.1:8421/journal/health"]
     assert compose["services"]["gateway"]["healthcheck"]["test"] == [
         "CMD",
         "node",
         "-e",
         "fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
     ]
-    assert compose["services"]["writer"]["ports"] == ["127.0.0.1:18440:8440"]
+    assert compose["services"]["writer"]["ports"] == ["127.0.0.1:18440:8421"]
     assert compose["services"]["writer"]["expose"] == ["8421"]
+    assert compose["services"]["writer"]["environment"]["JOURNAL_ROOT"] == "/data/project"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_PORT"] == "8421"
+    assert manifest["topology"][0]["login_page"].startswith("none;")
     assert manifest["launch_gates"]["reviewed_writer_image_digest_recorded"] is False
     assert manifest["backup_runtime"]["version"] == "0.17.3"
     assert manifest["backup_runtime"]["digest_pinned"] is True
@@ -112,7 +127,7 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert firewall["is_applied_firewall_config"] is False
     assert set(firewall["default_policy"].values()) == {"deny", True}
     assert any(rule["ports"] == [8421] and rule["action"] == "allow" for rule in firewall["rules"])
-    assert any(rule["ports"] == [8440, 5432, 3306, 6379] and rule["action"] == "deny" for rule in firewall["rules"])
+    assert any(rule["ports"] == [5432, 3306, 6379] and rule["action"] == "deny" for rule in firewall["rules"])
     assert any(rule["destination"] == "api.anthropic.com" and rule["ports"] == [443] for rule in firewall["rules"])
     assert any(rule["destination"] == "api.openai.com" and rule["ports"] == [443] for rule in firewall["rules"])
     assert any("refuse enrollment" in rule["action"] for rule in firewall["rules"])
@@ -155,11 +170,16 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert "docker/Dockerfile" in script
     assert "docker/entrypoint.sh" in script
     assert "docker/hosted-journal" in script
+    assert "install.sh" in script
+    assert "update_steps.json" in script
+    assert "install.py" not in script
     assert "docker/supervisor-codex-login" in script
     assert "docker/supervisor-codex-ready" in script
     assert "docker/supervisor-codex-plan-launcher.py" in script
     assert "docs/supervisor/v1/live-smoke-setup.py" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
+    assert '"$BUILD_CONTEXT/src/commit"' in script
+    assert '"$PROFILE_REVISION" > "$BUILD_CONTEXT/src/commit"' in script
     assert '"$BUILD_CONTEXT"' in script
 
 
@@ -175,7 +195,8 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     )[1].split('> "$BUILD_CONTEXT/runtime.tar"', 1)[0]
     sources = (
         "src",
-        "install.py",
+        "install.sh",
+        "update_steps.json",
         "docker/Dockerfile",
         "docker/entrypoint.sh",
         "docker/hosted-journal",
@@ -186,7 +207,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     )
     copies = (
         "COPY --chown=root:root src /opt/agent-journal/src",
-        "COPY --chown=root:root install.py /opt/agent-journal/install.py",
+        "COPY --chown=root:root install.sh update_steps.json /opt/agent-journal/",
         "COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher",
@@ -195,10 +216,46 @@ def test_writer_image_archives_and_copies_every_runtime_script():
 
     assert all(source in archive for source in sources)
     assert all(copy in dockerfile for copy in copies)
-    assert "python3 /opt/agent-journal/install.py upgrade" in entrypoint
-    assert "PYTHONPATH=/opt/agent-journal/src" in hosted
+    assert not (ROOT / "install.py").exists()
+    assert (ROOT / "install.sh").is_file() and (ROOT / "update_steps.json").is_file()
+    assert "3.14.10-slim-bookworm@sha256:9974e24551f9e7ca172cf284d85b8ab3e031d22d945f7026ede7a8279118c9f1" in dockerfile
+    assert "JOURNAL_ROOT=/data/project" in dockerfile
+    assert "JOURNAL_PORT=8421" in dockerfile
+    assert "EXPOSE 8421" in dockerfile
+    assert "127.0.0.1:8421/journal/health" in dockerfile
+    install_script = (ROOT / "install.sh").read_text()
+    assert 'if [ -d "$HERE/src/journal" ]; then' in install_script
+    assert '"$SRC/commit"' in install_script and "journal.py setup" in install_script
+    assert 'AGENT_JOURNAL_YES=1 sh /opt/agent-journal/install.sh' in entrypoint
+    assert '"$ROOT/bin/journal" serve' in entrypoint
+    assert "JOURNAL_ROOT=\"$PROJECT\" JOURNAL_PORT=8421" in entrypoint
+    assert "commands.login_apart" not in entrypoint
+    assert "8440" not in entrypoint and "/ready" not in entrypoint
+    assert 'exec "$PROJECT/.journal/bin/journal" "$@"' in hosted
     assert 'PROGRAM = "/opt/agent-journal/src/journal.py"' in plan_launcher
     assert 'sys.path.insert(0, "/opt/agent-journal/src")' in setup
+    assert 'ROOT = Path("/data/project")' in setup
+    assert 'API = "http://127.0.0.1:8421"' in setup
+    assert 'CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"' in setup
+
+    project_command = (ROOT / "src" / "journal" / "support" / "project_command.py").read_text()
+    setup_command = (ROOT / "src" / "journal" / "console" / "commands" / "setup_command.py").read_text()
+    journal_cli = (ROOT / "src" / "journal.py").read_text()
+    config = (ROOT / "src" / "journal" / "config.py").read_text()
+    health_route = (ROOT / "src" / "journal" / "http" / "routes" / "routes.py").read_text()
+    health_controller = (ROOT / "src" / "journal" / "http" / "controllers" / "journal.py").read_text()
+    assert 'return self.root / ".journal" / "bin" / "journal"' in project_command
+    assert "self.shim()" in setup_command
+    assert 'if argv[:1] == ["serve"]:' in journal_cli and "app.runtime().run()" in journal_cli
+    assert 'if "JOURNAL_PORT" in os.environ:' in config
+    assert '("health", journal.health)' in health_route and "def health(" in health_controller
+    assert (ROOT / "src" / "journal" / "http" / "server.py").is_file()
+    assert (ROOT / "src" / "journal.py").is_file()
+    assert (ROOT / "src" / "journal.sh").is_file()
+    for script in (ROOT / "src" / "journal.py", ROOT / "docker" / "supervisor-codex-plan-launcher.py", setup):
+        for module in journal_imports(script):
+            module_path = ROOT / "src" / Path(*module.split("."))
+            assert module_path.with_suffix(".py").is_file() or (module_path / "__init__.py").is_file(), (script, module)
 
 
 def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecycle():
@@ -294,6 +351,7 @@ def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_ow
     assert "chown" not in login
     assert "supervisor-codex-ready must run as uid/gid 10003" in ready
     assert "--user 10003:10003" in runbook
+    assert "There is no separate login page" in runbook
 
 
 def test_codex_device_login_is_fixed_and_operator_approved_before_the_smoke():

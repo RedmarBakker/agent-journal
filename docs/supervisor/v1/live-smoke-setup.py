@@ -24,7 +24,7 @@ from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_link import SupervisorLink
 
-ROOT = Path("/data/project/.journal")
+ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
 CODEX_HOME = Path("/var/lib/journal-codex")
 TOKEN_FILE = Path("/run/journal_supervisor_credential")
@@ -33,7 +33,7 @@ PHASE_TITLE = "Bounded supervisor smoke"
 TASK_TITLE = "Confirm the owner started Plan driver"
 CHECK_TITLE = "Supervisor writer health"
 TEMPLATE_TITLE = "Supervisor diagnostic"
-CHECK_COMMAND = "curl -fsS http://127.0.0.1:8440/ready"
+CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"
 WAIT_SECONDS = 120
 
 

@@ -17,7 +17,8 @@ BUILD_CONTEXT=$(mktemp -d)
 trap 'rm -rf "$BUILD_CONTEXT"' EXIT HUP INT TERM
 git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     src \
-    install.py \
+    install.sh \
+    update_steps.json \
     docker/Dockerfile \
     docker/entrypoint.sh \
     docker/hosted-journal \
@@ -27,6 +28,7 @@ git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     docs/supervisor/v1/live-smoke-setup.py > "$BUILD_CONTEXT/runtime.tar"
 tar -xf "$BUILD_CONTEXT/runtime.tar" -C "$BUILD_CONTEXT"
 rm "$BUILD_CONTEXT/runtime.tar"
+printf '%s\n' "$PROFILE_REVISION" > "$BUILD_CONTEXT/src/commit"
 
 docker build \
     --label "org.opencontainers.image.revision=$PROFILE_REVISION" \
