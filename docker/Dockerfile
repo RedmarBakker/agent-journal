@@ -22,6 +22,7 @@ RUN groupadd --gid 10001 journal \
     && chmod 2770 /data/project
 
 COPY --chown=root:root src /opt/agent-journal/src
+COPY --chown=root:root install.py /opt/agent-journal/install.py
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher

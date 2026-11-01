@@ -17,6 +17,7 @@ BUILD_CONTEXT=$(mktemp -d)
 trap 'rm -rf "$BUILD_CONTEXT"' EXIT HUP INT TERM
 git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     src \
+    install.py \
     docker/Dockerfile \
     docker/entrypoint.sh \
     docker/hosted-journal \

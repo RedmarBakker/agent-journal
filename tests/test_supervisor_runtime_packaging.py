@@ -163,6 +163,44 @@ def test_writer_build_uses_a_sanitized_commit_matched_context():
     assert '"$BUILD_CONTEXT"' in script
 
 
+def test_writer_image_archives_and_copies_every_runtime_script():
+    build = (PROFILE / "build-writer.sh").read_text()
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+    entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
+    hosted = (ROOT / "docker" / "hosted-journal").read_text()
+    plan_launcher = (ROOT / "docker" / "supervisor-codex-plan-launcher.py").read_text()
+    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    archive = build.split(
+        'git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" --', 1
+    )[1].split('> "$BUILD_CONTEXT/runtime.tar"', 1)[0]
+    sources = (
+        "src",
+        "install.py",
+        "docker/Dockerfile",
+        "docker/entrypoint.sh",
+        "docker/hosted-journal",
+        "docker/supervisor-codex-login",
+        "docker/supervisor-codex-ready",
+        "docker/supervisor-codex-plan-launcher.py",
+        "docs/supervisor/v1/live-smoke-setup.py",
+    )
+    copies = (
+        "COPY --chown=root:root src /opt/agent-journal/src",
+        "COPY --chown=root:root install.py /opt/agent-journal/install.py",
+        "COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/",
+        "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/",
+        "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher",
+        "COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
+    )
+
+    assert all(source in archive for source in sources)
+    assert all(copy in dockerfile for copy in copies)
+    assert "python3 /opt/agent-journal/install.py upgrade" in entrypoint
+    assert "PYTHONPATH=/opt/agent-journal/src" in hosted
+    assert 'PROGRAM = "/opt/agent-journal/src/journal.py"' in plan_launcher
+    assert 'sys.path.insert(0, "/opt/agent-journal/src")' in setup
+
+
 def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecycle():
     compose = read_json(PROFILE / "compose.json")
     manifest = read_json(PROFILE / "manifest.json")
