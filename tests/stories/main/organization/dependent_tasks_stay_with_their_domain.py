@@ -168,7 +168,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", "clock-in").expect_command_passed()
     task_details = story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", f"task show {engineering}")
     task_details.expect_command_passed()
-    task_details.expect_command_text("task Engineering task")
+    task_details.expect_command_text(f"task {engineering}: Engineering task")
     task_details.expect_command_text("Engineering uses the Security result")
     prior_details = story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", f"task show {security}")
     prior_details.expect_command_passed()
