@@ -21,6 +21,7 @@ def test_a_first_plan_handoff_places_and_wakes_its_domain_before_the_domain_send
     plan, task = story.plans.first, story.tasks.first
     worker = story.agents.workers.first()
     story.expect_worker_role_job(worker, task, TASK_BRIEF, STALE_BRIEF)
+    story.expect_no_prerequisite_results_in_role_job(worker, TASK_BRIEF)
     proven = story.agent_runs_from_openrig_organization_seat(
         worker, "role:alpha/builder", f"proof 1 'the current task brief is met: {TASK_BRIEF.removeprefix('- ')}'",
     )

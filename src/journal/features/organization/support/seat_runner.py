@@ -31,6 +31,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.task_dependencies import TaskDependencies
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -70,11 +71,12 @@ class SeatRunner:
     def __init__(self, config: Config, organization: Organization, plans: Plans, workers: Workers,
                  environments: Environments, settings: SettingRows, scope: Scope,
                  runtime: SeatRuntime, ledger: UsageLedger, caps: Caps, tasks: Tasks, providers: Providers,
-                 time_source: TimeSource, escalation: RoleEscalation, staffing: RigStaffing, branch: WorkerBranch) -> None:
+                 time_source: TimeSource, dependencies: TaskDependencies, escalation: RoleEscalation,
+                 staffing: RigStaffing, branch: WorkerBranch) -> None:
         self.config, self.organization, self.plans = config, organization, plans
         self.workers, self.environments, self.settings, self.scope = workers, environments, settings, scope
         self.runtime, self.ledger, self.caps, self.time_source = runtime, ledger, caps, time_source
-        self.tasks = tasks
+        self.tasks, self.dependencies = tasks, dependencies
         self.providers = providers
         self.escalation = escalation
         self.staffing = staffing
@@ -131,25 +133,50 @@ class SeatRunner:
             return worker, SeatJobIdentity.from_worker(worker), prompt
         task = self.job_task(worker)
         if role.cardinality is not Cardinality.JOURNAL:
-            return worker, SeatJobIdentity.from_worker(worker), self.with_job_identity(worker, task, prompt)
+            return worker, SeatJobIdentity.from_worker(worker), self.role_job_text(worker, task, prompt)
         plan = self.job_plan(worker, task)
         plan_id = plan.row_id if plan else worker.plan_id
         if plan_id and worker.plan_id != plan_id:
             worker = self.workers.save(worker.with_(plan_id=plan_id), actor)
         identity = SeatJobIdentity.from_worker(worker, task.id if task else 0, plan_id)
-        if task and plan:
-            prompt = "\n\n".join((owned_task_line(worker.id, task.id),
-                                     f"This job is task {task.id} ({task.title}) in plan {plan.id} ({plan.title}). Keep the work and report with this plan.", prompt))
-        elif task:
-            prompt = "\n\n".join((owned_task_line(worker.id, task.id),
-                                     f"This job is task {task.id} ({task.title}).", prompt))
+        prompt = self.role_job_text(worker, task, prompt, plan)
         return worker, identity, prompt
 
-    @staticmethod
-    def with_job_identity(worker: Worker, task: Task | None, prompt: str) -> str:
+    def role_job_text(self, worker: Worker, task: Task | None, prompt: str, plan: Plan | None = None) -> str:
         if task is None:
             return prompt
-        return "\n\n".join((owned_task_line(worker.id, task.id), prompt))
+        parts = [owned_task_line(worker.id, task.id)]
+        if plan:
+            parts.append(
+                f"This job is task {task.id} ({task.title}) in plan {plan.id} ({plan.title}). "
+                "Keep the work and report with this plan."
+            )
+        elif self.role_for(worker).cardinality is Cardinality.JOURNAL:
+            parts.append(f"This job is task {task.id} ({task.title}).")
+        prerequisites = self.completed_prerequisite_results(task)
+        if prerequisites:
+            parts.append(prerequisites)
+        parts.append(prompt)
+        return "\n\n".join(parts)
+
+    def completed_prerequisite_results(self, task: Task) -> str:
+        with self.scope.environment(task.environment_id):
+            results = []
+            prerequisites = self.dependencies.prerequisite_tasks(self.dependencies.prerequisites(task))
+            for prerequisite in prerequisites:
+                if not prerequisite.is_completed():
+                    continue
+                settled = prerequisite.outcome.strip()
+                label = f"- task {prerequisite.id} ({prerequisite.title})"
+                if settled:
+                    results.append(f"{label}: {settled}")
+                    continue
+                logs = sorted(self.dependencies.logs.logs(prerequisite), key=lambda log: log.row_id)
+                if logs:
+                    results.append(f"{label}:\n" + "\n".join(f"  {log.line}" for log in logs))
+                else:
+                    results.append(f"{label}: no outcome or log lines were recorded")
+        return "Completed prerequisites:\n" + "\n".join(results) if results else ""
 
     def member(self, worker: Worker) -> SeatMember:
         role = self.role_for(worker)

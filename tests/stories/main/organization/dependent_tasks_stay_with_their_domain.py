@@ -117,9 +117,11 @@ def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_depend
     story.agent_runs_from_plan_organization_seat(plan_seat, "plan", "environment overview").expect_command_passed()
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
 
-    completed = story.agent_runs_from_plan_organization_seat(
-        plan_seat, "plan", f"task complete {security} --how 'Security recorded the policy decision'",
-    )
+    story.agent_runs_from_plan_organization_seat(plan_seat, "plan", f"task start {security}").expect_command_passed()
+    story.agent_runs_from_plan_organization_seat(
+        plan_seat, "plan", f"task log {security} 'Security recorded the policy decision'",
+    ).expect_command_passed()
+    completed = story.agent_runs_from_plan_organization_seat(plan_seat, "plan", f"task complete {security}")
     completed.expect_command_passed()
     story.organization_seat_goes_idle(plan_seat, "plan")
     story.settle()
@@ -160,13 +162,18 @@ def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_depend
         engineering_domain, "domain:engineering", f"task show {security}",
     )
     previous.expect_command_passed()
-    previous.expect_command_text("outcome: Security recorded the policy decision")
+    previous.expect_command_text("log (1 lines):")
+    previous.expect_command_text("Security recorded the policy decision")
 
     story.agent_runs_from_openrig_organization_seat(
         engineering_domain, "domain:engineering", f"organization handoff {engineering} role:engineering/builder",
     ).expect_command_passed()
     worker = StoryAgent(AgentRole.WORKER, number=story.newest_in("workers", source))
     story.expect_worker_role_job(worker, engineering, TASK_BRIEF, SECURITY_BRIEF)
+    story.expect_role_job_prompt(
+        worker, TASK_BRIEF, SECURITY_BRIEF,
+        f"Completed prerequisites:\n- task {security} (Security task):\n  Security recorded the policy decision",
+    )
     story.expect_no_user_message_text_in(source, TASK_BRIEF)
     story.organization_role_seat_starts_a_session(worker, "role:engineering/builder").expect_allowed(worker)
     story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", "clock-in").expect_command_passed()

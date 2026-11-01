@@ -481,6 +481,10 @@ class StoryChecks:
         prompt = self.role_job_prompt(worker, brief, *parts)
         assert stale_brief not in prompt, f"Role seat received an old brief: {prompt!r}"
 
+    def expect_no_prerequisite_results_in_role_job(self, worker: StoryAgent, brief: str) -> None:
+        prompt = self.role_job_prompt(worker, brief)
+        assert "Completed prerequisites:" not in prompt, f"Role seat received prerequisite results for task with none: {prompt!r}"
+
     def role_job_prompt(self, worker: StoryAgent, brief: str, *parts: str) -> str:
         self.app.container.get(ListenerQueue).drain()
         member = self.organization_role_member(worker)
