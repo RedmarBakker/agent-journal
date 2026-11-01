@@ -17,13 +17,14 @@ def plan_agent() -> StoryAgent:
 
 def dispatch_worker(story, agent: StoryAgent) -> int:
     task = story.tasks.first
-    story.agent_in_runs(
+    result = story.agent_in_runs(
         agent,
         f"plan-{story.plans.first}",
         PLAN_AGENT_SESSION,
         f"worker dispatch 'Lady Lovelace' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests'",
-    ).expect_command_passed()
-    return story.newest("workers")
+    )
+    result.expect_command_passed()
+    return story.created_number("worker")
 
 
 def wait_for_worker(story, agent: StoryAgent, worker: int) -> None:
