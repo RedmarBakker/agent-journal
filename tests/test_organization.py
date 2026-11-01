@@ -2856,6 +2856,7 @@ def test_two_projects_start_plan_four_on_distinct_openrig_rigs(tmp_path):
             SimpleNamespace(rig_id=lambda plan: 0), rigs, seats, specs, runtime,
             SimpleNamespace(lookup=lambda _provider: object()), SimpleNamespace(), SimpleNamespace(),
             RigNames(SecretValues(config)), SimpleNamespace(environment=lambda _environment_id: nullcontext()),
+            SimpleNamespace(find=lambda _environment_id: SimpleNamespace(name="main")),
         )
         result.record_plan_rig = lambda *_args: None
         return result

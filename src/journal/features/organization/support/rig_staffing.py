@@ -22,6 +22,7 @@ from journal.models.plan import Plan
 from journal.models.rig import Rig
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
+from journal.repositories.environments import Environments
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
@@ -37,7 +38,7 @@ class RigStaffing:
 
     def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, seats: RigSeats,
                  specs: RigSpecs, runtime: SeatRuntime, providers: Providers, handoffs: OrganizationHandoffs,
-                 role_work_checks: RoleWorkChecks, names: RigNames, scope: Scope) -> None:
+                 role_work_checks: RoleWorkChecks, names: RigNames, scope: Scope, environments: Environments) -> None:
         self.organization = organization
         self.config, self.plans, self.rigs = config, plans, rigs
         self.seats, self.specs, self.runtime, self.providers = seats, specs, runtime, providers
@@ -45,6 +46,7 @@ class RigStaffing:
         self.role_work_checks = role_work_checks
         self.names = names
         self.scope = scope
+        self.environments = environments
 
     def start_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         self.runtime.check_version()
@@ -176,13 +178,14 @@ class RigStaffing:
         worker_for = lambda seat, rig: self.seat_worker(seat, role_seat, worker, environment, rig)
         return self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, cwd)
 
-    def shared_read_only_role_rig(self, plan: Plan, contracts: Contracts, role: Role, provider_name: str, environment: str) -> Rig:
+    def shared_read_only_role_rig(self, plan: Plan, contracts: Contracts, role: Role, provider_name: str) -> Rig:
         domain = contracts.domain(role.domain)
         if domain is None:
             raise Rejection(f"Role {role.id} has no Domain {role.domain} in its contract")
         provider = self.providers.lookup(provider_name)
         domain_seat = self.seats.domain_agent(domain, provider)
         role_seat = self.seats.role_seat(role, domain, provider)
+        environment = self.environments.find(plan.environment_id).name
         worker_for = lambda seat, rig: SeatWorker(Actor.agent(""), AgentToken.random(), environment, seat.qualified, rig)
         return self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, self.config.root)
 

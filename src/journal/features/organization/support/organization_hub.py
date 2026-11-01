@@ -81,7 +81,7 @@ class OrganizationHub:
             self.workers.dispatch_role_task(task, role, caller)
         elif role and role.cardinality is Cardinality.JOURNAL:
             self.staffing.shared_read_only_role_rig(
-                plan, self.organization.contracts(), role, member.provider, member.environment,
+                plan, self.organization.contracts(), role, member.provider,
             )
         self.handoffs.handoff(task, plan, target, caller.actor)
         if not (role and role.writes) and target != "main":

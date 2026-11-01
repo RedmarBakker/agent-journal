@@ -2,13 +2,16 @@ from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.engine.states.void import Void
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.features.workers.states.working_task import WorkingTask
 from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
 from tests.stories.fixtures.main.organization_shared_role_domain_seat_started import OrganizationSharedRoleDomainSeatStarted
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
@@ -47,7 +50,7 @@ def test_a_domain_handoff_creates_the_shared_role_rig_and_delivers_its_job(story
     story.expect_task(task, state=TaskState.STARTED, delegated=True)
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_organization_handoff_pending(plan, task, "role:alpha/shared")
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(role, Void, WorkingTask)
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
@@ -56,6 +59,8 @@ def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     plan_row = story.app.container.get(Plans).global_matching(id=plan)[0]
     shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
     domain = story.organization_seat_agent("domain:alpha")
+    inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
+    inbox.expect_command_passed()
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/security-owner",
     )
@@ -78,7 +83,7 @@ def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     story.expect_row_count("workers", 0)
     story.expect_organization_handoff_pending(plan, task, "role:alpha/security-owner")
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
@@ -87,6 +92,8 @@ def test_a_failed_shared_role_start_leaves_no_handoff_row(story):
     reason = "shared Role needs operator attention"
     story.simulated_seats().next_attention_reason = reason
     domain = story.organization_seat_agent("domain:alpha")
+    inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
+    inbox.expect_command_passed()
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/security-owner",
     )
@@ -96,4 +103,4 @@ def test_a_failed_shared_role_start_leaves_no_handoff_row(story):
     story.expect_organization_handoff_count(plan, 1)
     story.expect_task(task, state=TaskState.OPEN, delegated=False)
     story.expect_row_count("workers", 0)
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
