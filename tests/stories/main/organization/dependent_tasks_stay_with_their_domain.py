@@ -125,7 +125,9 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.settle()
     story.expect_task_in(source, security, TaskState.COMPLETED.value)
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
-    story.expect_plan(plan, state=PlanState.STARTED)
+    running_plan = story.user_opens_in(source, f"/journal/plans?ids={plan}")
+    running_plan.expect_viewer_passed()
+    running_plan.expect_viewer_rows("rows", "state", [PlanState.STARTED.value])
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
     status, answer = story.session_posted_hook(
         WORKTREE_AGENT_SESSION, {"X-Journal-Env": source}, "Stop", {},
