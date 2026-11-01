@@ -276,8 +276,6 @@ class RigStaffing:
             previous = pod["members"][index]
             assigned = worker_for(role_seat, rig.name)
             if previous.get("env", {}).get(ACTOR) != assigned.actor.stamp:
-                placed = self.specs.refresh_worker(rig.name, previous, role_seat.qualified)
-                assigned = replace(assigned, token=placed.token)
                 fragment, member = self.specs.member_fragment(rig.name, role_seat, cwd, assigned)
                 pod["members"][index] = member
                 role_fragment = fragment

@@ -1,6 +1,5 @@
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.rig_staffing import RigStaffing
-from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
 from journal.repositories.plans import Plans
 from tests.stories.fixtures.main.organization_shared_role_domain_inbox_read import OrganizationSharedRoleDomainInboxRead
@@ -17,11 +16,6 @@ class OrganizationSharedRoleSeatPlaced(OrganizationSharedRoleDomainInboxRead):
         organization = story.app.container.get(Organization).reload()
         role = organization.role("shared")
         provider = story.app.container.get(Providers).lookup(story.provider)
-        rig = story.app.container.get(RigStaffing).shared_read_only_role_rig(
+        story.app.container.get(RigStaffing).shared_read_only_role_rig(
             plan, organization, role, provider.name,
         )
-        member = story.app.container.get(SeatRuntime).organization_member(
-            rig.name, "role:alpha/shared", provider.name,
-        )
-        self.shared_rig = rig.name
-        self.seat_token = member.token

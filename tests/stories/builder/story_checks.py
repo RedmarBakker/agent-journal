@@ -463,6 +463,11 @@ class StoryChecks:
         expected = AgentToken(token).digest()
         assert row.token_hash == expected, f"worker {row.id} has token hash {row.token_hash!r}, not the token generated for its Role seat"
 
+    def expect_worker_uses_relaunched_seat_token(self, worker: StoryAgent, previous_token: str) -> None:
+        member = self.organization_role_member(worker)
+        assert member.token != previous_token, f"Role seat {member.logical_id} kept the token from its earlier placement"
+        self.expect_worker_token(worker, member.token)
+
     def expect_no_user_message_text_in(self, environment: str, text: str) -> None:
         rows = get_answer(self.app, "/journal/messages", {"X-Journal-Env": environment})[1]["rows"]
         matches = [row for row in rows if row.get("author") == "user" and row.get("text") == text]
