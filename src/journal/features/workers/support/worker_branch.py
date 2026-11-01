@@ -70,9 +70,11 @@ class WorkerBranch:
         return InnerRepositories(self.config.root).named_in(brief)
 
     def repositories(self, worker: Worker) -> list[WorkerRepository]:
-        folder = self.folder(worker)
-        inner = [WorkerRepository(self.config.root / name, folder / name, Path(name)) for name in worker.repositories]
-        return [WorkerRepository(self.checkout(worker), folder, PROJECT_FOLDER), *inner]
+        checkout = self.checkout(worker)
+        place = self.place(worker)
+        inner_checkout = self.config.root if worker.worktree else checkout
+        inner = [WorkerRepository(inner_checkout / name, place / name, Path(name)) for name in worker.repositories]
+        return [WorkerRepository(checkout, place, PROJECT_FOLDER), *inner]
 
     def tip(self, repository: WorkerRepository, worker: Worker) -> str:
         head = self.git("rev-parse", "HEAD", cwd=repository.worktree) if repository.is_present else None
@@ -112,8 +114,6 @@ class WorkerBranch:
         return self.uncommitted_files(worker) + self.other_repository_folders(worker)
 
     def uncommitted_files(self, worker: Worker) -> list[str]:
-        if not self.folder(worker).is_dir():
-            return []
         return [repository.path(file) for repository in self.repositories(worker) if repository.is_present for file in self.status_files(repository.worktree)]
 
     def other_repository_folders(self, worker: Worker) -> list[str]:

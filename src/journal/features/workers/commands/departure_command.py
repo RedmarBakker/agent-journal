@@ -64,7 +64,7 @@ class DepartureCommand(Command):
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"your work, rebased onto {self.branch.project_heads(worker)}, clashes: {clashing}; {REBASE_STEPS}, then clock out")
-        uncommitted = self.branch.uncommitted_files(worker) if worker.worktree else []
+        uncommitted = self.branch.uncommitted_files(worker)
         if uncommitted:
             raise Rejection(f"still not committed after the journal's commit: {', '.join(uncommitted)}; check git status, fix it and clock out")
         strays = self.branch.other_repository_folders(worker) if worker.worktree else []
