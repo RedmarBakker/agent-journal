@@ -555,7 +555,7 @@
         "block instead of waiting: `journal task block <n> --on task:<m>` or `journal task block <n> --until '<command>'`",
         "blocked with no wait",
         "came here from environment",
-        "can be split between its Roles",
+        "can be split among Roles",
         "can do this, run `journal worker send",
         "cap output with grep, head or tail",
         "carry on with it",

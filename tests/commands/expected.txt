@@ -1790,7 +1790,7 @@ organization.action_waits_for_the_user  [organization]  {{action}} waits for the
 organization.all_split_parts_cancelled  [organization]  all parts of task {{task}} were cancelled. Return it with `journal organization handoff {{task}} plan`
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
 organization.organization_handoff_waiting_in_inbox  [organization]  you have an unread handoff; run `journal organization inbox`
-organization.plan_task_can_be_split  [organization]  task {{task}} can be split between its Roles. Use `journal organization part {{task}} role:{{domain}}/<role> "<title>" --brief "<what>"`
+organization.plan_task_can_be_split  [organization]  task {{task}} can be split among Roles. Use `journal organization part {{task}} role:{{domain}}/<role> "<title>" --brief "<what>"`
 organization.plan_task_waiting_for_handoff  [organization]  plan task {{task}} waits for handoff to domain:{{domain}}; run `journal organization handoff {{task}} domain:{{domain}}`
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
