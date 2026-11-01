@@ -27,6 +27,14 @@ def journal_imports(path: Path) -> set[str]:
     return imported
 
 
+def setup_function(name: str) -> str:
+    path = PROFILE / "live-smoke-setup.py"
+    source = path.read_text()
+    tree = ast.parse(source)
+    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
+    return ast.get_source_segment(source, function)
+
+
 def test_profile_is_single_tenant_and_off_by_default():
     manifest = read_json(PROFILE / "manifest.json")
     compose = read_json(PROFILE / "compose.json")
@@ -428,6 +436,39 @@ def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
     assert host_setup.index(driver_check) < host_setup.index(owner_setup)
     assert 'os.environ.get("JOURNAL_ROOT") != str(ROOT)' in setup
     assert "if TOKEN_FILE.exists():" in setup
+
+
+def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope():
+    resume = setup_function("resume_plan")
+    wait = setup_function("wait_for_codex_plan")
+    command = setup_function("command")
+    runtime = setup_function("require_runtime")
+
+    assert "with scope.environment(main.row_id):\n        owner_agent = agents.environment_main_agent(main.row_id)" in runtime
+    assert "with scope.environment(main.row_id):\n        plan = plans.find(plan_id)\n        phases = plans.plan_phases(plan)\n        tasks = plans.plan_tasks(plan)" in resume
+    assert "with scope.environment(environment_id):\n            plan = plans.find(plan_id)" in wait
+    assert '"env": "main"' in command
+
+
+def test_live_setup_resumes_only_its_started_unenrolled_plan():
+    signature = setup_function("setup_plan_matches")
+    resume = setup_function("resume_plan")
+    require_runtime = setup_function("require_runtime")
+    make_plan = setup_function("make_plan")
+    authority = (ROOT / "src" / "journal" / "supervisor_authority.py").read_text()
+
+    assert "plan.title == PLAN_TITLE" in signature and "plan.brief == PLAN_BRIEF" in signature
+    assert "plan.state == PlanState.STARTED" in signature
+    assert "plan.mode == PlanMode.SOLO" in signature and "plan.mode_chosen" in signature
+    assert "phases[0].title == PHASE_TITLE" in signature
+    assert "tasks[0].title == TASK_TITLE" in signature and "tasks[0].brief == TASK_BRIEF" in signature
+    assert "if not setup_plan_matches(plan, phases, tasks):" in resume
+    assert "if authority.has_enrollment_grant():" in resume
+    assert "def has_enrollment_grant(self) -> bool:" in authority
+    assert "return bool(self._latest_entries())" in authority
+    assert 'if TOKEN_FILE.exists():' in require_runtime
+    assert "if plan_id := existing_plan_id(existing):\n        return resume_plan(app, main, plan_id)" in make_plan
+    assert "return plan_id, setup_check_id(app), setup_template_id(app)" in resume
 
 
 def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_owner():

@@ -14,11 +14,14 @@ from journal.app import App
 from journal.config import Config
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan_mode import PlanMode
+from journal.models.plan_state import PlanState
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
+from journal.repositories.checks import Checks
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_link import SupervisorLink
@@ -27,10 +30,16 @@ ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
 TOKEN_FILE = Path("/run/journal_supervisor_credential")
 PLAN_TITLE = "Supervisor live smoke"
+PLAN_BRIEF = "Run one bounded supervisor smoke with the owner-started Codex Plan driver"
 PHASE_TITLE = "Bounded supervisor smoke"
+PHASE_COMPLETION = "the bounded supervisor smoke has a verified receipt"
 TASK_TITLE = "Confirm the owner started Plan driver"
+TASK_BRIEF = "Confirm the real Codex Plan driver is running in this writer installation"
 CHECK_TITLE = "Supervisor writer health"
+CHECK_BRIEF = "Confirm the staged journal writer is healthy"
 TEMPLATE_TITLE = "Supervisor diagnostic"
+TEMPLATE_BRIEF = "Read the failed writer health check and prepare one bounded diagnostic task for the current phase."
+TEMPLATE_PURPOSE = "diagnose the failed service check"
 CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"
 WAIT_SECONDS = 120
 
@@ -85,18 +94,81 @@ def require_runtime(app):
         raise SetupFailure("active workers need B10 filesystem and network denial probes before enrollment")
     if not owner_agent or owner_agent.provider != "codex" or not owner_agent.session or not supervisor.runs(main.row_id):
         raise SetupFailure("start the owner's real Codex session on the designated writer before setup")
+    return main
 
 
-def make_plan():
-    existing = command("plan", "list")
-    if any(line.split(maxsplit=2)[-1:] == [PLAN_TITLE] for line in existing.splitlines()):
+def setup_plan_matches(plan, phases, tasks):
+    return (
+        plan.title == PLAN_TITLE
+        and plan.brief == PLAN_BRIEF
+        and plan.state == PlanState.STARTED
+        and plan.mode == PlanMode.SOLO
+        and plan.mode_chosen
+        and len(phases) == 1
+        and phases[0].title == PHASE_TITLE
+        and phases[0].completion_rule == PHASE_COMPLETION
+        and len(tasks) == 1
+        and tasks[0].title == TASK_TITLE
+        and tasks[0].brief == TASK_BRIEF
+    )
+
+
+def setup_check_id(app):
+    rows = [check for check in app.container.get(Checks).matching(title=CHECK_TITLE)
+            if check.brief == CHECK_BRIEF and check.command == CHECK_COMMAND
+            and check.interval == 10 and not check.wait_target and not check.is_retired]
+    if len(rows) != 1:
+        raise SetupFailure("the staged supervisor setup check is missing or ambiguous")
+    return rows[0].row_id
+
+
+def setup_template_id(app):
+    rows = [template for template in app.container.get(Templates).matching(title=TEMPLATE_TITLE)
+            if template.brief == TEMPLATE_BRIEF and template.purpose == TEMPLATE_PURPOSE
+            and template.targets == ("plan",)]
+    if len(rows) != 1:
+        raise SetupFailure("the staged supervisor setup template is missing or ambiguous")
+    return str(rows[0].row_id)
+
+
+def resume_plan(app, main, plan_id):
+    scope = app.container.get(Scope)
+    plans = app.container.get(Plans)
+    with scope.environment(main.row_id):
+        plan = plans.find(plan_id)
+        phases = plans.plan_phases(plan)
+        tasks = plans.plan_tasks(plan)
+    if not setup_plan_matches(plan, phases, tasks):
         raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
-    plan_id = row_number(command("plan", "create", PLAN_TITLE, "--brief", "Run one bounded supervisor smoke with the owner-started Codex Plan driver"), r"plan (\d+) draft")
+    authority = app.container.get(SupervisorAuthority)
+    if authority.has_enrollment_grant():
+        raise SetupFailure("a supervisor enrollment grant already exists in this writer")
+    return plan_id, setup_check_id(app), setup_template_id(app)
+
+
+def existing_plan_id(output):
+    matches = []
+    for line in output.splitlines():
+        fields = line.split(maxsplit=2)
+        if len(fields) == 3 and fields[2] == PLAN_TITLE:
+            if not fields[0].isdigit():
+                raise SetupFailure("the journal returned an unexpected row number for the live smoke plan")
+            matches.append(int(fields[0]))
+    if len(matches) > 1:
+        raise SetupFailure("more than one supervisor live smoke plan already exists")
+    return matches[0] if matches else None
+
+
+def make_plan(app, main):
+    existing = command("plan", "list")
+    if plan_id := existing_plan_id(existing):
+        return resume_plan(app, main, plan_id)
+    plan_id = row_number(command("plan", "create", PLAN_TITLE, "--brief", PLAN_BRIEF), r"plan (\d+) draft")
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
-    command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", "the bounded supervisor smoke has a verified receipt")
-    command("plan", "add", str(plan_id), TASK_TITLE, "--brief", "Confirm the real Codex Plan driver is running in this writer installation", "--phase", "1")
-    check_id = row_number(command("check", "create", CHECK_TITLE, "--command", CHECK_COMMAND, "--brief", "Confirm the staged journal writer is healthy", "--every", "10"), r"check (\d+): .+")
-    template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", "Read the failed writer health check and prepare one bounded diagnostic task for the current phase.", "--applies-to", "plan", "--purpose", "diagnose the failed service check"), r"template (\d+): .+")
+    command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", PHASE_COMPLETION)
+    command("plan", "add", str(plan_id), TASK_TITLE, "--brief", TASK_BRIEF, "--phase", "1")
+    check_id = row_number(command("check", "create", CHECK_TITLE, "--command", CHECK_COMMAND, "--brief", CHECK_BRIEF, "--every", "10"), r"check (\d+): .+")
+    template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", TEMPLATE_BRIEF, "--applies-to", "plan", "--purpose", TEMPLATE_PURPOSE), r"template (\d+): .+")
     command("settings", "set", "plans.plan_agents", "on")
     command("plan", "ready", str(plan_id))
     command("plan", "approve", str(plan_id))
@@ -104,12 +176,14 @@ def make_plan():
     return plan_id, check_id, template_id
 
 
-def wait_for_codex_plan(app, plan_id):
+def wait_for_codex_plan(app, plan_id, environment_id):
     deadline = time.monotonic() + WAIT_SECONDS
     while time.monotonic() < deadline:
+        scope = app.container.get(Scope)
         plans = app.container.get(Plans)
         plan_agents = app.container.get(PlanAgents)
-        plan = plans.find(plan_id)
+        with scope.environment(environment_id):
+            plan = plans.find(plan_id)
         agent = plan_agents.agent(plan)
         environment = plan_agents.environment(plan)
         if (plan.mode == PlanMode.SOLO and agent and agent.provider == "codex" and agent.session
@@ -186,9 +260,9 @@ def main():
         raise SetupFailure("this setup program accepts no arguments")
     os.umask(0o077)
     app = App(Config.rooted(ROOT))
-    require_runtime(app)
-    plan_id, check_id, template_id = make_plan()
-    wait_for_codex_plan(app, plan_id)
+    main = require_runtime(app)
+    plan_id, check_id, template_id = make_plan(app, main)
+    wait_for_codex_plan(app, plan_id, main.row_id)
     status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""

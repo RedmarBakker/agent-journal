@@ -79,6 +79,9 @@ class SupervisorAuthority:
         self.checks, self.templates, self.links, self.scope = checks, templates, links, scope
         self.secrets_store, self.time_source = secrets_store, time_source
 
+    def has_enrollment_grant(self) -> bool:
+        return bool(self._latest_entries())
+
     def enrollment_context(self, plan_id: int, check_ids: tuple[int, ...] = (), template_id: str = "") -> dict[str, Any]:
         plan = self._plan(plan_id)
         context = self._eligible(plan, self.owners.number(plan))
