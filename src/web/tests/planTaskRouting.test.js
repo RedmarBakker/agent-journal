@@ -95,3 +95,45 @@ test("a plan task shows its Domain, route, ordered Role subtasks, workers and me
     expect(unrouted.textContent).toContain("Route: With the Plan");
     expect(scopeState.api.organization).toHaveBeenCalledOnce();
 });
+
+test("a merged split keeps its Role subtasks and workers on the plan page", async () => {
+    scopeState.rows = [{table: "tasks", id: 101, title: "Build the floor", state: "completed", plan_id: 31}];
+    const task = {
+        id: 101,
+        title: "Build the floor",
+        state: "completed",
+        route_state: "Merged",
+        domain: {id: "alpha", title: "Alpha", icon: "🧭"},
+        subtasks: [
+            {id: 201, role: {id: "builder", title: "Builder"}, worker: {name: "Ada Lovelace", state: "merged"}, state: "completed", order: 1, after: null},
+            {id: 202, role: {id: "scout", title: "Scout"}, worker: {name: "Grace Hopper", state: "merged"}, state: "completed", order: 2, after: {id: 201, title: "Lay the first layer"}},
+        ],
+    };
+    scopeState.api.organization.mockResolvedValue({domains: [{
+        id: "alpha",
+        title: "Alpha",
+        icon: "🧭",
+        plans: [{id: 31, task_details: [task]}],
+    }]});
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp(PlanPage, {resource: {
+        id: 31,
+        title: "Build the floor",
+        state: "completed",
+        mode: "organization",
+        current_phase: 1,
+        task_ids: [101],
+        phases: [{title: "Build", task_ids: [101]}],
+    }});
+    app.mount(host);
+    await vi.waitFor(() => expect(host.querySelector(".plan-subtask-summary")?.textContent).toContain("2 subtasks for 2 Roles, 2 merged"));
+
+    const details = host.querySelector('[aria-label="Details for task 101"]');
+    expect(details.getAttribute("data-route-state")).toBe("Merged");
+    expect(details.querySelector('[data-subtask-id="201"]').textContent).toContain("Role: Builder");
+    expect(details.querySelector('[data-subtask-id="201"]').textContent).toContain("Worker: Ada Lovelace");
+    expect(details.querySelector('[data-subtask-id="201"]').textContent).toContain("State: completed");
+    expect(details.querySelector('[data-subtask-id="202"]').textContent).toContain("Role: Scout");
+    expect(details.querySelector('[data-subtask-id="202"]').textContent).toContain("Worker: Grace Hopper");
+    expect(details.querySelector('[data-subtask-id="202"]').textContent).toContain("State: completed");
+});

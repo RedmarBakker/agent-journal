@@ -144,8 +144,8 @@ class OrganizationController:
     def task_detail(self, task: Task, plan: Plan, domain: Domain, contracts) -> dict:
         with self.scope.environment(plan.environment_id):
             parts = self.tasks.parts_of(task)
-            role_parts = [(order, part, self.handoffs.latest_target(part, plan)) for order, part in enumerate(parts, 1)]
-            role_parts = [(order, part, target) for order, part, target in role_parts if target.startswith("role:")]
+            role_parts = [(order, part, self.handoffs.latest_role_target(part, plan)) for order, part in enumerate(parts, 1)]
+            role_parts = [(order, part, target) for order, part, target in role_parts if target]
             return {"id": task.id, "title": task.title, "state": task.state.value,
                     "domain": {"id": domain.id, "title": domain.title, "icon": domain.icon},
                     "route_state": self.route_state(task, plan, parts),

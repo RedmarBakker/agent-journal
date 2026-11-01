@@ -78,6 +78,14 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
         handoff = self.latest_handoff(task, plan)
         return handoff.target if handoff else ""
 
+    def latest_role_target(self, task: Task, plan: Plan) -> str:
+        plan_ref = Ref.build(plan)
+        for reference in reversed(self.links.typed_sources(task, TASK_HANDOFF, OrganizationHandoff.table())):
+            handoff = self.find(reference.id)
+            if handoff.target.startswith("role:") and plan_ref in self.links.targets(handoff, PLAN_HANDOFF):
+                return handoff.target
+        return ""
+
     def latest_handoff(self, task: Task, plan: Plan) -> OrganizationHandoff | None:
         plan_ref = Ref.build(plan)
         for reference in reversed(self.links.typed_sources(task, TASK_HANDOFF, OrganizationHandoff.table())):

@@ -2595,7 +2595,7 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 0, "deleting an active instance immediately changes its domain's figure"
 
 
-def test_the_organization_plan_board_shows_task_domains_routes_and_ordered_role_parts(app, tmp_path):
+def test_the_organization_plan_board_keeps_role_parts_before_during_and_after_merge(app, tmp_path):
     from journal.models.link import Link
     from journal.models.plan import Plan
     from journal.models.plan_mode import PlanMode
@@ -2637,26 +2637,56 @@ def test_the_organization_plan_board_shows_task_domains_routes_and_ordered_role_
         handoffs.handoff(role_task, plan, "role:alpha/builder", actor)
         handoffs.handoff(first, plan, "role:alpha/builder", actor)
         handoffs.handoff(second, plan, "role:alpha/scout", actor)
-        merged = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="builder", plan_id=plan.id, state=WorkerState.MERGED), actor)
+        builder = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="builder", plan_id=plan.id, state=WorkerState.READY), actor)
         checking = workers.save(Worker(environment_id=1, name="Grace Hopper", role="scout", plan_id=plan.id, state=WorkerState.DELIVERED), actor)
-        links.save(Link(source=Ref.build(merged), target=Ref.build(first), link_type=CURRENT_TASK_LINK), actor)
+        links.save(Link(source=Ref.build(builder), target=Ref.build(first), link_type=CURRENT_TASK_LINK), actor)
         links.save(Link(source=Ref.build(checking), target=Ref.build(second), link_type=CURRENT_TASK_LINK), actor)
-        tasks.save(first.with_(state=TaskState.COMPLETED), actor)
+        tasks.save(first.with_(state=TaskState.STARTED), actor)
         tasks.save(second.with_(state=TaskState.STARTED), actor)
         tasks.save(merged_task.with_(state=TaskState.COMPLETED), actor)
 
-    status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
-    alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
-    details = alpha["plans"][0]["task_details"][0]
-    routes = {task["title"]: task["route_state"] for task in alpha["plans"][0]["task_details"]}
+    def task_details():
+        status, shown = get_answer(app, "/journal/organization", {"X-Journal-Env": "main"})
+        assert status == 200
+        alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
+        return {task["title"]: task for task in alpha["plans"][0]["task_details"]}
 
-    assert status == 200 and details["domain"] == {"id": "alpha", "title": "Alpha", "icon": "🧪"}
+    before = task_details()
+    details = before["Build the floor"]
+    routes = {title: task["route_state"] for title, task in before.items()}
+
+    assert details["domain"] == {"id": "alpha", "title": "Alpha", "icon": "🧪"}
     assert details["route_state"] == "Waiting for the Domain's check"
     assert routes == {"Build the floor": "Waiting for the Domain's check", "Handed to the Domain": "With the Domain", "Handed to a Role": "With a Role", "Merged task": "Merged"}
-    assert [(part["role"], part["worker"], part["state"], part["order"], part["after"]) for part in details["subtasks"]] == [
-        ({"id": "builder", "title": "Builder"}, {"name": "Ada Lovelace", "state": "merged"}, "completed", 1, None),
+    expected_parts = [
+        ({"id": "builder", "title": "Builder"}, {"name": "Ada Lovelace", "state": "clocked in"}, "started", 1, None),
         ({"id": "scout", "title": "Scout"}, {"name": "Grace Hopper", "state": "clocked out"}, "started", 2, {"id": first.id, "title": first.title}),
-    ], "each Role part names its Role, worker, task state and predecessor"
+    ]
+    assert [(part["role"], part["worker"], part["state"], part["order"], part["after"]) for part in details["subtasks"]] == expected_parts
+
+    with app.container.get(Scope).environment(1):
+        handoffs.handoff(first, plan, "plan", actor)
+        tasks.finish_holder_task(first.id, Ref.build(builder), actor)
+        workers.save(builder.with_(state=WorkerState.MERGED), actor)
+        tasks.save(first.with_(state=TaskState.COMPLETED), actor)
+    during = task_details()["Build the floor"]
+    assert [(part["role"]["id"], part["worker"]["name"], part["worker"]["state"], part["state"]) for part in during["subtasks"]] == [
+        ("builder", "Ada Lovelace", "merged", "completed"),
+        ("scout", "Grace Hopper", "clocked out", "started"),
+    ], "a part returned to the Plan keeps its Role, worker and state while the other part is still with its Role"
+
+    with app.container.get(Scope).environment(1):
+        handoffs.handoff(second, plan, "plan", actor)
+        tasks.finish_holder_task(second.id, Ref.build(checking), actor)
+        workers.save(checking.with_(state=WorkerState.MERGED), actor)
+        tasks.save(second.with_(state=TaskState.COMPLETED), actor)
+        tasks.save(parent.with_(state=TaskState.COMPLETED), actor)
+    after = task_details()["Build the floor"]
+    assert after["route_state"] == "Merged"
+    assert [(part["role"]["id"], part["worker"]["name"], part["worker"]["state"], part["state"]) for part in after["subtasks"]] == [
+        ("builder", "Ada Lovelace", "merged", "completed"),
+        ("scout", "Grace Hopper", "merged", "completed"),
+    ], "all merged parts keep their Role and worker on the completed task"
 
 
 def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(app, tmp_path):
