@@ -34,6 +34,12 @@ class RoleWorkChecks:
     def tasks_waiting_for_check(self, plan: Plan) -> set[int]:
         return {task_id for _, task_id, _ in self.waiting_for_check_in_plan(plan)}
 
+    def unchecked_worker_for(self, task: Task, plan: Plan) -> int | None:
+        for worker, task_id, _ in self.waiting_for_check_in_plan(plan):
+            if task_id == task.row_id and not self.proofs.is_checked(task):
+                return worker
+        return None
+
     def checked_parts_waiting_for_merge_in_plan(self, plan: Plan) -> tuple[tuple[int, int], ...]:
         with self.scope.environment(plan.environment_id):
             waiting = []

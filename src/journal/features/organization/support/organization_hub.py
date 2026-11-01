@@ -59,6 +59,12 @@ class OrganizationHub:
     def handoff_task(self, task_id: int, target: str, source: str, member: SeatMember, caller: Caller) -> None:
         task = self.tasks.find(task_id)
         plan = self.validate_task(source, task, member.rig)
+        if source.startswith("domain:") and target == "plan":
+            worker = self.role_work_checks.unchecked_worker_for(task, plan)
+            if worker is not None:
+                raise Rejection(
+                    OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker, task=task.id).rendered()
+                )
         role = self.role(target)
         if role and self.tasks.parts_of(task):
             raise Rejection(OrganizationNudges.SPLIT_HANDOFF_REQUIRED.create(task=task.id).rendered())
