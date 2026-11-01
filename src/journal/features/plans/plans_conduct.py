@@ -3,9 +3,11 @@ from pathlib import Path
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.nudge import Nudge
+from journal.engine.states.ended import Ended
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.rows.plan_agent_stopped import PlanAgentStopped
 from journal.events.rows.plan_approved import PlanApproved
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_finished import PlanFinished
@@ -40,6 +42,9 @@ class PlansConduct(Conduct):
         if not settings.value(PlansOptions.PLAN_AGENTS) or event.mode != PlanMode.SOLO:
             return self.none()
         return self.none(PlansNudges.PLAN_MERGE_READY.create(n=event.plan_id))
+
+    def on_plan_agent_stopped(self, event: PlanAgentStopped, settings: Settings) -> Transition:
+        return self.swap(Ended())
 
     def on_plan_reviewed(self, event: PlanReviewed, settings: Settings) -> Transition:
         return self.none(PlansNudges.REVIEW_ENTRY_REQUEST.create(n=event.plan_id, reports=PlansNudges.unread(event.data.part(PlansPart).review_reports)))

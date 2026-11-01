@@ -47,5 +47,6 @@ class AgentEnvironments:
         return self.supervisor.runs(environment.row_id)
 
     def stopped(self, environment: Environment) -> None:
+        self.supervisor.discard(environment.row_id)
         if self.is_running(environment):
             self.supervisor.stop(environment.row_id)

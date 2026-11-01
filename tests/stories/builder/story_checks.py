@@ -313,6 +313,11 @@ class StoryChecks:
         reason = self.simulated_seats().attention.get(rig, "")
         assert not reason, f"OpenRig rig {rig} stopped for attention: {reason}"
 
+    def expect_openrig_seat_stopped(self, seat: str, rig: str = "") -> None:
+        member = self.organization_seat_member(seat, rig)
+        status = self.simulated_seats().sessions[member.target].get("status")
+        assert status == "stopped", f"OpenRig seat {member.logical_id} has status {status!r}, not 'stopped'"
+
     def expect_openrig_attention(self, rig: str, reason: str) -> None:
         actual = self.simulated_seats().attention.get(rig, "")
         assert actual == reason, f"OpenRig rig {rig} needs attention for {actual!r}, not {reason!r}"

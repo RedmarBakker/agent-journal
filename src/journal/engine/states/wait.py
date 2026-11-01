@@ -25,3 +25,4 @@ class Wait(BaseState):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return self.none() if event.call.is_journal else self.pop()
+

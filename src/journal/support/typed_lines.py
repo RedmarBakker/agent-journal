@@ -72,6 +72,15 @@ class TypedLines:
     def clear(self, environment_id: int) -> None:
         self._held = [h for h in self._held if h.environment_id != environment_id]
 
+    def discard(self, environment_id: int) -> None:
+        self.clear(environment_id)
+        self._waiting = [line for line in self._waiting if line.environment_id != environment_id]
+        self._recent = [line for line in self._recent if line.environment_id != environment_id]
+        self._disabled_ids.discard(environment_id)
+        self._paused_ids.discard(environment_id)
+        self._working_ids.discard(environment_id)
+        self._refused_stop_ids.discard(environment_id)
+
     def is_waiting(self, environment_id: int) -> bool:
         return any(t.environment_id == environment_id for t in self._waiting)
 

@@ -1,0 +1,86 @@
+from journal.engine.states.ended import Ended
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.models.plan_state import PlanState
+from journal.models.worker_state import WorkerState
+from journal.support.agent_role import AgentRole
+from journal.support.card_type import CardType
+from tests.stories.builder.story_agent import StoryAgent
+from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.organization_plan_handoff_seat import OrganizationPlanHandoffSeat
+from tests.stories.fixtures.main.solo_plan_agent_started import PLAN_AGENT_SESSION, SoloPlanAgentStarted
+
+
+def plan_agent() -> StoryAgent:
+    return StoryAgent(AgentRole.MAIN, session=PLAN_AGENT_SESSION)
+
+
+def dispatch_worker(story, agent: StoryAgent) -> int:
+    task = story.tasks.first
+    story.agent_in_runs(
+        agent,
+        f"plan-{story.plans.first}",
+        PLAN_AGENT_SESSION,
+        f"worker dispatch 'Lady Lovelace' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests'",
+    ).expect_command_passed()
+    return story.newest("workers")
+
+
+def wait_for_worker(story, agent: StoryAgent, worker: int) -> None:
+    result = story.agent_in_runs(
+        agent, f"plan-{story.plans.first}", PLAN_AGENT_SESSION, f"worker wait {worker}",
+    )
+    result.expect_command_passed()
+
+
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
+def test_cancelling_a_plan_ends_its_plan_agent_waiting_on_a_worker(story):
+    agent = plan_agent()
+    worker = dispatch_worker(story, agent)
+    wait_for_worker(story, agent, worker)
+    story.clock_ticks(300)
+
+    cancelled = story.user_cancels_plan(story.plans.first)
+    cancelled.expect_agent_told_nothing(agent)
+    story.expect_worker(worker, state=WorkerState.RELEASED)
+    story.expect_stack(agent, LeadingPlan, Ended)
+
+    quiet = story.agent_is_quiet_for(agent, 6)
+    quiet.expect_agent_told_nothing(agent)
+    story.expect_chat_marks(CardType.FAULTS)
+    story.expect_stack(agent, LeadingPlan, Ended)
+
+
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
+def test_releasing_a_worker_ends_the_plan_agents_wait_on_it(story):
+    agent = plan_agent()
+    worker = dispatch_worker(story, agent)
+    wait_for_worker(story, agent, worker)
+
+    story.user_cancels_task(story.tasks.first, "the task is no longer needed").expect_viewer_passed()
+    story.expect_worker(worker, state=WorkerState.RELEASED)
+    story.expect_stack(agent, LeadingPlan, FollowingPlan)
+
+
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
+def test_finishing_a_plan_ends_its_plan_agent(story):
+    agent = plan_agent()
+    result = story.agent_in_runs(
+        agent,
+        f"plan-{story.plans.first}",
+        PLAN_AGENT_SESSION,
+        f"task complete {story.tasks.first} --how done",
+    )
+    result.expect_command_passed()
+    story.expect_plan(story.plans.first, state=PlanState.FINISHED)
+    story.expect_stack(agent, LeadingPlan, Ended)
+
+
+@story(OrganizationPlanHandoffSeat, subject=AgentRole.MAIN)
+def test_cancelling_an_organization_plan_stops_its_plan_seat(story):
+    plan = story.plans.first
+    cancelled = story.user_cancels_plan(plan)
+    cancelled.expect_agent_told_nothing(story.agents.main)
+    story.expect_plan(plan, state=PlanState.CANCELLED)
+    story.expect_openrig_seat_stopped("plan")
+    story.expect_stack(story.agents.main, LeadingPlan, Ended)

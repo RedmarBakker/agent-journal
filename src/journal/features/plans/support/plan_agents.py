@@ -9,7 +9,7 @@ from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_bindings import PlanBindings
-from journal.models.agent import Agent
+from journal.models.agent import Agent, ENDED_STATE
 from journal.models.author import Author
 from journal.models.environment import Environment
 from journal.models.message import Message
@@ -116,8 +116,17 @@ class PlanAgents:
                 self.record_usage(plan)
             environment = self.environment(plan)
             if environment:
+                if agent := self.agent(plan):
+                    with self.scope.environment(agent.environment_id):
+                        current = self.agents.find(agent.row_id)
+                        if current.state != ENDED_STATE:
+                            stopped = (
+                                current.plan_stopped(plan.row_id, event.time)
+                                if plan.state.is_closed()
+                                else current.retired(event.time)
+                            )
+                            self.agents.save(stopped, Actor.system())
                 if plan.mode == PlanMode.ORGANIZATION:
-                    agent = self.agent(plan)
                     if agent:
                         self.staffing.stop_plan(plan, agent.provider)
                 self.places.stopped(environment)

@@ -89,6 +89,9 @@ class SupervisorLink:
     def clear(self, environment_id: int) -> None:
         self.typed.clear(environment_id)
 
+    def discard(self, environment_id: int) -> None:
+        self.typed.discard(environment_id)
+
     def pause(self, environment_id: int) -> None:
         self.typed.pause(environment_id)
 

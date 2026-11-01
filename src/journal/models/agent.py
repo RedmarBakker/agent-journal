@@ -17,6 +17,7 @@ from journal.events.rows.agent_thinking import AgentThinking
 from journal.events.rows.agent_thinking_ended import AgentThinkingEnded
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.session_retired import SessionRetired
+from journal.events.rows.plan_agent_stopped import PlanAgentStopped
 from journal.events.rows.launch_takeover import LaunchTakeover
 from journal.events.rows.overview_read import OverviewRead
 from journal.events.rows.context_decided import ContextDecided
@@ -116,7 +117,10 @@ class Agent(Scoped):
         return {**sessions, self.provider: self.session}
 
     def retired(self, time: float) -> "Agent":
-        return self.with_event(SessionRetired(environment_id=self.environment_id, time=time, agent_session=self.session))
+        return self.with_event(SessionRetired(environment_id=self.environment_id, time=time, session=self.session, agent_session=self.session))
+
+    def plan_stopped(self, plan_id: int, time: float) -> "Agent":
+        return self.with_event(PlanAgentStopped(environment_id=self.environment_id, time=time, session=self.session, plan_id=plan_id))
 
     def upgraded(self, previous: str, version: str, time: float) -> "Agent":
         return self.with_event(LaunchTakeover(environment_id=self.environment_id, time=time, agent_session=self.session, previous=previous, version=version))
