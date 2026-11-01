@@ -16,6 +16,9 @@ from tests.stories.fixtures.main.organization_task_part_clocked_in import (
 from tests.stories.fixtures.main.organization_task_split_domain_read import OrganizationTaskSplitDomainRead
 from tests.stories.fixtures.main.organization_task_split_plan import OrganizationTaskSplitPlan
 from tests.stories.fixtures.main.organization_task_two_parts_clocked_in import OrganizationTaskTwoPartsClockedIn
+from tests.stories.fixtures.main.organization_task_two_parts_multi_point_builder import (
+    OrganizationTaskTwoPartsMultiPointBuilder,
+)
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
@@ -64,18 +67,11 @@ def _return_part_to_plan(story, part: int, worker, role: str):
     return worker
 
 
-@story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsMultiPointBuilder, subject=AgentRole.MAIN)
 def test_a_domain_splits_a_task_into_two_parts_and_each_role_gets_its_job(story):
     parent = story.tasks.first
-    first = _part(story, parent, "builder", "first part", PART_BRIEF)
-    first.expect_command_passed()
-    first_part = story.newest("tasks")
-    builder = _start_worker(story, "builder", PART_BRIEF, "first")
-
-    second = _part(story, parent, "maker", "second part", MAKER_BRIEF)
-    second.expect_command_passed()
-    second_part = story.newest("tasks")
-    maker = _start_worker(story, "maker", MAKER_BRIEF, "second")
+    first_part, second_part = story.tasks.first_part, story.tasks.second_part
+    builder, maker = story.agents.workers.first(), story.agents.workers.second()
     parts = story.agent_runs_as_organization_seat(_domain(story), "domain:alpha", f"organization parts {parent}")
     parts.expect_command_passed()
     parts.expect_command_text(f"task {first_part}")

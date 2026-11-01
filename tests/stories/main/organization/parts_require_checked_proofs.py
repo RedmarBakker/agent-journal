@@ -6,42 +6,18 @@ from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.organization_task_split_domain_read import OrganizationTaskSplitDomainRead
+from tests.stories.fixtures.main.organization_task_two_parts_multi_point_builder import (
+    OrganizationTaskTwoPartsMultiPointBuilder,
+)
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
-MULTI_POINT_BRIEF = "- the first point is met\n- the second point is met"
 
-
-@story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsMultiPointBuilder, subject=AgentRole.MAIN)
 def test_a_domain_checks_unchecked_role_proofs_before_returning_parts_to_the_plan(story):
     plan, parent = story.plans.first, story.tasks.first
+    first_part, second_part = story.tasks.first_part, story.tasks.second_part
+    first_worker, second_worker = story.agents.workers.first(), story.agents.workers.second()
     domain = story.organization_seat_agent("domain:alpha")
-
-    first_started = story.agent_runs_as_organization_seat(
-        domain, "domain:alpha",
-        f'organization part {parent} role:alpha/builder "first part" --brief "{MULTI_POINT_BRIEF}"',
-    )
-    first_started.expect_command_passed()
-    first_part = story.newest("tasks")
-    story.fixture.workers.__setattr__("first", story.newest("workers"))
-    first_worker = story.agents.workers.first()
-    story.agent_starts_role_session(first_worker).expect_allowed(first_worker)
-    story.expect_openrig_seat_environment(first_worker, "role:alpha/builder")
-    story.expect_role_job_prompt(first_worker, MULTI_POINT_BRIEF, "old task brief", "journal clock-in")
-    story.agent_runs_from_openrig_organization_seat(first_worker, "role:alpha/builder", "clock-in").expect_command_passed()
-
-    second_started = story.agent_runs_as_organization_seat(
-        domain, "domain:alpha",
-        f'organization part {parent} role:alpha/maker "second part" --brief "- the second part is complete"',
-    )
-    second_started.expect_command_passed()
-    second_part = story.newest("tasks")
-    story.fixture.workers.__setattr__("second", story.newest("workers"))
-    second_worker = story.agents.workers.second()
-    story.agent_starts_role_session(second_worker).expect_allowed(second_worker)
-    story.expect_openrig_seat_environment(second_worker, "role:alpha/maker")
-    story.expect_role_job_prompt(second_worker, "- the second part is complete", "old task brief", "journal clock-in")
-    story.agent_runs_from_openrig_organization_seat(second_worker, "role:alpha/maker", "clock-in").expect_command_passed()
 
     story.agent_proves(first_worker, 1, "the first point is met")
     story.agent_proves(first_worker, 2, "the second point is met")
