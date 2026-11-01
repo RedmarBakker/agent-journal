@@ -8,12 +8,11 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
 def simulate_git(story, changed=(), repository=True, staged_before=()):
-    service = story.app.container.get(ProjectUpdateCommit)
     staged = set(staged_before)
     commits = []
     changed = set(changed)
 
-    def git(*arguments):
+    def git(_service, *arguments):
         if arguments[:2] == ("rev-parse", "--show-toplevel"):
             return CompletedProcess(arguments, 0 if repository else 128, "project\n" if repository else "", "")
         if arguments[0] == "check-ignore":
@@ -35,7 +34,7 @@ def simulate_git(story, changed=(), repository=True, staged_before=()):
                 return CompletedProcess(arguments, 1, "", "the update included a file already staged by the user")
         return CompletedProcess(arguments, 0, "", "")
 
-    story.monkeypatch.setattr(service, "git", git)
+    story.monkeypatch.setattr(ProjectUpdateCommit, "git", git)
 
 
 @story(WorkingAgent, subject=AgentRole.MAIN)
