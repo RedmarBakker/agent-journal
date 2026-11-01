@@ -3458,7 +3458,7 @@ def test_a_read_that_asks_a_server_outside_is_not_judged_against_the_budget(app:
     from journal.support.response import Response
     from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     measured = []
-    monkeypatch.setattr(RequestTimeRecorder, "measured", lambda self, method, path, ms: measured.append(path))
+    monkeypatch.setattr(RequestTimeRecorder, "measured", lambda self, timer, method, path, ms: measured.append(path))
     router = app.container.get(Router)
     router.get_outward("/journal/far", lambda request: Response.json({}))
     router.get("/journal/near", lambda request: Response.json({}))
