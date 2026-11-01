@@ -29,7 +29,7 @@ USER_PAUSER = "user"
 AGENT_PAUSER = "agent"
 # a plan the agent paused and said it does not return to once its outside task is done
 DECLINED_RETURN_PAUSER = "agent, no return"
-# a plan paused because another plan was started or kept, as a builder follows one plan at a time; no return is asked for it
+# a plan paused because another plan was started or kept; no return is asked for it
 FOCUS_PAUSER = "another plan"
 
 @dataclass(frozen=True)

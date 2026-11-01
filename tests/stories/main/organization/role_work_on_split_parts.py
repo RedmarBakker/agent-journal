@@ -1,7 +1,6 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -11,7 +10,7 @@ from tests.stories.fixtures.main.organization_task_two_parts_clocked_in import O
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
 
-@story(OrganizationTaskTwoPartsClockedIn, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationTaskTwoPartsClockedIn, subject=AgentRole.MAIN)
 def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_both_merge(story):
     plan, parent = story.plans.first, story.tasks.first
     first_part, second_part = story.tasks.first_part, story.tasks.second_part

@@ -355,7 +355,7 @@ state: {task.state}
         request = NextTasksRequest(agent=agent).placed(agent, None, self.time_source.moment().timestamp())
         assignment = self.assigners.resolved(agent).next_task(agent, request, args.quantity)
         if not assignment.has_task():
-            print("no task to hand out now: the builder is handed its next task at a stop or when its task closes")
+            print("no task to hand out now: the agent is handed its next task at a stop or when its task closes")
             return 0
         for task in (self.tasks.find(task_id) for task_id in assignment.task_ids()):
             print(f"task {task.id}: {task.title}")

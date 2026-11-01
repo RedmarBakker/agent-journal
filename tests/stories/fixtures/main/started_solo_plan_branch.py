@@ -1,6 +1,5 @@
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
-from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.support.workspace_worktree import WorkspaceWorktree
@@ -15,7 +14,7 @@ class StartedSoloPlanBranch(StateFixture):
     """A solo Plan agent has committed work on its branch while its tasks remain open."""
 
     parent = CoordinatingPlanAgent
-    stack = (CoordinatingPlans, OrchestratingPlan)
+    stack = (CoordinatingPlans,)
 
     def steps(self, story) -> None:
         story.project_is_a_git_repository()
@@ -51,4 +50,4 @@ class StartedSoloPlanBranch(StateFixture):
 
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.STARTED)
-        story.expect_stack(story.agents.main, CoordinatingPlans, OrchestratingPlan)
+        story.expect_stack(story.agents.main, CoordinatingPlans)

@@ -95,7 +95,7 @@ def test_a_plan_drafted_before_enforcement_is_not_retroactively_trapped(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftPlan, subject=AgentRole.MAIN)
 def test_a_solo_plan_cannot_be_readied_when_an_organization_is_configured(story):
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'production accepts the revision'")
     story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'release' --brief 'the release is deployed' --size 3 --phase 1")
@@ -108,7 +108,7 @@ def test_a_solo_plan_cannot_be_readied_when_an_organization_is_configured(story)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftPlan, subject=AgentRole.MAIN)
 def test_an_explicit_solo_mode_can_be_readied_with_an_organization_configured(story):
     story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} solo").expect_command_passed()
     story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'the work is complete'")
@@ -125,7 +125,7 @@ def test_an_explicit_solo_mode_can_be_readied_with_an_organization_configured(st
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(EnforcedDependencyPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDependencyPlan, subject=AgentRole.MAIN)
 def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
     result = story.agent_runs(story.agents.subject, f"plan show {story.plans.first}")
     result.expect_command_text("size:3")
@@ -137,7 +137,7 @@ def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(DraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(DraftPlan, subject=AgentRole.MAIN)
 def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(story):
     result = story.agent_runs(story.agents.subject, "sequence follow")
     result.expect_command_passed()
@@ -165,7 +165,7 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 
-@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(EnforcedDraftPlan, subject=AgentRole.MAIN)
 def test_a_user_message_about_organization_domains_or_roles_requires_the_organization_skill(story):
     story.agent_reads_a_skill(story.agents.subject, "journal-messages")
     story.agent_reads_a_skill(story.agents.subject, "journal-plans")

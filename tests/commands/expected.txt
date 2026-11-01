@@ -38,7 +38,7 @@ exit 0
 
 $ agent: journal task next --quantity 2
 exit 0
-no task to hand out now: the builder is handed its next task at a stop or when its task closes
+no task to hand out now: the agent is handed its next task at a stop or when its task closes
 
 $ agent: journal task pause 1 'the cart comes first'
 exit 1

@@ -28,7 +28,7 @@ def test_a_start_lists_what_waits_for_the_agent(story):
     story.expect_stack(story.agents.subject, Ready, Working)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_session_start_does_not_name_a_missing_task_as_in_hand(story):
     result = story.agent_runs(story.agents.subject, "panic working task_id=1")
     result.expect_command_passed()
