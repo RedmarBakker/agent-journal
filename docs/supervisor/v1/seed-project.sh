@@ -46,6 +46,7 @@ git -C "$PROJECT_EXPORT" archive --format=tar HEAD -- \
 docker run --rm \
     --network none \
     --user 10001:10001 \
+    --env "PROJECT_REVISION=$PROJECT_REVISION" \
     --entrypoint /bin/sh \
     --mount "type=bind,src=$ARCHIVE,dst=/seed.tar,readonly" \
     --mount "type=volume,src=$VOLUME,dst=/data" \
@@ -56,4 +57,10 @@ docker run --rm \
             exit 3
         fi
         tar -xf /seed.tar -C /data/project
+        git -C /data/project init --initial-branch=main
+        git -C /data/project add --all
+        git -C /data/project \
+            -c user.name="Journal project owner" \
+            -c user.email="journal-project-owner@localhost" \
+            commit --message "Seed project at $PROJECT_REVISION"
     '

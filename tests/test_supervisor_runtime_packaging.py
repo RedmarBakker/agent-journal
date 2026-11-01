@@ -194,6 +194,25 @@ def test_seed_script_requires_a_clean_matching_commit_and_excludes_runtime_state
     assert "writer project folder is not empty" in script
 
 
+def test_seeded_project_is_committed_on_main_as_the_project_owner():
+    script = (PROFILE / "seed-project.sh").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+
+    assert "--user 10001:10001" in script
+    assert '--env "PROJECT_REVISION=$PROJECT_REVISION"' in script
+    assert script.index("tar -xf /seed.tar -C /data/project") < script.index(
+        "git -C /data/project init --initial-branch=main"
+    )
+    assert script.index("git -C /data/project init --initial-branch=main") < script.index(
+        "git -C /data/project add --all"
+    ) < script.index('commit --message "Seed project at $PROJECT_REVISION"')
+    assert script.count("commit --message") == 1
+    assert '-c user.name="Journal project owner"' in script
+    assert '-c user.email="journal-project-owner@localhost"' in script
+    assert "main Git repository" in runbook
+    assert "first commit as uid/gid 10001 with `PROJECT_REVISION` in the message" in runbook
+
+
 def test_writer_build_uses_a_sanitized_commit_matched_context():
     script = (PROFILE / "build-writer.sh").read_text()
 
