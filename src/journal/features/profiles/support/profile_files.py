@@ -95,6 +95,17 @@ class ProfileFiles:
         model, codex_model = str(self.settings.option(ProfilesOptions.CLAUDE_MODEL)), str(self.settings.option(ProfilesOptions.CODEX_MODEL))
         return [path for profile in self.PROFILES for path in self.write(profile, profile.model_default(model), codex_model)]
 
+    def managed_paths(self) -> list[Path]:
+        paths = []
+        bodies = [profile.body for profile in self.PROFILES]
+        for folder in self.agent_folders():
+            paths.extend((*folder.glob(f"{PREFIX}*.md"), *folder.glob(f"{PREFIX}*.toml")))
+            for name in UNPREFIXED:
+                for path in (folder / f"{name}.md", folder / f"{name}.toml"):
+                    if path.is_file() and any(body in path.read_text() for body in bodies):
+                        paths.append(path)
+        return paths
+
     def clear(self) -> None:
         bodies = [profile.body for profile in self.PROFILES]
         for folder in self.agent_folders():

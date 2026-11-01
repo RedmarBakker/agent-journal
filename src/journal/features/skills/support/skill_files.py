@@ -32,6 +32,14 @@ class SkillFiles:
                 saved.append(path)
         return saved
 
+    def managed_paths(self) -> list[Path]:
+        paths = []
+        for home in HOMES:
+            for folder in (self.config.root / home).glob(f"{JOURNAL_SKILL_PREFIX}*"):
+                if self.is_journals(folder):
+                    paths.append(folder if folder.is_symlink() else folder / SKILL_FILE)
+        return paths
+
     def clear(self) -> None:
         for home in HOMES:
             for folder in (self.config.root / home).glob(f"{JOURNAL_SKILL_PREFIX}*"):

@@ -61,10 +61,11 @@ fi
 HERE="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 TMP=""
 REPO="${AGENT_JOURNAL_REPO:-https://github.com/jessegall/agent-journal}"
+REF="${AGENT_JOURNAL_REF:-}"
 if [ -d "$HERE/src/journal" ]; then
   SRC="$HERE/src"
 else
-  REF="${AGENT_JOURNAL_REF:-main}"
+  REF="${REF:-main}"
   TMP="$(mktemp -d)"
   git clone --quiet --depth 1 --branch "$REF" "$REPO" "$TMP/pkg"
   SRC="$TMP/pkg/src"
@@ -185,7 +186,7 @@ if [ -n "$path" ]; then
   for step in $path; do
     path_written "$reached" ""
     step_tmp="$(mktemp -d)"
-    if ! { git clone --quiet --depth 1 --branch "v$step" "$REPO" "$step_tmp/pkg" && sh "$step_tmp/pkg/install.sh"; }; then
+    if ! { git clone --quiet --depth 1 --branch "v$step" "$REPO" "$step_tmp/pkg" && AGENT_JOURNAL_UPDATE_IN_PROGRESS=1 sh "$step_tmp/pkg/install.sh"; }; then
       rm -rf "$step_tmp"
       path_written "$reached" "$step"
       echo "the update stopped at $reached: the step to $step failed, and $reached stays installed" >&2
@@ -222,5 +223,7 @@ commit=$(git -C "$SRC/.." rev-parse HEAD 2>/dev/null || cat "$SRC/commit" 2>/dev
 printf '%s\n' "$commit" > .journal/src/commit
 echo "installed commit $commit from $SRC"
 [ -z "$TMP" ] || rm -rf "$TMP"
-JOURNAL_ROOT="$PWD" "$PY" .journal/src/journal.py setup
+update_ref=""
+if [ -n "$installed" ] && [ "${AGENT_JOURNAL_UPDATE_IN_PROGRESS:-}" != 1 ]; then update_ref="${REF:-$bringing}"; fi
+JOURNAL_ROOT="$PWD" JOURNAL_UPDATE_REF="$update_ref" "$PY" .journal/src/journal.py setup
 [ -z "$path" ] || path_written "$bringing" ""

@@ -1,24 +1,25 @@
 import os
 import shutil
-from journal.providers.provider import HOOK_SCRIPT
 from argparse import Namespace
 from pathlib import Path
 
 from journal.config import Config
 from journal.console.command import Command
-from journal.support.caller import Caller
-from journal.support.law_text import LawText
+from journal.console.support.project_update_commit import ProjectUpdateCommit
+from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.shell.support.restart_queue import RestartQueue
 from journal.features.shell.support.shell_request import OUTPUT_FOLDER_VARIABLE
+from journal.features.skills.support.skill_files import SkillFiles
+from journal.launcher.dispatcher import Dispatcher
 from journal.models.command_output import CommandOutput
 from journal.models.environment import Environment
-from journal.features.skills.support.skill_files import SkillFiles
-from journal.features.plugins.support.plugin_skills import PluginSkills
+from journal.providers.provider import HOOK_SCRIPT
 from journal.providers.providers import Providers
 from journal.repositories.environments import Environments
+from journal.support.caller import Caller
+from journal.support.law_text import LawText
 from journal.supervisor_link import SupervisorLink
-from journal.launcher.dispatcher import Dispatcher
 from journal.support.project_command import ProjectCommand
 
 # what the project's .gitignore keeps out of git, each with the spellings that already do: the journal's folder, and the
@@ -32,8 +33,8 @@ class SetupCommand(Command):
     noun = "setup"
     default_verb = "project"
 
-    def __init__(self, config: Config, providers: Providers, files: SkillFiles, plugin_skills: PluginSkills, profiles: ProfileFiles, environments: Environments, supervisor: SupervisorLink, queue: RestartQueue) -> None:
-        self.config, self.providers, self.files, self.plugin_skills, self.profiles, self.environments, self.supervisor, self.queue = config, providers, files, plugin_skills, profiles, environments, supervisor, queue
+    def __init__(self, config: Config, providers: Providers, files: SkillFiles, plugin_skills: PluginSkills, profiles: ProfileFiles, environments: Environments, supervisor: SupervisorLink, queue: RestartQueue, update_commit: ProjectUpdateCommit) -> None:
+        self.config, self.providers, self.files, self.plugin_skills, self.profiles, self.environments, self.supervisor, self.queue, self.update_commit = config, providers, files, plugin_skills, profiles, environments, supervisor, queue, update_commit
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "project", "wire the hooks, write the skills and the law, put journal on the path; what journal setup does alone")
@@ -42,19 +43,37 @@ class SetupCommand(Command):
 
     def project(self, args: Namespace, caller: Caller) -> int:
         self.config.home.mkdir(parents=True, exist_ok=True)
-        self.hooks(args, caller)
-        for path in self.files.write_all():
+        update_files = [*self.files.managed_paths(), *self.profiles.managed_paths(), *self.project_hooks(args, caller)]
+        skills = self.files.write_all()
+        update_files.extend(skills)
+        for path in skills:
             print(f"skill   {path.relative_to(self.config.root)}")
         self.plugin_skills.refresh_all()
-        for path in self.profiles.write_all():
+        profiles = self.profiles.write_all()
+        update_files.extend(profiles)
+        for path in profiles:
             print(f"profile {path.relative_to(self.config.root)}")
-        print(f"law     {self.law().relative_to(self.config.root)}")
-        print(f"imports {self.claude_md().relative_to(self.config.root)}")
+        law_path = self.config.root / "AGENTS.md"
+        law_before = self.file_state(law_path)
+        law = self.law()
+        imports_path = self.config.root / "CLAUDE.md"
+        imports_before = self.file_state(imports_path)
+        imports = self.claude_md()
+        ignored_path = self.config.root / ".gitignore"
+        ignored_before = self.file_state(ignored_path)
+        ignored = self.ignored()
+        update_files.extend(path for path, before in ((law, law_before), (imports, imports_before), (ignored, ignored_before)) if self.file_state(path) != before)
+        print(f"law     {law.relative_to(self.config.root)}")
+        print(f"imports {imports.relative_to(self.config.root)}")
         print(f"command {self.shim()}")
         dispatcher = Dispatcher(Path.home())
         if dispatcher.is_writable():
             print(f"journal {dispatcher.write()}")
-        print(f"ignored {self.ignored().relative_to(self.config.root)}")
+        print(f"ignored {ignored.relative_to(self.config.root)}")
+        release = os.environ.get("JOURNAL_UPDATE_REF", "")
+        committed = self.update_commit.commit(update_files, release)
+        if committed:
+            print(f"update commit: Update the journal to {release} ({', '.join(committed)})")
         for line in self.restarted():
             print(line)
         return 0
@@ -79,12 +98,29 @@ class SetupCommand(Command):
         return f"restart {environment.name} waits: outputs {numbers} still run, and the restart starts by itself once the last of them ends. check each with journal output status, whether it is still working and why, and end any that is stuck"
 
     def hooks(self, args: Namespace, caller: Caller) -> int:
+        self.project_hooks(args, caller)
+        return 0
+
+    def project_hooks(self, args: Namespace, caller: Caller) -> list[Path]:
+        paths = []
         for provider in self.providers.all():
             if not provider.default and not (self.config.root / provider.home).is_dir() and not shutil.which(provider.name):
                 continue
+            for counterpart in provider.foreign_settings:
+                path = self.config.root / provider.home / counterpart
+                if path.is_file() and provider.has_journal_hooks(path):
+                    paths.append(path)
             command = provider.hook_command(self.config.root)
-            print(f"hooks   {provider.wire_hooks(self.config.root, HOOK_SCRIPT, command).relative_to(self.config.root)}")
-        return 0
+            previous = self.file_state(self.config.root / provider.home / provider.settings_file)
+            path = provider.wire_hooks(self.config.root, HOOK_SCRIPT, command)
+            if self.file_state(path) != previous:
+                paths.append(path)
+            print(f"hooks   {path.relative_to(self.config.root)}")
+        return paths
+
+    @staticmethod
+    def file_state(path: Path) -> bytes | None:
+        return path.read_bytes() if path.is_file() else None
 
     def law(self) -> Path:
         path = self.config.root / "AGENTS.md"
