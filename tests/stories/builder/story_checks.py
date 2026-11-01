@@ -438,13 +438,22 @@ class StoryChecks:
     def expect_worker_role_job(self, worker: StoryAgent, task: int, brief: str, stale_brief: str) -> None:
         self.settle()
         with self.app.container.get(Scope).environment(1):
-            row = self.app.container.get(WorkerRows).find(worker.number)
-            task_row = self.app.container.get(Tasks).find(task)
+            row = self.app.container.get(WorkerRows).global_matching(id=worker.number)[0]
+            task_row = self.app.container.get(Tasks).global_matching(id=task)[0]
             holder = self.app.container.get(Tasks).holder(task_row)
         assert row.role and row.plan_id, f"worker {row.id} is not a plan Role job: {row}"
         assert holder == Ref.build(row), f"task {task} is held by {holder}, not Role worker {row.id}"
         assert brief in row.brief and brief in task_row.brief, f"worker {row.id} has not received task {task}'s brief {task_row.brief!r}: {row.brief!r}"
         assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
+
+    def expect_no_user_message_text_in(self, environment: str, text: str) -> None:
+        rows = get_answer(self.app, "/journal/messages", {"X-Journal-Env": environment})[1]["rows"]
+        matches = [row for row in rows if row.get("author") == "user" and row.get("text") == text]
+        assert not matches, f"{environment} chat contains a user message for the Role job: {matches}"
+
+    def newest_in(self, table: str, environment: str) -> int:
+        rows = get_answer(self.app, f"/journal/{table}", {"X-Journal-Env": environment})[1]["rows"]
+        return max((row["id"] for row in rows), default=0)
 
     def expect_role_job_prompt(self, worker: StoryAgent, brief: str, stale_brief: str, *parts: str) -> None:
         prompt = self.role_job_prompt(worker, brief, *parts)
@@ -468,7 +477,7 @@ class StoryChecks:
 
     def organization_role_member(self, worker: StoryAgent):
         with self.app.container.get(Scope).environment(1):
-            row = self.app.container.get(WorkerRows).find(worker.number)
+            row = self.app.container.get(WorkerRows).global_matching(id=worker.number)[0]
         role = self.app.container.get(Organization).at(row.contract).role(row.role)
         plan = self.app.container.get(Plans).global_matching(id=row.plan_id)[0]
         staffing = self.app.container.get(RigStaffing)

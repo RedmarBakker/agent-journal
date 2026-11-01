@@ -92,7 +92,7 @@ class SeatRunner:
             return False
         if role.cardinality is Cardinality.JOURNAL:
             return self.job_plan(worker) is not None
-        plan = self.plans.find(worker.plan_id) if worker.plan_id else None
+        plan = next(iter(self.plans.global_matching(id=worker.plan_id)), None) if worker.plan_id else None
         return bool(plan and plan.mode is PlanMode.ORGANIZATION and role.cardinality in (Cardinality.PLAN, Cardinality.MANY))
 
     def role_for(self, worker: Worker) -> Role | None:

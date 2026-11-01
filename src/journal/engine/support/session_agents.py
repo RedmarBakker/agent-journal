@@ -49,9 +49,13 @@ class SessionAgents:
 
     def worker_agent(self, session: str, environment_id: int, provider: str | None) -> Agent:
         rows = self.session_rows(session)
-        if rows:
+        if rows and rows[0].role == AgentRole.WORKER and rows[0].environment_id == environment_id:
             return rows[0]
         worker_row = self.unsaved(session, environment_id, provider, self.states.helper_layers(self.states.sent_first(AgentRole.WORKER)), AgentRole.WORKER)
+        if rows:
+            worker_row = rows[0].with_(environment_id=worker_row.environment_id, provider=worker_row.provider,
+                                       state=worker_row.state, data=worker_row.data, stack=worker_row.stack,
+                                       role=worker_row.role)
         return self.agents.save(worker_row.with_event(WorkerAgentCreated(agent_session=session)), Actor.system())
 
     def created(self, session: str, environment_id: int, provider: str | None, layers: Stack, role: AgentRole) -> Agent:

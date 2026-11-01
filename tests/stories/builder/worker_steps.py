@@ -78,6 +78,19 @@ class WorkerSteps:
         status, answer = self.session_posted_hook(session, headers, "SessionStart", {"source": "startup"})
         return self.hook_observed(f"Role seat {seat} starts a new session", status, answer, journal_environment)
 
+    def organization_role_seat_starts_a_session(self, agent: StoryAgent, seat: str) -> StepResult:
+        member = self.organization_seat_member(seat)
+        environment = self.openrig_organization_seat_environment(seat)
+        self.simulated_seats().start_session(member.target, environment)
+        session = str(self.simulated_seats().sessions[member.target]["sessionId"])
+        journal_environment = environment["JOURNAL_ENV"]
+        self.worker_sessions[agent.number] = session
+        self.session_environments[session] = journal_environment
+        status, answer = self.session_posted_hook(
+            session, {"X-Journal-Env": journal_environment}, "SessionStart", {"source": "startup"},
+        )
+        return self.hook_observed(f"Role seat {seat} starts a session", status, answer, journal_environment)
+
     def agent_reads_from_organization_role_seat(self, agent: StoryAgent, seat: str, path: str) -> StepResult:
         return self.organization_role_tool(agent, seat, self.tools.read, {"file_path": path})
 
