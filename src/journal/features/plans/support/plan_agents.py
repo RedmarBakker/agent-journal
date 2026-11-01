@@ -114,18 +114,14 @@ class PlanAgents:
             plan = self.plans.find(event.plan_id)
             if plan.mode in (PlanMode.SOLO, PlanMode.ORGANIZATION):
                 self.record_usage(plan)
-            environment = self.environment(plan)
+            agent = self.agent(plan)
+            environment = self.environments.find(agent.environment_id) if agent else None
             if environment:
-                if agent := self.agent(plan):
+                if agent and plan.state.is_closed():
                     with self.scope.environment(agent.environment_id):
                         current = self.agents.find(agent.row_id)
                         if current.state != ENDED_STATE:
-                            stopped = (
-                                current.plan_stopped(plan.row_id, event.time)
-                                if plan.state.is_closed()
-                                else current.retired(event.time)
-                            )
-                            self.agents.save(stopped, Actor.system())
+                            self.agents.save(current.plan_stopped(plan.row_id, event.time), Actor.system())
                 if plan.mode == PlanMode.ORGANIZATION:
                     if agent:
                         self.staffing.stop_plan(plan, agent.provider)
