@@ -43,6 +43,7 @@ def test_cancelling_a_plan_ends_its_plan_agent_waiting_on_a_worker(story):
     story.clock_ticks(300)
 
     cancelled = story.user_cancels_plan(story.plans.first)
+    story.settle()
     cancelled.expect_agent_told_nothing(agent)
     story.expect_worker_in(f"plan-{story.plans.first}", worker, state=WorkerState.RELEASED)
     story.expect_stack(agent, LeadingPlan, Ended)
