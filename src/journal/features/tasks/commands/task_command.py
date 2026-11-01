@@ -85,7 +85,7 @@ class TaskCommand(Command):
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
         sizing = self.verb(verbs, "size", "set the current story point size of a planned task")
         sizing.add_argument("n", type=int)
-        sizing.add_argument("size", help="a value in configured estimates.size_scale, or unknown")
+        sizing.add_argument("size", help=f"estimates.size_scale: {self.task_sizes.scale.display_values()}; or unknown")
         sizing.add_argument("--reason", required=True, help="why the accepted size is revised")
         scope_size = self.verb(verbs, "scope-size", "revise the story point size after its scope changes")
         scope_size.set_defaults(verb="scope_size")

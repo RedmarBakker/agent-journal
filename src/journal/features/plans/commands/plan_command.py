@@ -82,7 +82,7 @@ class PlanCommand(Command):
         addition.add_argument("title")
         addition.add_argument("--brief", default="")
         addition.add_argument("--domain", default="")
-        addition.add_argument("--size", default="unknown", help="a value in configured estimates.size_scale, or unknown")
+        addition.add_argument("--size", default="unknown", help=f"estimates.size_scale: {self.task_sizes.scale.display_values()}; or unknown")
         addition.add_argument("--first", action="store_true", help="put it before the tasks the plan has")
         addition.add_argument("--phase", type=int, default=0, help="the phase it goes under, by its number from 1, in the same step")
         addition.add_argument("--after", type=int, action="append", default=[], help="a task that must be accepted first; repeat for more")

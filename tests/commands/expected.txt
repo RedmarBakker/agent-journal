@@ -108,7 +108,7 @@ usage: journal task size [-h] --reason REASON n size
 
 positional arguments:
   n
-  size             a value in configured estimates.size_scale, or unknown
+  size             estimates.size_scale: 1, 2, 3, 5, 8, 13; or unknown
 
 options:
   -h, --help       show this help message and exit
@@ -373,7 +373,7 @@ options:
   -h, --help            show this help message and exit
   --brief BRIEF
   --domain DOMAIN
-  --size SIZE           a value in configured estimates.size_scale, or unknown
+  --size SIZE           estimates.size_scale: 1, 2, 3, 5, 8, 13; or unknown
   --first               put it before the tasks the plan has
   --phase PHASE         the phase it goes under, by its number from 1, in the
                         same step

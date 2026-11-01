@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Callable
 
 from journal.engine.nudger import Nudger
@@ -15,6 +16,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.rows import Rows
 from journal.repositories.workers import Workers
+from journal.features.estimates.support.task_size_scale import TaskSizeScale
 from journal.features.sequences.sequences_nudges import SequencesNudges
 from journal.support.time_source import TimeSource
 
@@ -22,9 +24,10 @@ from journal.support.time_source import TimeSource
 class RunTracker:
     """The one way a sequence run is started and moved: each start and move is an event on the agent's row, which the sequence state on its stack answers; the runs themselves are read from those states, the bottom one first and the one in hand last."""
 
-    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger, time_source: TimeSource, states: StatesCatalogue) -> None:
+    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger, time_source: TimeSource, states: StatesCatalogue, size_scale: TaskSizeScale) -> None:
         self.time_source, self.states = time_source, states
         self.sessions, self.agents, self.requiring, self.workers, self.rows, self.nudger = sessions, agents, requirements, workers, rows, nudger
+        self.size_scale = size_scale
 
     @staticmethod
     def runs(agent: Agent) -> list[SequenceRun]:
@@ -37,7 +40,8 @@ class RunTracker:
         agent = self.sessions.agent(session, environment_id)
         if any(run.sequence_id == sequence.id for run in self.runs(agent)) or not sequence.steps or not self.states.stack(agent).top().takes_pushes():
             return ""
-        run = SequenceRun(sequence.row_id, sequence.title, tuple(sequence.steps), subject=topic, started_at=self.timestamp(), announced_at=self.timestamp(), end_condition=tuple(sequence.end_condition))
+        steps = tuple(replace(step, instructions=step.instructions.replace("{size_scale_values}", self.size_scale.display_values())) for step in sequence.steps)
+        run = SequenceRun(sequence.row_id, sequence.title, steps, subject=topic, started_at=self.timestamp(), announced_at=self.timestamp(), end_condition=tuple(sequence.end_condition))
         liabilities = self.requiring.require(agent, self.requiring.obligations(agent, self.requiring.lookup("sequences")))
         self.moved(agent, lambda current: current.sequence_started(run, self.time_source.seconds()))
         return "\n".join([*liabilities, self.line(agent, self.step(run))])

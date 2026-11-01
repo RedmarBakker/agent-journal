@@ -21,6 +21,9 @@ class TaskSizeScale:
             raise Rejection("estimates.size_scale must be an ordered list of distinct positive whole numbers")
         return values
 
+    def display_values(self) -> str:
+        return ", ".join(map(str, self.values()))
+
     def version(self) -> str:
         return self.version_of(self.values())
 

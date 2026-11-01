@@ -7,7 +7,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import story
+from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.draft_plan import DraftPlan
 from tests.stories.fixtures.main.domain_policy_plan import DomainPolicyPlan
 from tests.stories.fixtures.main.enforced_dependency_plan import EnforcedDependencyPlan
@@ -137,6 +137,7 @@ def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
+@setting(EstimatesOptions.SIZE_SCALE, [2, 4, 6])
 @story(DraftPlan, subject=AgentRole.MAIN)
 def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(story):
     result = story.agent_runs(story.agents.subject, "sequence follow")
@@ -148,7 +149,7 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
     result = story.agent_runs(story.agents.subject, "sequence next")
     result.expect_command_passed()
     for words in (
-        ("estimates.size_scale",),
+        ("estimates.size_scale", "2, 4, 6"),
         ("--after",),
         ("plan mode", "--domain", "Roles"),
         ("--priority",),
