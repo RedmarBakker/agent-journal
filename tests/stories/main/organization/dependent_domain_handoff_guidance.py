@@ -9,11 +9,10 @@ from tests.stories.fixtures.main.organization_plan_with_dependent_domains import
 @story(OrganizationPlanWithDependentDomains, subject=AgentRole.MAIN)
 def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story):
     plan, security, engineering = story.plans.first, story.tasks.first, story.tasks.second
-    plan_seat = story.organization_seat_agent_in_plan("plan", plan)
-    plan_stop = story.agent_stops_plan_seat(plan_seat, plan)
-    plan_stop.expect_allowed(plan_seat)
+    plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)
+    plan_stop.expect_allowed(story.agents.main)
     plan_stop.expect_agent_not_told(
-        plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
 
@@ -47,17 +46,17 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
-    resumed_plan = story.agent_resumes_the_session(plan_seat)
+    resumed_plan = story.agent_starts_plan_seat(story.agents.main, plan)
     resumed_plan.expect_agent_told(
-        plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
-    plan_stop = story.agent_stops_plan_seat(plan_seat, plan)
-    plan_stop.expect_refused(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+    plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)
+    plan_stop.expect_refused(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                              task=engineering, domain="beta")
     handed = story.agent_runs_from_openrig_organization_seat(
-        plan_seat, "plan", f"organization handoff {engineering} domain:beta",
+        story.agents.main, "plan", f"organization handoff {engineering} domain:beta",
     )
     handed.expect_command_passed()
     story.expect_organization_handoff_pending(plan, engineering, "domain:beta")
-    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
