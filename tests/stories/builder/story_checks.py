@@ -451,6 +451,11 @@ class StoryChecks:
         assert brief in row.brief and brief in task_row.brief, f"worker {row.id} has not received task {task}'s brief {task_row.brief!r}: {row.brief!r}"
         assert stale_brief not in row.brief, f"worker {row.id} received an old brief for task {task}: {row.brief!r}"
 
+    def expect_worker_session(self, worker: StoryAgent, session: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).global_matching(id=worker.number)[0]
+        assert row.session == session, f"worker {row.id} is bound to {row.session!r}, not its Role seat's hook session {session!r}"
+
     def expect_no_user_message_text_in(self, environment: str, text: str) -> None:
         rows = get_answer(self.app, "/journal/messages", {"X-Journal-Env": environment})[1]["rows"]
         matches = [row for row in rows if row.get("author") == "user" and row.get("text") == text]

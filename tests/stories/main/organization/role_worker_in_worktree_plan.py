@@ -7,11 +7,13 @@ from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
 from journal.providers.providers import Providers
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.agent_token import AgentToken
+from journal.support.caller import ACTOR, ACTOR_TOKEN, ORGANIZATION_SEAT
 from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
@@ -25,7 +27,7 @@ OLD_BRIEF = "the earlier task brief"
 
 @story(OrganizationPlanAgentWorktreeProject, subject=AgentRole.MAIN)
 @setting(PlansOptions.PLAN_AGENTS, True)
-def test_a_role_worker_on_a_worktree_plan_receives_its_job_and_can_prove_and_clock_out(story):
+def test_a_role_seat_keeps_its_first_hook_session_after_the_job_arrives(story):
     story.configure_simulated_openrig()
     story.monkeypatch.setattr(WorkerRunner, "start", story.app.original_worker_start)
 
@@ -80,15 +82,50 @@ def test_a_role_worker_on_a_worktree_plan_receives_its_job_and_can_prove_and_clo
     inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(TASK_BRIEF)
+    role_session = {}
+    seats = story.simulated_seats()
+    start_session = seats.start_session
+
+    def start_role_session(target, environment=None):
+        start_session(target, environment)
+        environment = environment or {}
+        actor = environment.get(ACTOR, "")
+        if environment.get(ORGANIZATION_SEAT) != "role:alpha/builder" or not actor.startswith("worker:"):
+            return
+        worker_id = int(actor.partition(":")[2])
+        session = f"provider-role-session-{worker_id}"
+        journal_environment = environment["JOURNAL_ENV"]
+        story.worker_sessions[worker_id] = session
+        story.session_environments[session] = journal_environment
+        role_session["session"] = session
+        role_session["environment"] = journal_environment
+        role_session["result"] = story.session_posted_hook(
+            session,
+            {
+                "X-Journal-Env": journal_environment,
+                ACTOR_HEADER: actor,
+                ACTOR_TOKEN_HEADER: environment[ACTOR_TOKEN],
+            },
+            "SessionStart",
+            {"source": "startup"},
+        )
+
+    story.monkeypatch.setattr(seats, "start_session", start_role_session)
+
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/builder",
     )
     result.expect_command_passed()
 
-    worker = StoryAgent(AgentRole.WORKER, number=story.newest_in("workers", source))
+    worker = StoryAgent(AgentRole.WORKER, number=story.newest_in("workers", source), session=role_session["session"])
     story.expect_worker_role_job(worker, task, TASK_BRIEF, OLD_BRIEF)
-    started = story.organization_role_seat_starts_a_session(worker, "role:alpha/builder")
+    started = story.hook_observed(
+        "the Role seat's first session starts as the job arrives",
+        *role_session["result"],
+        role_session["environment"],
+    )
     started.expect_allowed(worker)
+    story.expect_worker_session(worker, role_session["session"])
     story.agent_runs_from_openrig_organization_seat(worker, "role:alpha/builder", "clock-in").expect_command_passed()
     read = story.agent_reads_from_organization_role_seat(worker, "role:alpha/builder", "source/NOTES.md")
     read.expect_allowed(worker)
