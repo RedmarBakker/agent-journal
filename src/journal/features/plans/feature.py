@@ -34,6 +34,7 @@ from journal.features.plans.listeners.plan_agent_start import PlanAgentStart
 from journal.features.plans.listeners.plan_agent_pause import PlanAgentPause
 from journal.features.plans.listeners.plan_agent_finish import PlanAgentFinish
 from journal.features.plans.listeners.plan_agent_abandon import PlanAgentAbandon
+from journal.features.plans.listeners.plan_agent_close import PlanAgentClose
 from journal.features.plans.listeners.task_agent_start import TaskAgentStart
 from journal.features.plans.listeners.task_agent_finish import TaskAgentFinish
 from journal.features.plans.states.plans_working import PlansWorking
@@ -54,7 +55,7 @@ class Plans(Feature[PlansData]):
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn, CoordinatingPlans, LeadingPlan, LeadingTask, LeadingTaskWorking)
     state_floor = StateFloor(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
     commands = (PlanCommand,)
-    answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION), (ClearPlanWaits, Blocking.NEXT_DECISION), (ReleasePlanWaits, Blocking.NEXT_DECISION), (PlanBlockade, Blocking.NEXT_DECISION))
+    answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION), (ClearPlanWaits, Blocking.NEXT_DECISION), (ReleasePlanWaits, Blocking.NEXT_DECISION), (PlanBlockade, Blocking.NEXT_DECISION), (PlanAgentClose, Blocking.NEXT_DECISION))
     listeners = (AllowedTestRunUse, PlanAgentFocus, StartedPlanFocus, PlanTestingDefault, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)

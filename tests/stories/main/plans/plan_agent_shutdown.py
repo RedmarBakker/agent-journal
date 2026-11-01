@@ -89,8 +89,8 @@ def test_finishing_a_plan_ends_its_plan_agent(story):
         f"task complete {story.tasks.first} --how done",
     )
     result.expect_command_passed()
-    story.expect_plan(story.plans.first, state=PlanState.FINISHED)
     story.expect_stack(agent, LeadingPlan, Ended)
+    story.expect_plan(story.plans.first, state=PlanState.FINISHED)
 
 
 @story(OrganizationPlanHandoffSeat, subject=AgentRole.MAIN)

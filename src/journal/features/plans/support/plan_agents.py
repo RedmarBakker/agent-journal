@@ -1,5 +1,6 @@
 from journal.config import Config
 from journal.events.rows.plan_abandoned import PlanAbandoned
+from journal.events.rows.plan_closed import PlanClosed
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.plan_started import PlanStarted
@@ -117,15 +118,25 @@ class PlanAgents:
             agent = self.agent(plan)
             environment = self.environments.find(agent.environment_id) if agent else None
             if environment:
-                if agent and plan.state.is_closed():
-                    with self.scope.environment(agent.environment_id):
-                        current = self.agents.find(agent.row_id)
-                        if current.state != ENDED_STATE:
-                            self.agents.save(current.plan_stopped(plan.row_id, event.time), Actor.system())
                 if plan.mode == PlanMode.ORGANIZATION:
                     if agent:
                         self.staffing.stop_plan(plan, agent.provider)
                 self.places.stopped(environment)
+
+    def close_agent(self, event: PlanClosed) -> None:
+        with self.scope.environment(event.environment_id):
+            if not self.is_on():
+                return
+            plan = self.plans.find(event.plan_id)
+            if not plan.state.is_closed():
+                return
+            agent = self.agent(plan)
+            if not agent:
+                return
+            with self.scope.environment(agent.environment_id):
+                current = self.agents.find(agent.row_id)
+                if current.state != ENDED_STATE:
+                    self.agents.save(current.plan_stopped(plan.row_id, event.time), Actor.system())
 
     def repository_folders(self, plan: Plan) -> tuple[str, ...]:
         tasks = self.plans.plan_tasks(plan)
