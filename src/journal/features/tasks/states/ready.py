@@ -40,6 +40,9 @@ class Ready(BaseState):
     def active(self, time: float) -> Self:
         return replace(self, silenced_at=time)
 
+    def on_resume(self, data: FeatureData, settings: Settings) -> Transition:
+        return self.swap(replace(self, silenced_at=0.0))
+
     def working_state(self, **fields) -> BaseState:
         return Working(**fields)
 
