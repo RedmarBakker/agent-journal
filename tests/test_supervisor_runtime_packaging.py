@@ -209,7 +209,7 @@ def test_seeded_project_is_committed_on_main_as_the_project_owner():
     assert script.count("commit --message") == 1
     assert '-c user.name="Journal project owner"' in script
     assert '-c user.email="journal-project-owner@localhost"' in script
-    assert "main Git repository" in runbook
+    assert "a `main` Git repository" in runbook
     assert "first commit as uid/gid 10001 with `PROJECT_REVISION` in the message" in runbook
 
 
