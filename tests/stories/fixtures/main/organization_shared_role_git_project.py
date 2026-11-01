@@ -11,7 +11,7 @@ class OrganizationSharedRoleGitProject(OrganizationSharedRoleDomainSeatStarted):
         story.project_is_a_git_repository()
         story.git_in(root, "config", "user.name", "Story")
         story.git_in(root, "config", "user.email", "story@example.com")
-        (root / ".gitignore").write_text(".journal/\n")
+        (root / ".gitignore").write_text("/.journal/\n/.agents/\n/.claude/\n")
         story.git_in(root, "add", ".gitignore")
         story.git_in(root, "commit", "-q", "--amend", "--allow-empty", "-m", "start")
 
