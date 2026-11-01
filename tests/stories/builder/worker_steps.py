@@ -6,7 +6,6 @@ import time
 
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
-from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -39,28 +38,37 @@ class WorkerSteps:
 
     def agent_starts_role_session(self, agent: StoryAgent) -> StepResult:
         self.settle()
+        member = self.organization_role_member(agent)
+        seats = self.simulated_seats()
         deadline = time.monotonic() + 5
         with self.app.container.get(Scope).environment(1):
             worker = self.app.container.get(Workers).find(agent.number)
         while (
-            (not worker.session or worker.began < worker.job_start_time())
+            (member.target not in seats.sessions or worker.began < worker.job_start_time())
             and time.monotonic() < deadline
         ):
             time.sleep(0.01)
             with self.app.container.get(Scope).environment(1):
                 worker = self.app.container.get(Workers).find(agent.number)
+        session = str(seats.sessions.get(member.target, {}).get("sessionId", ""))
         assert (
-            worker.session and worker.began >= worker.job_start_time()
+            session and worker.began >= worker.job_start_time()
         ), f"Role worker {worker.id} did not receive its current OpenRig session"
         self.settle()
-        self.worker_sessions[agent.number] = worker.session
-        environment = self.app.container.get(Environments).find(worker.environment_id).name
-        self.session_environments[worker.session] = environment
+        self.worker_sessions[agent.number] = session
+        environment = seats.member_environment(member.rig, member.pod, member.member)
+        journal_environment = environment["JOURNAL_ENV"]
+        self.session_environments[session] = journal_environment
         status, answer = self.session_posted_hook(
-            worker.session, {"X-Journal-Env": environment, **self.headers_of(agent)},
+            session,
+            {
+                "X-Journal-Env": journal_environment,
+                ACTOR_HEADER: f"worker:{agent.number}",
+                ACTOR_TOKEN_HEADER: environment[ACTOR_TOKEN],
+            },
             "SessionStart", {"source": "startup"},
         )
-        return self.hook_observed("worker starts a session", status, answer, environment)
+        return self.hook_observed("worker starts a session", status, answer, journal_environment)
 
     def role_seat_starts_a_new_session(self, agent: StoryAgent, seat: str) -> StepResult:
         member = self.organization_seat_member(seat)
