@@ -75,10 +75,11 @@ def test_a_domain_checks_clocked_out_split_parts_and_returns_the_parent_after_bo
     story.agent_runs_as_organization_seat(
         story.agents.subject, "plan", f"worker merge {first_worker.number}",
     ).expect_command_passed()
-    merged = story.agent_runs_as_organization_seat(
+    merged = story.agent_runs_as_organization_seat_without_settling(
         story.agents.subject, "plan", f"worker merge {second_worker.number}",
     )
     merged.expect_command_passed()
+    story.expect_stack(domain, LeadingPlan, Ended)
 
     story.expect_task(first_part, state=TaskState.COMPLETED)
     story.expect_task(second_part, state=TaskState.COMPLETED)

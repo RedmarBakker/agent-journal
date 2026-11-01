@@ -379,9 +379,11 @@ def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
         first_domain, "domain:alpha", f"organization handoff {first_part} plan",
     ).expect_command_passed()
     story.organization_seat_goes_idle(first_domain, "domain:alpha")
-    story.agent_runs_as_organization_seat(
+    first_merged = story.agent_runs_as_organization_seat_without_settling(
         story.agents.subject, "plan", f"worker merge {first_worker}",
-    ).expect_command_passed()
+    )
+    first_merged.expect_command_passed()
+    story.expect_stack(first_domain, LeadingPlan, Ended)
     story.expect_task(first_part, state=TaskState.COMPLETED)
     story.expect_task(first_parent, state=TaskState.COMPLETED)
     story.expect_worker(first_role_worker, state=WorkerState.MERGED)
@@ -429,9 +431,11 @@ def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
         second_domain, "domain:alpha", second_plan, f"organization handoff {second_part} plan",
     ).expect_command_passed()
     story.organization_seat_goes_idle(second_domain, "domain:alpha")
-    story.agent_runs_as_organization_seat_in_plan(
+    second_merged = story.agent_runs_as_organization_seat_in_plan_without_settling(
         second_plan_seat, "plan", second_plan, f"worker merge {second_worker}",
-    ).expect_command_passed()
+    )
+    second_merged.expect_command_passed()
+    story.expect_stack(second_domain, LeadingPlan, Ended)
     story.expect_task(second_part, state=TaskState.COMPLETED)
     story.expect_task(second_parent, state=TaskState.COMPLETED)
     story.expect_worker(second_role_worker, state=WorkerState.MERGED)

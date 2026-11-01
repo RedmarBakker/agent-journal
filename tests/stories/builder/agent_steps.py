@@ -240,6 +240,14 @@ class AgentSteps:
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
 
+    def agent_runs_as_organization_seat_without_settling(self, agent: StoryAgent, seat: str, line: str, rig: str = "") -> StepResult:
+        arguments = shlex.split(line)
+        member = self.organization_seat_member(seat, rig)
+        variables = self.openrig_organization_seat_environment(seat, rig)
+        return self.agent_runs_from_seat_without_settling(agent, seat, arguments, member, member.organization_seat,
+                                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                                          variables.get(ACTOR_TOKEN, ""))
+
     def agent_runs_as_organization_seat_in_plan(self, agent: StoryAgent, seat: str, plan: int, line: str) -> StepResult:
         arguments = shlex.split(line)
         member = self.app.container.get(SeatRuntime).organization_member(self.plan_rig_name(plan), seat, self.provider)
@@ -247,6 +255,14 @@ class AgentSteps:
         return self.agent_runs_from_seat(agent, seat, arguments, member, member.organization_seat,
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
+
+    def agent_runs_as_organization_seat_in_plan_without_settling(self, agent: StoryAgent, seat: str, plan: int, line: str) -> StepResult:
+        arguments = shlex.split(line)
+        member = self.app.container.get(SeatRuntime).organization_member(self.plan_rig_name(plan), seat, self.provider)
+        variables = self.simulated_seats().member_environment(member.rig, member.pod, member.member)
+        return self.agent_runs_from_seat_without_settling(agent, seat, arguments, member, member.organization_seat,
+                                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
+                                                          variables.get(ACTOR_TOKEN, ""))
 
     def organization_seat_member(self, seat: str, rig: str = ""):
         rig = rig or self.plan_rig_name(self.plans.first)
@@ -259,14 +275,28 @@ class AgentSteps:
     def agent_runs_from_seat(self, agent: StoryAgent, seat: str, arguments: list[str], member,
                              organization_seat: str, organization_rig: str, journal_environment: str,
                              actor_token: str) -> StepResult:
+        outcome = self.seat_command(agent, arguments, member, organization_seat, organization_rig, journal_environment, actor_token)
+        self.settle()
+        return self.seat_command_result(agent, seat, arguments, journal_environment, outcome)
+
+    def agent_runs_from_seat_without_settling(self, agent: StoryAgent, seat: str, arguments: list[str], member,
+                                              organization_seat: str, organization_rig: str, journal_environment: str,
+                                              actor_token: str) -> StepResult:
+        outcome = self.seat_command(agent, arguments, member, organization_seat, organization_rig, journal_environment, actor_token)
+        return self.seat_command_result(agent, seat, arguments, journal_environment, outcome)
+
+    def seat_command(self, agent: StoryAgent, arguments: list[str], member, organization_seat: str,
+                     organization_rig: str, journal_environment: str, actor_token: str) -> Outcome:
         caller = {"argv": arguments, "env": journal_environment, "provider": member.provider,
                   "session": self.session_of(agent), "organization_seat": organization_seat,
                   "organization_rig": organization_rig, "actor_token": actor_token}
         caller["worker" if agent.role == AgentRole.WORKER else "agent"] = agent.number if agent.role == AgentRole.WORKER else True
         answer = posted(self.app, "/cli", caller,
                         {**MAIN, "X-Journal-Env": journal_environment})[1]
-        self.settle()
-        outcome = Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
+        return Outcome(answer.get("code", 1), answer.get("text", ""), answer.get("error", ""))
+
+    def seat_command_result(self, agent: StoryAgent, seat: str, arguments: list[str], journal_environment: str,
+                            outcome: Outcome) -> StepResult:
         return self.record_command(f"agent runs {' '.join(arguments[:2])} from organization seat {seat}{', refused' if outcome.code else ''}", outcome,
                                    journal_environment)
 

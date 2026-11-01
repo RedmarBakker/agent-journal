@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.features.feature import Feature
 from journal.features.organization.commands.organization_command import OrganizationCommand
 from journal.features.organization.commands.role_command import RoleCommand
@@ -32,7 +33,8 @@ class OrganizationFeature(Feature[OrganizationData]):
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
     conduct = (OrganizationConduct, HubConduct)
-    listeners = (RoleTaskDomain, RoleQueueFeeder, BoardStandingRecord, DomainCountRecord, RoleEndingReport, RoleClockOutWake, PlanTaskCompletionWake, SplitPartWake, SplitCompletion)
+    answer_listeners = ((SplitCompletion, Blocking.NEXT_DECISION),)
+    listeners = (RoleTaskDomain, RoleQueueFeeder, BoardStandingRecord, DomainCountRecord, RoleEndingReport, RoleClockOutWake, PlanTaskCompletionWake, SplitPartWake)
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
     helper_listeners = {AgentRole.WORKER: (RoleStuckReport, RoleRefusalReport)}
