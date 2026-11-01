@@ -675,6 +675,7 @@ class AgentSteps:
         return max(self.task_numbers_in(environment))
 
     def session_starts_in(self, environment: str, session: str) -> StepResult:
+        self.session_environments[session] = environment
         status, answer = posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}, {"X-Journal-Env": environment})
         return self.observed(f"a session starts in {environment}", HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None)
 
