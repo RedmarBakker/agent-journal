@@ -7,16 +7,13 @@ from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.organization_shared_role_file_proved import OrganizationSharedRoleFileProved
 from tests.stories.fixtures.main.organization_shared_role_task_clocked_in import OrganizationSharedRoleTaskClockedIn
 
 
-@story(OrganizationSharedRoleTaskClockedIn, subject=AgentRole.MAIN)
+@story(OrganizationSharedRoleFileProved, subject=AgentRole.MAIN)
 def test_a_shared_role_commits_its_file_before_its_task_merges(story):
     worker, task, plan = story.agents.workers.first(), story.tasks.first, story.plans.first
-    written = story.agent_writes_from_organization_role_seat(worker, "role:alpha/shared", "SECURITY.md")
-    written.expect_allowed(worker)
-    story.the_project_holds_a_file("SECURITY.md", b"The shared Role result is ready.\n")
-    story.agent_proves(worker, 1, "SECURITY.md:1; the shared result is present").expect_command_passed()
     story.agent_clocks_out(worker, "the shared file is ready").expect_command_passed()
 
     root = story.app.config.root
@@ -60,12 +57,9 @@ def test_a_shared_role_that_changes_nothing_closes_without_a_commit(story):
     story.expect_stack(worker, Void)
 
 
-@story(OrganizationSharedRoleTaskClockedIn, subject=AgentRole.MAIN)
+@story(OrganizationSharedRoleFileProved, subject=AgentRole.MAIN)
 def test_a_shared_role_cannot_clock_out_changed_files_that_failed_to_commit(story):
     worker, task = story.agents.workers.first(), story.tasks.first
-    story.agent_writes_from_organization_role_seat(worker, "role:alpha/shared", "SECURITY.md").expect_allowed(worker)
-    story.the_project_holds_a_file("SECURITY.md", b"The shared Role result is ready.\n")
-    story.agent_proves(worker, 1, "SECURITY.md:1; the shared result is present").expect_command_passed()
     hook = story.app.config.root / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\nexit 1\n")
     hook.chmod(0o755)
