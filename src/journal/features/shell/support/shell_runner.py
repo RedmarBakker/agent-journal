@@ -85,13 +85,18 @@ class ShellRunner:
         return f"{wait_text}{notes}{EXIT} 0\n".encode()
 
     def chain_run(self, request: ShellRequest, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+        timer = self.recorder.begin(time.time())
         began = time.perf_counter()
-        with self.scope.environment(environment), self.stages.timed("shell setup"):
-            cap = self.caps.build(request.line)
-            folder = self.split_folder(request.line)
-            if not cap.is_whole() and not cap.is_direct():
-                self.recorded(folder, posted.line, caller, request.cwd)
-        self.recorder.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
+        try:
+            with self.scope.environment(environment), self.stages.timed("shell setup"):
+                cap = self.caps.build(request.line)
+                folder = self.split_folder(request.line)
+                if not cap.is_whole() and not cap.is_direct():
+                    self.recorded(folder, posted.line, caller, request.cwd)
+        except BaseException:
+            self.recorder.discarded(timer)
+            raise
+        self.recorder.measured(timer, SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         if self.is_held(request, caller, environment):
             yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
             return

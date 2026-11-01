@@ -2,11 +2,13 @@ import time
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass
 class RequestTimer:
-    """When a request was sent, by the sender's own stamp or its arrival when it carries none, on the wall clock, so its time counts every wait from that moment to its answer."""
+    """A request's start time and the one-time end of the load tally it opened."""
 
     request_at: float
+    loads_started: bool = False
+    loads_ended: bool = False
 
     def wall_ms(self) -> float:
         return (time.time() - self.request_at) * 1000

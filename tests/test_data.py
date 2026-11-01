@@ -729,6 +729,26 @@ def test_a_background_context_does_not_carry_the_request_load_tally():
     assert request.points() == 2, "the request still owns its row and byte point"
 
 
+def test_an_unmeasured_request_finishes_only_its_own_load_tally_once(app):
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
+    from journal.repositories.load_tally import LoadTally, TALLY
+    from tests.user_settings import user_set
+
+    user_set(app, "features.faults", True)
+    recorder = app.container.get(RequestTimeRecorder)
+    outer, inner = recorder.begin(0.0), recorder.begin(0.0)
+    try:
+        recorder.measured(inner, "GET", "/journal/developer", 0.0)
+        active = LoadTally.running()
+        assert active is not None and active.depth == 1, "an unmeasured inner route closes only its own tally"
+        recorder.discarded(inner)
+        assert LoadTally.running() is active and active.depth == 1, "the same timer cannot end the outer tally twice"
+    finally:
+        recorder.discarded(outer)
+        TALLY.set(None)
+    assert LoadTally.running() is None, "the outer request ended its tally"
+
+
 def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_name(connection, bus, scope):
     from datetime import timedelta
     from journal.models.agent import Agent

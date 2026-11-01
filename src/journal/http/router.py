@@ -63,12 +63,16 @@ class Router:
                 if route.outward:
                     return route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
                 timer = self.recorder.begin(request.request_at)
-                self.stalls.begin(f"{request.method} {request.measured_path()}")
                 try:
-                    answer = route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
-                finally:
-                    self.stalls.end()
-                self.recorder.measured(request.method, request.measured_path(), timer.wall_ms())
+                    self.stalls.begin(f"{request.method} {request.measured_path()}")
+                    try:
+                        answer = route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
+                    finally:
+                        self.stalls.end()
+                except BaseException:
+                    self.recorder.discarded(timer)
+                    raise
+                self.recorder.measured(timer, request.method, request.measured_path(), timer.wall_ms())
                 return answer
         except Rejection as refused:
             return Response.refused(str(refused))

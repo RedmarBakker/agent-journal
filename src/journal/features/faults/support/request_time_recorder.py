@@ -53,15 +53,30 @@ class RequestTimeRecorder:
         self.slow_tally = SlowRequestTally()
 
     def begin(self, request_at: float) -> RequestTimer:
-        if self.settings.option(FaultsOptions.DEVELOPER):
+        loads_started = bool(self.settings.option(FaultsOptions.DEVELOPER))
+        if loads_started:
             LoadTally.begin()
-        return RequestTimer(request_at)
+        return RequestTimer(request_at, loads_started)
 
-    def measured(self, method: str, path: str, ms: float) -> None:
-        if path.startswith(UNMEASURED_PATHS) or not self.settings.option(FaultsOptions.DEVELOPER):
+    def measured(self, timer: RequestTimer, method: str, path: str, ms: float) -> None:
+        if path.startswith(UNMEASURED_PATHS):
+            self.ended(timer)
             return
-        loads = LoadTally.ended()
+        enabled = self.settings.option(FaultsOptions.DEVELOPER)
+        loads = self.ended(timer)
+        if not enabled:
+            return
         self.deferred.add(partial(self.stored, method, path, round(ms), loads))
+
+    def discarded(self, timer: RequestTimer) -> None:
+        self.ended(timer)
+
+    @staticmethod
+    def ended(timer: RequestTimer) -> RequestLoads:
+        if not timer.loads_started or timer.loads_ended:
+            return RequestLoads()
+        timer.loads_ended = True
+        return LoadTally.ended()
 
     def stored(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.counted(method, path, ms, loads)

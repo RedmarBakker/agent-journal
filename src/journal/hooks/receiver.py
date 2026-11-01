@@ -34,6 +34,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.features.faults.support.request_time_recorder import HOOK, RequestTimeRecorder
+from journal.features.faults.support.request_timer import RequestTimer
 from journal.repositories.origin import Origin
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
@@ -56,21 +57,24 @@ class Receiver:
         self.worker_hooks, self.checker_hooks, self.role_listeners = worker_hooks, checker_hooks, role_listeners
 
     def receive(self, raw_hook: Hook) -> Decision:
-        self.recorder.begin(self.time_source.seconds())
-        hook = raw_hook if raw_hook.researcher else self.worker_hooks.attributed(raw_hook)
-        environment = self.environments.lookup(hook.environment)
-        with self.scope.environment(environment.row_id):
-            if self.is_resent(hook):
-                return self.resent_answer(hook)
-            if not self.is_accepted(hook, environment):
-                return self.unbound(hook, environment)
-            if self.seats.is_unknown_session_end(hook) or self.seats.is_replaced_session(hook, environment):
-                return Decision()
-            agent = self.seats.agent(hook, environment)
-            with self.scope.entered(Origin.agent_origin(agent, hook.actor())):
-                return self.answered(hook, environment, agent)
+        timer = self.recorder.begin(self.time_source.seconds())
+        try:
+            hook = raw_hook if raw_hook.researcher else self.worker_hooks.attributed(raw_hook)
+            environment = self.environments.lookup(hook.environment)
+            with self.scope.environment(environment.row_id):
+                if self.is_resent(hook):
+                    return self.resent_answer(hook)
+                if not self.is_accepted(hook, environment):
+                    return self.unbound(hook, environment)
+                if self.seats.is_unknown_session_end(hook) or self.seats.is_replaced_session(hook, environment):
+                    return Decision()
+                agent = self.seats.agent(hook, environment)
+                with self.scope.entered(Origin.agent_origin(agent, hook.actor())):
+                    return self.answered(hook, environment, agent, timer)
+        finally:
+            self.recorder.discarded(timer)
 
-    def answered(self, hook: Hook, environment: Environment, agent: Agent) -> Decision:
+    def answered(self, hook: Hook, environment: Environment, agent: Agent, timer: RequestTimer) -> Decision:
         *returned, event = self.translation.events(hook, agent)
         for return_event in returned:
             self._blocking(return_event, self.role_listeners.answer_listeners(return_event))
@@ -81,7 +85,7 @@ class Receiver:
         decision = self._blocking(event, self.role_listeners.answer_listeners(event))
         entry = self.answer_recorded(entry, decision, hook)
         self._defer(event)
-        self.measure_stored(entry, hook)
+        self.measure_stored(entry, hook, timer)
         return decision
 
     def transcript_answered(self, hook: Hook, event: AgentEvent) -> None:
@@ -112,11 +116,11 @@ class Receiver:
     def answer_recorded(self, entry: Entry, decision: Decision, hook: Hook) -> Entry:
         return self.entries.save(entry.with_merged("data", decision.recorded()), Actor.agent(hook.session))
 
-    def measure_stored(self, entry: Entry, hook: Hook) -> None:
+    def measure_stored(self, entry: Entry, hook: Hook, timer: RequestTimer) -> None:
         if not hook.started_ms:
             return
         measure = HookMeasure(elapsed_ms=int(self.time_source.seconds() * 1000) - hook.started_ms, boot_wait_ms=round(hook.boot_wait_seconds * 1000))
-        self.recorder.measured(HOOK, f"/hooks/{hook.hook_type.value}", measure.elapsed_ms)
+        self.recorder.measured(timer, HOOK, f"/hooks/{hook.hook_type.value}", measure.elapsed_ms)
         self.deferred.add(partial(self.measure_saved, entry, measure, hook.session))
 
     def measure_saved(self, entry: Entry, measure: HookMeasure, session: str) -> None:
