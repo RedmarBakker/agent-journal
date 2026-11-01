@@ -6,7 +6,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.domain_delivery_setup import merge_worker, setup_domain
+from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
@@ -33,7 +33,9 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
         sprint = story.user_opens(f"/journal/sprints/{self.sprints.first}")
         sprint.expect_viewer_shows("state", "active")
         sprint.expect_viewer_part(("plan_ids",), [self.plans.first])
-        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
+        story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
+        self.workers.first = story.agent_dispatches_worker(story.agents.main, "Lady Lovelace", self.tasks.first)
+        story.last_step.expect_command_passed()
         worker = story.agents.workers.first()
         story.agent_starts_a_session(worker)
         story.agent_clocks_in(worker)
@@ -56,7 +58,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
     def expected(self, story) -> None:
         story.expect_plan(self.plans.first, state=PlanState.FINISHED, mode=PlanMode.ORGANIZATION)
         story.expect_task(self.tasks.first, state=TaskState.COMPLETED, size=3)
-        story.expect_task_outcome_kinds(self.tasks.first, "task_completed", "worker_work_merged", "delivery_accepted")
+        story.expect_task_outcome_kinds(self.tasks.first, "task_started", "task_completed", "worker_work_merged", "delivery_accepted")
         story.expect_task_outcome_summary(self.tasks.first, execution_status="completed", artifact_accepted=True, right_censored=False)
         story.expect_plan(self.plans.second, state=PlanState.DRAFT, mode=PlanMode.ORGANIZATION)
         story.expect_stack(story.agents.main, Ready)
