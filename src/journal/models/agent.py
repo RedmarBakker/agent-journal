@@ -117,10 +117,10 @@ class Agent(Scoped):
         return {**sessions, self.provider: self.session}
 
     def retired(self, time: float) -> "Agent":
-        return self.with_event(SessionRetired(environment_id=self.environment_id, time=time, session=self.session, agent_session=self.session))
+        return self.with_event(SessionRetired(environment_id=self.environment_id, time=time, agent_session=self.session))
 
     def plan_stopped(self, plan_id: int, time: float) -> "Agent":
-        return self.with_event(PlanAgentStopped(environment_id=self.environment_id, time=time, session=self.session, plan_id=plan_id))
+        return self.with_event(PlanAgentStopped(environment_id=self.environment_id, time=time, plan_id=plan_id))
 
     def upgraded(self, previous: str, version: str, time: float) -> "Agent":
         return self.with_event(LaunchTakeover(environment_id=self.environment_id, time=time, agent_session=self.session, previous=previous, version=version))

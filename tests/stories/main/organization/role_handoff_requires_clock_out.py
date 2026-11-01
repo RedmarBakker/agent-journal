@@ -26,6 +26,7 @@ def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "organization inbox").expect_command_passed()
     merged = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", f"worker merge {worker}")
     merged.expect_command_passed()
+    story.settle()
 
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
@@ -53,8 +54,9 @@ def test_a_role_handoff_before_clock_out_is_refused_with_proof_and_clock_out(sto
         story.agents.main, "domain:alpha", f"organization handoff {task} plan",
     ).expect_command_passed()
     story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", f"worker merge {worker}").expect_command_passed()
+    story.settle()
 
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan, Ended)
