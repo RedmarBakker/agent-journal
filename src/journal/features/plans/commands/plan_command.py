@@ -279,6 +279,7 @@ class PlanCommand(Command):
     def start(self, args: Namespace, caller: Caller) -> int:
         with self.tasks.writing():
             plan = self.plans.find(args.n)
+            previous_attention = self.messages.latest_plan_attention(plan.id)
             if self.phase_testing.is_refused(plan):
                 raise Rejection(self.phase_testing.refusal(plan))
             if (plan.mode != PlanMode.ORGANIZATION and not self.coordinator.is_coordinator()
@@ -289,7 +290,11 @@ class PlanCommand(Command):
             else:
                 plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)
             current = self.plans.started_task(plan)
-        print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
+            attention = self.messages.latest_plan_attention(plan.id)
+        if attention and attention.data.get("agent_start_failure") and (previous_attention is None or attention.row_id != previous_attention.row_id):
+            print(f"plan {plan.id} started, but its Plan agent did not start: {attention.data['reason']}")
+        else:
+            print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:

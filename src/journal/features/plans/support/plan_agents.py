@@ -29,6 +29,7 @@ from journal.support.actor import Actor
 from journal.support.inner_repositories import InnerRepositories
 from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
+from journal.support.worktree_failure import WorktreeFailure
 
 
 class PlanAgents:
@@ -92,14 +93,17 @@ class PlanAgents:
                 try:
                     self.staffing.start_plan(plan, environment, agent, actor)
                 except Rejection as reason:
-                    self.messages.save(Message(
-                        environment_id=event.environment_id,
-                        author=Author.SYSTEM,
-                        text=f"Plan {plan.id} needs OpenRig attention: {reason}",
-                        data={"kind": "plan_attention", "plan": plan.id},
-                    ), Actor.system())
+                    self.attention(event, f"Plan {plan.id} needs OpenRig attention: {reason}", {"kind": "plan_attention", "plan": plan.id})
             else:
-                self.places.launched(environment, agent, self.repository_folders(plan))
+                try:
+                    self.places.launched(environment, agent, self.repository_folders(plan))
+                except (WorktreeFailure, OSError, RuntimeError) as reason:
+                    self.attention(event, f"Plan {plan.id}'s Plan agent did not start: {reason}", {
+                        "kind": "plan_attention", "plan": plan.id, "agent_start_failure": True, "reason": str(reason),
+                    })
+
+    def attention(self, event: PlanStarted, text: str, data: dict) -> None:
+        self.messages.save(Message(environment_id=event.environment_id, author=Author.SYSTEM, text=text, data=data), Actor.system())
 
     def prepared(self, plan: Plan, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
         from journal.features.plans.states.leading_plan import LeadingPlan

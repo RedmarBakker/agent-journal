@@ -90,6 +90,10 @@ class Messages(ScopedRepository[Message]):
     def last_user_message(self) -> Message | None:
         return next((m for m in self.selected(self.main_chat().filter(author=Author.USER).order_descending("id").limit(20)) if not m.is_terminal_line), None)
 
+    def latest_plan_attention(self, plan_id: int) -> Message | None:
+        rows = self.selected(self.query().filter_json("data->kind", "plan_attention").filter_json("data->plan", plan_id).order_descending("id").limit(1))
+        return rows[0] if rows else None
+
     def unfiled_reads(self, moment: datetime) -> list[Message]:
         read = self.selected(self.main_chat().filter(author=Author.USER).filter_greater("read_at", moment).order("id"))
         return [m for m in read if not m.is_terminal_line and not any(ref.type == "tasks" for ref in self.links.targets(m, self.SUBJECT_LINK))]

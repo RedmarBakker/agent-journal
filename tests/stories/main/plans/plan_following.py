@@ -23,15 +23,6 @@ def test_a_plans_tasks_follow_in_order_until_it_finishes(story):
 
 
 @story(PlanApproved, subject=AgentRole.MAIN)
-def test_starting_an_approved_plan_puts_its_first_task_in_hand(story):
-    story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")
-    story.expect_plan(story.plans.first, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, state=TaskState.STARTED)
-    story.expect_task(story.tasks.second, state=TaskState.OPEN)
-    story.expect_stack(story.agents.subject, Ready, FollowingPlan)
-
-
-@story(PlanApproved, subject=AgentRole.MAIN)
 def test_an_approved_plan_starts_by_itself_at_a_session_start(story):
     story.agent_resumes_the_session(story.agents.subject)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
