@@ -1,5 +1,4 @@
-from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.engine.states.void import Void
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_part_returned_unchecked import OrganizationPartReturnedUnchecked
@@ -16,4 +15,4 @@ def test_the_plan_parts_list_names_an_unchecked_return(story):
         f"task {part} started, plan, unchecked return from worker {worker.number}; "
         f"run `journal worker check {worker.number} <point>` first",
     )
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(worker, Void)
