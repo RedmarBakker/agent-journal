@@ -19,6 +19,7 @@ def test_a_fresh_manifest_keeps_opening_on_the_latest_user_session_as_plan_agent
         story.user_starts_plan(plan).expect_viewer_passed()
         plans.append(plan)
 
+    story.another_environment("smoke-3")
     story.session_starts_in("smoke-3", "smoke-session")
     for number, plan in enumerate(plans):
         story.session_starts_in(f"plan-{plan}", f"plan-agent-{number}")
