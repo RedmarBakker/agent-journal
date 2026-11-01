@@ -3,6 +3,7 @@ import json
 import re
 from journal.engine.nudge import Nudge
 from tests.stories.builder.story_agent import StoryAgent
+from login_throttle import LoginThrottle
 
 # a hook duration as the terminal line shows it to the user
 HOOK_DURATION = re.compile(r"\b[A-Za-z]+: \d+ ms\b")
@@ -131,6 +132,46 @@ class StepChecks:
         )
         assert "Set-Cookie" not in self.viewer_answer["headers"], (
             f"the wrong hosted password received a session: {self.viewer_answer['headers']}"
+        )
+
+    def expect_hosted_login_retry_announced(self) -> None:
+        retry_after = self.viewer_answer["headers"].get("Retry-After", "")
+        assert self.viewer_status == 401 and retry_after.isdigit() and int(retry_after) > 0, (
+            f"the wrong password did not announce its retry delay: {self.viewer_status} {self.viewer_answer}"
+        )
+        delays = getattr(self.story, "hosted_retry_delays", [])
+        assert not delays or int(retry_after) > delays[-1], (
+            f"the repeated source did not receive a longer retry delay: {delays} then {retry_after}"
+        )
+        self.story.hosted_retry_delays = [*delays, int(retry_after)]
+
+    def expect_hosted_login_slowed(self) -> None:
+        retry_after = self.viewer_answer["headers"].get("Retry-After", "")
+        assert self.viewer_status == 429 and retry_after.isdigit() and int(retry_after) >= LoginThrottle().source_lockout, (
+            f"the locked login source was not slowed: {self.viewer_status} {self.viewer_answer}"
+        )
+
+    def expect_hosted_session_removed(self) -> None:
+        headers = self.viewer_answer["headers"]
+        cookie = headers.get("Set-Cookie", "")
+        assert self.viewer_status == 303 and headers.get("Location") == "/login", (
+            f"logout did not return the visitor to login: {self.viewer_status} {headers}"
+        )
+        assert "journal_hosted_session=;" in cookie and "Max-Age=0" in cookie, (
+            f"logout did not clear the hosted session cookie: {cookie!r}"
+        )
+        assert not self.story.hosted_login_state["sessions"], "logout left the hosted session active"
+
+    def expect_gateway_listener_refused(self) -> None:
+        answer = json.dumps(self.viewer_answer)
+        assert self.viewer_status == 403 and "token-checked supervisor routes only" in answer, (
+            f"the Gateway listener admitted an owner route without a service token: {self.viewer_status} {answer}"
+        )
+
+    def expect_gateway_service_token_required(self) -> None:
+        answer = json.dumps(self.viewer_answer)
+        assert self.viewer_status == 401 and "service credential is required" in answer, (
+            f"the Gateway listener admitted a service route without its token: {self.viewer_status} {answer}"
         )
 
     def expect_hosted_session_created(self) -> None:

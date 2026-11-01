@@ -7,16 +7,26 @@
       "restart": "unless-stopped",
       "environment": {
         "JOURNAL_ROOT": "/data/project",
-        "JOURNAL_HOST": "0.0.0.0",
+        "JOURNAL_HOST": "127.0.0.1",
         "JOURNAL_PORT": "8421",
+        "JOURNAL_OWNER_ACCESS_HOST": "10.76.10.10",
+        "JOURNAL_OWNER_ACCESS_PORT": "8423",
+        "JOURNAL_SUPERVISOR_HOST": "10.76.20.10",
+        "JOURNAL_SUPERVISOR_PORT": "8422",
+        "JOURNAL_SUPERVISOR_TLS_CERT_FILE": "/run/secrets/writer_supervisor_tls_cert",
+        "JOURNAL_SUPERVISOR_TLS_KEY_FILE": "/run/secrets/writer_supervisor_tls_key",
         "GIT_NAME": "Journal supervisor pilot",
         "GIT_EMAIL": "journal-pilot@localhost",
         "JOURNAL_CODEX_HOME": "/var/lib/journal-codex",
         "JOURNAL_PLAN_DRIVER_SOCKET": "/run/journal-plan-driver.sock"
       },
       "volumes": ["writer_state:/data", "codex_driver_state:/var/lib/journal-codex", "supervisor_hints:/var/lib/journal-supervisor/hints"],
-      "ports": ["127.0.0.1:18440:8421"],
-      "expose": ["8421"],
+      "secrets": [
+        {"source": "writer_supervisor_tls_cert", "target": "writer_supervisor_tls_cert"},
+        {"source": "writer_supervisor_tls_key", "target": "writer_supervisor_tls_key"}
+      ],
+      "ports": ["127.0.0.1:18440:8423"],
+      "expose": ["8422"],
       "networks": {
         "journal_management": {"ipv4_address": "10.76.10.10"},
         "gateway_link": {"ipv4_address": "10.76.20.10"},
@@ -50,12 +60,14 @@
       "environment": {
         "HOME": "/home/node",
         "OPENCLAW_GATEWAY_PORT": "18789",
-        "JOURNAL_SUPERVISOR_ADMISSION_URL": "https://writer:8421"
+        "JOURNAL_SUPERVISOR_ADMISSION_URL": "https://writer:8422",
+        "JOURNAL_SUPERVISOR_TLS_CA_FILE": "/run/secrets/writer_supervisor_tls_ca"
       },
       "secrets": [
         {"source": "supervisor_anthropic_api_key", "target": "supervisor_anthropic_api_key"},
         {"source": "openclaw_hook_token", "target": "openclaw_hook_token"},
-        {"source": "journal_supervisor_credential", "target": "journal_supervisor_credential"}
+        {"source": "journal_supervisor_credential", "target": "journal_supervisor_credential"},
+        {"source": "writer_supervisor_tls_ca", "target": "writer_supervisor_tls_ca"}
       ],
       "volumes": ["gateway_state:/home/node/.openclaw", "supervisor_hints:/var/lib/journal-supervisor/hints:ro"],
       "expose": ["18789"],
@@ -135,6 +147,9 @@
     "supervisor_anthropic_api_key": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/supervisor_anthropic_api_key"},
     "openclaw_hook_token": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/openclaw_hook_token"},
     "journal_supervisor_credential": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/journal_supervisor_credential"},
+    "writer_supervisor_tls_cert": {"file": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert"},
+    "writer_supervisor_tls_key": {"file": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key"},
+    "writer_supervisor_tls_ca": {"file": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_ca"},
     "restic_password": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/restic_password"},
     "restic_repository": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/restic_repository"},
     "backup_object_store_credentials": {"file": "${TENANT_SECRET_DIR:?set the root-owned tenant secret directory}/backup_object_store_credentials"}

@@ -407,14 +407,23 @@ def test_reference_only_hook_cannot_override_agent_session_or_scope():
 
 
 def test_service_client_uses_the_admission_url_and_token_environment(monkeypatch):
-    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_URL", "https://writer:8421")
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_URL", "http://127.0.0.1:8421")
     monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_TOKEN", "tenant-admission-token")
     monkeypatch.setenv("JOURNAL_SUPERVISOR_CREDENTIAL", "unused-legacy-name")
 
     client = service_client()
 
-    assert client.connection.base_url == "https://writer:8421"
+    assert client.connection.base_url == "http://127.0.0.1:8421"
     assert client.connection.token == "tenant-admission-token"
+
+
+def test_service_client_requires_a_ca_for_the_non_loopback_writer(monkeypatch):
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_URL", "https://writer:8422")
+    monkeypatch.setenv("JOURNAL_SUPERVISOR_ADMISSION_TOKEN", "tenant-admission-token")
+    monkeypatch.delenv("JOURNAL_SUPERVISOR_TLS_CA_FILE", raising=False)
+
+    with pytest.raises(ValueError, match="TLS CA file is not configured"):
+        service_client()
 
 
 def test_private_adapters_use_only_fixed_authenticated_routes():

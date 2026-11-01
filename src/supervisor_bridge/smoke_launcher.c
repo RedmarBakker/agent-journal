@@ -29,8 +29,14 @@
 #define CODEX_READY "docker/supervisor-codex-ready"
 #define WRITER_SETUP "docs/supervisor/v1/live-smoke-setup.py"
 #define GATEWAY_DOCKERFILE "docs/supervisor/v1/Dockerfile.gateway"
+#define GATEWAY_ENTRYPOINT "docs/supervisor/v1/gateway-entrypoint.sh"
+#define SUPERVISOR_HANDLER "src/journal/http/supervisor_handler.py"
+#define JOURNAL_CONFIG "src/journal/config.py"
+#define JOURNAL_SERVER "src/journal/http/server.py"
+#define FIREWALL_POLICY "docs/supervisor/v1/firewall-policy.fixture.json"
 #define PROJECT_NAME "journal-supervisor-smoke"
 #define MAX_SECRET_BYTES 4096
+#define MAX_EXTERNAL_SECRET_BYTES 65536
 #define MAX_PATH_BYTES 4096
 #define STOP_SECONDS 3
 
@@ -40,6 +46,12 @@ static const char *required_secret_files[] = {
     "restic_password",
     "restic_repository",
     "backup_object_store_credentials",
+};
+
+static const char *required_external_secret_files[] = {
+    "writer_supervisor_tls_cert",
+    "writer_supervisor_tls_key",
+    "writer_supervisor_tls_ca",
 };
 
 static volatile sig_atomic_t stop_requested = 0;
@@ -64,6 +76,12 @@ static bool required_file(const char *path) {
     struct stat details;
     if (lstat(path, &details) != 0) return false;
     return S_ISREG(details.st_mode) && (details.st_mode & 0022) == 0 && details.st_size > 0 && details.st_size <= MAX_SECRET_BYTES;
+}
+
+static bool required_external_file(const char *path) {
+    struct stat details;
+    if (lstat(path, &details) != 0) return false;
+    return S_ISREG(details.st_mode) && (details.st_mode & 0022) == 0 && details.st_size > 0 && details.st_size <= MAX_EXTERNAL_SECRET_BYTES;
 }
 
 static bool path_join(char *result, size_t capacity, const char *directory, const char *name) {
@@ -201,11 +219,55 @@ static int valid_profile(const char *config_path) {
         "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
     };
     static const char *required_writer_volume[] = {
+        "\"JOURNAL_HOST\": \"127.0.0.1\"",
+        "\"JOURNAL_OWNER_ACCESS_HOST\": \"10.76.10.10\"",
+        "\"JOURNAL_OWNER_ACCESS_PORT\": \"8423\"",
+        "\"JOURNAL_SUPERVISOR_HOST\": \"10.76.20.10\"",
+        "\"JOURNAL_SUPERVISOR_PORT\": \"8422\"",
+        "\"JOURNAL_SUPERVISOR_TLS_CERT_FILE\": \"/run/secrets/writer_supervisor_tls_cert\"",
+        "\"JOURNAL_SUPERVISOR_TLS_KEY_FILE\": \"/run/secrets/writer_supervisor_tls_key\"",
+        "\"ports\": [\"127.0.0.1:18440:8423\"]",
+        "\"expose\": [\"8422\"]",
+        "\"JOURNAL_SUPERVISOR_ADMISSION_URL\": \"https://writer:8422\"",
+        "\"JOURNAL_SUPERVISOR_TLS_CA_FILE\": \"/run/secrets/writer_supervisor_tls_ca\"",
+        "TENANT_SECRET_SOURCE_DIR",
+        "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert",
+        "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key",
+        "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_ca",
         "\"JOURNAL_CODEX_HOME\": \"/var/lib/journal-codex\"",
         "\"JOURNAL_PLAN_DRIVER_SOCKET\": \"/run/journal-plan-driver.sock\"",
         "\"codex_driver_state:/var/lib/journal-codex\"",
         "\"codex_driver_state\": {}",
         "\"cap_add\": [\"SETUID\", \"SETGID\", \"SETPCAP\"]",
+    };
+    static const char *required_gateway_entrypoint[] = {
+        "JOURNAL_SUPERVISOR_TLS_CA_FILE",
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE",
+    };
+    static const char *required_supervisor_handler[] = {
+        "SERVICE_PATHS",
+        "token-checked supervisor routes only",
+    };
+    static const char *required_listener_config[] = {
+        "JOURNAL_OWNER_ACCESS_HOST",
+        "JOURNAL_OWNER_ACCESS_PORT",
+        "JOURNAL_SUPERVISOR_HOST",
+        "JOURNAL_SUPERVISOR_TLS_CERT_FILE",
+        "supervisor_listener",
+    };
+    static const char *required_listener_server[] = {
+        "SSLContext(ssl.PROTOCOL_TLS_SERVER)",
+        "load_cert_chain",
+        "_build_supervisor_handler",
+        "_build_owner_access",
+    };
+    static const char *required_firewall[] = {
+        "\"destination\": \"10.76.20.10 (writer)\"",
+        "\"ports\": [8422]",
+        "\"ports\": [8421]",
+        "\"destination\": \"10.76.10.10 (writer management)\"",
+        "\"ports\": [8423]",
+        "\"action\": \"deny\"",
     };
     static const char *required_writer_entrypoint[] = {
         "supervisor-codex-ready",
@@ -240,7 +302,8 @@ static int valid_profile(const char *config_path) {
     };
     char *compose = NULL, *writer_package = NULL, *writer_entrypoint = NULL, *writer_setup = NULL;
     char *login_command = NULL, *ready_command = NULL;
-    char *gateway_package = NULL, *config = NULL;
+    char *gateway_package = NULL, *gateway_entrypoint = NULL, *supervisor_handler = NULL;
+    char *firewall = NULL, *journal_config = NULL, *journal_server = NULL, *config = NULL;
     if (read_file(COMPOSE_FILE, &compose, 131072) != 0
         || read_file(WRITER_DOCKERFILE, &writer_package, 131072) != 0
         || read_file(WRITER_ENTRYPOINT, &writer_entrypoint, 131072) != 0
@@ -248,6 +311,11 @@ static int valid_profile(const char *config_path) {
         || read_file(CODEX_READY, &ready_command, 131072) != 0
         || read_file(WRITER_SETUP, &writer_setup, 131072) != 0
         || read_file(GATEWAY_DOCKERFILE, &gateway_package, 131072) != 0
+        || read_file(GATEWAY_ENTRYPOINT, &gateway_entrypoint, 131072) != 0
+        || read_file(SUPERVISOR_HANDLER, &supervisor_handler, 131072) != 0
+        || read_file(FIREWALL_POLICY, &firewall, 131072) != 0
+        || read_file(JOURNAL_CONFIG, &journal_config, 131072) != 0
+        || read_file(JOURNAL_SERVER, &journal_server, 131072) != 0
         || read_file(config_path, &config, 131072) != 0) {
         free(compose);
         free(writer_package);
@@ -256,6 +324,11 @@ static int valid_profile(const char *config_path) {
         free(ready_command);
         free(writer_setup);
         free(gateway_package);
+        free(gateway_entrypoint);
+        free(supervisor_handler);
+        free(firewall);
+        free(journal_config);
+        free(journal_server);
         free(config);
         return -1;
     }
@@ -266,6 +339,11 @@ static int valid_profile(const char *config_path) {
         && gateway_service && backup_service
         && contains_all(compose, required_gateway_image, sizeof(required_gateway_image) / sizeof(required_gateway_image[0]))
         && contains_all(compose, required_writer_volume, sizeof(required_writer_volume) / sizeof(required_writer_volume[0]))
+        && contains_all(gateway_entrypoint, required_gateway_entrypoint, sizeof(required_gateway_entrypoint) / sizeof(required_gateway_entrypoint[0]))
+        && contains_all(supervisor_handler, required_supervisor_handler, sizeof(required_supervisor_handler) / sizeof(required_supervisor_handler[0]))
+        && contains_all(firewall, required_firewall, sizeof(required_firewall) / sizeof(required_firewall[0]))
+        && contains_all(journal_config, required_listener_config, sizeof(required_listener_config) / sizeof(required_listener_config[0]))
+        && contains_all(journal_server, required_listener_server, sizeof(required_listener_server) / sizeof(required_listener_server[0]))
         && contains_all(writer_package, required_writer_package, sizeof(required_writer_package) / sizeof(required_writer_package[0]))
         && contains_all(writer_entrypoint, required_writer_entrypoint, sizeof(required_writer_entrypoint) / sizeof(required_writer_entrypoint[0]))
         && contains_all(login_command, required_login_command, sizeof(required_login_command) / sizeof(required_login_command[0]))
@@ -289,6 +367,11 @@ static int valid_profile(const char *config_path) {
     free(ready_command);
     free(writer_setup);
     free(gateway_package);
+    free(gateway_entrypoint);
+    free(supervisor_handler);
+    free(firewall);
+    free(journal_config);
+    free(journal_server);
     free(config);
     return valid ? 0 : -1;
 }
@@ -501,6 +584,11 @@ int main(int argc, char **argv) {
         char path[MAX_PATH_BYTES];
         if (!path_join(path, sizeof(path), source, required_secret_files[index])) return 2;
         if (!required_file(path)) return 2;
+    }
+    for (size_t index = 0; index < sizeof(required_external_secret_files) / sizeof(required_external_secret_files[0]); index++) {
+        char path[MAX_PATH_BYTES];
+        if (!path_join(path, sizeof(path), source, required_external_secret_files[index])) return 2;
+        if (!required_external_file(path)) return 2;
     }
     const char *home = getenv("HOME");
     if (!home || !private_directory(home)) return 2;

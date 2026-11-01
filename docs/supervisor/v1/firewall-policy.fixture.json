@@ -13,9 +13,25 @@
       "source": "10.76.20.20 (Gateway)",
       "destination": "10.76.20.10 (writer)",
       "protocol": "tcp",
-      "ports": [8421],
+      "ports": [8422],
       "action": "allow",
-      "purpose": "authenticated supervisor CLI and hook routes only"
+      "purpose": "TLS-protected supervisor-only listener; its handler admits only token-checked service routes"
+    },
+    {
+      "source": "10.76.20.20 (Gateway)",
+      "destination": "10.76.20.10 (writer)",
+      "protocol": "tcp",
+      "ports": [8421],
+      "action": "deny",
+      "purpose": "the owner API is bound to writer loopback and is not exposed on its Gateway interface"
+    },
+    {
+      "source": "10.76.20.20 (Gateway)",
+      "destination": "10.76.10.10 (writer management)",
+      "protocol": "tcp",
+      "ports": [8423],
+      "action": "deny",
+      "purpose": "deny Gateway traffic to the management-only owner UI listener"
     },
     {
       "source": "10.76.20.20 (Gateway)",
@@ -23,7 +39,7 @@
       "protocol": "tcp",
       "ports": [5432, 3306, 6379],
       "action": "deny",
-      "purpose": "writer database access; no separate login or admin port is packaged"
+      "purpose": "writer database access"
     },
     {
       "source": "Gateway",
@@ -70,7 +86,7 @@
       "protocol": "tcp",
       "ports": [18440],
       "action": "allow",
-      "purpose": "version 4 journal UI tunnel to writer port 8421"
+      "purpose": "version 4 journal UI tunnel to the management-only writer listener on port 8423"
     },
     {
       "source": "worker or execution identity probe",
@@ -82,7 +98,8 @@
     }
   ],
   "required_probe_evidence": [
-    "Gateway identity can connect to writer supervisor port 8421",
+    "Gateway identity completes a TLS-verified token-checked request on writer supervisor port 8422",
+    "Gateway identity cannot connect to writer gateway-interface port 8421 or management listener 10.76.10.10:8423",
     "Gateway identity cannot connect to writer database ports, host services, or unlisted egress",
     "backup identity can reach only its declared repository endpoint",
     "worker and execution identities cannot read provider credentials or tenant state and cannot connect to denied ports",

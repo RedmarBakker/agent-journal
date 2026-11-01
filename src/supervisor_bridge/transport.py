@@ -1,8 +1,9 @@
 import json
+import ssl
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 from supervisor_bridge.contracts import (
     ROUTES,
@@ -45,11 +46,14 @@ class NoRedirectHandler(HTTPRedirectHandler):
 class JsonHttpConnection:
     """A bounded JSON connection with redirects disabled and no fallback identity."""
 
-    def __init__(self, base_url: str, token: str, timeout: int = REQUEST_TIMEOUT_SECONDS):
+    def __init__(self, base_url: str, token: str, timeout: int = REQUEST_TIMEOUT_SECONDS, ca_file: str = ""):
         self.base_url = self.checked_base_url(base_url)
         self.token = bounded_text(token, "service token", 1, 4096)
         self.timeout = timeout
-        self.opener = build_opener(NoRedirectHandler())
+        handlers = [NoRedirectHandler()]
+        if ca_file:
+            handlers.append(HTTPSHandler(context=ssl.create_default_context(cafile=ca_file)))
+        self.opener = build_opener(*handlers)
 
     def post(self, path: str, payload: dict, idempotency_key: str = "") -> dict:
         if path not in ROUTES.values():

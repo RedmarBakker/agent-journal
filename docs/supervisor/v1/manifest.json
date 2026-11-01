@@ -29,9 +29,11 @@
         "launch_adapter": "the writer starts a fixed Unix-socket launcher as root with only SETUID, SETGID and SETPCAP; it accepts requests only from the designated journal server PID and uid10001, and only starts numbered Codex Plan environments",
         "identity_limit": "the package launches the Plan process as uid/gid 10003 with no capabilities, no-new-privileges, a read-only container root and an ACL limited to its Plan worktree; dedicated-VM B10 process and write probes remain pending"
       },
-      "ports": ["container 8421 on private Compose networks; host loopback 18440 only"],
+      "owner_api": "the journal CLI and hooks use the owner API on 127.0.0.1:8421; the host tunnel targets a second owner listener bound only to journal_management at 10.76.10.10:8423",
+      "supervisor_api": "the TLS listener binds only gateway_link at 10.76.20.10:8422 and dispatches only the token-checked supervisor service routes",
+      "ports": ["owner API loopback 8421", "management-only owner UI 10.76.10.10:8423; host loopback 18440", "Gateway-only TLS supervisor API 10.76.20.10:8422"],
       "health": "GET http://127.0.0.1:8421/journal/health",
-      "login_page": "none; Gateway uses the bounded supervisor routes on the journal API, and live setup uses the owner's local CLI and the same journal server"
+      "login_page": "none; Gateway uses a separate token-checked TLS listener, and live setup uses the owner's loopback CLI and owner-only management listener"
     },
     {
       "name": "openclaw-gateway-and-stdio-client",
@@ -40,10 +42,12 @@
       "base_image": "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
       "runtime_packaging": "docs/supervisor/v1/build-gateway.sh builds Dockerfile.gateway from PROFILE_REVISION and packages /opt/journal-supervisor/bin/journal-supervisor-bridge with Python",
       "supervisor_admission": {
-        "url": "https://writer:8421",
+        "url": "https://writer:8422",
         "network": "gateway_link",
         "token_secret": "journal_supervisor_credential",
-        "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN"
+        "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN",
+        "tls_ca_secret": "writer_supervisor_tls_ca",
+        "listener": "TLS handler admits only SERVICE_PATHS; every request still passes SupervisorRequestAuth token validation"
       },
       "release": "v2026.10.8",
       "source_commit": "dc2523e5a5c7a309517fd7fa834add938231d526",
@@ -111,17 +115,17 @@
     "status": "contract only; B10 worker inventory and denial probes required"
   },
   "networks": {
-    "journal_management": {"internal": true, "members": ["journal-writer"], "allowed": ["operator loopback tunnel to 18440"]},
-    "gateway_link": {"internal": true, "members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["gateway to the authenticated supervisor routes on writer 8421"]},
+    "journal_management": {"internal": true, "members": ["journal-writer"], "allowed": ["operator loopback tunnel to 18440 -> writer 10.76.10.10:8423"]},
+    "gateway_link": {"internal": true, "members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["Gateway to TLS supervisor listener 10.76.20.10:8422; writer owner ports are absent from this interface"]},
     "provider_egress": {"members": ["journal-writer", "openclaw-gateway-and-stdio-client"], "allowed": ["journal-writer Codex CLI to api.openai.com:443", "Gateway to api.anthropic.com:443; enforced by the tenant VM firewall"]},
     "backup_egress": {"members": ["backup"], "allowed": ["the operator-selected encrypted backup repository only"]}
   },
   "network_enforcement": [
-    {"source": "Gateway", "destination": "writer", "allow": ["tcp/8421 supervisor routes with the scoped credential"], "deny": ["database ports", "host services", "writer_state files"], "enforced_by": "tenant host firewall plus route-level credential scope"},
+    {"source": "Gateway", "destination": "writer", "allow": ["TLS tcp/8422; handler accepts only token-checked supervisor service routes"], "deny": ["writer Gateway-interface tcp/8421; the owner API binds only to loopback", "10.76.10.10:8423 management-only owner UI", "database ports", "host services", "writer_state files"], "enforced_by": "listener address separation, per-destination default-deny firewall rules, and route-level credential scope"},
     {"source": "execution or worker probe", "destination": "tenant private resources", "allow": ["the bound ordinary CLI/hook route when identity-verified"], "deny": ["database", "Gateway state", "provider secrets", "admin ports", "other tenant networks"], "enforced_by": "execution container profile and tenant host firewall; B10 probes required"}
   ],
   "host_ports": [
-    {"port": 18440, "bind": "127.0.0.1", "destination": "journal-writer:8421", "use": "owner/operator access to the version 4 journal through an SSH or tenant-VPN tunnel"}
+    {"port": 18440, "bind": "127.0.0.1", "destination": "journal-writer management listener 10.76.10.10:8423", "use": "owner/operator access to the version 4 journal through an SSH or tenant-VPN tunnel"}
   ],
   "volumes": {
     "writer_state": {"mount": "/data", "owner": "journal:journal", "backup": true, "contains": ["journal record", "project checkout", "journal home"]},
@@ -131,6 +135,9 @@
     "restore_candidate": {"mount": "/restore-candidate", "owner": "operator-provisioned uid 10005", "storage": "tenant-specific host directory via local bind volume", "backup": false, "contains": ["isolated restore output; never mounted by a running writer"]}
   },
   "secrets": [
+    {"name": "writer_supervisor_tls_cert", "owner": "tenant TLS operator", "host_owner": "root:10001", "host_mode": "0440", "mounted_to": "writer:/run/secrets/writer_supervisor_tls_cert as uid/gid 10001", "purpose": "certificate with DNS SAN writer for the private Gateway listener"},
+    {"name": "writer_supervisor_tls_key", "owner": "tenant TLS operator", "host_owner": "root:10001", "host_mode": "0440", "mounted_to": "writer:/run/secrets/writer_supervisor_tls_key as uid/gid 10001", "purpose": "private key for the private Gateway listener"},
+    {"name": "writer_supervisor_tls_ca", "owner": "tenant TLS operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/writer_supervisor_tls_ca as uid/gid 1000", "purpose": "CA trust for verifying the writer TLS certificate"},
     {"name": "supervisor_anthropic_api_key", "owner": "tenant billing/project operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/supervisor_anthropic_api_key", "purpose": "dedicated API-key profile anthropic:supervisor-api"},
     {"name": "openclaw_hook_token", "owner": "tenant operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway:/run/secrets/openclaw_hook_token", "purpose": "private hook authentication"},
     {"name": "journal_supervisor_credential", "owner": "journal owner/operator", "host_owner": "root:1000", "host_mode": "0440", "mounted_to": "Gateway stdio client:/run/secrets/journal_supervisor_credential", "purpose": "single-installation, revocable supervisor scope; never a plugin token or owner cookie"},

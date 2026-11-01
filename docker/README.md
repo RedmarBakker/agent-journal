@@ -35,6 +35,10 @@ Open `https://<your domain>` and enter the hosted password from `.env`.
   journal on port 8440, hashes the password in memory and keeps expiring sessions in its own memory. It receives
   `JOURNAL_HOSTED_PASSWORD`; the journal process does not. Restarting it ends every hosted session. Its cookie is
   HttpOnly, Secure and SameSite=Lax, and the proxy removes it before forwarding requests to the journal.
+  Failed logins receive 1, 2, 4 and 8 second per-source delays; five failures within five minutes lock that source
+  for 15 minutes. Sixty-four failures across the service in one minute trigger a one-minute global lockout. The
+  source address is the final `X-Forwarded-For` entry Caddy appends. Send `POST /logout` to revoke the current session and clear
+  its cookie. Expired sessions are pruned during login, and login messages are HTML-escaped.
 - `caddy`: the only service publishing host ports 80 and 443. It sends HTTPS requests to `hosted-login`, adds
   HSTS, and redirects plain HTTP to HTTPS. Caddy proxies only to `hosted-login`; it never points at port 8421.
 - `backup`: a restic snapshot of the journal's volume every day, kept 7 days and 4 weeks. It holds the

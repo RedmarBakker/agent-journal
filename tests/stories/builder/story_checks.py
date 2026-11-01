@@ -167,6 +167,10 @@ class StoryChecks:
         assert stack == [state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
+    def expect_hosted_session_count(self, count: int) -> None:
+        actual = len(self.hosted_login_state["sessions"])
+        assert actual == count, f"hosted login kept {actual} sessions after login; expected {count}"
+
     def expect_agent_session_in_environment(self, agent: StoryAgent, environment: str) -> None:
         session = self.session_of(agent)
         headers = {**MAIN, "X-Journal-Env": environment}

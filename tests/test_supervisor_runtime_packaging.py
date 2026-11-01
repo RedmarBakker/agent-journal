@@ -55,11 +55,17 @@ def test_profile_is_single_tenant_and_off_by_default():
         "-e",
         "fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
     ]
-    assert compose["services"]["writer"]["ports"] == ["127.0.0.1:18440:8421"]
-    assert compose["services"]["writer"]["expose"] == ["8421"]
+    assert compose["services"]["writer"]["ports"] == ["127.0.0.1:18440:8423"]
+    assert compose["services"]["writer"]["expose"] == ["8422"]
     assert compose["services"]["writer"]["environment"]["JOURNAL_ROOT"] == "/data/project"
-    assert compose["services"]["writer"]["environment"]["JOURNAL_HOST"] == "0.0.0.0"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_HOST"] == "127.0.0.1"
     assert compose["services"]["writer"]["environment"]["JOURNAL_PORT"] == "8421"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_SUPERVISOR_PORT"] == "8422"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_OWNER_ACCESS_HOST"] == "10.76.10.10"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_OWNER_ACCESS_PORT"] == "8423"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_SUPERVISOR_HOST"] == "10.76.20.10"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_SUPERVISOR_TLS_CERT_FILE"] == "/run/secrets/writer_supervisor_tls_cert"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_SUPERVISOR_TLS_KEY_FILE"] == "/run/secrets/writer_supervisor_tls_key"
     assert manifest["topology"][0]["login_page"].startswith("none;")
     assert manifest["launch_gates"]["reviewed_writer_image_digest_recorded"] is False
     assert manifest["backup_runtime"]["version"] == "0.17.3"
@@ -71,10 +77,11 @@ def test_profile_is_single_tenant_and_off_by_default():
     assert gateway["image"] == "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}"
     assert gateway["base_image"] == "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5"
     assert gateway["supervisor_admission"] == {
-        "url": "https://writer:8421",
+        "url": "https://writer:8422",
         "network": "gateway_link",
         "token_secret": "journal_supervisor_credential",
         "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN",
+        "tls_ca_secret": "writer_supervisor_tls_ca",
     }
 
 
@@ -102,14 +109,22 @@ def test_secret_mounts_match_the_receiving_service():
     writer_secrets = {secret["source"] for secret in compose["services"]["writer"].get("secrets", [])}
     backup_secrets = {secret["source"] for secret in compose["services"]["backup"]["secrets"]}
 
-    assert gateway_secrets == {"supervisor_anthropic_api_key", "openclaw_hook_token", "journal_supervisor_credential"}
-    assert writer_secrets == set()
+    assert gateway_secrets == {"supervisor_anthropic_api_key", "openclaw_hook_token", "journal_supervisor_credential", "writer_supervisor_tls_ca"}
+    assert writer_secrets == {"writer_supervisor_tls_cert", "writer_supervisor_tls_key"}
     assert backup_secrets == {"restic_password", "restic_repository", "backup_object_store_credentials"}
-    assert set(secrets) == gateway_secrets | backup_secrets
+    assert set(secrets) == gateway_secrets | writer_secrets | backup_secrets
+    assert secrets["writer_supervisor_tls_cert"]["file"].endswith("/writer_supervisor_tls_cert")
+    assert secrets["writer_supervisor_tls_key"]["file"].endswith("/writer_supervisor_tls_key")
+    assert secrets["writer_supervisor_tls_ca"]["file"].endswith("/writer_supervisor_tls_ca")
+    assert all("TENANT_SECRET_SOURCE_DIR" in secrets[name]["file"] for name in writer_secrets | {"writer_supervisor_tls_ca"})
+    assert {secret["target"] for secret in compose["services"]["writer"]["secrets"]} == writer_secrets
     manifest_secrets = {secret["name"]: secret for secret in read_json(PROFILE / "manifest.json")["secrets"]}
     assert {manifest_secrets[name]["host_owner"] for name in gateway_secrets} == {"root:1000"}
     assert {manifest_secrets[name]["host_owner"] for name in backup_secrets} == {"root:10005"}
     assert {manifest_secrets[name]["host_mode"] for name in gateway_secrets | backup_secrets} == {"0440"}
+    assert {manifest_secrets[name]["host_mode"] for name in writer_secrets} == {"0440"}
+    assert {manifest_secrets[name]["host_owner"] for name in writer_secrets} == {"root:10001"}
+    assert manifest_secrets["writer_supervisor_tls_ca"]["host_owner"] == "root:1000"
     assert "codex_driver_credentials" not in manifest_secrets
     assert "codex_driver_state:/var/lib/journal-codex" in compose["services"]["writer"]["volumes"]
     assert "codex_driver_state" not in " ".join(compose["services"]["gateway"]["volumes"])
@@ -127,7 +142,15 @@ def test_network_policy_is_default_deny_and_refuses_unisolated_workers():
     assert manifest["network_policy_fixture"] == "firewall-policy.fixture.json"
     assert firewall["is_applied_firewall_config"] is False
     assert set(firewall["default_policy"].values()) == {"deny", True}
-    assert any(rule["ports"] == [8421] and rule["action"] == "allow" for rule in firewall["rules"])
+    assert any(rule["ports"] == [8422] and rule["action"] == "allow" for rule in firewall["rules"])
+    assert any(
+        rule["destination"] == "10.76.20.10 (writer)" and rule["ports"] == [8421] and rule["action"] == "deny"
+        for rule in firewall["rules"]
+    )
+    assert any(
+        rule["destination"] == "10.76.10.10 (writer management)" and rule["ports"] == [8423] and rule["action"] == "deny"
+        for rule in firewall["rules"]
+    )
     assert any(rule["ports"] == [5432, 3306, 6379] and rule["action"] == "deny" for rule in firewall["rules"])
     assert any(rule["destination"] == "api.anthropic.com" and rule["ports"] == [443] for rule in firewall["rules"])
     assert any(rule["destination"] == "api.openai.com" and rule["ports"] == [443] for rule in firewall["rules"])
@@ -258,6 +281,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
         ROOT / "src" / "hosted_login.py",
     )
     assert all(script.is_file() for script in runtime_scripts)
+    assert (ROOT / "src" / "login_throttle.py").is_file()
     assert 'exec "$PROJECT/.journal/bin/journal" "$@"' in hosted
     assert 'return self.root / ".journal" / "bin" / "journal"' in project_command
     assert (ROOT / "src" / "journal.py").is_file()
@@ -498,7 +522,12 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in entrypoint
     assert "JOURNAL_SUPERVISOR_ADMISSION_URL" in entrypoint
     assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN" in entrypoint
+    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" in entrypoint
     assert "JOURNAL_SUPERVISOR_CREDENTIAL" not in entrypoint
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
+    assert '"writer_supervisor_tls_cert"' in launcher
+    assert '"writer_supervisor_tls_key"' in launcher
+    assert '"writer_supervisor_tls_ca"' in launcher
 
 
 def test_gateway_admission_url_targets_the_private_writer_network():
@@ -506,10 +535,61 @@ def test_gateway_admission_url_targets_the_private_writer_network():
     gateway = compose["services"]["gateway"]
     writer = compose["services"]["writer"]
 
-    assert gateway["environment"]["JOURNAL_SUPERVISOR_ADMISSION_URL"] == "https://writer:8421"
-    assert writer["expose"] == ["8421"]
+    assert gateway["environment"]["JOURNAL_SUPERVISOR_ADMISSION_URL"] == "https://writer:8422"
+    assert gateway["environment"]["JOURNAL_SUPERVISOR_TLS_CA_FILE"] == "/run/secrets/writer_supervisor_tls_ca"
+    assert writer["expose"] == ["8422"]
     assert "gateway_link" in gateway["networks"] and "gateway_link" in writer["networks"]
     assert "journal_management" not in gateway["networks"]
+
+
+def test_gateway_listener_is_tls_and_policy_fixture_denies_owner_ports():
+    compose = read_json(PROFILE / "compose.json")
+    manifest = read_json(PROFILE / "manifest.json")
+    firewall = read_json(PROFILE / "firewall-policy.fixture.json")
+    writer = compose["services"]["writer"]
+    gateway = compose["services"]["gateway"]
+    gateway_rules = [
+        rule for rule in firewall["rules"]
+        if rule["source"] == "10.76.20.20 (Gateway)" and rule["destination"] == "10.76.20.10 (writer)"
+    ]
+    management_rules = [
+        rule for rule in firewall["rules"]
+        if rule["source"] == "10.76.20.20 (Gateway)" and rule["destination"] == "10.76.10.10 (writer management)"
+    ]
+
+    assert writer["environment"]["JOURNAL_HOST"] == "127.0.0.1"
+    assert writer["environment"]["JOURNAL_OWNER_ACCESS_HOST"] == "10.76.10.10"
+    assert writer["environment"]["JOURNAL_SUPERVISOR_HOST"] == "10.76.20.10"
+    assert writer["networks"]["gateway_link"]["ipv4_address"] == "10.76.20.10"
+    assert gateway["networks"]["gateway_link"]["ipv4_address"] == "10.76.20.20"
+    assert writer["ports"] == ["127.0.0.1:18440:8423"]
+    assert next(iter(writer["networks"])) == "journal_management"
+    assert {
+        (tuple(rule["ports"]), rule["action"]) for rule in gateway_rules
+    } >= {
+        ((8422,), "allow"),
+        ((8421,), "deny"),
+    }
+    assert any(rule["ports"] == [8423] and rule["action"] == "deny" for rule in management_rules)
+    assert manifest["topology"][0]["supervisor_api"].endswith("token-checked supervisor service routes")
+    handler = (ROOT / "src" / "journal" / "http" / "supervisor_handler.py").read_text()
+    assert "SERVICE_PATHS" in handler
+    assert "urlsplit(self.path).path not in SERVICE_PATHS" in handler
+    assert "Response(403" in handler
+    assert "super().do_POST()" in handler
+    assert "token-checked supervisor routes only" in handler
+    authentication = (ROOT / "src" / "journal" / "http" / "support" / "supervisor_authentication.py").read_text()
+    assert "if path in SERVICE_PATHS" in authentication
+    assert "self.authority.authenticate(token)" in authentication
+    assert "TLS_CA_FILE" in (PROFILE / "gateway-entrypoint.sh").read_text()
+    transport = (ROOT / "src" / "supervisor_bridge" / "transport.py").read_text()
+    client = (ROOT / "src" / "supervisor_bridge" / "__main__.py").read_text()
+    assert "HTTPSHandler(context=ssl.create_default_context(cafile=ca_file))" in transport
+    assert "JsonHttpConnection(url, token, ca_file=ca_file)" in client
+    server = (ROOT / "src" / "journal" / "http" / "server.py").read_text()
+    config = (ROOT / "src" / "journal" / "config.py").read_text()
+    assert "SSLContext(ssl.PROTOCOL_TLS_SERVER)" in server and "load_cert_chain" in server
+    assert "JOURNAL_OWNER_ACCESS_HOST" in config and "JOURNAL_SUPERVISOR_TLS_CERT_FILE" in config
 
 
 def test_plugin_is_uninstalled_guarded_and_uses_plugin_health_contract():

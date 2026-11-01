@@ -22,6 +22,11 @@ SECRET_FILES = (
     "restic_repository",
     "backup_object_store_credentials",
 )
+EXTERNAL_SECRET_FILES = (
+    "writer_supervisor_tls_cert",
+    "writer_supervisor_tls_key",
+    "writer_supervisor_tls_ca",
+)
 
 
 @pytest.fixture
@@ -114,10 +119,21 @@ def staging_root(tmp_path):
     work = tmp_path / "project"
     (work / "docs/supervisor/v1").mkdir(parents=True)
     (work / COMPOSE).write_text(
-        '{"services":{"writer":{"environment":{"JOURNAL_CODEX_HOME": "/var/lib/journal-codex",'
+        '{"services":{"writer":{"environment":{"JOURNAL_HOST": "127.0.0.1",'
+        '"JOURNAL_OWNER_ACCESS_HOST": "10.76.10.10","JOURNAL_OWNER_ACCESS_PORT": "8423",'
+        '"JOURNAL_SUPERVISOR_HOST": "10.76.20.10","JOURNAL_SUPERVISOR_PORT": "8422",'
+        '"JOURNAL_SUPERVISOR_TLS_CERT_FILE": "/run/secrets/writer_supervisor_tls_cert",'
+        '"JOURNAL_SUPERVISOR_TLS_KEY_FILE": "/run/secrets/writer_supervisor_tls_key",'
+        '"JOURNAL_SUPERVISOR_ADMISSION_URL": "https://writer:8422",'
+        '"JOURNAL_SUPERVISOR_TLS_CA_FILE": "/run/secrets/writer_supervisor_tls_ca",'
+        '"TENANT_SECRET_SOURCE_DIR": "source", "JOURNAL_CODEX_HOME": "/var/lib/journal-codex",'
         '"JOURNAL_PLAN_DRIVER_SOCKET": "/run/journal-plan-driver.sock"},'
         '"cap_add": ["SETUID", "SETGID", "SETPCAP"],'
+        '"ports": ["127.0.0.1:18440:8423"], "expose": ["8422"],'
         '"volumes":["codex_driver_state:/var/lib/journal-codex"]},'
+        '"writer_supervisor_tls_cert": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert",'
+        '"writer_supervisor_tls_key": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key",'
+        '"writer_supervisor_tls_ca": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_ca",'
         '"gateway": {"secrets":[]},"backup": {"secrets":[]}},'
         '"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",'
         '"volumes":{"codex_driver_state": {}},"secrets":{}}\n'
@@ -178,6 +194,29 @@ def staging_root(tmp_path):
     for name in SECRET_FILES:
         (secrets / name).write_text(f"staged-{name}\n")
         (secrets / name).chmod(0o600)
+    for name in EXTERNAL_SECRET_FILES:
+        (secrets / name).write_text(f"staged-{name}\n")
+        (secrets / name).chmod(0o600)
+    (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text(
+        "JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL "
+        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
+    )
+    handler = work / "src/journal/http/supervisor_handler.py"
+    handler.parent.mkdir(parents=True)
+    handler.write_text("SERVICE_PATHS\ntoken-checked supervisor routes only\n")
+    (work / "docs/supervisor/v1/firewall-policy.fixture.json").write_text(
+        '"destination": "10.76.20.10 (writer)"\n"ports": [8422]\n"ports": [8421]\n'
+        '"destination": "10.76.10.10 (writer management)"\n"ports": [8423]\n"action": "deny"\n'
+    )
+    (work / "src/journal/config.py").write_text(
+        "JOURNAL_OWNER_ACCESS_HOST\nJOURNAL_OWNER_ACCESS_PORT\n"
+        "JOURNAL_SUPERVISOR_HOST\nJOURNAL_SUPERVISOR_TLS_CERT_FILE\nsupervisor_listener\n"
+    )
+    (work / "src/journal/http/server.py").write_text(
+        "SSLContext(ssl.PROTOCOL_TLS_SERVER)\nload_cert_chain\n"
+        "_build_supervisor_handler\n_build_owner_access\n"
+    )
     gateway_state = tmp_path / "gateway-state"
     gateway_state.mkdir(mode=0o700)
     (work / ENV_FILE).write_text(f"TENANT_SECRET_SOURCE_DIR={secrets}\nOPENCLAW_CONFIG_FILE={config}\nGATEWAY_STATE_PATH={gateway_state}\nPROFILE_REVISION=test-reviewed-revision\n")
@@ -306,6 +345,18 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
     assert len((home / "docker-calls").read_text().splitlines()) == 3
     assert not Path((home / "secret-path").read_text()).exists()
     assert "#define SMOKE_RUN_SECONDS 105" in SOURCE.read_text()
+
+
+def test_launcher_refuses_when_writer_tls_material_is_missing(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    (secrets / "writer_supervisor_tls_key").unlink()
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert result.returncode != 0
+    assert not (home / "docker-calls").exists()
 
 
 def test_launcher_refuses_to_start_services_without_the_persistent_codex_device_login(compiled_launcher, tmp_path):

@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
 from supervisor_bridge.mcp import McpServer
@@ -24,7 +25,10 @@ def service_client() -> SupervisorHttpClient:
     token = os.environ.get("JOURNAL_SUPERVISOR_ADMISSION_TOKEN", "")
     if not url or not token:
         raise ValueError("private journal supervisor route credentials are not configured")
-    return SupervisorHttpClient(JsonHttpConnection(url, token))
+    ca_file = os.environ.get("JOURNAL_SUPERVISOR_TLS_CA_FILE", "")
+    if urlsplit(url).hostname not in {"localhost", "127.0.0.1", "::1"} and not ca_file:
+        raise ValueError("the private journal supervisor TLS CA file is not configured")
+    return SupervisorHttpClient(JsonHttpConnection(url, token, ca_file=ca_file))
 
 
 def hook_client() -> OpenClawHookClient | None:
