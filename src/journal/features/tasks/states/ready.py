@@ -79,7 +79,8 @@ class Ready(BaseState):
         return self.none(TasksNudges.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        if self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
-            return self.none(*self.silent_nudges(event.data))
-        return self.none()
+        active = self.active(event.time - event.silence_seconds) if self.silenced_at == 0.0 else self
+        if active.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
+            return self.swap(active, *self.silent_nudges(event.data))
+        return self.swap(active) if active != self else self.none()
 

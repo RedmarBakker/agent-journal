@@ -1226,10 +1226,15 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     active = idle.respond(ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=50.0).with_data(of(nothing)), auto)
     assert active.target == PlansReady(silenced_at=50.0)
     assert idle.respond(PromptSubmitted(agent=EVENT_AGENT, prompt="hi", time=70.0).with_data(of(nothing)), auto).target.silenced_at == 70.0
-    tick = lambda data, time, state=idle, settings=auto: state.respond(Ticked(agent=EVENT_AGENT, silence_seconds=0.0, time=time).with_data(data), settings)
+    def tick(data, time, silence_seconds, state=idle, settings=auto):
+        event = Ticked(agent=EVENT_AGENT, silence_seconds=silence_seconds, time=time).with_data(data)
+        return state.respond(event, settings)
+
     open_work = replace(nothing, open_work=OpenTask(4, "the footer", "", 0))
-    assert [n.key for n in tick(of(open_work), 30 * 60.0).nudges] == ["tasks.check_in_after_quiet"] and tick(of(open_work), 20 * 60.0).nudges == ()
-    assert tick(of(nothing), 30 * 60.0).nudges == (), "with nothing to go on with, half an hour of quiet sends no line"
+    assert tick(of(open_work), 100000.0, 60.0).nudges == (), "a new agent's first tick uses time since it started, not the epoch"
+    assert [n.key for n in tick(of(open_work), 30 * 60.0, 30 * 60.0).nudges] == ["tasks.check_in_after_quiet"]
+    assert tick(of(open_work), 20 * 60.0, 20 * 60.0).nudges == ()
+    assert tick(of(nothing), 30 * 60.0, 30 * 60.0).nudges == (), "with nothing to go on with, half an hour of quiet sends no line"
     assert idle.respond(SessionStarted(agent=EVENT_AGENT, time=5.0).with_data(of(nothing)), auto).target == PlansReady(silenced_at=5.0)
 
 
