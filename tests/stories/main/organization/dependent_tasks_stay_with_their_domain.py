@@ -111,6 +111,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(
         security_domain, "domain:security", f"organization handoff {security} plan",
     ).expect_command_passed()
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
     completed = story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"task complete {security} --how 'Security recorded the policy decision'",
@@ -119,6 +120,8 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.settle()
     story.expect_task_in(source, security, TaskState.COMPLETED.value)
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
+    story.expect_plan(plan, state=PlanState.STARTED)
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
     status, answer = story.session_posted_hook(
         WORKTREE_AGENT_SESSION, {"X-Journal-Env": source}, "Stop", {},
     )
