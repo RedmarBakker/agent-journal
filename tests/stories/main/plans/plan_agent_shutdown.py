@@ -55,10 +55,16 @@ def test_cancelling_a_plan_ends_its_plan_agent_waiting_on_a_worker(story):
 @story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_releasing_a_worker_ends_the_plan_agents_wait_on_it(story):
     agent = plan_agent()
-    worker = dispatch_worker(story, agent, story.tasks.first)
+    task = story.agent_creates_task(agent, "separate work")
+    worker = dispatch_worker(story, agent, task)
     wait_for_worker(story, agent, worker)
 
-    story.user_cancels_task(story.tasks.first, "the task is no longer needed").expect_viewer_passed()
+    cancelled = story.user_presses_in(
+        f"plan-{story.plans.first}",
+        f"/journal/tasks/{task}/cancel",
+        {"why": "the task is no longer needed"},
+    )
+    cancelled.expect_viewer_passed()
     story.expect_worker_in(f"plan-{story.plans.first}", worker, state=WorkerState.RELEASED)
     story.expect_stack(agent, LeadingPlan, FollowingPlan)
 
