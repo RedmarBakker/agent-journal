@@ -1,7 +1,10 @@
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
@@ -26,12 +29,12 @@ def test_a_domain_handoff_creates_the_shared_role_rig_and_delivers_its_job(story
     story.expect_role_job_prompt(role, TASK_BRIEF, "the earlier task brief", "journal clock-in")
     started = story.agent_starts_role_session(role)
     started.expect_allowed(role)
-    story.expect_openrig_seat_environment(role, "role:alpha/shared")
+    plan_row = story.app.container.get(Plans).global_matching(id=plan)[0]
+    shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
+    story.expect_openrig_seat_environment(role, "role:alpha/shared", shared_rig)
     clocked_in = story.agent_clocks_in(role)
     clocked_in.expect_command_passed()
     story.agent_reads(role).expect_allowed()
-
-    from journal.features.organization.support.seat_runtime import SeatRuntime
 
     plan_rig = story.plan_rig_name(plan)
     plan_target = SeatRuntime.target(plan_rig, "plan", "plan-agent")
@@ -50,17 +53,19 @@ def test_a_domain_handoff_creates_the_shared_role_rig_and_delivers_its_job(story
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
 def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     plan, task = story.plans.first, story.tasks.first
+    plan_row = story.app.container.get(Plans).global_matching(id=plan)[0]
+    shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
     domain = story.organization_seat_agent("domain:alpha")
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/security-owner",
     )
     result.expect_command_passed()
 
-    role = story.organization_seat_agent("role:alpha/security-owner")
-    started = story.agent_starts_organization_seat(role, "role:alpha/security-owner")
+    role = story.organization_seat_agent("role:alpha/security-owner", shared_rig)
+    started = story.agent_starts_organization_seat(role, "role:alpha/security-owner", shared_rig)
     started.expect_allowed(role)
-    story.expect_openrig_seat_environment(role, "role:alpha/security-owner")
-    inbox = story.agent_runs_from_openrig_organization_seat(role, "role:alpha/security-owner", "organization inbox")
+    story.expect_openrig_seat_environment(role, "role:alpha/security-owner", shared_rig)
+    inbox = story.agent_runs_from_openrig_organization_seat(role, "role:alpha/security-owner", "organization inbox", shared_rig)
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {task}: first")
     inbox.expect_command_text(TASK_BRIEF)

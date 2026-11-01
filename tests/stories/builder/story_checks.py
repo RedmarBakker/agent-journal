@@ -343,9 +343,9 @@ class StoryChecks:
         messages = [message for target, message in self.simulated_seats().messages if target == member.target]
         assert text in messages, f"OpenRig seat {member.logical_id} for {agent.session} received {messages}, not {text!r}"
 
-    def expect_openrig_seat_environment(self, agent: StoryAgent, seat: str) -> None:
-        member = self.organization_seat_member(seat)
-        environment = self.openrig_organization_seat_environment(seat)
+    def expect_openrig_seat_environment(self, agent: StoryAgent, seat: str, rig: str = "") -> None:
+        member = self.organization_seat_member(seat, rig)
+        environment = self.openrig_organization_seat_environment(seat, rig)
         session = self.simulated_seats().sessions[member.target]["sessionId"]
         agent_session = self.session_of(agent)
         assert session == agent_session, f"{seat} session {session} does not match {agent_session}"

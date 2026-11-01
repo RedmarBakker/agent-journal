@@ -166,17 +166,17 @@ class AgentSteps:
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
 
-    def agent_runs_from_openrig_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
+    def agent_runs_from_openrig_organization_seat(self, agent: StoryAgent, seat: str, line: str, rig: str = "") -> StepResult:
         arguments = shlex.split(line)
         runtime = self.app.container.get(SeatRuntime)
         if agent.role == AgentRole.WORKER:
             member = self.organization_role_member(agent)
             variables = self.simulated_seats().member_environment(member.rig, member.pod, member.member)
         else:
-            rig = self.plan_rig_name(self.plans.first)
+            rig = rig or self.plan_rig_name(self.plans.first)
             pod, member_name = self.organization_seat_address(seat)
             member = runtime.member(rig, pod, member_name, self.provider)
-            variables = self.openrig_organization_seat_environment(seat)
+            variables = self.openrig_organization_seat_environment(seat, rig)
         return self.agent_runs_from_seat(agent, seat, arguments, member, variables.get(ORGANIZATION_SEAT, ""),
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
@@ -192,10 +192,10 @@ class AgentSteps:
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
 
-    def organization_seat_agent(self, seat: str) -> StoryAgent:
-        member = self.organization_seat_member(seat)
+    def organization_seat_agent(self, seat: str, rig: str = "") -> StoryAgent:
+        member = self.organization_seat_member(seat, rig)
         session = self.simulated_seats().sessions[member.target]["sessionId"]
-        environment = self.openrig_organization_seat_environment(seat).get("JOURNAL_ENV", "")
+        environment = self.openrig_organization_seat_environment(seat, rig).get("JOURNAL_ENV", "")
         self.session_environments[str(session)] = environment
         return StoryAgent(AgentRole.MAIN, session=str(session))
 
@@ -211,8 +211,8 @@ class AgentSteps:
         self.simulated_seats().idle(member.target)
         return self.observed(f"{agent.role} seat {seat} waits for work", None, None)
 
-    def agent_starts_organization_seat(self, agent: StoryAgent, seat: str) -> StepResult:
-        return self.organization_seat_hook(agent, seat, "SessionStart", "organization seat starts a session", source="startup")
+    def agent_starts_organization_seat(self, agent: StoryAgent, seat: str, rig: str = "") -> StepResult:
+        return self.organization_seat_hook(agent, seat, "SessionStart", "organization seat starts a session", rig=rig, source="startup")
 
     def agent_starts_organization_seat_in_plan(self, agent: StoryAgent, seat: str, plan: int) -> StepResult:
         member = self.app.container.get(SeatRuntime).organization_member(self.plan_rig_name(plan), seat, self.provider)
@@ -222,20 +222,20 @@ class AgentSteps:
         )
         return self.hook_observed("organization seat starts a session", status, answer, environment)
 
-    def agent_stops_organization_seat(self, agent: StoryAgent, seat: str) -> StepResult:
-        return self.organization_seat_hook(agent, seat, "Stop", "organization seat stops")
+    def agent_stops_organization_seat(self, agent: StoryAgent, seat: str, rig: str = "") -> StepResult:
+        return self.organization_seat_hook(agent, seat, "Stop", "organization seat stops", rig=rig)
 
-    def organization_seat_hook(self, agent: StoryAgent, seat: str, event: str, action: str, **body) -> StepResult:
-        environment = self.openrig_organization_seat_environment(seat).get("JOURNAL_ENV", "")
+    def organization_seat_hook(self, agent: StoryAgent, seat: str, event: str, action: str, rig: str = "", **body) -> StepResult:
+        environment = self.openrig_organization_seat_environment(seat, rig).get("JOURNAL_ENV", "")
         status, answer = self.session_posted_hook(
             self.session_of(agent), {"X-Journal-Env": environment}, event, body,
         )
         return self.hook_observed(action, status, answer, environment)
 
-    def agent_runs_as_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
+    def agent_runs_as_organization_seat(self, agent: StoryAgent, seat: str, line: str, rig: str = "") -> StepResult:
         arguments = shlex.split(line)
-        member = self.organization_seat_member(seat)
-        variables = self.openrig_organization_seat_environment(seat)
+        member = self.organization_seat_member(seat, rig)
+        variables = self.openrig_organization_seat_environment(seat, rig)
         return self.agent_runs_from_seat(agent, seat, arguments, member, member.organization_seat,
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
@@ -248,12 +248,12 @@ class AgentSteps:
                                          variables.get(ORGANIZATION_RIG, ""), variables.get("JOURNAL_ENV", ""),
                                          variables.get(ACTOR_TOKEN, ""))
 
-    def organization_seat_member(self, seat: str):
-        rig = self.plan_rig_name(self.plans.first)
+    def organization_seat_member(self, seat: str, rig: str = ""):
+        rig = rig or self.plan_rig_name(self.plans.first)
         return self.app.container.get(SeatRuntime).organization_member(rig, seat, self.provider)
 
-    def openrig_organization_seat_environment(self, seat: str) -> dict[str, str]:
-        member = self.organization_seat_member(seat)
+    def openrig_organization_seat_environment(self, seat: str, rig: str = "") -> dict[str, str]:
+        member = self.organization_seat_member(seat, rig)
         return self.simulated_seats().member_environment(member.rig, member.pod, member.member)
 
     def agent_runs_from_seat(self, agent: StoryAgent, seat: str, arguments: list[str], member,
