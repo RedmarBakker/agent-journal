@@ -1,18 +1,17 @@
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from journal.engine.clock import Clock
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.domain_delivery_setup import setup_domain
+from tests.stories.fixtures.main.domain_delivery_setup import merge_worker, setup_domain
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class PlanWithFinishedDevelopmentExample(StateFixture):
-    """The owner accepted delivery of an organization task and made a second organization plan."""
+    """The owner accepted delivery of a domain task in a solo plan and made a second solo plan."""
 
     stack = (Ready,)
     parent = ReportSizedPlan
@@ -24,18 +23,7 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             "target": "production",
         })
         story.user_approves_plan(self.plans.first).expect_viewer_passed()
-        started_on = datetime.fromtimestamp(story.app.container.get(Clock).held_at, ZoneInfo("Europe/Amsterdam")).date().isoformat()
-        sprint = story.user_presses("/journal/sprints", {"starts_on": started_on, "timezone": "Europe/Amsterdam"})
-        sprint.expect_viewer_passed()
-        self.sprints.first = sprint.viewer_answer["id"]
-        story.user_presses(f"/journal/sprints/{self.sprints.first}/plans", {"plan_id": self.plans.first}).expect_viewer_passed()
-        story.user_presses(f"/journal/sprints/{self.sprints.first}/start", {}).expect_viewer_passed()
-        sprint = story.user_opens(f"/journal/sprints/{self.sprints.first}")
-        sprint.expect_viewer_shows("state", "active")
-        sprint.expect_viewer_part(("plan_ids",), [self.plans.first])
-        story.agent_runs(story.agents.main, f"task start {self.tasks.first}").expect_command_passed()
-        self.workers.first = story.agent_dispatches_worker(story.agents.main, "Lady Lovelace", self.tasks.first)
-        story.last_step.expect_command_passed()
+        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
         worker = story.agents.workers.first()
         story.agent_starts_a_session(worker)
         story.agent_clocks_in(worker)
@@ -53,12 +41,10 @@ class PlanWithFinishedDevelopmentExample(StateFixture):
             },
         }).expect_viewer_passed()
         self.plans.second = story.user_creates_plan("next release", "the next release reaches production")
-        story.agent_runs(story.agents.main, f"plan mode {self.plans.second} organization").expect_command_passed()
+        story.agent_runs(story.agents.main, f"plan mode {self.plans.second} solo").expect_command_passed()
 
     def expected(self, story) -> None:
-        story.expect_plan(self.plans.first, state=PlanState.FINISHED, mode=PlanMode.ORGANIZATION)
+        story.expect_plan(self.plans.first, state=PlanState.FINISHED, mode=PlanMode.SOLO)
         story.expect_task(self.tasks.first, state=TaskState.COMPLETED, size=3)
-        story.expect_task_outcome_kinds(self.tasks.first, "task_started", "task_completed", "worker_work_merged", "delivery_accepted")
-        story.expect_task_outcome_summary(self.tasks.first, execution_status="completed", artifact_accepted=True, right_censored=False)
-        story.expect_plan(self.plans.second, state=PlanState.DRAFT, mode=PlanMode.ORGANIZATION)
+        story.expect_plan(self.plans.second, state=PlanState.DRAFT, mode=PlanMode.SOLO)
         story.expect_stack(story.agents.main, Ready)

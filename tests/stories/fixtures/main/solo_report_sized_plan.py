@@ -16,6 +16,7 @@ class SoloReportSizedPlan(StateFixture):
     def steps(self, story) -> None:
         story.user_sets(EstimatesOptions.MODE, "report").expect_viewer_passed()
         self.plans.first = story.user_creates_plan("the work", "finish the independent changes")
+        story.agent_runs(story.agents.main, f"plan mode {self.plans.first} solo").expect_command_passed()
         story.agent_runs(story.agents.main, f"plan phase {self.plans.first} 'Delivery' --when 'the changes are complete'").expect_command_passed()
         task = story.agent_runs(story.agents.main, f"plan add {self.plans.first} 'first change' --brief 'the first change is complete' --size 3 --phase 1")
         task.expect_command_passed()

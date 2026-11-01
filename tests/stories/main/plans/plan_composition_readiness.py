@@ -103,8 +103,26 @@ def test_a_solo_plan_cannot_be_readied_when_an_organization_is_configured(story)
 
     result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     result.expect_command_refused()
-    result.expect_command_text("organization mode")
+    result.expect_command_text("needs a mode")
+    result.expect_command_text(f"journal plan mode {story.plans.first} solo")
     story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    story.expect_stack(story.agents.subject, Ready)
+
+
+@story(EnforcedDraftPlan, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+def test_an_explicit_solo_mode_can_be_readied_with_an_organization_configured(story):
+    story.agent_runs(story.agents.subject, f"plan mode {story.plans.first} solo").expect_command_passed()
+    story.agent_runs(story.agents.subject, f"plan phase {story.plans.first} 'Delivery' --when 'the work is complete'")
+    result = story.agent_runs(story.agents.subject,
+                              f"plan add {story.plans.first} 'release' --brief 'the release is deployed' --size 3 --phase 1")
+    result.expect_command_passed()
+    task = story.created_number("task")
+
+    result = story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
+
+    result.expect_command_passed()
+    story.expect_plan(story.plans.first, state=PlanState.READY)
+    story.expect_task(task, state=TaskState.OPEN, size=3)
     story.expect_stack(story.agents.subject, Ready)
 
 
