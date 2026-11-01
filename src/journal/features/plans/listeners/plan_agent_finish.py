@@ -22,13 +22,13 @@ class PlanAgentFinish(Listener[PlanFinished]):
 
     def handle(self, event: PlanFinished) -> None:
         with self.scope.environment(event.environment_id):
-            self.agents.stopped(event)
             plan = self.plans.find(event.plan_id)
             if self.agents.is_on() and plan.mode == PlanMode.SOLO:
                 try:
                     self.branches.merge(event.plan_id)
                 except Rejection as reason:
                     self.report_failure(plan, str(reason))
+            self.agents.stopped(event)
 
     def report_failure(self, plan: Plan, reason: str) -> None:
         starting = self.environments.find(plan.environment_id)

@@ -98,6 +98,7 @@ def test_cancelling_an_organization_plan_stops_its_plan_seat(story):
     plan = story.plans.first
     cancelled = story.user_cancels_plan(plan)
     cancelled.expect_agent_told_nothing(story.agents.main)
+    story.expect_stack(story.agents.main, LeadingPlan, Ended)
     story.expect_plan(plan, state=PlanState.CANCELLED)
     story.expect_openrig_seat_stopped("plan")
-    story.expect_stack(story.agents.main, LeadingPlan, Ended)
+    story.expect_openrig_rig_stopped(story.plan_rig_name(plan))

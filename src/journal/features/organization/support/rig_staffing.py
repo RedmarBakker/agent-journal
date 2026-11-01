@@ -146,7 +146,14 @@ class RigStaffing:
             return False
         return session is not None and session.status not in {"stopped", "ended", "failed", "crashed"}
 
-    def stop_plan(self, plan: Plan, provider: str) -> None:
+    def stop_plan(self, plan: Plan) -> None:
+        rig_id = self.plans.rig_id(plan)
+        if not rig_id:
+            return
+        rig = self.find_rig(rig_id)
+        self.runtime.stop_rig(rig.name)
+
+    def stop_plan_seat(self, plan: Plan, provider: str) -> None:
         rig_id = self.plans.rig_id(plan)
         if not rig_id:
             return

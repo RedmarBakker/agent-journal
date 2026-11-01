@@ -334,6 +334,10 @@ class SeatRuntime:
         self.run("down", rig, "--yes", "--json")
         self.start_rig(spec)
 
+    def stop_rig(self, rig: str) -> None:
+        if self.rig_exists(rig):
+            self.run("down", rig, "--yes", "--json")
+
     def rig_exists(self, rig: str) -> bool:
         return self.run("ps", "--nodes", "--json", "--rig", rig, check=False).returncode == 0
 

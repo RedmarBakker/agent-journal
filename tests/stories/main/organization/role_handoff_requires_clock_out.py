@@ -31,6 +31,7 @@ def test_a_role_returns_completed_work_by_proving_and_clocking_out(story):
     story.expect_task(task, state=TaskState.COMPLETED)
     story.expect_worker(worker, state=WorkerState.MERGED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)
+    story.expect_openrig_rig_stopped(story.plan_rig_name(story.plans.first))
     story.expect_stack(story.agents.main, LeadingPlan, Ended)
 
 

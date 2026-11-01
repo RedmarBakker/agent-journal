@@ -117,10 +117,11 @@ class PlanAgents:
                 self.record_usage(plan)
             agent = self.agent(plan)
             environment = self.environments.find(agent.environment_id) if agent else None
+            if plan.mode == PlanMode.ORGANIZATION and plan.state.is_closed():
+                self.staffing.stop_plan(plan)
             if environment:
-                if plan.mode == PlanMode.ORGANIZATION:
-                    if agent:
-                        self.staffing.stop_plan(plan, agent.provider)
+                if plan.mode == PlanMode.ORGANIZATION and agent and not plan.state.is_closed():
+                    self.staffing.stop_plan_seat(plan, agent.provider)
                 self.places.stopped(environment)
 
     def close_agent(self, event: PlanClosed) -> None:
