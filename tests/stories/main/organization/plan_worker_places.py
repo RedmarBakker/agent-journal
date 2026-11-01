@@ -1,7 +1,7 @@
 from journal.engine.states.void import Void
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
+from journal.features.workers.workers_options import WorkersOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -44,7 +44,7 @@ def _stop_plan_rig(story, plan):
     story.observed(f"OpenRig stops {rig}", None, None)
 
 
-@story(OrganizationRolePartClockedOut, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_another_plan(story):
     paused_plan = story.plans.first
@@ -64,7 +64,7 @@ def test_a_clocked_out_role_worker_of_a_paused_plan_does_not_hold_a_place_for_an
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRolePartClockedOut, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     lost_rig_plan = story.plans.first
@@ -81,11 +81,10 @@ def test_a_role_worker_on_a_plan_whose_rig_is_gone_does_not_hold_a_place(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRolePartClockedOut, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_a_full_place_refusal_routes_another_plans_clocked_out_work_to_its_plan_seat(story):
     old_worker = story.agents.workers.first()
-    story.user_sets(WorkersOptions.MODE, ORCHESTRATOR_MODE).expect_viewer_passed()
     plan, parent, domain = _start_second_plan(story)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     refused = _make_part(story, domain, plan, parent, "maker")
@@ -97,7 +96,7 @@ def test_a_full_place_refusal_routes_another_plans_clocked_out_work_to_its_plan_
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
-@story(OrganizationRolePartClockedOut, mode=BUILDER_MODE, subject=AgentRole.MAIN)
+@story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_cancelling_a_plan_releases_its_clocked_out_role_worker(story):
     plan, part, worker = story.plans.first, story.tasks.first_part, story.agents.workers.first()
