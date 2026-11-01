@@ -30,8 +30,8 @@ def test_a_role_worker_uses_the_token_placed_before_its_worker_row(story):
     worker = story.agents.workers.first()
     story.expect_worker_role_job(worker, task, "the current brief is met", "an earlier task brief")
     story.expect_worker_uses_relaunched_seat_token(worker, seat_token)
-    story.expect_openrig_seat_environment(worker, "role:alpha/shared", shared_rig)
     story.agent_starts_role_session(worker).expect_allowed(worker)
+    story.expect_openrig_seat_environment(worker, "role:alpha/shared", shared_rig)
     story.agent_runs_from_openrig_organization_seat(
         worker, "role:alpha/shared", "clock-in", shared_rig,
     ).expect_command_passed()
