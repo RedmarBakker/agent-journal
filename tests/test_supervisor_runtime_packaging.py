@@ -411,6 +411,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "os.setgid(DRIVER_GID)" in driver_launcher and "os.setuid(DRIVER_UID)" in driver_launcher
     assert "PR_CAPBSET_DROP" in driver_launcher and "PR_SET_NO_NEW_PRIVS" in driver_launcher
     assert '"CODEX_HOME": CODEX_HOME' in driver_launcher
+    assert '"JOURNAL_CODEX_HOME": CODEX_HOME' in driver_launcher
     assert '"PATH": "/usr/local/bin:/usr/bin:/bin"' in driver_launcher
     assert "codex login --device-auth" in login
     assert "--with-api-key" not in login + entrypoint
@@ -488,6 +489,46 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert 'if TOKEN_FILE.exists():' in require_runtime
     assert "if plan_id := existing_plan_id(existing):\n        return resume_plan(app, main, plan_id)" in make_plan
     assert "return plan_id, setup_check_id(app), setup_template_id(app)" in resume
+
+
+def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import journal.launcher.launch as launch_module
+    from journal.support.choice import Choice
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".claude" / "worktrees" / "plan-1").mkdir(parents=True)
+    driver_home = tmp_path / "driver-home"
+    driver_home.mkdir()
+    launch_files = []
+
+    def run_supervisor(command, **kwargs):
+        launch_files.append(Path(command[-1]))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(launch_module.os, "getuid", lambda: 10003)
+    monkeypatch.delenv("JOURNAL_PLAN_DRIVER_SOCKET", raising=False)
+    monkeypatch.setenv("HOME", str(driver_home))
+    monkeypatch.setenv("CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setattr(launch_module.Launch, "choice", lambda self: Choice("plan-1"))
+    monkeypatch.setattr(launch_module.Launch, "start_refusal", lambda self, choice: "")
+    monkeypatch.setattr(launch_module.Launch, "health_numbers", lambda self: {})
+    monkeypatch.setattr(launch_module.Menu, "journal", lambda self, *args: "")
+    monkeypatch.setattr(launch_module.PageWait, "start", lambda self: None)
+    monkeypatch.setattr(launch_module.subprocess, "run", run_supervisor)
+
+    launch = launch_module.Launch.parse(
+        ["codex", "--env", "plan-1", "--worktree", "plan-1", "--no-journal"], project
+    )
+
+    assert launch.run() == 0
+    assert (driver_home / "journal-runtime" / "supervisor.log").is_file()
+    assert launch_files == [driver_home / "journal-runtime" / "launches" / "plan-1.json"]
+    assert not (project / ".journal" / "runtime").exists()
+    assert not (project / ".journal").exists()
 
 
 def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_owner():

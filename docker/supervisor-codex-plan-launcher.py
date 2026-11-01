@@ -106,6 +106,7 @@ def launched(connection: socket.socket, request: dict, log_fd: int, root: Path) 
     child_environment = {
         "CODEX_HOME": CODEX_HOME,
         "HOME": CODEX_HOME,
+        "JOURNAL_CODEX_HOME": CODEX_HOME,
         "JOURNAL_ROOT": str(root),
         "JOURNAL_PORT": port,
         "PATH": "/usr/local/bin:/usr/bin:/bin",

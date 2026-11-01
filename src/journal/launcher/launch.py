@@ -40,6 +40,7 @@ RESUMING = ("--resume", "-r")
 # the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row,
 # unless the Health and backups settings name other numbers
 JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
+PLAN_DRIVER_UID = 10003
 from journal.engine.boot_notices import BOOT_NOTICE, BOOT_SECONDS
 
 # the flags that name a conversation to carry on, whose environment and worktree a bare --worktree then takes
@@ -199,15 +200,18 @@ class Launch:
         return {k: str(v) for k, v in json.loads(path.read_text()).items()} if path.is_file() else {}
 
     def run(self) -> int:
+        driver = self.is_plan_driver
         self.log(f"launch: {' '.join([self.agent, *self.args])}")
         try:
-            ProjectCommand(self.root, self.package / "journal.sh").write()
-            peers = ForeignHooks(self.root, self.provider)
-            peers.restore()
-            prepared = self.prepare_requested_worktree()
+            peers = None
+            if not driver:
+                ProjectCommand(self.root, self.package / "journal.sh").write()
+                peers = ForeignHooks(self.root, self.provider)
+                peers.restore()
+            prepared = self.prepare_requested_worktree() if not driver else ""
             choice = self.choice()
             launch = self.chosen(choice)
-            if not prepared or launch.worktree != prepared:
+            if not driver and (not prepared or launch.worktree != prepared):
                 launch.prepare_worktree(choice)
             refusal = launch.start_refusal(choice)
             if refusal:
@@ -215,12 +219,13 @@ class Launch:
                 print(refusal, file=sys.stderr)
                 return 1
             self.log(f"chosen: environment {choice.environment}, session {choice.resume or 'new'}, hooks aside {choice.stashed_hooks}")
-            if choice.stashed_hooks:
+            if peers and choice.stashed_hooks:
                 peers.stash()
             try:
                 code = launch.supervise(choice)
             finally:
-                peers.restore()
+                if peers:
+                    peers.restore()
             self.log(f"ended: the supervisor's loop exited with {code}")
             return code
         except WorktreeFailure as failed:
@@ -246,7 +251,7 @@ class Launch:
         path.touch(mode=0o600)
         path.chmod(0o600)
         path.write_text(json.dumps(launch))
-        PageWait(self.runtime.parent / "port", launch["socket"], (launch["band"]["left"], launch["band"]["middle"]), "" if self.browser_off else f"?env={choice.environment}", self.log).start()
+        PageWait(self.root / ".journal" / "runtime" / "port", launch["socket"], (launch["band"]["left"], launch["band"]["middle"]), "" if self.browser_off else f"?env={choice.environment}", self.log).start()
         try:
             return subprocess.run(["sh", str(self.package / "supervisor" / "launcher.sh"), sys.executable, str(path)], cwd=self.root).returncode
         finally:
@@ -271,12 +276,17 @@ class Launch:
     def launch_file(self, choice: Choice, status: StatusLine) -> dict:
         launch = uuid.uuid4().hex
         environ = self.environ(choice, launch)
-        worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
-        folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
-        if folder != self.root:
-            Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
-            self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
+        if self.is_plan_driver:
+            folder = self.driver_worktree(choice)
+            Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, f"worktree-{folder.name}")
             self.provider.folder_trusted(self.root, folder)
+        else:
+            worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
+            folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
+            if folder != self.root:
+                Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
+                self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
+                self.provider.folder_trusted(self.root, folder)
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, **self.health_numbers(), "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
         return {
             "launch": launch,
@@ -300,5 +310,24 @@ class Launch:
         return Path("/tmp") / f"journal-{os.getuid()}" / f"{key}-{slug}-{name_key}.sock"
 
     @property
+    def is_plan_driver(self) -> bool:
+        driver_home = os.environ.get("JOURNAL_CODEX_HOME", "")
+        return (
+            os.getuid() == PLAN_DRIVER_UID
+            and self.environment.startswith("plan-")
+            and bool(driver_home)
+            and os.environ.get("CODEX_HOME") == driver_home
+        )
+
+    def driver_worktree(self, choice: Choice) -> Path:
+        name = self.worktree or choice.environment
+        folder = self.root / ".claude" / "worktrees" / name
+        if folder.is_symlink() or not folder.is_dir():
+            raise WorktreeFailure(name, "the restricted Plan driver requires its prepared worktree")
+        return folder
+
+    @property
     def runtime(self) -> Path:
+        if self.is_plan_driver:
+            return Path(os.environ["JOURNAL_CODEX_HOME"]) / "journal-runtime"
         return self.root / ".journal" / "runtime"
