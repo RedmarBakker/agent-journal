@@ -610,6 +610,27 @@ def test_registered_migrations_keep_unique_numbers_across_the_merged_migration_i
     assert len(numbers) == len(MIGRATIONS)
     assert tuple(numbers[number] for number in range(78, 83)) == ("PoolDrop", "TeamColumnsDrop", "FoldSettingDrop", "BrowserSessionsDrop", "DeveloperSwitchRename")
     assert (numbers[76], numbers[77], numbers[83], numbers[84]) == ("BlankAbsenceNulls", "PlanModes", "DuplicateSettingsDrop", "SyncTablesDrop")
+    assert numbers[89] == "AgentModesAndProfiles"
+
+
+def test_the_agent_modes_and_worker_profiles_migration_moves_legacy_rows_to_the_current_model(connection):
+    """Migration 89: old agent modes become main agents, their mode columns go, and jobs on the short medior and senior profile names use the shipped profile names."""
+    from journal.db.migrations.agent_modes_and_profiles import AgentModesAndProfiles
+    connection.execute("ALTER TABLE agents ADD COLUMN mode TEXT")
+    connection.execute("ALTER TABLE agents ADD COLUMN mode_loads TEXT")
+    for session, mode in (("builder", "builder"), ("orchestrator", "orchestrator"), ("solo", "solo")):
+        connection.execute("INSERT INTO agents (environment_id, session, role, mode, mode_loads, created_at, creator) VALUES (1, ?, 'main', ?, '{}', '2026-10-29', 'system')", (session, mode))
+    connection.execute("INSERT INTO agents (environment_id, session, role, created_at, creator) VALUES (1, 'worker', 'worker', '2026-10-29', 'system')")
+    for name, profile in (("Medior", "medior"), ("Senior", "senior"), ("Custom", "custom-worker")):
+        connection.execute("INSERT INTO sent_agents (name, helper_type, profile, created_at, creator) VALUES (?, 'worker', ?, '2026-10-29', 'system')", (name, profile))
+
+    AgentModesAndProfiles().apply(connection)
+
+    agents = [(row["session"], row["role"]) for row in connection.all("SELECT session, role FROM agents ORDER BY id")]
+    assert agents == [("builder", "main"), ("orchestrator", "main"), ("solo", "main"), ("worker", "worker")]
+    assert not {"mode", "mode_loads"} & {row["name"] for row in connection.all("PRAGMA table_info(agents)")}
+    profiles = [row["profile"] for row in connection.all("SELECT profile FROM sent_agents ORDER BY id")]
+    assert profiles == ["journal-medior", "journal-senior", "custom-worker"]
 
 
 def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
