@@ -98,7 +98,14 @@ class SeatRunner:
     def prepare(self, worker: Worker) -> None:
         role = self.role_for(worker)
         if role and role.cardinality is Cardinality.JOURNAL and self.applies(worker):
-            self.member(worker)
+            with self.scope.environment(worker.environment_id):
+                member = self.member(worker)
+                environment = self.environments.find(worker.environment_id).name
+                token = self.runtime.worker_token(
+                    member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment,
+                )
+                current = self.workers.find(worker.row_id)
+                self.workers.save(current.with_(token_hash=token.digest()), Actor.system())
 
     def role_for(self, worker: Worker) -> Role | None:
         return self.organization.at(worker.contract).role(worker.role) if worker.contract and worker.role else None

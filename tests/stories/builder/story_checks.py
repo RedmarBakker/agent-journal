@@ -30,6 +30,7 @@ from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_A
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.providers.providers import Providers
 from journal.support.caller import ACTOR_TOKEN, ORGANIZATION_RIG, ORGANIZATION_SEAT
+from journal.support.agent_token import AgentToken
 from journal.models.support.ref import Ref
 from tests.agent_hooks import story_seconds
 from tests.full_project import MAIN
@@ -455,6 +456,12 @@ class StoryChecks:
         with self.app.container.get(Scope).environment(1):
             row = self.app.container.get(WorkerRows).global_matching(id=worker.number)[0]
         assert row.session == session, f"worker {row.id} is bound to {row.session!r}, not its Role seat's hook session {session!r}"
+
+    def expect_worker_token(self, worker: StoryAgent, token: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            row = self.app.container.get(WorkerRows).global_matching(id=worker.number)[0]
+        expected = AgentToken(token).digest()
+        assert row.token_hash == expected, f"worker {row.id} has token hash {row.token_hash!r}, not the token generated for its Role seat"
 
     def expect_no_user_message_text_in(self, environment: str, text: str) -> None:
         rows = get_answer(self.app, "/journal/messages", {"X-Journal-Env": environment})[1]["rows"]
