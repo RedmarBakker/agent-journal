@@ -214,7 +214,7 @@ class SeatRunner:
                 self.runtime.check_version(member.openrig_version)
                 environment = self.environments.find(worker.environment_id).name
                 token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
-                session = self.session_for_worker(member)
+                session = self.session_for_worker(member, worker)
                 fresh = self.is_journal_role(worker)
                 if fresh:
                     self.launch_fresh(member, worker, identity, session)
@@ -231,7 +231,7 @@ class SeatRunner:
                 current = self.current_job(identity)
                 if current is None or current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
                     return
-                current = self.workers.save(current.with_(token_hash=token.digest(), pid=session.pid, began=self.time_source.seconds()), actor)
+                current = self.record_session(current, session, token.digest(), self.time_source.seconds(), actor)
                 deadline = time.monotonic() + STARTUP_SECONDS
                 while True:
                     if self.current_job(identity) is None:
@@ -269,7 +269,7 @@ class SeatRunner:
                 return
         if self.current_job(identity) is None:
             return
-        session = self.session_for_worker(member)
+        session = self.session_for_worker(member, worker)
         fresh = self.is_journal_role(worker)
         if fresh:
             self.launch_fresh(member, worker, identity)
@@ -293,7 +293,7 @@ class SeatRunner:
         if current is None:
             return
         started_at = self.time_source.seconds()
-        current = self.workers.save(current.with_(token_hash=token.digest(), pid=session.pid, began=started_at), actor)
+        current = self.record_session(current, session, token.digest(), started_at, actor)
         deadline = time.monotonic() + STARTUP_SECONDS
         while True:
             if self.current_job(identity) is None:
@@ -311,8 +311,13 @@ class SeatRunner:
         role = self.role_for(worker)
         return bool(role and role.cardinality is Cardinality.JOURNAL)
 
-    def session_for_worker(self, member: SeatMember) -> SeatSession | None:
-        return self.runtime.session(member)
+    def session_for_worker(self, member: SeatMember, worker: Worker) -> SeatSession | None:
+        session = self.runtime.session(member, worker.resume)
+        return session or self.runtime.session(member)
+
+    def record_session(self, worker: Worker, session: SeatSession, token_hash: str, began: float, actor: Actor) -> Worker:
+        bound = worker if worker.session else worker.with_(session=session.session, resume=session.session)
+        return self.workers.save(bound.with_(token_hash=token_hash, pid=session.pid, began=began), actor)
 
     def launch_fresh(self, member: SeatMember, worker: Worker, identity: SeatJobIdentity) -> None:
         reason = f"journal worker {worker.id} starts task {identity.task_id or identity.started_at} with a fresh context"
@@ -346,9 +351,8 @@ class SeatRunner:
                 current = self.current_job(identity)
                 if current is None:
                     return
-                current = self.workers.save(current.with_(pid=session.pid,
-                                                           token_hash=current.token_hash or worker.token_hash,
-                                                           began=current.began or started_at), actor)
+                current = self.record_session(current, session, current.token_hash or worker.token_hash,
+                                               current.began or started_at, actor)
             if current.pid <= 0:
                 if now - job_started <= STARTUP_SECONDS:
                     continue
@@ -430,7 +434,7 @@ class SeatRunner:
             self.finish_once(current, identity, TIMEOUT_STATUS, actor, ended)
             return True
         member = self.member(current)
-        session = self.runtime.session(member)
+        session = self.session_for_worker(member, current)
         if session is None:
             self.finish_once(current, identity, END_UNWATCHED, actor, ended)
             return True
@@ -476,7 +480,7 @@ class SeatRunner:
                     return
                 member = self.member(worker)
                 self.runtime.check_version(member.openrig_version)
-                session = self.runtime.session(member)
+                session = self.session_for_worker(member, worker)
                 if session is None or session.pid != worker.pid:
                     self.finish_once(worker, identity, END_UNWATCHED, actor, ended)
                     return
