@@ -104,10 +104,9 @@ class OrganizationDataReader:
         if plan is None or plan.mode != PlanMode.ORGANIZATION or identity != "plan":
             return None
         with self.scope.environment(plan.environment_id):
-            tasks = self.plans.plan_tasks(plan)
-            preferred = self.plans.started_task(plan) or self.plans.following_task(plan)
-            if preferred:
-                tasks = [preferred, *(task for task in tasks if task != preferred)]
+            tasks = self.plans.queued_tasks(plan)
+            if started := self.plans.started_task(plan):
+                tasks.insert(0, started)
             for task in tasks:
                 if task.state.is_closed():
                     continue
