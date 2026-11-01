@@ -378,6 +378,7 @@ def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
     story.agent_runs_as_organization_seat(
         first_domain, "domain:alpha", f"organization handoff {first_part} plan",
     ).expect_command_passed()
+    story.organization_seat_goes_idle(first_domain, "domain:alpha")
     story.agent_runs_as_organization_seat(
         story.agents.subject, "plan", f"worker merge {first_worker}",
     ).expect_command_passed()
@@ -427,6 +428,7 @@ def test_a_shared_role_takes_parts_of_two_plans_in_turn(story):
     story.agent_runs_as_organization_seat_in_plan(
         second_domain, "domain:alpha", second_plan, f"organization handoff {second_part} plan",
     ).expect_command_passed()
+    story.organization_seat_goes_idle(second_domain, "domain:alpha")
     story.agent_runs_as_organization_seat_in_plan(
         second_plan_seat, "plan", second_plan, f"worker merge {second_worker}",
     ).expect_command_passed()
