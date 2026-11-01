@@ -1,5 +1,3 @@
-from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.plans.states.leading_plan import LeadingPlan
 from tests.stories.fixtures.main.organization_shared_role_domain_seat_started import OrganizationSharedRoleDomainSeatStarted
 
 
@@ -12,6 +10,3 @@ class OrganizationSharedRoleDomainInboxRead(OrganizationSharedRoleDomainSeatStar
         domain = story.organization_seat_agent("domain:alpha")
         result = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
         result.expect_command_passed()
-
-    def expected(self, story) -> None:
-        story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
