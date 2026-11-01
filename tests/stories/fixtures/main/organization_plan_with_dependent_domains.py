@@ -3,6 +3,7 @@ from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from tests.stories.fixtures.main.organization_domain_plan_draft import OrganizationDomainPlanDraft
 
 
