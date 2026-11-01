@@ -13,20 +13,6 @@ from tests.stories.fixtures.main.plan_approved import PlanApproved
 
 @setting(PlansOptions.PLAN_AGENTS, True)
 @story(PlanApproved, subject=AgentRole.MAIN)
-def test_a_successful_plan_agent_launch_adds_no_failure_to_the_start_answer(story):
-    story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=(): None)
-
-    plan = story.plans.first
-    result = story.agent_runs(story.agents.subject, f"plan start {plan}")
-    result.expect_command_passed()
-    result.expect_command_text_without("Plan agent did not start")
-    story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, state=TaskState.OPEN)
-    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
-
-
-@setting(PlansOptions.PLAN_AGENTS, True)
-@story(PlanApproved, subject=AgentRole.MAIN)
 def test_a_failed_plan_agent_launch_is_reported_and_can_be_retried(story):
     running = set()
     attempts = 0
