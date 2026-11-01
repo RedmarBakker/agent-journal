@@ -11,6 +11,7 @@ from journal.support.time_source import TimeSource
 
 PROOF_LINK = "proves"
 PROVED_STATES = (ProofState.SHOWN, ProofState.CHECKED)
+CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 
 
 class Proofs(ScopedRepository[Proof], LinkedRows):
@@ -27,6 +28,10 @@ class Proofs(ScopedRepository[Proof], LinkedRows):
     def is_proved(self, task: Task) -> bool:
         latest = {proof.point: proof for proof in sorted(self.children(task), key=lambda proof: proof.row_id)}
         return all(point in latest and latest[point].state in PROVED_STATES for point in range(1, len(task.points()) + 1))
+
+    def is_checked(self, task: Task) -> bool:
+        latest = {proof.point: proof for proof in sorted(self.children(task), key=lambda proof: proof.row_id)}
+        return all(point in latest and latest[point].state in CHECKED_STATES for point in range(1, len(task.points()) + 1))
 
     def is_checkable(self, task: Task) -> bool:
         return task.delegated and not task.is_closed() and self.is_proved(task)

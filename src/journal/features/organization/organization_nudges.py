@@ -20,6 +20,12 @@ class OrganizationNudges:
         repeat=Timeout.seconds(0), longest_characters=151,
         longest_reason="it names the waiting task and both commands to check and return it",
     )
+    SPLIT_PART_WAITING_FOR_MERGE = Nudge(
+        "organization", "split_part_waiting_for_plan_merge",
+        "task {{task}} from worker {{worker}} is checked and waits for your merge",
+        "Run `journal worker merge {{worker}}`",
+        repeat=Timeout.seconds(0),
+    )
     TASK_CAN_BE_SPLIT = Nudge(
         "organization", "plan_task_can_be_split", "task {{task}} can be split between its Roles",
         "Use `journal organization part {{task}} role:{{domain}}/<role> \"<title>\" --brief \"<what>\"`",

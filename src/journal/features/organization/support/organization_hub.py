@@ -154,12 +154,17 @@ class OrganizationHub:
             workers_waiting = {
                 task_id: worker for worker, task_id, _ in self.role_work_checks.waiting_for_check_in_plan(plan)
             }
+            workers_to_merge = {
+                task_id: worker for worker, task_id in self.role_work_checks.checked_parts_waiting_for_merge_in_plan(plan)
+            }
             for part in parts:
                 target = self.handoffs.latest_target(part, plan)
                 waiting = ", ".join(f"task {ref.id}" for ref in self.tasks.open_waits(part))
                 line = f"task {part.id} {part.state.value}, {target or 'not assigned'}"
                 if worker := workers_waiting.get(part.id):
                     line = f"{line}, waits for check from worker {worker}"
+                if worker := workers_to_merge.get(part.id):
+                    line = f"{line}, checked and waiting for merge from worker {worker}"
                 print(f"{line}, waits for {waiting}" if waiting else line)
 
     def task(self, task_id: int) -> Task:
@@ -212,6 +217,7 @@ class OrganizationHub:
             holder = self.tasks.holder(task)
             assignment = self.assignment(holder, task, caller)
             print(f"plan {plan.id} task {task.id}: {task.title}{assignment}\n{task.brief}")
+            self.print_merge_instruction(plan, task, seat)
             if seat.startswith("domain:"):
                 for part in self.tasks.parts_of(task):
                     if part.state.is_closed():
@@ -220,6 +226,15 @@ class OrganizationHub:
                     holder = self.tasks.holder(part)
                     assignment = self.assignment(holder, part, caller)
                     print(f"plan {plan.id} task {part.id}: {part.title} (part of task {task.id}, {target or 'not assigned'}){assignment}")
+
+    def print_merge_instruction(self, plan: Plan, task: Task, seat: str) -> None:
+        if seat != "plan":
+            return
+        worker = dict(
+            (part, number) for number, part in self.role_work_checks.checked_parts_waiting_for_merge_in_plan(plan)
+        ).get(task.id)
+        if worker:
+            print(f"task {task.id} is checked and waiting for your merge; run `journal worker merge {worker}`")
 
     @staticmethod
     def assignment(holder: Ref | None, task: Task, caller: Caller) -> str:

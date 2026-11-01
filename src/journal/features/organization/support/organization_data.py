@@ -15,6 +15,7 @@ class OrganizationData:
     waiting_plan_handoff: tuple[int, str] | None = None
     unread_handoff: bool = False
     role_work_waiting_for_check: tuple[tuple[int, int], ...] = ()
+    checked_parts_waiting_for_merge: tuple[tuple[int, int], ...] = ()
     split_tasks: tuple[tuple[int, str], ...] = ()
     split_parts: tuple[TaskPartProgress, ...] = ()
 

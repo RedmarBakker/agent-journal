@@ -43,10 +43,15 @@ class OrganizationDataReader:
             self.role_work_checks.waiting_for_check(plan, identity.removeprefix("domain:"))
             if plan and identity.startswith("domain:") else ()
         )
+        checked_parts = (
+            self.role_work_checks.checked_parts_waiting_for_merge_in_plan(plan)
+            if plan and identity == "plan" else ()
+        )
         split_tasks, split_parts = self.split_work(plan, identity)
         return OrganizationData(contracts, dict(self.organization.history), self.approvals,
                                 self.waiting_plan_handoff(plan, contracts, identity),
-                                self.unread_domain_handoff(plan, identity), role_work, split_tasks, split_parts)
+                                self.unread_domain_handoff(plan, identity), role_work, checked_parts,
+                                split_tasks, split_parts)
 
     def split_work(self, plan: Plan | None, identity: str) -> tuple[tuple[tuple[int, str], ...], tuple[TaskPartProgress, ...]]:
         if plan is None or not identity.startswith("domain:"):

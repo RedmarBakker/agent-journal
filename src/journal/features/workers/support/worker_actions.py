@@ -25,7 +25,7 @@ from journal.models.proof import Proof
 from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
-from journal.repositories.proofs import Proofs
+from journal.repositories.proofs import CHECKED_STATES, Proofs
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.hub_routes import HubRoutes
 from journal.repositories.tasks import Tasks
@@ -45,7 +45,6 @@ ENDED = "worker {n}, {name}, has ended and its report is being filed: wait for i
 INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message while it runs: wait for its report, then give it the job with `journal worker send {n} \"<job>\"`"
 
 
-CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 # a worker whose checked work can be taken in: clocked out, or stopped or ended before it clocked out
 MERGEABLE_STATES = (WorkerState.DELIVERED, WorkerState.STOPPED, WorkerState.UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "

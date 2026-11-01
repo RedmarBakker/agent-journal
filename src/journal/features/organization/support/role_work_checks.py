@@ -1,23 +1,26 @@
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.support.ref import Ref
+from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.domain_rows import DomainRows
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
+from journal.repositories.proofs import Proofs
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 
 
 class RoleWorkChecks:
-    """Find Role work that a Domain seat still needs to check."""
+    """Find Role work waiting for a Domain check or a Plan merge."""
 
     def __init__(self, workers: Workers, tasks: Tasks, domains: DomainRows, handoffs: OrganizationHandoffs,
-                 plans: Plans, scope: Scope) -> None:
+                 plans: Plans, scope: Scope, proofs: Proofs) -> None:
         self.workers, self.tasks, self.domains = workers, tasks, domains
         self.handoffs, self.plans, self.scope = handoffs, plans, scope
+        self.proofs = proofs
 
     def waiting_for_check(self, plan: Plan, domain: str) -> tuple[tuple[int, int], ...]:
         if not domain:
@@ -30,6 +33,26 @@ class RoleWorkChecks:
 
     def tasks_waiting_for_check(self, plan: Plan) -> set[int]:
         return {task_id for _, task_id, _ in self.waiting_for_check_in_plan(plan)}
+
+    def checked_parts_waiting_for_merge_in_plan(self, plan: Plan) -> tuple[tuple[int, int], ...]:
+        with self.scope.environment(plan.environment_id):
+            waiting = []
+            for worker in self.workers.global_matching(state=WorkerState.DELIVERED):
+                for task_id in self.tasks.holder_task_ids(Ref.build(worker)):
+                    tasks = self.tasks.global_matching(id=task_id)
+                    if not tasks or not self.is_checked_part(tasks[0], plan):
+                        continue
+                    waiting.append((worker.id, task_id))
+            return tuple(waiting)
+
+    def is_checked_part(self, task: Task, plan: Plan) -> bool:
+        parent = self.tasks.part_of_task(task)
+        return bool(
+            parent
+            and self.plans.includes_task_or_part(plan.id, task.id)
+            and self.handoffs.latest_target(task, plan) == "plan"
+            and self.proofs.is_checked(task)
+        )
 
     def waiting_for_check_in_plan(self, plan: Plan) -> tuple[tuple[int, int, str], ...]:
         with self.scope.environment(plan.environment_id):

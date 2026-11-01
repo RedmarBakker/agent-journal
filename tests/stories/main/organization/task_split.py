@@ -61,11 +61,7 @@ def _return_part_to_plan(story, part: int, worker, role: str):
     story.agent_runs_as_organization_seat(
         domain, "domain:alpha", f"organization handoff {part} plan",
     ).expect_command_passed()
-    merged = story.agent_runs_as_organization_seat(
-        story.agents.subject, "plan", f"worker merge {worker.number}",
-    )
-    merged.expect_command_passed()
-    return merged
+    return worker
 
 
 @story(OrganizationTaskSplitDomainRead, subject=AgentRole.MAIN)
@@ -234,8 +230,36 @@ def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(sto
     parent, first_part, second_part = story.tasks.first, story.tasks.first_part, story.tasks.second_part
     builder, maker = story.agents.workers.first(), story.agents.workers.second()
     _return_part_to_plan(story, first_part, builder, "builder")
-    story.expect_task(parent, state=TaskState.OPEN)
     _return_part_to_plan(story, second_part, maker, "maker")
+
+    plan = _plan_agent(story)
+    resumed = story.organization_seat_hook(
+        plan, "plan", "SessionStart", "Plan seat receives checked parts", source="resume",
+    )
+    resumed.expect_agent_told(
+        plan, OrganizationNudges.SPLIT_PART_WAITING_FOR_MERGE,
+        worker=builder.number, task=first_part,
+    )
+    resumed.expect_agent_told(
+        plan, OrganizationNudges.SPLIT_PART_WAITING_FOR_MERGE,
+        worker=maker.number, task=second_part,
+    )
+    inbox = story.agent_runs_as_organization_seat(plan, "plan", "organization inbox")
+    inbox.expect_command_passed()
+    inbox.expect_command_text(f"plan {story.plans.first} task {first_part}: first part")
+    inbox.expect_command_text(f"worker {builder.number} holds this task")
+    inbox.expect_command_text(f"journal worker merge {builder.number}")
+    inbox.expect_command_text(f"plan {story.plans.first} task {second_part}: second part")
+    inbox.expect_command_text(f"worker {maker.number} holds this task")
+    inbox.expect_command_text(f"journal worker merge {maker.number}")
+    parts = story.agent_runs_as_organization_seat(plan, "plan", f"organization parts {parent}")
+    parts.expect_command_passed()
+    parts.expect_command_text(f"task {first_part} started, plan, checked and waiting for merge from worker {builder.number}")
+    parts.expect_command_text(f"task {second_part} started, plan, checked and waiting for merge from worker {maker.number}")
+
+    story.agent_runs_as_organization_seat(plan, "plan", f"worker merge {builder.number}").expect_command_passed()
+    story.expect_task(parent, state=TaskState.OPEN)
+    story.agent_runs_as_organization_seat(plan, "plan", f"worker merge {maker.number}").expect_command_passed()
     story.expect_task(second_part, state=TaskState.COMPLETED)
     story.expect_task(parent, state=TaskState.COMPLETED)
     story.expect_plan(story.plans.first, state=PlanState.FINISHED)

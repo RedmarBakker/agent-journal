@@ -25,6 +25,7 @@ class OrganizationConduct(Conduct):
         return self.none(*(nudge for nudge in (
             OrganizationConduct.unread_handoff(event), OrganizationConduct.waiting_handoff(event),
         ) if nudge), *OrganizationConduct.role_work_awaiting_check(event),
+                          *OrganizationConduct.checked_parts_waiting_for_merge(event),
                           *OrganizationConduct.split_guidance(event))
 
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
@@ -74,6 +75,13 @@ class OrganizationConduct(Conduct):
         return tuple(
             OrganizationNudges.ROLE_WORK_AWAITS_CHECK.create(worker=worker, task=task)
             for worker, task in event.data.part(OrganizationPart).role_work_waiting_for_check
+        )
+
+    @staticmethod
+    def checked_parts_waiting_for_merge(event: AgentEvent) -> tuple[Nudge, ...]:
+        return tuple(
+            OrganizationNudges.SPLIT_PART_WAITING_FOR_MERGE.create(worker=worker, task=task)
+            for worker, task in event.data.part(OrganizationPart).checked_parts_waiting_for_merge
         )
 
     @staticmethod
