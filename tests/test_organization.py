@@ -878,6 +878,8 @@ def test_approval_action_phrases_ignore_journal_prose_and_word_fragments():
     assert ApprovalActions.of("journal task log 42 'payout and rm -rf'") == ()
     assert ApprovalActions.of("psql -c 'truncated text'") == ()
     assert ApprovalActions.of("psql -c 'truncate table x'") == (ApprovalAction.DESTRUCTIVE_DATA_CHANGE,)
+    prose = Claude().call("mcp__organization__message", {"message": "payout"}, frozenset(), CLASSIFIER)
+    assert ApprovalActions.of(prose) == ()
 
 
 def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, tmp_path, monkeypatch):

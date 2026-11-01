@@ -25,20 +25,26 @@ COMMANDS = {
 
 
 class ApprovalActions:
-    """Approval-required actions named by a command, tool name or tool input."""
+    """Approval-required actions named by a command or tool name."""
 
     @staticmethod
     def of(command: str | ToolCall) -> tuple[ApprovalAction, ...]:
         if isinstance(command, ToolCall):
             if command.is_journal_line:
                 return ()
-            texts = (command.command, command.tool, command.input_text, *(part.text for part in command.parts))
+            texts = (command.command, *(part.text for part in command.parts))
+            tool_names = tuple(command.tool.lower().split("__"))
         else:
             if Chain.is_journal_line(command):
                 return ()
             texts = (command,)
+            tool_names = ()
         text = "\n".join(texts).lower()
-        return tuple(action for action, names in COMMANDS.items() if any(ApprovalActions.matches(text, name) for name in names))
+        return tuple(
+            action
+            for action, names in COMMANDS.items()
+            if any(ApprovalActions.matches(text, name) or name in tool_names for name in names)
+        )
 
     @staticmethod
     def matches(text: str, phrase: str) -> bool:
