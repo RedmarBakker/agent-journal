@@ -1,0 +1,20 @@
+id = "builder"
+title = "Builder"
+domain = "alpha"
+description = "Builds Alpha work."
+cardinality = "journal"
+writes = true
+responsible = ["the assigned change"]
+not_responsible = ["other work"]
+inputs = ["a task"]
+outputs = ["the change"]
+skills = []
+tools = ["read_files", "edit_files", "run_tests"]
+approval_required = ["destructive_data_change"]
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6-luna"
+effort = "max"

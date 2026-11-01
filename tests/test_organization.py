@@ -870,8 +870,14 @@ def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_a
 def test_each_contract_approval_id_is_recognized_from_a_command_and_a_tool():
     for action in ApprovalAction:
         tool = Claude().call(f"mcp__organization__{action.value}", {"action_id": action.value}, frozenset(), CLASSIFIER)
-        assert ApprovalActions.of(f"journal role action --approval {action.value}") == (action,)
+        assert ApprovalActions.of(f"run action --approval {action.value}") == (action,)
         assert ApprovalActions.of(tool) == (action,), action.value
+
+
+def test_approval_action_phrases_ignore_journal_prose_and_word_fragments():
+    assert ApprovalActions.of("journal task log 42 'payout and rm -rf'") == ()
+    assert ApprovalActions.of("psql -c 'truncated text'") == ()
+    assert ApprovalActions.of("psql -c 'truncate table x'") == (ApprovalAction.DESTRUCTIVE_DATA_CHANGE,)
 
 
 def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, tmp_path, monkeypatch):

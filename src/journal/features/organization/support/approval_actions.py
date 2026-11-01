@@ -1,8 +1,10 @@
 import hashlib
 import json
 import posixpath
+import re
 
 from journal.features.organization.support.approval_action import ApprovalAction
+from journal.support.chain import Chain
 from journal.support.tool_call import ToolCall
 
 COMMANDS = {
@@ -28,11 +30,20 @@ class ApprovalActions:
     @staticmethod
     def of(command: str | ToolCall) -> tuple[ApprovalAction, ...]:
         if isinstance(command, ToolCall):
+            if command.is_journal_line:
+                return ()
             texts = (command.command, command.tool, command.input_text, *(part.text for part in command.parts))
         else:
+            if Chain.is_journal_line(command):
+                return ()
             texts = (command,)
-        words = "\n".join(texts).lower()
-        return tuple(action for action, names in COMMANDS.items() if any(name in words for name in names))
+        text = "\n".join(texts).lower()
+        return tuple(action for action, names in COMMANDS.items() if any(ApprovalActions.matches(text, name) for name in names))
+
+    @staticmethod
+    def matches(text: str, phrase: str) -> bool:
+        words = r"\s+".join(re.escape(word) for word in phrase.split())
+        return re.search(rf"\b{words}\b", text) is not None
 
     @staticmethod
     def identity(call: ToolCall) -> tuple[str, str]:
