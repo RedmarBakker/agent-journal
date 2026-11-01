@@ -55,7 +55,7 @@ def test_a_restarted_domain_routes_its_task_to_a_writing_role(story):
     story.expect_role_job_prompt(worker, brief, stale_brief, "journal clock-in")
     story.expect_organization_seat_routing_guidance(rig)
     story.expect_task_tied_to_domain(task, "alpha")
-    story.expect_plan(plan, state=PlanState.DELEGATED)
+    story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_plan_rig(plan, rig)
     story.expect_plan_rig_seat_settings(rig)
     story.expect_stack(story.agents.main, CoordinatingPlans, ExternalWait)
