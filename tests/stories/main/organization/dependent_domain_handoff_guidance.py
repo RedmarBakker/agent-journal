@@ -30,4 +30,4 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         task=engineering, domain="beta",
     )
 
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)

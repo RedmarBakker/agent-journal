@@ -1,3 +1,10 @@
+from journal.engine.states.void import Void
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.features.workers.states.working_task import WorkingTask
+from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
+from journal.models.worker_state import WorkerState
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
@@ -21,3 +28,12 @@ class OrganizationPartReturnedUnchecked(OrganizationTaskTwoPartsClockedIn):
         with scope.environment(plan.environment_id):
             task = story.app.container.get(Tasks).find(self.tasks.second_part)
             story.app.container.get(OrganizationHandoffs).handoff(task, plan, "plan", Actor.system())
+
+    def expected(self, story) -> None:
+        story.expect_plan(self.plans.first, state=PlanState.STARTED)
+        story.expect_task(self.tasks.first, state=TaskState.OPEN)
+        story.expect_task(self.tasks.first_part, delegated=True)
+        story.expect_task(self.tasks.second_part, delegated=True)
+        story.expect_worker(story.agents.workers.first(), state=WorkerState.READY)
+        story.expect_worker(story.agents.workers.second(), state=WorkerState.DELIVERED)
+        story.expect_stack(story.agents.workers.first(), Void, WorkingTask)
