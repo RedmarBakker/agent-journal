@@ -4,6 +4,7 @@ from journal.console.command import Command
 from journal.features.reviewing.support.review_queue import ReviewQueue
 from journal.features.reviewing.support.review_routing import ReviewRouting
 from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
+from journal.features.workers.workers_options import WorkersOptions
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope

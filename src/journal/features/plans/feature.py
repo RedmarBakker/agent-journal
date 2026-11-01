@@ -69,20 +69,22 @@ class Plans(Feature[PlansData]):
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans
 
-A plan is a goal, phases in order, and the tasks under each phase. It is built with the user, marked ready
-by you, approved by them, and then followed: finishing one task starts the next until the last.
+A plan is a goal, phases in order, and the tasks under each phase. The main agent builds it with the user; the user
+approves it before work starts. Each plan has a mode: an organization Plan agent coordinates Domain agents and Roles,
+while a solo Plan agent takes on Roles one at a time.
 
 - `journal plan create "<title>" --brief "<goal>"` drafts it; `journal plan brief <n> "<goal>"` replaces the goal.
 - `journal plan phase <n> "<title>" --when "<complete when>"` adds a phase, `--checkpoint` where the user
   should review before the plan continues. A checkpoint stops the plan only when auto mode is off; in auto mode the plan
   continues straight on.
-- `journal plan add <n> "<task title>" --brief "<done when>" --phase <k>` files a task straight under its phase, by its number
-  from 1. Use `--size <points>` from configured `estimates.size_scale`, `--after <task> --reason "<why>"` for prerequisites,
-  `--domain <domain>` for an organization task, and `--delivery-gate-for <task>` when it needs accepted delivery evidence;
-  `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase.
-- Choose how it is worked with `journal plan mode <n> organization` or `journal plan mode <n> solo`. An organization
-  plan gives every task a Domain. Set each task's priority with `journal task edit <task> --priority <level>`.
-- `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
+- `journal plan add <n> "<task title>" --brief "<done when>" --phase <k>` files a task under a phase, numbered from 1.
+- `journal plan add <n> "<task title>" --size <points>` records its estimate from `estimates.size_scale`.
+- `journal plan add <n> "<task title>" --after <task> --reason "<why>"` records a prerequisite.
+- `journal plan add <n> "<task title>" --domain <domain>` assigns an organization task to a Domain.
+- `journal plan add <n> "<task title>" --delivery-gate-for <task>` requires accepted delivery evidence before the task can proceed.
+- `journal plan todos <n> <phase> <tasks…>` moves tasks to another phase. Set priority with `journal task edit <task> --priority <level>`.
+- `journal plan mode <n> organization|solo` chooses how the plan is worked. An organization Plan agent coordinates Domain agents and Roles; a solo Plan agent does the work itself, one Role at a time.
+- Before `journal plan ready <n>`, check that every phase has tasks and that each task has the relevant size, prerequisite, Domain and delivery gate. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
   The main agent works through one plan at a time. With Plan agents on, each started plan has its own agent, and the main
   agent can coordinate several plans at once. A plan one of whose tasks goes to a worker while you hold none of its tasks

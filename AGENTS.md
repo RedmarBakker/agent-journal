@@ -14,7 +14,7 @@ file's own safety and deploy rules still stand. The user's own instructions take
 These rules ship with the journal and cannot be switched off.
 
 **L1 - Every subagent dispatch names its model and chooses the least expensive model that reliably fits the work.**
-Inheriting the orchestrator's model is not a model choice.
+Inheriting the dispatching agent's model is not a model choice.
 
 **L2 - Every subagent is bound to a concrete job; never dispatch a generic or default agent.**
 Give the dispatch a description and a bounded prompt. If no suitable specialization exists, keep the work yourself.
@@ -103,6 +103,10 @@ may refuse the push. Every push and pop is an entry in the trail, shown under th
 diagram on the Home page. Counts and times a state keeps are its fields and go with it when it is
 popped.
 
+The main agent owns each environment. Plans have an organization or solo plan mode. With Plan agents enabled, each
+started plan has its own Plan agent; an organization Plan agent coordinates Domain agents and their Roles, while a
+solo Plan agent takes on Roles one at a time.
+
 **Features add their states; the engine knows no feature.** A feature owns its states, its
 nudges, its options, its recording listeners and its commands. Its conduct toward the agent in
 every state is a mixin extending `Conduct`: `on_` methods named for their event alone,
@@ -190,7 +194,7 @@ repository, a parser, a model's pure method, are not stories: they get unit test
 uses; it plays real steps the way they really happen, the agent through its hooks and commands and the user through the
 viewer's routes; and it ends on a known stack. It reads as a story, not as code: steps say who does what, expectations
 say what the journal did (what the agent was told, what was refused, which rows changed, where the stack ended), and no
-assert appears in it; every assert lives inside an expect method of the builder.
+assert appears in it; every check uses the story's expectation methods, which contain the assertions.
 
 - **One case per story**, its name the sentence of what happens: `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
 - **One behaviour per file**, its name saying which: `agent_replies_to_every_message.py`, `task_transfer.py`.
@@ -207,9 +211,8 @@ assert appears in it; every assert lives inside an expect method of the builder.
 - **Its rows by kind**: the rows its fixture made are read on the story by kind and name, `story.tasks.started`,
   `story.plans.first`, `story.messages.second`; a fixture keeps them as `self.tasks.started` and plays as `story.agents.main`.
 - **It closes on its stack**: every story's last line is `story.expect_stack(...)`, and the run fails one that does not.
-- **It names its work mode and its subject**: `@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)`, never left
-  to a default; a mode list, or `ALL_MODES`, runs it once per mode, its stack naming the mode's bottom state as
-  `ModeFloor`; the subject on the mark must be the subject of its folder, and the run fails one where they differ.
+- **It names its subject**: `@story(StartedTask, subject=AgentRole.MAIN)`; the subject on the mark must be the subject
+  of its folder, and the run fails one where they differ.
 - **What it needs, it sets**: `@setting(option, value)`, and the story fails if the journal never reads the setting.
   No `@values`: each case is a story of its own, from a fixture.
 - **Numbers come from the code**, never copied.
@@ -242,7 +245,7 @@ knows no journal concept: it runs the processes it is handed and answers its pro
 
 Every subagent dispatch names its model: the fast model for mechanical known-answer work,
 the general model for careful work without invention, the strongest only for judgement.
-Unset means the orchestrator's own model, which is the wrong default. The journal carries this as a rule
+Unset means the dispatching agent's own model, which is the wrong default. The journal carries this as a rule
 (`journal rules`); this file carries it so it is read before the first dispatch.
 
 Every dispatch prompt says the subagent never runs tests: it writes the test that proves its change and names it in its report, and the main agent runs it.

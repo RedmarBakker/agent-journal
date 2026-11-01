@@ -14,7 +14,7 @@ VERDICT = "verdict"
 
 @dataclass(frozen=True)
 class Verifying(BaseState):
-    """A verifier at its one job, judging a dismissal on the evidence it was handed. Every tool but its verdict command is refused, file edits among them, it hears no feature's conduct, and its verdict ends its session."""
+    """A verifier at its one job, judging a dismissal on the evidence it was handed. It may read its model and give its verdict, while every other tool is refused; its verdict ends its session."""
 
     name = "verifying"
     assigner = NoTaskAssigner

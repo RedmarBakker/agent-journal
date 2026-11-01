@@ -115,6 +115,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
+from journal.features.skills.skills_options import SkillsOptions
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.tasks.tasks_part import TasksPart
@@ -273,7 +274,7 @@ class ServerCatalogue:
     def states(self):
         return [Ready, Working]
 
-    def modes(self):
+    def state_floors(self):
         return []
 
     def floors(self):
@@ -922,7 +923,7 @@ def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data(
     from journal.events.agent.tool_finished import ToolFinished
     from journal.events.agent.turn_displayed import TurnDisplayed
     from journal.events.rows.setting_changed import SettingChanged
-    settings = SettingsValue({EtiquetteOptions.REMINDER_INTERVAL.key: 50})
+    settings = SettingsValue({EtiquetteOptions.REMINDER_INTERVAL.key: 50, SkillsOptions.START_SKILLS.key: ["journal"], SkillsOptions.COMPACTION_SKILLS.key: ["journal"]})
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     data = FeatureData({"plans": PlansData((), None), "tasks": TasksData(current_task=0, last_log_line="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", next_open=None, last_commands=()), "skills": SkillsData(skills_due=(), loaded={}, skills=()), "voices": VoicesData(instruction="as a butler", introduction_sent=False), "etiquette": EtiquetteData(reminder_gap=50, code_edits=0), "pins": PinsData(pinned=("https://a.test/pinned",), recent_suggestions=("https://a.test/said",), newest_pin_at=0.0), "migration": MigrationData(version_3_waiting=True)})
@@ -1641,24 +1642,21 @@ def test_the_worker_load_is_measured_as_one_server_from_its_arrivals_and_clearin
     series, now = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, low_at=0.5), 100000.0
     # an item every 3 minutes, each cleared a minute and a half after it came: busy half the time
     steady = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 90) for n in range(60)]
-    load = series.measured(steady, [], now)
+    load = series.measured(steady, now)
     assert abs(load.arrivals - 20) < 0.5 and abs(load.clearings - 40) < 0.5, "λ 20 an hour arrive, μ 40 an hour of busy time are cleared"
     assert abs(load.rho - 0.5) < 0.02 and abs(load.wait_minutes - 1.5) < 0.01, "ρ = λ/μ, the share of time busy, and W from arrival to clearing"
     assert abs(load.little - 0.5) < 0.02 and load.waiting == 0, "Little's law: λW is the 0.5 that waits on average, and nothing waits now"
-    assert load.oldest_first == load.clearings_counted == 10, "each cleared the oldest that waited"
     # an item every minute, each waiting five: the worker queue never idle, five waiting at a time
     flooded = [LoadItem(f"workers:{n}", now - 2 * 3600 + n * 60, 1.0, now - 2 * 3600 + n * 60 + 300) for n in range(118)]
-    busy = series.measured(flooded, [], now)
+    busy = series.measured(flooded, now)
     assert busy.rho > 0.95 and abs(busy.wait_minutes - 5) < 0.01 and abs(busy.little - 5) < 0.2, "saturated: ρ near 1 and λW near the five that wait"
     assert busy.busy_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117") and busy.waiting_items == 2, "over 0.8 the whole stretch, and what waits now oldest first"
-    # a user's message waits unanswered, weighted 3: dispatches made while the queue grows under a high load count against, one while calm counts for
-    oldest = series.measured([*flooded, LoadItem("messages:553", now - 600, 3.0)], [], now)
+    # an unanswered user message waits beside worker jobs with its own weight
+    oldest = series.measured([*flooded, LoadItem("messages:553", now - 600, 3.0)], now)
     assert oldest.waiting_refs[0] == "messages:553" and oldest.waiting == 5.0, "the message is the oldest that waits, weighted 3"
-    growing = series.measured([*flooded, LoadItem("messages:553", now - 200, 3.0)], [now - 120, now - 60], now)
-    assert growing.busy_dispatches == 2 and growing.calm_dispatches == 0, "both dispatches made while the queue grew over 0.8"
     quiet = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 30) for n in range(60)]
-    calm = series.measured(quiet, [now - 300], now)
-    assert calm.rho < 0.5 and calm.calm_dispatches == 1 and calm.busy_dispatches == 0, "a dispatch while the load is low counts for"
+    calm = series.measured(quiet, now)
+    assert calm.waiting == 0 and calm.rho < 0.5, "a quiet queue has no work waiting and stays below the low-load line"
 
 
 def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_none():
@@ -1668,7 +1666,7 @@ def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_non
     reader = LoadItems(None, None, None, SimpleNamespace(holder_task_ids=lambda ref: []), SimpleNamespace(decimal=lambda option: option.default), None)
     moves = WorkerMoves((("clocked in", 10.0), ("clocked out", 100.0), ("sent back", 160.0), ("clocked in", 170.0), ("clocked out", 400.0), ("merged", 460.0), ("sent a job", 470.0), (ENDED_UNFINISHED, 900.0), ("sent a job", 905.0), (ENDED_UNFINISHED, 950.0)))
     items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves))
-    assert [(item.arrived_at, item.weight, item.cleared_at, item.ended_at, item.is_repeat) for item in items] == [(100.0, 1.0, 0.0, 160.0, False), (400.0, 1.5, 460.0, 0.0, True), (950.0, 1.0, 0.0, 0.0, False)], "a clock-out ended without a clearing by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"
+    assert [(item.arrived_at, item.weight, item.cleared_at, item.ended_at) for item in items] == [(100.0, 1.0, 0.0, 160.0), (400.0, 1.5, 460.0, 0.0), (950.0, 1.0, 0.0, 0.0)], "a clock-out ended without a clearing by its send-back, the repeat weighs 1.5 and clears by its merge, and the end without a clock-out still waits"
     assert reader.worker_items(Worker(id=8, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0), ("sent a job", 80.0))))) == [], "an idle place is no item of the queue; its minutes are read apart"
     resent = WorkerMoves((("dispatched", 1.0), ("clocked in", 5.0), (ENDED_UNFINISHED, 60.0), ("sent a job", 61.0)))
     assert reader.worker_items(Worker(id=9, environment_id=1, name="w", moves=resent)) == [], "a worker's run ending without a clock-out, which the journal answers itself by asking it to clock out, leaves the main agent's load as it was; only a second such end, which the agent is told of, is its work"
@@ -1916,21 +1914,10 @@ def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_eng
 
 
 
-def test_an_agents_line_series_are_kept_by_time_and_read_by_window():
-    hour = 3600.0
-    agent = Agent(session="s1")
-    for minutes, lines in ((0, 10), (50, 20), (100, 30), (170, 40)):
-        agent = agent.lines_edited(lines, minutes * 60, minutes * 60 - 3 * hour)
-    assert agent.edited_total(170 * 60, hour) == 40 and agent.edited_total(170 * 60, 2 * hour) == 70, "a 60-minute window holds the last pair, a 120-minute one the last two"
-    later = agent.lines_edited(5, 200 * 60, 200 * 60 - 3 * hour)
-    assert [time for time, _ in later.edited_lines] == [50 * 60, 100 * 60, 170 * 60, 200 * 60], "a pair older than three hours is dropped at the next write"
-    committed = agent.lines_committed("abc", 12, 60.0, 0.0).lines_committed("def", 8, 120.0, 0.0)
-    assert committed.committed_total(120.0, hour) == 20 and committed.is_sha_counted("abc") and not committed.is_sha_counted("xyz")
-    assert agent.first_reported(7, 60.0, 0.0).first_reported(8, 4000.0, 0.0).first_report_count(4000.0, hour) == 1
-
-
 def test_old_line_pairs_keyed_by_tool_use_are_cleared(connection):
     from journal.db.migrations.timed_line_series import TimedLineSeries
+    connection.execute("ALTER TABLE agents ADD COLUMN edited_lines TEXT")
+    connection.execute("ALTER TABLE agents ADD COLUMN merged_lines TEXT")
     connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, edited_lines, merged_lines, created_at, creator) VALUES (1, 'old', 'main', 'idle', '{}', '[]', ?, ?, '2026-10-26', 'system')", (json.dumps([[12, 40], [30, 5]]), json.dumps([[20, 80]])))
     TimedLineSeries().apply(connection)
     row = connection.all("SELECT edited_lines, merged_lines FROM agents WHERE session = 'old'")[0]
@@ -1944,8 +1931,8 @@ def test_load_held_high_ends_the_minute_nothing_waits_though_the_smoothed_load_i
     from journal.features.workers.support.load_series import LoadSeries
     series = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, low_at=0.5)
     items = [LoadItem(ref=f"workers:{n}", arrived_at=n * 60.0, weight=1.0) for n in range(20)]
-    waiting = series.measured(items, [], 1800.0)
-    cleared = series.measured([item.cleared(1800.0) for item in items], [], 1860.0)
+    waiting = series.measured(items, 1800.0)
+    cleared = series.measured([item.cleared(1800.0) for item in items], 1860.0)
     assert waiting.rho >= 0.8 and waiting.busy_minutes > 0, waiting
     assert cleared.rho >= 0.8 and cleared.busy_minutes == 0.0, "an empty queue ends load held high within one tick, while the smoothed load is still over the line"
 

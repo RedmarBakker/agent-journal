@@ -11,7 +11,7 @@ SOUND_VERDICT, REFUTED_VERDICT = "yes", "no"
 
 
 class VerdictCommand(Command):
-    """journal verdict yes|no "<reason>": a verifier's one answer on the dismissal it judges; yes when the dismissal is sound, no when the run's output contradicts it; a no opens the report again and holds the agent's writes until its reader is written anew, and either verdict ends the verifier's session."""
+    """journal verdict model|give: read the model chosen for this judgement or give one reasoned yes or no verdict; either verdict ends the verifier's session."""
 
     noun = "verdict"
     default_verb = "give"
@@ -24,6 +24,13 @@ class VerdictCommand(Command):
         giving = self.verb(verbs, "give", "your verdict on the dismissal you judge: yes, it is sound, or no, the run's output contradicts it, with one reason")
         giving.add_argument("verdict", choices=(SOUND_VERDICT, REFUTED_VERDICT))
         giving.add_argument("reason")
+
+        self.verb(verbs, "model", "the model chosen for this judgement")
+
+    def model(self, args: Namespace, caller: Caller) -> int:
+        print(f"verifier model: {self.dispatch.model(caller.verifier_number)}")
+        return 0
+
     def give(self, args: Namespace, caller: Caller) -> int:
         judged = self.dispatch.judged(caller.verifier_number)
         if judged.type != ReaderReport.table():

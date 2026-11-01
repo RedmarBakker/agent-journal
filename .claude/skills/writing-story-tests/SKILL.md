@@ -40,9 +40,8 @@ Before a line of a story, write down for yourself what the feature does in each 
   and nothing else; another concern gets its own small file. Fixtures go in `tests/stories/fixtures/<subject>/`.
 - One story per case, its name the sentence of what happens:
   `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
-- Start each story from the fixture whose rows it uses and name the work mode it plays in
-  (`@story(StartedTask, mode=BUILDER_MODE, subject=AgentRole.MAIN)`, the subject the one its folder names; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
-  `ModeFloor`), and close it with
+- Start each story from the fixture whose rows it uses and name its subject
+  (`@story(StartedTask, subject=AgentRole.MAIN)`, the subject the one its folder names), and close it with
   `story.expect_stack(story.agents.subject, Ready, Working)`, the stack it leaves, bottom first; the run fails a story that does not close on it.
 - Every agent step and agent check names its agent first, written out, never a default: `story.agents.subject` for the
   agent the story is about, `story.agents.main`, `story.agents.workers.first()` or `story.agents.workers.get(n)`, the same
@@ -61,13 +60,13 @@ Before a line of a story, write down for yourself what the feature does in each 
   when the journal never reads it. No `@values`: each case is a story of its own, from a fixture.
 - A story runs once, on a VoidProvider that sends and expects nothing of Claude or Codex; `@provider("codex")` marks the
   few stories where the provider is what is tested.
-- A story holds no assert: every check is an expect method of the builder, which holds the assert. The
+- A story holds no assert: every check uses the story's expect methods, which contain the assertions. The
   StoryAssertDetector flags an assert in `tests/stories/`.
 - Numbers come from the code, never copied: `MemoryThresholds.CONTEXT[0]`, `story.setting(option) + 1`,
   `story.agent_consumes(option)` for as many tool uses as a setting allows.
 - Check what reaches the agent on the step's result (`result.expect_agent_told`, `result.expect_refused`), the rows (`expect_task`, `task_numbers_in`) and
   the stack.
-- A step the builder lacks is added to the builder in `tests/stories/builder/`, once, for every story to use.
+- A step the story helper lacks is added once to shared story support for every story to use.
 
 ## 3. Run them together, see them fail
 

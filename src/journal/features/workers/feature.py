@@ -102,7 +102,9 @@ class Workers(Feature[WorkersData]):
     skill = Skill("workers", 'Send a worker to write a bounded job and wait for its report; load it before dispatching one', """
 # Workers
 
-A subagent only reads. A worker writes: code in a worktree of its own, a document, a change.
+A subagent only reads. A worker writes one bounded job and reports it, with a worktree of its own when it changes code.
+
+For plans, read journal-plans. The main agent starts and oversees them. With Plan agents enabled, each started plan has its own Plan agent. In organization plan mode, it coordinates Domain agents and Roles; in solo plan mode, it takes Roles one at a time. A Role contract supplies the work's instructions and access.
 
 - Queue related tasks to one worker so it reports once, at the end of its queue.
 - A worker reports, and its tests run, only once no task of its queue is left, so a queue interrupts you once.
@@ -117,9 +119,10 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
   `journal worker dispatch "Lady Lovelace" --task 12 --changes "src/footer.py, tests/test_footer.py" --profile journal-medior --worktree --libraries .venv`.
 - Name a worker after a distinguished figure with a twist on their trade.
+- In organization dispatch, use `--role <domain/role>` so the Role contract supplies the job's guidance, tools and model. When no organization Role is being used, `--profile journal-medior` is for a defined implementation job and `--profile journal-senior` is for broad design judgement.
 - A worker writes, and `--changes` names what; a job that only reads, searches, researches or reviews is a subagent's.
 - A worker is started only on a task, an open one with a brief or the one you own, and the task is its own until merged or released.
-- The profile sets its model and instructions: medior, on Sonnet, for a job whose shape is defined; senior, on Opus, for judgement. `--model` overrides it.
+- The profile sets its model and instructions; `--model` overrides it.
 - How a worker tests is the setting How workers test. With The journal runs them, the default, it names its tests at
   clock-out with `--tests "<arguments>"` and the journal runs them in its worktree, a card in your chat showing the run;
   only a passing run lets the clock-out stand, and a failing one goes straight back to the worker.

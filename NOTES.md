@@ -29,7 +29,7 @@ supervisor. `v3.bak/` is the old tree and is the guide, never imported.
 - **One SQL funnel**: `db/connection.py`. Nothing else executes SQL.
 - **A query is composed, never written (2026-10-21, task 1136).** A repository builds each read and
   write with `db/query.py`, `self.query().filter(state=...).order_descending("id").limit(n)`, and hands
-  it to `selected`, `counted`, `maximum`, `repeated` or `purged`; the builder renders the text and the
+  it to `selected`, `counted`, `maximum`, `repeated` or `purged`; the renderer formats the text and the
   connection runs it. A column the table lacks raises `UnknownColumn` as it is named; `data->key` is a
   JSON path. The methods are `filter_*`, not Laravel's `where_*`, because the naming rules ban `where`,
   `in` and `by`. `SqlOutsideDatabaseLayerDetector` flags SQL text outside `src/journal/db/`.
@@ -82,8 +82,8 @@ supervisor. `v3.bak/` is the old tree and is the guide, never imported.
   event carries (its time, its tool-use count, a count of edits or context marks) and asked
   `is_elapsed` at a later one. A state keeps one as a field (Awaiting's next-task delay and
   check reminder), stored as a dict in its row's data and restored by its field's type.
-- **Settings, not states**: auto mode and the work mode (hands-on, orchestrator, solo). They
-  change what a state allows or says. Liveness (alive, compacting now) is not a state either;
+- **Settings, not states**: auto mode and organization preferences change what a state allows or says. A plan stores
+  its organization or solo plan mode. Liveness (alive, compacting now) is not a state either;
   the viewer derives it from the last event's time.
 - **How workers test** (`workers.testing`, settings Workers tab and the workers list): Hand the tests over, the default, or Run the tests it wrote. With hand-over the profile text and the dispatch template say a worker runs no test, its proofs name the tests and their commands, and a worker's test command is refused.
 - **The runtime is the server process.** `runtime.py` keeps three threads: HTTP, the
@@ -258,7 +258,7 @@ Features to port first, with what they fold in and what they say:
 - commands: long_commands, heavy_runs. Held, moved to background, forgotten after.
 - etiquette: chat_etiquette, form_of_address, command_tags. Voice, shop talk, tag hint, tag refused.
 
-Settings, not features: work_modes, auto mode, permission_prompts routing.
+Settings, not features: auto mode, plan mode, organization preferences, permission_prompts routing.
 Server-side, no nudges: updates, archive (auto_archive, runtime_cleanup, revisions, kept_rows), sessions liveness (agent_sessions, starting_agents).
 Later: suggestions, templates, dumps, collections, attachment_descriptions, record_audit, source_links, git (git_actions, pull_requests, worktrees, file_feed), sharing, phone, connection, plugins, secrets, linear, gmail.
 Viewer only: status_bar, open_viewer, family_tree, terminal, thinking, history_searches, report_dock, avatar, figure_floors, agent_profiles, organization, critique, session_recording, browser_control, dev_faults.
@@ -303,7 +303,7 @@ F. **The viewer reads version 4's rows**: its catalogue of tables (titles, icons
    Deleted with version 3's API, having no version 4 server (the phone came back in 4.2.0): the board and tickets,
    the organisation, the hub of journals, hosting and members, the browser extension,
    suggestions, collections, update reports, layout links, agent pause and
-   appoint, agent hooks, work modes, priorities, the plugin services panel, replies on shares.
+   appoint, agent hooks, priorities, the plugin services panel, replies on shares.
    Document revisions came back in task 1227, as version 3 kept them (report 35): a DocRevision row per
    revision, linked to its document by a `revision_of` Link, written by the docs feature's DocRevisionRecord on
    every save that changes the text; a save within `docs.revision_window` minutes (30) of the last folds into the
@@ -389,8 +389,8 @@ Still to do, in rough order:
 - The context figure needs Claude's statusline, which runs only interactively; untested.
 - Reports and docs have models and routes but no page; no page for workers, checks, sequences,
   triggers; no hub of journals; no sharing; no plugins.
-- Memory keyword whispers and the rule review; put-off-work; closed-by-commit; auto mode and
-  work mode settings; permission prompts routed to the viewer.
+- Memory keyword whispers and the rule review; put-off-work; closed-by-commit; auto mode;
+  permission prompts routed to the viewer.
 - Panes read from the entries: file edits and the terminal.
 - Chat marks drawn today: commit badges (from the git feature's entries), skills loaded; not yet: subagent marks, thoughts, whispers, test-run cards, reactions.
 - Install from a clone or a release (`install.sh`), upgrade and migrations; the `.pyz` build.
@@ -398,9 +398,7 @@ Still to do, in rough order:
 - A message is one shape whoever wrote it: GET /journal/messages serves the user's and the agent's
   alike, and the chat draws a reply with a one-line quote of what it answers. A comment is a message
   linked to its row as comments_on, listed under it by GET /journal/comments.
-- The work mode (Builder, Orchestrator, Solo) is the workers feature's `workers.mode` option,
-  set by `POST /journal/mode` from the plan bar; nothing in the journal reads it yet, as under
-  version 3's last route. The pause button moves the agent into the pausing feature's
+- The pause button moves the agent into the pausing feature's
   `paused` state (`POST /journal/agents/<id>/pause` and `/resume`): every tool call is
   refused until the user resumes it or writes to it.
 - Open: a worker's transcript has a route but no pane in the viewer; an automatic update's
@@ -590,7 +588,7 @@ Each phase ends with something that runs. Phases 1 to 5 are done and proven by `
 - Every session start, fresh, resumed, after a compaction or a takeover, holds writes until `journal environment
   here` is run: the task in hand, open and parked tasks, messages, questions, workers, background runs, rules,
   facts and reminders in one read.
-- A stop is answered, the state untouched: task in hand, "carry on", every time; parked tasks named in any mode;
+- A stop is answered, the state untouched: task in hand, "carry on", every time; parked tasks named with auto mode on or off;
   in auto mode the next open task and "sure you want to stop?"; a wait the journal owes the agent, said once. A
   wait on the user, a worker, an awaited run or a halt lets the stop pass. Work since a held stop makes the next
   stop a fresh one; a stop with no work between cannot be held again, so its line is typed instead. A halt with a
@@ -668,7 +666,7 @@ Each phase ends with something that runs. Phases 1 to 5 are done and proven by `
   the settings page shows; `Settings.option(PROJECT, option)` reads one. The settings page is built from them: the manifest's
   features and groups come from the registry, the tree nests the stored keys on the first dot, a save writes the keys and
   drops the ones left out. Version 3's settings fixture, its eighty features, the services and developer tabs and the
-  status bar's work modes are gone. The avatar is a feature with its `shown` option. The System tab has the Project group
+  status bar no longer controls how agents work. The avatar is a feature with its `shown` option. The System tab has the Project group
   (`V3Manifest.SYSTEM_GROUPS`); the Share links tab is the `sharing` feature's, with the tunler account pane under it.
 - **Share links** (the `sharing` feature): a `Share` row per link, linked to the doc, report or plan it opens as `shares`;
   the share server is a second loopback listener (`ShareServer`) that answers `/s/<token>/`, its `data.json`, its assets and
@@ -802,8 +800,8 @@ plus each state's own), titled "Idle at Agent stops" and so on; the walk runs th
 the event, through the state's parents, then the state beneath an owed pause; a workflow of the user's own is for a
 pair no default covers. The per-state shape and the older per-event shape retire at boot. The page was designed by
 Mr. Eames in Claude Design through two critique rounds and a third cut short on the user's word (the critics are
-not to be dispatched afresh per round, and a design needs no three rounds), then built to the orchestrator's own
-judgement on 2026-10-16: two lists, states with mark strips and events with their status words, the one workflow
+not to be dispatched afresh per round, and a design needs no three rounds), then built after its review
+on 2026-10-16: two lists, states with mark strips and events with their status words, the one workflow
 per pair, Turn off and on by the trigger, Start a workflow here and Make its own, faults under the bar by step,
 the stale save naming who saved first, Recent runs as a side panel lighting a run's path, the phone the same
 through its sheets; the pair logic lives in web/domain/workflowPairs.js for both. The server serves the states
@@ -816,7 +814,7 @@ Agent tool's calls by subagent_type), opened in a side panel that edits when it 
 tools, its model and its instructions, and New profile; the server reads and writes the front-matter files through
 ProfileFiles and serves them at /journal/profiles. The journal's own three (researcher, planner, debugger) are marked
 shipped and setup puts them back. The critic profile is gone and the designer profile has no critique rounds: a
-design is one designer's work, judged by the orchestrator against what the user wants.
+design is one designer's work, judged against what the user wants.
 
 Worker reuse, 2026-10-16 on the user's word (task 210), as version 3 reused them since plan 21 (2026-10-21): a
 worker keeps the provider's session of its last run, saved the moment the run prints it, and `journal worker send
@@ -1338,7 +1336,7 @@ Code commandments judges `src/journal` clean (657 files). Decided on the way:
 
 - The chart feature, its models, repositories, support, controller, routes, page, command, skill and docs are deleted; the states and the conducts carry every line (docs/the-rules.md is generated from the source and names each state and each line's sayer).
 - Migration 19 keeps a workflow the user made or edited as a document, 'Workflow: <title>', from its nodes and lines, then drops charts, nodes, counts and noted_times, the node_of, yes, no and then links, the settings listeners.off, chart.drawings_version and features.chart, and the walk entries. The migrations 6, 15 and 16, which touched the chart's tables, are deleted; migration 13 indexes no counts.
-- The keeping of the user's workflows as documents was the orchestrator's choice; the pull request says so.
+- The pull request records the decision to keep the user's workflows as documents.
 
 ## Plan 19, phases 8 and 9 and the morning's rulings (2026-10-21)
 
@@ -1353,15 +1351,8 @@ Code commandments judges `src/journal` clean (657 files). Decided on the way:
   compacting state clears and disables on entering and enables on leaving: a line the journal would type while
   the context compacts is dropped, since the look at the next start brings the agent up to date. The tool-use
   count and the inbox mark go back to zero at a compaction.
-- The work mode is the floor state: `Idle` is the builder's, `Orchestrating` and `Soloing` are swapped in by the
-  `workers.mode` setting at a session start, at the setting's change and on resume, through `Workers.MODE_STATES`,
-  never an if on the mode. A floor pushes its own family: the orchestrator's pushes `OrchestratingPlan` and
-  `Delegating`, whose lines say hand it to a worker where the builder's say carry on; the orchestrator's floor
-  answers a stop, a long quiet and a worker's report with the open tasks across the plans and the workers to
-  dispatch. The solo floor refuses a worker's dispatch at the floor. Proven by a test driving an orchestrator
-  through a plan of twenty tasks with three workers out at once.
 - The plan's listener finds its follower by the state's class, `isinstance(state, FollowingPlan)`, never by the
-  state's name: by name, the orchestrator's plan state never advanced the plan.
+  state's name: by name, a plan state never advanced the plan.
 - A fact, rule or reminder carries its presence in the agent's context window. The start block hands every row
   over at a session start (a listener sets them all), the look hands them all over, and `journal <noun> read <n>`
   hands one over; a keyword hit on a row not in the context tells the agent to read it, never its words. The
@@ -1444,7 +1435,7 @@ Plan 24 builds it on the branch shared-journal, from doc 62 and report 42.
 - **No write skips the repository's events.** SQL stays in repositories (the custom WriteOutsideRepositoryDetector), and the raw delete is now `_purged`, private to them. A delete of many rows at once, an environment's wipe or a row's links, goes through `Repository.purged_rows(model, query, actor)`, which names every row it removed in a Purged event; RecordPurge queues each shared one as a deletion of its own, so the server's copy, which a new person downloads, keeps no ghost rows. A pulled wipe needs no wipe of its own: every row it removed arrives as a deletion. Only the local Entry log still trims with `_purged`. Migrations write raw SQL, but run the same on every machine. `touch` writes past `_update` but fires Updated, so it is queued.
 - **A worker belongs to the machine that runs it.** A worker row carries `device`, stamped by WorkerRunner.start from TeamAccount.device (the device id in .journal/team.json, empty in a journal in no team). WorkersSeed hands the watch only this device's workers, and WorkerActions finds every worker through `local`, which refuses another device's: send, notify, stop, complete, release, check and merge. Subagent rows hold no process, so they carry no device. The viewer hiding those buttons waits for task 1503; team create stamping the first journal's existing workers waits for task 1463.
 - **Shipped shared rows are written by one machine.** BuiltinTemplates and BuiltinSequences insert shared rows, so two machines booting a new release would write the same template under two numbers. In a team they run only on the machine that holds the team's upgrade (TeamAccount.is_seed_writer: upgrade true in team.json, set by the upgrade under its lease, task 1516); every other machine gets them in the team's copy. ClosedPlans only updates rows, which settle like any edit, and SubagentsSeed runs only while the table is empty, which a joined journal's never is; the other seeds write local rows.
-- **Settings have a scope (doc 62's open question 9, settled).** Every Option has `scope`, OptionScope.TEAM unless it says otherwise. MACHINE: the tunler host, the update repository, branch and auto install, and the worktree step and its preparation and completion commands, which name this machine's tools. PERSON: every voices option and the work mode, which shape how one person's agent is treated. RecordOutgoingChange queues a setting only when SettingScopes says its key is the team's, so a machine's or a person's setting never leaves the machine. A person's settings following them to another machine waits for the person's own environment (phase 4, tasks 1469 and 1497).
+- **Settings have a scope (doc 62's open question 9, settled).** Every Option has `scope`, OptionScope.TEAM unless it says otherwise. MACHINE: the tunler host, the update repository, branch and auto install, and the worktree step and its preparation and completion commands, which name this machine's tools. PERSON: every voices option and the settings for Plan agents and organization preferences. RecordOutgoingChange queues a setting only when SettingScopes says its key is the team's, so a machine's or a person's setting never leaves the machine. A person's settings following them to another machine waits for the person's own environment (phase 4, tasks 1469 and 1497).
 - **The team server, src/sync_server.** A stdlib-only package that knows no journal concept, one class per file, copied into .journal/src by install.sh beside journal and supervisor. It is layered like the journal: SQL text lives only in sync_server/db, the Store (its one door, one writer at a time), ServerSchema (its own numbered migrations and version) and one rows class per table; Accounts, Devices, ChangeLog and IdRanges hold the rules above it. The custom rules SqlOutsideDatabaseLayerDetector and QueryOutsideRepositoryDetector name src/sync_server/db beside src/journal/db. Passwords are a salted PBKDF2 hash in sync_server/password.py, which the journal's share links import too, so the hashing is written once. A login trades an email and a password for a device token kept only as a hash; five failed logins from one address in fifteen minutes shut it out for fifteen minutes, the address being the one the proxy forwards. The log keeps every change in order and every row's current value; a device never pulls its own changes. Number blocks start above every number handed out and above the highest a journal had when it became shared.
 - **A push is settled field by field.** PushHandler stamps every change with the account and device of the token, never with what the request says; a change whose actor is user:N for another person refuses the whole push before anything is kept, while agent, worker, plugin and system actors are the sender's. The device measures its clock offset, the server's time from its last answer minus its own clock at receipt, and sends it with each push; the server adds it to every changed_at, so all times are on the server's clock. A creation and a deletion are kept whole; an update to a deleted row is dropped and sent back as a rejected row; an update keeps each field whose edit is not older than the one the server holds, an equal time going to the later push, and every older field is sent back as a RejectedField with the value and time that stand. The answer names the sequence each change took, zero for one dropped, and the server's time.
 - **The server's HTTP.** TeamServer puts the server together over team.db in its data folder (python -m sync_server --data <folder> --port 8470) and serves it with a ThreadingHTTPServer, so a held pull never stops another request. POST /login {email, password, device_name} answers a device token; POST /push {changes, clock_offset} and GET /pull?after=<sequence>&wait=<seconds> and GET /copy carry the token as Authorization: Bearer. A pull answers the changes past the sequence, not the device's own, holding the request up to 25 seconds while none are new and answering the moment one is logged; it records the sequence the device holds (devices.pulled_sequence, which the log trimming of task 1487 reads). /copy answers every row not deleted and the sequence they stand at, read in one transaction. Every answer carries the server's time. A refusal is a 403 with its line, an unknown path a 404. The login address is the first X-Forwarded-For entry the proxy sets, else the peer's.
@@ -1532,7 +1523,7 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **tests/route_times_run.py**, outside the default run, is run alone by .githooks/pre-commit under a 300-second limit. It generates its cases from the router: every registered route, each list with its list parameters (limit, closed, before, after, since, ids), each write with an empty body, ones that take a row away last, and every HookType posted to /hooks/claude. Each is timed in-process against the saved full project, and one over the budget the server judges it by (SlowRequests.budget: the faults read, write and hook budgets) fails the run. A route that leaves the process (team server, tunnel, supervisor, a program, the network, a stream) is left out by name with why in LEFT_OUT, beside what the server itself never judges (outward routes, the developer and sync doors); one left out that is no longer registered fails. When the machine is busier than its cores, as SlowRequests.is_busy says and the server itself then judges nothing, a reading over budget is skipped with the readings named, since a load only lengthens a time.
 - **The full project is generated, never copied (tests/full_project.py).** A fixed seed and a list of plain words make about 5,000 messages, 15,000 entries, 1,700 links, 40 workers, 30 plans with phases, 730 tasks, docs, reports, checks and memory, packed as tests/fixtures/full_project.db.gz (2 MB), the same file every run. Built again when the schema moves too far for it to boot: PYTHONPATH=src python3 -m tests.full_project.
 - **Every answer spends at most 30 points on the full project (tests/route_points_run.py, task 3022).** A row loaded, a write and a started kilobyte loaded are a point each, counted on the thread that began the count alone, so deferred work that carries the request's context never counts against it. A write by save or touch leaves the row's read by its id, and any other read its repository finds it by that the cache held with it alone (an agent's session read), answered with the row as a load would return it once the transaction commits, unless another write moves the table first or a secret was masked out of it; so one answer reads its agent's row once. The agent lists a session start reads (running peers, recent peers, ended agents with sequence runs) filter in SQL. A plan's phases are read without their links, in the order they were added, and its outline's phase in hand and checkpoint come from its tasks' state counts (PhaseStates), never their rows; its tree reads each task once.
-- **What a live journal reads cold is measured cold (task 3253, check 1171).** The lists the viewer reads whole when a page opens (documents, reports, notices, reactions) and the commands run as a session starts (environment overview, check list) are counted against a cold cache, and the hooks are answered as the agent orchestrates, the mode whose listeners read the most. A list of documents, reports, notices or reactions is a page of ten, with up to ten open rows before it (Listing.capped, Controller.page_rows), a document or report listed without its body, a report without its items (Query.without), read whole by its number. The status bar reads the session's last sixteen tool and part entries, their payload keys left out (Query.without_keys, PAYLOAD_KEYS). The orchestrator's load keeps the refs of its oldest eight waiting items and a count of the rest, so its agent row stays small. A stop names the three oldest reports and documents of each kind never acted on, filtered in SQL, and reads the merges since the suite last passed only once a whole run failed since. The saved full project holds sixty notices, five open, and a whole passing run of the suite as every third command output.
+- **What a live journal reads cold is measured cold (task 3253, check 1171).** The lists the viewer reads whole when a page opens (documents, reports, notices, reactions) and the commands run as a session starts (environment overview, check list) are counted against a cold cache. A list of documents, reports, notices or reactions is a page of ten, with up to ten open rows before it (Listing.capped, Controller.page_rows), a document or report listed without its body, a report without its items (Query.without), read whole by its number. The status bar reads the session's last sixteen tool and part entries, their payload keys left out (Query.without_keys, PAYLOAD_KEYS). The main agent's load keeps the refs of its oldest eight waiting items and a count of the rest, so its agent row stays small. A stop names the three oldest reports and documents of each kind never acted on, filtered in SQL, and reads the merges since the suite last passed only once a whole run failed since. The saved full project holds sixty notices, five open, and a whole passing run of the suite as every third command output.
 - **Open after task 3253.** On the full project the environment overview spends about 1700 points: it lists every open task, unread message, rule, fact and reminder, and admits every memory row as read; it needs a cap per section with a count, which is a decision on what the overview says. The session start and a displayed message spend about 150 points reading every rule, fact and reminder to name them. After a compaction the session start answers its start block twice: Compacting pops and hands the event down, and the lines of both answers are delivered and recorded (StateMachine.reply), 24 nudge writes in the live journal.
 
 ## A dismissed reader report is judged by a verifier the journal sends (task 3005, messages 50997 to 51051)
@@ -1542,19 +1533,13 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **The verdict.** `journal verdict yes|no "<reason>"`, a verifier's alone: yes keeps the dismissal; no reopens the report (dismissal cleared, is_refuted) and the shell demand REPORT_REFUTED, span zero, holds the agent's next write at once with the verdict until the reader's file is newer than the verdict; a refuted report is never dismissed again. VerifierEnd retires the verifier's worker and stops its process.
 - **CommandPart.journal_noun is a property**, as its two readers took it; as a method it never matched, so a skill's command debts and the pins check on `journal message` silently never fired before.
 
-## In orchestrator mode a reviewer the journal sends checks each worker's work (task 3186, messages 54456, 54481 and 54531)
+## Reviewers check worker reports before the main agent acts (task 3186, messages 54456, 54481 and 54531)
 
-- **The Reviewer switch, reviewing.reviewer, replaces Auto on the plan bar in orchestrator mode.** With it on (ReviewRouting: orchestrator mode and the switch), WorkerReports.delivered files a clock-out with Worker.review_requested, which carries WorkerReviewRequested instead of WorkerDelivered, so the orchestrator hears no clock-out and the work is not ready to check (Workers.checkable_workers) while review_pending.
-- **The reviewer is a Reviewer row in sent_agents, actor reviewer:N, resting on Reviewing**, which refuses file edits and a stop before `journal review "<one line per point>"`; it never merges, since merge is not among its verbs. ReviewerDispatch reuses the idle one in its own session, as VerifierDispatch does; both run on HelperRunner, and the process always runs in the project folder so a resumed session is found, its brief naming the worker's folder for the tests.
-- **The orchestrator decides.** The report reaches it as reviewing.work_reviewed and resolves a wait on the worker; it sends the work back or merges it. A reviewer that ends without a report, or runs past its 20 minutes, hands the work back in ReviewerRunner.ended (Worker.review_failed, reviewing.review_failed), before the reviewer is marked ended.
-- **The reviewer pane on Home (task 3187, messages 54627 and 54649)** is the view reviewer, usable only while the reviewer is on in orchestrator mode. It opens beside the chat's pane, never in place of it, stays shut once you close it until the switch is turned on again, and goes when the switch is off; it moves and closes like any other view. It is not a chat: it lists the reviewer's steps from its own chat (GET /journal/reviewers, then each one's /chats/{session}), oldest first. The steps are moment cards of kind review_step in the reviewer's role (MomentCards.show_role_card, since a reviewer's session has no agent row before its first hook), written by listeners: ReviewerStart (review started), ReviewerTestPassed and ReviewerTestFailed (each test run, by ActivityLabel.test_runs), and ReviewReportSteps (each point of the report, parsed by ReviewReport, and the report).
-- **Reviews queue for the reviewers the orchestrator adds (task 3203, messages 55168 and 55189).** A clock-out with the reviewer on sets the worker's review_queued_at; Workers.queued_reviews reads the queue in that order, in SQL. ReviewQueue.assigned, the one place reviews are handed out, gives each idle reviewer the next one, and adds a first reviewer when the queue has work and there is none at all. It runs at each clock-out (ReviewerStart), when a reviewer reports (ReviewerRetirement) or ends (ReviewerLoss, on ReviewerEnded), and on journal reviewer add. journal reviewer retire lets an idle one go (state retired), and journal reviewer list names the reviewers and the queue. At a stop and on the tick the orchestrator is told reviews waiting for a reviewer: N; reviewers: M, from the reviewing data part, read only when asked. With the reviewer off there is no queue: a clock-out waits for the orchestrator as before.
-- **A reviewer signs off and the worker goes on (task 3204, messages 55223 and 55457).** A reviewer runs on workers.reviewer_model, the fast model haiku by default, set on each review. Its brief holds the task's brief as given, each proof, and the output of the test runs the worker made, its own command outputs whose label is testing. When it made none, the reviewer runs the tests the proofs name. It reads the diff only where a proof is unclear. ReviewReport reads each point as passed, short or undecided. Every point passed signs the work off (ReviewSignOff checks each point and merges through WorkerActions.merge, which sends the worker on to its queued task); a point short is checked short with the reviewer's reason (WorkerActions.short_checks marks several at once, the last save sending the worker back with all the reasons); a report with no point short that leaves one undecided or unnamed raises WorkerReviewUndecided, the one review line the orchestrator gets. WorkerReviewed is no longer a resolution, so a decided review neither ends a wait nor speaks. A merge no longer tells the orchestrator a place is free: only WorkerQueueEmpty, raised when a merged worker has no queued task, says so, once (the place-free line when tasks are open, else worker_has_no_work_left). Open: picking the worker's test runs by their label is done in Python, since outputs store no label.
-- **Each mode button's hover panel holds the mode's settings (task 3196, messages 54981, 56049 and 56068).** The panel is the plan bar's own tooltip, no new menu: its words may carry toggles, which TipBubble shows as switches below the one-line description, and it stays open while the pointer is on it. The Orchestrator's are declared once in web/src/domain/modes.js: may write plans (workers.orchestrator_writes_plans, on), approves plans (workers.orchestrator_approves_plans), whose choice shows indented under it only while it is on (workers.orchestrator_plan_approval: only its own plans, plans the user made, all plans, the default; task 3262 replaced the switch approves only plans it did not write, which migration 55 carries over as plans the user made), may release (workers.orchestrator_releases, off) and the Reviewer (reviewing.reviewer); the approval switch and the Reviewer switch are gone from the plan bar, which in orchestrator mode shows no switch beside the mode buttons. Each toggle has a line under it saying what it does, and the panel holds no fitness: the score and the measures off the ideal live in the status bar's fitness dropdown with the timeline (task 3262). Each is set by the user alone. plan create refuses the orchestrator with may write plans off; plan approve reads the plan's author by kind, so a plan the main agent wrote is its own across sessions. Decided: may release means cutting a version release, since releases wait for the user's word; with it off, the workers conduct refuses the orchestrator's git tag <name> and gh release create lines (ReleaseLines).
-- **The workers panel shows the test turns (task 3201).** With How workers test set to Test budget, WorkerList shows Test turns: the budget's numbers from the workers settings, then each turn running, then each waiting, oldest first, with its worker's name, its test ids and how long it has run (TestTurn.started_at, set when it starts) or waited (since it was made). GET /journal/test_turns lists only turns not ended. Decided: the panel's How workers test control still offers its two choices, as its test pins; the budget is turned on from the Settings page.
-- **Fitness follows the switch:** with it on, the orchestrator is scored on WorkersProfiles.REVIEWED_ORCHESTRATOR, without merge preparation, and a worker's answer time runs from the review.
-- **Open: subagent reports are not routed to the reviewer**; Claude Code returns them to the orchestrator as the Agent tool's result, and a subagent changes nothing to test.
-- **Open: the backend still reads tasks.auto in orchestrator mode**; with Auto off before the switch to orchestrator, the agent still stops between tasks, and the switch to turn it back on is hidden there. Pool workers are not reviewed, their work being on another machine.
+- The `reviewing.reviewer` setting sends clocked-out worker jobs to a review queue. When it is off, the report goes to the main agent for its own check.
+- A reviewer is a Reviewer row in `sent_agents`, with actor `reviewer:N` and a `Reviewing` state. It reads the task brief and proofs, runs the named tests, judges each point, and reports with `journal review`; it does not edit files or merge work.
+- The journal assigns queued reports to idle reviewers and starts a reviewer when the queue has work but none is available. `journal reviewer add`, `retire` and `list` manage reviewers and the queue.
+- The reviewer pane shows its test runs and report points. A passing review signs off and merges the worker's work; a short point sends the job back, while an undecided point goes to the main agent to decide.
+- The workers panel lists test turns when workers use the test budget. The budget and worker test instructions are configured in Settings.
 
 ## A command run with no server writes for the team as the server does (task 3057)
 
@@ -1658,16 +1643,14 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - A merge is a background journal command (a feature command's `background_verbs`), streamed line by line from the server through the shim, printing `step n/5`, which the shipped worker-merge reader shows as progress. A merge re-reads its worker after the plugin gate. The shim waits as long as a command runs and falls back to the package only when no server could be reached.
 - Interruptions: each clock-out is kept on the dispatcher's row with the open work then (open tasks of approved and started plans, `Plans.open_work_count`, the one definition). The reports an hour filed while plenty was open are scored between a full and a no-score rate, once two such reports are in the window. A report within a minute of its job's start with plenty open drops the fitness at once, tells the dispatcher to queue that worker several tasks (once in ten minutes), and recovers straight over its minutes; the timeline names the cause and the recovery. A stuck clock-out (a point not done) costs nothing.
 - Task size is one definition (`TaskSizes`, by a brief's points): several small tasks reported each are told `--report queue` fits and cost a misfit drop, unless another cause's drop still recovers.
-- In orchestrator mode, workers with merges over the window are scored on their queues: empty while tasks are open, or holding more than they drain in the hours set, lowers the score with the remedy. Every number is a Fitness setting, opened from the fitness panel's cogwheel.
 
 ## The event simulator (plan 1033, 2026-10-26)
 
 - One clock: every write, hook and worker move reads TimeSource; a replay or a simulation pins it, and the custom rule WallClockOutsideTimeSourceDetector flags any other clock read.
-- tests/simulation plays a scenario in-process from a seed: a simulated user writes at its rate, simulated workers clock out after their job length, the engine's own moments (pauses, compaction, sessions) come at their rate, and the main agent plays a policy (builder, orchestrator, solo, careless) through the same hooks a real agent sends, every journal command as a shell tool use with its own tool_use_id. Two runs with one seed give the same trace.
+- tests/simulation plays a scenario in-process from a seed: a simulated user writes at its rate, simulated workers clock out after their job length, the engine's own moments (pauses, compaction, sessions) come at their rate, and the main agent follows a policy through the same hooks a real agent sends, every journal command as a shell tool use with its own tool_use_id. Two runs with one seed give the same trace.
 - Invariants are checked after every step (progress, holds that lift, locks, longest stays, livelocks of forty refusals, contradictions); a random run that breaks one writes a replayable trace and the shrinker cuts it to the fewest actions.
 - Commands: `journal suite tests/simulation_run.py` (SIM_SEED, SIM_RUNS, SIM_MINUTES to vary it); offline rescoring of recorded runs over candidate profiles is tests/simulation/rescoring.py, a sweep over all profiles in seconds.
-- The known policies answer the user's messages first, reuse a worker whose work was merged by queuing it the next task, and the task spree scenarios (30 tasks open, 30 messages an hour, 3-minute jobs, two hours) pair a known-good policy with a known-bad one per mode.
-- What phase 4 showed: today's tool-use window (50 uses in the mode) leaves most runs unmeasured, since answering 30 messages an hour takes half the agent's actions; the measures are rebuilt on minutes and the load by plan 1034 (doc 1065, reports 1076 and 1077), so the old profiles were not retuned.
+- The known policies answer the user's messages first and reuse a worker whose work was merged by queuing it the next task. Task-spree scenarios (30 tasks open, 30 messages an hour, 3-minute jobs, two hours) compare a known-good policy with a known-bad one.
 
 ## Helpers (plan 1035, 2026-10-26)
 
@@ -1678,29 +1661,6 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - A subagent's PreToolUse, PostToolUse and PostToolUseFailure are re-addressed to its own session, main session:agent_id, on a SUBAGENT row; hook.sh sends its PostToolUse since this plan. Its SubagentStop and its main session's end end the row; the main agent keeps SubagentStarted and SubagentEnded for its cards.
 - Decided while building: a whole feature never grants commands, so a helper's verbs are only its pairs; the worker's file turns Workers, Tasks, Edits and Plugins on whole, since WorkingTask and its waits read those parts, and only the listeners each declares for the worker reach it, never the main agent's load and fitness recorders.
 
-## Fitness measures (plan 1034, 2026-10-26)
-
-- The design is doc 1065; the baseline on today's measures is report 1081: nothing settled in any scenario.
-- The load is two queues, the workers' items and the user's messages (task 3488). The pressure band (low, normal, high) moves on the smoothed worker queue ρ by `BandRule`, per mode from `BandRules`; solo has none, and a mode's first band, after the upgrade or a change from solo, is normal. High is left once no worker item has waited five minutes and is never entered on a queue empty that long.
-- Each mode's measures are one table, `MODE_SPECS` in `features/workers/support/mode_measures.py`: key, fail and pass levels, a `MeasureSource` reader, closeness kind and weight, smoothing only for idle places. Their states (value, measured or not, failing, when it changed, when its line was sent) are on the agent row and on `WorkersPart`. The score is worked out from them, version 2, after 30 minutes measured in the mode.
-- Where each measure line speaks and which way it pushes is the one table `LineBands`; the simulator's opposed pairs come from it.
-- Waiting with work open (task 4017): the solo and builder measure `open_work_wait_share` is the share of the last hour the agent spent in an ExternalWait opened beside other work, past the first `tasks.uncounted_wait_seconds` (60) of each wait. The engine's `StackMoved` carries the states a move removed; `BaseState.counted_wait_seconds` answers 0 and ExternalWait its own seconds, and `OpenWorkWaitRecord` keeps them on the agent's `open_work_waits` series. A wait still running is counted once it ends. Its levels are `workers.open_work_wait_fail` (0.25) and `workers.open_work_wait_pass` (0.15); its line names the next open task to take up while the run goes on. The brief named the setting tasks.wait_counted_after_seconds; it is tasks.uncounted_wait_seconds, since a name holds no preposition.
-- Band margins (task 3492), chosen by `PYTHONPATH=src python3 scripts/band_replay.py` over 2026-10-19 to 2026-10-26 of the development environment, 657 worker items, every day rebuilt from the workers' rows with today's clearings (kept load inputs covered only 2026-10-26, with no worker items). The margins hardly change the count; the least stay does. The defaults are the shortest stay that keeps to one change an hour with the fewest changes there: a 10-minute stay, the orchestrator high from 0.8 to under 0.65 and low under 0.5 to 0.65, the builder high from 0.5 to under 0.4 and low under 0.3 to 0.4.
-
-| mode | margin | stay (min) | changes an hour | longest normal (min) | longest high (min) |
-|---|---|---|---|---|---|
-| orchestrator | 0.15 | 0 | 1.07 | 71 | 340 |
-| orchestrator | 0.15 | 5 | 1.07 | 71 | 336 |
-| orchestrator | 0.15 | 10 | 0.94 | 71 | 331 |
-| orchestrator | 0.15 | 20 | 0.74 | 71 | 321 |
-| builder | 0.10 | 0 | 1.10 | 68 | 341 |
-| builder | 0.10 | 5 | 1.07 | 68 | 337 |
-| builder | 0.10 | 10 | 0.95 | 76 | 332 |
-| builder | 0.10 | 20 | 0.78 | 68 | 322 |
-
-- Before the replay, a band could leave high on an empty queue and enter it again one stay later while the smoothed ρ was still high, five changes an hour; entering high now needs a waiting item.
-- What went in phase 6 (task 3507) and why: the old score worked out from the newest fifty tool uses (the mode profiles, their tool-use shares, the fitness levels and the low-score and fall lines) never settled and steered by tool counts, not by work, so the score is the measure states' alone; the quick-report, tiny-job and misfit point drops punished one event with a lasting dent the measures cannot see, so they and the report use they kept are gone; the load lines (rising and drain) and the check reminder spoke whatever the band and were replaced by the measures' clear and check lines; the alignment lines of every mode went with their measures. Migrations 61 and 62 drop the agent columns only they read. The model fits and plan waits are still recorded, to be shown on the page (task 3509).
-
 ## Tests drive the real path (task 3572, message 64931)
 
 - The project's test commandments live with its custom detectors in `.commandments/custom`, under the skill tests-drive-the-real-path. `tests/` is not among the judged paths, so they run only when judged by name: `journal suite` (scripts/suite.py) judges `tests` with that skill beside the shards and fails the run on a sin, and the commit gate fails with it.
@@ -1709,22 +1669,20 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 
 ## Task assigners named by states (plan 1041, 2026-10-26)
 
-- A state names the task assigner the engine asks for the agent's next task: `assigner = DefaultTaskAssigner` on Ready,
-  PlanStartTaskAssigner on PlansReady (own paused, then an approved plan, then a free task), PlanTaskAssigner on
-  FollowingPlan, OrchestratorTaskAssigner on Orchestrating, NoTaskAssigner on the waits, compaction, Void and the
-  helpers' states; a state with `assigner = None` (ExternalWait, DemandBlock, which holds tools and not the work) inherits the one beneath, and PlanStartTaskAssigner continues the started plan a closed task was in before an approved plan or free work. AssignerResolution walks the
-  stack top down. Doc 1068 holds the table of who takes what next; tests/test_assignment.py proves it.
+- A state names the task assigner the engine asks for the agent's next task: `DefaultTaskAssigner` on Ready,
+  `PlanStartTaskAssigner` on PlansReady (own paused work, then an approved plan, then free work), `PlanTaskAssigner` on
+  FollowingPlan, and `NoTaskAssigner` on waits, compaction, Void and helper states. ExternalWait and DemandBlock inherit
+  the assigner below them. PlanStartTaskAssigner continues the started plan that held a closed task before free work.
+  AssignerResolution walks the stack top down. Doc 1068 holds the table of who takes what next; tests/test_assignment.py proves it.
 - The engine asks before the stack answers a hook event (a stop), and after every other listener when a task closes
   (RowAssignment, registered last at boot), so the close is committed and the holder link still readable.
 - Only the assigners read auto mode or pick a next task; readers and lines take their pure queries
-  (DefaultTaskAssigner.offered, paused_work, OrchestratorTaskAssigner.delegable_tasks). The custom rule
+  (`DefaultTaskAssigner.offered`, `paused_work`). The custom rule
   NextTaskOutsideAssignerDetector guards it.
-- The builder is handed its next task; the orchestrator asks with `journal task next --quantity <n>` and is never
-  started on one. A worker's next task is still its queue (WorkerActions.send_next); AdvancePlan starts a plan's next
-  task only for a close no agent's assigner answers.
-- The builder's idle stop names paused tasks and broken waits only; a blocked task is neither started nor named. The
-  orchestrator's stop asks about the blocked tasks it can move, then names the tasks to dispatch. The approved-plan
-  stop line is gone: an approved plan is the assigner's to start.
+- The main agent gets the next task from its active plan or the default assigner. A worker's next task is still its
+  queue (WorkerActions.send_next); AdvancePlan starts a plan's next task only for a close no agent's assigner answers.
+- The main agent's idle stop names paused tasks and broken waits only; a blocked task is neither started nor named.
+  An approved plan is started by its assigner.
 
 ## Only background runs get a reader and a card (task 3684, messages 67892 to 67906, 2026-10-26)
 
@@ -1764,8 +1722,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - An approved plan and the next task of the closed task's plan start before the gate.
 - `ChoosingPausedWork` is pushed by the idle floor at a stop in auto mode, the pushing stop counted as its first of two
   refusals; then the floor's assigner takes the first paused task up. It names no assigner of its own, forwards the agent's
-  own task start and a plan start to the floor, and pops on a decline, on empty lists and on a switch of the work mode
-  (the workers conduct, through `BaseState.is_mode_bound`). The orchestrator's floor pushes no choice.
+  own task start and a plan start to the floor, and pops on a decline or empty lists. A Plan agent's `LeadingPlan` floor
+  does not offer this choice.
 - A decline (`journal task skip-paused`, or the user's own words while choosing) is a fact on the agent row,
   `paused_declined`, not a field on Ready: a command writes rows and cannot set a state's field, and Ready cannot learn why
   the choice popped. It lets the free task through until the next close, which ends it at once and asks again.
@@ -1906,8 +1864,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 
 The concept is doc 1 of this environment; the decisions of phase 1 are kept here.
 
-- There are no agent modes after the sweep. The main agent orchestrates every plan and never writes code. Each plan
-  has a Plan agent and a mode, organization or solo, set while the plan is not running; a running plan never switches.
+- The main agent owns its environment and coordinates plan work. Each plan has an organization or solo PlanMode, chosen
+  while the plan is a draft or paused and kept while it runs.
 - A started plan gets its own environment, a worktree on the plan's branch, and its Plan agent is that environment's
   one agent, so one agent per environment still holds.
 - The sidebar's Environments list shows only top-level environments. Plan environments and any environments below
@@ -1919,10 +1877,9 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   Five-hour and weekly subscription percentages and reset times are account-wide and shown separately from agent
   estimates (message 1810, task 54). Sources: https://code.claude.com/docs/en/costs and
   https://openrig.dev/whats-new/v0-6-12-rig-usage-cost-seat-session-json.
-- Organization mode: the Plan agent and the Domain agents never write code; Domain agents reason with a model on every
-  hop; Roles do the work as OpenRig seats. After the sweep, seats replace the worker process; journal keeps the worker
-  records, proofs and merge as the bookkeeping, so one runtime remains.
-- Solo mode: the Plan agent takes on one Role at a time as a pushed state. Journal-cardinality Roles stay real and are
+- Organization plan mode: the Plan agent coordinates Domain agents, which assign work to Roles; Roles do the work as
+  OpenRig seats. Journal keeps the job records, proofs and merges.
+- Solo plan mode: the Plan agent takes on one Role at a time as a pushed state. Journal-cardinality Roles stay real and are
   queued on.
 - A single task outside any plan is handled the way a one-task solo plan is, without a plan row being made for it.
 - Cardinality: journal (one for all plans), plan (one per plan), many (one per job, own worktree); the split of the
@@ -1932,20 +1889,12 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   approval (the list of ARCHITECTURE.md 12.1). No autonomy levels.
 - Plans start by hand or from a template on a schedule, on the templates and schedules features.
 - Journal replaces the dispatch runtime that agentic-organization's ARCHITECTURE.md plans.
-- While the sweep runs, a setting switches between the old agent modes and the new model, off until phase 8 removes
-  both the old modes and the setting.
-- That setting is plans.plan_agents, "Plan agents instead of work modes", the user's to set. It is a second `Modes`, on
-  the plans feature: on, it puts CoordinatingPlans at the bottom of the main agent's stack, and the Work mode setting
-  is not used; off, it picks nothing and the work mode's floor stands (the first feature in the registry whose
-  setting picks a floor wins, and plans comes before workers). Conduct is folded by floor class, so a new-model conduct
-  is a `mode_conduct` pair on CoordinatingPlans and listens only while the switch is on, and the builder's,
-  orchestrator's and solo agent's conduct, on their own floors, only while it is off. CoordinatingPlans extends
-  Orchestrating for its state behaviour (the main agent orchestrates and never writes code) without its conduct.
-  WorkMode reads the floor in force the same way, so commands and listeners follow the switch too.
-- The first new-model conduct is CoordinatorConduct (task 18), on CoordinatingPlans: the main agent's write to code is
-  refused, and a stop carries every started plan's status (the orchestrator's plan lines, reused). Talking only to
-  Plan agents, and running plans through them, waits for the Plan agents themselves: a started plan has no
-  environment or agent of its own yet.
+- The `plans.plan_agents` setting controls how the main agent coordinates plans. On, it coordinates started plans
+  through their Plan agents; off, it works through one plan at a time. Organization and solo remain choices stored on
+  each plan.
+- `CoordinatorConduct` on `CoordinatingPlans` refuses code edits by the main agent and reports the status of started
+  plans at a stop. The main agent directs a Plan agent with `journal plan tell` and reads its report; each started plan
+  has its own environment and chat.
 - The refactor is one sweep in plan 1's order; the reviewers' advice to run Roles on today's workers first was not
   taken (reports 1 and 2).
 - Stored (task 43): a plan's mode is its `mode` column, a `PlanMode`, solo by default; migration 76 makes every plan
@@ -1953,12 +1902,11 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   organization plan's rig a `runs_on_rig` link to a `Rig` row, the rig's name in OpenRig, kept on this machine; both
   are read through `Plans.agent_id` and `Plans.rig_id`, 0 while there is none.
 - Plan agents (task 17, doc 4), behind `plans.plan_agents`: a started plan is bound to its own environment plan-<n>,
-  whose one agent is a row prepared on the floor `LeadingPlan` (no work mode replaces it, `BaseState.keeps_floor`, and
-  a panic reset keeps it) and linked by `plan_agent`, launched by `AgentLauncher.start_in_worktree` in a worktree of the
-  environment's name, skipping prompts as workers do, on the provider of the main agent that started the plan, resuming
-  its last session. A pause, a finish or an abandon stops it; a blocked plan keeps it. `features/plans/support/plan_agents.py`
-  is the one place that knows a plan's agent; `WorkMode` answers for the scope environment's main agent's floor, so the
-  main environment delegates while each plan environment advances its own plan. The plan's chat is its environment's
+  whose agent is prepared on the `LeadingPlan` floor (kept by `BaseState.keeps_floor` and a panic reset) and linked by
+  `plan_agent`, launched by `AgentLauncher.start_in_worktree` in a worktree of the environment's name, skipping prompts
+  as workers do, on the provider of the main agent that started the plan, resuming its last session. A pause, a finish
+  or an abandon stops it; a blocked plan keeps it. `features/plans/support/plan_agents.py` is the one place that knows
+  a plan's agent; the main environment coordinates and each plan environment advances its own plan. The plan's chat is its environment's
   chat, opened from the plan card. `HubDrives.renew` asks a lease only for rows of a hub. When a solo Plan agent finishes,
   the main agent reviews and merges `worktree-plan-<n>` with `journal plan merge <n>`; the journal checks the branch and
   removes its worktree after the merge. Solo sessions add the provider-reported status-line estimate through the
@@ -2061,8 +2009,8 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
 ## Plan 2 screens after the OpenRig trial (task 92, 2026-10-30)
 
 Plan 2 is the viewer work that follows plan 1's backend sweep. Report 8 says the OpenRig trial passed. The `plans.plan_agents`
-setting gates the new Home board, chat chooser and Plan page sections: with it off, Home and the old work-mode behavior stay
-as before; with it on, the main chat remains beside the plans board.
+setting gates the Home board, chat chooser and Plan page sections: with it off, the main agent works through one plan at a
+time; with it on, the main chat remains beside the plans board and Plan agents coordinate started plans.
 
 - **Organization and domain boards (tasks 66, 72 and 85).** `GET /organization` returns folder metadata, contract problems,
   domains, Roles, domain plan boards, all plan summaries and scheduled plans; `POST /organization/reload` rereads the folder.
@@ -2087,7 +2035,7 @@ as before; with it on, the main chat remains beside the plans board.
   launch and stop actions, with a stop confirmation and the supervisor's refusal shown plainly. The chat link opens
   `GET /chats/{session}`. The agent-bar chooser combines plan summaries from `GET /organization` with environments from
   `GET /summary`, lists the main agent and each unfinished Plan agent, supports search and unread marks, and selects a chat
-  by its environment in the route so a reload keeps the choice. A Plan chat header names the plan, mode and phase and links
+  by its environment in the route so a reload keeps the choice. A Plan chat header names the plan, plan mode and phase and links
   back to the plan page.
 - **Solo plan Role history (task 77).** `GET /plans/{id}/roles` returns the current Role and the Plan agent's taken-Role
   steps with task and time. Role titles come from the organization data; a read-only shared plan preloads this as
@@ -2098,21 +2046,21 @@ as before; with it on, the main chat remains beside the plans board.
   queue state, task, recorded seat estimate, plan estimate, and seat and cost caps. It reads the existing rig roster,
   task holders, shared Role queue and usage ledger. A read-only shared plan preloads the same response as `plan_team`.
 - **Decisions.** Plan 2 follows plan 1 instead of adding UI work to the backend sweep. Home and domain boards share their
-  component; the Plan page shares its Plan agent section and shows Team in organization mode or Roles taken on in solo
-  mode. Read-only shares preload the sections' data. Costs are estimated API usage, not subscription charges; missing
+  component; the Plan page shares its Plan agent section and shows Team in organization plan mode or Roles taken on in solo
+  plan mode. Read-only shares preload the sections' data. Costs are estimated API usage, not subscription charges; missing
   estimates say Not reported or Not measured, and seat and cost caps are changed in Settings by their owner. Stopping a
   Plan agent asks for confirmation. The new screens use server data rather than defining organization or Role facts in
   the viewer.
 - **Still open.** The communication graph is view-only; editing its edges is deferred. Approval-required actions are not yet recognized from a
-  tool call. The `plans.plan_agents` switch remains for the rollout until the later phase that removes the old modes.
+  tool call. The `plans.plan_agents` setting lets users choose whether Plan agents coordinate started plans.
 
 
 ## Sprints, sizes and delivery, plan 4 A01 (task 147, 2026-10-30)
 
 Plan 4 is approved. Doc 9, "Settled semantics for implementation, task 147", is the full contract and A02 case checklist; these are implementation decisions, not existing feature interfaces.
 - Sprint is a fixed calendar container linked to existing plans, initially 14 local calendar days in Europe/Amsterdam with an owner-selected anchor. Store timezone/version and UTC instants; [start,end), including daylight-saving boundaries. Owner changes affect only future periods; active dates and start commitments are immutable.
-- Preserve plan/task IDs and original size/domain/criteria/scope/dependency/capacity snapshots. Additions, removals, resizes and carry-over are actor-stamped deltas. Sprint end reports remaining work; owner/active plan builder explicitly disposes it to the next cycle/backlog. No auto pause, extend, cancel, approve, start or deployment.
-- `Task.size` is optional integer story size, initial configured/versioned scale 1,2,3,5,8,13. Null is unknown; zero and off-scale sizes are invalid and overlarge work is split. `Task.points()` stays proof/brief points. Owner or active builder may revise with a reason; workers propose. First-ready, committed and current size are separate; partial execution is not an automatic resize.
+- Preserve plan/task IDs and original size/domain/criteria/scope/dependency/capacity snapshots. Additions, removals, resizes and carry-over are actor-stamped deltas. Sprint end reports remaining work; the owner or active Plan agent explicitly disposes remaining work to the next cycle or backlog. No auto pause, extend, cancel, approve, start or deployment.
+- `Task.size` is optional integer story size, initial configured/versioned scale 1,2,3,5,8,13. Null is unknown; zero and off-scale sizes are invalid and overlarge work is split. `Task.points()` stays proof/brief points. The owner or active Plan agent may revise with a reason; workers propose. First-ready, committed and current size are separate; partial execution is not an automatic resize.
 - Planning assigns one accountable domain through DomainRows' existing relation/writer; keep later actual handoffs in history. Domain policy's canonical source is new `definition_of_done` in domain.toml, frozen by version/digest with each commitment; no second editable policy source.
 - Development delivery requires accepted evidence of successful production deployment of the committed artifact/revision. Merged, board-done, finished-unmerged or model-reported work is not deployment. Other domains define their accepted/published/verified output. Unknown policy/evidence stays unknown; owner-attested assurance is labelled. Workers cannot self-authorize acceptance. Replay/correction/reopening preserves generations and prevents duplicate credit.
 - Existing execution completion remains; an execution-DONE plan awaiting domain delivery stays on its sprint dashboard. Outcome recording must distinguish TaskClosed blocked/testing/paused/cancelled from actual artifact completion, and retain open/censored work, block/review/deploy intervals and missing measurement flags beyond Entry trimming.
@@ -2141,7 +2089,7 @@ Plan 4 is approved. Doc 9, "Settled semantics for implementation, task 147", is 
 
 - Doc 10 section 3, `L02: Fixed layout and one deployment shape` and `L02: Isolation preflight and refusal rules`, fixes the canonical layout and boundary. Section 6, `L02: Owner-selected budget contract (question 30)` through `L02: Acceptance examples for later implementation`, fixes admission and approval semantics. These are adapters to build in L18, not an implemented lab.
 - Tracked code/specifications stay in `tests/lab/`; opt-in checks stay in `tests/lab_run.py`. `$LAB_HOME` defaults to `~/journal-lab`, outside all source checkouts/non-lab journals. It contains immutable batch manifests/owner receipts, per-run results/traces/evidence, fresh project roots/private homes and pinned read-only installations. Only BatchRunner aggregates runs.jsonl; atomic unique terminal results make recovery idempotent. No second task store is introduced.
-- Extend Simulator with real-provider/process/git/seat launch disabled for simulation. Real runs begin one at a time in solo mode, with their own journal/supervisor tree and capped sessions. Organization mode stays closed until private OpenRig runtime/queue/usage/stop scope is proved: current queue reads query all rigs, so a unique rig name is insufficient.
+- Extend Simulator with real-provider/process/git/seat launch disabled for simulation. Real runs begin one at a time in solo plan mode, with their own journal/supervisor tree and capped sessions. Organization plan mode stays closed until private OpenRig runtime/queue/usage/stop scope is proved: current queue reads query all rigs, so a unique rig name is insufficient.
 - Refuse unsafe or overlapping canonical paths, reused/symlinked roots, missing first commit/worktree ordering, inherited identities, global shim fallback, foreign/colliding endpoints, missing owned supervisor, unenforced write/process scope, incomplete observer/stop readiness or missing approval/budgets. Each refusal is a setup result with evidence, before agent/provider launch. Private HOME is required because Config.status_home is global to process home; Launch.environ currently inherits the parent environment.
 - Real agents need a demonstrated OS-enforced boundary for assigned worktrees/private temp paths and non-lab endpoint/credential exclusion, plus write observation. Journal guidance and final git diffs do not prove isolation. Use the private absolute shim, fresh helper credentials and authenticated run/root/launch identity. No synthetic scenario may perform live business-side effects.
 - A runner-owned watchdog and admission ledger count coordinator, plan/domain/Role agents, retries and judge. Stop only owned processes; retain reservations until in-flight requests and stop receipts reconcile. An unconfirmed stop quarantines the batch. Cleanup can remove only still-owned canonical paths; retain replay evidence under the approved retention policy.
@@ -2169,7 +2117,7 @@ Plan 4 is approved. Doc 9, "Settled semantics for implementation, task 147", is 
 - **Hub route strategy, strict versus domain peers:** A is the current strict containment route. B is a proposed direct Role route limited to declared domain peers and must be owner-controlled and off by default. The planned primary is lower `handoff_latency_median_minutes`; complete delivery-linked route identity and zero unauthorized `route_violations` are hard gates. Result: `inconclusive`, because the current route implementation has no candidate setting and HubTrafficAudit cannot establish complete delivery-linked coverage.
 - **Shared queue order, arrival versus plans in turn:** A is current plans-in-turn; B is arrival order. The planned primary is higher `queue_fairness_jain` using the L01 service-start-rate per eligible-backlog-minute formula; `role_queue_wait_p85_minutes` is a guard. Result: `inconclusive`, because RoleQueue has no arrival-order setting and current network readings cannot calculate eligible exposure, service starts, or the fairness guard.
 - **Domain agent model tier:** A is the contract-pinned model; B is the lowest model tier allowed for the Domain agent, pinned by provider, model and effort. The planned primary is higher `expectations_met_share`; estimated `cost_dollars` is a guard, not an invoice or hard dollar cap. Result: `inconclusive`, because there is no Domain-agent-by-tier calibration history or candidate setting; the existing history is legacy-worker data at unknown tier.
-- **Solo versus organization mode by business type:** A is organization mode; B is solo. Compare the same scenarios and seeds within each business type without pooling. The planned primary is higher `goal_reached`; estimated `cost_dollars` is a guard and invariant, approval and write-scope checks remain hard gates. Result: `inconclusive`, because there are no paired mode results or per-business-type calibration histories, and question 30 leaves owner-selected real-run budgets pending.
+- **Solo versus organization plan mode by business type:** A is organization plan mode; B is solo plan mode. Compare the same scenarios and seeds within each business type without pooling. The planned primary is higher `goal_reached`; estimated `cost_dollars` is a guard and invariant, approval and write-scope checks remain hard gates. Result: `inconclusive`, because there are no paired plan-mode results or per-business-type calibration histories, and question 30 leaves owner-selected real-run budgets pending.
 - These are readiness judgments, not trial outcomes. No candidate setting changed, no simulation or real trial ran, and no real spending is authorized. A separately bounded feasibility pilot must establish metric support/history before any confirmatory sample is declared. Each later trial needs its own frozen task, rule digest, owner-approved thresholds, exact sample/seeds, expiry and cap manifest. L22 execution remains not done; an inconclusive readiness review is not an A/B result.
 
 ### A02. Lifecycle audit and story contract (task 148)
@@ -2197,7 +2145,7 @@ Focused pure-calculation requirements for the later implementation tests: with a
 Story files written before implementation:
 
 - `tests/stories/main/sprints/sprint_commitments.py`: DST calendar boundaries, draft edits versus active freezes, activation snapshots, post-start scope addition/removal deltas, explicit carry-over, duplicate carry and no scheduled next period.
-- `tests/stories/main/estimates/task_sizing.py`: valid, unknown and invalid sizes; owner/builder revision authority, worker proposals, held work, first-ready/committed/current values and no partial-work shrink.
+- `tests/stories/main/estimates/task_sizing.py`: valid, unknown and invalid sizes; owner/Plan-agent revision authority, worker proposals, held work, first-ready/committed/current values and no partial-work shrink.
 - `tests/stories/main/estimates/planned_domains.py`: composition-time single-domain assignment, unknown policy, and preserving planned domain across handoff.
 - `tests/stories/main/delivery/domain_delivery.py`: merge-before-end/deploy-after-end including evidence exactly at the exclusive end, missing/pending/failed evidence, domain-specific and owner-attested evidence, replay, rollback, reopening and frozen criteria.
 - `tests/stories/main/outcomes/execution_outcomes.py`: close reasons, wait/reopen/restart, failed testing and rework, review/merge, duplicate event replay, cancellation and censored work/cost.

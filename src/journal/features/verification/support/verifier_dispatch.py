@@ -57,3 +57,6 @@ class VerifierDispatch:
         if not targets:
             raise Rejection(f"verifier {number} judges nothing: only a verifier the journal sent gives a verdict")
         return targets[-1]
+
+    def model(self, number: int) -> str:
+        return self.verifiers.find(number).model

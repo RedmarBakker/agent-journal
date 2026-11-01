@@ -21,7 +21,7 @@ class DismissalEvidence:
     def brief(self, report: ReaderReport) -> str:
         return "\n\n".join((
             "You are a verifier the journal sent. An agent dismissed the reader report below as wrong instead of writing its reader anew. "
-            "Judge, on this evidence alone, whether the agent's reason holds against the run's own output. Answer by running one command with the shell tool, never by writing it as text, and nothing else: "
+            "Judge, on this evidence alone, whether the agent's reason holds against the run's own output. Read the selected model with `journal verdict model` if useful. Then answer by running one verdict command with the shell tool, never by writing it as text: "
             "journal verdict yes \"<reason>\" when the dismissal is sound and the report is wrong, or journal verdict no \"<reason>\" when the output contradicts the agent's reason. "
             "Every other tool is refused, and your verdict ends your session.",
             f"A run over several suites, packages or shards can still show its progress, so a dismissal that says it cannot is not sound: {COUNTING}.",
