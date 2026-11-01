@@ -41,7 +41,7 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     def steps(self, story) -> None:
         dispatched = story.agent_runs(
             story.agents.main,
-            f"worker dispatch 'Lady Lovelace' --plan {self.plans.first} --changes 'the files of its tasks' --tests 'Scoped tests' --role alpha/builder --model sonnet",
+            f"worker dispatch 'Lady Lovelace' --plan {self.plans.first} --changes 'the files of its tasks' --tests 'Scoped tests' --role builder --model sonnet",
         )
         dispatched.expect_command_passed()
         self.workers.first = story.newest("workers")
