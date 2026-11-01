@@ -56,9 +56,9 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
         "title": "Security task", "brief": SECURITY_BRIEF, "domain": "security",
     })
     first.expect_viewer_passed()
-    security = first.viewer_answer["id"]
+    story.tasks.first = first.viewer_answer["id"]
+    security = story.tasks.first
     story.plans.first = plan
-    story.tasks.first = security
     second = story.user_presses_in(source, f"/journal/plans/{plan}/tasks", {
         "title": "Engineering task", "brief": TASK_BRIEF, "domain": "engineering",
         "after": [security], "reason": "Engineering uses the Security result",
