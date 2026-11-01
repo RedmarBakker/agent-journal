@@ -59,7 +59,7 @@ class Server:
         ports = self.config.ports()
         for port in ports[:-1]:
             try:
-                return ThreadingServer(("127.0.0.1", port), handler)
+                return ThreadingServer((self.config.host, port), handler)
             except OSError:
                 continue
-        return ThreadingServer(("127.0.0.1", ports[-1]), handler)
+        return ThreadingServer((self.config.host, ports[-1]), handler)

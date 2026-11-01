@@ -8,6 +8,7 @@ class Config:
     root: Path
     port: int = 8420
     span: int = 20
+    host: str = "127.0.0.1"
 
     @property
     def home(self) -> Path:
@@ -46,6 +47,6 @@ class Config:
 
     @classmethod
     def rooted(cls, root: Path) -> "Config":
-        if "JOURNAL_PORT" in os.environ:
-            return cls(root.resolve(), int(os.environ["JOURNAL_PORT"]), span=1)
-        return cls(root.resolve())
+        port = int(os.environ.get("JOURNAL_PORT", "8420"))
+        span = 1 if "JOURNAL_PORT" in os.environ else 20
+        return cls(root.resolve(), port, span, os.environ.get("JOURNAL_HOST", "127.0.0.1"))

@@ -58,6 +58,7 @@ def test_profile_is_single_tenant_and_off_by_default():
     assert compose["services"]["writer"]["ports"] == ["127.0.0.1:18440:8421"]
     assert compose["services"]["writer"]["expose"] == ["8421"]
     assert compose["services"]["writer"]["environment"]["JOURNAL_ROOT"] == "/data/project"
+    assert compose["services"]["writer"]["environment"]["JOURNAL_HOST"] == "0.0.0.0"
     assert compose["services"]["writer"]["environment"]["JOURNAL_PORT"] == "8421"
     assert manifest["topology"][0]["login_page"].startswith("none;")
     assert manifest["launch_gates"]["reviewed_writer_image_digest_recorded"] is False
@@ -216,15 +217,19 @@ def test_writer_image_archives_and_copies_every_runtime_script():
 
     assert all(source in archive for source in sources)
     assert all(copy in dockerfile for copy in copies)
-    assert not (ROOT / "install.py").exists()
+    old_installer = ROOT / "install.py"
+    assert not old_installer.exists() and not old_installer.is_symlink()
     assert (ROOT / "install.sh").is_file() and (ROOT / "update_steps.json").is_file()
     assert "3.14.10-slim-bookworm@sha256:9974e24551f9e7ca172cf284d85b8ab3e031d22d945f7026ede7a8279118c9f1" in dockerfile
     assert "JOURNAL_ROOT=/data/project" in dockerfile
     assert "JOURNAL_PORT=8421" in dockerfile
     assert "EXPOSE 8421" in dockerfile
+    assert "EXPOSE 8421 8440" not in dockerfile
     assert "127.0.0.1:8421/journal/health" in dockerfile
     install_script = (ROOT / "install.sh").read_text()
     assert 'if [ -d "$HERE/src/journal" ]; then' in install_script
+    local_source = install_script.split('if [ -d "$HERE/src/journal" ]; then', 1)[1].split("else", 1)[0]
+    assert 'SRC="$HERE/src"' in local_source and "git clone" not in local_source
     assert '"$SRC/commit"' in install_script and "journal.py setup" in install_script
     assert 'AGENT_JOURNAL_YES=1 sh /opt/agent-journal/install.sh' in entrypoint
     assert '"$ROOT/bin/journal" serve' in entrypoint
@@ -239,23 +244,74 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     assert 'CHECK_COMMAND = "curl -fsS http://127.0.0.1:8421/journal/health"' in setup
 
     project_command = (ROOT / "src" / "journal" / "support" / "project_command.py").read_text()
+    installed_parts = ("journal", "supervisor", "sync_server", "journal.py", "journal.sh")
+    assert all((ROOT / "src" / part).exists() for part in installed_parts)
+    assert 'for name in journal supervisor sync_server journal.py journal.sh; do' in install_script
+    runtime_scripts = (
+        ROOT / "docker" / "entrypoint.sh",
+        ROOT / "docker" / "hosted-journal",
+        ROOT / "docker" / "supervisor-codex-login",
+        ROOT / "docker" / "supervisor-codex-ready",
+        ROOT / "docker" / "supervisor-codex-plan-launcher.py",
+        PROFILE / "live-smoke-setup.py",
+        ROOT / "src" / "hosted_login.py",
+    )
+    assert all(script.is_file() for script in runtime_scripts)
+    assert 'exec "$PROJECT/.journal/bin/journal" "$@"' in hosted
+    assert 'return self.root / ".journal" / "bin" / "journal"' in project_command
+    assert (ROOT / "src" / "journal.py").is_file()
+
     setup_command = (ROOT / "src" / "journal" / "console" / "commands" / "setup_command.py").read_text()
     journal_cli = (ROOT / "src" / "journal.py").read_text()
     config = (ROOT / "src" / "journal" / "config.py").read_text()
+    server = (ROOT / "src" / "journal" / "http" / "server.py").read_text()
     health_route = (ROOT / "src" / "journal" / "http" / "routes" / "routes.py").read_text()
     health_controller = (ROOT / "src" / "journal" / "http" / "controllers" / "journal.py").read_text()
-    assert 'return self.root / ".journal" / "bin" / "journal"' in project_command
     assert "self.shim()" in setup_command
     assert 'if argv[:1] == ["serve"]:' in journal_cli and "app.runtime().run()" in journal_cli
     assert 'if "JOURNAL_PORT" in os.environ:' in config
+    assert 'os.environ.get("JOURNAL_HOST", "127.0.0.1")' in config
+    assert "ThreadingServer((self.config.host, port), handler)" in server
     assert '("health", journal.health)' in health_route and "def health(" in health_controller
     assert (ROOT / "src" / "journal" / "http" / "server.py").is_file()
-    assert (ROOT / "src" / "journal.py").is_file()
     assert (ROOT / "src" / "journal.sh").is_file()
-    for script in (ROOT / "src" / "journal.py", ROOT / "docker" / "supervisor-codex-plan-launcher.py", setup):
+    hosted_login = ROOT / "src" / "hosted_login.py"
+    assert hosted_login.is_file()
+    python_scripts = (
+        ROOT / "src" / "journal.py",
+        ROOT / "docker" / "supervisor-codex-plan-launcher.py",
+        setup,
+        hosted_login,
+    )
+    for script in python_scripts:
         for module in journal_imports(script):
             module_path = ROOT / "src" / Path(*module.split("."))
-            assert module_path.with_suffix(".py").is_file() or (module_path / "__init__.py").is_file(), (script, module)
+            module_exists = module_path.with_suffix(".py").is_file() or (module_path / "__init__.py").is_file()
+            assert module_exists, (script, module)
+
+
+def test_hosted_compose_requires_a_private_login_before_publishing_caddy():
+    compose = (ROOT / "docker" / "compose.yaml").read_text()
+    caddyfile = (ROOT / "docker" / "Caddyfile").read_text()
+    updater = (ROOT / "docker" / "update.sh").read_text()
+    journal = compose.split("  journal:\n", 1)[1].split("\n  hosted-login:", 1)[0]
+    login = compose.split("  hosted-login:\n", 1)[1].split("\n  caddy:", 1)[0]
+    caddy = compose.split("  caddy:\n", 1)[1].split("\n  backup:", 1)[0]
+
+    assert "JOURNAL_HOST: 0.0.0.0" in journal and 'JOURNAL_PORT: "8421"' in journal
+    assert 'expose:\n      - "8421"' in journal and "ports:" not in journal
+    assert "JOURNAL_HOSTED_PASSWORD" not in journal
+    assert 'JOURNAL_HOSTED_PASSWORD: ${JOURNAL_HOSTED_PASSWORD:?set JOURNAL_HOSTED_PASSWORD in .env}' in login
+    assert 'user: "10002:10001"' in login
+    assert 'entrypoint: ["python3", "-P", "/opt/agent-journal/src/hosted_login.py"]' in login
+    assert 'expose:\n      - "8440"' in login and "ports:" not in login
+    assert "read_only: true" in login and "cap_drop: [ALL]" in login
+    assert "volumes:" not in login and "JOURNAL_HOSTED_UPSTREAM: http://journal:8421" in login
+    assert "ports:" in caddy and 'reverse_proxy hosted-login:8440' in caddyfile
+    assert 'JOURNAL_IMAGE="$ref" docker compose --profile journal up -d --no-deps --pull always journal hosted-login' in updater
+    assert "JOURNAL_REVISION or src/commit is required" in (ROOT / "docker" / "Dockerfile").read_text()
+    assert "JOURNAL_REVISION=$PROFILE_REVISION" in (PROFILE / "build-writer.sh").read_text()
+    assert "build-args: JOURNAL_REVISION=${{ github.sha }}" in (ROOT / ".github" / "workflows" / "docker-image.yml").read_text()
 
 
 def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecycle():

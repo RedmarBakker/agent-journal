@@ -33,7 +33,7 @@ write_status() {
 take_down() {
     : > "$STATE/down"
     echo "taking the journal down: stopping it, then a final backup"
-    docker compose stop journal
+    docker compose --profile journal stop hosted-login journal
     docker compose run --rm -e BACKUP_ONCE=1 -e BACKUP_TAG=final backup \
         || echo "the final backup failed; the journal's data stays in its volume"
 }
@@ -61,7 +61,7 @@ deploy() {
         return
     fi
     echo "deploying $ref, signed by the release workflow"
-    JOURNAL_IMAGE="$ref" docker compose --profile journal up -d --no-deps --pull always journal
+    JOURNAL_IMAGE="$ref" docker compose --profile journal up -d --no-deps --pull always journal hosted-login
     write_status "$version" false
 }
 

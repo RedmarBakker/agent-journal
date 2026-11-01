@@ -22,6 +22,8 @@ RUN groupadd --gid 10001 journal \
 
 COPY --chown=root:root src /opt/agent-journal/src
 COPY --chown=root:root install.sh update_steps.json /opt/agent-journal/
+ARG JOURNAL_REVISION
+RUN if [ -n "$JOURNAL_REVISION" ]; then printf '%s\n' "$JOURNAL_REVISION" > /opt/agent-journal/src/commit; elif [ ! -s /opt/agent-journal/src/commit ]; then echo "JOURNAL_REVISION or src/commit is required to install the local source" >&2; exit 1; fi
 COPY --chown=root:root --chmod=755 docker/entrypoint.sh docker/hosted-journal /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/
 COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher
@@ -29,6 +31,7 @@ COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/l
 
 ENV JOURNAL_PROJECT=/data/project \
     JOURNAL_ROOT=/data/project \
+    JOURNAL_HOST=127.0.0.1 \
     JOURNAL_PORT=8421 \
     AGENT_JOURNAL_VAULT=/data/vault \
     AGENT_JOURNAL_SECRETS=/data/secrets \

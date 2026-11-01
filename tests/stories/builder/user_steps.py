@@ -3,7 +3,7 @@ import re
 import shlex
 import uuid
 import json
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 from dataclasses import replace
 
 from journal.features.library.support.library_account import LIBRARIES_FOLDER, LibraryAccount
@@ -14,6 +14,12 @@ from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
 from tests.in_process import answered, file_answer, get_answer, posted, routed
 from tests.stories.builder.step_result import StepResult
+from tests.stories.builder.hosted_journal_origin import HostedJournalOrigin
+from hosted_login import HostedLoginHandler, create_login_state
+from functools import partial
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
+from threading import Thread
 
 
 class UserSteps:
@@ -155,6 +161,56 @@ class UserSteps:
     def user_opens(self, route: str) -> StepResult:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         return self.observed(f"user opens {route}", None, None)
+
+    def hosted_visitor_opens(self, route: str) -> StepResult:
+        return self.hosted_visitor_requests("GET", route)
+
+    def hosted_visitor_submits_password(
+        self, password: str, next_path: str = "/journal/health"
+    ) -> StepResult:
+        body = urlencode({"password": password, "next": next_path}).encode()
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        return self.hosted_visitor_requests("POST", "/login", body, headers)
+
+    def hosted_visitor_requests(
+        self, method: str, route: str, body: bytes = b"", headers: dict | None = None
+    ) -> StepResult:
+        self.hosted_front_started()
+        request_headers = dict(headers or {})
+        if getattr(self, "hosted_login_cookie", ""):
+            request_headers["Cookie"] = self.hosted_login_cookie
+        connection = HTTPConnection(*self.hosted_front_address, timeout=5)
+        connection.request(method, route, body=body, headers=request_headers)
+        response = connection.getresponse()
+        self.viewer_status = response.status
+        response_headers = dict(response.getheaders())
+        self.viewer_answer = {"headers": response_headers, "body": response.read().decode()}
+        cookie = response_headers.get("Set-Cookie", "")
+        if cookie.startswith("journal_hosted_session="):
+            self.hosted_login_cookie = cookie.split(";", 1)[0]
+        connection.close()
+        return self.observed(f"a visitor requests {route}", None, None)
+
+    def hosted_front_started(self) -> None:
+        if getattr(self, "hosted_front_address", None):
+            return
+        origin = ThreadingHTTPServer(("127.0.0.1", 0), HostedJournalOrigin)
+        origin_thread = Thread(target=origin.serve_forever, daemon=True)
+        origin_thread.start()
+        self.closers.append(lambda: self.close_hosted_front(origin, origin_thread))
+        state = create_login_state("story hosted password 123")
+        handler = partial(HostedLoginHandler, state, ("127.0.0.1", origin.server_address[1]))
+        front = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        front_thread = Thread(target=front.serve_forever, daemon=True)
+        front_thread.start()
+        self.closers.append(lambda: self.close_hosted_front(front, front_thread))
+        self.hosted_front_address = ("127.0.0.1", front.server_address[1])
+
+    @staticmethod
+    def close_hosted_front(server: ThreadingHTTPServer, thread: Thread) -> None:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
     def user_opens_viewer_in(self, environment: str) -> StepResult:
         self.viewer_status, self.viewer_answer = answered(self.app, "GET", "/journal/viewer", b"", {"X-Journal-Env": environment, "X-Journal-Viewer": "1"})

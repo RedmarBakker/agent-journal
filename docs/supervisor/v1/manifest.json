@@ -29,7 +29,7 @@
         "launch_adapter": "the writer starts a fixed Unix-socket launcher as root with only SETUID, SETGID and SETPCAP; it accepts requests only from the designated journal server PID and uid10001, and only starts numbered Codex Plan environments",
         "identity_limit": "the package launches the Plan process as uid/gid 10003 with no capabilities, no-new-privileges, a read-only container root and an ACL limited to its Plan worktree; dedicated-VM B10 process and write probes remain pending"
       },
-      "ports": ["container 8421 on gateway_link and journal_management; host loopback 18440 only"],
+      "ports": ["container 8421 on private Compose networks; host loopback 18440 only"],
       "health": "GET http://127.0.0.1:8421/journal/health",
       "login_page": "none; Gateway uses the bounded supervisor routes on the journal API, and live setup uses the owner's local CLI and the same journal server"
     },

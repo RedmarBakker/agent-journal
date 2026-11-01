@@ -7,6 +7,7 @@
       "restart": "unless-stopped",
       "environment": {
         "JOURNAL_ROOT": "/data/project",
+        "JOURNAL_HOST": "0.0.0.0",
         "JOURNAL_PORT": "8421",
         "GIT_NAME": "Journal supervisor pilot",
         "GIT_EMAIL": "journal-pilot@localhost",

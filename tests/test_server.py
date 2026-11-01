@@ -72,6 +72,15 @@ def unowed(app: App) -> None:
         user_set(app, key, [])
 
 
+def test_server_binds_to_the_configured_host(tmp_path):
+    app = main_journal(Config(tmp_path, port=0, host="0.0.0.0"))
+    app.runtime().start()
+    try:
+        assert app.server()._bound[0].server_address[0] == "0.0.0.0"
+    finally:
+        app.runtime().stop()
+
+
 @pytest.fixture(autouse=True)
 def unowed_skills(request):
     if "app" in request.fixturenames:

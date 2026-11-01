@@ -5,7 +5,7 @@
 	request_body {
 		max_size 26MB
 	}
-	reverse_proxy journal:8440 {
+	reverse_proxy hosted-login:8440 {
 		flush_interval -1
 	}
 	log {

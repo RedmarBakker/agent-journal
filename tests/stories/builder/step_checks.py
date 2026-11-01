@@ -109,6 +109,47 @@ class StepChecks:
     def expect_viewer_passed(self) -> None:
         assert self.viewer_status < 300, f"the viewer's request was refused: {self.viewer_answer}"
 
+    def expect_hosted_login_required(self) -> None:
+        location = self.viewer_answer["headers"].get("Location", "")
+        assert self.viewer_status == 303 and location.startswith("/login?next="), (
+            f"the unauthenticated visitor got {self.viewer_status} {location!r}, not the hosted login"
+        )
+        assert self.viewer_answer["body"] == "", (
+            f"the hosted journal returned content before login: {self.viewer_answer['body']!r}"
+        )
+
+    def expect_hosted_login_form(self) -> None:
+        body = self.viewer_answer["body"]
+        assert self.viewer_status == 200 and 'type="password"' in body, (
+            f"the visitor did not get the hosted password form: {self.viewer_status} {body!r}"
+        )
+
+    def expect_hosted_login_rejected(self) -> None:
+        body = self.viewer_answer["body"]
+        assert self.viewer_status == 401 and "password was not accepted" in body.lower(), (
+            f"the wrong hosted password was not refused: {self.viewer_status} {body!r}"
+        )
+        assert "Set-Cookie" not in self.viewer_answer["headers"], (
+            f"the wrong hosted password received a session: {self.viewer_answer['headers']}"
+        )
+
+    def expect_hosted_session_created(self) -> None:
+        headers = self.viewer_answer["headers"]
+        cookie = headers.get("Set-Cookie", "")
+        assert self.viewer_status == 303 and headers.get("Location") == "/journal/health", (
+            f"the correct hosted password did not redirect to its requested journal page: {self.viewer_status} {headers}"
+        )
+        assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=Lax" in cookie, (
+            f"the hosted session cookie is not private: {cookie!r}"
+        )
+
+    def expect_hosted_journal_reached(self) -> None:
+        body = self.viewer_answer["body"]
+        assert self.viewer_status == 200 and body == "Hosted journal content; cookie=", (
+            "the authenticated visitor did not reach the journal origin without forwarding its hosted session: "
+            f"{self.viewer_status} {self.viewer_answer!r}"
+        )
+
     def expect_viewer_refused(self, part: str) -> None:
         assert self.viewer_status >= 300 and part in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, not a refusal saying {part!r}"
 

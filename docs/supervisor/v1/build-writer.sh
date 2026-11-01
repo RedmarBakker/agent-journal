@@ -32,6 +32,7 @@ printf '%s\n' "$PROFILE_REVISION" > "$BUILD_CONTEXT/src/commit"
 
 docker build \
     --label "org.opencontainers.image.revision=$PROFILE_REVISION" \
+    --build-arg "JOURNAL_REVISION=$PROFILE_REVISION" \
     --file "$BUILD_CONTEXT/docker/Dockerfile" \
     --tag "agent-journal-supervisor-writer:$PROFILE_REVISION" \
     "$BUILD_CONTEXT"
