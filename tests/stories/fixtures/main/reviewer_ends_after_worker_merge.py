@@ -1,3 +1,4 @@
+from journal.features.tasks.states.ready import Ready
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
@@ -20,4 +21,7 @@ class ReviewerEndsAfterWorkerMerge(ReviewerAtWork):
         for point in (1, 2):
             story.agent_runs(story.agents.main, f"worker check {worker} {point}").expect_command_passed()
         story.agent_runs(story.agents.main, f"worker merge {worker}").expect_command_passed()
+
+    def expected(self, story) -> None:
+        story.expect_stack(story.agents.main, Ready)
 

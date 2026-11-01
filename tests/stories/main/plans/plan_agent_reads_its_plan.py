@@ -118,4 +118,4 @@ def test_a_plan_agent_started_from_a_worktree_reads_its_plan_and_dispatches_its_
 
     environment, session = plan_agent_starts(story, plan, source, WORKTREE_AGENT_SESSION, WORKTREE_PLAN_AGENT_SESSION)
     plan_agent_lists_and_dispatches(story, environment, session, plan, (first, second), ("the first worktree task", "the second worktree task"), "Work", source)
-    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
+    story.expect_stack(story.agents.subject, CoordinatingPlans)

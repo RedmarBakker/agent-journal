@@ -17,7 +17,7 @@ def test_with_the_reviewer_off_a_clock_out_goes_to_the_agent_to_check(story):
     result = story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
     result.expect_agent_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_row_count("reviewers", NO_REVIEWER)
-    story.expect_stack(story.agents.subject, Ready, ExternalWait)
+    story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkingWorker, subject=AgentRole.MAIN)
@@ -28,4 +28,4 @@ def test_with_the_reviewer_on_a_clock_out_goes_to_a_reviewer(story):
     result = story.agent_clocks_out(story.agents.workers.first(), "the parser is done")
     result.expect_agent_not_told(story.agents.subject, WorkersNudges.WORK_READY)
     story.expect_row_count("reviewers", ONE_REVIEWER)
-    story.expect_stack(story.agents.subject, Ready)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)

@@ -2,6 +2,7 @@ from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.reviewing.states.reviewing import Reviewing
+from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
@@ -63,7 +64,7 @@ def test_an_old_reviewer_run_does_not_end_the_reviewers_replacement(story):
     story.expect_task(story.tasks.briefed, delegated=True)
     result.expect_agent_not_told(story.agents.main, ReviewingNudges.REVIEW_FAILED, n=worker, task=story.tasks.briefed)
     story.expect_stack(story.agents.reviewers.first(), Void, Reviewing)
-    story.expect_stack(story.agents.subject, Ready)
+    story.expect_stack(story.agents.subject, Ready, ExternalWait)
 
 
 @story(ReviewerEndsAfterWorkerMerge, subject=AgentRole.MAIN)

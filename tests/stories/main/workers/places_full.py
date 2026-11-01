@@ -10,7 +10,7 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 @setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_with_every_place_full_a_refused_dispatch_names_the_clocked_out_worker_as_the_work_to_check(story):
     lexer = story.agent_creates_briefed_task(story.agents.subject, "the lexer", "- splits the words")
-    result = story.agent_runs(story.agents.subject, f"journal worker dispatch 'Ada Byron' --task {lexer} --changes 'the lexer' --tests 'Scoped tests' --profile journal-medior --model sonnet")
+    result = story.agent_runs(story.agents.subject, f"worker dispatch 'Ada Byron' --task {lexer} --changes 'the lexer' --tests 'Scoped tests' --profile journal-medior --model sonnet")
     result.expect_command_refused()
     result.expect_command_text(WorkersNudges.PLACES_FULL.create(n=str(story.agents.workers.first())).rendered())
     story.expect_task(lexer, delegated=False)
