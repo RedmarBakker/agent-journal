@@ -726,7 +726,7 @@ def test_a_background_context_does_not_carry_the_request_load_tally():
     finally:
         TALLY.set(None)
     assert background is None, "background work starts without the request's tally"
-    assert request.points() == 1, "the request still owns its own load tally"
+    assert request.points() == 2, "the request still owns its row and byte point"
 
 
 def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_name(connection, bus, scope):
