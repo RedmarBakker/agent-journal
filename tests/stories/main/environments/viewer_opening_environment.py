@@ -1,12 +1,16 @@
 from journal.engine.clock import Clock
 from journal.engine.states.ended import Ended
+from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
+from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from journal.features.tasks.states.ready import Ready
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.ended_session import EndedSession
-from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.main.solo_plan_agent_started import SoloPlanAgentStarted
 
 
 @setting(PlansOptions.PLAN_AGENTS, True)
@@ -40,18 +44,8 @@ def test_a_fresh_manifest_opens_main_when_no_user_session_is_running(story):
     story.expect_stack(story.agents.subject, Ready, Ended)
 
 
-@setting(PlansOptions.PLAN_AGENTS, True)
-@story(WorkingAgent, subject=AgentRole.MAIN)
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_a_compaction_start_keeps_a_live_launched_environment_open_after_a_later_session_ends_while_plan_agents_tick(story):
-    story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=(): None)
-    plans = []
-    for number in range(3):
-        plan = story.user_creates_plan(f"plan {number}", f"Finish plan {number}")
-        story.user_adds_plan_task(plan, f"task {number}")
-        story.user_approves_plan(plan).expect_viewer_passed()
-        story.user_starts_plan(plan).expect_viewer_passed()
-        plans.append(plan)
-
     story.another_environment("smoke-3")
     story.time_travel(seconds=Clock.interval_seconds)
     story.session_starts_in("smoke-3", "smoke-session", source="compact").expect_allowed()
@@ -59,11 +53,11 @@ def test_a_compaction_start_keeps_a_live_launched_environment_open_after_a_later
     story.time_travel(seconds=Clock.interval_seconds)
     story.session_starts_in("retired", "retired-session").expect_allowed()
     story.session_ends_in("retired", "retired-session").expect_allowed()
-    for plan in plans:
-        story.session_starts_in(f"plan-{plan}", f"plan-agent-{plan}").expect_allowed()
     for _ in range(3):
         story.clock_ticks(Clock.interval_seconds)
         result = story.user_opens("/journal/manifest")
         result.expect_viewer_shows("environment", "smoke-3")
 
-    story.expect_stack(story.agents.subject, Ready)
+    story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_task(story.tasks.first, state=TaskState.STARTED)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
