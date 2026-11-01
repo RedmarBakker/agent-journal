@@ -82,6 +82,7 @@ def test_profile_is_single_tenant_and_off_by_default():
         "token_secret": "journal_supervisor_credential",
         "token_environment": "JOURNAL_SUPERVISOR_ADMISSION_TOKEN",
         "tls_ca_secret": "writer_supervisor_tls_ca",
+        "listener": "TLS handler admits only SERVICE_PATHS; every request still passes SupervisorRequestAuth token validation",
     }
 
 

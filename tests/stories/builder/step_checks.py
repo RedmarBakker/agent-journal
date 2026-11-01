@@ -170,7 +170,7 @@ class StepChecks:
 
     def expect_gateway_service_token_required(self) -> None:
         answer = json.dumps(self.viewer_answer)
-        assert self.viewer_status == 401 and "service credential is required" in answer, (
+        assert self.viewer_status == 403 and "service credential is required" in answer, (
             f"the Gateway listener admitted a service route without its token: {self.viewer_status} {answer}"
         )
 
