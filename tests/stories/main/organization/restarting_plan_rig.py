@@ -23,7 +23,7 @@ def test_a_restarted_plan_refreshes_its_seat_settings_and_keeps_its_rig(story):
     story.expect_plan_rig_seat_settings(rig)
     story.expect_organization_seat_routing_guidance(rig)
     story.expect_runtime_file(f"rigs/{rig}/saved-conversation.json", "previous conversation")
-    story.expect_stack(story.agents.main, CoordinatingPlans)
+    story.expect_stack(story.agents.main, CoordinatingPlans, FollowingPlan)
 
 
 @story(StoppedOrganizationHubPlan, subject=AgentRole.MAIN)
