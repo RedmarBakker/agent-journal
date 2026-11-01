@@ -129,6 +129,10 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     running_plan.expect_viewer_passed()
     running_plan.expect_viewer_rows("rows", "state", [PlanState.STARTED.value])
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
+    ready = story.agent_starts_organization_seat_in_plan(plan_seat, "plan", plan)
+    ready.expect_agent_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+                            task=engineering, domain="engineering")
+    story.agent_runs_from_plan_organization_seat(plan_seat, "plan", "environment overview").expect_command_passed()
     status, answer = story.session_posted_hook(
         WORKTREE_AGENT_SESSION, {"X-Journal-Env": source}, "Stop", {},
     )
@@ -139,8 +143,9 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.expect_environment_absent(f"task-{engineering}")
 
     waiting = story.agent_stops_plan_seat(plan_seat, plan)
-    waiting.expect_agent_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
-                              task=engineering, domain="engineering")
+    waiting.expect_allowed(plan_seat)
+    waiting.expect_agent_not_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+                                  task=engineering, domain="engineering")
     story.agent_runs_from_plan_organization_seat(
         plan_seat, "plan", f"organization handoff {engineering} domain:engineering",
     ).expect_command_passed()
