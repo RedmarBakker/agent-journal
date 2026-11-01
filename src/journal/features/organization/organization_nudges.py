@@ -27,7 +27,7 @@ class OrganizationNudges:
         repeat=Timeout.seconds(0),
     )
     TASK_CAN_BE_SPLIT = Nudge(
-        "organization", "plan_task_can_be_split", "task {{task}} can be split between its Roles",
+        "organization", "plan_task_can_be_split", "task {{task}} can be split among Roles",
         "Use `journal organization part {{task}} role:{{domain}}/<role> \"<title>\" --brief \"<what>\"`",
         repeat=Timeout.seconds(0),
     )

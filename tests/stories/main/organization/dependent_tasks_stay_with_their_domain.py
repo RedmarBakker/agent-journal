@@ -164,7 +164,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     worker = StoryAgent(AgentRole.WORKER, number=story.newest_in("workers", source))
     story.expect_worker_role_job(worker, engineering, TASK_BRIEF, SECURITY_BRIEF)
     story.expect_no_user_message_text_in(source, TASK_BRIEF)
-    story.agent_starts_role_session(worker).expect_allowed(worker)
+    story.organization_role_seat_starts_a_session(worker, "role:engineering/builder").expect_allowed(worker)
     story.agent_clocks_in(worker).expect_command_passed()
     task_details = story.agent_runs_from_openrig_organization_seat(worker, "role:engineering/builder", f"task show {engineering}")
     task_details.expect_command_passed()
