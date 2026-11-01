@@ -10,8 +10,7 @@ from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
-from tests.stories.fixtures.main.organization_shared_role_domain_seat_started import OrganizationSharedRoleDomainSeatStarted
-from tests.stories.fixtures.main.shared_role_queue import awaiting_state
+from tests.stories.fixtures.main.organization_shared_role_domain_inbox_read import OrganizationSharedRoleDomainInboxRead
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
@@ -53,14 +52,12 @@ def test_a_domain_handoff_creates_the_shared_role_rig_and_delivers_its_job(story
     story.expect_stack(role, Void, WorkingTask)
 
 
-@story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
+@story(OrganizationSharedRoleDomainInboxRead, subject=AgentRole.MAIN)
 def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     plan, task = story.plans.first, story.tasks.first
     plan_row = story.app.container.get(Plans).global_matching(id=plan)[0]
     shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
     domain = story.organization_seat_agent("domain:alpha")
-    inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
-    inbox.expect_command_passed()
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/security-owner",
     )
@@ -86,14 +83,12 @@ def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
-@story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
+@story(OrganizationSharedRoleDomainInboxRead, subject=AgentRole.MAIN)
 def test_a_failed_shared_role_start_leaves_no_handoff_row(story):
     plan, task = story.plans.first, story.tasks.first
     reason = "shared Role needs operator attention"
     story.simulated_seats().next_attention_reason = reason
     domain = story.organization_seat_agent("domain:alpha")
-    inbox = story.agent_runs_from_openrig_organization_seat(domain, "domain:alpha", "organization inbox")
-    inbox.expect_command_passed()
     result = story.agent_runs_from_openrig_organization_seat(
         domain, "domain:alpha", f"organization handoff {task} role:alpha/security-owner",
     )
