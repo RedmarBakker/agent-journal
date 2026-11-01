@@ -269,7 +269,8 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     health_controller = (ROOT / "src" / "journal" / "http" / "controllers" / "journal.py").read_text()
     assert "self.shim()" in setup_command
     assert 'if argv[:1] == ["serve"]:' in journal_cli and "app.runtime().run()" in journal_cli
-    assert 'if "JOURNAL_PORT" in os.environ:' in config
+    assert 'port = int(os.environ.get("JOURNAL_PORT", "8420"))' in config
+    assert 'span = 1 if "JOURNAL_PORT" in os.environ else 20' in config
     assert 'os.environ.get("JOURNAL_HOST", "127.0.0.1")' in config
     assert "ThreadingServer((self.config.host, port), handler)" in server
     assert '("health", journal.health)' in health_route and "def health(" in health_controller
