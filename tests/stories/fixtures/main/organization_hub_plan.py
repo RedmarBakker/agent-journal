@@ -21,10 +21,10 @@ class OrganizationHubPlan(OrganizationSetup):
 
     def steps(self, story) -> None:
         story.configure_simulated_openrig()
+        contracts = story.app.container.get(Organization).reload()
         self.plans.first = story.user_creates_plan("p", "b")
         self.tasks.first = story.user_adds_plan_task(self.plans.first, "first", self.task_domain)
         rig = story.plan_rig_name(story.plans.first)
-        contracts = story.app.container.get(Organization).reload()
         domains = tuple(domain.id for domain in contracts.domains)
         provider = story.app.container.get(Providers).lookup(story.provider)
         story.app.container.get(RigSpecs).write(
