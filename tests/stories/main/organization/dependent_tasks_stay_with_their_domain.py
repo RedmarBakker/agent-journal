@@ -86,14 +86,15 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     result = story.agent_in_runs(story.agents.main, source, WORKTREE_AGENT_SESSION, f"plan start {plan}")
     result.expect_command_passed()
     result.expect_command_text(f"plan {plan} started")
-    started = story.agent_starts_plan_seat(story.agents.main, plan)
-    started.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+    plan_seat = story.organization_seat_agent_in_plan("plan", plan)
+    started = story.agent_starts_organization_seat_in_plan(plan_seat, "plan", plan)
+    started.expect_agent_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                               task=security, domain="security")
-    story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", "environment overview").expect_command_passed()
+    story.agent_runs_from_plan_organization_seat(plan_seat, "plan", "environment overview").expect_command_passed()
     story.agent_runs_from_plan_organization_seat(
-        story.agents.main, "plan", f"organization handoff {security} domain:security",
+        plan_seat, "plan", f"organization handoff {security} domain:security",
     ).expect_command_passed()
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
 
     security_domain = story.organization_seat_agent_in_plan("domain:security", plan)
     story.agent_starts_organization_seat_in_plan(security_domain, "domain:security", plan).expect_allowed(security_domain)
@@ -101,7 +102,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(
         security_domain, "domain:security", f"organization handoff {security} role:security/reviewer",
     ).expect_command_passed()
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
     shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
     reviewer = story.organization_seat_agent("role:security/reviewer", shared_rig)
     story.agent_starts_organization_seat(reviewer, "role:security/reviewer", shared_rig).expect_allowed(reviewer)
@@ -111,22 +112,22 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(
         reviewer, "role:security/reviewer", f"organization handoff {security} domain:security", shared_rig,
     ).expect_command_passed()
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
     story.agent_runs_from_openrig_organization_seat(security_domain, "domain:security", "organization inbox").expect_command_passed()
     story.agent_runs_from_openrig_organization_seat(
         security_domain, "domain:security", f"organization handoff {security} plan",
     ).expect_command_passed()
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
 
     completed = story.agent_runs_from_plan_organization_seat(
-        story.agents.main, "plan", f"task complete {security} --how 'Security recorded the policy decision'",
+        plan_seat, "plan", f"task complete {security} --how 'Security recorded the policy decision'",
     )
     completed.expect_command_passed()
     story.settle()
     story.expect_task_in(source, security, TaskState.COMPLETED.value)
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
     status, answer = story.session_posted_hook(
         WORKTREE_AGENT_SESSION, {"X-Journal-Env": source}, "Stop", {},
     )
@@ -136,11 +137,11 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.expect_task_in(source, engineering, TaskState.OPEN.value)
     story.expect_environment_absent(f"task-{engineering}")
 
-    waiting = story.agent_stops_plan_seat(story.agents.main, plan)
-    waiting.expect_agent_told(story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+    waiting = story.agent_stops_plan_seat(plan_seat, plan)
+    waiting.expect_agent_told(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                               task=engineering, domain="engineering")
     story.agent_runs_from_plan_organization_seat(
-        story.agents.main, "plan", f"organization handoff {engineering} domain:engineering",
+        plan_seat, "plan", f"organization handoff {engineering} domain:engineering",
     ).expect_command_passed()
     engineering_domain = story.organization_seat_agent_in_plan("domain:engineering", plan)
     story.agent_starts_organization_seat_in_plan(
@@ -190,7 +191,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
         engineering_domain, "domain:engineering", f"organization handoff {engineering} plan",
     ).expect_command_passed()
     story.expect_task_in(source, engineering, TaskState.STARTED.value)
-    merged = story.agent_runs_from_plan_organization_seat(story.agents.main, "plan", f"worker merge {worker}")
+    merged = story.agent_runs_from_plan_organization_seat(plan_seat, "plan", f"worker merge {worker}")
     merged.expect_command_passed()
     merged.expect_command_text(f"task {engineering} done")
     story.settle()
@@ -202,4 +203,4 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     plan_status = story.user_opens_in(source, f"/journal/plans?ids={plan}")
     plan_status.expect_viewer_passed()
     plan_status.expect_viewer_rows("rows", "state", [PlanState.FINISHED.value])
-    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
