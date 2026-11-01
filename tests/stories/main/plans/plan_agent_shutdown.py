@@ -55,7 +55,14 @@ def test_cancelling_a_plan_ends_its_plan_agent_waiting_on_a_worker(story):
 @story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_releasing_a_worker_ends_the_plan_agents_wait_on_it(story):
     agent = plan_agent()
-    task = story.agent_creates_task(agent, "separate work")
+    task_created = story.agent_in_runs(
+        agent,
+        f"plan-{story.plans.first}",
+        PLAN_AGENT_SESSION,
+        "task create 'separate work' --brief 'Finish the separate work'",
+    )
+    task_created.expect_command_passed()
+    task = story.created_number("task")
     worker = dispatch_worker(story, agent, task)
     wait_for_worker(story, agent, worker)
 
