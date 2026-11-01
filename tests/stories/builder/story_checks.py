@@ -552,6 +552,9 @@ class StoryChecks:
     def expect_worker(self, n: int, **fields) -> None:
         self.expect_row("workers", n, fields)
 
+    def expect_worker_in(self, environment: str, n: int, **fields) -> None:
+        self.expect_row_in(environment, "workers", n, fields)
+
     def expect_plan(self, n: int, **fields) -> None:
         self.expect_row("plans", n, fields)
 
@@ -560,7 +563,10 @@ class StoryChecks:
         assert not rows, f"{table} {n} is still listed through the API: {rows[0]}"
 
     def expect_row(self, table: str, n: int, fields: dict) -> None:
-        row = self.api_row(table, n)
+        self.expect_row_in("main", table, n, fields)
+
+    def expect_row_in(self, environment: str, table: str, n: int, fields: dict) -> None:
+        row = self.api_row(table, n, {"X-Journal-Env": environment})
         expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
         row_fields = {name: row.get(name) for name in expected_fields}
         assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"

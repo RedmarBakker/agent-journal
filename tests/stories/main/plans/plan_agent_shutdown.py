@@ -43,7 +43,7 @@ def test_cancelling_a_plan_ends_its_plan_agent_waiting_on_a_worker(story):
 
     cancelled = story.user_cancels_plan(story.plans.first)
     cancelled.expect_agent_told_nothing(agent)
-    story.expect_worker(worker, state=WorkerState.RELEASED)
+    story.expect_worker_in(f"plan-{story.plans.first}", worker, state=WorkerState.RELEASED)
     story.expect_stack(agent, LeadingPlan, Ended)
 
     quiet = story.agent_is_quiet_for(agent, 6)
@@ -59,7 +59,7 @@ def test_releasing_a_worker_ends_the_plan_agents_wait_on_it(story):
     wait_for_worker(story, agent, worker)
 
     story.user_cancels_task(story.tasks.first, "the task is no longer needed").expect_viewer_passed()
-    story.expect_worker(worker, state=WorkerState.RELEASED)
+    story.expect_worker_in(f"plan-{story.plans.first}", worker, state=WorkerState.RELEASED)
     story.expect_stack(agent, LeadingPlan, FollowingPlan)
 
 
