@@ -190,7 +190,8 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
     hosted = (ROOT / "docker" / "hosted-journal").read_text()
     plan_launcher = (ROOT / "docker" / "supervisor-codex-plan-launcher.py").read_text()
-    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    setup_path = PROFILE / "live-smoke-setup.py"
+    setup = setup_path.read_text()
     archive = build.split(
         'git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" --', 1
     )[1].split('> "$BUILD_CONTEXT/runtime.tar"', 1)[0]
@@ -281,7 +282,7 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     python_scripts = (
         ROOT / "src" / "journal.py",
         ROOT / "docker" / "supervisor-codex-plan-launcher.py",
-        setup,
+        setup_path,
         hosted_login,
     )
     for script in python_scripts:
