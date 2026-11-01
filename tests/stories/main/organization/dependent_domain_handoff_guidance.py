@@ -9,10 +9,11 @@ from tests.stories.fixtures.main.organization_plan_with_dependent_domains import
 @story(OrganizationPlanWithDependentDomains, subject=AgentRole.MAIN)
 def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story):
     plan, security, engineering = story.plans.first, story.tasks.first, story.tasks.second
-    plan_stop = story.agent_stops_plan_seat(story.agents.subject, plan)
-    plan_stop.expect_allowed(story.agents.subject)
+    plan_seat = story.organization_seat_agent_in_plan("plan", plan)
+    plan_stop = story.agent_stops_plan_seat(plan_seat, plan)
+    plan_stop.expect_allowed(plan_seat)
     plan_stop.expect_agent_not_told(
-        story.agents.subject, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+        plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
 
@@ -46,12 +47,12 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
-    plan_stop = story.agent_stops_plan_seat(story.agents.subject, plan)
-    plan_stop.expect_refused(story.agents.subject, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+    plan_stop = story.agent_stops_plan_seat(plan_seat, plan)
+    plan_stop.expect_refused(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                              task=engineering, domain="beta")
     handed = story.agent_runs_from_openrig_organization_seat(
-        story.agents.subject, "plan", f"organization handoff {engineering} domain:beta",
+        plan_seat, "plan", f"organization handoff {engineering} domain:beta",
     )
     handed.expect_command_passed()
     story.expect_organization_handoff_pending(plan, engineering, "domain:beta")
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan)
+    story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
