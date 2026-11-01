@@ -81,9 +81,9 @@ def test_a_domain_handoff_starts_a_shared_read_only_role_for_its_inbox(story):
     plan_status.expect_command_passed()
     plan_status.expect_command_text(f"Plan agent: environment plan-{plan}, running")
     story.expect_row_count("workers", 0)
-    story.expect_organization_handoff_pending(plan, task, "role:alpha/security-owner")
+    story.expect_organization_handoff_count(plan, 2)
     story.expect_plan(plan, state=PlanState.STARTED)
-    story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
+    story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)

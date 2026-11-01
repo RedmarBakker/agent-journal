@@ -1798,6 +1798,7 @@ organization.role_task_returns_by_clocking_out  [organization]  Role work return
 organization.role_work_waiting_for_check  [organization]  task {{task}} from worker {{worker}} waits for your check. `journal worker check {{worker}} <point>`; then `journal organization handoff {{task}} plan`
 organization.split_part_for_another_domain  [organization]  this task belongs to {{domain}}. Use `journal organization other {{task}} domain:<domain> "<title>" --brief "<what>"` to ask the Plan seat for another Domain
 organization.split_part_ready_for_role  [organization]  task {{task}} is ready for {{role}}. Run `journal organization handoff {{task}} {{role}}`
+organization.split_part_waiting_for_plan_merge  [organization]  task {{task}} from worker {{worker}} is checked and waits for your merge. Run `journal worker merge {{worker}}`
 organization.split_task_completed  [organization]  task {{task}} is complete after all its parts were merged
 organization.split_task_handoff_requires_a_part  [organization]  task {{task}} has Role parts. Hand off one of its parts to a Role
 organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
@@ -1987,7 +1988,7 @@ workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, 
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.workers_only_edit  [workers]  a worker only reads, searches and edits, not {{command|cap=24}}. queue tests and builds with the journal
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-292 nudges
+293 nudges
 
 $ agent: journal worker list
 exit 0
