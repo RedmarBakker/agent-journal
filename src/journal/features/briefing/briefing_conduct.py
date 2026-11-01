@@ -24,7 +24,7 @@ class BriefingConduct(Conduct):
         lines = [*start_block(event.data.part(BriefingPart), event.source), *folder_check(event)]
         if event.is_compaction_start():
             return compaction_start(self, event, lines)
-        return self.none(*lines, BriefingNudges.OVERVIEW_REQUEST.create())
+        return self.none(*lines).typing(BriefingNudges.OVERVIEW_REQUEST.create())
 
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:

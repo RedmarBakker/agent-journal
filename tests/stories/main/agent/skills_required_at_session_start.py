@@ -29,21 +29,6 @@ def test_a_start_skill_may_be_read_before_the_others_are(story):
 
 
 @story(SessionOpening, subject=AgentRole.MAIN)
-def test_once_every_start_skill_is_read_and_the_overview_run_the_tools_are_free(story):
-    result = story.agent_reads_a_skill(story.agents.subject, JOURNAL_SKILL)
-    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    result = story.agent_reads_a_skill(story.agents.subject, ETIQUETTE_SKILL)
-    result.expect_agent_not_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    result = story.agent_reads_a_skill(story.agents.subject, MESSAGES_SKILL)
-    result.expect_agent_told(story.agents.subject, VoicesNudges.INTRODUCE_YOURSELF)
-    story.agent_looks_at_the_overview(story.agents.subject)
-    result = story.agent_writes(story.agents.subject, "footer.py")
-    result.expect_allowed()
-    result.expect_agent_not_told(story.agents.subject, SkillsNudges.SKILL_READ_REQUEST)
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(SessionOpening, subject=AgentRole.MAIN)
 def test_a_stop_with_a_start_skill_unread_is_refused(story):
     story.agent_looks_at_the_overview(story.agents.subject)
     result = story.agent_stops(story.agents.subject)

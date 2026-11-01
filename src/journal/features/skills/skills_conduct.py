@@ -17,7 +17,10 @@ class SkillsConduct(Conduct):
     """The skills feature's conduct in every state: a session starts needing the skills its setting names, those of skills.session_start at a new start and of skills.after_compaction after a compaction, and the state's own; a prompt of the user's that names a skill's keyword must do for that skill, never a journal line, a plugin's or a subagent's notice; while a skill is pending, every tool but a read of it and a journal command is blocked, and so is a stop; a journal command of a noun a skill names is blocked until that skill is read."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        return self.none(*read_first(event.data.part(SkillsPart).start_debts(settings.texts(start_option(event)), self.name)))
+        requests = read_first(event.data.part(SkillsPart).start_debts(settings.texts(start_option(event)), self.name))
+        if event.is_compaction_start():
+            return self.none(*requests)
+        return self.none().typing(*requests)
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         return self.none(*read_first(event.data.part(SkillsPart).mentioned(event.users_words())))

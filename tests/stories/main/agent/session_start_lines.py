@@ -1,10 +1,14 @@
 from journal.features.briefing.briefing_nudges import BriefingNudges
+from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.voices.voices_nudges import VoicesNudges
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.builder.story_agent import StoryAgent
+from tests.stories.fixtures.main.session_skills_enabled import SessionSkillsEnabled
 from tests.stories.fixtures.main.task_queue import TaskQueue
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
@@ -17,6 +21,33 @@ def test_a_start_says_the_journal_is_ready_how_to_handle_it_the_laws_and_asks_fo
     result.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_LAWS)
     result.expect_agent_told(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
     story.expect_stack(story.agents.subject, Ready)
+
+
+@story(SessionSkillsEnabled, subject=AgentRole.MAIN)
+def test_a_new_session_is_told_to_read_its_skills_and_overview_before_its_introduction(story):
+    fresh_session = StoryAgent(AgentRole.MAIN, session="fresh-start")
+    result = story.agent_starts_a_session(fresh_session)
+    result.expect_agent_told(fresh_session, SkillsNudges.SKILL_READ_REQUEST)
+    result.expect_agent_told_words(fresh_session, SkillsNudges.SKILL_READ_REQUEST, "the journal skill")
+    result.expect_agent_told_words(fresh_session, SkillsNudges.SKILL_READ_REQUEST, "the etiquette skill")
+    result.expect_agent_told_words(fresh_session, SkillsNudges.SKILL_READ_REQUEST, "the messages skill")
+    result.expect_agent_told(fresh_session, BriefingNudges.OVERVIEW_REQUEST)
+    result.expect_agent_not_told(fresh_session, BriefingNudges.PENDING_ITEMS)
+    result.expect_agent_not_told(fresh_session, VoicesNudges.INTRODUCE_YOURSELF)
+    story.expect_typed_text("the journal skill")
+    story.expect_typed_text("the etiquette skill")
+    story.expect_typed_text("the messages skill")
+    story.expect_typed_text("journal environment overview")
+
+    for skill in ("journal", "journal-etiquette", "journal-messages"):
+        result = story.agent_reads_a_skill(fresh_session, skill)
+        result.expect_allowed()
+        if skill == "journal-messages":
+            result.expect_agent_told(fresh_session, VoicesNudges.INTRODUCE_YOURSELF)
+        else:
+            result.expect_agent_not_told(fresh_session, VoicesNudges.INTRODUCE_YOURSELF)
+
+    story.expect_stack(fresh_session, Ready)
 
 
 @story(TaskQueue, subject=AgentRole.MAIN)

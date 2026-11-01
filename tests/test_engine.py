@@ -1137,9 +1137,10 @@ def test_the_conduct_of_skills_briefing_and_memory_say_the_debts_hold_on_them_an
     data = FeatureData(parts)
     started = Ready().respond(SessionStarted(agent=EVENT_AGENT, source="startup").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     keys = [n.key for n in started.nudges]
-    assert keys[:4] == ["skills.read_the_skill_first", "briefing.journal_ready", "briefing.handle_the_journal_quietly", "briefing.the_laws_apply"]
-    assert "briefing.you_took_over" in keys and "briefing.rules_in_force" in keys and "briefing.memories_here" not in keys and "briefing.reminders_here" in keys and "briefing.waiting_for_you" in keys and "briefing.look_before_the_first_write" in keys
-    assert ".claude/skills/journal/SKILL.md" in started.nudges[0].rendered()
+    assert keys[:3] == ["briefing.journal_ready", "briefing.handle_the_journal_quietly", "briefing.the_laws_apply"]
+    assert "briefing.you_took_over" in keys and "briefing.rules_in_force" in keys and "briefing.memories_here" not in keys and "briefing.reminders_here" in keys and "briefing.waiting_for_you" in keys
+    assert [n.key for n in started.terminal_lines] == ["skills.read_the_skill_first", "briefing.look_before_the_first_write"]
+    assert ".claude/skills/journal/SKILL.md" in started.terminal_lines[0].rendered()
     compacted = Ready().respond(SessionStarted(agent=EVENT_AGENT, source="compact").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     assert "briefing.you_took_over" not in [n.key for n in compacted.nudges]
     prompt = Ready().respond(PromptSubmitted(agent=EVENT_AGENT, prompt="draw me a roadmap").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
