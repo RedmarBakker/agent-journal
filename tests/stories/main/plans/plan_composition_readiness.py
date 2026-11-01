@@ -145,7 +145,7 @@ def test_plan_show_lists_each_task_size_prerequisite_and_domain(story):
 @setting(EstimatesOptions.SIZE_SCALE, [2, 4, 6])
 @story(WorkingAgent, subject=AgentRole.MAIN)
 def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(story):
-    story.agent_creates_plan(story.agents.subject, "the site", "the site is built")
+    plan = story.agent_creates_plan(story.agents.subject, "the site", "the site is built")
     result = story.agent_runs(story.agents.subject, "sequence follow")
     result.expect_command_passed()
     result = story.agent_runs(story.agents.subject, "sequence next")
@@ -168,7 +168,7 @@ def test_building_a_plan_asks_for_size_order_mode_domains_priorities_and_review(
         result.expect_command_passed()
         for word in words:
             result.expect_command_text(word)
-    story.expect_plan(story.plans.first, state=PlanState.DRAFT)
+    story.expect_plan(plan, state=PlanState.DRAFT)
     story.expect_stack(story.agents.subject, Ready, FollowingSequence)
 
 

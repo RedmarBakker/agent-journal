@@ -15,12 +15,13 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(WorkingAgent, subject=AgentRole.MAIN)
 def test_a_start_says_the_journal_is_ready_how_to_handle_it_the_laws_and_asks_for_the_overview(story):
-    result = story.agent_starts_a_session(story.agents.subject)
-    result.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_READY)
-    result.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_DISCRETION)
-    result.expect_agent_told(story.agents.subject, BriefingNudges.JOURNAL_LAWS)
-    result.expect_agent_told(story.agents.subject, BriefingNudges.OVERVIEW_REQUEST)
-    story.expect_stack(story.agents.subject, Ready)
+    fresh_session = StoryAgent(AgentRole.MAIN, session="start-lines")
+    result = story.agent_starts_a_session(fresh_session)
+    result.expect_agent_told(fresh_session, BriefingNudges.JOURNAL_READY)
+    result.expect_agent_told(fresh_session, BriefingNudges.JOURNAL_DISCRETION)
+    result.expect_agent_told(fresh_session, BriefingNudges.JOURNAL_LAWS)
+    result.expect_agent_told(fresh_session, BriefingNudges.OVERVIEW_REQUEST)
+    story.expect_stack(fresh_session, Ready)
 
 
 @story(SessionSkillsEnabled, subject=AgentRole.MAIN)
