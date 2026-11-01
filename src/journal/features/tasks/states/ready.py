@@ -40,9 +40,6 @@ class Ready(BaseState):
     def active(self, time: float) -> Self:
         return replace(self, silenced_at=time)
 
-    def on_resume(self, data: FeatureData, settings: Settings) -> Transition:
-        return self.swap(replace(self, silenced_at=0.0))
-
     def working_state(self, **fields) -> BaseState:
         return Working(**fields)
 
@@ -82,8 +79,8 @@ class Ready(BaseState):
         return self.none(TasksNudges.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        active = self.active(event.time - event.silence_seconds) if self.silenced_at == 0.0 else self
+        active = replace(self, silenced_at=max(self.silenced_at, event.time - event.silence_seconds))
         if active.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
-            return self.swap(active, *self.silent_nudges(event.data))
-        return self.swap(active) if active != self else self.none()
+            return self.none(*self.silent_nudges(event.data))
+        return self.none()
 
