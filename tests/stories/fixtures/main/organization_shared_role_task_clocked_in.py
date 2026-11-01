@@ -2,7 +2,7 @@ from journal.engine.states.void import Void
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
-from journal.features.tasks.states.working_task import WorkingTask
+from journal.features.workers.states.working_task import WorkingTask
 from journal.repositories.plans import Plans
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
 from tests.stories.fixtures.main.organization_shared_role_git_project import OrganizationSharedRoleGitProject
