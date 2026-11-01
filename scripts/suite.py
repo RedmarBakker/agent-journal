@@ -159,7 +159,19 @@ def whole_suite() -> int:
         count = shard_count(available)
         if count < core_shards():
             print(memory_line(count, available), flush=True)
-        return 1 if sharded_run(Path(folder), count, (), "the suite") else 0
+        return 1 if recorded_run(Path(folder), count, (), "the suite") else 0
+
+
+def recorded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str) -> bool:
+    records = folder / "story-records"
+    records.mkdir()
+    failed = sharded_run(folder, count, arguments, name, {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
+    record_class = story_record_module().StoryRunRecord
+    record = record_class.merged([record_class.loaded(path) for path in sorted(records.glob("*.json"))])
+    record.saved(STORY_RECORD_FILE)
+    for line, _ in record.report_lines():
+        print(line)
+    return failed or bool(record.failures())
 
 
 # the stories alone, in shards
@@ -170,15 +182,7 @@ def story_run(options: tuple[str, ...]) -> int:
 # chosen tests in shards, as the whole suite runs: each shard keeps its share of the same selection, and each writes what its stories leave to be checked, the paths laid over each other here once every shard has ended
 def chosen_run(arguments: tuple[str, ...], name: str) -> int:
     with tempfile.TemporaryDirectory() as folder:
-        records = Path(folder) / "story-records"
-        records.mkdir()
-        failed = sharded_run(Path(folder), shard_count(available_bytes()), arguments, name, {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
-        record_class = story_record_module().StoryRunRecord
-        record = record_class.merged([record_class.loaded(path) for path in sorted(records.glob("*.json"))])
-        record.saved(STORY_RECORD_FILE)
-        for line, _ in record.report_lines():
-            print(line)
-        return 1 if failed or record.failures() else 0
+        return 1 if recorded_run(Path(folder), shard_count(available_bytes()), arguments, name) else 0
 
 
 # the story record lives beside the stories in tests/, which reads the journal's own source

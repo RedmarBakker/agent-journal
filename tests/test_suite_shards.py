@@ -4,6 +4,8 @@ from pathlib import Path
 
 from tests.service_memory import ServiceMemory
 from tests.shard_deal import ShardDeal
+from tests.stories.builder.coverage_gaps import CoverageGaps
+from tests.stories.builder.story_run_record import StoryRunRecord
 
 
 def suite_script(name: str = "suite"):
@@ -43,6 +45,13 @@ def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_
     assert suite.vm_stat_available(vm_stat) == 16384 * 32, "macOS: the free, inactive and speculative pages"
     assert suite.meminfo_available("MemTotal:  1000 kB\nMemAvailable:   512 kB\n") == 512 * 1024, "Linux: MemAvailable"
     assert "only 600 MB of memory is free" in suite.memory_line(2, 600 * 2**20), "the run says why it took fewer"
+
+
+def test_story_paths_from_separate_shards_are_checked_after_their_records_merge():
+    peer = StoryRunRecord({}, {"VoidProvider": {"RolePeerWorkers": ["starts from WorkingAgent", "worker creates task", "worker dispatches peer"]}}, CoverageGaps(), set())
+    cross_domain = StoryRunRecord({}, {"VoidProvider": {"RoleCrossDomainWorkers": ["starts from WorkingAgent", "worker creates task", "worker dispatches peer"]}}, CoverageGaps(), set())
+    failures = StoryRunRecord.merged([peer, cross_domain]).failures()
+    assert any("RoleCrossDomainWorkers and RolePeerWorkers share 100% of their path" in line for line in failures), failures
 
 
 class Turn:
