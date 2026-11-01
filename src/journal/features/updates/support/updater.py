@@ -83,6 +83,8 @@ class Updater:
         return bool(self.newer())
 
     def target(self) -> UpdateTarget:
+        if self.problem:
+            raise Rejection(self.problem)
         if not self.is_published():
             raise Rejection(f"there is nothing newer than {self.label()} to install")
         if self.branch():
@@ -215,17 +217,27 @@ class Updater:
         self.install_newest(Actor.user(LOCAL_USER))
 
     def read(self) -> None:
+        branch = self.branch()
+        self.problem = ""
+        if branch:
+            self.head = ""
+            self.is_head_ahead = False
         try:
-            if self.branch():
-                self.head = self.source.head_commit(self.repository(), self.branch())
-                self.is_head_ahead = self.head != self.installed_commit() and self.ancestry.is_newer(self.head, self.installed_commit(), self.repository(), self.branch())
+            if branch:
+                self.head = self.source.head_commit(self.repository(), branch)
+                installed = self.installed_commit()
+                self.is_head_ahead = self.head != installed and self.ancestry.is_newer(
+                    self.head, installed, self.repository(), branch,
+                )
             else:
                 self.releases = Release.lookup(self.source.tags(Release.major_prefix(self.running().major)))
-            self.problem = ""
         except ReleaseRefusal as refused:
             self._next_check_at = refused.reset_at
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-            self.problem = f"The releases could not be read from {self.repository()}: {error}"
+            self.problem = (
+                f"The update from branch {branch} could not be checked: {error}"
+                if branch else f"The releases could not be read from {self.repository()}: {error}"
+            )
 
     def install_newest(self, actor: Actor) -> None:
         target = self.target()

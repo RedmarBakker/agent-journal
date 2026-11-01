@@ -3775,12 +3775,14 @@ def install_commit(app: App, commit: str) -> None:
     (app.config.home / "src" / "commit").write_text(f"{commit}\n")
 
 
-def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_it_is_ahead_of_the_installed_commit(app: App):
+def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_it_is_ahead_of_the_installed_commit(app: App, monkeypatch):
     older, installed, newer = checkout_commits(app, 3)
     install_commit(app, installed)
     user_set(app, "updates.branch", "development")
     source, installer = Source("v4.99.0", head=installed), Installer()
     updating = updating_with(app, source, installer, auto=True)
+    from journal.features.updates.support.commit_ancestry import CommitAncestry
+    monkeypatch.setattr(CommitAncestry, "is_newer", lambda ancestry, head, installed, repository, branch: head == newer)
     updating.checked()
     assert source.branches_asked == [("https://github.com/jessegall/agent-journal", "development")] and source.tags_asked == [], "a followed branch is asked for its head, never the releases"
     assert installer.ran == [] and not updating.data().newer and "newest commit" in updating.line(), "the installed commit is the branch's head: nothing to install"
@@ -3794,7 +3796,9 @@ def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_i
     assert updating.data().installed == f"development at {installed[:7]}" and updating.label() == f"development at {installed[:7]}", "what is installed is named by the branch and its commit"
 
 
-def test_a_branch_head_beside_the_installed_commit_is_left_alone(app: App):
+def test_a_branch_head_beside_the_installed_commit_is_left_alone(app: App, monkeypatch):
+    from journal.features.updates.support.commit_ancestry import CommitAncestry
+
     root = checkout_commits(app, 1)[0]
     subprocess.run(["git", "checkout", "-q", "-b", "beside", root], cwd=app.config.root, check=True)
     beside = checkout_commits(app, 1)[0]
@@ -3804,8 +3808,61 @@ def test_a_branch_head_beside_the_installed_commit_is_left_alone(app: App):
     user_set(app, "updates.branch", "development")
     installer = Installer()
     updating = updating_with(app, Source(head=beside), installer, auto=True)
+    monkeypatch.setattr(CommitAncestry, "is_newer", lambda ancestry, head, installed, repository, branch: False)
     updating.checked()
     assert installer.ran == [] and not updating.data().newer, "a head that does not contain the installed commit is never installed"
+
+
+def test_a_branch_update_fetches_commit_only_history_into_the_journal_home(app: App, tmp_path, monkeypatch):
+    from journal.features.updates.support.commit_ancestry import CommitAncestry
+
+    source, origin = tmp_path / "source", tmp_path / "origin.git"
+    source.mkdir()
+    subprocess.run(["git", "init", "--bare", "--quiet", str(origin)], check=True)
+    subprocess.run(["git", "init", "--quiet", "-b", "development"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.name", "Story"], cwd=source, check=True)
+    subprocess.run(["git", "config", "user.email", "story@example.com"], cwd=source, check=True)
+    note = source / "note.txt"
+    commits = []
+    for line in ("first", "second", "third"):
+        note.write_text(f"{line}\n")
+        subprocess.run(["git", "add", "note.txt"], cwd=source, check=True)
+        subprocess.run(["git", "commit", "--quiet", "-m", line], cwd=source, check=True)
+        commits.append(subprocess.run(["git", "rev-parse", "HEAD"], cwd=source, capture_output=True, text=True, check=True).stdout.strip())
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=source, check=True)
+    subprocess.run(["git", "push", "--quiet", "origin", "development"], cwd=source, check=True)
+
+    called = []
+    original_run = subprocess.run
+
+    def record(command, *args, **options):
+        if command[0] == "git":
+            called.append((command, options.get("cwd")))
+        return original_run(command, *args, **options)
+
+    monkeypatch.setattr("journal.features.updates.support.commit_ancestry.subprocess.run", record)
+    ancestry = CommitAncestry(app.config)
+
+    assert ancestry.is_newer(commits[-1], commits[0], str(origin), "development"), "the remote branch head is newer than an installed ancestor"
+    assert not (app.config.root / ".git").exists(), "the user's project repository is not initialized or filled by the ancestry check"
+    install_commit(app, commits[0])
+    user_set(app, "updates.branch", "development")
+    user_set(app, "updates.repository", str(origin))
+    installer = Installer()
+    updating = updating_with(app, Source(head=commits[-1]), installer, auto=False)
+    updating.install(Actor.user(1))
+    assert installer.ran == ["development"] and not updating.problem, "the newer branch head is installed from a project with no journal history"
+    fetch, cwd = next((command, cwd) for command, cwd in called if "fetch" in command)
+    database = Path(fetch[1].removeprefix("--git-dir="))
+    assert "--filter=tree:0" in fetch and "--no-tags" in fetch, "only commits are requested, without tags"
+    assert database.is_relative_to(app.config.home) and cwd == app.config.home, "the fetched history is kept in the journal's own update cache"
+
+
+def test_commit_ancestry_reports_a_branch_fetch_failure(app: App, tmp_path):
+    from journal.features.updates.support.commit_ancestry import CommitAncestry
+
+    with pytest.raises(OSError, match="could not fetch commit history"):
+        CommitAncestry(app.config).is_newer("c" * 40, "b" * 40, str(tmp_path / "missing.git"), "development")
 
 
 def test_journal_update_follow_sets_the_branch_the_journal_follows_and_unfollow_the_releases_again(app: App):
