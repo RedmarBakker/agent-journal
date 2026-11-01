@@ -1,34 +1,27 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
-from journal.features.organization.support.organization import Organization
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.models.plan_state import PlanState
-from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.organization_setup import OrganizationSetup
+from tests.stories.fixtures.main.organization_domain_plan_draft import OrganizationDomainPlanDraft
 
 
-class OrganizationPlanWithDependentDomains(OrganizationSetup):
-    """A started organization plan hands Security its task before dependent Engineering work can start."""
+class OrganizationPlanWithDependentDomains(OrganizationDomainPlanDraft):
+    """A started plan hands Alpha its task before dependent Beta work can start."""
 
-    parent = OrganizationSetup
+    parent = OrganizationDomainPlanDraft
     stack = (CoordinatingPlans,)
-    settings = ((PlansOptions.PLAN_AGENTS, True),)
+    settings = ()
 
     def steps(self, story) -> None:
-        story.app.container.get(Organization).reload()
-        story.configure_simulated_openrig()
-        self.plans.first = story.user_creates_plan("Security then Engineering", "Complete both domain tasks")
-        self.tasks.first = story.user_adds_plan_task(self.plans.first, "Security task", "alpha")
         added = story.user_presses(
             f"/journal/plans/{self.plans.first}/tasks",
             {
                 "title": "Engineering task",
-                "brief": "- Engineering follows Security",
+                "brief": "- Engineering follows Alpha",
                 "domain": "beta",
                 "after": [self.tasks.first],
-                "reason": "Engineering starts after Security is complete",
+                "reason": "Engineering starts after Alpha is complete",
             },
         )
         added.expect_viewer_passed()

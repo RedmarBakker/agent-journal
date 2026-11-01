@@ -7,6 +7,7 @@ from tests.stories.fixtures.main.organization_part_returned_unchecked import Org
 @story(OrganizationPartReturnedUnchecked, subject=AgentRole.MAIN)
 def test_the_plan_parts_list_names_an_unchecked_return(story):
     part, worker = story.tasks.second_part, story.agents.workers.second()
+    story.agent_runs_as_organization_seat(story.agents.main, "plan", "organization list").expect_command_passed()
     listed = story.agent_runs_as_organization_seat(
         story.agents.main, "plan", f"organization parts {story.tasks.first}",
     )
