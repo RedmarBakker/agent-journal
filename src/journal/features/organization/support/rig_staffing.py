@@ -169,7 +169,7 @@ class RigStaffing:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {role.id}")
         rig = self.find_rig(rig_id)
         plan_seat = self.seats.plan_agent(rig.name, provider)
-        self.place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker_for, True)
+        self.place_role(rig, plan, contracts, plan_seat, domain_seat, role_seat, worker_for, cwd, True)
         return rig, role_seat
 
     def shared_rig(self, plan: Plan, contracts: Contracts, domain_seat: Seat, role_seat: Seat, worker: int, environment: str, cwd: Path) -> Rig:
@@ -207,7 +207,7 @@ class RigStaffing:
             return rig
 
         running = self.runtime.rig_exists(rig.name)
-        self.place_role(rig, plan, contracts, None, domain_seat, role_seat, worker_for, running)
+        self.place_role(rig, plan, contracts, None, domain_seat, role_seat, worker_for, cwd, running)
         if not running:
             self.runtime.start_rig(path)
         return rig
@@ -237,7 +237,7 @@ class RigStaffing:
         return self.plan_rig_name(plan), self.shared_rig_name(plan.environment_id)
 
     def place_role(self, rig: Rig, plan: Plan, contracts: Contracts, plan_seat: Seat | None, domain_seat: Seat, role_seat: Seat,
-                   worker_for: Callable[[Seat, str], SeatWorker], running: bool) -> None:
+                   worker_for: Callable[[Seat, str], SeatWorker], cwd: Path, running: bool) -> None:
         path = self.specs.spec_folder(rig.name) / "rig.yaml"
         try:
             spec = json.loads(path.read_text())
