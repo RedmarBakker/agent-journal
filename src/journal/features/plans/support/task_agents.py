@@ -12,19 +12,26 @@ from journal.models.task import Task
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.links import Links
+from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.support.missing_row import MissingRow
 
 TASK_AGENT_LINK = "task_agent"
 
 
 class TaskAgents:
-    """The one place that knows the agent of a task outside every plan while Plan agents are on: the main agent's start of such a task hands it to an agent of its own in the task's environment task-<n>, as a one-task solo plan's, with no plan row made: the task bound to that environment and held by the agent its task_agent link names, prepared on a LeadingTask floor; the task's close stops it. A task started in a Plan agent's or a task agent's own environment is that agent's own work, never handed on."""
+    """The one place that starts an agent for a task outside every plan and lets that agent read only its linked task in its task environment."""
 
-    def __init__(self, tasks: Tasks, agents: Agents, environments: Environments, links: Links, bindings: PlanBindings, places: AgentEnvironments, plan_agents: PlanAgents, settings: SettingRows) -> None:
+    def __init__(
+        self, tasks: Tasks, agents: Agents, environments: Environments, links: Links,
+        bindings: PlanBindings, places: AgentEnvironments, plan_agents: PlanAgents,
+        plans: Plans, scope: Scope, settings: SettingRows,
+    ) -> None:
         self.tasks, self.agents, self.environments, self.links, self.bindings = tasks, agents, environments, links, bindings
-        self.places, self.plan_agents, self.settings = places, plan_agents, settings
+        self.places, self.plan_agents, self.plans, self.scope, self.settings = places, plan_agents, plans, scope, settings
 
     def agent(self, task: Task) -> Agent | None:
         agent_id = next((target.id for target in self.links.targets(task, TASK_AGENT_LINK)), 0)
@@ -38,9 +45,11 @@ class TaskAgents:
         return self.plan_agents.led_plan(environment_id) is not None or any(self.links.sources(agent, TASK_AGENT_LINK) for agent in self.agents.main_scoped(environment_id))
 
     def started(self, event: TaskStarted) -> None:
-        if event.plan_id or not self.settings.option(PlansOptions.PLAN_AGENTS) or self.is_own_work(event.environment_id):
+        if not self.settings.option(PlansOptions.PLAN_AGENTS) or self.is_own_work(event.environment_id):
             return
         task, actor = self.tasks.find(event.task_id), Actor.parse(event.actor)
+        if event.plan_id or self.plans.containing(task):
+            return
         environment = self.environment(task)
         environment = self.places.visible(environment, task.environment_id, actor, "task") if environment else self.places.made(f"task-{task.id}", task.environment_id, actor, "task")
         if self.places.is_running(environment):
@@ -49,6 +58,15 @@ class TaskAgents:
         agent = self.agent(task) or self.prepared(task, environment, event.environment_id, actor)
         self.tasks.handover(task, Ref.build(agent), actor)
         self.places.launched(environment, agent)
+
+    def task_for_environment(self, task_id: int, environment_id: int) -> Task:
+        task = next(iter(self.tasks.global_matching(id=task_id)), None)
+        if task is not None:
+            with self.scope.environment(task.environment_id):
+                agent = self.agent(task)
+            if agent and agent.environment_id == environment_id:
+                return task
+        raise MissingRow(Task.table(), task_id)
 
     def prepared(self, task: Task, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
         agent = self.places.prepared(environment, LeadingTask(task_id=task.row_id), starter_environment_id, actor)

@@ -33,6 +33,7 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
 from journal.features.plans.support.plan_agents import PlanAgents
+from journal.features.plans.support.task_agents import TaskAgents
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.support.time_source import TimeSource
@@ -50,11 +51,12 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, plan_agents: PlanAgents, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, plan_agents: PlanAgents, task_agents: TaskAgents, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments, reports: Reports, task_sizes: TaskSizes, task_dependencies: TaskDependencies) -> None:
         self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
-        self.tasks, self.logs, self.messages, self.links, self.plans, self.plan_agents, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, plan_agents, taking, questions, waits, briefing
+        self.tasks, self.logs, self.messages, self.links, self.plans = tasks, logs, messages, links, plans
+        self.plan_agents, self.task_agents, self.taking, self.questions, self.waits, self.briefing = plan_agents, task_agents, taking, questions, waits, briefing
         self.check, self.reports = check, reports
         self.task_sizes = task_sizes
         self.task_dependencies = task_dependencies
@@ -323,7 +325,10 @@ class TaskCommand(Command):
         try:
             return self.tasks.find(n)
         except MissingRow:
-            return self.plan_agents.planned_task(n, self.scope.id)
+            try:
+                return self.plan_agents.planned_task(n, self.scope.id)
+            except MissingRow:
+                return self.task_agents.task_for_environment(n, self.scope.id)
 
     def show(self, args: Namespace, caller: Caller) -> int:
         if args.n == CURRENT:
@@ -335,10 +340,8 @@ class TaskCommand(Command):
             args.n = current_task.id
         task = self.readable(int(args.n), caller)
         with self.scope.environment(task.environment_id):
-            print(f"""task {task.row_id}: {task.title}
-state: {task.state}
-{self.place(task)}{self.wait_line(task)}
-{self.briefing.whole(task)}""")
+            outcome = f"\noutcome: {task.outcome}" if task.state.is_closed() and task.outcome else ""
+            print(f"task {task.row_id}: {task.title}\nstate: {task.state}\n{self.place(task)}{self.wait_line(task)}{outcome}\n{self.briefing.whole(task)}")
         return 0
 
     def place(self, task: Task) -> str:

@@ -1,0 +1,16 @@
+id = "security"
+title = "Security"
+icon = "s"
+description = "The Security domain."
+outcome = "Security work is complete."
+responsible = ["security work"]
+not_responsible = ["engineering work"]
+roles = ["reviewer"]
+skills = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

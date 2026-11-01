@@ -1,0 +1,16 @@
+id = "engineering"
+title = "Engineering"
+icon = "e"
+description = "The Engineering domain."
+outcome = "Engineering work is complete."
+responsible = ["engineering work"]
+not_responsible = ["security review"]
+roles = ["builder"]
+skills = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

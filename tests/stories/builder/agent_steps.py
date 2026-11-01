@@ -874,6 +874,15 @@ class AgentSteps:
     def git_in(folder: Path, *arguments: str) -> None:
         subprocess.run(["git", *arguments], cwd=folder, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=True)
 
+    @staticmethod
+    def expect_commit_in(folder: Path, message: str) -> None:
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%s"], cwd=folder, capture_output=True,
+            text=True, timeout=GIT_TIMEOUT_SECONDS, check=True,
+        )
+        actual = result.stdout.strip()
+        assert actual == message, f"the latest commit in {folder} is {actual!r}, not {message!r}"
+
     def project_is_a_git_repository(self) -> StepResult:
         for arguments in (["init", "-q", "-b", "main"], ["-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "--allow-empty", "-m", "start"]):
             subprocess.run(["git", *arguments], cwd=self.app.config.root, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=True)

@@ -1,0 +1,20 @@
+id = "reviewer"
+title = "Security reviewer"
+domain = "security"
+description = "Reviews security work shared across plans."
+cardinality = "journal"
+writes = false
+responsible = ["the assigned security review"]
+not_responsible = ["engineering changes"]
+inputs = ["a task"]
+outputs = ["a security decision"]
+skills = []
+tools = ["read_files"]
+approval_required = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6.1-sol"
+effort = "xhigh"

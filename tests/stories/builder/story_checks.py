@@ -9,6 +9,7 @@ from journal.engine.nudge import Nudge
 from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
+from journal.repositories.environments import Environments
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.organization_handoffs import OrganizationHandoffs
@@ -126,6 +127,10 @@ class StoryChecks:
 
     def expect_no_project_file(self, path: str) -> None:
         assert not (self.app.config.root / path).exists(), f"{path} is still in the project"
+
+    def expect_environment_absent(self, name: str) -> None:
+        rows = self.app.container.get(Environments).global_matching(name=name)
+        assert not rows, f"environment {name} exists"
 
     def expect_project_file_holds(self, path: str, data: bytes) -> None:
         assert (self.app.config.root / path).read_bytes() == data, f"{path} does not hold the bytes it was published with"

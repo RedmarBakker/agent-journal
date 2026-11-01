@@ -1,0 +1,20 @@
+id = "builder"
+title = "Engineering builder"
+domain = "engineering"
+description = "Builds Engineering changes."
+cardinality = "plan"
+writes = true
+responsible = ["the assigned Engineering change"]
+not_responsible = ["security decisions"]
+inputs = ["a task"]
+outputs = ["the change"]
+skills = []
+tools = ["read_files", "edit_files"]
+approval_required = []
+
+[model]
+claude = "sonnet"
+
+[model.codex]
+model = "gpt-6-luna"
+effort = "max"

@@ -7,6 +7,7 @@ from journal.features.estimates.support.estimates_forecast import EstimatesForec
 from journal.features.estimates.support.work_in_progress import WorkInProgress
 from journal.features.tasks.support.ready_order import ReadyOrder
 from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.sprint import Sprint
 from journal.models.task import Task
 from journal.repositories.plans import PLAN_LINK, Plans
@@ -16,7 +17,7 @@ from journal.support.time_source import TimeSource
 
 
 class ReadyQueue:
-    """Orders eligible open tasks by deadline risk, critical slack and age before priority and size."""
+    """Orders eligible open tasks by deadline risk, critical slack and age before priority and size, leaving organization plan tasks for their Domain seats."""
 
     def __init__(self, tasks: Tasks, plans: Plans, forecasts: EstimatesForecast,
                  settings: SettingRows, time_source: TimeSource, flow: WorkInProgress) -> None:
@@ -25,8 +26,12 @@ class ReadyQueue:
         self.flow = flow
 
     def open_tasks(self, count: int) -> list[Task]:
-        available = [task for task in self.tasks.open_candidates() if not self.flow.block_reason(task)]
+        available = [task for task in self.tasks.open_candidates()
+                     if not self.flow.block_reason(task) and not self.is_organization_task(task)]
         return self.ordered(available)[:count]
+
+    def is_organization_task(self, task: Task) -> bool:
+        return any(plan.mode == PlanMode.ORGANIZATION for plan in self.plans.containing(task))
 
     def open_task(self) -> Task | None:
         return next(iter(self.open_tasks(1)), None)

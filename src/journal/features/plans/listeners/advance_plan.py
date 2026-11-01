@@ -1,29 +1,24 @@
-
+from journal.events.listener import Listener
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.estimates.support.work_in_progress import WorkInProgress
-from journal.events.listener import Listener
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
-from journal.support.actor import Actor
 from journal.repositories.agents import Agents
 from journal.repositories.plans import Plans
 from journal.repositories.tasks import WORKERS, Tasks
-from journal.features.plans.support.phase_testing import PhaseTesting
-from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
-from journal.features.plans.support.plan_agent_coordinator import PlanAgentCoordinator
+from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 
 
 class AdvancePlan(Listener[TaskClosed]):
-    """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. A task an agent held is followed by that agent's plan task assigner; for a task a worker or nobody held, for each started plan it is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in Plan agents, open work belongs to the plan agent."""
+    """A plan is done when its last task closes; solo plan tasks may start their next task here, while organization tasks stay open for the Plan seat's handoff."""
 
     def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, assigner: PlanTaskAssigner,
-                 testing: PhaseTesting, coordinator: PlanAgentCoordinator, time_source: TimeSource,
-                 flow: WorkInProgress) -> None:
+                 time_source: TimeSource, flow: WorkInProgress) -> None:
         self.time_source = time_source
-        self.coordinator = coordinator
-        self.plans, self.tasks, self.agents, self.assigner, self.testing, self.flow = plans, tasks, agents, assigner, testing, flow
+        self.plans, self.tasks, self.agents, self.assigner, self.flow = plans, tasks, agents, assigner, flow
 
     def handle(self, event: TaskClosed) -> None:
         task = self.tasks.find(event.task_id)
@@ -52,4 +47,4 @@ class AdvancePlan(Listener[TaskClosed]):
         return None if present is None else Ref.build(present)
 
     def is_advancing(self, plan: Plan, holder: Ref | None) -> bool:
-        return plan.is_started() and not self.coordinator.is_coordinator() and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)
+        return not self.assigner.advancement_block(plan) and (holder is None or self.tasks.holder_task(holder) is None)
