@@ -39,7 +39,12 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     parent = OrganizationPlanSeat
 
     def steps(self, story) -> None:
-        self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
+        dispatched = story.agent_runs(
+            story.agents.main,
+            f"worker dispatch 'Lady Lovelace' --plan {self.plans.first} --changes 'the files of its tasks' --tests 'Scoped tests' --role alpha/builder --model sonnet",
+        )
+        dispatched.expect_command_passed()
+        self.workers.first = story.newest("workers")
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, story.app.container.get(SeatRuntime))
         self.start_plan_seat(story)
