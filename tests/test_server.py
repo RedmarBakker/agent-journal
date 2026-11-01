@@ -1,6 +1,7 @@
 """Phase three: the server answers real HTTP on a free port; tasks are created, read, started and finished over it."""
 
 import json
+import threading
 import time
 import re
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from shell_verbs import ShellVerbs
 
 from tests.suite_server import SuiteServer
 from journal.support.listener_queue import ListenerQueue
+from journal.http.threading_server import ThreadingServer
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
@@ -309,6 +311,33 @@ def test_the_port_file_is_removed_only_by_the_server_whose_port_it_names(app: Ap
     second.stop()
     assert not server.config.port_file.exists(), "the server the file names removes it when it stops"
     server.config.port_file.write_text(str(server.port))
+
+
+def test_stopping_the_server_joins_every_listener_thread(tmp_path: Path, monkeypatch):
+    config = Config(
+        tmp_path,
+        port=0,
+        owner_access_listener=("127.0.0.1", 0),
+        supervisor_listener=("127.0.0.1", 0, tmp_path / "certificate", tmp_path / "key"),
+    )
+    app = main_journal(config)
+    server = app.server()
+    server._build_supervisor = lambda: ThreadingServer(("127.0.0.1", 0), server._build_supervisor_handler())
+    runtime = app.runtime()
+    runtime.start()
+    threads = tuple(server._threads)
+    joined = []
+    original_join = threading.Thread.join
+
+    def recorded_join(thread, timeout=None):
+        if thread in threads:
+            joined.append(thread)
+        return original_join(thread, timeout)
+
+    monkeypatch.setattr(threading.Thread, "join", recorded_join)
+    runtime.stop()
+    assert joined == list(threads), "the primary, owner and supervisor listeners all end before the runtime stops"
+    assert all(not thread.is_alive() for thread in threads), "no listener thread outlives the server"
 
 
 def test_version_fours_own_api_lists_every_resource_and_answers_a_question(server):

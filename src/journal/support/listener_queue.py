@@ -1,9 +1,9 @@
-import contextvars
 import queue
 import sys
 import threading
 from typing import Callable
 
+from journal.repositories.load_tally import LoadTally
 from journal.support.fault_log import FaultLog
 
 
@@ -25,7 +25,7 @@ class ListenerQueue:
         self._thread.start()
 
     def add(self, work: Callable[[], object]) -> None:
-        self._queue.put(lambda context=contextvars.copy_context(): context.run(work))
+        self._queue.put(lambda context=LoadTally.background_context(): context.run(work))
 
     def add_bounded(self, work: Callable[[], object], subject: str) -> None:
         if self.depth() < self.QUEUE_WARNING_ITEMS:

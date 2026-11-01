@@ -1,4 +1,3 @@
-import contextvars
 import threading
 
 from journal.features.migration.support.migrator import Migrator
@@ -6,6 +5,7 @@ from journal.features.migration.support.version_3_backup import Version3Backup
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.repositories.version3_migrations import Version3Migrations
+from journal.repositories.load_tally import LoadTally
 
 
 class MigrationController:
@@ -22,6 +22,6 @@ class MigrationController:
 
     def start(self, request: Request) -> Response:
         migration = self.migrator.begin(request.actor)
-        context = contextvars.copy_context()
+        context = LoadTally.background_context()
         threading.Thread(target=context.run, args=(self.migrator.run, migration, request.actor), name="migration", daemon=True).start()
         return Response.json({"kept": self.backup.is_stored(), "state": migration.state.value})

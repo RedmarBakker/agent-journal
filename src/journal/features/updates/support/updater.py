@@ -1,4 +1,3 @@
-import contextvars
 import os
 import subprocess
 import threading
@@ -26,6 +25,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.version import VERSION
 from journal.features.updates.updates_options import UpdatesOptions
 from journal.support.time_source import TimeSource
+from journal.repositories.load_tally import LoadTally
 
 PLUGIN = "code-commandments"
 # what the install command from the README installs when it is asked for no release of its own, and how the card names it
@@ -190,7 +190,8 @@ class Updater:
     def separate(self, work: Callable[[], None]) -> bool:
         if not self._working.acquire(blocking=False):
             return False
-        threading.Thread(target=contextvars.copy_context().run, args=(self.released, work), name="updates", daemon=True).start()
+        context = LoadTally.background_context()
+        threading.Thread(target=context.run, args=(self.released, work), name="updates", daemon=True).start()
         return True
 
     def released(self, work: Callable[[], None]) -> None:

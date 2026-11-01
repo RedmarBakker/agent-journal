@@ -64,6 +64,9 @@ class Server:
         for server, thread in zip(self._bound, self._threads):
             if thread.is_alive():
                 server.shutdown()
+        for thread in self._threads:
+            if thread.ident is not None:
+                thread.join()
         for bound in self._bound:
             bound.server_close()
         if self._bound and self.is_port_file_owned():

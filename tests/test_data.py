@@ -8,6 +8,7 @@ from journal.support.masks import Masks
 from journal.support.secret_values import SecretValues
 """Phase one: a task is created, linked, updated and deleted in a real database, and every model event is heard with its actor."""
 
+import contextvars
 import json
 import threading
 
@@ -43,6 +44,8 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.phases import Phases
 from journal.repositories.plans import Plans
 from journal.repositories.rows import Rows
+from journal.repositories.load_counters import LoadCounters
+from journal.repositories.load_tally import LoadTally, TALLY
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.workers import Workers
 from journal.support.scope_missing import ScopeMissing
@@ -649,7 +652,6 @@ def test_the_agent_modes_and_worker_profiles_migration_moves_legacy_rows_to_the_
 def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
     """A write keeps the reads it changed: the next find and session read of the row load nothing and return what a load returns; a rolled-back write, a write superseded in its transaction and a write a secret was masked out of keep nothing, and a session two rows share keeps answering the first."""
     from journal.models.agent import Agent
-    from journal.repositories.load_tally import LoadTally
     agents = Agents(connection, bus, scope, TimeSource())
     with scope.environment(1):
         agent = agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
@@ -680,15 +682,51 @@ def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_wo
 
 
 def test_a_load_tally_counts_on_the_thread_that_began_it_and_never_work_another_thread_runs_in_its_context():
-    import contextvars
-    from journal.repositories.load_tally import LoadTally
     LoadTally.begin()
     LoadTally.counted("tasks", ("a row",))
     context = contextvars.copy_context()
-    deferred = threading.Thread(target=lambda: context.run(lambda: (LoadTally.counted("tasks", ("deferred",)), LoadTally.count_write("tasks"))))
-    deferred.start()
-    deferred.join()
-    assert [(count.model, count.rows, count.writes) for count in LoadTally.ended().counts] == [("tasks", 1, 0)]
+    deferred_loads = []
+
+    def work_in_another_thread():
+        LoadTally.counted("tasks", ("deferred",))
+        LoadTally.count_write("tasks")
+        deferred_loads.append(LoadTally.ended())
+
+    try:
+        deferred = threading.Thread(target=lambda: context.run(work_in_another_thread))
+        deferred.start()
+        deferred.join()
+        loads = LoadTally.ended()
+    finally:
+        TALLY.set(None)
+    assert [loads.points() for loads in deferred_loads] == [0], "a copied context cannot end the tally its other thread began"
+    assert [(count.model, count.rows, count.writes) for count in loads.counts] == [("tasks", 1, 0)]
+
+
+def test_a_reused_thread_identifier_does_not_own_an_old_load_tally():
+    stale = LoadCounters()
+    stale.thread = threading.get_ident()
+    TALLY.set(stale)
+    try:
+        LoadTally.counted("tasks", ("another thread's row",))
+        assert LoadTally.running() is None, "a matching identifier does not make this thread the owner"
+        assert LoadTally.ended().points() == 0, "a thread cannot end another thread's tally"
+        assert stale.depth == 1 and not stale.rows, "a stale tally was left alone"
+    finally:
+        TALLY.set(None)
+
+
+def test_a_background_context_does_not_carry_the_request_load_tally():
+    LoadTally.begin()
+    LoadTally.counted("tasks", ("request row",))
+    try:
+        context = LoadTally.background_context()
+        background = context.run(LoadTally.running)
+        request = LoadTally.ended()
+    finally:
+        TALLY.set(None)
+    assert background is None, "background work starts without the request's tally"
+    assert request.points() == 1, "the request still owns its own load tally"
 
 
 def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_name(connection, bus, scope):
@@ -714,7 +752,6 @@ def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_n
 def test_a_read_that_leaves_columns_or_keys_out_loads_its_rows_with_those_fields_at_their_defaults_and_counts_only_what_it_loaded(connection, bus, scope):
     from journal.models.report import Report
     from journal.repositories.entries import Entries
-    from journal.repositories.load_tally import LoadTally
     from journal.repositories.reports import Reports
     reports, entries = Reports(connection, bus, scope, TimeSource()), Entries(connection, bus, scope, TimeSource())
     with scope.environment(1):
@@ -738,7 +775,6 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
     from journal.models.agent import Agent
     from journal.models.support.agent_load import AgentLoad
     from journal.repositories.entries import Entries
-    from journal.repositories.load_tally import LoadTally
     agents, entries = Agents(connection, bus, scope, TimeSource()), Entries(connection, bus, scope, TimeSource())
     bus.listen(Updated, RecordChanges(entries))
     with scope.environment(1):
@@ -755,7 +791,6 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
 
 
 def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_of_the_write_reads_what_it_wrote(connection, bus, scope):
-    from journal.repositories.load_tally import LoadTally
     from journal.repositories.setting_rows import SettingRows
     settings = SettingRows(connection, bus, scope, TimeSource())
 

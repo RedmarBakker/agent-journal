@@ -1,4 +1,3 @@
-import contextvars
 import queue
 import threading
 from dataclasses import replace
@@ -20,6 +19,7 @@ from journal.console.support.outcome import Outcome
 from journal.http.support.cli_post import CliPost
 from journal.http.support.request import Request
 from journal.http.support.stream_response import StreamResponse
+from journal.repositories.load_tally import LoadTally
 from journal.features.shell.support.shell_runner import EXIT
 from journal.support.response import Response
 from journal.engine.support.launch_files import LaunchFiles
@@ -63,7 +63,7 @@ class CliController:
     def streamed(self, variables: CallerVariables, argv: list[str], request: Request) -> Iterator[bytes]:
         lines: queue.Queue = queue.Queue()
         outcomes: list[Outcome] = []
-        caller, context = self.caller(variables, argv, request), contextvars.copy_context()
+        caller, context = self.caller(variables, argv, request), LoadTally.background_context()
         threading.Thread(target=context.run, args=(self.performed, argv, caller, lines, outcomes), name="cli-stream", daemon=True).start()
         streamed_text = ""
         while (text := lines.get()) is not None:

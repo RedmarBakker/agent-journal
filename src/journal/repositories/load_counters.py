@@ -11,4 +11,4 @@ class LoadCounters:
     sizes: Counter = field(default_factory=Counter)
     writes: Counter = field(default_factory=Counter)
     depth: int = 1
-    thread: int = field(default_factory=threading.get_ident)
+    thread: threading.Thread = field(default_factory=threading.current_thread)
