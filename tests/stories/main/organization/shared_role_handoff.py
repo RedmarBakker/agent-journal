@@ -11,6 +11,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import TASK_BRIEF
 from tests.stories.fixtures.main.organization_shared_role_domain_inbox_read import OrganizationSharedRoleDomainInboxRead
+from tests.stories.fixtures.main.organization_shared_role_domain_seat_started import OrganizationSharedRoleDomainSeatStarted
 
 
 @story(OrganizationSharedRoleDomainSeatStarted, subject=AgentRole.MAIN)
