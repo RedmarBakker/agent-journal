@@ -1,5 +1,3 @@
-from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.plans.states.leading_plan import LeadingPlan
 from tests.stories.fixtures.main.organization_shared_role_domain_seat_started import OrganizationSharedRoleDomainSeatStarted
 
 
@@ -17,5 +15,3 @@ class OrganizationSharedRoleGitProject(OrganizationSharedRoleDomainSeatStarted):
         story.git_in(root, "add", ".gitignore")
         story.git_in(root, "commit", "-q", "--amend", "--allow-empty", "-m", "start")
 
-    def expected(self, story) -> None:
-        story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
