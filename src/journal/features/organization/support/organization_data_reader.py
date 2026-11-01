@@ -105,6 +105,12 @@ class OrganizationDataReader:
             return None
         with self.scope.environment(plan.environment_id):
             tasks = self.plans.queued_tasks(plan)
+            plan_tasks = self.plans.plan_tasks(plan)
+            unavailable = self.tasks.unavailable_task_ids_for_ids([task.row_id for task in plan_tasks])
+            tasks.extend(
+                task for task in plan_tasks
+                if task.state == TaskState.OPEN and task.delegated and task.row_id not in unavailable
+            )
             if started := self.plans.started_task(plan):
                 tasks.insert(0, started)
             for task in tasks:
