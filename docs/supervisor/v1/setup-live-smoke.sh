@@ -41,6 +41,8 @@ compose() {
         -f "$COMPOSE_FILE" --profile authorized-staging "$@"
 }
 
+compose exec --user 10003:10003 -T writer /usr/local/bin/supervisor-codex-ready
+
 STAGING_DIR=$(mktemp -d "$SECRET_SOURCE_DIR/.supervisor-setup.XXXXXX")
 chmod 0700 "$STAGING_DIR"
 trap 'rm -rf "$STAGING_DIR"' EXIT HUP INT TERM

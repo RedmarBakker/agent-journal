@@ -409,12 +409,25 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "STAGING_AUTHORIZED" in host_setup and "compose cp writer:/run/journal_supervisor_credential" in host_setup
     assert "normal_driver_separate_execution_identity" in manifest["launch_gates"]
     assert manifest["launch"]["enrollment_enabled"] is False
-    assert "private device-auth login" in setup
     assert manifest["topology"][0]["codex_driver"]["permissions"].startswith("the Dockerfile pre-creates /var/lib/journal-codex as uid/gid 10003 mode 0700")
     assert manifest["volumes"]["codex_driver_state"]["owner"] == "10003:10003"
     assert manifest["execution_identity_contract"]["status"].startswith("packaged; dedicated-VM B10")
     assert manifest["launch_gates"]["normal_driver_separate_execution_identity"] is False
     assert "uid/gid 10003" in runbook and "B10 remains false" in runbook
+
+
+def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
+    setup = (PROFILE / "live-smoke-setup.py").read_text()
+    host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
+    driver_check = "compose exec --user 10003:10003 -T writer /usr/local/bin/supervisor-codex-ready"
+    owner_setup = "compose exec --user 10001:10001 -T writer /usr/local/bin/supervisor-live-setup"
+
+    assert "/var/lib/journal-codex" not in setup and "auth.json" not in setup and "CODEX_HOME" not in setup
+    assert "os.geteuid()" not in setup and ".stat()" not in setup
+    assert driver_check in host_setup and owner_setup in host_setup
+    assert host_setup.index(driver_check) < host_setup.index(owner_setup)
+    assert 'os.environ.get("JOURNAL_ROOT") != str(ROOT)' in setup
+    assert "if TOKEN_FILE.exists():" in setup
 
 
 def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_owner():
