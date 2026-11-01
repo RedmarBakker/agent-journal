@@ -93,6 +93,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_plan_organization_seat(
         story.agents.main, "plan", f"organization handoff {security} domain:security",
     ).expect_command_passed()
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
 
     security_domain = story.organization_seat_agent_in_plan("domain:security", plan)
     story.agent_starts_organization_seat_in_plan(security_domain, "domain:security", plan).expect_allowed(security_domain)
@@ -100,6 +101,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(
         security_domain, "domain:security", f"organization handoff {security} role:security/reviewer",
     ).expect_command_passed()
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
     shared_rig = story.app.container.get(RigStaffing).shared_rig_name(plan_row.environment_id)
     reviewer = story.organization_seat_agent("role:security/reviewer", shared_rig)
     story.agent_starts_organization_seat(reviewer, "role:security/reviewer", shared_rig).expect_allowed(reviewer)
@@ -109,6 +111,7 @@ def test_a_dependent_organization_task_stays_with_its_domain_and_merges_on_its_p
     story.agent_runs_from_openrig_organization_seat(
         reviewer, "role:security/reviewer", f"organization handoff {security} domain:security", shared_rig,
     ).expect_command_passed()
+    story.expect_stack(story.agents.main, LeadingPlan, FollowingPlan)
     story.agent_runs_from_openrig_organization_seat(security_domain, "domain:security", "organization inbox").expect_command_passed()
     story.agent_runs_from_openrig_organization_seat(
         security_domain, "domain:security", f"organization handoff {security} plan",
