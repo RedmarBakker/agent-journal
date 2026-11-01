@@ -40,7 +40,6 @@ class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     parent = OrganizationHubPlan
 
     def steps(self, story) -> None:
-        OrganizationHubPlan.steps(self, story)
         story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
         story.user_approves_plan(self.plans.first)
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
