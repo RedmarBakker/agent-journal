@@ -7,6 +7,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
+from tests.stories.fixtures.main.solo_report_sized_plan import SoloReportSizedPlan
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
 
@@ -97,7 +98,7 @@ def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependenc
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
-@story(ReportSizedPlan, subject=AgentRole.MAIN)
+@story(SoloReportSizedPlan, subject=AgentRole.MAIN)
 @setting(EstimatesOptions.AGING_MINIMUM_OUTCOMES, 1)
 def test_a_task_beyond_its_comparable_historical_p85_gets_advice(story):
     historical = story.tasks.first
