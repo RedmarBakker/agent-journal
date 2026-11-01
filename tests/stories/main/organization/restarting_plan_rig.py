@@ -5,6 +5,7 @@ from journal.models.plan_state import PlanState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.paused_organization_hub_plan import PausedOrganizationHubPlan
+from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 from tests.stories.fixtures.main.stopped_organization_hub_plan import StoppedOrganizationHubPlan
 from tests.stories.fixtures.main.shared_role_queue import awaiting_state
 
