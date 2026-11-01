@@ -16,6 +16,9 @@ class OrganizationSharedRoleSeatPlaced(OrganizationSharedRoleDomainInboxRead):
         organization = story.app.container.get(Organization).reload()
         role = organization.role("shared")
         provider = story.app.container.get(Providers).lookup(story.provider)
-        story.app.container.get(RigStaffing).shared_read_only_role_rig(
+        rig = story.app.container.get(RigStaffing).shared_read_only_role_rig(
             plan, organization, role, provider.name,
         )
+        seat = "role:alpha/shared"
+        agent = story.organization_seat_agent(seat, rig.name)
+        story.agent_starts_organization_seat(agent, seat, rig.name).expect_allowed(agent)
