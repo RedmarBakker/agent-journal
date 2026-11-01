@@ -1,6 +1,7 @@
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_with_finished_development_example import PlanWithFinishedDevelopmentExample
@@ -32,6 +33,7 @@ def test_a_builder_sees_same_cohort_examples_with_their_original_sizes_and_actua
     forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "comparable_examples", 0, "plan_id"), story.plans.first)
     forecast.expect_viewer_part(("duration_ranges", "tasks", 0, "comparable_examples", 0, "original_size_points"), 3)
     forecast.expect_viewer_part(("duration_calibration", "status"), "not_enough_history")
+    story.expect_worker(story.agents.workers.first(), state=WorkerState.MERGED)
     story.expect_stack(story.agents.main, Ready)
 
 
