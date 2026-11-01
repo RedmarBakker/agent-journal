@@ -336,6 +336,7 @@ def read_skill(app, folder: str):
 
 def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_path, monkeypatch):
     import time as clock
+    import threading
     from journal.features.checks.support import check_runner
     from journal.features.checks.support.check_runner import CheckRunner
     monkeypatch.setattr(check_runner, "INTERVAL_SECONDS", 0)
@@ -346,7 +347,8 @@ def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_
     from journal.models.check import Check
     checks = app.container.get(Checks)
     checks.save(Check(title="Counts", command=f"echo 1/3; {fifo_line(step)}; echo 2/3; {fifo_line(step)}; printf '%s' '{report}' > \"$JOURNAL_REPORT\"; exit 1"), Actor.user(1))
-    started = app.container.get(CheckRunner).start(checks.find(1), Actor.user(1))
+    runner = app.container.get(CheckRunner)
+    started = runner.start(checks.find(1), Actor.user(1))
     assert started.progress is not None, "a run started from the page answers at once, marked running"
 
     def shown(progress: tuple | None):
@@ -355,13 +357,24 @@ def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_
             clock.sleep(0.01)
         return row
 
-    for finished in (1, 2):
-        row = shown((finished, 3))
-        assert row.progress and (row.progress.finished_count, row.progress.total) == (finished, 3), f"the row says how far the run is while it runs: {row.progress}"
-        step.write_text("\n")
-    row = shown(None)
-    assert row.progress is None and row.last_passed is False and row.last_duration > 0, "the run's end clears its progress and keeps how long it took"
-    assert row.last_report.summary == "1 sin" and row.last_report.findings[0].line == 3, "the report the check wrote is kept with its run"
+    def release_step():
+        written = threading.Event()
+        writer = threading.Thread(target=lambda: (step.write_text("\n"), written.set()), daemon=True)
+        writer.start()
+        assert written.wait(5), "the check did not open the next progress gate"
+
+    try:
+        for finished in (1, 2):
+            row = shown((finished, 3))
+            assert row.progress and (row.progress.finished_count, row.progress.total) == (finished, 3), f"the row says how far the run is while it runs: {row.progress}"
+            release_step()
+        row = shown(None)
+        assert row.progress is None and row.last_passed is False and row.last_duration > 0, "the run's end clears its progress and keeps how long it took"
+        assert row.last_report.summary == "1 sin" and row.last_report.findings[0].line == 3, "the report the check wrote is kept with its run"
+    finally:
+        current = checks.find(1)
+        if current.progress is not None:
+            runner.stop(current, Actor.user(1))
 
 
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
