@@ -650,6 +650,7 @@
         "minutes: one place more",
         "move that write after it",
         "moved to the background as output",
+        "must free a place",
         "name a model in the dispatch: the least expensive one that reliably fits the work",
         "need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`",
         "need a priority: `journal task edit <n> --priority <level>`, or `journal task priorities confirm`",

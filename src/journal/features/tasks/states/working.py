@@ -4,7 +4,6 @@ from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
-from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.ticked import Ticked
@@ -22,7 +21,6 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.git.feature import Git
-from journal.features.organization.organization_part import OrganizationPart
 
 OPEN_TASK_LIMIT_SECONDS = 900.0
 COMPACT = "compact"
@@ -92,15 +90,6 @@ class Working(BaseState):
             return self.swap(working, *lines)
         request = TasksNudges.LOG_REQUEST.create(edits=self.edits, name=self.label(), log=self.log_command())
         return self.swap(replace(working, log_requested=True), request, *lines)
-
-    def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        if not self.task_id:
-            return self.none()
-        if event.data.part(OrganizationPart).role_work_waiting_for_check:
-            return self.none()
-        if self.is_log_due(event.time, settings):
-            return self.refuse(TasksNudges.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command()))
-        return self.refuse(self.continue_nudge())
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if not self.has_current_task(event.data):

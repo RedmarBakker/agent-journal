@@ -74,7 +74,13 @@ class Plans(ScopedRepository[Plan]):
         self.save(cancelled_plan(self.time_source.moment().timestamp()), actor)
         cancelled = []
         for task in self.plan_tasks(plan):
-            if task.is_closed() or self.is_shared(task, plan):
+            if self.is_shared(task, plan):
+                continue
+            for part in self.tasks.parts_of(task):
+                if part.is_closed():
+                    continue
+                cancelled.append(self.tasks.save(part.cancelled(self.time_source.moment(), f"its plan {plan.id} was cancelled"), actor))
+            if task.is_closed():
                 continue
             cancelled.append(self.tasks.save(task.cancelled(self.time_source.moment(), f"its plan {plan.id} was cancelled"), actor))
         return cancelled

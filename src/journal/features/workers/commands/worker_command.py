@@ -16,6 +16,7 @@ from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.rig_names import RigNames
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.organization_seat_routing import OrganizationSeatRouting
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.workers.organization_options import OrganizationOptions
@@ -38,6 +39,7 @@ from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.models.worker_state import WorkerState
 from journal.models.plan_mode import PlanMode
+from journal.models.plan_state import PlanState
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
@@ -82,7 +84,7 @@ class WorkerCommand(Command):
         events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule,
         launch: WorkerLaunch, taking: ActiveTask, targets: WaitTargets, rebases: WorkerRebase,
         time_source: TimeSource, roles: RoleBoot, instances: RoleInstances, delegation: PlanDelegation,
-        runtime: SeatRuntime, names: RigNames,
+        runtime: SeatRuntime, names: RigNames, rig_staffing: RigStaffing,
     ) -> None:
         self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
@@ -95,6 +97,7 @@ class WorkerCommand(Command):
         self.roles, self.instances = roles, instances
         self.runtime = runtime
         self.names = names
+        self.rig_staffing = rig_staffing
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -191,11 +194,16 @@ class WorkerCommand(Command):
             role_task = task
             if instance:
                 return self.queue(Namespace(n=instance.id, tasks=[role_task.id], first=False), caller)
-        output = self.workers.busy_workers()
+        output = [worker for worker in self.workers.busy_workers() if self.worker_uses_place(worker)]
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
-            waiting = self.workers.checkable_workers()
-            raise Rejection((WorkersNudges.PLACES_FULL.create(n=min(waiting, key=lambda worker: worker.silence.timeout.start).id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
+            waiting = [worker for worker in output if worker.state == WorkerState.DELIVERED and not worker.review_pending]
+            actionable = [worker for worker in waiting if self.caller_can_free_place(worker, caller)]
+            if actionable:
+                line = WorkersNudges.PLACES_FULL.create(n=min(actionable, key=lambda worker: worker.silence.timeout.start).id)
+            else:
+                line = WorkersNudges.PLACES_FULL_OWNER.create(owner=self.place_owner(output[0]))
+            raise Rejection(line.rendered())
         planned = self.delegation.tasks(args.plan, args.phase) if args.plan else []
         task = role_task or self.assignment(planned[0].row_id if planned else args.task, caller)
         provider = args.provider or self.provider_default(caller)
@@ -215,6 +223,31 @@ class WorkerCommand(Command):
         if planned:
             self.delegation.delegate(args.plan, moment, caller.actor)
         return self.launched(worker, task, caller)
+
+    def worker_uses_place(self, worker: Worker) -> bool:
+        if not worker.plan_id:
+            return True
+        plans = self.plans.global_matching(id=worker.plan_id)
+        if not plans:
+            return False
+        plan = plans[0]
+        if plan.state in (PlanState.PAUSED, PlanState.FINISHED, PlanState.CANCELLED):
+            return False
+        role = self.roles.contract_role(worker)
+        return plan.mode != PlanMode.ORGANIZATION or self.rig_staffing.worker_rig_exists(plan, role)
+
+    def caller_can_free_place(self, worker: Worker, caller: Caller) -> bool:
+        if not caller.organization_seat:
+            return True
+        try:
+            self.worker_for_merge(worker.id, caller)
+        except (MissingRow, Rejection):
+            return False
+        return True
+
+    def place_owner(self, worker: Worker) -> str:
+        plan = next(iter(self.plans.global_matching(id=worker.plan_id)), None) if worker.plan_id else None
+        return f"plan {plan.id}'s Plan seat" if plan else "the main agent"
 
     def resend_role_job(self, worker: Worker, task: Task, args: Namespace, caller: Caller) -> int:
         brief = self.job_brief(task, args, [])

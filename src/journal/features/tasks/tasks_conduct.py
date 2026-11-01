@@ -22,6 +22,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
+from journal.features.tasks.states.working import Working
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
@@ -36,6 +37,14 @@ WAIT_REFUSAL_LIMIT = 2
 
 class TasksConduct(Conduct):
     """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a test run started while the task in hand has been in progress a while met with how to put it in testing, the tasks blocked with nothing to end them named every so many completed tasks or minutes, whichever comes first, idle or not, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+
+    def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        if not isinstance(self, Working) or not self.task_id:
+            return self.none()
+        if self.is_log_due(event.time, settings):
+            line = TasksNudges.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command())
+            return self.refuse(line)
+        return self.refuse(self.continue_nudge())
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)

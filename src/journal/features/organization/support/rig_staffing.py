@@ -210,6 +210,16 @@ class RigStaffing:
             rig_id = self.plans.rig_id(plan)
             return self.find_rig(rig_id).name if rig_id else self.names.plan(plan.id)
 
+    def plan_rig_exists(self, plan: Plan) -> bool:
+        with self.scope.environment(plan.environment_id):
+            rig_id = self.plans.rig_id(plan)
+            return bool(rig_id and self.runtime.rig_exists(self.find_rig(rig_id).name))
+
+    def worker_rig_exists(self, plan: Plan, role: Role | None) -> bool:
+        if role and role.cardinality is Cardinality.JOURNAL:
+            return self.runtime.rig_exists(self.shared_rig_name(plan.environment_id))
+        return self.plan_rig_exists(plan)
+
     def rigs_for_plan(self, plan: Plan) -> tuple[str, str]:
         return self.plan_rig_name(plan), self.shared_rig_name(plan.environment_id)
 
