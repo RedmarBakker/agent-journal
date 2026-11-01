@@ -47,6 +47,11 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
+    resumed_plan = story.agent_resumes_the_session(plan_seat)
+    resumed_plan.expect_agent_told(
+        plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+        task=engineering, domain="beta",
+    )
     plan_stop = story.agent_stops_plan_seat(plan_seat, plan)
     plan_stop.expect_refused(plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
                              task=engineering, domain="beta")
