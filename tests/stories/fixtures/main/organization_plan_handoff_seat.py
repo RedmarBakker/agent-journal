@@ -1,12 +1,11 @@
 from journal.features.organization.organization_nudges import OrganizationNudges
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.organization_hub_plan import OrganizationHubPlan
 from tests.stories.fixtures.main.organization_plan_without_domain_seats import OrganizationPlanWithoutDomainSeats
+from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
 
 
 class OrganizationPlanHandoffSeat(OrganizationPlanWithoutDomainSeats):
@@ -37,14 +36,10 @@ class OrganizationPlanHandoffSeat(OrganizationPlanWithoutDomainSeats):
 class DelegatedOrganizationPlanHandoffSeat(OrganizationPlanHandoffSeat):
     """The Plan seat starts while its open Domain task is delegated to a worker."""
 
-    parent = OrganizationHubPlan
+    parent = OrganizationPlanSeat
 
     def steps(self, story) -> None:
-        story.agent_runs(story.agents.main, f"plan mode {self.plans.first} organization").expect_command_passed()
-        story.user_approves_plan(self.plans.first)
         self.workers.first = story.agent_dispatches_worker_on_plan(story.agents.main, "Lady Lovelace", self.plans.first)
-        story.user_sets(PlansOptions.PLAN_AGENTS, True)
-        story.configure_simulated_openrig()
         story.agent_runs(story.agents.main, f"plan start {self.plans.first}").expect_command_passed()
         self.add_domain_seats(story, story.app.container.get(SeatRuntime))
         self.start_plan_seat(story)
