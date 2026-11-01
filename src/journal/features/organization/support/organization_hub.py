@@ -160,6 +160,9 @@ class OrganizationHub:
             workers_waiting = {
                 task_id: worker for worker, task_id, _ in self.role_work_checks.waiting_for_check_in_plan(plan)
             }
+            unchecked_returns = {
+                task_id: worker for worker, task_id in self.role_work_checks.unchecked_returned_parts_in_plan(plan)
+            }
             workers_to_merge = {
                 task_id: worker for worker, task_id in self.role_work_checks.checked_parts_waiting_for_merge_in_plan(plan)
             }
@@ -167,7 +170,9 @@ class OrganizationHub:
                 target = self.handoffs.latest_target(part, plan)
                 waiting = ", ".join(f"task {ref.id}" for ref in self.tasks.open_waits(part))
                 line = f"task {part.id} {part.state.value}, {target or 'not assigned'}"
-                if worker := workers_waiting.get(part.id):
+                if worker := unchecked_returns.get(part.id):
+                    line = f"{line}, unchecked return from worker {worker}; run `journal worker check {worker} <point>` first"
+                elif worker := workers_waiting.get(part.id):
                     line = f"{line}, waits for check from worker {worker}"
                 if worker := workers_to_merge.get(part.id):
                     line = f"{line}, checked and waiting for merge from worker {worker}"

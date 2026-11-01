@@ -49,15 +49,19 @@ def _start_worker(story, role: str, brief: str, name: str):
     return worker
 
 
-def _return_part_to_plan(story, part: int, worker, role: str):
-    story.agent_runs_from_openrig_organization_seat(
-        worker, f"role:alpha/{role}", "proof 1 'the assigned part is complete'",
-    ).expect_command_passed()
+def _return_part_to_plan(story, part: int, worker, role: str, proofs: tuple[str, ...]):
+    for number, proof in enumerate(proofs, start=1):
+        story.agent_runs_from_openrig_organization_seat(
+            worker, f"role:alpha/{role}", f"proof {number} '{proof}'",
+        ).expect_command_passed()
     story.agent_runs_from_openrig_organization_seat(
         worker, f"role:alpha/{role}", "clock-out 'the assigned part is complete'",
     ).expect_command_passed()
     domain = _domain(story)
-    story.agent_runs_as_organization_seat(domain, "domain:alpha", f"worker check {worker.number} 1").expect_command_passed()
+    for point in range(1, len(proofs) + 1):
+        story.agent_runs_as_organization_seat(
+            domain, "domain:alpha", f"worker check {worker.number} {point}",
+        ).expect_command_passed()
     story.agent_runs_as_organization_seat(
         domain, "domain:alpha", f"organization handoff {part} plan",
     ).expect_command_passed()
@@ -222,8 +226,11 @@ def test_a_part_cannot_have_parts_and_an_after_cycle_is_refused(story):
 def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(story):
     parent, first_part, second_part = story.tasks.first, story.tasks.first_part, story.tasks.second_part
     builder, maker = story.agents.workers.first(), story.agents.workers.second()
-    _return_part_to_plan(story, first_part, builder, "builder")
-    _return_part_to_plan(story, second_part, maker, "maker")
+    _return_part_to_plan(story, first_part, builder, "builder", ("the part work is met",))
+    _return_part_to_plan(
+        story, second_part, maker, "maker",
+        ("the first maker point is met", "the second maker point is met"),
+    )
 
     plan = _plan_agent(story)
     resumed = story.organization_seat_hook(

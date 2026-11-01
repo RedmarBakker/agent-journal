@@ -10,8 +10,8 @@ from tests.stories.fixtures.main.organization_plan_with_dependent_domains import
 @story(OrganizationPlanWithDependentDomains, subject=AgentRole.MAIN)
 def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story):
     plan, security, engineering = story.plans.first, story.tasks.first, story.tasks.second
-    domain = story.organization_seat_agent_in_plan("domain:alpha", plan)
-    started = story.agent_starts_organization_seat_in_plan(domain, "domain:alpha", plan)
+    domain = story.organization_seat_agent("domain:alpha")
+    started = story.agent_starts_organization_seat(domain, "domain:alpha")
     started.expect_agent_told(domain, OrganizationNudges.UNREAD_HANDOFF)
     unread_stop = story.agent_stops_organization_seat(domain, "domain:alpha")
     unread_stop.expect_refused(domain, OrganizationNudges.UNREAD_HANDOFF)
@@ -19,12 +19,10 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
         domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
-    inbox = story.agent_runs_as_organization_seat_in_plan(domain, "domain:alpha", plan, "organization inbox")
+    inbox = story.agent_runs_as_organization_seat(domain, "domain:alpha", "organization inbox")
     inbox.expect_command_passed()
     inbox.expect_command_text(f"plan {plan} task {security}: Security task")
-    story.agent_runs_as_organization_seat_in_plan(
-        domain, "domain:alpha", plan, "environment overview",
-    ).expect_command_passed()
+    story.agent_runs_as_organization_seat(domain, "domain:alpha", "environment overview").expect_command_passed()
 
     domain_stop = story.agent_stops_organization_seat(domain, "domain:alpha")
     domain_stop.expect_allowed(domain)
@@ -35,10 +33,9 @@ def test_a_domain_stop_never_requests_a_dependent_task_from_another_domain(story
 
     story.user_completes_task(security, "Security work is complete").expect_viewer_passed()
     story.expect_task(security, state=TaskState.COMPLETED)
-    domain_stop = story.agent_stops_organization_seat(domain, "domain:alpha")
-    domain_stop.expect_allowed(domain)
-    domain_stop.expect_agent_not_told(
-        domain, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
+    plan_started = story.agent_starts_plan_seat(story.agents.main, plan)
+    plan_started.expect_agent_told(
+        story.agents.main, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF,
         task=engineering, domain="beta",
     )
     plan_stop = story.agent_stops_plan_seat(story.agents.main, plan)
