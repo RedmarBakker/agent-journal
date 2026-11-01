@@ -27,7 +27,7 @@ def journal_imports(path: Path) -> set[str]:
     return imported
 
 
-def setup_function(name: str) -> str:
+def live_setup_function_source(name: str) -> str:
     path = PROFILE / "live-smoke-setup.py"
     source = path.read_text()
     tree = ast.parse(source)
@@ -439,10 +439,10 @@ def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
 
 
 def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope():
-    resume = setup_function("resume_plan")
-    wait = setup_function("wait_for_codex_plan")
-    command = setup_function("command")
-    runtime = setup_function("require_runtime")
+    resume = live_setup_function_source("resume_plan")
+    wait = live_setup_function_source("wait_for_codex_plan")
+    command = live_setup_function_source("command")
+    runtime = live_setup_function_source("require_runtime")
 
     assert "with scope.environment(main.row_id):\n        owner_agent = agents.environment_main_agent(main.row_id)" in runtime
     assert "with scope.environment(main.row_id):\n        plan = plans.find(plan_id)\n        phases = plans.plan_phases(plan)\n        tasks = plans.plan_tasks(plan)" in resume
@@ -451,10 +451,10 @@ def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope(
 
 
 def test_live_setup_resumes_only_its_started_unenrolled_plan():
-    signature = setup_function("setup_plan_matches")
-    resume = setup_function("resume_plan")
-    require_runtime = setup_function("require_runtime")
-    make_plan = setup_function("make_plan")
+    signature = live_setup_function_source("setup_plan_matches")
+    resume = live_setup_function_source("resume_plan")
+    require_runtime = live_setup_function_source("require_runtime")
+    make_plan = live_setup_function_source("make_plan")
     authority = (ROOT / "src" / "journal" / "supervisor_authority.py").read_text()
 
     assert "plan.title == PLAN_TITLE" in signature and "plan.brief == PLAN_BRIEF" in signature
