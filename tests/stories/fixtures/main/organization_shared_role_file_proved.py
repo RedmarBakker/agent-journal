@@ -10,4 +10,7 @@ class OrganizationSharedRoleFileProved(OrganizationSharedRoleTaskClockedIn):
         worker = story.agents.workers.first()
         story.agent_writes_from_organization_role_seat(worker, "role:alpha/shared", "SECURITY.md").expect_allowed(worker)
         story.the_project_holds_a_file("SECURITY.md", b"The shared Role result is ready.\n")
+        story.agent_has_edited_a_file_holding(
+            worker, "SECURITY.md", "The shared Role result is ready.\n",
+        ).expect_allowed(worker)
         story.agent_proves(worker, 1, "SECURITY.md:1; the shared result is present").expect_command_passed()

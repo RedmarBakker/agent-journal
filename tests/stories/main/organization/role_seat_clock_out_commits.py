@@ -58,6 +58,23 @@ def test_a_shared_role_that_changes_nothing_closes_without_a_commit(story):
 
 
 @story(OrganizationSharedRoleFileProved, subject=AgentRole.MAIN)
+def test_a_shared_role_commits_only_its_file_when_another_file_is_dirty(story):
+    worker, task = story.agents.workers.first(), story.tasks.first
+    story.the_project_holds_a_file("OTHER.md", b"another edit is still in progress\n")
+    story.agent_clocks_out(worker, "the shared file is ready").expect_command_passed()
+
+    root = story.app.config.root
+    story.expect_commit_in(root, f"Task {task}: first")
+    story.expect_commit_files_in(root, "SECURITY.md")
+    story.expect_uncommitted_files_in(root, "OTHER.md")
+    story.expect_project_file_is("SECURITY.md", "The shared Role result is ready.\n")
+    story.expect_project_file_is("OTHER.md", "another edit is still in progress\n")
+    story.expect_worker(worker, state=WorkerState.DELIVERED)
+    story.expect_task(task, state=TaskState.STARTED, delegated=True)
+    story.expect_stack(worker, Void)
+
+
+@story(OrganizationSharedRoleFileProved, subject=AgentRole.MAIN)
 def test_a_shared_role_cannot_clock_out_changed_files_that_failed_to_commit(story):
     worker, task = story.agents.workers.first(), story.tasks.first
     hook = story.app.config.root / ".git" / "hooks" / "pre-commit"

@@ -6,6 +6,7 @@ from pathlib import Path
 from journal.config import Config
 from journal.events.worker_merging import WorkerMerging
 from journal.features.git.support.branch_merge import BranchMerge
+from journal.features.workers.support.merged_work import MergedWork
 from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_repository import PROJECT_FOLDER, WorkerRepository
 from journal.models.worker import Worker
@@ -19,6 +20,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.setting_rows import SettingRows
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.time_source import TimeSource
 
 GIT_TIMEOUT_SECONDS = 30
 CHECKOUT_TIMEOUT_SECONDS = 600
@@ -35,8 +37,9 @@ REBUILD_SUBJECT = "Build the built files again on the project's branch"
 class WorkerBranch:
     """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again. Untracked files are those the branch adds that lie untracked in the checkout, which git refuses to overwrite, never a clash a rebase could mend; the worktree is moved up to the branch its work merges into, in each repository, by the same rebase a merge makes: after a merge its own commits are in the branch already and drop out, before a job it carries them over what others merged meanwhile; the uncommitted edits the rebase's autostash set aside are put back over it with conflicts, and once the markers are gone they are plain uncommitted edits again and the autostash is dropped; git drops from its list a worktree whose folder is missing, so while a launch's worktree under .claude/worktrees is briefly away nothing is pruned and a worker's clean-up never loses it; the summary says what a worker that ended without clocking out left: commits waiting on its branch unchecked, never taken in by its end."""
 
-    def __init__(self, config: Config, deferred: ListenerQueue, account: TeamAccount, environments: Environments, settings: SettingRows, branch_merge: BranchMerge) -> None:
+    def __init__(self, config: Config, deferred: ListenerQueue, account: TeamAccount, environments: Environments, settings: SettingRows, branch_merge: BranchMerge, merged_work: MergedWork, time_source: TimeSource) -> None:
         self.config, self.deferred, self.account, self.environments, self.settings, self.branch_merge = config, deferred, account, environments, settings, branch_merge
+        self.merged_work, self.time_source = merged_work, time_source
         self.removed_root = config.home / "removed-worktrees"
 
     def name(self, worker: Worker) -> str:
@@ -114,7 +117,14 @@ class WorkerBranch:
         return self.uncommitted_files(worker) + self.other_repository_folders(worker)
 
     def uncommitted_files(self, worker: Worker) -> list[str]:
-        return [repository.path(file) for repository in self.repositories(worker) if repository.is_present for file in self.status_files(repository.worktree)]
+        repositories = self.repositories(worker)
+        if worker.worktree:
+            return [
+                repository.path(file)
+                for repository in repositories if repository.is_present
+                for file in self.status_files(repository.worktree)
+            ]
+        return self.edited_files(worker, repositories)
 
     def other_repository_folders(self, worker: Worker) -> list[str]:
         folder = self.folder(worker)
@@ -299,11 +309,61 @@ class WorkerBranch:
 
     def commit_changes(self, worker: Worker, message: str) -> None:
         for repository in self.changed_repositories(worker):
-            self.git("add", "-A", cwd=repository.worktree)
-            self.git("commit", "-qm", message, cwd=repository.worktree)
+            if worker.worktree:
+                self.git("add", "-A", cwd=repository.worktree)
+                self.git("commit", "-qm", message, cwd=repository.worktree)
+            else:
+                paths = self.repository_edit_paths(
+                    repository, self.job_edit_paths(worker), self.repositories(worker),
+                )
+                pathspecs = tuple(f":(literal){path}" for path in paths)
+                self.git("add", "-A", "--", *pathspecs, cwd=repository.worktree)
+                self.git("commit", "--only", "-qm", message, "--", *pathspecs, cwd=repository.worktree)
 
     def changed_repositories(self, worker: Worker) -> list[WorkerRepository]:
-        return [repository for repository in self.repositories(worker) if repository.is_present and not self.is_rebasing(repository.worktree) and self.status_files(repository.worktree)]
+        repositories = self.repositories(worker)
+        if worker.worktree:
+            return [
+                repository for repository in repositories
+                if repository.is_present and not self.is_rebasing(repository.worktree)
+                and self.status_files(repository.worktree)
+            ]
+        paths = self.job_edit_paths(worker)
+        return [
+            repository for repository in repositories
+            if repository.is_present and not self.is_rebasing(repository.worktree)
+            and set(self.status_files(repository.worktree)).intersection(
+                self.repository_edit_paths(repository, paths, repositories),
+            )
+        ]
+
+    def job_edit_paths(self, worker: Worker) -> tuple[str, ...]:
+        checkout = self.checkout(worker).resolve()
+        root = self.config.root.resolve()
+        edits = self.merged_work.job_edits_between(worker, worker.job_start_time(), self.time_source.seconds())
+        paths = tuple(dict.fromkeys(Path(edit.path).as_posix() for edit in edits if edit.path))
+        if checkout == root:
+            return paths
+        prefix = checkout.relative_to(root).as_posix() + "/"
+        return tuple(path.removeprefix(prefix) for path in paths if path.startswith(prefix))
+
+    def repository_edit_paths(
+        self, repository: WorkerRepository, paths: tuple[str, ...], repositories: list[WorkerRepository],
+    ) -> tuple[str, ...]:
+        if repository.is_inner:
+            prefix = repository.folder.as_posix() + "/"
+            return tuple(path.removeprefix(prefix) for path in paths if path.startswith(prefix))
+        inner = tuple(item.folder.as_posix() + "/" for item in repositories if item.is_inner)
+        return tuple(path for path in paths if not path.startswith(inner))
+
+    def edited_files(self, worker: Worker, repositories: list[WorkerRepository]) -> list[str]:
+        paths = self.job_edit_paths(worker)
+        return [
+            repository.path(file)
+            for repository in repositories if repository.is_present
+            for file in self.status_files(repository.worktree)
+            if file in self.repository_edit_paths(repository, paths, repositories)
+        ]
 
     def worktree_heads(self, worker: Worker) -> tuple[str, ...]:
         if not worker.worktree or not self.folder(worker).is_dir():

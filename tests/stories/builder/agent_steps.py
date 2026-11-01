@@ -884,6 +884,26 @@ class AgentSteps:
         actual = result.stdout.strip()
         assert actual == message, f"the latest commit in {folder} is {actual!r}, not {message!r}"
 
+    @staticmethod
+    def expect_commit_files_in(folder: Path, *files: str) -> None:
+        result = subprocess.run(
+            ["git", "show", "--format=", "--name-only", "HEAD"], cwd=folder,
+            capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS, check=True,
+        )
+        actual = tuple(sorted(filter(None, result.stdout.splitlines())))
+        expected = tuple(sorted(files))
+        assert actual == expected, f"the latest commit in {folder} has files {actual}, not {expected}"
+
+    @staticmethod
+    def expect_uncommitted_files_in(folder: Path, *files: str) -> None:
+        result = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=folder,
+            capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS, check=True,
+        )
+        actual = tuple(sorted(entry[3:] for entry in filter(None, result.stdout.split("\0"))))
+        expected = tuple(sorted(files))
+        assert actual == expected, f"the uncommitted files in {folder} are {actual}, not {expected}"
+
     def project_is_a_git_repository(self) -> StepResult:
         for arguments in (["init", "-q", "-b", "main"], ["-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "--allow-empty", "-m", "start"]):
             subprocess.run(["git", *arguments], cwd=self.app.config.root, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=True)
