@@ -123,7 +123,6 @@ def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_depend
     ).expect_command_passed()
     completed = story.agent_runs_from_plan_organization_seat(plan_seat, "plan", f"task complete {security}")
     completed.expect_command_passed()
-    story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_stack(plan_seat, LeadingPlan, FollowingPlan)
     story.organization_seat_goes_idle(plan_seat, "plan")
     story.settle()

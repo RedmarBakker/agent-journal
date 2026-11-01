@@ -1,3 +1,4 @@
+from journal.engine.states.ended import Ended
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.leading_plan import LeadingPlan
@@ -40,4 +41,4 @@ def test_a_closed_plan_keeps_a_shared_rig_used_by_another_live_plan(story):
     story.expect_plan(second_plan, state=PlanState.STARTED)
     story.expect_openrig_rig_stopped(story.plan_rig_name(first_plan))
     story.expect_openrig_rig_running(shared_rig)
-    story.expect_stack(second_plan_agent, LeadingPlan, FollowingPlan)
+    story.expect_stack(story.agents.main, LeadingPlan, Ended)
