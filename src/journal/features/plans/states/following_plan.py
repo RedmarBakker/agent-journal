@@ -56,8 +56,8 @@ class FollowingPlan(PlanWork):
         return () if self.approved else Block(PlansNudges.UNAPPROVED_PLAN.create(n=self.plan_id))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        if not self.checkpoint_pause:
-            return super().on_stop(event, settings)
+        if not self.checkpoint_pause or self.task_id:
+            return self.none()
         if event.prior_refusal:
             return self.none()
         started = event.data.part(PlansPart).started

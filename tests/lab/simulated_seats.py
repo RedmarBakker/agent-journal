@@ -176,7 +176,7 @@ class SimulatedSeats:
 
     def processes(self, arguments: tuple[str, ...]) -> subprocess.CompletedProcess:
         rig = self.argument(arguments, "--rig")
-        if rig not in self.rigs:
+        if rig not in self.rigs or rig in self.stopped_rigs:
             return self.result(arguments, "[]", 1, f"simulated rig {rig} is not running")
         rows = [
             {"name": target, **session}

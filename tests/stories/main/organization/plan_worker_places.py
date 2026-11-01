@@ -88,16 +88,15 @@ def test_a_full_place_refusal_routes_another_plans_clocked_out_work_to_its_plan_
     plan, parent, domain = _start_second_plan(story)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
     refused = _make_part(story, domain, plan, parent, "maker")
-    refused.expect_refused_by_anything()
-    refused.expect_refusal_text(f"plan {story.plans.first}'s Plan seat must free a place")
-    refused.expect_refusal_without(f"worker {old_worker.number}")
+    refused.expect_command_refused()
+    refused.expect_command_text(f"plan {story.plans.first}'s Plan seat must free a place")
+    refused.expect_command_text_without(f"worker {old_worker.number}")
     story.expect_row_count("workers", 1)
     story.expect_task(story.tasks.first_part, state=TaskState.STARTED, delegated=True)
     story.expect_stack(domain, LeadingPlan, FollowingPlan, awaiting_state(story))
 
 
 @story(OrganizationRolePartClockedOut, subject=AgentRole.MAIN)
-@setting(WorkersOptions.WORKER_LIMIT, 1)
 def test_cancelling_a_plan_releases_its_clocked_out_role_worker(story):
     plan, part, worker = story.plans.first, story.tasks.first_part, story.agents.workers.first()
     story.user_cancels_plan(plan).expect_viewer_passed()

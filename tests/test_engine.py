@@ -1201,6 +1201,7 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     from journal.features.plans.states.plans_ready import PlansReady
     from dataclasses import replace
     from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.tasks.tasks_conduct import TasksConduct
     from journal.features.plans.support.plans_data import PlansData
     from journal.models.open_task import OpenTask
     from journal.events.agent.stop import Stop
@@ -1262,7 +1263,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     logged = fourth.target.respond(TaskLogged(environment_id=1, time=1500.0, task_id=7).with_data(of()), settings)
     assert logged.target == PlansWorking(task_id=7, logged_at=1500.0, edits=0, active_at=1001.0, untested_edits=True)
     assert fourth.target.respond(TaskLogged(environment_id=1, time=1500.0, task_id=8).with_data(of()), settings).target == fourth.target
-    stop = lambda state, time, approved=(), prior_refusal=False: state.respond(Stop(agent=EVENT_AGENT, prior_refusal=prior_refusal, time=time).with_data(of(approved=approved)), settings)
+    stop = lambda state, time, approved=(), prior_refusal=False: state.respond(Stop(agent=EVENT_AGENT, prior_refusal=prior_refusal, time=time).with_data(of(approved=approved)), settings, (TasksConduct,))
     assert stop(working, 1100.0).refusal.rendered().startswith("task 7 is in hand: carry on")
     assert has_nudge(stop(working, 1700.0).refusal.rendered(), TasksNudges.STOP_LOG_REQUEST, name="task 7", logged="last logged 11 min ago")
     assert stop(working, 1100.0, approved=(9,)).refusal.rendered().startswith("task 7 is in hand"), "an approved plan waits for the assigner; the task in hand is what a stop names"
@@ -1439,14 +1440,15 @@ def test_a_task_started_outside_the_plan_is_worked_on_top_of_the_plan_state_and_
 
 def test_a_stop_with_the_tasks_log_older_than_the_set_minutes_asks_for_the_log_line_first():
     from journal.events.agent.stop import Stop
+    from journal.features.tasks.tasks_conduct import TasksConduct
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     data = FeatureData({"plans": PlansData((), None), "tasks": TasksData(current_task=7, last_log_line="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", next_open=None, last_commands=())})
     settings = lambda minutes: SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: minutes, TasksOptions.FIRST_DELAY.key: 25})
     working = Working(task_id=7, logged_at=0.0)
-    assert working.respond(Stop(agent=EVENT_AGENT, time=5 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.carry_on", "within the minutes a stop is told to carry on"
-    assert working.respond(Stop(agent=EVENT_AGENT, time=11 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.log_first_at_stop", "past them the log line comes first"
-    assert working.respond(Stop(agent=EVENT_AGENT, time=2 * 60.0).with_data(data), settings(1)).refusal.key == "tasks.log_first_at_stop", "the minutes are the user's to set"
+    assert working.respond(Stop(agent=EVENT_AGENT, time=5 * 60.0).with_data(data), settings(10), (TasksConduct,)).refusal.key == "tasks.carry_on", "within the minutes a stop is told to carry on"
+    assert working.respond(Stop(agent=EVENT_AGENT, time=11 * 60.0).with_data(data), settings(10), (TasksConduct,)).refusal.key == "tasks.log_first_at_stop", "past them the log line comes first"
+    assert working.respond(Stop(agent=EVENT_AGENT, time=2 * 60.0).with_data(data), settings(1), (TasksConduct,)).refusal.key == "tasks.log_first_at_stop", "the minutes are the user's to set"
 
 
 def test_every_listener_of_a_state_or_a_conduct_is_named_on_and_its_event():
@@ -1472,6 +1474,7 @@ def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_la
     from dataclasses import replace
 
     from journal.features.tasks.states.working import Working
+    from journal.features.tasks.tasks_conduct import TasksConduct
 
     settings = SettingsValue({"tasks.first_nudge_after": 3, "tasks.log_old_after_minutes": 10, "tasks.log_after": 50, "tasks.name_every": 25})
     written = {"file_path": "a.py", "content": "x"}
@@ -1495,8 +1498,8 @@ def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_la
     assert said(late) == ["log_where_it_stands"], "ten minutes with few edits ask for it too, on any tool use"
     fresh = late.target.logged(602.0)
     assert said(fresh.respond(at(write, 603.0), settings)) == [] and not fresh.log_requested, "right after a log nothing is asked"
-    assert fresh.respond(at(Stop(agent=EVENT_AGENT), 700.0), settings).refusal.name == "carry_on", "a stop inside the span carries on"
-    assert late.target.respond(at(Stop(agent=EVENT_AGENT), 700.0), settings).refusal.name == "log_first_at_stop", "a stop past the span asks for the log first"
+    assert fresh.respond(at(Stop(agent=EVENT_AGENT), 700.0), settings, (TasksConduct,)).refusal.name == "carry_on", "a stop inside the span carries on"
+    assert late.target.respond(at(Stop(agent=EVENT_AGENT), 700.0), settings, (TasksConduct,)).refusal.name == "log_first_at_stop", "a stop past the span asks for the log first"
 
 
 def test_claude_codes_switch_model_menu_is_recognised_in_a_narrow_terminal_and_a_model_picker_is_not():
@@ -2145,6 +2148,7 @@ def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that
 
 def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_edits():
     from journal.features.plans.states.following_plan import FollowingPlan
+    from journal.features.tasks.tasks_conduct import TasksConduct
     from journal.features.tasks.tasks_options import TasksOptions
     settings = SettingsValue({TasksOptions.LOG_LIMIT.key: 50, TasksOptions.FIRST_DELAY.key: 5, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.TASK_REMINDER_INTERVAL.key: 99})
     state = FollowingPlan(plan_id=1045, approved=True)
@@ -2152,9 +2156,9 @@ def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_e
         write = ToolCall(tool="Write", input={"file_path": f"notes{n}.md", "content": "x"}, operation=Claude().operation("Write", {"file_path": f"notes{n}.md", "content": "x"}))
         state = state.respond(ToolStarting(agent=EVENT_AGENT, call=write, time=100.0 + n), settings).target
     assert state.edits == 0, "an edit with no task in hand is not counted toward a log"
-    stopped = state.respond(Stop(agent=EVENT_AGENT, time=1000.0), settings)
+    stopped = state.respond(Stop(agent=EVENT_AGENT, time=1000.0), settings, (TasksConduct,))
     assert stopped.refusal is None and not any("log" in nudge.rendered() for nudge in stopped.nudges), "a stop with no task in hand names no log"
-    held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(agent=EVENT_AGENT, time=1000.0), settings)
+    held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(agent=EVENT_AGENT, time=1000.0), settings, (TasksConduct,))
     assert held.refusal is not None and "log it first" in held.refusal.rendered(), "with a task in hand the stop still asks for a log"
 
 
