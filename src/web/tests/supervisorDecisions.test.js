@@ -1,0 +1,163 @@
+import {createApp, h} from "vue";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
+
+const api = {supervisorHistory: vi.fn(), supervisorControl: vi.fn(), supervisorUndo: vi.fn(), list: vi.fn()};
+vi.mock("../src/api/client.js", () => ({api}));
+
+const {default: SupervisorPage} = await import("../src/pages/SupervisorPage.vue");
+
+let app = null;
+let host = null;
+
+const action = (tier, overrides = {}) => ({
+    area: "Checks",
+    area_key: "checks",
+    title: "Edit check",
+    tier,
+    status: "applied",
+    receipt_status: "applied",
+    receipt_id: 911,
+    changes: [{field: "interval", before: "15 minutes", after: "30 minutes"}],
+    undo_available: tier === 1,
+    ...overrides,
+});
+
+const row = (id, overrides = {}) => ({
+    id,
+    created_at: new Date(Date.UTC(2026, 10, 2, 12) - (301 - id) * 60000).toISOString(),
+    woken_by: "Event: Failed check",
+    plan_id: 31,
+    result: "Acted",
+    what_saw: "Check 8 failed: connection timed out.",
+    what_chose: "Edit check",
+    why: "The check has failed repeatedly.",
+    cost: {status: "known", usd: "0.07"},
+    actions: [action(1)],
+    ...overrides,
+});
+
+const fullHistory = [
+    row(301),
+    row(300, {
+        result: "Skipped as quiet",
+        kind: "quiet",
+        quiet_count: 4,
+        what_saw: "No relevant changes were found.",
+        what_chose: "Skip this wake-up.",
+        why: "No change to investigate.",
+        cost: {status: "known", usd: "0.00"},
+        actions: [],
+    }),
+    row(299, {result: "Proposed", actions: [action(2, {undo_available: false})]}),
+    ...Array.from({length: 97}, (_, index) => row(298 - index, {actions: [action(2, {undo_available: false})]})),
+];
+
+const response = (status, history, nextHistoryBefore = null) => ({
+    status,
+    history,
+    next_before: nextHistoryBefore,
+    areas: ["checks", "plans-and-tasks"],
+});
+
+beforeEach(() => {
+    location.hash = "#/supervisor?sub=decisions";
+    api.supervisorHistory.mockReset().mockResolvedValue(response("on", fullHistory, "1234:202"));
+    api.supervisorControl.mockReset().mockResolvedValue({grant_id: "grant-7"});
+    api.supervisorUndo.mockReset().mockResolvedValue({status: "undone"});
+    api.list.mockReset().mockResolvedValue({rows: [{id: 31, title: "Pricing for add-ons"}]});
+});
+
+afterEach(() => {
+    app?.unmount();
+    app = null;
+    host?.remove();
+    host = null;
+    document.body.innerHTML = "";
+});
+
+async function openPage() {
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(SupervisorPage)});
+    app.directive("tip", {});
+    app.mount(host);
+    await vi.waitFor(() => expect(api.supervisorHistory).toHaveBeenCalled());
+    await vi.waitFor(() => expect(host.querySelector("[data-supervisor-decisions], [data-history-fault]")).not.toBeNull());
+    await vi.waitFor(() => expect(host.querySelector(".history-loading")).toBeNull());
+    return host;
+}
+
+test("the owner sees complete wake-up history, filters it, undoes tier one actions and loads 100 older rows", async () => {
+    const olderRows = [row(200), row(199), row(198)];
+    api.supervisorHistory.mockImplementation(({before} = {}) => Promise.resolve(
+        before ? response("on", olderRows) : response("on", fullHistory, "1234:202"),
+    ));
+    const page = await openPage();
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="301"] button')).not.toBeNull());
+    await vi.waitFor(() => expect(page.textContent).toContain("Pricing for add-ons"));
+
+    expect(page.querySelectorAll("[data-history-row]")).toHaveLength(100);
+    expect(page.querySelector('[data-history-row="301"] .history-result').textContent).toBe("Acted");
+    for (const label of ["When", "Woken by", "Plan", "Result", "Cost"]) {
+        expect(page.querySelector('[data-history-row="301"]').textContent).toContain(label);
+    }
+    expect(new Date(page.querySelector('[data-history-row="301"] time').dateTime).getTime())
+        .toBeGreaterThan(new Date(page.querySelector('[data-history-row="300"] time').dateTime).getTime());
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("What it saw");
+    expect(page.querySelector('[data-history-row="301"]')
+        .textContent).toContain("Check 8 failed: connection timed out.");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("What it chose");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Why");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Before");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("After");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Receipt 911");
+    expect(page.querySelector('[data-history-row="301"] .history-action').textContent).toContain("Checks");
+    expect(page.querySelector('[data-history-row="301"] .history-tier').textContent).toBe("Tier 1");
+    expect(page.querySelector('[data-history-row="301"] button').textContent).toBe("Undo");
+    expect(page.querySelector('[data-history-row="299"] button')).toBeNull();
+    expect(page.querySelector('[data-history-row="300"]').textContent).toContain("Skipped as quiet: 4 wake-ups");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("$0.07");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Event: Failed check");
+    expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Pricing for add-ons");
+
+    page.querySelector('[data-history-row="301"] button').click();
+    await vi.waitFor(() => expect(api.supervisorUndo).toHaveBeenCalledWith(31, 911));
+
+    page.querySelector('[aria-label="Load 100 older rows"]').click();
+    await vi.waitFor(() => expect(page.querySelectorAll("[data-history-row]")).toHaveLength(103));
+    expect(api.supervisorHistory).toHaveBeenLastCalledWith({
+        planId: "", area: "", tier: "", result: "", before: "1234:202",
+    });
+
+    const plan = page.querySelector('[aria-label="Plan"]');
+    const area = page.querySelector('[aria-label="Area"]');
+    const tier = page.querySelector('[aria-label="Tier"]');
+    const result = page.querySelector('[aria-label="Result"]');
+    plan.value = "31";
+    plan.dispatchEvent(new Event("change", {bubbles: true}));
+    area.value = "checks";
+    area.dispatchEvent(new Event("change", {bubbles: true}));
+    tier.value = "1";
+    tier.dispatchEvent(new Event("change", {bubbles: true}));
+    result.value = "Acted";
+    result.dispatchEvent(new Event("change", {bubbles: true}));
+    await vi.waitFor(() => expect(api.supervisorHistory).toHaveBeenLastCalledWith({
+        planId: "31", area: "checks", tier: "1", result: "Acted", before: "",
+    }));
+});
+
+test("an empty history says that there are no decisions yet", async () => {
+    api.supervisorHistory.mockResolvedValue(response("never_set_up", []));
+    const page = await openPage();
+
+    expect(page.textContent).toContain("No decisions yet.");
+    expect(page.querySelectorAll("[data-history-row]")).toHaveLength(0);
+});
+
+test("history remains readable while the supervisor is off", async () => {
+    api.supervisorHistory.mockResolvedValue(response("off", [row(82, {actions: [action(2, {undo_available: false})]})]));
+    const page = await openPage();
+
+    expect(page.textContent).toContain("The supervisor is off. History stays readable.");
+    expect(page.querySelector('[data-history-row="82"]')).not.toBeNull();
+    expect(page.querySelector('[data-history-row="82"] .history-result').textContent).toBe("Acted");
+});

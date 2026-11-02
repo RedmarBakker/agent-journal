@@ -1,8 +1,13 @@
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from journal.features.supervisor.support.supervisor_capabilities import AREA_KEYS
+from journal.features.supervisor.support.supervisor_capabilities import (
+    AREA_DEFINITIONS, AREA_KEYS, CAPABILITY_CATALOGUE,
+)
+from journal.features.supervisor.support.supervisor_episode_qualification import OBSERVATION_ENTRY
+from journal.features.supervisor.support.supervisor_maintenance import OPERATION_COMMANDS
+from journal.features.supervisor.support.supervisor_wakeups import RESULTS, WAKEUP_ENTRY
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
@@ -18,10 +23,18 @@ OPERATION_AREAS = {
     "check_interval": "checks",
 }
 AREAS = frozenset(AREA_KEYS)
+AREA_TITLES = {key: title for key, title, *_ in AREA_DEFINITIONS}
+AREA_KEYS_BY_TITLE = {title: key for key, title in AREA_TITLES.items()}
+CAPABILITY_TITLES = {
+    capability: label
+    for _key, _title, verbs, _displayed, _note in AREA_DEFINITIONS
+    for capability, label, _tier in verbs
+}
+TIER_NUMBERS = {"tier 1": 1, "tier 2": 2, "tier 3": 3}
 
 
 class SupervisorRecordReader:
-    """Reads the supervisor runs and receipts for plans in the current environment."""
+    """Reads supervisor wake-ups, runs and receipts for plans in the current environment."""
 
     def __init__(self, entries: Entries, plans: Plans, scope: Scope, time_source: TimeSource) -> None:
         self.entries, self.plans, self.scope, self.time_source = entries, plans, scope, time_source
@@ -52,6 +65,285 @@ class SupervisorRecordReader:
             "records": page,
             "next_before": page[-1]["id"] if len(remaining) > PAGE_SIZE else None,
         }
+
+    def history(self, plan: str, area: str, tier: str, result: str, before: str) -> dict[str, Any]:
+        plan_ids = self._plan_ids(plan)
+        self._area(area)
+        tier_number = self._tier(tier)
+        self._result(result)
+        history_cursor = self._history_cursor(before)
+        with self.scope.environment(PROJECT):
+            runs, receipts = self._records(plan_ids)
+            history_rows = self._history_rows(plan_ids, runs, receipts, area, tier_number, result)
+            history, next_before = self._history_page(history_rows, history_cursor)
+        return {"areas": sorted(AREAS), "history": history, "next_before": next_before}
+
+    @staticmethod
+    def _tier(tier: str) -> int | None:
+        if not tier:
+            return None
+        if tier not in {"1", "2", "3"}:
+            raise SupervisorFailure(400, "the supervisor records tier is invalid")
+        return int(tier)
+
+    @staticmethod
+    def _result(result: str) -> None:
+        if result and result not in RESULTS | {"In progress"}:
+            raise SupervisorFailure(400, "the supervisor records result is invalid")
+
+    @staticmethod
+    def _history_cursor(cursor: str) -> tuple[int, int] | None:
+        if not cursor:
+            return None
+        parts = cursor.split(":")
+        if len(parts) != 2 or any(not part.isdigit() for part in parts) or int(parts[1]) < 1:
+            raise SupervisorFailure(400, "the supervisor history cursor is invalid")
+        return int(parts[0]), int(parts[1])
+
+    def _history_rows(self, plan_ids: list[int], runs: list[Entry], receipts: list[Entry], area: str,
+                      tier: int | None, result: str) -> list[dict[str, Any]]:
+        wakeups = [row for plan_id in plan_ids for row in self._entries(WAKEUP_ENTRY, plan_id=plan_id)]
+        observations = [row for plan_id in plan_ids for row in self._entries(OBSERVATION_ENTRY, plan_id=plan_id)]
+        tenants = {str(run.data.get("tenant_id")) for run in runs if run.data.get("tenant_id")}
+        usage = [row for tenant in tenants for row in self._entries("SupervisorUsage", tenant_id=tenant)]
+        undo_reports = [row for plan_id in plan_ids for row in self._entries(
+            "SupervisorActionReport", plan_id=plan_id, report_kind="owner_undo",
+        )]
+        observation_by_id = {
+            (row.data.get("tenant_id"), row.data.get("observation_id")): row for row in observations
+        }
+        usage_by_run = {(row.data.get("tenant_id"), row.data.get("run_ref")): row for row in usage}
+        undone_receipts = {row.data.get("receipt_id") for row in undo_reports}
+        runs_by_wakeup = {
+            (run.data.get("tenant_id"), run.data.get("wakeup_id")): run
+            for run in sorted(runs, key=lambda row: (row.created_at, row.row_id))
+            if run.data.get("wakeup_id")
+        }
+        paired_runs = set()
+        rows = []
+        for wakeup in wakeups:
+            run = runs_by_wakeup.get((wakeup.data.get("tenant_id"), wakeup.data.get("wakeup_id")))
+            if run:
+                paired_runs.add(run.row_id)
+            rows.append(self._history_row(wakeup, run, receipts, observation_by_id, usage_by_run, undone_receipts))
+        rows.extend(
+            self._history_row(None, run, receipts, observation_by_id, usage_by_run, undone_receipts)
+            for run in runs if run.row_id not in paired_runs
+        )
+        rows = [row for row in rows if self._history_matches(row, area, tier, result)]
+        return self._fold_quiet(rows)
+
+    def _history_row(self, wakeup: Entry | None, run: Entry | None, receipts: list[Entry],
+                     observations: dict[tuple[object, object], Entry], usage: dict[tuple[object, object], Entry],
+                     undone_receipts: set[object]) -> dict[str, Any]:
+        receipt_rows = self._for_run(run, receipts) if run else []
+        actions = [
+            action
+            for receipt in receipt_rows
+            for action in self._actions(receipt, undone_receipts)
+        ]
+        run_data = run.data if run else {}
+        wakeup_data = wakeup.data if wakeup else {}
+        result = wakeup_data.get("result") or self._run_result(receipt_rows)
+        observation_ids = run_data.get("observation_ids", [])
+        if not isinstance(observation_ids, list):
+            observation_ids = []
+        evidence = [observations.get((run_data.get("tenant_id"), observation_id))
+                    for observation_id in observation_ids] if run else []
+        moment = run.created_at if run else wakeup.created_at
+        return {
+            "id": wakeup.row_id if wakeup else run.row_id,
+            "created_at": moment.isoformat(),
+            "plan_id": wakeup_data.get("plan_id", run_data.get("plan_id")),
+            "woken_by": self._woken_by(wakeup_data, run_data),
+            "result": result,
+            "what_saw": self._what_saw(evidence, result),
+            "what_chose": "; ".join(dict.fromkeys(action["title"] for action in actions)) or result,
+            "why": self._why(receipt_rows, wakeup_data),
+            "cost": self._cost(run, usage),
+            "actions": actions,
+            "_sort_ms": self._created_ms(moment),
+            "_sort_id": wakeup.row_id if wakeup else run.row_id,
+        }
+
+    def _actions(self, receipt: Entry, undone_receipts: set[object]) -> list[dict[str, Any]]:
+        data = receipt.data
+        operations = data.get("proposed_operations", [])
+        commands = data.get("command_receipts", [])
+        if not isinstance(operations, list):
+            return []
+        return [
+            self._action(receipt, operation, index, commands, undone_receipts)
+            for index, operation in enumerate(operations)
+            if isinstance(operation, dict) and operation.get("kind") in OPERATION_COMMANDS
+        ]
+
+    def _action(self, receipt: Entry, operation: dict[str, Any], index: int, commands: object,
+                undone_receipts: set[object]) -> dict[str, Any]:
+        area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
+        capability = f"{noun} {verb}"
+        area_key, capability_tier = CAPABILITY_CATALOGUE.get(capability, (AREA_KEYS_BY_TITLE.get(area), 3))
+        command = commands[index] if isinstance(commands, list) and index < len(commands) else {}
+        if not isinstance(command, dict):
+            command = {}
+        area = command.get("area", area)
+        area_key = AREA_KEYS_BY_TITLE.get(area, area_key)
+        tier = TIER_NUMBERS.get(str(command.get("tier", "")).lower(), capability_tier)
+        status = command.get("status", receipt.data.get("status", "unknown"))
+        changes = self._action_changes(receipt, operation, command, len(receipt.data.get("proposed_operations", [])))
+        reversible = (status == "applied" and tier == 1 and bool(changes)
+                      and command.get("readback_verification") == "verified")
+        return {
+            "area": area,
+            "area_key": area_key,
+            "title": CAPABILITY_TITLES.get(capability, capability),
+            "tier": tier,
+            "status": status,
+            "receipt_id": receipt.row_id,
+            "receipt_status": receipt.data.get("status", "unknown"),
+            "reason": receipt.data.get("reason"),
+            "changes": changes,
+            "undo_available": reversible and receipt.row_id not in undone_receipts,
+        }
+
+    @staticmethod
+    def _action_changes(receipt: Entry, operation: dict[str, Any], command: dict[str, Any],
+                        count: int) -> list[dict[str, Any]]:
+        rows = command.get("rows_changed", [])
+        result = [
+            {"field": change.get("field", change.get("event", "change")),
+             "before": change.get("before", change.get("before_value")),
+             "after": change.get("after", change.get("after_value"))}
+            for change in rows if isinstance(change, dict)
+        ] if isinstance(rows, list) else []
+        fields = {
+            "plan_priorities": {"priorities"},
+            "diagnostic_task": {"plan_link", "phase_link"},
+            "check_interval": {"interval"},
+        }.get(operation.get("kind"), set())
+        receipt_changes = receipt.data.get("changes", [])
+        if isinstance(receipt_changes, list):
+            for change in receipt_changes:
+                if (isinstance(change, dict) and (count == 1 or change.get("field") in fields)
+                        and not any(item["field"] == change.get("field") for item in result)):
+                    result.append({"field": change.get("field", "change"),
+                                   "before": change.get("before_value"), "after": change.get("after_value")})
+        return result
+
+    @staticmethod
+    def _run_result(receipts: list[Entry]) -> str:
+        if not receipts:
+            return "In progress"
+        statuses = {receipt.data.get("status") for receipt in receipts}
+        if "applied" in statuses:
+            return "Acted"
+        if "proposed" in statuses:
+            return "Proposed"
+        if statuses.intersection({"conflicted", "rejected"}):
+            return "Handed to you"
+        return "In progress"
+
+    @staticmethod
+    def _woken_by(wakeup: dict[str, Any], run: dict[str, Any]) -> str:
+        kind = wakeup.get("kind", run.get("kind", ""))
+        source = run.get("source", "")
+        if kind == "scheduled" or source in {"schedule", "scheduled", "timer"}:
+            return "Schedule"
+        event = str(kind or source or "event").replace("_", " ").capitalize()
+        return f"Event: {event}"
+
+    @staticmethod
+    def _what_saw(observations: list[Entry | None], result: str) -> str:
+        found = []
+        for entry in observations:
+            if entry is None:
+                continue
+            observation = entry.data.get("observation", {})
+            facts = observation.get("facts", {}) if isinstance(observation, dict) else {}
+            if not isinstance(facts, dict):
+                continue
+            check_id = facts.get("check_id")
+            verdict = facts.get("verdict")
+            output = facts.get("output_excerpt", "")
+            summary = f"Check {check_id} {verdict}: {output}" if check_id and verdict else str(output)
+            if summary:
+                found.append(summary.rstrip(" .") + ".")
+        if found:
+            return "; ".join(dict.fromkeys(found))
+        return "No relevant changes were found." if result == "Skipped as quiet" else "No observation was recorded."
+
+    @staticmethod
+    def _why(receipts: list[Entry], wakeup: dict[str, Any]) -> str:
+        reasons = [str(receipt.data.get("rationale") or receipt.data.get("reason") or "").strip()
+                   for receipt in receipts]
+        reasons = [reason for reason in reasons if reason]
+        if reasons:
+            return "; ".join(dict.fromkeys(reasons))
+        reason = str(wakeup.get("skip_reason", "")).strip()
+        return {
+            "quiet": "No relevant changes were found.",
+            "empty": "No actionable change was found.",
+            "busy": "Another wake-up was still running.",
+            "evidence stale": "The saved evidence was out of date.",
+            "budget used up": "The daily budget was used up.",
+            "needs owner": "This wake-up needs your decision.",
+        }.get(reason, reason or "No reason was recorded.")
+
+    @staticmethod
+    def _cost(run: Entry | None, usage: dict[tuple[object, object], Entry]) -> dict[str, Any]:
+        if run is None:
+            return {"status": "known", "usd": "0.00"}
+        row = usage.get((run.data.get("tenant_id"), run.data.get("run_ref")))
+        data = row.data if row else {}
+        cost = data.get("cost_usd")
+        if data.get("status") in {"known", "overrun"} and isinstance(cost, str) and cost:
+            return {"status": data["status"], "usd": cost}
+        return {"status": "unknown", "usd": None}
+
+    @staticmethod
+    def _history_matches(row: dict[str, Any], area: str, tier: int | None, result: str) -> bool:
+        actions = row["actions"]
+        return ((not area or any(action["area_key"] == area for action in actions))
+                and (tier is None or any(action["tier"] == tier for action in actions))
+                and (not result or row["result"] == result))
+
+    def _fold_quiet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        quiet = [row for row in rows if row["result"] == "Skipped as quiet"]
+        if not quiet:
+            return rows
+        newest = max(quiet, key=self._history_sort_key)
+        plan_ids = {row["plan_id"] for row in quiet}
+        return [row for row in rows if row["result"] != "Skipped as quiet"] + [{
+            "id": newest["id"], "created_at": newest["created_at"],
+            "plan_id": next(iter(plan_ids)) if len(plan_ids) == 1 else None,
+            "woken_by": "Quiet wake-ups", "result": "Skipped as quiet",
+            "what_saw": "No relevant changes were found.", "what_chose": "Skip this wake-up.",
+            "why": "No relevant changes were found.", "cost": {"status": "known", "usd": "0.00"},
+            "actions": [], "quiet_count": len(quiet),
+            "quiet_since": min(row["created_at"] for row in quiet),
+            "_sort_ms": newest["_sort_ms"], "_sort_id": newest["_sort_id"],
+        }]
+
+    @staticmethod
+    def _history_sort_key(row: dict[str, Any]) -> tuple[int, int]:
+        return row["_sort_ms"], row["_sort_id"]
+
+    @staticmethod
+    def _created_ms(moment: datetime) -> int:
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return int(moment.timestamp() * 1000)
+
+    def _history_page(self, rows: list[dict[str, Any]], before: tuple[int, int] | None
+                      ) -> tuple[list[dict[str, Any]], str | None]:
+        ordered = sorted(rows, key=self._history_sort_key, reverse=True)
+        remaining = [row for row in ordered if before is None or self._history_sort_key(row) < before]
+        page = remaining[:PAGE_SIZE]
+        next_before = None
+        if len(remaining) > PAGE_SIZE:
+            newest = page[-1]
+            next_before = f"{newest['_sort_ms']}:{newest['_sort_id']}"
+        return [{key: value for key, value in row.items() if not key.startswith("_")} for row in page], next_before
 
     def _plan_ids(self, plan: str) -> list[int]:
         if not plan:

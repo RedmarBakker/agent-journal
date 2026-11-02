@@ -34,9 +34,47 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
     result.expect_viewer_part(("previous", "verified_receipts"), 1)
     result.expect_viewer_count("records", 100)
     result.expect_viewer_part_is_truthy(("next_before",))
+    records_before = story.viewer_answer["next_before"]
+    history_route = f"/journal/supervisor/history?plan_id={plan}"
+    result = story.user_opens_in(current, history_route)
+    result.expect_viewer_passed()
+    result.expect_viewer_count("history", 100)
+    result.expect_viewer_part_is_truthy(("next_before",))
+    result.expect_viewer_part(("history", 0, "result"), "Skipped as quiet")
+    result.expect_viewer_part(("history", 0, "quiet_count"), 4)
 
-    before = story.viewer_answer["next_before"]
-    result = story.user_opens_in(current, f"{route}&before={before}")
+    history_before = story.viewer_answer["next_before"]
+    result = story.user_opens_in(current, f"{history_route}&before={history_before}")
+    result.expect_viewer_passed()
+    result.expect_viewer_count("history", 8)
+    result.expect_viewer_part(("next_before",), None)
+
+    result = story.user_opens_in(
+        current,
+        f"/journal/supervisor/history?plan_id={plan}&area=checks&tier=1&result=Acted",
+    )
+    result.expect_viewer_passed()
+    result.expect_viewer_count("history", 52)
+    result.expect_viewer_part(("history", 0, "what_saw"), "Check 8 failed: connection timed out.")
+    result.expect_viewer_part(("history", 0, "what_chose"), "Edit a check")
+    result.expect_viewer_part(("history", 0, "why"), "The check has failed repeatedly.")
+    result.expect_viewer_part(("history", 0, "actions", 0, "area_key"), "checks")
+    result.expect_viewer_part(("history", 0, "actions", 0, "tier"), 1)
+    result.expect_viewer_part_is_truthy(("history", 0, "actions", 0, "receipt_id"))
+    result.expect_viewer_part(("history", 0, "actions", 0, "changes", 0, "before"), 15)
+    result.expect_viewer_part(("history", 0, "actions", 0, "changes", 0, "after"), 30)
+    result.expect_viewer_part(("history", 0, "cost", "usd"), "0.07")
+    result.expect_viewer_part(("history", 0, "actions", 0, "undo_available"), True)
+
+    result = story.user_opens_in(
+        current,
+        f"/journal/supervisor/history?plan_id={plan}&result=Skipped%20as%20quiet",
+    )
+    result.expect_viewer_passed()
+    result.expect_viewer_count("history", 1)
+    result.expect_viewer_part(("history", 0, "quiet_count"), 4)
+
+    result = story.user_opens_in(current, f"{route}&before={records_before}")
     result.expect_viewer_passed()
     result.expect_viewer_count("records", 100)
     result.expect_viewer_part_is_truthy(("next_before",))
@@ -129,4 +167,19 @@ def test_a_reader_cannot_read_supervisor_records_outside_their_environment(story
         f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.first}&area=unknown",
     )
     result.expect_viewer_refused("area")
+    result = story.user_opens_in(
+        environment(story),
+        f"/journal/supervisor/history?plan_id={story.plans.first}&tier=4",
+    )
+    result.expect_viewer_refused("tier")
+    result = story.user_opens_in(
+        environment(story),
+        f"/journal/supervisor/history?plan_id={story.plans.first}&result=unknown",
+    )
+    result.expect_viewer_refused("result")
+    result = story.user_opens_in(
+        environment(story),
+        f"/journal/supervisor/history?before=bad",
+    )
+    result.expect_viewer_refused("cursor")
     story.expect_stack(story.agents.subject, Ready)

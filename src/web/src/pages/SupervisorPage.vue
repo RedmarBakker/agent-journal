@@ -6,6 +6,7 @@ import {PAGES} from "../domain/navigation.js";
 import {onPhone} from "../platform/phone.js";
 import {href, route} from "../route.js";
 import SupervisorControlPage from "./SupervisorControlPage.vue";
+import SupervisorDecisionsPage from "./SupervisorDecisionsPage.vue";
 
 const PERIODS = [
     {key: "today", label: "Today"},
@@ -210,6 +211,7 @@ watch(subpage, () => {
             </template>
         </template>
         <SupervisorControlPage v-else-if="subpage === 'control'" />
+        <SupervisorDecisionsPage v-else-if="subpage === 'decisions'" />
         <section v-else class="supervisor-not-built" aria-label="Supervisor sub-page">
             <h2>{{ children.find((child) => child.key === subpage)?.title }}</h2>
             <p><span class="not-built-yet" title="Not built yet">Not built yet</span></p>

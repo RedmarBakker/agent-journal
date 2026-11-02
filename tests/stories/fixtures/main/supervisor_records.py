@@ -36,7 +36,8 @@ class SupervisorRecords(VersionOneGrant):
         actor = Actor.plugin(SUPERVISOR_ACTOR)
         with story.app.container.get(Scope).environment(PROJECT):
             source.pin(now - 8 * 24 * 60 * 60)
-            self.add_receipts(story, entries, actor, principal, plan.row_id, "previous", 2, ("applied", "proposed"), "check_interval", 1)
+            self.add_receipts(story, entries, actor, principal, plan.row_id, "previous", 2,
+                              ("applied", "proposed"), "check_interval", 1)
             source.pin(now - 24 * 60 * 60)
             self.add_receipts(story, entries, actor, principal, plan.row_id, "current-check", 102,
                               ("applied",) * 51 + ("conflicted",) * 17 + ("proposed",) * 17 + ("rejected",) * 17,
@@ -44,6 +45,12 @@ class SupervisorRecords(VersionOneGrant):
             self.add_receipts(story, entries, actor, principal, plan.row_id, "current-plan", 2,
                               ("applied",), "diagnostic_task", 0)
         source.pin(now)
+        with story.app.container.get(Scope).environment(PROJECT):
+            for index in range(4):
+                self.record(entries, actor, "SupervisorWakeup", principal, f"quiet:{index}", {
+                    "plan_id": plan.row_id, "wakeup_id": f"quiet-{index}", "kind": "failed_check",
+                    "result": "Skipped as quiet", "skip_reason": "quiet",
+                })
         result = story.user_opens_in(
             story.app.container.get(Environments).find(plan.environment_id).name,
             f"/journal/supervisor/records?period=last_7_days&plan_id={plan.row_id}",
@@ -57,14 +64,49 @@ class SupervisorRecords(VersionOneGrant):
                      statuses: tuple[str, ...], operation: str, verified: int) -> None:
         for index in range(count):
             run_ref = f"{prefix}-{index}"
+            detailed = prefix == "current-check" and index == 50
+            observation_id = "current-check-observation" if detailed else ""
             self.record(entries, actor, "SupervisorRun", principal, f"run:{run_ref}", {
-                "plan_id": plan_id, "run_ref": run_ref, "source": "timer", "status": "complete",
+                "plan_id": plan_id, "run_ref": run_ref, "wakeup_id": run_ref, "kind": "scheduled",
+                "source": "schedule", "observation_ids": [observation_id] if detailed else [], "status": "complete",
             })
-            status = statuses[index] if len(statuses) == count else statuses[min(index * len(statuses) // count, len(statuses) - 1)]
-            receipt = self.record(entries, actor, "SupervisorActionReceipt", principal, f"receipt:{run_ref}", {
+            status_index = min(index * len(statuses) // count, len(statuses) - 1)
+            status = statuses[index] if len(statuses) == count else statuses[status_index]
+            operation_data = {"kind": operation}
+            if operation == "check_interval":
+                operation_data["interval_minutes"] = 30
+            receipt_data = {
                 "run_id": run_ref, "action_id": f"action-{run_ref}", "status": status,
-                "proposed_operations": [{"kind": operation}], "reason": "",
+                "proposed_operations": [operation_data], "rationale": "", "reason": "",
+                "changes": [], "command_receipts": [],
+            }
+            if detailed:
+                receipt_data["rationale"] = "The check has failed repeatedly."
+                receipt_data["changes"] = [{"field": "interval", "before_value": 15, "after_value": 30}]
+                receipt_data["command_receipts"] = [{
+                    "command": "check edit", "area": "Checks", "tier": "tier 1", "status": "applied",
+                    "readback_verification": "verified", "rows_changed": [],
+                }]
+            receipt = self.record(entries, actor, "SupervisorActionReceipt", principal, f"receipt:{run_ref}", receipt_data)
+            wakeup_results = {
+                "applied": "Acted", "proposed": "Proposed",
+                "conflicted": "Handed to you", "rejected": "Handed to you",
+            }
+            wakeup_result = wakeup_results[status]
+            self.record(entries, actor, "SupervisorWakeup", principal, f"wakeup:{run_ref}", {
+                "plan_id": plan_id, "wakeup_id": run_ref, "kind": "scheduled", "result": wakeup_result,
+                "skip_reason": "needs owner" if wakeup_result == "Handed to you" else "",
             })
+            if detailed:
+                self.record(entries, actor, "SupervisorObservation", principal, f"observation:{run_ref}", {
+                    "plan_id": plan_id, "observation_id": observation_id,
+                    "observation": {"kind": "check_completed", "facts": {
+                        "check_id": 8, "verdict": "failed", "output_excerpt": "connection timed out",
+                    }},
+                })
+                self.record(entries, actor, "SupervisorUsage", principal, f"usage:{run_ref}", {
+                    "run_ref": run_ref, "cost_usd": "0.07", "status": "known",
+                })
             if index < verified:
                 self.record(entries, actor, "SupervisorActionReport", principal, f"verification:{run_ref}", {
                     "plan_id": plan_id, "run_id": run_ref, "receipt_id": receipt.row_id,

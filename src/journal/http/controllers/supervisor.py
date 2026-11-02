@@ -23,13 +23,22 @@ class SupervisorController:
         self.scope, self.records = scope, records
 
     def read_records(self, request: Request) -> Response:
+        return self._records(request, lambda: self.records.read(
+            request.text("period") or "last_7_days", request.text("plan_id"),
+            request.text("area"), request.text("before"),
+        ))
+
+    def read_history(self, request: Request) -> Response:
+        return self._records(request, lambda: self.records.history(
+            request.text("plan_id"), request.text("area"), request.text("tier"),
+            request.text("result"), request.text("before"),
+        ))
+
+    def _records(self, request: Request, read: Callable[[], dict[str, Any]]) -> Response:
         if not request.actor.is_user():
             return Response(403, {"error": "supervisor records are available to people in the current environment"})
         try:
-            answer = self.records.read(
-                request.text("period") or "last_7_days", request.text("plan_id"),
-                request.text("area"), request.text("before"),
-            )
+            answer = read()
         except SupervisorFailure as denied:
             return Response(denied.status, {"error": str(denied)})
         return Response(200, {**answer, "status": self.authority.owner_status(self.scope.id)},
