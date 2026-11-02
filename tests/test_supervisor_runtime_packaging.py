@@ -990,7 +990,7 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     assert "The real Plan agent starts with no work in hand" in runbook
     assert "blocks it before plan start" in runbook
     assert "exactly one open, unheld diagnostic task" in runbook
-    assert "runs the bound `false` check exactly once after enrollment" in runbook
+    assert "runs the bound, deliberately failing `false` smoke check exactly once after enrollment" in runbook
     assert "first writer reconciliation admit one turn" in runbook
     assert "Cold-reboot the disposable VM" in runbook
     assert "No OpenRig fleet or build worker launcher" in runbook
