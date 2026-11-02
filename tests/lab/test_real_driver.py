@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from tests.lab.real.isolated_journal import IsolatedJournal
-from tests.lab.real.production_boundary import ProductionBoundary
+from tests.lab.real.production_boundary import ProductionBoundary, TMUX_SOCKET_PATH_LIMIT
 from tests.lab.real import production_driver as production_driver_module
 from tests.lab.real.production_driver import ProductionDriver
 from tests.lab.real.production_watchdog import ProductionWatchdog
@@ -50,9 +50,10 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     cli = tmp_path / "provider-bin"
     cli.mkdir()
-    provider_binary, rig_binary = cli / "claude", cli / "rig"
+    provider_binary, rig_binary, tmux_binary = cli / "claude", cli / "rig", cli / "tmux"
+    executables = {"claude": provider_binary, "rig": rig_binary, "tmux": tmux_binary}
     monkeypatch.setattr("tests.lab.real.production_driver.shutil.which",
-                        lambda name: str(provider_binary if name == "claude" else rig_binary))
+                        lambda name: str(executables[name]) if name in executables else None)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(profile))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-copy")
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-copy")
@@ -67,6 +68,7 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     assert environment["HOME"] == str(paths["private_home"].resolve())
     assert "ANTHROPIC_API_KEY" not in environment
     assert "OPENAI_API_KEY" not in environment
+    assert environment["TMUX_TMPDIR"] == str(driver.boundary.tmux_tmpdir)
 
 
 def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatcher_first(tmp_path, monkeypatch):
@@ -82,20 +84,23 @@ def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatc
     host_bin = tmp_path / "host-bin"
     provider_bin = tmp_path / "provider-bin"
     rig_bin = tmp_path / "rig-bin"
-    for directory in (host_bin, provider_bin, rig_bin):
+    tmux_bin = tmp_path / "tmux-bin"
+    for directory in (host_bin, provider_bin, rig_bin, tmux_bin):
         directory.mkdir()
     global_dispatcher = host_bin / "journal"
     global_dispatcher.write_text("#!/bin/sh\n", encoding="utf-8")
     global_dispatcher.chmod(0o700)
     provider = provider_bin / "claude"
     rig = rig_bin / "rig"
-    for binary in (provider, rig):
+    tmux = tmux_bin / "tmux"
+    for binary in (provider, rig, tmux):
         binary.write_text("#!/bin/sh\n", encoding="utf-8")
         binary.chmod(0o700)
     (host_bin / "claude").symlink_to(provider)
     (host_bin / "rig").symlink_to(rig)
+    (host_bin / "tmux").symlink_to(tmux)
     monkeypatch.setattr("tests.lab.real.production_driver.shutil.which",
-                        lambda name: str(host_bin / name) if name in {"claude", "rig"} else None)
+                        lambda name: str(host_bin / name) if name in {"claude", "rig", "tmux"} else None)
     manifest = SimpleNamespace(digest="manifest-digest", data=lambda: {"design": {"settings": {}}})
     driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
                               ProductionWatchdog())
@@ -106,10 +111,11 @@ def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatc
 
     assert path[0] == paths["bin"].resolve()
     assert str(host_bin.resolve()) not in {str(entry) for entry in path}
-    assert provider_bin.resolve() in path and rig_bin.resolve() in path
+    assert provider_bin.resolve() in path and rig_bin.resolve() in path and tmux_bin.resolve() in path
     assert path[0] / "journal" == shim
     assert (paths["bin"] / "claude").resolve() == provider
     assert (paths["bin"] / "rig").resolve() == rig
+    assert (paths["bin"] / "tmux").resolve() == tmux
     assert not any((entry / "journal").exists() for entry in path[1:])
 
 
@@ -145,10 +151,20 @@ def test_production_boundary_policy_only_allows_run_storage_and_local_provider_p
 
     assert f'(allow file-write* (subpath "{root}"))' in policy
     assert '(allow file-read* (literal "/"))' in policy
+    assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
     assert "(allow file-write*)" not in policy
     assert 'remote ip "localhost:32001"' in policy
     assert 'remote ip "localhost:32002"' in policy
     assert "github.com" not in policy
+
+
+def test_tmux_socket_path_stays_below_the_unix_socket_limit():
+    boundary = ProductionBoundary("run-1", (32001,), ())
+    other_run = ProductionBoundary("run-1", (32002,), ())
+
+    assert len(os.fsencode(str(boundary.tmux_socket_path))) < TMUX_SOCKET_PATH_LIMIT
+    assert boundary.tmux_socket_path.is_relative_to(boundary.tmux_mount)
+    assert other_run.tmux_mount != boundary.tmux_mount
 
 
 def test_wait_identity_keeps_polling_a_journal_that_is_still_booting(tmp_path, monkeypatch):

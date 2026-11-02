@@ -15,7 +15,7 @@ from tests.lab.business_type import BusinessType
 from tests.lab.lab_scenario import LabScenario
 from tests.lab.real.cap_event_server import CapEventServer
 from tests.lab.real.isolated_journal import IsolatedJournal
-from tests.lab.real.production_boundary import ProductionBoundary
+from tests.lab.real.production_boundary import ProductionBoundary, TMUX_SOCKET_PATH_LIMIT
 from tests.lab.real import production_driver as production_driver_module
 from tests.lab.real.production_driver import ProductionDriver
 from tests.lab.real.production_watchdog import ProductionWatchdog
@@ -145,15 +145,19 @@ def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
     policy = boundary.profile.read_text(encoding="utf-8")
     assert "network-outbound)" not in policy
     assert 'remote ip "localhost:32001"' in policy
+    assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
 
     environment = {**os.environ, "HOME": str(paths["private_home"]), "TMPDIR": str(paths["tmp"])}
-    completed = subprocess.run(boundary.wrap(["/bin/sh", str(script), str(external), str(inside)]),
-                               env=environment, capture_output=True, text=True, timeout=10, check=False)
+    try:
+        completed = subprocess.run(boundary.wrap(["/bin/sh", str(script), str(external), str(inside)]),
+                                   env=environment, capture_output=True, text=True, timeout=10, check=False)
 
-    assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
-    assert not external.exists()
-    assert inside.read_text(encoding="utf-8").removesuffix("\n") == "denied"
-    assert boundary.observe("run-1").escaped_writes == 0
+        assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
+        assert not external.exists()
+        assert inside.read_text(encoding="utf-8").removesuffix("\n") == "denied"
+        assert boundary.observe("run-1").escaped_writes == 0
+    finally:
+        assert boundary.close()
 
 
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
@@ -173,18 +177,21 @@ def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
     assert f'(allow file-read-metadata (literal {json.dumps(str(root.resolve()))}))' in policy
     environment = {"HOME": str(paths["private_home"]), "TMPDIR": str(paths["tmp"]),
                    "PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"}
-    completed = subprocess.run(
-        driver.boundary.wrap([sys.executable, "-c", "import sys; print(sys.prefix)"]),
-        cwd=paths["project"], env=environment, capture_output=True, text=True, timeout=10, check=False,
-    )
+    try:
+        completed = subprocess.run(
+            driver.boundary.wrap([sys.executable, "-c", "import sys; print(sys.prefix)"]),
+            cwd=paths["project"], env=environment, capture_output=True, text=True, timeout=10, check=False,
+        )
 
-    assert f'(allow file-read* (literal {json.dumps(str(virtual_environment / "bin"))}))' in policy
-    assert f'(allow file-read* (subpath {json.dumps(str(python_framework))}))' in policy
-    assert f'(allow file-read-metadata (literal {json.dumps(str(Path.home()))}))' in policy
-    assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
-    assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
-    assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
-    assert completed.stdout.strip() == sys.prefix
+        assert f'(allow file-read* (literal {json.dumps(str(virtual_environment / "bin"))}))' in policy
+        assert f'(allow file-read* (subpath {json.dumps(str(python_framework))}))' in policy
+        assert f'(allow file-read-metadata (literal {json.dumps(str(Path.home()))}))' in policy
+        assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
+        assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
+        assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
+        assert completed.stdout.strip() == sys.prefix
+    finally:
+        assert driver.boundary.close()
 
 
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None
@@ -212,8 +219,11 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     rig = cli_directory / "rig"
     rig.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     rig.chmod(0o700)
+    tmux = cli_directory / "tmux"
+    tmux.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    tmux.chmod(0o700)
     node = Path(shutil.which("node")).resolve()
-    executables = {"claude": provider, "rig": rig, "node": node}
+    executables = {"claude": provider, "rig": rig, "tmux": tmux, "node": node}
     monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
     manifest = SimpleNamespace(data=lambda: {"design": {"settings": {}}})
     driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
@@ -222,14 +232,70 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
     driver.env = driver.child_environment(paths, driver.journal_port)
 
-    result = driver.probe_agent_cli(paths)
+    try:
+        result = driver.probe_agent_cli(paths)
 
-    policy = driver.boundary.profile.read_text(encoding="utf-8")
-    assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0"}
-    assert (paths["bin"] / "node").resolve() == node
-    assert f'(allow file-read* (literal {json.dumps(str(node))}))' in policy
-    assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
-    assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
+        policy = driver.boundary.profile.read_text(encoding="utf-8")
+        assert result == {"provider": "claude", "version": "stand-in-node-cli 1.0"}
+        assert (paths["bin"] / "node").resolve() == node
+        assert f'(allow file-read* (literal {json.dumps(str(node))}))' in policy
+        assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
+        assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
+    finally:
+        assert driver.boundary.close()
+
+
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
+                    reason="tmux socket isolation uses macOS sandbox-exec")
+def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_boundary(
+        tmp_path, monkeypatch):
+    paths = IsolatedJournal.paths(tmp_path / "private-run")
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    stand_ins = paths["runtime"] / "stand-ins"
+    stand_ins.mkdir(mode=0o700)
+    provider = stand_ins / "claude"
+    provider.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    provider.chmod(0o700)
+    rig = stand_ins / "rig"
+    rig.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    rig.chmod(0o700)
+    tmux = stand_ins / "tmux"
+    tmux.write_text(
+        "#!/bin/sh\n"
+        "[ \"$1\" = list-sessions ] || exit 8\n"
+        "[ -d \"$TMUX_TMPDIR\" ] || exit 9\n"
+        "if printf 'escaped\\n' > \"$OUTSIDE\" 2>/dev/null; then exit 10; fi\n"
+        "printf 'preflight ran\\n' > \"$TMUX_TMPDIR/preflight-marker\"\n",
+        encoding="utf-8",
+    )
+    tmux.chmod(0o700)
+    executables = {"claude": provider, "rig": rig, "tmux": tmux}
+    monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
+    driver = ProductionDriver("run-1", {"provider": "claude"}, None, tmp_path, tmp_path,
+                              ProductionWatchdog())
+    driver.boundary.verify("run-1", paths)
+    IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+    driver.env = driver.child_environment(paths, driver.journal_port)
+    outside = tmp_path / "outside-write.txt"
+    driver.env["OUTSIDE"] = str(outside)
+
+    try:
+        result = driver.preflight_tmux(paths)
+
+        assert result == "ready"
+        assert len(os.fsencode(str(driver.boundary.tmux_socket_path))) < TMUX_SOCKET_PATH_LIMIT
+        assert driver.boundary.tmux_tmpdir.resolve() == (paths["runtime"] / "tmux").resolve()
+        assert (paths["runtime"] / "tmux" / "preflight-marker").read_text(encoding="utf-8") == "preflight ran\n"
+        assert not outside.exists()
+        policy = driver.boundary.profile.read_text(encoding="utf-8")
+        assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
+    finally:
+        assert driver.stop_owned()
+    assert not driver.boundary.tmux_mount.exists()
 
 
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
@@ -250,10 +316,13 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
     rig = cli_bin / "rig"
     rig.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     rig.chmod(0o700)
+    tmux = cli_bin / "tmux"
+    tmux.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    tmux.chmod(0o700)
     node = cli_bin / "node"
     node.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     node.chmod(0o700)
-    executables = {"claude": provider, "rig": rig}
+    executables = {"claude": provider, "rig": rig, "tmux": tmux}
     host_which = shutil.which
     monkeypatch.setattr(production_driver_module.shutil, "which",
                         lambda name: str(node) if name == "node" else host_which(name))
@@ -294,7 +363,7 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
     stand_ins.mkdir(mode=0o700)
     started = paths["runtime"] / "provider-started"
     executables = {}
-    for name in ("claude", "codex", "rig"):
+    for name in ("claude", "codex", "rig", "tmux"):
         executable = stand_ins / name
         executable.write_text(
             f"#!{sys.executable}\nfrom pathlib import Path\n"

@@ -148,6 +148,7 @@ class RealRun:
             snapshot, identity, scenario = self.prepare_journal(spec, paths, run_id, launch_id, challenge, None)
             port = identity["port"]
             plan_id = self.driver.prepare_plan(scenario, paths)
+            tmux_preflight = self.driver.preflight_tmux(paths)
             agent_cli_probe = self.driver.probe_agent_cli(paths)
             setup = {
                 "run_id": run_id,
@@ -158,6 +159,7 @@ class RealRun:
                 "journal_pid": identity["pid"],
                 "journal_port": port,
                 "plan_id": plan_id,
+                "tmux_preflight": tmux_preflight,
                 "agent_cli_probe": agent_cli_probe,
                 "agent_started": False,
                 "provider_started": False,

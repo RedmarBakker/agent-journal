@@ -15,7 +15,7 @@ from urllib.request import urlopen
 
 from tests.lab.real.cap_event_server import CapEventServer
 from tests.lab.real.isolated_journal import IsolatedJournal
-from tests.lab.real.production_boundary import ProductionBoundary
+from tests.lab.real.production_boundary import ProductionBoundary, TMUX_SOCKET_PATH_LIMIT
 from tests.lab.real.production_watchdog import ProductionWatchdog
 from tests.lab.real.provider_proxy import ProviderProxy
 from tests.lab.real.run_record import RunRecord
@@ -40,7 +40,7 @@ class ProductionDriver:
         read_paths.extend(Path(path).resolve() for path in sys.path
                           if path and "site-packages" in path and Path(path).exists())
         self.cli_interpreters: dict[str, Path] = {}
-        for program in (str(spec["provider"]), "rig"):
+        for program in (str(spec["provider"]), "rig", "tmux"):
             if executable := self.executable(program):
                 read_paths.append(executable.parent)
                 if interpreter := self.cli_interpreter(executable):
@@ -112,12 +112,13 @@ class ProductionDriver:
 
     def child_environment(self, paths: Mapping[str, Path], port: int) -> dict[str, str]:
         provider = str(self.spec["provider"])
-        cli, rig = self.executable(provider), self.executable("rig")
-        if not cli or not rig:
-            raise ValueError("the signed-in provider CLI and OpenRig CLI must be installed")
+        cli, rig, tmux = self.executable(provider), self.executable("rig"), self.executable("tmux")
+        if not cli or not rig or not tmux:
+            raise ValueError("the signed-in provider CLI, OpenRig CLI and tmux must be installed")
         self.install_executable(paths, provider, cli)
         self.install_executable(paths, "rig", rig)
-        path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, Path("/usr/bin"),
+        self.install_executable(paths, "tmux", tmux)
+        path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, tmux.parent, Path("/usr/bin"),
                                             Path("/bin"), Path("/opt/homebrew/bin"))))
         env = IsolatedJournal(paths["root"], self.checkout).child_environment(
             paths, os.environ, ("PATH", "LANG", "LC_ALL", "TERM"), (), port,
@@ -136,7 +137,7 @@ class ProductionDriver:
             "HTTPS_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "HTTP_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "NO_PROXY": "localhost,127.0.0.1",
-            "TMUX_TMPDIR": str(paths["runtime"] / "tmux"),
+            "TMUX_TMPDIR": str(self.boundary.tmux_tmpdir),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": str(paths["runtime"] / "gitconfig"),
             "GIT_ALLOW_PROTOCOL": "file",
@@ -162,12 +163,26 @@ class ProductionDriver:
     def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
         setup = self.setup_scenario(scenario, paths)
         (paths["runtime"] / "openrig").mkdir(mode=0o700, exist_ok=True)
-        (paths["runtime"] / "tmux").mkdir(mode=0o700, exist_ok=True)
         return str(setup["plan_id"])
+
+    def preflight_tmux(self, paths: Mapping[str, Path]) -> str:
+        socket_path = self.boundary.tmux_socket_path
+        if len(os.fsencode(str(socket_path))) >= TMUX_SOCKET_PATH_LIMIT:
+            raise ValueError(f"private tmux socket path exceeds the {TMUX_SOCKET_PATH_LIMIT}-byte Unix socket limit")
+        if not self.boundary.tmux_link_is_valid():
+            raise ValueError("private tmux socket directory is not linked to the isolated run")
+        result = self.command([str(paths["bin"] / "tmux"), "list-sessions"], paths)
+        detail = (result.stderr or result.stdout).strip()
+        if result.returncode == 0:
+            return "ready"
+        if any(reason in detail.lower() for reason in ("no server running", "no such file or directory")):
+            return "no-server"
+        raise ValueError(detail or "private tmux list-sessions preflight failed")
 
     def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], _caps) -> str:
         plan_id = self.prepare_plan(scenario, paths)
         self.install_agent_interpreters(paths)
+        self.preflight_tmux(paths)
         rig = self.executable("rig")
         if not rig:
             raise ValueError("OpenRig CLI is required for an organization-mode run")
@@ -219,7 +234,6 @@ class ProductionDriver:
     def stop_owned(self, _reason: str = "run finished") -> bool:
         if self.stopped:
             return True
-        self.stopped = True
         confirmed = True
         if self.event_server:
             self.event_server.close()
@@ -248,6 +262,9 @@ class ProductionDriver:
                     confirmed = False
             if process.poll() is None:
                 confirmed = False
+        if confirmed:
+            confirmed = self.boundary.close()
+        self.stopped = confirmed
         return confirmed
 
     def command(self, command: list[str], paths: Mapping[str, Path]) -> subprocess.CompletedProcess[str]:

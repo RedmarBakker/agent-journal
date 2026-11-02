@@ -121,7 +121,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
     def driver_factory(run_id, spec):
         driver = SimpleNamespace(run_id=run_id, spec=spec, process=None, session_id=f"session-{run_id}", caps=None,
                                  event_server=None, cap_token="stand-in-cap-token",
-                                 plan_started=False, plan_prepared=False)
+                                 plan_started=False, plan_prepared=False, tmux_preflight_called=False)
         drivers[run_id] = driver
         factory_calls.append(run_id)
 
@@ -170,6 +170,10 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         def probe_agent_cli(_paths):
             return {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
 
+        def preflight_tmux(_paths):
+            driver.tmux_preflight_called = True
+            return "ready"
+
         def wait_for_end_or_cap(current_run_id, _plan_id, caps):
             try:
                 if driver.spec.get("simulate_live_hook_cap"):
@@ -211,6 +215,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         driver.load_scenario = lambda _scenario, _paths: spec
         driver.start_plan = start_plan
         driver.prepare_plan = prepare_plan
+        driver.preflight_tmux = preflight_tmux
         driver.probe_agent_cli = probe_agent_cli
         driver.wait_for_end_or_cap = wait_for_end_or_cap
         driver.stop_owned = lambda current_run_id: stop(current_run_id, "run finished")
@@ -317,11 +322,13 @@ def test_run_real_setup_only_prepares_every_root_without_starting_an_agent_or_pr
         driver = drivers[setup["run_id"]]
         assert setup["status"] == "ready"
         assert setup["agent_started"] is False and setup["provider_started"] is False
+        assert setup["tmux_preflight"] == "ready"
         assert setup["agent_cli_probe"] == {"provider": driver.spec["provider"], "version": "stand-in-cli 1.0"}
         assert setup["journal_commit"] == JOURNAL_COMMIT and setup["organization_commit"] == ORGANIZATION_COMMIT
         assert (evidence_file.parent / "isolation-start.json").is_file()
         assert (evidence_file.parent / "isolation-observation.json").is_file()
         assert driver.plan_prepared is True and driver.plan_started is False
+        assert driver.tmux_preflight_called is True
         assert driver.process is None and driver.event_server is None
 
 
