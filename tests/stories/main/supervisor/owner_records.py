@@ -1,14 +1,22 @@
 from journal.features.tasks.states.ready import Ready
+from journal.repositories.environments import Environments
+from journal.repositories.plans import Plans
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.supervisor_records import SupervisorRecords
 
 
+def environment(story):
+    plan = story.app.container.get(Plans).global_matching(id=story.plans.first)[0]
+    return story.app.container.get(Environments).find(plan.environment_id).name
+
+
 @story(SupervisorRecords, subject=AgentRole.MAIN)
 def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_records_in_pages(story):
     plan = story.plans.first
+    current = environment(story)
     route = f"/journal/supervisor/records?period=last_7_days&plan_id={plan}&area=checks"
-    result = story.user_opens_in(story.supervisor_environment, route)
+    result = story.user_opens_in(current, route)
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 102)
     result.expect_viewer_part(("current", "receipts"), {
@@ -24,25 +32,25 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
     result.expect_viewer_part_is_truthy(("next_before",))
 
     before = story.viewer_answer["next_before"]
-    result = story.user_opens_in(story.supervisor_environment, f"{route}&before={before}")
+    result = story.user_opens_in(current, f"{route}&before={before}")
     result.expect_viewer_passed()
     result.expect_viewer_count("records", 100)
     result.expect_viewer_part_is_truthy(("next_before",))
 
     before = story.viewer_answer["next_before"]
-    result = story.user_opens_in(story.supervisor_environment, f"{route}&before={before}")
+    result = story.user_opens_in(current, f"{route}&before={before}")
     result.expect_viewer_passed()
     result.expect_viewer_count("records", 4)
     result.expect_viewer_part(("next_before",), None)
 
-    result = story.user_opens_in(story.supervisor_environment, "/journal/supervisor/records?period=last_7_days")
+    result = story.user_opens_in(current, "/journal/supervisor/records?period=last_7_days")
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 105)
     result.expect_viewer_part(("current", "receipts"), {
         "applied": 53, "conflicted": 17, "proposed": 17, "rejected": 17,
     })
 
-    result = story.user_opens_in(story.supervisor_environment,
+    result = story.user_opens_in(current,
                                  f"/journal/supervisor/records?period=last_7_days&plan_id={plan}&area=plans-and-tasks")
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 2)
@@ -50,7 +58,7 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
         "applied": 2, "conflicted": 0, "proposed": 0, "rejected": 0,
     })
 
-    result = story.user_opens_in(story.supervisor_environment,
+    result = story.user_opens_in(current,
                                  f"/journal/supervisor/records?period=last_7_days&plan_id={plan}&area=secrets")
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 0)
@@ -58,7 +66,7 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
         "applied": 0, "conflicted": 0, "proposed": 0, "rejected": 0,
     })
 
-    result = story.user_opens_in(story.supervisor_environment,
+    result = story.user_opens_in(current,
                                  f"/journal/supervisor/records?period=today&plan_id={plan}&area=checks")
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 0)
@@ -68,7 +76,7 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
     result.expect_viewer_part(("previous", "runs"), 102)
     result.expect_viewer_part(("previous", "verified_receipts"), 30)
 
-    result = story.user_opens_in(story.supervisor_environment,
+    result = story.user_opens_in(current,
                                  f"/journal/supervisor/records?period=last_30_days&plan_id={plan}&area=checks")
     result.expect_viewer_passed()
     result.expect_viewer_part(("current", "runs"), 104)
@@ -80,17 +88,17 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
 @story(SupervisorRecords, subject=AgentRole.MAIN)
 def test_a_reader_cannot_read_supervisor_records_outside_their_environment(story):
     result = story.user_opens_in(
-        f"{story.supervisor_environment}-not-shared",
+        f"{environment(story)}-not-shared",
         "/journal/supervisor/records?period=last_7_days",
     )
     result.expect_viewer_refused("environment")
     result = story.user_opens_in(
-        story.supervisor_environment,
-        f"/journal/supervisor/records?period=last_7_days&plan_id={story.foreign_plan_id}",
+        environment(story),
+        f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.foreign}",
     )
     result.expect_viewer_refused("plan")
     result = story.user_opens_in(
-        story.supervisor_environment,
+        environment(story),
         f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.first}&area=unknown",
     )
     result.expect_viewer_refused("area")

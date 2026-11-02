@@ -24,14 +24,13 @@ class SupervisorRecords(StateFixture):
         plan = story.app.container.get(Plans).global_matching(id=story.plans.first)[0]
         authority = story.app.container.get(SupervisorAuthority)
         principal = authority.authenticate(story.supervisor_credential)
-        story.supervisor_environment = story.app.container.get(Environments).global_matching(id=plan.environment_id)[0].name
         foreign_environment = story.app.container.get(Environments).made(f"supervisor-private-{plan.row_id}", Actor.user(2))
         with story.app.container.get(Scope).environment(foreign_environment.row_id):
             foreign = story.app.container.get(Plans).save(
                 Plan(title="private plan", brief="private work", state=PlanState.STARTED, mode=PlanMode.SOLO),
                 Actor.user(2),
             )
-        story.foreign_plan_id = foreign.row_id
+        self.plans.foreign = foreign.row_id
         now = story_seconds(story.app)
         source = story.app.container.get(TimeSource)
         entries = story.app.container.get(SupervisorEntries)
