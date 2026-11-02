@@ -208,13 +208,12 @@ def existing_plan_id(output, seed=None):
 
 def make_plan(app, main, seed=None):
     existing = command("plan", "list")
-    if seed is None:
-        if plan_id := existing_plan_id(existing):
-            return resume_plan(app, main, plan_id)
-    elif plan_id := existing_plan_id(existing, seed):
-        return resume_plan(app, main, plan_id, seed)
     if seed is not None:
+        if plan_id := existing_plan_id(existing, seed):
+            return resume_plan(app, main, plan_id, seed)
         return make_case_plan(app, seed)
+    if plan_id := existing_plan_id(existing):
+        return resume_plan(app, main, plan_id)
     plan_id = row_number(command("plan", "create", PLAN_TITLE, "--brief", PLAN_BRIEF), r"plan (\d+) draft")
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
     command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", PHASE_COMPLETION)
