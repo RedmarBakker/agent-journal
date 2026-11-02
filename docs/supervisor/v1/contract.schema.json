@@ -14,8 +14,8 @@
             "phases",
             "tasks",
             "checks",
-            "messages",
-            "review_rounds"
+            "review_rounds",
+            "messages"
           ]
         },
         "id": {

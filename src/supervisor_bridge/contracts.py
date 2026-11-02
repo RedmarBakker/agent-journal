@@ -12,7 +12,7 @@ from journal.features.supervisor.support.supervisor_operation_commands import OP
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
-CONTRACT_SCHEMA_SHA256 = "507960926acf3d03435464765ab070c32c32197a8a9c55864865938e3449a11f"
+CONTRACT_SCHEMA_SHA256 = "c5cec3b163908f9f666902b0d5d0ae806e96faaab6c7c5b601ce8fb1724c5724"
 OBSERVE_TOOL = "journal_supervisor.observe"
 RUN_OR_PROPOSE_TOOL = "journal_supervisor.run_or_propose"
 RECEIPT_TOOL = "journal_supervisor.receipt"

@@ -13,6 +13,7 @@ from journal.features.supervisor.support.supervisor_observations import Supervis
 from journal.models.entry import Entry
 from journal.models.link import Link
 from journal.models.support.ref import Ref
+from journal.models.supervisor_grant import SupervisorGrant
 from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.repositories.checks import Checks
@@ -51,9 +52,9 @@ def boot():
     return lambda root, patch: SuiteApp(Config(root, port=0))
 
 
-def maintenance_context(app, monkeypatch, mode="bounded_write", rules=None, command_modes=None, owner_id=None):
+def maintenance_context(app, monkeypatch, mode="bounded_write", rules=None, capability_decisions=None, owner_id=None):
     fixture = authority_seeded(app, owner_id=owner_id or uuid4().int % 1_000_000 + 100)
-    return _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules, command_modes)
+    return _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules, capability_decisions)
 
 
 def maintenance_context_with_existing_diagnostic(app, monkeypatch):
@@ -85,7 +86,7 @@ def maintenance_context_with_held_diagnostic(app, monkeypatch):
     return context
 
 
-def _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules=None, command_modes=None):
+def _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules=None, capability_decisions=None):
     monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
     grant, token, principal = authority_admitted(fixture, mode)
     for rule in rules or ():
@@ -96,19 +97,16 @@ def _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules=None, c
             "change": {"kind": "rule", "action": "add", "rule": rule},
         })
         principal = fixture.authority.authenticate(token)
-    if command_modes:
-        control = fixture.authority.owner_control(fixture.owner, fixture.owner_environment.row_id)
-        grant_value = control["grant"]
-        capabilities = {
-            **grant_value["capabilities"],
-            **{command: {"on": True, "mode": decision} for command, decision in command_modes.items()},
-        }
-        grant, _token = fixture.authority.change(fixture.owner, {
-            "protocol_version": 1,
-            "grant_id": grant["grant_id"],
-            "expected_grant_version": control["grant_version"],
-            "change": {"kind": "configure", "grant": {**grant_value, "capabilities": capabilities}},
-        })
+    for command, decision in (capability_decisions or {}).items():
+        entry = fixture.authority._latest_entry(grant["grant_id"])
+        permissions = SupervisorGrant.stored(entry.data["grant_v2"]).with_command_decision(
+            command, decision, fixture.authority._command_catalogue(),
+        )
+        grant = {**grant, "grant_version": grant["grant_version"] + 1}
+        fixture.authority._append_grant(
+            grant, entry.data["_credential_sha256"], entry.data["_credential_name"],
+            {**entry.data, "grant_v2": permissions.data()}, fixture.owner,
+        )
         principal = fixture.authority.authenticate(token)
     entries = app.container.get(Entries)
     control_entries = app.container.get(SupervisorEntries)

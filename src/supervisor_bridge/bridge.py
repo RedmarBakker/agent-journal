@@ -311,7 +311,7 @@ class SupervisorBridge:
             raise ContractError("receipt affected references exceed the contract bound")
         for row_ref in receipt["affected_refs"]:
             reference = strict_object(row_ref, frozenset({"table", "id"}), frozenset({"table", "id"}), "receipt row reference")
-            if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "review_rounds"}:
+            if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "review_rounds", "messages"}:
                 raise ContractError("receipt row reference table is unsupported")
             positive_integer(reference["id"], "receipt row id")
         if not isinstance(receipt["changes"], list) or len(receipt["changes"]) > 12:
@@ -404,7 +404,7 @@ def validate_command_receipts(value: object, operations: list[dict], action_stat
 
 def validate_command_row_ref(value: object) -> None:
     reference = strict_object(value, frozenset({"table", "id"}), frozenset({"table", "id"}), "receipt changed row reference")
-    if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "links"}:
+    if not isinstance(reference["table"], str) or reference["table"] not in {"plans", "phases", "tasks", "checks", "links", "messages"}:
         raise ContractError("receipt changed row table is unsupported")
     positive_integer(reference["id"], "receipt changed row id")
 

@@ -67,19 +67,19 @@ class SupervisorMaintenance:
     """Applies one admitted supervisor maintenance bundle under the Entry write transaction."""
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations, entries: Entries,
+                 console: Console, environments: Environments, messages: Messages,
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
                  scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable,
                  action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
-                 command_changes: SupervisorCommandChanges, console: Console, environments: Environments,
-                 messages: Messages) -> None:
+                 command_changes: SupervisorCommandChanges) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
+        self.console, self.environments, self.messages = console, environments, messages
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
         self.work_available = work_available
         self.action_reports = action_reports
         self.wakeups = wakeups
         self.command_changes = command_changes
-        self.console, self.environments, self.messages = console, environments, messages
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
@@ -168,7 +168,7 @@ class SupervisorMaintenance:
             if decision := self._narrowing_decision(context["permissions"], request["operations"]):
                 status, reason = decision
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, status, reason)
-            if grant["mode"] == "shadow":
+            if self._proposes(context["permissions"], request["operations"]):
                 return self._proposal_receipt(grant, request, run, epoch, intent_hash, context)
             before = self._before_values(context, request)
             before_context = self.authority.observation_context(grant)
@@ -718,7 +718,8 @@ class SupervisorMaintenance:
         for operation in operations:
             _area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
             command = f"{noun} {verb}"
-            rule = grant.rule_for(command, operation.get("plan_id", operation.get("check_id")))
+            row_id = operation.get("plan_id") if noun == "plan" else operation.get("check_id")
+            rule = grant.rule_for(command, row_id)
             if rule is not None:
                 if rule.effect == "propose":
                     return "proposed", "the owner requires this verb to be proposed"
@@ -734,15 +735,30 @@ class SupervisorMaintenance:
                 return "grant_not_current"
         elif grant["mode"] != "bounded_write":
             return "grant_mode_disabled"
-        capabilities = {name: enabled for name, enabled, _mode in permissions.capabilities}
         for operation in operations:
             area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
-            if not capabilities.get(f"{noun} {verb}", False) or not capabilities.get(f"area:{area}", True):
+            tier = CAPABILITY_CATALOGUE[area][noun][verb]
+            if (operation["kind"] in grant.get("capabilities", {})
+                    and grant["capabilities"][operation["kind"]] is not True):
                 return "capability_not_granted"
-            if (operation["kind"] != "plan_tell" and grant["mode"] == "bounded_write"
+            decision = permissions.command_decision(f"{noun} {verb}", self.authority._command_catalogue())
+            if decision == "not_allowed":
+                return "capability_not_granted"
+            if decision == "may_act" and grant["mode"] == "shadow":
+                return "capability_not_granted"
+            if (tier == "tier 1" and decision == "may_act"
                     and not self.authority.permits_domain_write(grant, operation["kind"])):
                 return "capability_not_granted"
         return ""
+
+    def _proposes(self, permissions: SupervisorGrant, operations: list[dict[str, Any]]) -> bool:
+        return any(
+            permissions.command_decision(
+                f"{OPERATION_COMMANDS[operation['kind']][1]} {OPERATION_COMMANDS[operation['kind']][2]}",
+                self.authority._command_catalogue(),
+            ) == "propose_only"
+            for operation in operations
+        )
 
     def _revision_reason(self, grant: dict[str, Any], context: dict[str, Any], request: dict[str, Any]) -> str:
         phase = context.get("current_phase_row")
@@ -825,6 +841,17 @@ class SupervisorMaintenance:
                         prioritized = plan.prioritised(operation["text"], context["current_phase"]["number"], self.time_source.seconds())
                         plan = self.plans.save(prioritized, actor)
                         affected.append({"table": "plans", "id": plan.row_id})
+                    elif operation["kind"] == "plan_tell":
+                        environment = self.environments.find(plan.environment_id)
+                        caller = Caller.supervisor(environment.name, SUPERVISOR_ACTOR, context["permissions"])
+                        outcome = self.console.run(["plan", "tell", str(plan.row_id), operation["text"]], caller)
+                        if outcome.code:
+                            raise SupervisorFailure(409, outcome.error.strip() or "the journal command refused the action")
+                        message = next((change["ref"] for change in changes
+                                        if change["event"] == "created" and change["ref"]["table"] == "messages"), None)
+                        if message is None:
+                            raise SupervisorFailure(409, "the plan tell command did not create a message")
+                        affected.append(message)
                     elif operation["kind"] == "diagnostic_task":
                         diagnostic, created = self._diagnostic(grant, plan, phase, actor, request["episode_id"])
                         affected.append({"table": "tasks", "id": diagnostic.row_id})
@@ -903,18 +930,16 @@ class SupervisorMaintenance:
                 if (len(plan_link) != 1 or len(phase_link) != 1 or not eligible_diagnostic(diagnostic, self.tasks)
                         or diagnostic not in self.plans.phase_tasks(context["current_phase_row"])):
                     raise SupervisorFailure(409, "the diagnostic task did not read back in its enrolled current phase")
-        for operation, changes in zip(request["operations"], command_changes):
-            if operation["kind"] != "plan_tell":
-                continue
-            messages = [change["ref"]["id"] for change in changes
-                        if change.get("event") == "created" and change.get("ref", {}).get("table") == "messages"]
-            if len(messages) != 1:
-                raise SupervisorFailure(409, "the plan tell message did not read back")
-            with self.scope.environment(context["environment"].row_id):
-                message = self.messages.find(messages[0])
-                if message.text != operation["text"]:
-                    raise SupervisorFailure(409, "the plan tell message did not read back")
-        for operation in request["operations"]:
+        for index, operation in enumerate(request["operations"]):
+            if operation["kind"] == "plan_tell":
+                created = [change for change in command_changes[index]
+                           if change.get("event") == "created" and change.get("ref", {}).get("table") == "messages"]
+                if len(created) != 1 or created[0]["after"].get("text") != operation["text"]:
+                    raise SupervisorFailure(409, "the plan agent message did not read back")
+                with self.scope.environment(context["environment"].row_id):
+                    message = self.messages.find(created[0]["ref"]["id"])
+                    if message.text != operation["text"]:
+                        raise SupervisorFailure(409, "the plan agent message did not read back")
             if operation["kind"] == "check_interval":
                 prior = before["checks"][operation["check_id"]]
                 check = self._check(operation["check_id"])

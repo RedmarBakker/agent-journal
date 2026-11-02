@@ -41,35 +41,25 @@ class SupervisorRole(MainRole):
             if rule.effect == "never":
                 return "the owner refuses this verb on the named row"
             return "the owner requires this verb to be proposed"
-        capabilities = dict((name, (enabled, mode)) for name, enabled, mode in grant.capabilities)
         capability = f"{command.noun} {catalogue_verb}"
         catalogue_entry = capability_entry(command.noun, catalogue_verb)
         tier = tier_for_command(command.noun, catalogue_verb)
         if catalogue_entry is None or tier is None:
             return "the capability is switched off"
-        area, _ = catalogue_entry
         if tier == "read":
             return ""
         if tier == "never":
             return "the capability is never allowed"
-        area_key = area.lower().replace(",", "").replace(" ", "-")
-        area_setting = capabilities.get(f"area:{area_key}")
-        if area_setting is not None and not area_setting[0]:
+        decision = grant.command_decision(capability, command_catalogue())
+        if decision == "not_allowed":
             return "the capability is switched off"
         if tier == "tier 3":
-            decision = grant.tier_three_decision(capability, command_catalogue())
-            if decision == "not_allowed":
-                return "the capability is switched off"
             if decision == "propose_only":
                 return "the owner requires this verb to be proposed"
-        else:
-            setting = capabilities.get(capability, area_setting)
-            if setting is None or not setting[0]:
-                return "the capability is switched off"
-            if setting[1] != "act":
-                return "the capability is set to propose"
-        if command.noun == "plan" and verb in {"priorities", "tell"}:
-            return cls.plan_scope_refusal(grant, args)
+        elif decision != "may_act":
+            return "the capability is set to propose"
+        if command.noun == "plan":
+            return cls.plan_scope_refusal(grant, command, args)
         return ""
 
     @staticmethod
@@ -82,11 +72,11 @@ class SupervisorRole(MainRole):
         value = getattr(args, argument, None)
         return value if type(value) is int else None
 
-    @staticmethod
-    def plan_scope_refusal(grant: SupervisorGrant, args) -> str:
+    @classmethod
+    def plan_scope_refusal(cls, grant: SupervisorGrant, command: type[Command], args) -> str:
         if grant.watched_plans == "all":
             return ""
-        plan_id = getattr(args, "plan", None) or getattr(args, "n", None)
+        plan_id = cls.row_id(command, args)
         if plan_id is None:
             return "name a watched plan with --plan"
         if plan_id not in grant.watched_plans:

@@ -114,19 +114,33 @@ class SupervisorGrant:
             raise ValueError("a command marked Never cannot have an owner decision")
         if tier not in (3, "tier 3"):
             raise ValueError("only tier 3 commands can have an owner decision")
-        setting = next(((enabled, mode) for name, enabled, mode in self.capabilities if name == command), None)
-        if setting is None:
-            return "propose_only"
-        enabled, mode = setting
-        return "not_allowed" if not enabled else "may_act" if mode == "act" else "propose_only"
+        return self.command_decision(command, catalogue)
 
-    def with_tier_three_decision(self, command: str, decision: str,
-                                 catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
+    def command_decision(self, command: str, catalogue: Mapping[str, tuple[str, int | str]]) -> str:
+        entry = catalogue.get(command)
+        if entry is None:
+            raise ValueError("the supervisor command is not in the catalogue")
+        area, tier = entry
+        setting = next(((enabled, mode) for name, enabled, mode in self.capabilities if name == command), None)
+        area_setting = next(((enabled, mode) for name, enabled, mode in self.capabilities
+                             if name == f"area:{area}"), None)
+        settings = [value for value in (area_setting, setting) if value is not None]
+        if not settings:
+            return "propose_only" if tier in (3, "tier 3") else "not_allowed"
+        if any(not enabled for enabled, _mode in settings):
+            return "not_allowed"
+        return "may_act" if all(mode == "act" for _enabled, mode in settings) else "propose_only"
+
+    def with_command_decision(self, command: str, decision: str,
+                              catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
         if decision not in ("not_allowed", "propose_only", "may_act"):
             raise ValueError("the supervisor decision must be Not allowed, Propose only or May act")
-        current = self.tier_three_decision(command, catalogue)
-        if current == decision:
-            return self
+        entry = catalogue.get(command)
+        if entry is None:
+            raise ValueError("the supervisor command is not in the catalogue")
+        _area, tier = entry
+        if tier in ("read", "never"):
+            raise ValueError("a command marked Read or Never cannot have an owner decision")
         capabilities = {name: (enabled, mode) for name, enabled, mode in self.capabilities}
         capabilities[command] = (decision != "not_allowed", "act" if decision == "may_act" else "propose")
         return SupervisorGrant(
@@ -135,6 +149,11 @@ class SupervisorGrant:
             self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
             self.paused, self.revoked, self.rules,
         )
+
+    def with_tier_three_decision(self, command: str, decision: str,
+                                 catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
+        self.tier_three_decision(command, catalogue)
+        return self.with_command_decision(command, decision, catalogue)
 
     def rule_for(self, command: str, row_id: int | None) -> SupervisorNarrowingRule | None:
         denied = next((rule for rule in self.rules if rule.command == command
