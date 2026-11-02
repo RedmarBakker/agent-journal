@@ -931,6 +931,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["enrollment"]["enabled"] is False
     assert fixture["tools"]["wildcards"] is False
     assert len(fixture["tools"]["allowlist"]) == 3
+    assert contract_fixture["openclaw_config"]["tools"]["toolSearch"] is False
     assert fixture["secret_values_in_fixture"] is False
     mapping = contract_fixture["openclaw_config"]["hooks"]["mappings"]
     assert len(mapping) == 1
@@ -951,6 +952,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert '"writer_supervisor_tls_key"' in launcher
     assert '"writer_supervisor_tls_ca"' in launcher
     assert r'\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}' in launcher
+    assert r'\"tools\":{\"toolSearch\":false,\"allow\":[' in launcher
     assert r'\"apiKey\":\"journal-supervisor-metered-proxy-placeholder\"' in launcher
     assert r'!strstr(compact, "\"profiles\":")' in launcher
     assert r'!strstr(compact, "\"order\":")' in launcher

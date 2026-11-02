@@ -607,6 +607,7 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["enabled"] is False
     assert list(fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
     assert fixture["openclaw_config"]["tools"]["allow"] == list(OPENCLAW_TOOL_NAMES)
+    assert fixture["openclaw_config"]["tools"]["toolSearch"] is False
     assert effective_tool_inventory(fixture, set()) == []
     assert effective_tool_inventory(fixture, {"journal__journal_supervisor-observe", "shell", "browser"}) == [
         "journal__journal_supervisor-observe"
@@ -901,6 +902,26 @@ def test_bounded_provider_retries_consume_the_request_cap(tmp_path):
     with pytest.raises(MeteringError, match="request cap"):
         proxy.forward(model_request())
     assert len(provider.requests) == 3
+
+
+def test_eight_provider_requests_cover_four_counted_model_responses(tmp_path):
+    state = metered_state(tmp_path, max_input=20, max_output=20, max_requests=8)
+    provider = StubProvider([
+        response
+        for _ in range(4)
+        for response in (provider_input_tokens(2), provider_response(2, 1))
+    ])
+    proxy = MeteringProxy(state, provider)
+
+    for _ in range(4):
+        assert proxy.forward(model_request()).status == 200
+
+    usage = state.snapshot()["metering"]
+    assert usage["provider_requests"] == 8
+    assert usage["status"] == "capped"
+    assert [path for path, _payload in provider.requests] == [
+        "/v1/messages/count_tokens", "/v1/messages",
+    ] * 4
 
 
 @pytest.mark.parametrize("missing", [

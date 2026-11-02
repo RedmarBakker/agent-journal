@@ -227,7 +227,7 @@ def staging_root(tmp_path):
         "hook_agent_request": {"run_ref": {"run_id": "example-run", "episode_id": "example-episode",
             "pending_action_id": "example-action", "grant_id": "example-grant", "grant_version": 1,
             "installation_epoch": 1, "fence": 1}},
-        "tools": {"allow": ["journal__journal_supervisor-observe", "journal__journal_supervisor-apply_maintenance", "journal__journal_supervisor-receipt"]},
+        "tools": {"toolSearch": False, "allow": ["journal__journal_supervisor-observe", "journal__journal_supervisor-apply_maintenance", "journal__journal_supervisor-receipt"]},
     }))
     secrets = tmp_path / "tenant-secrets"
     secrets.mkdir(mode=0o700)

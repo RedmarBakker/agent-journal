@@ -212,6 +212,7 @@ static int valid_profile(const char *config_path) {
         "journal__journal_supervisor-observe",
         "journal__journal_supervisor-apply_maintenance",
         "journal__journal_supervisor-receipt",
+        "\"tools\":{\"toolSearch\":false,\"allow\":[",
     };
     static const char *required_gateway_image[] = {
         "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",

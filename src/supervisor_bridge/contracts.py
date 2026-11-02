@@ -397,7 +397,7 @@ def validate_pinned_fixture(fixture: dict) -> None:
             "supportsParallelToolCalls": False,
             "toolFilter": {"include": list(TOOL_NAMES)},
         }}},
-        "tools": {"allow": expected_tool_names},
+        "tools": {"toolSearch": False, "allow": expected_tool_names},
     }
     if fixture.get("openclaw_config") != expected_config:
         raise ContractError("complete OpenClaw configuration differs from the pinned closed fixture")

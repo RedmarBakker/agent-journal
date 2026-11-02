@@ -148,6 +148,7 @@
       }
     },
     "tools": {
+      "toolSearch": false,
       "allow": [
         "journal__journal_supervisor-observe",
         "journal__journal_supervisor-apply_maintenance",
