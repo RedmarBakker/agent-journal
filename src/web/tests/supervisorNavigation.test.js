@@ -2,7 +2,7 @@ import {createApp, h} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 
 const api = {supervisorProposalCount: vi.fn()};
-vi.mock("../src/api/client.js", () => ({api}));
+vi.mock("../src/api/client.js", async (importOriginal) => ({...(await importOriginal()), api}));
 
 const {useNavigation} = await import("../src/composables/navigation.js");
 

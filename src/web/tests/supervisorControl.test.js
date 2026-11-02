@@ -2,7 +2,7 @@ import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 const api = {supervisorControl: vi.fn(), supervisorChange: vi.fn(), supervisorProposal: vi.fn(), supervisorRemoveRule: vi.fn(), list: vi.fn(), change: vi.fn()};
-vi.mock("../src/api/client.js", () => ({api}));
+vi.mock("../src/api/client.js", async (importOriginal) => ({...(await importOriginal()), api}));
 
 const {default: SupervisorControlPage} = await import("../src/pages/SupervisorControlPage.vue");
 

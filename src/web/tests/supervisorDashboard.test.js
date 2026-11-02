@@ -2,7 +2,7 @@ import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 const api = {supervisorRecords: vi.fn(), list: vi.fn()};
-vi.mock("../src/api/client.js", () => ({api}));
+vi.mock("../src/api/client.js", async (importOriginal) => ({...(await importOriginal()), api}));
 
 const {default: SupervisorPage} = await import("../src/pages/SupervisorPage.vue");
 const {pageTitle} = await import("../src/composables/pageTitle.js");
