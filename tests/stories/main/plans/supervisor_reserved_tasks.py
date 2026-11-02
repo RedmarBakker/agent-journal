@@ -91,7 +91,7 @@ def test_an_ordinary_diagnostic_runs_while_the_seed_stays_reserved(story):
 @story(SupervisorReservedPlan, subject=AgentRole.MAIN)
 def test_a_supervisor_reservation_must_be_a_boolean(story):
     result = story.user_did(f"/journal/tasks/{story.tasks.first}", {"supervisor_reserved": "yes"}, "the owner sends an invalid reservation")
-    result.expect_viewer_refused()
+    result.expect_viewer_refused("true or false")
     story.expect_task(story.tasks.first, supervisor_reserved=True)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
@@ -99,7 +99,7 @@ def test_a_supervisor_reservation_must_be_a_boolean(story):
 @story(SoloPlanAgentTaskStarted, subject=AgentRole.MAIN)
 def test_work_already_in_progress_cannot_be_reserved_for_supervisor_diagnosis(story):
     result = story.user_did(f"/journal/tasks/{story.tasks.first}", {"supervisor_reserved": True}, "the owner tries to reserve started work")
-    result.expect_viewer_refused()
+    result.expect_viewer_refused("unstarted, unheld")
     story.expect_task(story.tasks.first, state=TaskState.STARTED, supervisor_reserved=False)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
@@ -109,6 +109,6 @@ def test_work_assigned_to_a_worker_cannot_be_reserved_for_supervisor_diagnosis(s
     agent = StoryAgent(AgentRole.MAIN, session=PLAN_AGENT_SESSION)
     story.agent_in_runs(agent, f"plan-{story.plans.first}", PLAN_AGENT_SESSION, f"worker dispatch 'Ada, diagnostic writer' --task {story.tasks.first} --changes 'the diagnostic' --profile journal-medior --model sonnet").expect_command_passed()
     result = story.user_did(f"/journal/tasks/{story.tasks.first}", {"supervisor_reserved": True}, "the owner tries to reserve assigned work")
-    result.expect_viewer_refused()
+    result.expect_viewer_refused("unstarted, unheld")
     story.expect_task(story.tasks.first, delegated=True, supervisor_reserved=False)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
