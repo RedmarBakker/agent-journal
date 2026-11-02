@@ -207,7 +207,7 @@ class SupervisorMaintenance:
             raise SupervisorFailure(403, "only the owner can decide a supervisor proposal")
         owner_environment_id = self.scope.id
         with self.scope.environment(PROJECT), self.entries.writing():
-            proposal = self._proposal(proposal_id, owner_environment_id)
+            proposal = self._proposal(proposal_id, owner_environment_id, actor.number())
             if self._proposal_decisions(proposal):
                 raise SupervisorFailure(409, "the supervisor proposal is closed")
             principal = self._proposal_principal(proposal, actor)
@@ -227,14 +227,16 @@ class SupervisorMaintenance:
             "command": proposal.data["command"], "output": execution["output"],
         }
 
-    def _proposal(self, proposal_id: int, owner_environment_id: int) -> Entry:
+    def _proposal(self, proposal_id: int, owner_environment_id: int, owner_id: int) -> Entry:
         rows = self.entries.selected_globally(
             self.entries.query().filter(id=proposal_id, entry_type="SupervisorProposalReceipt").limit(1),
         )
         if not rows:
             raise SupervisorFailure(404, "the supervisor proposal is unavailable")
         proposal = rows[0]
-        if proposal.data.get("scope", {}).get("environment_id") != owner_environment_id:
+        scope = proposal.data.get("scope", {})
+        if (proposal.data.get("owner_environment_id") != owner_environment_id
+                or scope.get("tenant_id") != f"owner:{owner_id}"):
             raise SupervisorFailure(404, "the supervisor proposal is unavailable")
         return proposal
 
@@ -919,7 +921,8 @@ class SupervisorMaintenance:
         proposal_data = {
             "tenant_id": grant["scope"]["tenant_id"], "grant_id": grant["grant_id"],
             "grant_version": grant["grant_version"], "plan_id": grant["plan_id"],
-            "scope": grant["scope"], "action_receipt_id": receipt["receipt_id"],
+            "scope": grant["scope"], "owner_environment_id": context["plan"].environment_id,
+            "action_receipt_id": receipt["receipt_id"],
             "action_id": request["action_id"], "run_id": run_ref, "status": "open",
             "command": data["command"], "commands": commands, "wake_up": data["wake_up"],
             "rationale": request["rationale"], "expected_revisions": request["expected_revisions"],
