@@ -28,7 +28,8 @@ class FixtureCopy:
         return FixtureCopy(
             SharedJournal(story.app), fixture, frozenset(story.line_keys), story.main_session_id,
             tuple(story.session_environments.items()), tuple(story.worker_sessions.items()),
-            story.openrig.copied() if story.openrig is not None else None, WorkerRunner.start,
+            story.openrig.copied() if story.openrig is not None else None,
+            WorkerRunner.start,
         )
 
     def restore(self, story) -> StateFixture:

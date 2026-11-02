@@ -220,6 +220,10 @@ class AgentSteps:
         outcome = self.app.console().run(arguments, self.caller_of(agent))
         return self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
 
+    def supervisor_runs_read_command(self, agent: StoryAgent, line: str = "task list") -> StepResult:
+        caller = self.caller_of(agent)
+        return self.plugin_runs_with_token(caller.plugin_name, agent.credential, line, caller.environment)
+
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
         rig = self.plan_rig_name(self.plans.first)
@@ -733,11 +737,11 @@ class AgentSteps:
     def plugin_runs(self, plugin: str, line: str) -> StepResult:
         return self.plugin_runs_with_token(plugin, self.app.container.get(PluginTokens).build(plugin), line)
 
-    def plugin_runs_with_token(self, plugin: str, token: str, line: str) -> StepResult:
+    def plugin_runs_with_token(self, plugin: str, token: str, line: str, environment: str = "main") -> StepResult:
         arguments = shlex.split(line)
-        status, answer = posted(self.app, "/cli", {"argv": arguments, "env": "main", "plugin": plugin, "token": token}, MAIN)
+        status, answer = posted(self.app, "/cli", {"argv": arguments, "env": environment, "plugin": plugin, "token": token}, MAIN)
         outcome = Outcome(answer["code"], answer["text"], answer.get("error", "")) if status < 300 else Outcome(status, "", answer.get("error", ""))
-        return self.record_command(f"the plugin runs {' '.join(arguments[:2])}", outcome)
+        return self.record_command(f"the plugin runs {' '.join(arguments[:2])}", outcome, environment)
 
     def plugin_folder_copied(self, source: Path) -> Path:
         copy = self.app.config.root / "plugin-sources" / source.name

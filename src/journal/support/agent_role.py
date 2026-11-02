@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 class AgentRole(StrEnum):
-    """What an agent is: the environment's main agent, a worker the main agent sent, a verifier the journal sent to judge a dismissal, a reviewer the journal sent to review a worker's work, or a subagent an agent started in its own session; a plugin's program has a role of its own at the console alone."""
+    """What an agent is: the environment's main agent, a worker the main agent sent, a verifier the journal sent to judge a dismissal, a reviewer the journal sent to review a worker's work, a subagent an agent started in its own session, a plugin's program, or the supervisor."""
 
     MAIN = "main"
     WORKER = "worker"
@@ -10,6 +10,7 @@ class AgentRole(StrEnum):
     REVIEWER = "reviewer"
     SUBAGENT = "subagent"
     PLUGIN = "plugin"
+    SUPERVISOR = "supervisor"
 
     def is_helper(self) -> bool:
         return self in AgentRole.helpers()

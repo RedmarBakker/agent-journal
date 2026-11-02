@@ -1,9 +1,11 @@
 from journal.console.support.outcome import Outcome
 from journal.support.agent_role import AgentRole
 from journal.support.agent_token import AgentToken
+from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_agents import StoryAgents
 from journal.support.actor import Actor
+from journal.support.plugin_tokens import PluginTokens
 from journal.support.listener_queue import ListenerQueue
 from journal.features.workers.support.owned_task_line import owned_task_line
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -51,6 +53,7 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         self.main_session_id = MAIN_SESSION
         self.session_environments = {MAIN_SESSION: "main"}
         self.agent = Caller.agent("main", MAIN_SESSION, program.name)
+        self.supervisor_credential = ""
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
@@ -79,7 +82,8 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
 
     @property
     def agents(self) -> StoryAgents:
-        return StoryAgents(self.scope, self.fixture)
+        plugin_token = self.app.container.get(PluginTokens).build(SUPERVISOR_ACTOR) if self.scope == AgentRole.SUPERVISOR else ""
+        return StoryAgents(self.scope, self.fixture, self.supervisor_credential, plugin_token)
 
     def posted_hook(self, agent: StoryAgent, type_name: str, **body) -> tuple[int, object]:
         return self.session_posted_hook(self.hook_session_of(agent), self.headers_of(agent), type_name, {**self.hook_fields_of(agent), **body})
@@ -222,7 +226,17 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         return {AgentRole.MAIN: lambda: variables, AgentRole.WORKER: lambda: {**variables, ACTOR: f"worker:{agent.number}"}, AgentRole.SUBAGENT: lambda: {**variables, "JOURNAL_SESSION": self.main_session()}}[agent.role]()
 
     def caller_of(self, agent: StoryAgent) -> Caller:
-        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: lambda: Caller.worker("main", agent.number, self.session_of(agent), self.provider), AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session()), AgentRole.REVIEWER: lambda: Caller.reviewer("main", agent.number, self.session_of(agent), self.provider), AgentRole.VERIFIER: lambda: Caller.verifier("main", agent.number, self.session_of(agent), self.provider)}[agent.role]()
+        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: lambda: Caller.worker("main", agent.number, self.session_of(agent), self.provider), AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session()), AgentRole.REVIEWER: lambda: Caller.reviewer("main", agent.number, self.session_of(agent), self.provider), AgentRole.VERIFIER: lambda: Caller.verifier("main", agent.number, self.session_of(agent), self.provider), AgentRole.SUPERVISOR: lambda: self.supervisor_caller(agent)}[agent.role]()
+
+    def supervisor_caller(self, agent: StoryAgent) -> Caller:
+        authority = self.app.container.get(SupervisorAuthority)
+        principal = authority.authenticate(agent.grant_credential)
+        grant = authority.revalidate(principal)
+        if principal.actor != agent.actor or agent.actor != Actor.plugin(SUPERVISOR_ACTOR):
+            raise AssertionError("the supervisor story subject must carry its version 1 plugin actor and grant credential")
+        plan = self.app.container.get(Plans).global_matching(id=grant["plan_id"])[0]
+        environment = self.app.container.get(Environments).global_matching(id=plan.environment_id)[0]
+        return Caller.plugin(environment.name, agent.actor.id)
 
     def checker_session(self, rows: type, number: int) -> str:
         with self.app.container.get(Scope).environment(1):

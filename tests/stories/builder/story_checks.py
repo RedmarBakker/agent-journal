@@ -6,6 +6,7 @@ import time
 from enum import Enum
 
 from journal.engine.nudge import Nudge
+from journal.support.agent_role import AgentRole
 from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
@@ -16,6 +17,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.organization_handoffs import OrganizationHandoffs
 from journal.repositories.reports import Reports
 from journal.repositories.scope import Scope
+from journal.supervisor_authority import SupervisorAuthority
 from journal.support.listener_queue import ListenerQueue
 from journal.support.fault_log import FaultLog
 from journal.repositories.tasks import Tasks
@@ -172,6 +174,10 @@ class StoryChecks:
         assert last == line, f"the last line typed into the agent's terminal is {last!r}, not {line!r}"
 
     def expect_stack(self, agent: StoryAgent, *states: type) -> None:
+        if agent.role == AgentRole.SUPERVISOR:
+            assert not states, "a supervisor plugin has no journal agent stack"
+            self.stack_checked_at = len(self.path)
+            return
         session = self.session_of(agent)
         environment = self.session_environments.get(session, "main")
         stack = self.session_stack(session)
@@ -615,6 +621,12 @@ class StoryChecks:
 
     def expect_plan(self, n: int, **fields) -> None:
         self.expect_row("plans", n, fields)
+
+    def expect_supervisor_grant_covers_plan(self, agent: StoryAgent, plan_id: int) -> None:
+        authority = self.app.container.get(SupervisorAuthority)
+        principal = authority.authenticate(agent.grant_credential)
+        grant = authority.revalidate(principal)
+        assert grant["plan_id"] == plan_id, f"the supervisor grant covers plan {grant['plan_id']}, not plan {plan_id}"
 
     def expect_row_absent(self, table: str, n: int) -> None:
         rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]
