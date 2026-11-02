@@ -12,6 +12,7 @@ import pytest
 from journal.support.actor import Actor
 from tests.lab.real.approval_receipt import ApprovalReceipt
 from tests.lab.real.batch_approval import BatchApproval
+from tests.lab.real.cap_event_server import CapEventServer
 from tests.lab.real.isolated_journal import IsolatedJournal
 from tests.lab.real.isolation_evidence import IsolationEvidence
 from tests.lab.real.manifest import Manifest
@@ -123,7 +124,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
     def driver_factory(run_id, spec):
         driver = SimpleNamespace(run_id=run_id, spec=spec, process=None, session_id=f"session-{run_id}", caps=None,
-                                 deadline=None, timer=None)
+                                 deadline=None, timer=None, event_server=None, cap_token="stand-in-cap-token")
         drivers[run_id] = driver
         factory_calls.append(run_id)
 
@@ -142,7 +143,8 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
                     "host": "127.0.0.1", "port": port, "authenticated": True}
 
         def start_plan(_scenario, paths, caps):
-            caps.start_session(driver.session_id)
+            if not driver.spec.get("simulate_live_hook_cap"):
+                caps.start_session(driver.session_id)
             child = journal.child_environment(
                 paths,
                 {"PATH": os.environ.get("PATH", ""), "LANG": "C", "ANTHROPIC_API_KEY": "must-not-pass",
@@ -152,7 +154,10 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
             )
             log = paths["private_home"] / "cli-observation.json"
             child.update({"LOG_PATH": str(log), "RUN_ID": driver.run_id, "PROVIDER": driver.spec["provider"],
-                         "SCENARIO": driver.spec["scenario"]})
+                         "SCENARIO": driver.spec["scenario"], "SESSION_ID": driver.session_id})
+            driver.event_server = CapEventServer(caps, driver.cap_token)
+            cap_port = driver.event_server.start()
+            child.update({"CAP_URL": f"http://127.0.0.1:{cap_port}/event", "CAP_TOKEN": driver.cap_token})
             driver.process = subprocess.Popen([sys.executable, str(stand_in)], cwd=paths["project"], env=child,
                                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                               stderr=subprocess.DEVNULL, start_new_session=True)
@@ -171,6 +176,10 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
         def wait_for_end_or_cap(current_run_id, _plan_id, caps):
             try:
+                if driver.spec.get("simulate_live_hook_cap"):
+                    driver.process.wait(timeout=2)
+                    caps.finish_session(driver.session_id)
+                    return "capped" if caps.read().get("cap_reached") else "completed"
                 caps.reserve_request(f"turn-{current_run_id}-1", driver.session_id, input_tokens=1, output_tokens=1)
                 caps.settle_request(f"turn-{current_run_id}-1", None, "completed")
                 if driver.spec.get("simulate_turn_cap"):
@@ -188,6 +197,9 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         def stop(owner, _reason):
             if driver.timer:
                 driver.timer.cancel()
+            if driver.event_server:
+                driver.event_server.close()
+                driver.event_server = None
             if owner == run_id and driver.process and driver.process.poll() is None:
                 os.killpg(driver.process.pid, 15)
                 driver.process.wait(timeout=2)
@@ -328,6 +340,40 @@ def test_run_real_stops_and_records_a_run_that_exceeds_its_turn_or_time_cap(tmp_
     assert record.terminal_reason == "capped"
     ledger = json.loads((batch_folder / "run-caps.json").read_text(encoding="utf-8"))
     assert ledger["cap_reached"]["cap"] == ("run_turns" if cap == "turn" else "run_wall_minutes")
+    assert ledger["runs"]["run-1"]["finished"] is True
+
+
+def test_run_real_records_a_cap_reached_by_live_stand_in_cli_hooks(tmp_path, monkeypatch):
+    stand_in = tmp_path / "stand-in-provider.py"
+    stand_in.write_text(
+        "import json, os\n"
+        "from pathlib import Path\n"
+        "from urllib.request import Request, urlopen\n"
+        "def post(event, firing):\n"
+        " body=json.dumps({'event':event,'session_id':os.environ['SESSION_ID'],'firing':firing}).encode()\n"
+        " request=Request(os.environ['CAP_URL'],data=body,headers={'X-Run-Cap-Token':os.environ['CAP_TOKEN']})\n"
+        " with urlopen(request,timeout=2): pass\n"
+        "post('SessionStart','session-start')\n"
+        "Path(os.environ['LOG_PATH']).write_text('session started')\n"
+        "post('UserPromptSubmit','turn-1')\n"
+        "post('UserPromptSubmit','turn-2')\n",
+        encoding="utf-8",
+    )
+    manifest = batch_manifest(run_count=1, run_limit_changes={"run_turns": 1})
+    data = manifest.data()
+    data["runs"][0]["simulate_live_hook_cap"] = True
+    manifest = Manifest.build(manifest.batch_id, data)
+    service, batch_folder, _factory_calls, _profiles = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    _approval, receipt = owner_receipt(manifest)
+
+    assert run_real_cli(service, batch_folder, manifest, receipt) == 1
+
+    root = batch_folder / "roots" / manifest.batch_id / "run-1"
+    record = RunRecordStore().read(root / "evidence" / "run-record.json")
+    ledger = json.loads((batch_folder / "run-caps.json").read_text(encoding="utf-8"))
+    assert (root / "home" / "cli-observation.json").read_text(encoding="utf-8") == "session started"
+    assert record.terminal_reason == "capped"
+    assert ledger["cap_reached"]["cap"] == "run_turns"
     assert ledger["runs"]["run-1"]["finished"] is True
 
 
