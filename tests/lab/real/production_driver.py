@@ -29,7 +29,7 @@ class ProductionDriver:
         self.run_id, self.spec, self.manifest = run_id, dict(spec), manifest
         self.checkout, self.organization_repository = checkout, organization_repository
         self.watchdog = watchdog
-        self.journal_port, self.rig_port, self.cap_port, self.proxy_port = self.ports(4)
+        self.journal_port, self.rig_port, self.cap_port, self.proxy_port, self.share_port = self.ports(5)
         virtual_environment = Path(sys.prefix).resolve()
         read_paths = [Path(sys.executable).resolve().parent, virtual_environment,
                       (virtual_environment / "bin").resolve(), Path(sys.base_prefix).resolve()]
@@ -38,8 +38,11 @@ class ProductionDriver:
         for program in (str(spec["provider"]), "rig"):
             if executable := self.executable(program):
                 read_paths.append(executable.parent)
-        self.boundary = ProductionBoundary(run_id, (self.journal_port, self.rig_port, self.cap_port, self.proxy_port),
-                                           tuple(dict.fromkeys(read_paths)))
+        self.boundary = ProductionBoundary(
+            run_id,
+            (self.journal_port, self.rig_port, self.cap_port, self.proxy_port, self.share_port),
+            tuple(dict.fromkeys(read_paths)),
+        )
         self.processes: list[subprocess.Popen] = []
         self.journal_process: subprocess.Popen | None = None
         self.event_server: CapEventServer | None = None
@@ -70,6 +73,7 @@ class ProductionDriver:
                 raise ValueError("run cap event server did not bind its reserved port")
             self.proxy = ProviderProxy(self.proxy_port)
             self.proxy.start()
+        self.install_share_port(paths)
         self.env = self.child_environment(paths, port)
         stdout = (paths["runtime"] / "journal.stdout.log").open("ab")
         stderr = (paths["runtime"] / "journal.stderr.log").open("ab")
@@ -79,6 +83,14 @@ class ProductionDriver:
         self.journal_process = process
         self.processes.append(process)
         return self.wait_identity(process, paths, run_id, launch_id, challenge, port)
+
+    def install_share_port(self, paths: Mapping[str, Path]) -> None:
+        home = paths["project"] / ".journal"
+        home.mkdir(mode=0o700, exist_ok=True)
+        sharing = home / "sharing.json"
+        with sharing.open("x", encoding="utf-8") as record:
+            json.dump({"port": self.share_port}, record)
+        sharing.chmod(0o600)
 
     def load_scenario(self, scenario: str, paths: Mapping[str, Path]) -> dict[str, object]:
         expected = paths["project"] / "tests" / "lab" / "scenarios" / str(self.spec["business_type"]) / f"{scenario}.toml"
