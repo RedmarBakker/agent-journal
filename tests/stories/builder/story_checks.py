@@ -174,7 +174,7 @@ class StoryChecks:
         agents = [row for row in get_answer(self.app, "/journal/agents", headers)[1]["rows"] if row.get("session") == session]
         row = max(agents, key=lambda agent_row: agent_row["id"]) if agents else None
         stack = self.api_row("agents", row["id"], headers)["stack"] if row else []
-        state_data = next((item["data"] for item in stack if item["state"] == state.name), {})
+        state_data = next((item["data"] for item in stack if item["name"] == state.name), {})
         actual = {name: state_data.get(name) for name in fields}
         assert actual == fields, f"the {state.name} floor of {session} in {environment} holds {actual}, not {fields}"
 
