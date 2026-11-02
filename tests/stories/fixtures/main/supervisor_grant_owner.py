@@ -1,7 +1,7 @@
 from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.main.new_session import NewSession
 from tests.stories.fixtures.supervisor.supervisor_grant_fixture import SupervisorGrantFixture
-from tests.test_supervisor_authority import admitted, enrollment, seeded
+from tests.test_supervisor_authority import admitted, seeded
 
 
 class SupervisorGrantOwner(SupervisorGrantFixture):
@@ -16,9 +16,9 @@ class SupervisorGrantOwner(SupervisorGrantFixture):
         self.supervisor_credential = token
         self.supervisor_authority = fixture.authority
         self.supervisor_owner = fixture.owner
+        self.supervisor_seed = fixture
         self.plans.first = fixture.plan.row_id
         self.grants.first = grant["grant_id"]
-        self.grants.replacement = enrollment(fixture, "bounded_write")
         story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
         result = story.user_opens_in(fixture.owner_environment.name, "/journal/supervisor/records?period=today")
         result.expect_viewer_passed()

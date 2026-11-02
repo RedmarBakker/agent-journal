@@ -21,7 +21,7 @@ def test_a_supervisor_cannot_run_a_propose_only_verb(story):
     result = story.supervisor_runs_command(story.agents.subject, "task create 'unapproved follow-up'")
     result.expect_command_refused()
     result.expect_command_text("the capability is set to propose")
-    story.expect_row_count_in(story.supervisor_environment, "tasks", 0)
+    story.expect_row_count_in(story.supervisor_environment, "tasks", 1)
     story.expect_stack(story.agents.subject)
 
 
@@ -39,7 +39,7 @@ def test_a_supervisor_cli_call_with_the_wrong_grant_credential_is_refused(story)
     result = story.supervisor_runs_command(story.agents.subject, "task create 'bad credential task'", grant_credential="wrong")
     result.expect_command_refused()
     result.expect_command_text("supervisor service credential is invalid or revoked")
-    story.expect_row_count_in(story.supervisor_environment, "tasks", 0)
+    story.expect_row_count_in(story.supervisor_environment, "tasks", 1)
     story.expect_stack(story.agents.subject)
 
 

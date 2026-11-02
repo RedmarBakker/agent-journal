@@ -6,6 +6,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
+from tests.test_supervisor_authority import enrollment
 
 
 class SupervisorGrantCliRole(SupervisorGrantOwner):
@@ -14,6 +15,7 @@ class SupervisorGrantCliRole(SupervisorGrantOwner):
     parent = SupervisorGrantOwner
 
     def steps(self, story) -> None:
+        self.grants.replacement = enrollment(self.supervisor_seed, "bounded_write")
         grant, token = self.supervisor_authority.change(self.supervisor_owner, {
             "protocol_version": 1,
             "grant_id": story.grants.first,

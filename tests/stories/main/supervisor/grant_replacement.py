@@ -1,10 +1,10 @@
 from journal.features.tasks.states.ready import Ready
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
+from tests.stories.fixtures.main.supervisor_grant_replacement_owner import SupervisorGrantReplacementOwner
 
 
-@story(SupervisorGrantOwner, subject=AgentRole.MAIN)
+@story(SupervisorGrantReplacementOwner, subject=AgentRole.MAIN)
 def test_an_owner_replaces_a_grant_and_a_stale_revision_is_refused(story):
     replacement = {
         "protocol_version": 1,
@@ -18,4 +18,5 @@ def test_an_owner_replaces_a_grant_and_a_stale_revision_is_refused(story):
 
     result = story.user_presses("/_supervisor/v1/enrollment/change", replacement)
     result.expect_viewer_refused("grant changed")
+    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
