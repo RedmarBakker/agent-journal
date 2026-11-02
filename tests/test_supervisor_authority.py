@@ -278,7 +278,7 @@ def test_scope_is_derived_from_credential(app, authority_fixture):
 
 def test_current_phase_and_reserved_gates_are_rechecked(app, authority_fixture, monkeypatch):
     fixture = authority_fixture
-    _, _, principal = admitted(fixture)
+    _, token, principal = admitted(fixture)
     scope = app.container.get(Scope)
     plans = app.container.get(Plans)
     tasks, phases, links = app.container.get(Tasks), app.container.get(Phases), app.container.get(Links)
@@ -319,6 +319,11 @@ def test_current_phase_and_reserved_gates_are_rechecked(app, authority_fixture, 
     with pytest.raises(SupervisorFailure) as phase_changed:
         fixture.authority.revalidate(principal)
     assert phase_changed.value.status == 403 and grant_rows(entries) == before_revalidation, "an admitted credential cannot cross into a different current phase or append evidence"
+    request = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/admit", {
+        "Content-Type": "application/json", "X-Journal-Supervisor-Token": token,
+    }), b"{}", app.container.get(Identity), app.container.get(SupervisorRequestAuth))
+    answer = app.container.get(Router).route(request)
+    assert answer.status == 403 and answer.body == {"error": str(phase_changed.value)}, "a matched credential's revalidation refusal reaches the caller instead of the controller fallback"
 
     next_grant, _, next_principal = admitted(fixture)
     assert app.container.get(SettingRows).option(TasksOptions.AUTO) is True, "the hard checkpoint gate is exercised while ordinary task auto mode is on"

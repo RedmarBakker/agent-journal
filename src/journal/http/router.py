@@ -51,6 +51,8 @@ class Router:
         return Response.refused(f"{request.method} {request.path} streams, so it is no page") if isinstance(answer, StreamResponse) else answer
 
     def route(self, request: Request) -> Answer:
+        if request.auth_error is not None:
+            return request.auth_error
         if self.projects.is_other(request.headers):
             return self.projects.refusal(request.headers)
         self.presence.record(request.headers)
