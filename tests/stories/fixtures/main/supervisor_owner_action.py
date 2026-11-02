@@ -15,6 +15,8 @@ def prepare_owner_action(story):
     with context["scope"].environment(fixture.owner_environment.row_id):
         before = context["maintenance"].plans.find(plan_id).priorities
     environment_name = fixture.owner_environment.name
+    operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
+    request = maintenance_request(context, [operation], "owner-undo-action")
     opened = story.user_opens_in(environment_name, "/journal/plans")
     opened.expect_viewer_passed()
     return {
@@ -23,18 +25,17 @@ def prepare_owner_action(story):
         "environment_name": environment_name,
         "before": before,
         "owner_actor": fixture.owner,
+        "request": request,
     }
 
 
 def seed_owner_action(story, setup, tier):
     story.monkeypatch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
     context, plan_id = setup["context"], setup["plan_id"]
-    operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
-    request = maintenance_request(context, [operation], "owner-undo-action")
     story.viewer_status, story.viewer_answer = posted(
         story.app,
         "/_supervisor/v1/apply",
-        request,
+        setup["request"],
         {"X-Journal-Supervisor-Token": context["token"]},
     )
     story.observed(f"the supervisor records a {tier} plan priorities action", None, None)

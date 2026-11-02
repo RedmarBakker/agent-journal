@@ -76,14 +76,14 @@ class SupervisorController:
             return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
         return Response(200, {"count": len(self.records.pending_proposals())}, {"Cache-Control": "no-store"})
 
-    def accept_proposal(self, request: Request) -> Response:
-        return self._proposal_decision(request, self.maintenance.accept_proposal)
+    def accept_proposal_by_id(self, request: Request) -> Response:
+        return self._proposal_decision_by_id(request, self.maintenance.accept_proposal)
 
-    def decline_proposal(self, request: Request) -> Response:
-        return self._proposal_decision(request, self.maintenance.decline_proposal)
+    def decline_proposal_by_id(self, request: Request) -> Response:
+        return self._proposal_decision_by_id(request, self.maintenance.decline_proposal)
 
     @staticmethod
-    def _proposal_decision(request: Request, operation: Callable[[Any, int], dict[str, Any]]) -> Response:
+    def _proposal_decision_by_id(request: Request, operation: Callable[[Any, int], dict[str, Any]]) -> Response:
         try:
             answer = operation(request.actor, request.number("id"))
         except SupervisorFailure as denied:
@@ -146,10 +146,10 @@ class SupervisorController:
         return Response.json(answer)
 
     def accept_proposal(self, request: Request) -> Response:
-        return self._proposal_decision(request, self.maintenance.accept_owner_proposal)
+        return self._owner_proposal_decision(request, self.maintenance.accept_owner_proposal)
 
     def decline_proposal(self, request: Request) -> Response:
-        return self._proposal_decision(request, self.maintenance.decline_owner_proposal)
+        return self._owner_proposal_decision(request, self.maintenance.decline_owner_proposal)
 
     def save_feedback(self, request: Request) -> Response:
         try:
@@ -173,7 +173,7 @@ class SupervisorController:
         return Response(200, answer, {"Cache-Control": "no-store"})
 
     @staticmethod
-    def _proposal_decision(request: Request, decide: Callable[[int, int, Actor], dict[str, Any]]) -> Response:
+    def _owner_proposal_decision(request: Request, decide: Callable[[int, int, Actor], dict[str, Any]]) -> Response:
         try:
             answer = decide(request.number("id"), request.number("receipt_id"), request.actor)
         except SupervisorFailure as denied:

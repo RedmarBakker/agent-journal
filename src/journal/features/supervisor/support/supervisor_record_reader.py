@@ -85,7 +85,7 @@ class SupervisorRecordReader:
         self._result(result)
         history_cursor = self._history_cursor(before)
         with self.scope.environment(PROJECT):
-            runs, receipts = self._records(plan_ids)
+            runs, receipts, _, _, _, _ = self._records(plan_ids)
             history_rows = self._history_rows(plan_ids, runs, receipts, area, tier_number, result)
             history, next_before = self._history_page(history_rows, history_cursor)
         return {"areas": sorted(AREAS), "history": history, "next_before": next_before}
@@ -93,14 +93,14 @@ class SupervisorRecordReader:
     def history_row(self, row_id: int) -> dict[str, Any] | None:
         plan_ids = self._plan_ids("")
         with self.scope.environment(PROJECT):
-            runs, receipts = self._records(plan_ids)
+            runs, receipts, _, _, _, _ = self._records(plan_ids)
             return next((row for row in self._history_source_rows(plan_ids, runs, receipts)
                          if row["id"] == row_id), None)
 
     def pending_proposals(self) -> list[dict[str, Any]]:
         plan_ids = self._plan_ids("")
         with self.scope.environment(PROJECT):
-            runs, receipts = self._records(plan_ids)
+            runs, receipts, _, _, _, _ = self._records(plan_ids)
             decisions = self._proposal_decisions(plan_ids)
         plans_by_run = {
             (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")): run
@@ -131,7 +131,7 @@ class SupervisorRecordReader:
         plan_ids = self._plan_ids("")
         plan_titles = {plan_id: self.plans.find(plan_id).title for plan_id in plan_ids}
         with self.scope.environment(PROJECT):
-            runs, receipts = self._records(plan_ids)
+            runs, receipts, _, _, _, _ = self._records(plan_ids)
             rows = self._history_source_rows(plan_ids, runs, receipts)
             outcomes = [report for receipt in receipts for report in self._entries(
                 "SupervisorActionReport", receipt_id=receipt.row_id, report_kind="outcome",
