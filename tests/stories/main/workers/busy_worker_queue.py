@@ -16,7 +16,7 @@ def test_tasks_queued_for_a_busy_worker_are_delegated_at_once_shown_on_its_row_a
     story.expect_task(help_page, delegated=True)
     result = story.agent_runs(story.agents.subject, f"worker queue {worker} {docs}")
     result.expect_command_refused()
-    result.expect_command_text(f"task {docs} is queued for worker {worker}: remove it with `journal worker drain {worker}`")
+    result.expect_command_text(f"task {docs} is already queued to worker {worker}")
     result = story.user_opens(f"/journal/workers?ids={worker}")
     result.expect_viewer_part(("rows", 0, "task", "task_id"), story.tasks.briefed)
     result.expect_viewer_part(("rows", 0, "queue"), [{"id": docs, "title": "the docs"}, {"id": help_page, "title": "the help page"}])
