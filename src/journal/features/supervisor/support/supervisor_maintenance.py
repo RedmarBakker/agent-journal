@@ -242,8 +242,11 @@ class SupervisorMaintenance:
             if not rows:
                 raise SupervisorFailure(403, "supervisor receipt is not available")
             receipt = rows[0]
-            if receipt.data.get("scope", {}).get("tenant_id") != f"owner:{owner_id}":
+            scope = receipt.data.get("scope", {})
+            if scope.get("tenant_id") != f"owner:{owner_id}":
                 raise SupervisorFailure(403, "supervisor receipt is not available")
+            if receipt.data.get("status") != "applied":
+                raise SupervisorFailure(409, "only an applied tier 1 action can be undone")
             grant_entry = self.authority._latest_entry(receipt.data.get("grant_id", ""))
             if not grant_entry:
                 raise SupervisorFailure(403, "supervisor receipt is not available")
@@ -254,9 +257,11 @@ class SupervisorMaintenance:
             prior = self.action_reports._reports(receipt, "owner_undo")
             if prior:
                 return self.action_reports.project(receipt)
-            if receipt.data.get("status") != "applied" or not self._tier_one(receipt):
+            commands = receipt.data.get("command_receipts")
+            if not self._tier_one(receipt, commands):
                 raise SupervisorFailure(409, "only a tier 1 action can be undone")
-            grant, context = self.authority.action_context(self.authority._principal(grant))
+            principal = self.authority._principal(grant)
+            grant, context = self.authority.action_context(principal)
             baseline = self.entries.supervisor_records(
                 "SupervisorActionReport", last=1, receipt_id=receipt.row_id, report_kind="baseline",
             )
@@ -266,82 +271,97 @@ class SupervisorMaintenance:
             changes = receipt.data.get("changes", [])
             if not changes:
                 raise SupervisorFailure(409, "the receipt has no reversible changes")
-            diagnostic_changes = []
             for change in changes:
                 field = change.get("field")
                 if field in {"priorities", "interval"}:
                     if self._rollback_conflict(grant, context, change):
                         raise SupervisorFailure(409, "the action rows changed since this receipt")
-                elif field in {"plan_link", "phase_link"}:
-                    diagnostic_changes.append(change)
-                else:
+                elif field not in {"plan_link", "phase_link"}:
                     raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
             with self.scope.environment(plan.environment_id):
-                diagnostic_tasks = self._diagnostic_tasks(context, diagnostic_changes, plan_id)
+                created_rows = self._created_rows(commands)
                 results = [
                     self._rollback_change(grant, context, change, actor)
                     for change in changes if change["field"] in {"priorities", "interval"}
                 ]
-                for task in diagnostic_tasks:
-                    links = self.links.row_links([task])
-                    for link in links:
-                        self.links.delete(link, actor)
-                        results.append({"ref": {"table": "links", "id": link.row_id},
-                                        "field": "created_row", "status": "removed"})
-                    self.tasks.delete(task, actor)
-                    results.append({"ref": {"table": "tasks", "id": task.row_id},
-                                    "field": "created_row", "status": "removed"})
+                for ref, row in sorted(created_rows.values(), key=lambda item: item[0]["table"] == "tasks"):
+                    self._delete_created_row(ref, row, actor)
+                    results.append({"ref": ref, "field": "created_row", "status": "removed"})
             self.action_reports.record_owner_undo(receipt, plan_id, actor, results)
         return self.action_reports.project(receipt)
 
     def owner_undo_counts(self, plan_id: int, actor: Actor) -> dict[str, Any]:
         return self.action_reports.owner_undo_counts(plan_id, actor)
 
-    def _tier_one(self, receipt: Entry) -> bool:
+    def _tier_one(self, receipt: Entry, commands: object) -> bool:
         operations = receipt.data.get("proposed_operations")
-        if not isinstance(operations, list) or not operations:
+        if (not isinstance(operations, list) or not operations
+                or not isinstance(commands, list) or len(commands) != len(operations)):
             return False
-        for operation in operations:
-            if not isinstance(operation, dict) or operation.get("kind") not in OPERATION_COMMANDS:
+        for operation, command in zip(operations, commands):
+            if (not isinstance(operation, dict) or operation.get("kind") not in OPERATION_COMMANDS
+                    or not isinstance(command, dict) or command.get("status") != "applied"
+                    or command.get("readback_verification") != "verified"):
                 return False
             area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
-            if CAPABILITY_CATALOGUE[area][noun][verb] != "tier 1":
+            if (command.get("command") != f"{noun} {verb}" or command.get("area") != area
+                    or CAPABILITY_CATALOGUE[area][noun][verb] != "tier 1"):
                 return False
         return True
 
-    def _diagnostic_tasks(self, context: dict[str, Any], changes: list[dict[str, Any]],
-                          plan_id: int) -> list[Task]:
-        grouped: dict[int, dict[str, dict[str, Any]]] = {}
-        for change in changes:
-            ref = change.get("ref", {})
-            if ref.get("table") != "tasks" or type(ref.get("id")) is not int:
-                raise SupervisorFailure(409, "the action rows changed since this receipt")
-            grouped.setdefault(ref["id"], {})[change["field"]] = change
-        tasks = []
-        for task_id, fields in grouped.items():
-            task_rows = self.tasks.selected(self.tasks.query().filter(id=task_id).limit(1))
-            if len(fields) != 2 or set(fields) != {"plan_link", "phase_link"} or not task_rows:
-                raise SupervisorFailure(409, "the action rows changed since this receipt")
-            task = task_rows[0]
-            plan_change, phase_change = fields["plan_link"], fields["phase_link"]
-            if (plan_change["after_value"] != plan_id
-                    or phase_change["after_value"] != context["current_phase"]["phase_id"]
-                    or task.creator != Actor.plugin(SUPERVISOR_ACTOR)
-                    or task.updater != task.creator or task.updated_at != task.created_at):
-                raise SupervisorFailure(409, "the action rows changed since this receipt")
-            expected = {
-                (Ref.build(task), Ref.build(context["plan"])),
-                (Ref.build(task), Ref.build(context["current_phase_row"])),
+    def _created_rows(self, commands: list[dict[str, Any]]) -> dict[tuple[str, int], tuple[dict[str, Any], Any]]:
+        created = {}
+        for command in commands:
+            changes = command.get("rows_changed")
+            if not isinstance(changes, list) or not changes:
+                raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
+            for change in changes:
+                if not isinstance(change, dict) or not isinstance(change.get("ref"), dict):
+                    raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
+                ref = change["ref"]
+                if change.get("event") == "updated":
+                    after = change.get("after")
+                    row = self._command_row(ref)
+                    if not isinstance(after, dict) or row is None or not self.command_changes.matches(row, after):
+                        raise SupervisorFailure(409, "the action rows changed since this receipt")
+                    continue
+                if change.get("event") != "created" or ref.get("table") not in {"links", "tasks"}:
+                    raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
+                row = self._command_row(ref)
+                after = change.get("after")
+                key = (ref["table"], ref["id"]) if type(ref.get("id")) is int else None
+                if (row is None or not isinstance(after, dict) or key is None
+                        or key in created or not self.command_changes.matches(row, after)):
+                    raise SupervisorFailure(409, "the action rows changed since this receipt")
+                created[key] = (ref, row)
+        tasks = [row for (table, _), (_, row) in created.items() if table == "tasks"]
+        for task in tasks:
+            expected_links = {
+                ref["id"] for (table, _), (ref, link) in created.items()
+                if table == "links" and (link.source == Ref.build(task) or link.target == Ref.build(task))
             }
-            links = self.links.row_links([task])
-            actual = {(link.source, link.target) for link in links}
-            if (actual != expected or len(links) != 2
-                    or any(link.creator != Actor.plugin(SUPERVISOR_ACTOR)
-                           or link.updater != link.creator or link.updated_at != link.created_at
-                           for link in links)):
+            current_links = [link for link in self.links.row_links([task])
+                             if link.source == Ref.build(task) or link.target == Ref.build(task)]
+            if {link.row_id for link in current_links} != expected_links:
                 raise SupervisorFailure(409, "the action rows changed since this receipt")
-            tasks.append(task)
-        return tasks
+        return created
+
+    def _command_row(self, ref: dict[str, Any]):
+        repositories = {
+            "plans": self.plans, "checks": self.checks, "tasks": self.tasks, "links": self.links,
+        }
+        repository = repositories.get(ref.get("table"))
+        if repository is None or type(ref.get("id")) is not int:
+            return None
+        rows = repository.selected(repository.query().filter(id=ref["id"]).limit(1))
+        return rows[0] if rows else None
+
+    def _delete_created_row(self, ref: dict[str, Any], row: Any, actor: Actor) -> None:
+        repositories = {"links": self.links, "tasks": self.tasks}
+        repository = repositories.get(ref["table"])
+        if repository is None:
+            raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
+        repository.delete(row, actor)
 
     def _rollback_change(self, grant: dict[str, Any], context: dict[str, Any], change: dict[str, Any],
                          actor: Actor) -> dict[str, Any]:

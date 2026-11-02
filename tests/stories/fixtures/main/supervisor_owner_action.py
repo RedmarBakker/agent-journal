@@ -25,6 +25,7 @@ def seed_owner_action(story, tier):
     )
     story.observed("the supervisor records a plan priorities action", None, None)
     story.last_step.expect_viewer_passed()
+    story.last_step.expect_viewer_part(("data", "command_receipts", 0, "tier"), tier)
     return {
         "plan_id": plan_id,
         "receipt_id": story.viewer_answer["receipt_id"],

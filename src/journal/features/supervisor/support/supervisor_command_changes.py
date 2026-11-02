@@ -67,6 +67,11 @@ class SupervisorCommandChanges(Listener[ModelEvent]):
         }
 
     @classmethod
+    def matches(cls, model: Model, expected: dict[str, Any]) -> bool:
+        values = cls._values(model)
+        return values is not None and all(values.get(name) == value for name, value in expected.items())
+
+    @classmethod
     def _changed_values(cls, model: Model | None, names: tuple[str, ...]) -> dict[str, Any] | None:
         if model is None:
             return None
