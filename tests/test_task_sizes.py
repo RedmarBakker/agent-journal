@@ -2,15 +2,15 @@ import pytest
 
 from journal.features.estimates.estimates_options import EstimatesOptions
 from journal.features.estimates.support.task_size_scale import TaskSizeScale
-from journal.models.agent import Agent
+from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
-from journal.repositories.links import Links
 from journal.repositories.agents import Agents
+from journal.repositories.links import Links
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
@@ -72,12 +72,12 @@ def test_task_size_writer_keeps_baseline_revisions_and_authority_in_history(app)
 
 def test_an_active_plan_agent_linked_from_another_environment_may_set_task_sizes(app):
     with app.container.get(Scope).environment(1):
-        plans, agents, sizes = (app.container.get(kind) for kind in (Plans, Agents, TaskSizes))
+        plans, agents, sizes, plan_agents = (app.container.get(kind) for kind in (Plans, Agents, TaskSizes, PlanAgents))
         actor = Actor.user(1)
         plan = plans.save(Plan(title="the release", state=PlanState.STARTED), actor)
-        with app.container.get(Scope).environment(2):
-            plan_agent = agents.save(Agent(environment_id=2, session="plan-session", state="working"), Actor.system())
-        plans.agent_linked(plan, plan_agent, Actor.system())
+        environment, plan_agent = plan_agents.prepared_for_start(plan, plan.environment_id, Actor.system())
+        with app.container.get(Scope).environment(environment.row_id):
+            agents.save(plan_agent.with_session("plan-session", plan_agent.provider), Actor.system())
 
         sizes.builder(plan, Actor.agent("plan-session"))
 
