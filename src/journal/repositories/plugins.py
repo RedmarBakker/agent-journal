@@ -1,31 +1,15 @@
 from typing import Callable
 
-from journal.db.connection import Connection
-from journal.events.bus import Bus
 from journal.models.plugin import Plugin
 from journal.support.actor import Actor
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.repositories.repository import Repository
-from journal.support.time_source import TimeSource
 
 
 class Plugins(Repository[Plugin]):
     """The plugins installed in the project, one row each, the same for every environment."""
 
     model = Plugin
-
-    def __init__(self, connection: Connection, bus: Bus, time_source: TimeSource) -> None:
-        super().__init__(connection, bus, time_source)
-        self.live: list[Plugin] | None = None
-
-    def save(self, row: Plugin, actor: Actor) -> Plugin:
-        saved = super().save(row, actor)
-        self.live = None
-        return saved
-
-    def delete(self, row: Plugin, actor: Actor) -> None:
-        super().delete(row, actor)
-        self.live = None
 
     def lookup(self, name: str) -> Plugin:
         return self.single(name=name)
@@ -43,9 +27,7 @@ class Plugins(Repository[Plugin]):
         return [plugin for plugin in self.all() if plugin.linked or not plugin.release]
 
     def enabled(self) -> list[Plugin]:
-        if self.live is None:
-            self.live = [p for p in self.all() if p.enabled]
-        return list(self.live)
+        return [plugin for plugin in self.all() if plugin.enabled]
 
 
     def enabled_plugins(self, name: str) -> list[Plugin]:

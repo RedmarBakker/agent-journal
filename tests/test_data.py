@@ -141,6 +141,42 @@ def test_a_queued_model_listener_only_runs_after_its_write_commits(connection, t
     assert heard.events == [event], "the listener receives the committed event once"
 
 
+def test_a_plugin_list_read_started_before_install_does_not_hide_the_new_plugin(connection, bus, monkeypatch):
+    from journal.helpers.main_role import MainRole
+    from journal.models.plugin import Plugin
+    from journal.models.support.plugin_manifest import PluginManifest
+    from journal.repositories.plugins import Plugins
+    from journal.support.agent_role import AgentRole
+
+    plugins = Plugins(connection, bus, TimeSource())
+    plugins.save(Plugin(name="asks", manifest=PluginManifest(events=("file_edited",), reaches={"file_edited": ("workers",)})), USER)
+    read, release = threading.Event(), threading.Event()
+    loaded, results = plugins.all, []
+
+    def paused_read():
+        rows = loaded()
+        if threading.current_thread() is reader:
+            read.set()
+            assert release.wait(5), "the plugin installation did not release the earlier read"
+        return rows
+
+    monkeypatch.setattr(plugins, "all", paused_read)
+    reader = threading.Thread(target=lambda: results.extend(plugins.enabled()))
+    reader.start()
+    try:
+        assert read.wait(5), "the earlier plugin list was not read"
+        plugins.save(Plugin(name="silent", manifest=PluginManifest(events=("file_edited",))), USER)
+    finally:
+        release.set()
+        reader.join(5)
+    assert not reader.is_alive(), "the earlier plugin read did not finish"
+    assert [plugin.name for plugin in results] == ["asks"]
+    assert [plugin.name for plugin in plugins.enabled()] == ["asks", "silent"], "an old recipient-list read cannot hide a plugin installed before the next delivery"
+    main = plugins.hearers("file_edited", AGENT, lambda manifest: MainRole.reaches_plugin(manifest, "file_edited"))
+    worker = plugins.hearers("file_edited", AGENT, lambda manifest: manifest.reaches_role("file_edited", AgentRole.WORKER))
+    assert [plugin.name for plugin in main] == ["asks", "silent"] and [plugin.name for plugin in worker] == ["asks"], "each editor role reaches the current recipient list"
+
+
 def test_a_refusing_listener_stops_the_write(connection, bus, scope):
     bus.listen(Creating, SayNo())
     tasks = tasks_of(connection, bus, scope)
