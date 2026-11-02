@@ -18,7 +18,9 @@ trap 'rm -rf "$BUILD_CONTEXT"' EXIT HUP INT TERM
 git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     src/supervisor_bridge \
     docs/supervisor/v1/Dockerfile.gateway \
-    docs/supervisor/v1/journal-supervisor-bridge > "$BUILD_CONTEXT/runtime.tar"
+    docs/supervisor/v1/journal-supervisor-bridge \
+    docs/supervisor/v1/journal-supervisor-environment.sh \
+    docs/supervisor/v1/journal-supervisor-reconcile > "$BUILD_CONTEXT/runtime.tar"
 tar -xf "$BUILD_CONTEXT/runtime.tar" -C "$BUILD_CONTEXT"
 rm "$BUILD_CONTEXT/runtime.tar"
 

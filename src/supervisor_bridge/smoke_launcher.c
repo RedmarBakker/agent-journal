@@ -33,6 +33,8 @@
 #define WRITER_SETUP "docs/supervisor/v1/live-smoke-setup.py"
 #define GATEWAY_DOCKERFILE "docs/supervisor/v1/Dockerfile.gateway"
 #define GATEWAY_ENTRYPOINT "docs/supervisor/v1/gateway-entrypoint.sh"
+#define GATEWAY_ENVIRONMENT "docs/supervisor/v1/journal-supervisor-environment.sh"
+#define GATEWAY_RECONCILE "docs/supervisor/v1/journal-supervisor-reconcile"
 #define SUPERVISOR_HANDLER "src/journal/http/supervisor_handler.py"
 #define JOURNAL_CONFIG "src/journal/config.py"
 #define JOURNAL_SERVER "src/journal/http/server.py"
@@ -215,6 +217,9 @@ static int valid_profile(const char *config_path) {
         "apt-get install -y --no-install-recommends python3",
         "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge",
         "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge",
+        "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment",
+        "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile",
+        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile",
     };
     static const char *required_writer_package[] = {
         "npm install -g @openai/codex@0.165.0",
@@ -249,9 +254,23 @@ static int valid_profile(const char *config_path) {
         "\"cap_add\": [\"SETUID\", \"SETGID\", \"SETPCAP\"]",
     };
     static const char *required_gateway_entrypoint[] = {
+        ". /opt/journal-supervisor/bin/journal-supervisor-environment",
+        "exec node dist/index.js gateway run --port",
+    };
+    static const char *required_gateway_environment[] = {
+        "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)",
+        "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)",
+        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)",
         "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')",
-        "JOURNAL_SUPERVISOR_TLS_CA_FILE",
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE",
+        ": \"${JOURNAL_SUPERVISOR_ADMISSION_URL:?private journal admission URL is not configured}\"",
+        ": \"${JOURNAL_SUPERVISOR_TLS_CA_FILE:?private journal TLS CA file is not configured}\"",
+        "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport",
+        "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json",
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH",
+    };
+    static const char *required_gateway_reconcile[] = {
+        ". /opt/journal-supervisor/bin/journal-supervisor-environment",
+        "exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile",
     };
     static const char *required_supervisor_handler[] = {
         "SERVICE_PATHS",
@@ -311,7 +330,8 @@ static int valid_profile(const char *config_path) {
     };
     char *compose = NULL, *writer_package = NULL, *writer_entrypoint = NULL, *writer_setup = NULL;
     char *login_command = NULL, *ready_command = NULL;
-    char *gateway_package = NULL, *gateway_entrypoint = NULL, *supervisor_handler = NULL;
+    char *gateway_package = NULL, *gateway_entrypoint = NULL, *gateway_environment = NULL, *gateway_reconcile = NULL;
+    char *supervisor_handler = NULL;
     char *firewall = NULL, *journal_config = NULL, *journal_server = NULL, *config = NULL;
     if (read_file(COMPOSE_FILE, &compose, 131072) != 0
         || read_file(WRITER_DOCKERFILE, &writer_package, 131072) != 0
@@ -321,6 +341,8 @@ static int valid_profile(const char *config_path) {
         || read_file(WRITER_SETUP, &writer_setup, 131072) != 0
         || read_file(GATEWAY_DOCKERFILE, &gateway_package, 131072) != 0
         || read_file(GATEWAY_ENTRYPOINT, &gateway_entrypoint, 131072) != 0
+        || read_file(GATEWAY_ENVIRONMENT, &gateway_environment, 131072) != 0
+        || read_file(GATEWAY_RECONCILE, &gateway_reconcile, 131072) != 0
         || read_file(SUPERVISOR_HANDLER, &supervisor_handler, 131072) != 0
         || read_file(FIREWALL_POLICY, &firewall, 131072) != 0
         || read_file(JOURNAL_CONFIG, &journal_config, 131072) != 0
@@ -334,6 +356,8 @@ static int valid_profile(const char *config_path) {
         free(writer_setup);
         free(gateway_package);
         free(gateway_entrypoint);
+        free(gateway_environment);
+        free(gateway_reconcile);
         free(supervisor_handler);
         free(firewall);
         free(journal_config);
@@ -350,6 +374,8 @@ static int valid_profile(const char *config_path) {
         && contains_all(compose, required_gateway_health, sizeof(required_gateway_health) / sizeof(required_gateway_health[0]))
         && contains_all(compose, required_writer_volume, sizeof(required_writer_volume) / sizeof(required_writer_volume[0]))
         && contains_all(gateway_entrypoint, required_gateway_entrypoint, sizeof(required_gateway_entrypoint) / sizeof(required_gateway_entrypoint[0]))
+        && contains_all(gateway_environment, required_gateway_environment, sizeof(required_gateway_environment) / sizeof(required_gateway_environment[0]))
+        && contains_all(gateway_reconcile, required_gateway_reconcile, sizeof(required_gateway_reconcile) / sizeof(required_gateway_reconcile[0]))
         && contains_all(supervisor_handler, required_supervisor_handler, sizeof(required_supervisor_handler) / sizeof(required_supervisor_handler[0]))
         && contains_all(firewall, required_firewall, sizeof(required_firewall) / sizeof(required_firewall[0]))
         && contains_all(journal_config, required_listener_config, sizeof(required_listener_config) / sizeof(required_listener_config[0]))
@@ -379,6 +405,8 @@ static int valid_profile(const char *config_path) {
     free(writer_setup);
     free(gateway_package);
     free(gateway_entrypoint);
+    free(gateway_environment);
+    free(gateway_reconcile);
     free(supervisor_handler);
     free(firewall);
     free(journal_config);
@@ -619,7 +647,7 @@ static pid_t start_compose(ComposeAction action, const char *secret_directory, c
     char *reconcile_arguments[] = {
         "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T", "gateway",
-        "/opt/journal-supervisor/bin/journal-supervisor-bridge", "reconcile", NULL,
+        "/opt/journal-supervisor/bin/journal-supervisor-reconcile", NULL,
     };
     char **arguments = up_arguments;
     if (action == COMPOSE_DOWN) arguments = down_arguments;

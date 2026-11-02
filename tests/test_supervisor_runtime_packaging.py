@@ -729,6 +729,8 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "src/supervisor_bridge" in script
     assert "docs/supervisor/v1/Dockerfile.gateway" in script
     assert "docs/supervisor/v1/journal-supervisor-bridge" in script
+    assert "docs/supervisor/v1/journal-supervisor-environment.sh" in script
+    assert "docs/supervisor/v1/journal-supervisor-reconcile" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
     assert '--tag "agent-journal-supervisor-gateway:$PROFILE_REVISION"' in script
     assert "--pull" in script
@@ -736,9 +738,32 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "apt-get install -y --no-install-recommends python3" in dockerfile
     assert "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge" in dockerfile
     assert "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge" in dockerfile
+    assert "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment" in dockerfile
+    assert "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile" in dockerfile
+    assert "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile" in dockerfile
     assert "ENV PYTHONPATH=/opt/journal-supervisor/lib" in dockerfile
     assert "USER 1000:1000" in dockerfile
     assert 'exec python3 -m supervisor_bridge "$@"' in wrapper
+
+
+def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
+    entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
+    environment = (PROFILE / "journal-supervisor-environment.sh").read_text()
+    reconcile = (PROFILE / "journal-supervisor-reconcile").read_text()
+
+    environment_script = ". /opt/journal-supervisor/bin/journal-supervisor-environment"
+    assert environment_script in entrypoint
+    assert environment_script in reconcile
+    assert "exec node dist/index.js gateway run --port" in entrypoint
+    assert "exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in reconcile
+    assert "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)" in environment
+    assert "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)" in environment
+    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in environment
+    assert "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport" in environment
+    assert "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json" in environment
+    assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH" in environment
+    assert "--env" not in reconcile
+    assert "JOURNAL_SUPERVISOR_STATE_DIR=" not in entrypoint and "JOURNAL_SUPERVISOR_STATE_DIR=" not in reconcile
 
 
 def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
@@ -784,14 +809,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["secret_values_in_fixture"] is False
 
     entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
-    assert "cat /run/secrets/supervisor_anthropic_api_key" in entrypoint
-    assert "cat /run/secrets/openclaw_hook_token" in entrypoint
-    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in entrypoint
-    assert "JOURNAL_SUPERVISOR_ADMISSION_URL" in entrypoint
-    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN" in entrypoint
-    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" in entrypoint
-    assert 'OPENCLAW_GATEWAY_TOKEN=$(node -e \'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))\')' in entrypoint
-    assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN" in entrypoint
+    assert ". /opt/journal-supervisor/bin/journal-supervisor-environment" in entrypoint
     assert "JOURNAL_SUPERVISOR_CREDENTIAL" not in entrypoint
     launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
     assert '"writer_supervisor_tls_cert"' in launcher
@@ -855,7 +873,7 @@ def test_gateway_listener_is_tls_and_policy_fixture_denies_owner_ports():
     authentication = (ROOT / "src" / "journal" / "http" / "support" / "supervisor_authentication.py").read_text()
     assert "if path in SERVICE_PATHS" in authentication
     assert "self.authority.authenticate(token)" in authentication
-    assert "TLS_CA_FILE" in (PROFILE / "gateway-entrypoint.sh").read_text()
+    assert "TLS_CA_FILE" in (PROFILE / "journal-supervisor-environment.sh").read_text()
     transport = (ROOT / "src" / "supervisor_bridge" / "transport.py").read_text()
     client = (ROOT / "src" / "supervisor_bridge" / "__main__.py").read_text()
     assert "HTTPSHandler(context=ssl.create_default_context(cafile=ca_file))" in transport

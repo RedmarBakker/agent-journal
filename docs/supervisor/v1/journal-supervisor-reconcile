@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+. /opt/journal-supervisor/bin/journal-supervisor-environment
+
+exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile

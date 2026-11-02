@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[index], "up") == 0) is_up = 1;
         if (strcmp(argv[index], "/usr/local/bin/supervisor-codex-ready") == 0) is_ready = 1;
         if (strstr(argv[index], "healthz")) is_gateway_health = 1;
-        if (strcmp(argv[index], "/opt/journal-supervisor/bin/journal-supervisor-bridge") == 0 && index + 1 < argc && strcmp(argv[index + 1], "reconcile") == 0) is_reconcile = 1;
+        if (strcmp(argv[index], "/opt/journal-supervisor/bin/journal-supervisor-reconcile") == 0 && index == argc - 1) is_reconcile = 1;
     }
     if (is_ready) {
         snprintf(path, sizeof(path), "%s/codex-login-missing", home);
@@ -200,6 +200,9 @@ def staging_root(tmp_path):
         "RUN apt-get install -y --no-install-recommends python3\n"
         "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge\n"
         "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge\n"
+        "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment\n"
+        "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile\n"
+        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile\n"
     )
     config = work / "docs/supervisor/v1/openclaw-live.json"
     config.write_text(json.dumps({
@@ -222,10 +225,26 @@ def staging_root(tmp_path):
         (secrets / name).write_text(f"staged-{name}\n")
         (secrets / name).chmod(0o600)
     (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text(
-        "JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
+        "#!/bin/sh\nset -eu\n"
+        ". /opt/journal-supervisor/bin/journal-supervisor-environment\n"
+        "exec node dist/index.js gateway run --port \"${OPENCLAW_GATEWAY_PORT:-18789}\"\n"
+    )
+    (work / "docs/supervisor/v1/journal-supervisor-environment.sh").write_text(
+        "#!/bin/sh\nset -eu\n"
+        "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)\n"
+        "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)\n"
+        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)\n"
         "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')\n"
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL "
-        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE\n"
+        ": \"${JOURNAL_SUPERVISOR_ADMISSION_URL:?private journal admission URL is not configured}\"\n"
+        ": \"${JOURNAL_SUPERVISOR_TLS_CA_FILE:?private journal TLS CA file is not configured}\"\n"
+        "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport\n"
+        "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json\n"
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH\n"
+    )
+    (work / "docs/supervisor/v1/journal-supervisor-reconcile").write_text(
+        "#!/bin/sh\nset -eu\n"
+        ". /opt/journal-supervisor/bin/journal-supervisor-environment\n"
+        "exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile\n"
     )
     handler = work / "src/journal/http/supervisor_handler.py"
     handler.parent.mkdir(parents=True)
@@ -292,17 +311,19 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert "gateway" in calls[up_indexes[0]] and "writer" in calls[up_indexes[0]]
     assert "--no-build --pull never" in calls[up_indexes[0]]
     health_indexes = [index for index, call in enumerate(calls) if "healthz" in call]
-    reconcile_indexes = [index for index, call in enumerate(calls) if "/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call]
+    reconcile_indexes = [index for index, call in enumerate(calls) if "/opt/journal-supervisor/bin/journal-supervisor-reconcile" in call]
     down_indexes = [index for index, call in enumerate(calls) if "down --timeout 3 --remove-orphans" in call]
     assert len(reconcile_indexes) == 1
     assert health_indexes and calls[health_indexes[-1]].find("gateway") >= 0
     assert down_indexes and up_indexes[0] < health_indexes[-1] < reconcile_indexes[0] < down_indexes[0]
     assert (home / "gateway-ready").exists()
     assert (home / "gateway-health-passed").exists()
-    assert "exec -T gateway /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in calls[reconcile_indexes[0]]
+    assert "exec -T gateway /opt/journal-supervisor/bin/journal-supervisor-reconcile" in calls[reconcile_indexes[0]]
     assert "-v" not in calls[down_indexes[0]]
     assert key.decode().strip() not in " ".join(calls)
+    assert "staged-" not in " ".join(calls)
     assert "--message" not in " ".join(calls) and "--session" not in " ".join(calls)
+    assert all(argument != "--env" for call in calls for argument in call.split())
 
 
 def test_launcher_rejects_arguments_and_non_anthropic_input_without_starting_runtime(compiled_launcher, tmp_path):
@@ -396,7 +417,7 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
     assert result.returncode == 124
     calls = (home / "docker-calls").read_text().splitlines()
     assert any("healthz" in call for call in calls)
-    assert not any("/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call for call in calls)
+    assert not any("/opt/journal-supervisor/bin/journal-supervisor-reconcile" in call for call in calls)
     assert "down --timeout 3 --remove-orphans" in calls[-1]
     assert not Path((home / "secret-path").read_text()).exists()
     assert "#define SMOKE_RUN_SECONDS 300" in SOURCE.read_text()
@@ -413,7 +434,7 @@ def test_launcher_counts_reconcile_time_against_the_smoke_deadline(compiled_laun
     assert result.returncode == 124
     calls = (home / "docker-calls").read_text().splitlines()
     assert any("healthz" in call for call in calls)
-    assert any("/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call for call in calls)
+    assert any("/opt/journal-supervisor/bin/journal-supervisor-reconcile" in call for call in calls)
     assert not (gateway_state / "journal-supervisor-transport/bridge-state.json").exists()
 
 
