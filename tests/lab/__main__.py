@@ -9,6 +9,7 @@ from tests.lab.batch import Batch
 from tests.lab.batch_runner import BatchRunner
 from tests.lab.drift_report import DriftReport
 from tests.lab.first_trial_simulation import run as run_first_trial_simulation
+from tests.lab.real.run_real_command import execute as run_real_batch
 
 
 VERBS = ("organizations", "simulate", "simulate-first-trials", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
@@ -31,6 +32,11 @@ def parser() -> argparse.ArgumentParser:
         if name == "simulate-first-trials":
             subcommand.add_argument("--source-commit", required=True, help="full source commit pin for the simulator inputs")
             subcommand.add_argument("--lab-home", type=Path, required=True, help="private artifact directory outside source checkouts")
+        if name == "run-real":
+            subcommand.add_argument("--manifest", type=Path, required=True, help="approved pinned batch manifest")
+            subcommand.add_argument("--receipt", type=Path, required=True, help="owner-signed batch approval receipt")
+            subcommand.add_argument("--owner-key", type=Path, required=True, help="private owner signing-key file")
+            subcommand.add_argument("--runner", required=True, help="real-run adapter factory as module:function")
     return command
 
 
@@ -45,6 +51,21 @@ def main(arguments: list[str]) -> int:
             print(str(failure), file=sys.stderr)
             return 2
         return 0
+    if options.verb == "run-real":
+        try:
+            status, records = run_real_batch(
+                options.manifest,
+                options.receipt,
+                options.owner_key,
+                options.runner,
+                runner,
+            )
+        except (ImportError, OSError, ValueError, TypeError, KeyError, AttributeError) as failure:
+            print(str(failure), file=sys.stderr)
+            return 2
+        for path in records:
+            print(path)
+        return status
     if options.verb not in {"simulate", "regression"}:
         print(f"{options.verb} is not available; no real run or other action was started", file=sys.stderr)
         return 2
@@ -79,7 +100,7 @@ def runner(specification: str):
         raise ValueError("runner must be named module:function")
     selected = getattr(importlib.import_module(module_name), function_name)
     if not callable(selected):
-        raise ValueError("the selected simulation adapter is not callable")
+        raise ValueError("the selected adapter is not callable")
     return selected
 
 

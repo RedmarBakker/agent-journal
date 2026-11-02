@@ -36,6 +36,29 @@ def manifest(run=None, batch=None):
         "run_caps": {"run-1": selected}, "batch_caps": resources, "providers": [{"provider": "claude", "model": "sonnet"}]})
 
 
+def subscription_run_caps(**changes):
+    return {"state": "selected", "run_wall_minutes": 30, "run_sessions": 8, "run_concurrent_sessions": 3,
+            "turns_per_session": 8, "run_turns": 32, **changes}
+
+
+def subscription_batch_caps(**changes):
+    return {"state": "selected", "batch_run_count": 1, "batch_session_count": 8, "batch_turns": 32,
+            "batch_run_minutes": 30, "batch_elapsed_minutes": 45, "approval_valid_until": 300, **changes}
+
+
+def subscription_manifest(run=None, batch=None):
+    selected = run or subscription_run_caps()
+    resources = batch or subscription_batch_caps()
+    return Manifest.build("subscription-batch-1", {
+        "billing_mode": "subscription", "run_ids": ["run-1"],
+        "runs": [{"id": "run-1", "scenario": "tracker_outage", "business_type": "fleet_operator",
+                  "design_digest": "design", "seed": 17, "journal_commit": "j1", "organization_commit": "o1",
+                  "provider": "claude", "model": "opus", "metric_schema_version": "business-plan-v1"}],
+        "run_caps": {"run-1": selected}, "batch_caps": resources,
+        "providers": [{"provider": "claude", "authentication": "signed_in_cli", "models": ["opus", "sonnet"]}],
+    })
+
+
 def watchdog(stop_result=True):
     armed, stopped = [], []
     return SimpleNamespace(armed=armed, stopped=stopped,
@@ -87,6 +110,58 @@ def test_real_caps_reserve_each_request_once_and_keep_unknown_cost_separate_from
     with pytest.raises(ValueError, match="reserved maximum charge"):
         resumed.reserve_request("request-1", "session-1", 20, 10, maximum_usd="0.25")
     assert len(watcher.armed) == 2, "the independent batch and run deadlines are armed"
+
+
+def test_subscription_billed_run_is_admitted_on_resource_caps_without_dollar_caps(tmp_path):
+    batch = subscription_manifest()
+    data = batch.data()
+    BatchApproval.validate_caps(data)
+    BatchApproval.validate_providers(data)
+    approvals = BatchApproval(1, b"owner signing key with at least thirty two bytes")
+    receipt = approvals.approve(batch, Actor.user(1), 200, 100)
+    approvals.verify(batch, receipt, "run-1", Actor.user(1), 150)
+    watcher = watchdog()
+    caps = RunCaps("run-1", data["run_caps"]["run-1"], data["batch_caps"], tmp_path / "subscription.json",
+                   watcher, clock=lambda: 100, billing_mode="subscription")
+
+    caps.reserve_run()
+    caps.arm_watchdog()
+    caps.start_session("session-1")
+    with pytest.raises(ValueError, match="does not accept request dollar caps"):
+        caps.reserve_request("request-with-dollar-cap", "session-1", maximum_usd="0.25")
+    request = caps.reserve_request("request-1", "session-1", input_tokens=20, output_tokens=10)
+    caps.settle_request("request-1", None, "completed")
+
+    assert request["reserved_usd"] is None
+    assert caps.read()["runs"]["run-1"]["billing_mode"] == "subscription"
+    assert "max_usd" not in data["run_caps"]["run-1"] and "batch_max_usd" not in data["batch_caps"]
+
+
+@pytest.mark.parametrize(("run_change", "batch_change", "missing_cap"), (
+    ({"run_wall_minutes": None}, {}, "run_wall_minutes"),
+    ({"run_sessions": None}, {}, "run_sessions"),
+    ({"run_concurrent_sessions": None}, {}, "run_concurrent_sessions"),
+    ({"turns_per_session": None}, {}, "turns_per_session"),
+    ({"run_turns": None}, {}, "run_turns"),
+    ({}, {"batch_run_count": None}, "batch_run_count"),
+    ({}, {"batch_session_count": None}, "batch_session_count"),
+    ({}, {"batch_turns": None}, "batch_turns"),
+    ({}, {"batch_run_minutes": None}, "batch_run_minutes"),
+    ({}, {"batch_elapsed_minutes": None}, "batch_elapsed_minutes"),
+))
+def test_subscription_billed_run_refuses_missing_resource_caps(tmp_path, run_change, batch_change, missing_cap):
+    run = subscription_run_caps(**run_change)
+    batch = subscription_batch_caps(**batch_change)
+
+    with pytest.raises(ValueError, match=missing_cap):
+        RunCaps("run-1", run, batch, tmp_path / "missing-cap.json", billing_mode="subscription")
+
+
+def test_subscription_billing_rejects_dollar_caps_instead_of_accepting_them_as_limits():
+    batch = subscription_manifest(run=subscription_run_caps(max_usd="1.00"))
+
+    with pytest.raises(ValueError, match="does not use USD caps"):
+        BatchApproval.validate_caps(batch.data())
 
 
 def test_real_caps_stop_at_turn_limits_and_quarantine_when_the_owned_stop_is_unconfirmed(tmp_path):
@@ -264,14 +339,24 @@ def test_isolated_child_environment_drops_parent_journal_identity_and_uses_priva
     (source / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     shim = isolated.install_journal_shim(paths, 9100)
     assert shim.is_file() and shim.stat().st_mode & 0o777 == 0o700
+    claude_profile = tmp_path / "claude-profile"
+    codex_profile = tmp_path / "codex-profile"
+    claude_profile.mkdir()
+    codex_profile.mkdir()
+    paths["provider_config_claude"] = claude_profile
+    paths["provider_config_codex"] = codex_profile
     host = {"LANG": "en_US.UTF-8", "JOURNAL_ROOT": "/parent", "JOURNAL_PORT": "8420",
-            ACTOR_TOKEN: "parent-token", "CLAUDE_CODE_SESSION": "parent-session", "ANTHROPIC_API_KEY": "provider-key"}
-    env = isolated.child_environment(paths, host, ("LANG", "JOURNAL_ROOT", "JOURNAL_PORT", ACTOR_TOKEN),
-                                     ("CLAUDE_CODE_SESSION",), ("ANTHROPIC_API_KEY",), 9100,
+            ACTOR_TOKEN: "parent-token", "CLAUDE_CODE_SESSION": "parent-session", "ANTHROPIC_API_KEY": "provider-key",
+            "OPENAI_API_KEY": "provider-key", "AWS_ACCESS_KEY_ID": "provider-key"}
+    env = isolated.child_environment(paths, host, ("LANG", "JOURNAL_ROOT", "JOURNAL_PORT", ACTOR_TOKEN,
+                                                   "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AWS_ACCESS_KEY_ID"),
+                                     ("CLAUDE_CODE_SESSION",), 9100,
                                      "worker:1", "fresh-token", ())
     assert env["JOURNAL_ROOT"] == str(paths["project"].resolve()) and env["JOURNAL_PORT"] == "9100"
     assert env[ACTOR_TOKEN] == "fresh-token" and env["HOME"] == str(paths["private_home"].resolve())
-    assert "CLAUDE_CODE_SESSION" not in env and env["ANTHROPIC_API_KEY"] == "provider-key"
+    assert "CLAUDE_CODE_SESSION" not in env and "ANTHROPIC_API_KEY" not in env
+    assert "OPENAI_API_KEY" not in env and "AWS_ACCESS_KEY_ID" not in env
+    assert env["CLAUDE_CONFIG_DIR"] == str(claude_profile.resolve()) and env["CODEX_HOME"] == str(codex_profile.resolve())
 
 
 def test_isolated_environment_drops_shell_and_python_startup_injection_even_when_allowlisted(tmp_path):
@@ -287,9 +372,27 @@ def test_isolated_environment_drops_shell_and_python_startup_injection_even_when
     (source / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     isolated.install_journal_shim(paths, 9100)
     host = {"BASH_ENV": "/tmp/host.sh", "PYTHONPATH": "/tmp/host-python", "LANG": "C"}
-    env = isolated.child_environment(paths, host, ("BASH_ENV", "PYTHONPATH", "LANG"), (), (), 9100,
+    env = isolated.child_environment(paths, host, ("BASH_ENV", "PYTHONPATH", "LANG"), (), 9100,
                                      "worker:1", "fresh-token", ())
     assert env["LANG"] == "C" and "BASH_ENV" not in env and "PYTHONPATH" not in env
+
+
+@pytest.mark.parametrize(("provider", "config_variable"), (("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")))
+def test_subscription_run_passes_its_signed_in_cli_profile_to_the_isolation_boundary(tmp_path, monkeypatch, provider, config_variable):
+    lab_home = (tmp_path / "lab").resolve()
+    lab_home.mkdir(mode=0o700)
+    lab_home.chmod(0o700)
+    checkout = (tmp_path / "checkout").resolve()
+    checkout.mkdir()
+    profile = tmp_path / f"{provider}-profile"
+    profile.mkdir()
+    monkeypatch.setenv(config_variable, str(profile))
+    isolated = IsolatedJournal(lab_home, checkout)
+
+    paths = isolated.prepare("batch-1", "run-1", boundary_for("run-1"), provider)
+
+    assert paths[f"provider_config_{provider}"] == profile.resolve()
+    assert paths[f"provider_config_{provider}"].is_dir(), "only the selected CLI profile path is handed to the isolated driver"
 
 
 def test_real_run_records_setup_failure_without_starting_a_provider_when_isolation_is_unproven(tmp_path):

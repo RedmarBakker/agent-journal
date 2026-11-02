@@ -16,19 +16,20 @@ BATCH_LIMITS = ("batch_run_count", "batch_session_count", "batch_turns", "batch_
 BATCH_CAPS = frozenset((*BATCH_LIMITS, "batch_max_usd"))
 INTEGER_LIMITS = frozenset({"run_sessions", "run_concurrent_sessions", "turns_per_session", "run_turns",
                             "batch_run_count", "batch_session_count", "batch_turns"})
+BILLING_MODES = frozenset({"metered", "subscription"})
 
 
 class RunCaps:
     """Validate owner-selected caps and persist each run, session and request reservation before launch."""
 
     def __init__(self, run_id: str, run_caps: Mapping[str, object], batch_caps: Mapping[str, object], ledger: Path,
-                 watchdog: object | None = None, clock: Callable[[], float] = time.monotonic) -> None:
+                 watchdog: object | None = None, clock: Callable[[], float] = time.monotonic,
+                 billing_mode: str = "metered") -> None:
         self.run_id, self.run_caps, self.batch_caps = run_id, dict(run_caps), dict(batch_caps)
-        self.ledger, self.watchdog, self.clock = ledger, watchdog, clock
+        self.ledger, self.watchdog, self.clock, self.billing_mode = ledger, watchdog, clock, billing_mode
         self.validate(self.run_caps, RUN_LIMITS)
         self.validate(self.batch_caps, BATCH_LIMITS)
-        self.validate_cost_cap(self.run_caps)
-        self.validate_cost_cap(self.batch_caps, "batch_max_usd")
+        self.validate_billing_caps(self.run_caps, self.batch_caps, self.billing_mode)
         token_limits = self.run_caps.get("request_token_limits", {})
         if not isinstance(token_limits, Mapping):
             raise ValueError("request token limits must be a table")
@@ -64,6 +65,19 @@ class RunCaps:
                 raise ValueError("unknown billable cost must be explicitly accepted in the manifest")
             return
         cls.money(value, field)
+
+    @classmethod
+    def validate_billing_caps(cls, run_caps: Mapping[str, object], batch_caps: Mapping[str, object],
+                              billing_mode: str) -> None:
+        if not isinstance(billing_mode, str) or billing_mode not in BILLING_MODES:
+            raise ValueError("billing mode must be metered or subscription")
+        if billing_mode == "subscription":
+            cost_fields = {"max_usd", "batch_max_usd", "unknown_cost_accepted", "not_applicable_reason"}
+            if cost_fields.intersection(run_caps) or cost_fields.intersection(batch_caps):
+                raise ValueError("subscription billing does not use USD caps or cost acceptance fields")
+            return
+        cls.validate_cost_cap(run_caps)
+        cls.validate_cost_cap(batch_caps, "batch_max_usd")
 
     @staticmethod
     def decimal_amount(value: object, field: str) -> Decimal:
@@ -106,6 +120,8 @@ class RunCaps:
             if current:
                 if current["run_cap"] != self.run_caps:
                     raise ValueError("a replayed run id cannot change its reserved caps")
+                if current.get("billing_mode", "metered") != self.billing_mode:
+                    raise ValueError("a replayed run id cannot change its billing mode")
                 if current.get("finished") or current.get("cap_reached"):
                     raise ValueError("a finished or capped run id cannot be admitted again")
                 return current
@@ -123,7 +139,8 @@ class RunCaps:
                 raise ValueError("batch run-minute reservation exceeds its cap")
             if total_minutes > self.batch_caps["batch_elapsed_minutes"]:
                 raise ValueError("batch elapsed deadline is shorter than the run reservations")
-            current = {"run_cap": self.run_caps, "sessions": {}, "requests": {}, "watchdog_armed": False,
+            current = {"run_cap": self.run_caps, "billing_mode": self.billing_mode,
+                       "sessions": {}, "requests": {}, "watchdog_armed": False,
                        "deadline": self.clock() + self.run_caps["run_wall_minutes"] * 60}
             runs[self.run_id] = current
             self.write(data)
@@ -274,6 +291,8 @@ class RunCaps:
                         maximum_usd: object | None = None) -> dict[str, object]:
         if not isinstance(request_id, str) or not request_id or not isinstance(session_id, str) or not session_id or type(input_tokens) is not int or type(output_tokens) is not int or input_tokens < 0 or output_tokens < 0:
             raise ValueError("a request needs an identity and non-negative token counts")
+        if self.billing_mode == "subscription" and maximum_usd is not None:
+            raise ValueError("subscription billing does not accept request dollar caps")
         with self.locked():
             data = self.read()
             current = self.run(data)
@@ -317,6 +336,8 @@ class RunCaps:
     def settle_request(self, request_id: str, actual_usd: object | None, status: str) -> None:
         if status not in {"completed", "failed", "unknown"}:
             raise ValueError("request settlement must be completed, failed or unknown")
+        if self.billing_mode == "subscription" and actual_usd is not None:
+            raise ValueError("subscription billing does not settle dollar charges")
         with self.locked():
             data = self.read()
             request = self.run(data)["requests"].get(request_id)
@@ -350,6 +371,8 @@ class RunCaps:
             self.write(data)
 
     def request_cost(self, value: object | None) -> Decimal | None:
+        if self.billing_mode == "subscription":
+            return None
         run_cap = self.run_caps.get("max_usd", "unknown")
         batch_cap = self.batch_caps.get("batch_max_usd", "unknown")
         hard_caps = tuple(cap for cap in (run_cap, batch_cap) if cap not in ("unknown", "not_applicable"))

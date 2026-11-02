@@ -35,7 +35,8 @@ class RealRun:
             spec = self.run_spec(data, run_id)
             self.approvals.verify(manifest, receipt, run_id, actor, datetime.now(timezone.utc).timestamp())
             self.validate_caps(data, run_id, caps)
-            paths = self.journal.prepare(manifest.batch_id, run_id, boundary)
+            subscription_provider = spec["provider"] if data.get("billing_mode", "metered") == "subscription" else None
+            paths = self.journal.prepare(manifest.batch_id, run_id, boundary, subscription_provider)
             if caps.ledger.resolve().is_relative_to(paths["project"].resolve()):
                 raise ValueError("reservation ledger cannot be writable by the run agent")
             caps.reserve_run()
@@ -146,6 +147,8 @@ class RealRun:
             raise ValueError("manifest must contain this run's selected caps")
         if caps.run_id != run_id or caps.run_caps != run_caps[run_id] or caps.batch_caps != batch_caps:
             raise ValueError("run caps do not match the approved manifest")
+        if caps.billing_mode != data.get("billing_mode", "metered"):
+            raise ValueError("run billing mode does not match the approved manifest")
 
     @staticmethod
     def snapshot_port(snapshot: object, spec: Mapping[str, object]) -> int:

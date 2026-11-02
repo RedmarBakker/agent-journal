@@ -767,12 +767,14 @@ def test_lab_home_inside_a_checkout_is_refused_before_writing(tmp_path):
     assert not unsafe.exists()
 
 
-def test_the_lab_cli_lists_future_verbs_but_refuses_unimplemented_real_actions(capsys):
+def test_the_lab_cli_requires_approved_inputs_before_real_work(capsys):
     from tests.lab.__main__ import VERBS, main
 
-    assert VERBS == ("organizations", "simulate", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
-    assert main(["run-real"]) == 2
-    assert "no real run or other action was started" in capsys.readouterr().err
+    assert VERBS == ("organizations", "simulate", "simulate-first-trials", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
+    with pytest.raises(SystemExit) as failure:
+        main(["run-real"])
+    assert failure.value.code == 2
+    assert "--manifest" in capsys.readouterr().err
 
 
 def test_simulate_command_reads_a_pinned_recipe_and_uses_its_runner(tmp_path, capsys):

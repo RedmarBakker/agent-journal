@@ -31,6 +31,7 @@ class BatchApproval:
         data = manifest.data()
         run_ids = self.run_ids(data)
         self.validate_caps(data)
+        self.validate_providers(data)
         resources = data["batch_caps"]
         approved_until = resources.get("approval_valid_until")
         if type(approved_until) not in (int, float) or not math.isfinite(float(approved_until)) or expires_at > approved_until:
@@ -65,6 +66,8 @@ class BatchApproval:
         if actor.actor_type is not ActorType.USER or actor.id != str(self.owner_id):
             raise ValueError("only the authenticated owner may start an approved real batch")
         data = manifest.data()
+        self.validate_caps(data)
+        self.validate_providers(data)
         run_ids = self.run_ids(data)
         if receipt.batch_id != manifest.batch_id or receipt.manifest_digest != manifest.digest or receipt.run_ids != run_ids:
             raise ValueError("batch approval does not match the immutable manifest")
@@ -105,9 +108,38 @@ class BatchApproval:
             if not isinstance(caps, Mapping):
                 raise ValueError("each run needs its own selected caps")
             RunCaps.validate(caps, RUN_LIMITS)
-            RunCaps.validate_cost_cap(caps)
         RunCaps.validate(batch_caps, BATCH_LIMITS)
-        RunCaps.validate_cost_cap(batch_caps, "batch_max_usd")
+        billing_mode = str(data.get("billing_mode", "metered"))
+        for caps in run_caps.values():
+            RunCaps.validate_billing_caps(caps, batch_caps, billing_mode)
+
+    @staticmethod
+    def validate_providers(data: Mapping[str, object]) -> None:
+        if data.get("billing_mode", "metered") != "subscription":
+            return
+        providers = data.get("providers")
+        if not isinstance(providers, list) or not providers or any(not isinstance(item, Mapping) for item in providers):
+            raise ValueError("subscription batches need signed-in CLI provider declarations")
+        available = {}
+        for item in providers:
+            provider = item.get("provider")
+            models = item.get("models")
+            if not isinstance(provider, str) or provider not in {"claude", "codex"} or item.get("authentication") != "signed_in_cli":
+                raise ValueError("subscription batches require Claude or Codex signed-in CLI authentication")
+            if not isinstance(models, list) or not models or any(not isinstance(model, str) or not model.strip() for model in models):
+                raise ValueError("each signed-in CLI provider needs explicit model pins")
+            if provider in available or len(set(models)) != len(models):
+                raise ValueError("subscription provider and model pins must be unique")
+            available[provider] = set(models)
+        for run in data.get("runs", ()):
+            if not isinstance(run, Mapping):
+                raise ValueError("each subscription run must select a declared signed-in CLI provider")
+            provider = run.get("provider")
+            model = run.get("model")
+            if not isinstance(provider, str) or provider not in available:
+                raise ValueError("each subscription run must select a declared signed-in CLI provider")
+            if not isinstance(model, str) or model not in available[provider]:
+                raise ValueError("each subscription run must select a declared model")
 
     @staticmethod
     def digest(value: object) -> str:

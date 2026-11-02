@@ -18,6 +18,10 @@ BLOCKED_PREFIXES = ("JOURNAL_", "CLAUDE_", "CODEX_", "AGENT_", "DYLD_")
 BLOCKED_NAMES = frozenset({ACTOR, ACTOR_TOKEN, AGENT_SHELL, JOURNAL_ACTIVE, "JOURNAL_LAUNCH", "JOURNAL_SESSION",
                            "JOURNAL_PORT", "JOURNAL_ROOT", "BASH_ENV", "ENV", "PROMPT_COMMAND", "PYTHONPATH",
                            "PYTHONHOME", "LD_PRELOAD"})
+CREDENTIAL_ENVIRONMENT_NAME = re.compile(r"(?:^|_)(?:API_?KEY|ACCESS_?KEY|ACCESS_?TOKEN|AUTH(?:ORIZATION)?|CLIENT_?SECRET|CREDENTIAL|PASSWORD|PRIVATE_?KEY|REFRESH_?TOKEN|SECRET|TOKEN)(?:_|$)", re.I)
+PROVIDER_CONFIG = {"claude": ("CLAUDE_CONFIG_DIR", ".claude"), "codex": ("CODEX_HOME", ".codex")}
+
+
 class IsolatedJournal:
     """Create a fresh private run root and refuse launch until an OS boundary proves its scope."""
 
@@ -31,9 +35,11 @@ class IsolatedJournal:
         self.validate_home()
         return self.lab_home.resolve() / "roots" / batch_id / run_id
 
-    def prepare(self, batch_id: str, run_id: str, boundary: object | None) -> dict[str, Path]:
+    def prepare(self, batch_id: str, run_id: str, boundary: object | None,
+                subscription_provider: str | None = None) -> dict[str, Path]:
         root = self.run_root(batch_id, run_id)
         self.validate_root(root)
+        provider_config = self.signed_in_cli_config(subscription_provider) if subscription_provider else None
         with self.lock():
             if root.exists():
                 raise ValueError("an isolated run root is never reused")
@@ -42,6 +48,8 @@ class IsolatedJournal:
             self.private_directory(root.parent)
             root.mkdir(mode=0o700)
             paths = self.paths(root)
+            if subscription_provider and provider_config:
+                paths[f"provider_config_{subscription_provider}"] = provider_config
             for name in ("project", "private_home", "runtime", "evidence", "tmp", "xdg_config", "xdg_cache", "bin"):
                 paths[name].mkdir(mode=0o700)
             try:
@@ -56,7 +64,7 @@ class IsolatedJournal:
             return paths
 
     def child_environment(self, paths: Mapping[str, Path], host: Mapping[str, str], allowed: tuple[str, ...],
-                          provider_markers: tuple[str, ...], credential_names: tuple[str, ...], port: int,
+                          provider_markers: tuple[str, ...], port: int,
                           actor: str, token: str, path_entries: tuple[Path, ...]) -> dict[str, str]:
         if type(port) is not int or not 1 <= port <= 65535 or not actor or not token:
             raise ValueError("isolated journal endpoints need a valid port and fresh actor credentials")
@@ -64,8 +72,14 @@ class IsolatedJournal:
         if not shim.is_file() or shim.is_symlink() or not os.access(shim, os.X_OK):
             raise ValueError("the isolated journal shim must be installed before building the child environment")
         blocked = set(provider_markers) | BLOCKED_NAMES
-        env = {key: host[key] for key in (*allowed, *credential_names) if key in host and key not in blocked
-               and not key.startswith(BLOCKED_PREFIXES)}
+        env = {key: host[key] for key in allowed if key in host and key not in blocked
+               and not key.startswith(BLOCKED_PREFIXES) and not CREDENTIAL_ENVIRONMENT_NAME.search(key)}
+        for provider, (variable, _) in PROVIDER_CONFIG.items():
+            config = paths.get(f"provider_config_{provider}")
+            if config:
+                if not config.is_absolute() or self.has_symlink(config) or not config.is_dir():
+                    raise ValueError(f"the signed-in {provider} CLI profile must be a real absolute directory")
+                env[variable] = str(config.resolve())
         if any(not entry.is_absolute() for entry in path_entries):
             raise ValueError("isolated PATH cannot include a global journal dispatcher")
         path = (paths["bin"].resolve(), *(entry.resolve() for entry in path_entries))
@@ -87,6 +101,17 @@ class IsolatedJournal:
             JOURNAL_ACTIVE: "1",
         })
         return env
+
+    def signed_in_cli_config(self, provider: str) -> Path:
+        if provider not in PROVIDER_CONFIG:
+            raise ValueError("subscription runs require a signed-in Claude or Codex CLI")
+        variable, folder = PROVIDER_CONFIG[provider]
+        default = Path.home() / folder
+        config = Path(os.environ.get(variable, str(default))).expanduser()
+        if not config.is_absolute() or self.has_symlink(config) or not config.is_dir():
+            raise ValueError(f"the signed-in {provider} CLI profile directory is unavailable")
+        self.outside_protected(config.resolve())
+        return config.resolve()
 
     @staticmethod
     def install_journal_shim(paths: Mapping[str, Path], port: int) -> Path:
