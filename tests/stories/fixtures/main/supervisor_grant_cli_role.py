@@ -94,7 +94,6 @@ class SupervisorGrantMutationAttempt(SupervisorGrantCliRole):
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
-        self.grants.replacement = self.supervisor_replacement
         self.supervisor_entry_id_before = story.app.container.get(Entries).global_last_id()
         self.supervisor_secrets_before = self.supervisor_authority.secrets_store.values()
 
