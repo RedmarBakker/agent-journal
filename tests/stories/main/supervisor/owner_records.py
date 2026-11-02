@@ -82,6 +82,11 @@ def test_a_reader_in_the_environment_reads_filtered_supervisor_counts_and_record
     result.expect_viewer_part(("current", "runs"), 104)
     result.expect_viewer_part(("current", "verified_receipts"), 31)
     result.expect_viewer_part(("previous", "runs"), 0)
+    result = story.user_opens_in(
+        current,
+        f"/journal/supervisor/records?period=last_7_days&plan_id={story.plans.foreign}",
+    )
+    result.expect_viewer_refused("plan")
     story.expect_stack(story.agents.subject, Ready)
 
 
