@@ -34,14 +34,13 @@ def prepare_owner_action(story):
 
 def seed_owner_action(story, setup, tier):
     context, plan_id = setup["context"], setup["plan_id"]
-    with story.monkeypatch.context() as patch:
-        patch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
-        story.viewer_status, story.viewer_answer = posted(
-            story.app,
-            "/_supervisor/v1/apply",
-            setup["request"],
-            {"X-Journal-Supervisor-Token": context["token"]},
-        )
+    story.monkeypatch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
+    story.viewer_status, story.viewer_answer = posted(
+        story.app,
+        "/_supervisor/v1/apply",
+        setup["request"],
+        {"X-Journal-Supervisor-Token": context["token"]},
+    )
     story.observed(f"the supervisor records a {tier} plan priorities action", None, None)
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_part(("data", "command_receipts", 0, "tier"), tier)
