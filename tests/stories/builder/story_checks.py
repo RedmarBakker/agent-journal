@@ -636,6 +636,12 @@ class StoryChecks:
             f"not pause {paused} and revoke {revoked}"
         )
 
+    def expect_supervisor_grant_mutation_wrote_nothing(self) -> None:
+        entries = self.app.container.get(Entries)
+        secrets = self.app.container.get(SupervisorAuthority).secrets_store.values()
+        assert entries.global_last_id() == self.supervisor_entry_id_before, "the refused grant request wrote an Entry"
+        assert secrets == self.supervisor_secrets_before, "the refused grant request changed a stored credential"
+
     def expect_row_absent(self, table: str, n: int) -> None:
         rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]
         assert not rows, f"{table} {n} is still listed through the API: {rows[0]}"

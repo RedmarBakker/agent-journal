@@ -238,6 +238,14 @@ class AgentSteps:
         printed, code = text.rsplit("__journal_exit ", 1)
         return self.record_command(f"the supervisor runs {' '.join(arguments[:2])}", Outcome(int(code.splitlines()[0]), printed))
 
+    def supervisor_calls_grant_route(self, agent: StoryAgent, route: str, body: dict) -> StepResult:
+        caller = self.caller_of(agent)
+        self.viewer_status, self.viewer_answer = posted(
+            self.app, route, body,
+            {**MAIN, "X-Journal-Supervisor-Token": agent.grant_credential},
+        )
+        return self.observed(f"the supervisor calls {route.rsplit('/', 1)[-1]}", None, None, caller.environment)
+
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)
         rig = self.plan_rig_name(self.plans.first)

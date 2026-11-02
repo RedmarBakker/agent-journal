@@ -1,6 +1,7 @@
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
+from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
@@ -81,6 +82,19 @@ class SupervisorGrantCliAlias(StateFixture):
         self.aliases.first = "unsafe"
         result = story.agent_runs(story.agents.main, f"alias add {self.aliases.first} 'task create outside grant'")
         result.expect_command_passed()
+
+    def expected(self, story) -> None:
+        story.expect_stack(story.agents.main, Ready)
+
+
+class SupervisorGrantMutationAttempt(StateFixture):
+    """The supervisor's active grant and stored credential are recorded before a grant mutation request."""
+
+    parent = SupervisorGrantCliRole
+
+    def steps(self, story) -> None:
+        story.supervisor_entry_id_before = story.app.container.get(Entries).global_last_id()
+        story.supervisor_secrets_before = story.supervisor_authority.secrets_store.values()
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)
