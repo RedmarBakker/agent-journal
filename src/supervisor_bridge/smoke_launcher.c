@@ -507,16 +507,36 @@ static int stop_child(pid_t child, int result) {
     return result;
 }
 
-static int wait_for(pid_t child, int seconds, const char *receipt_path) {
+static int stop_child_now(pid_t child, int result) {
+    int status = 0;
+    kill(child, SIGKILL);
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+    return result;
+}
+
+static struct timespec deadline_after(int seconds) {
+    struct timespec deadline;
+    clock_gettime(CLOCK_MONOTONIC, &deadline);
+    deadline.tv_sec += seconds;
+    return deadline;
+}
+
+static bool deadline_passed(struct timespec deadline, struct timespec now) {
+    return now.tv_sec > deadline.tv_sec || (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec);
+}
+
+static struct timespec earlier_deadline(struct timespec first, struct timespec second) {
+    if (first.tv_sec < second.tv_sec || (first.tv_sec == second.tv_sec && first.tv_nsec < second.tv_nsec)) return first;
+    return second;
+}
+
+static int wait_until(pid_t child, struct timespec deadline, const char *receipt_path) {
     struct timespec interval = {.tv_sec = 0, .tv_nsec = 100000000};
-    struct timespec started;
-    clock_gettime(CLOCK_MONOTONIC, &started);
     int status = 0;
     while (!stop_requested) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
-        time_t deadline = started.tv_sec + seconds;
-        if (now.tv_sec > deadline || (now.tv_sec == deadline && now.tv_nsec >= started.tv_nsec)) break;
+        if (deadline_passed(deadline, now)) return stop_child_now(child, 124);
         if (receipt_path && receipt_complete(receipt_path)) return stop_child(child, 0);
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child) {
@@ -527,25 +547,22 @@ static int wait_for(pid_t child, int seconds, const char *receipt_path) {
         if (result < 0 && errno != EINTR) return 127;
         nanosleep(&interval, NULL);
     }
-    return stop_child(child, stop_requested ? 128 : 124);
+    return stop_child_now(child, 128);
 }
 
 typedef enum { COMPOSE_READY, COMPOSE_UP, COMPOSE_DOWN, COMPOSE_GATEWAY_HEALTH, COMPOSE_RECONCILE } ComposeAction;
 
-static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout);
+static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state);
 
-static int wait_for_smoke(pid_t child, int seconds, const char *receipt_path, const char *secret_directory, const char *gateway_state) {
+static int wait_for_smoke(pid_t child, struct timespec deadline, const char *receipt_path, const char *secret_directory, const char *gateway_state) {
     struct timespec interval = {.tv_sec = 0, .tv_nsec = 100000000};
-    struct timespec started;
-    clock_gettime(CLOCK_MONOTONIC, &started);
     time_t last_gateway_probe = 0;
     bool reconcile_started = false;
     int status = 0;
     while (!stop_requested) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
-        time_t deadline = started.tv_sec + seconds;
-        if (now.tv_sec > deadline || (now.tv_sec == deadline && now.tv_nsec >= started.tv_nsec)) break;
+        if (deadline_passed(deadline, now)) break;
         if (receipt_path && receipt_complete(receipt_path)) return stop_child(child, 0);
         pid_t result = waitpid(child, &status, WNOHANG);
         if (result == child) {
@@ -554,23 +571,30 @@ static int wait_for_smoke(pid_t child, int seconds, const char *receipt_path, co
             return WEXITSTATUS(status);
         }
         if (result < 0 && errno != EINTR) return 127;
-        if (!reconcile_started && now.tv_sec > last_gateway_probe
-            && now.tv_sec + GATEWAY_HEALTH_TIMEOUT_SECONDS < deadline) {
+        if (!reconcile_started && now.tv_sec > last_gateway_probe) {
             last_gateway_probe = now.tv_sec;
-            int gateway_ready = compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state, GATEWAY_HEALTH_TIMEOUT_SECONDS);
-            if (gateway_ready == 127) return stop_child(child, gateway_ready);
+            struct timespec health_deadline = earlier_deadline(deadline, deadline_after(GATEWAY_HEALTH_TIMEOUT_SECONDS));
+            pid_t health = start_compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state);
+            if (health < 0) return stop_child_now(child, 127);
+            int gateway_ready = wait_until(health, health_deadline, NULL);
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            if (gateway_ready == 127) return stop_child_now(child, gateway_ready);
+            if (gateway_ready == 124 && deadline_passed(deadline, now)) return stop_child_now(child, 124);
             if (gateway_ready == 0) {
                 reconcile_started = true;
-                int reconcile = compose(COMPOSE_RECONCILE, secret_directory, gateway_state, RECONCILE_TIMEOUT_SECONDS);
-                if (reconcile != 0) return stop_child(child, reconcile);
+                struct timespec reconcile_deadline = earlier_deadline(deadline, deadline_after(RECONCILE_TIMEOUT_SECONDS));
+                pid_t reconcile = start_compose(COMPOSE_RECONCILE, secret_directory, gateway_state);
+                if (reconcile < 0) return stop_child_now(child, 127);
+                int reconciled = wait_until(reconcile, reconcile_deadline, NULL);
+                if (reconciled != 0) return stop_child_now(child, reconciled);
             }
         }
         nanosleep(&interval, NULL);
     }
-    return stop_child(child, stop_requested ? 128 : 124);
+    return stop_child_now(child, stop_requested ? 128 : 124);
 }
 
-static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout) {
+static pid_t start_compose(ComposeAction action, const char *secret_directory, const char *gateway_state) {
     char *up_arguments[] = {
         "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "up", "--no-build",
@@ -603,7 +627,7 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
     else if (action == COMPOSE_GATEWAY_HEALTH) arguments = gateway_health_arguments;
     else if (action == COMPOSE_RECONCILE) arguments = reconcile_arguments;
     pid_t child = fork();
-    if (child < 0) return 127;
+    if (child < 0) return -1;
     if (child == 0) {
         int null = open("/dev/null", O_WRONLY);
         if (null >= 0) {
@@ -616,11 +640,18 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
         execvp("docker", arguments);
         _exit(127);
     }
+    return child;
+}
+
+static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout) {
+    struct timespec deadline = deadline_after(timeout);
+    pid_t child = start_compose(action, secret_directory, gateway_state);
+    if (child < 0) return 127;
     char receipt_path[MAX_PATH_BYTES];
     const char *wait_path = NULL;
     if (action == COMPOSE_UP && path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")) wait_path = receipt_path;
-    if (action == COMPOSE_UP) return wait_for_smoke(child, timeout, wait_path, secret_directory, gateway_state);
-    return wait_for(child, timeout, wait_path);
+    if (action == COMPOSE_UP) return wait_for_smoke(child, deadline, wait_path, secret_directory, gateway_state);
+    return wait_until(child, deadline, wait_path);
 }
 
 static void remove_secrets(const char *directory) {

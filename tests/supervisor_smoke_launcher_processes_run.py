@@ -84,6 +84,8 @@ int main(int argc, char **argv) {
     if (is_reconcile) {
         snprintf(path, sizeof(path), "%s/gateway-health-passed", home);
         if (access(path, F_OK) != 0) return 25;
+        snprintf(path, sizeof(path), "%s/slow-reconcile", home);
+        if (access(path, F_OK) == 0) sleep(5);
         const char *gateway_state = getenv("GATEWAY_STATE_PATH");
         if (!gateway_state) return 16;
         snprintf(path, sizeof(path), "%s/journal-supervisor-transport", gateway_state);
@@ -109,8 +111,6 @@ int main(int argc, char **argv) {
         fclose(seen);
         snprintf(path, sizeof(path), "%s/slow-up", home);
         if (is_up && access(path, F_OK) == 0) sleep(5);
-        snprintf(path, sizeof(path), "%s/gateway-starts-slow", home);
-        if (access(path, F_OK) == 0) sleep(1);
         snprintf(path, sizeof(path), "%s/gateway-ready", home);
         FILE *ready = fopen(path, "w");
         if (!ready) return 19;
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 '''
     )
     compiled = subprocess.run(
-        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", "-DSMOKE_RUN_SECONDS=3", str(SOURCE), "-o", str(executable)],
+        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", "-DSMOKE_RUN_SECONDS=4", str(SOURCE), "-o", str(executable)],
         capture_output=True,
         text=True,
     )
@@ -275,8 +275,6 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     work, secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     key = b"sk-ant-test-fixed-smoke-key-123456789\n"
-    (home / "gateway-starts-slow").touch()
-
     result = run_launcher(executable, work, home, docker_path, key)
 
     assert result.returncode == 0, result.stderr
@@ -300,6 +298,7 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert len(reconcile_indexes) == 1
     assert health_indexes and calls[health_indexes[-1]].find("gateway") >= 0
     assert down_indexes and up_indexes[0] < health_indexes[-1] < reconcile_indexes[0] < down_indexes[0]
+    assert (home / "gateway-ready").exists()
     assert (home / "gateway-health-passed").exists()
     assert "exec -T gateway /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in calls[reconcile_indexes[0]]
     assert "-v" not in calls[down_indexes[0]]
@@ -397,14 +396,32 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
 
     result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
 
-    assert time.monotonic() - started < 4
-    assert result.returncode != 0
+    assert time.monotonic() - started < 4.25
+    assert result.returncode == 124
     calls = (home / "docker-calls").read_text().splitlines()
     assert any("healthz" in call for call in calls)
     assert not any("/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call for call in calls)
     assert "down --timeout 3 --remove-orphans" in calls[-1]
     assert not Path((home / "secret-path").read_text()).exists()
     assert "#define SMOKE_RUN_SECONDS 300" in SOURCE.read_text()
+
+
+def test_launcher_counts_reconcile_time_against_the_smoke_deadline(compiled_launcher, tmp_path):
+    executable, docker_stub = compiled_launcher
+    work, _secrets, home = staging_root(tmp_path)
+    docker_path = fake_docker(tmp_path, home, docker_stub)
+    gateway_state = tmp_path / "gateway-state"
+    (home / "slow-reconcile").touch()
+    started = time.monotonic()
+
+    result = run_launcher(executable, work, home, docker_path, b"sk-ant-test-fixed-smoke-key-123456789\n")
+
+    assert time.monotonic() - started < 4.25
+    assert result.returncode == 124
+    calls = (home / "docker-calls").read_text().splitlines()
+    assert any("healthz" in call for call in calls)
+    assert any("/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call for call in calls)
+    assert not (gateway_state / "journal-supervisor-transport/bridge-state.json").exists()
 
 
 def test_launcher_refuses_when_writer_tls_material_is_missing(compiled_launcher, tmp_path):
