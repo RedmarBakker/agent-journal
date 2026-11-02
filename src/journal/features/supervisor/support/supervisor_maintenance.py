@@ -6,6 +6,7 @@ from typing import Any
 from journal.console.console import Console
 from journal.console.support.captured_stream import CapturedStream
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
+from journal.features.supervisor.support.supervisor_operation_commands import OPERATION_COMMANDS
 from journal.features.supervisor.support.admissions import (
     action_receipt_key,
     action_reuse_key,
@@ -50,11 +51,6 @@ OPERATION_FIELDS = {
     "plan_priorities": frozenset({"kind", "plan_id", "text"}),
     "diagnostic_task": frozenset({"kind", "plan_id", "phase_id", "template_id", "template_revision", "evidence_ids"}),
     "check_interval": frozenset({"kind", "check_id", "interval_minutes"}),
-}
-OPERATION_COMMANDS = {
-    "plan_priorities": ("Plans and tasks", "plan", "priorities"),
-    "diagnostic_task": ("Plans and tasks", "task", "create"),
-    "check_interval": ("Checks", "check", "edit"),
 }
 
 

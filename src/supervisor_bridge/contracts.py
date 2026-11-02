@@ -1,33 +1,51 @@
 import copy
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE, CAPABILITY_TIERS
+from journal.features.supervisor.support.supervisor_operation_commands import OPERATION_COMMANDS
 
 
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
 CONTRACT_SCHEMA_SHA256 = "dd543f35c79a9932c543a07f837d2f95767bca345321c13667426dc1d4ddd5c1"
-TOOL_NAMES = (
-    "journal_supervisor.observe",
-    "journal_supervisor.apply_maintenance",
-    "journal_supervisor.receipt",
-)
-EVENT_WAKE_KINDS = frozenset({
-    "failed_check", "stalled_task", "stale_worker", "message_to_supervisor", "question_to_supervisor",
-})
-OPENCLAW_TOOL_NAMES = (
-    "journal__journal_supervisor-observe",
-    "journal__journal_supervisor-apply_maintenance",
-    "journal__journal_supervisor-receipt",
-)
+OBSERVE_TOOL = "journal_supervisor.observe"
+RUN_OR_PROPOSE_TOOL = "journal_supervisor.run_or_propose"
+RECEIPT_TOOL = "journal_supervisor.receipt"
+
+
+def read_tool_name(area: str, noun: str, verb: str) -> str:
+    parts = (re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") for value in (area, noun, verb))
+    capability = "_".join(parts)
+    return f"journal_supervisor.read_{capability}"
+
+
+READ_TOOL_COMMANDS = {
+    read_tool_name(area, noun, verb): (area, noun, verb)
+    for area, nouns in CAPABILITY_CATALOGUE.items()
+    for noun, verbs in nouns.items()
+    for verb, tier in verbs.items()
+    if tier == "read"
+}
+WRITE_TIERS = CAPABILITY_TIERS - {"read", "never"}
+RUN_COMMANDS = {
+    command: kind
+    for kind, command in OPERATION_COMMANDS.items()
+    if CAPABILITY_CATALOGUE[command[0]][command[1]][command[2]] in WRITE_TIERS
+}
+TOOL_NAMES = (OBSERVE_TOOL, *READ_TOOL_COMMANDS, RUN_OR_PROPOSE_TOOL, RECEIPT_TOOL)
+OPENCLAW_TOOL_NAMES = tuple(f"journal__{name.replace('.', '-')}" for name in TOOL_NAMES)
 METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840"
 METERED_PROVIDER_API_KEY_PLACEHOLDER = "journal-supervisor-metered-proxy-placeholder"
 SUPERVISOR_HOOK_MESSAGE_TEMPLATE = (
-    "Handle this admitted journal supervisor run. Call journal_supervisor.observe for the supplied run_ref, "
-    "then use only its journal evidence. If justified, apply at most one bounded maintenance action. "
-    "Read journal_supervisor.receipt after applying and finish. Run reference: {{run_ref}}"
+    "Handle this admitted journal supervisor run. Read the journal snapshot with journal_supervisor.observe "
+    "or a generated catalogue read tool, then use only its evidence. If justified, call "
+    "journal_supervisor.run_or_propose with one catalogued command. Read journal_supervisor.receipt after the "
+    "decision and finish. Run reference: {{run_ref}}"
 )
 RUN_KEYS = frozenset({
     "run_id",
@@ -158,14 +176,30 @@ def bounded_cursor(value: object) -> str | None:
 
 
 def action_request(reference: RunReference, arguments: object) -> dict:
-    fields = frozenset({"run_ref", "observation_ids", "expected_revisions", "operations", "rationale"})
-    values = strict_object(arguments, fields, fields, "apply_maintenance arguments")
+    fields = frozenset({
+        "run_ref", "observation_ids", "expected_revisions", "area", "noun", "verb", "arguments", "rationale",
+    })
+    values = strict_object(arguments, fields, fields, "run_or_propose arguments")
     supplied_reference = RunReference.from_reference(values["run_ref"])
     if supplied_reference != reference:
         raise ContractError("run_ref does not match the admitted fenced run")
     observations = values["observation_ids"]
     revisions = values["expected_revisions"]
-    operations = values["operations"]
+    area = bounded_text(values["area"], "area", 1, 128)
+    noun = bounded_text(values["noun"], "noun", 1, 128)
+    verb = bounded_text(values["verb"], "verb", 1, 128)
+    command = (area, noun, verb)
+    capability = CAPABILITY_CATALOGUE.get(area, {}).get(noun, {}).get(verb)
+    if capability not in WRITE_TIERS:
+        raise ContractError("command verb is not enabled")
+    operation_kind = RUN_COMMANDS.get(command)
+    if operation_kind is None:
+        raise ContractError("command verb is not enabled")
+    command_arguments = values["arguments"]
+    if not isinstance(command_arguments, dict) or "kind" in command_arguments:
+        raise ContractError("command arguments do not match the selected verb")
+    operation = {"kind": operation_kind, **command_arguments}
+    validate_operation(operation)
     rationale = bounded_text(values["rationale"], "rationale", 1, 2048)
     if not isinstance(observations, list) or not 1 <= len(observations) <= 20:
         raise ContractError("observation_ids must contain 1 to 20 references")
@@ -190,10 +224,6 @@ def action_request(reference: RunReference, arguments: object) -> dict:
             raise ContractError("row reference table is not managed by this contract")
         positive_integer(row_ref["id"], "row reference id")
         bounded_text(values_for_revision["revision"], "revision", 1, 256)
-    if not isinstance(operations, list) or not 1 <= len(operations) <= 5:
-        raise ContractError("operations must contain 1 to 5 typed changes")
-    for operation in operations:
-        validate_operation(operation)
     return {
         "protocol_version": CONTRACT_VERSION,
         "run_id": reference.run_id,
@@ -204,7 +234,7 @@ def action_request(reference: RunReference, arguments: object) -> dict:
         "action_id": reference.pending_action_id,
         "observation_ids": observations,
         "expected_revisions": revisions,
-        "operations": operations,
+        "operations": [operation],
         "rationale": rationale,
     }
 
@@ -278,41 +308,68 @@ def tool_input_schemas(schema: dict | None = None) -> dict[str, dict]:
         "required": sorted(RUN_REFERENCE_KEYS),
         "additionalProperties": False,
     }
-    return {
-        TOOL_NAMES[0]: {
-            "type": "object",
-            "properties": {
-                "run_ref": run_ref,
-                "cursor": inline_schema(request_properties["cursor"], definitions),
-            },
-            "required": ["run_ref"],
-            "additionalProperties": False,
+    read_schema = {
+        "type": "object",
+        "properties": {
+            "run_ref": run_ref,
+            "cursor": inline_schema(request_properties["cursor"], definitions),
         },
-        TOOL_NAMES[1]: {
-            "type": "object",
-            "properties": {
-                "run_ref": run_ref,
-                "observation_ids": inline_schema(action_properties["observation_ids"], definitions),
-                "expected_revisions": inline_schema(action_properties["expected_revisions"], definitions),
-                "operations": inline_schema(action_properties["operations"], definitions),
-                "rationale": inline_schema(action_properties["rationale"], definitions),
-            },
-            "required": [
-                "run_ref",
-                "observation_ids",
-                "expected_revisions",
-                "operations",
-                "rationale",
-            ],
-            "additionalProperties": False,
-        },
-        TOOL_NAMES[2]: {
-            "type": "object",
-            "properties": {"run_ref": run_ref},
-            "required": ["run_ref"],
-            "additionalProperties": False,
-        },
+        "required": ["run_ref"],
+        "additionalProperties": False,
     }
+    schemas = {OBSERVE_TOOL: copy.deepcopy(read_schema)}
+    schemas.update({name: copy.deepcopy(read_schema) for name in READ_TOOL_COMMANDS})
+    arguments_by_kind = {}
+    for reference in definitions["Operation"]["oneOf"]:
+        operation = inline_schema(reference, definitions)
+        kind = operation["properties"]["kind"]["const"]
+        properties = dict(operation["properties"])
+        properties.pop("kind")
+        required = [key for key in operation["required"] if key != "kind"]
+        arguments_by_kind[kind] = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        }
+    command_choices = [
+        {
+            "properties": {
+                "area": {"const": area},
+                "noun": {"const": noun},
+                "verb": {"const": verb},
+                "arguments": arguments_by_kind[kind],
+            },
+            "required": ["area", "noun", "verb", "arguments"],
+        }
+        for command, kind in RUN_COMMANDS.items()
+        for area, noun, verb in (command,)
+    ]
+    schemas[RUN_OR_PROPOSE_TOOL] = {
+        "type": "object",
+        "properties": {
+            "run_ref": run_ref,
+            "observation_ids": inline_schema(action_properties["observation_ids"], definitions),
+            "expected_revisions": inline_schema(action_properties["expected_revisions"], definitions),
+            "area": {"type": "string"},
+            "noun": {"type": "string"},
+            "verb": {"type": "string"},
+            "arguments": {"type": "object"},
+            "rationale": inline_schema(action_properties["rationale"], definitions),
+        },
+        "required": [
+            "run_ref", "observation_ids", "expected_revisions", "area", "noun", "verb", "arguments", "rationale",
+        ],
+        "additionalProperties": False,
+        "oneOf": command_choices,
+    }
+    schemas[RECEIPT_TOOL] = {
+        "type": "object",
+        "properties": {"run_ref": run_ref},
+        "required": ["run_ref"],
+        "additionalProperties": False,
+    }
+    return schemas
 
 
 def effective_tool_inventory(config: dict, discovered: set[str]) -> list[str]:

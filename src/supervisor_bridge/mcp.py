@@ -3,7 +3,15 @@ import sys
 from typing import TextIO
 
 from supervisor_bridge.bridge import SupervisorBridge
-from supervisor_bridge.contracts import ContractError, TOOL_NAMES, tool_input_schemas
+from supervisor_bridge.contracts import (
+    OBSERVE_TOOL,
+    READ_TOOL_COMMANDS,
+    RECEIPT_TOOL,
+    RUN_OR_PROPOSE_TOOL,
+    TOOL_NAMES,
+    ContractError,
+    tool_input_schemas,
+)
 from supervisor_bridge.transport import AuthorizationError, RetryableTransportError, ServiceRefusal
 
 
@@ -11,17 +19,24 @@ PROTOCOL_VERSIONS = frozenset({"2024-11-05", "2025-03-26", "2025-06-18"})
 LATEST_PROTOCOL_VERSION = "2025-06-18"
 MAX_FRAME_BYTES = 65536
 TOOL_DESCRIPTIONS = {
-    TOOL_NAMES[0]: (
+    OBSERVE_TOOL: (
         "Read the admitted journal snapshot and bounded observation page. "
         "Omit cursor on the first read; use next_cursor to continue."
     ),
-    TOOL_NAMES[1]: "Submit only typed maintenance operations under the admitted journal fence.",
-    TOOL_NAMES[2]: "Read the canonical journal receipt for the admitted action.",
+    RUN_OR_PROPOSE_TOOL: "Run or propose one catalogue command under the admitted journal grant.",
+    RECEIPT_TOOL: "Read the canonical journal receipt for the admitted action.",
+    **{
+        name: (
+            f"Read the admitted journal snapshot and observation page for {noun} {verb} in {area}. "
+            "Omit cursor on the first read; use next_cursor to continue."
+        )
+        for name, (area, noun, verb) in READ_TOOL_COMMANDS.items()
+    },
 }
 
 
 class McpServer:
-    """A line-oriented MCP server whose only tools are the fixed journal trio."""
+    """A line-oriented MCP server with tools generated from supervisor capabilities."""
 
     def __init__(self, bridge: SupervisorBridge):
         self.bridge = bridge
@@ -79,17 +94,12 @@ class McpServer:
             return self.error(request_id, -32602, "Tool is not enabled")
         arguments = params["arguments"]
         try:
-            if name == TOOL_NAMES[0]:
-                if not isinstance(arguments, dict) or set(arguments) not in ({"run_ref"}, {"run_ref", "cursor"}):
-                    raise ContractError("observe requires only the current run_ref and optional page cursor")
-                run = self.bridge.require_active(arguments.get("run_ref") if isinstance(arguments, dict) else None)
-                expected_cursor = self.cursors.get(run.run_id, self.bridge.state.observation_cursor())
-                supplied_cursor = arguments.get("cursor")
-                if supplied_cursor is not None and supplied_cursor != expected_cursor:
-                    raise ContractError("cursor is not the current journal page cursor")
-                result = self.bridge.observe(arguments["run_ref"], expected_cursor)
-                self.cursors[run.run_id] = result["page"]["next_cursor"]
-            elif name == TOOL_NAMES[1]:
+            if name == OBSERVE_TOOL:
+                result = self.read(arguments)
+            elif name in READ_TOOL_COMMANDS:
+                area, noun, verb = READ_TOOL_COMMANDS[name]
+                result = {"command": {"area": area, "noun": noun, "verb": verb}, **self.read(arguments)}
+            elif name == RUN_OR_PROPOSE_TOOL:
                 result = self.bridge.apply(arguments)
                 self.acknowledge_cursor(result)
             else:
@@ -109,13 +119,25 @@ class McpServer:
         except ContractError as error:
             return self.tool_failure(request_id, "rejected", str(error))
         except (KeyError, TypeError, ValueError):
-            return self.tool_failure(request_id, "rejected", "tool arguments do not match the fixed contract")
+            return self.tool_failure(request_id, "rejected", "tool arguments do not match the generated contract")
         except Exception:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": {"content": [{"type": "text", "text": "The journal supervisor service is unavailable."}], "isError": True},
             }
+
+    def read(self, arguments: object) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) not in ({"run_ref"}, {"run_ref", "cursor"}):
+            raise ContractError("read requires only the current run_ref and optional page cursor")
+        run = self.bridge.require_active(arguments.get("run_ref"))
+        expected_cursor = self.cursors.get(run.run_id, self.bridge.state.observation_cursor())
+        supplied_cursor = arguments.get("cursor")
+        if supplied_cursor is not None and supplied_cursor != expected_cursor:
+            raise ContractError("cursor is not the current journal page cursor")
+        result = self.bridge.observe(arguments["run_ref"], expected_cursor)
+        self.cursors[run.run_id] = result["page"]["next_cursor"]
+        return result
 
     @staticmethod
     def tool_failure(request_id: object, category: str, reason: str) -> dict:

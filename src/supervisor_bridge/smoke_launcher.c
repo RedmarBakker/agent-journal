@@ -147,6 +147,35 @@ static char *compact_json(const char *json) {
     return compact;
 }
 
+static const char *json_object_end(const char *value) {
+    if (*value != '{') return NULL;
+    size_t depth = 0;
+    bool quoted = false, escaped = false;
+    for (const char *cursor = value; *cursor; cursor++) {
+        unsigned char byte = (unsigned char)*cursor;
+        if (quoted && escaped) escaped = false;
+        else if (quoted && byte == '\\') escaped = true;
+        else if (byte == '"') quoted = !quoted;
+        else if (!quoted && byte == '{') depth++;
+        else if (!quoted && byte == '}') {
+            if (depth == 0) return NULL;
+            depth--;
+            if (depth == 0) return cursor + 1;
+        }
+    }
+    return NULL;
+}
+
+static bool only_journal_mcp_server(const char *json) {
+    const char *servers = strstr(json, "\"servers\":{");
+    if (!servers) return false;
+    const char *value = servers + strlen("\"servers\":");
+    if (strncmp(value, "{\"journal\":{", strlen("{\"journal\":{")) != 0) return false;
+    const char *journal = value + 1 + strlen("\"journal\":");
+    const char *end = json_object_end(journal);
+    return end && *end == '}';
+}
+
 static bool all_values_equal(const char *json, const char *key, const char *expected) {
     char marker[128];
     size_t key_length = strlen(key);
@@ -207,10 +236,11 @@ static int valid_profile(const char *config_path) {
         "\"allow\":[\"anthropic/claude-sonnet-5\"]",
         "\"id\":\"openclaw\"",
         "\"hooks\":{\"enabled\":true",
-        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-mcp\",\"args\":[],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[\"journal_supervisor.observe\",\"journal_supervisor.apply_maintenance\",\"journal_supervisor.receipt\"]}}}}",
+        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-mcp\",\"args\":[],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[",
         "\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}",
         "journal__journal_supervisor-observe",
-        "journal__journal_supervisor-apply_maintenance",
+        "journal_supervisor.run_or_propose",
+        "journal__journal_supervisor-run_or_propose",
         "journal__journal_supervisor-receipt",
         "\"tools\":{\"toolSearch\":false,\"allow\":[",
     };
@@ -403,6 +433,7 @@ static int valid_profile(const char *config_path) {
         && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
+        && only_journal_mcp_server(compact)
         && !strstr(compact, "\"profiles\":")
         && !strstr(compact, "\"order\":")
         && !strstr(compact, "\"default\":")

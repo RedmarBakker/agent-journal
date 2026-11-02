@@ -263,7 +263,7 @@ class SupervisorBridge:
     @staticmethod
     def reference_from_action(value: object) -> RunReference:
         if not isinstance(value, dict) or "run_ref" not in value:
-            raise ContractError("apply_maintenance requires a fenced run_ref")
+            raise ContractError("run_or_propose requires a fenced run_ref")
         return RunReference.from_reference(value["run_ref"])
 
     @staticmethod

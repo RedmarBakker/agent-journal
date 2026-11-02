@@ -15,6 +15,7 @@ from journal.app import App
 from journal.config import Config
 from journal.db.connection import Connection
 from journal.events.rows.check_completed import CheckCompleted
+from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.http.server import Server
@@ -32,9 +33,13 @@ from supervisor_bridge.event_hints import EventHintDirectory
 from supervisor_bridge.contracts import (
     FIXTURE_PATH,
     METERED_PROVIDER_API_KEY_PLACEHOLDER,
+    OBSERVE_TOOL,
     OPENCLAW_TOOL_NAMES,
     PINNED_OPENCLAW_COMMIT,
     PINNED_OPENCLAW_VERSION,
+    READ_TOOL_COMMANDS,
+    RUN_OR_PROPOSE_TOOL,
+    RECEIPT_TOOL,
     TOOL_NAMES,
     ContractError,
     RunReference,
@@ -64,6 +69,7 @@ from supervisor_bridge.transport import (
     JsonHttpConnection,
     OpenClawHookClient,
     RetryableTransportError,
+    ServiceRefusal,
     SupervisorHttpClient,
     TransportError,
     hook_request,
@@ -155,6 +161,22 @@ class PendingReceiptJournal(StubJournal):
     def apply(self, request):
         self.calls.append(("apply", request))
         return {"status": "accepted"}
+
+
+class ProposalJournal(StubJournal):
+    def apply(self, request):
+        self.calls.append(("apply", request))
+        receipt = make_receipt()
+        receipt["status"] = "proposed"
+        receipt["verification"] = "not_applied"
+        receipt["command_receipts"] = []
+        return receipt
+
+
+class GrantChangedJournal(StubJournal):
+    def apply(self, request):
+        self.calls.append(("apply", request))
+        raise ServiceRefusal("grant version changed")
 
 
 class StubHook:
@@ -325,7 +347,10 @@ def action_arguments(run_ref=None):
             {"ref": {"table": "plans", "id": 1}, "revision": "plan-revision"},
             {"ref": {"table": "checks", "id": 3}, "revision": "check-revision"},
         ],
-        "operations": [{"kind": "plan_priorities", "plan_id": 1, "text": "Review the failed check."}],
+        "area": "Plans and tasks",
+        "noun": "plan",
+        "verb": "priorities",
+        "arguments": {"plan_id": 1, "text": "Review the failed check."},
         "rationale": "The latest enrolled verification failed.",
     }
 
@@ -554,7 +579,7 @@ def test_offline_gateway_reconciliation_recovers_missed_events(tmp_path):
     server = McpServer(bridge)
     observed = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF}},
+        "params": {"name": OBSERVE_TOOL, "arguments": {"run_ref": RUN_REF}},
     })
     response = json.loads(observed["result"]["content"][0]["text"])
 
@@ -587,7 +612,7 @@ def test_mcp_tool_returns_the_bounded_writer_refusal_without_its_credential(tmp_
 
     result = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF}},
+        "params": {"name": OBSERVE_TOOL, "arguments": {"run_ref": RUN_REF}},
     })["result"]
     message = result["content"][0]["text"]
 
@@ -612,7 +637,7 @@ def test_supervisor_hook_uses_a_fixed_trusted_mapping_and_only_a_run_reference()
     assert mapping["action"] == "agent" and mapping["sessionMode"] == "isolated"
     assert mapping["allowUnsafeExternalContent"] is True
     assert "{{run_ref}}" in mapping["messageTemplate"]
-    assert "one bounded maintenance action" in mapping["messageTemplate"]
+    assert "one catalogued command" in mapping["messageTemplate"]
     assert headers == {"Content-Type": "application/json", "Idempotency-Key": "run-1"}
 
 
@@ -764,8 +789,18 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     supervisor = fixture["openclaw_config"]["agents"]["entries"]["supervisor"]
 
     assert tuple(schemas) == TOOL_NAMES
-    assert schemas[TOOL_NAMES[0]]["required"] == ["run_ref"]
-    assert "cursor" in schemas[TOOL_NAMES[0]]["properties"]
+    assert schemas[OBSERVE_TOOL]["required"] == ["run_ref"]
+    assert "cursor" in schemas[OBSERVE_TOOL]["properties"]
+    read_commands = {
+        (area, noun, verb)
+        for area, nouns in CAPABILITY_CATALOGUE.items()
+        for noun, verbs in nouns.items()
+        for verb, tier in verbs.items()
+        if tier == "read"
+    }
+    assert set(READ_TOOL_COMMANDS.values()) == read_commands
+    assert RUN_OR_PROPOSE_TOOL in schemas
+    assert "apply_maintenance" not in " ".join(TOOL_NAMES)
     assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
     assert PINNED_OPENCLAW_VERSION == "2026.10.8"
     assert PINNED_OPENCLAW_COMMIT.startswith("dc2523e")
@@ -794,6 +829,8 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     assert list(fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
     assert fixture["openclaw_config"]["tools"]["allow"] == list(OPENCLAW_TOOL_NAMES)
     assert fixture["openclaw_config"]["tools"]["toolSearch"] is False
+    policy = json.loads(FIXTURE_PATH.with_name("gateway-policy.fixture.json").read_text())
+    assert policy["tools"]["allowlist"] == list(OPENCLAW_TOOL_NAMES)
     assert effective_tool_inventory(fixture, set()) == []
     assert effective_tool_inventory(fixture, {"journal__journal_supervisor-observe", "shell", "browser"}) == [
         "journal__journal_supervisor-observe"
@@ -822,6 +859,25 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     broad_plugins["openclaw_config"]["plugins"]["allow"].append("browser")
     with pytest.raises(ContractError):
         validate_pinned_fixture(broad_plugins)
+
+
+def test_catalogue_read_tool_returns_the_fenced_observation(tmp_path):
+    journal = StubJournal()
+    state = StateStore(tmp_path)
+    state.record_admitted(RunReference.from_run(RUN))
+    server = McpServer(SupervisorBridge(journal, state))
+    name, command = next(iter(READ_TOOL_COMMANDS.items()))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": name, "arguments": {"run_ref": RUN_REF}},
+    })
+
+    content = json.loads(result["result"]["content"][0]["text"])
+    assert result["result"]["isError"] is False
+    assert content["command"] == {"area": command[0], "noun": command[1], "verb": command[2]}
+    assert content["snapshot"]["grant"]["grant_id"] == RUN["grant_id"]
+    assert [call[0] for call in journal.calls] == ["observe"]
 
 
 def test_unverified_aggregate_budget_never_invokes_hook(tmp_path):
@@ -878,7 +934,7 @@ def test_hook_retry_is_bounded_and_invalid_credentials_do_not_fallback(tmp_path)
     assert auth_state.snapshot()["hook_status"] == "unauthorized"
 
 
-def test_mcp_observe_and_apply_require_current_fence(tmp_path):
+def test_mcp_observe_and_run_or_propose_require_current_fence(tmp_path):
     journal = StubJournal([admitted()])
     state = StateStore(tmp_path)
     state.record_admitted(RunReference.from_run(RUN))
@@ -887,16 +943,82 @@ def test_mcp_observe_and_apply_require_current_fence(tmp_path):
 
     observe = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": wrong, "cursor": None}},
+        "params": {"name": OBSERVE_TOOL, "arguments": {"run_ref": wrong, "cursor": None}},
     })
     apply = server.handle({
         "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[1], "arguments": action_arguments(wrong)},
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": action_arguments(wrong)},
     })
 
     assert observe["result"]["isError"] is True
     assert apply["result"]["isError"] is True
     assert not [call for call in journal.calls if call[0] in {"observe", "apply", "receipt"}]
+
+
+def test_run_or_propose_translates_catalogue_command_and_settles_usage(tmp_path):
+    journal = StubJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": action_arguments()},
+    })
+
+    assert result["result"]["isError"] is False
+    assert json.loads(result["result"]["content"][0]["text"])["verification"] == "verified"
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
+    assert journal.calls[-1][1]["operations"] == [{
+        "kind": "plan_priorities", "plan_id": 1, "text": "Review the failed check.",
+    }]
+
+
+def test_run_or_propose_returns_journal_selected_proposal(tmp_path):
+    journal = ProposalJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": action_arguments()},
+    })
+
+    assert result["result"]["isError"] is False
+    assert json.loads(result["result"]["content"][0]["text"])["status"] == "proposed"
+    assert "mode" not in server.schemas[RUN_OR_PROPOSE_TOOL]["properties"]
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
+
+
+def test_run_or_propose_refuses_a_never_catalogue_verb_before_settlement(tmp_path):
+    journal = StubJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+    arguments = action_arguments()
+    arguments.update({"area": "Rules and reminders", "noun": "memory", "verb": "weigh", "arguments": {}})
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": arguments},
+    })
+
+    assert result["result"]["isError"] is True
+    assert "not enabled" in result["result"]["content"][0]["text"]
+    assert journal.calls == []
+
+
+def test_run_or_propose_refuses_a_grant_change_reported_by_journal(tmp_path):
+    journal = GrantChangedJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": action_arguments()},
+    })
+
+    assert result["result"]["isError"] is True
+    assert "grant version changed" in result["result"]["content"][0]["text"]
+    assert [call[0] for call in journal.calls] == ["settle_usage", "apply"]
 
 
 def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path):
@@ -922,14 +1044,14 @@ def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path
 
     observed = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF, "cursor": None}},
+        "params": {"name": OBSERVE_TOOL, "arguments": {"run_ref": RUN_REF, "cursor": None}},
     })
     assert observed["result"]["isError"] is False, observe_attempts
     assert state.observation_cursor() is None
 
     applied = server.handle({
         "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[1], "arguments": action_arguments()},
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": action_arguments()},
     })
 
     assert applied["result"]["isError"] is False
@@ -1498,7 +1620,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                 return mcp.handle({"jsonrpc": "2.0", "id": step, "method": "tools/call",
                     "params": {"name": name, "arguments": tool_call["input"]}})
 
-            observed = scripted_call(TOOL_NAMES[0], {"run_ref": run.to_dict(), "cursor": None}, "observe")
+            observed = scripted_call(OBSERVE_TOOL, {"run_ref": run.to_dict(), "cursor": None}, "observe")
             assert observed["result"]["isError"] is False
             observation = json.loads(observed["result"]["content"][0]["text"])
             assert len(observation["page"]["observations"]) == 1
@@ -1512,17 +1634,19 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
                     {"ref": {"table": "phases", "id": snapshot["current_phase"]["phase_id"]},
                         "revision": snapshot["current_phase"]["revision"]},
                 ],
-                "operations": [{
-                    "kind": "diagnostic_task",
+                "area": "Plans and tasks",
+                "noun": "task",
+                "verb": "create",
+                "arguments": {
                     "plan_id": grant["plan_id"],
                     "phase_id": snapshot["current_phase"]["phase_id"],
                     "template_id": grant["diagnostic_template_id"],
                     "template_revision": grant["diagnostic_template_revision"],
                     "evidence_ids": [page_observation["observation_id"]],
-                }],
+                },
                 "rationale": "The current failed check needs a bounded diagnostic task.",
             }
-            applied = scripted_call(TOOL_NAMES[1], action, "apply_maintenance")
+            applied = scripted_call(RUN_OR_PROPOSE_TOOL, action, "run_or_propose")
             assert applied["result"]["isError"] is False, applied
             applied_receipt = json.loads(applied["result"]["content"][0]["text"])
             assert applied_receipt["verification"] == "verified"

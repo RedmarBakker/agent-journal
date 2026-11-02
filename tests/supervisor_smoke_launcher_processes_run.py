@@ -10,6 +10,8 @@ import tempfile
 
 import pytest
 
+from supervisor_bridge.contracts import OPENCLAW_TOOL_NAMES, SUPERVISOR_HOOK_MESSAGE_TEMPLATE, TOOL_NAMES
+
 
 ROOT = Path(__file__).parents[1]
 SOURCE = ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c"
@@ -219,15 +221,15 @@ def staging_root(tmp_path):
             "mappings": [{"id": "journal-supervisor", "match": {"path": "journal-supervisor"},
                 "action": "agent", "wakeMode": "now", "name": "Journal plan maintenance",
                 "agentId": "supervisor", "sessionMode": "isolated",
-                "messageTemplate": "Handle this admitted journal supervisor run. Call journal_supervisor.observe for the supplied run_ref, then use only its journal evidence. If justified, apply at most one bounded maintenance action. Read journal_supervisor.receipt after applying and finish. Run reference: {{run_ref}}",
+                "messageTemplate": SUPERVISOR_HOOK_MESSAGE_TEMPLATE,
                 "deliver": False, "allowUnsafeExternalContent": True,
                 "model": "anthropic/claude-sonnet-5", "thinking": "high", "timeoutSeconds": 180}]},
-        "mcp": {"servers": {"journal": {"enabled": True, "transport": "stdio", "command": "/opt/journal-supervisor/bin/journal-supervisor-mcp", "args": [], "connectionTimeoutMs": 5000, "requestTimeoutMs": 20000, "supportsParallelToolCalls": False, "toolFilter": {"include": ["journal_supervisor.observe", "journal_supervisor.apply_maintenance", "journal_supervisor.receipt"]}}}},
+        "mcp": {"servers": {"journal": {"enabled": True, "transport": "stdio", "command": "/opt/journal-supervisor/bin/journal-supervisor-mcp", "args": [], "connectionTimeoutMs": 5000, "requestTimeoutMs": 20000, "supportsParallelToolCalls": False, "toolFilter": {"include": list(TOOL_NAMES)}}}},
         "cron_add_params": {"name": "journal-supervisor-reconcile-v1", "agentId": "supervisor", "schedule": {"everyMs": 300000}, "sessionTarget": "isolated", "wakeMode": "now", "delivery": {"mode": "none"}},
         "hook_agent_request": {"run_ref": {"run_id": "example-run", "episode_id": "example-episode",
             "pending_action_id": "example-action", "grant_id": "example-grant", "grant_version": 1,
             "installation_epoch": 1, "fence": 1}},
-        "tools": {"toolSearch": False, "allow": ["journal__journal_supervisor-observe", "journal__journal_supervisor-apply_maintenance", "journal__journal_supervisor-receipt"]},
+        "tools": {"toolSearch": False, "allow": list(OPENCLAW_TOOL_NAMES)},
     }))
     secrets = tmp_path / "tenant-secrets"
     secrets.mkdir(mode=0o700)
