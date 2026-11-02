@@ -18,7 +18,7 @@ from journal.features.supervisor.support.supervisor_observations import EVIDENCE
 from journal.features.supervisor.support.supervisor_episode_qualification import SupervisorEpisodeQualification
 from journal.features.supervisor.support.supervisor_environment_reader import (
     ENVIRONMENT_READ_ENTRY,
-    ENVIRONMENT_SUMMARY_MAX_BYTES,
+    MAX_ENVIRONMENT_SUMMARY_BYTES,
     MAX_ENVIRONMENT_TASKS,
 )
 from journal.features.supervisor.support.supervisor_record_reader import SupervisorRecordReader
@@ -286,7 +286,7 @@ def test_observe_records_a_bounded_summary_of_only_the_watched_environment_plans
         key for key in environment if key in {"plans", "phases", "open_tasks", "blocked_tasks", "waits",
             "failing_checks", "workers", "unanswered_messages", "sequences", "triggers"}
     ], "the summary contains each bounded environment view"
-    assert len(json.dumps(environment).encode("utf-8")) <= ENVIRONMENT_SUMMARY_MAX_BYTES
+    assert len(json.dumps(environment).encode("utf-8")) <= MAX_ENVIRONMENT_SUMMARY_BYTES
     with scope.environment(PROJECT):
         reads = app.container.get(Entries).supervisor_records(ENVIRONMENT_READ_ENTRY, last=5,
             tenant_id=grant["scope"]["tenant_id"], grant_id=grant["grant_id"], run_id=run.data["run_ref"])
