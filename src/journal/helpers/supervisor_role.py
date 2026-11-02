@@ -68,8 +68,9 @@ class SupervisorRole(MainRole):
 
     @staticmethod
     def row_id(command: type[Command], args) -> int | None:
-        argument = "plan" if command.noun == "plan" and hasattr(args, "plan") else "n"
-        value = getattr(args, argument, None)
+        value = getattr(args, "plan", None) if command.noun == "plan" else None
+        if type(value) is not int:
+            value = getattr(args, "n", None)
         return value if type(value) is int else None
 
     @classmethod

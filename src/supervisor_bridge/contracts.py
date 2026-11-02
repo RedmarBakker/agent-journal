@@ -39,6 +39,9 @@ RUN_COMMANDS = {
 }
 TOOL_NAMES = (OBSERVE_TOOL, *READ_TOOL_COMMANDS, RUN_OR_PROPOSE_TOOL, RECEIPT_TOOL)
 OPENCLAW_TOOL_NAMES = tuple(f"journal__{name.replace('.', '-')}" for name in TOOL_NAMES)
+EVENT_WAKE_KINDS = frozenset({
+    "failed_check", "stalled_task", "stale_worker", "message_to_supervisor", "question_to_supervisor",
+})
 METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840"
 METERED_PROVIDER_API_KEY_PLACEHOLDER = "journal-supervisor-metered-proxy-placeholder"
 SUPERVISOR_HOOK_MESSAGE_TEMPLATE = (

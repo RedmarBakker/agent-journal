@@ -124,12 +124,16 @@ class SupervisorGrant:
         setting = next(((enabled, mode) for name, enabled, mode in self.capabilities if name == command), None)
         area_setting = next(((enabled, mode) for name, enabled, mode in self.capabilities
                              if name == f"area:{area}"), None)
-        settings = [value for value in (area_setting, setting) if value is not None]
-        if not settings:
-            return "propose_only" if tier in (3, "tier 3") else "not_allowed"
-        if any(not enabled for enabled, _mode in settings):
+        if any(value is not None and not value[0] for value in (area_setting, setting)):
             return "not_allowed"
-        return "may_act" if all(mode == "act" for _enabled, mode in settings) else "propose_only"
+        if tier in (3, "tier 3"):
+            if setting is None:
+                return "propose_only"
+            return "may_act" if setting[1] == "act" else "propose_only"
+        selected = setting or area_setting
+        if selected is None:
+            return "not_allowed"
+        return "may_act" if selected[1] == "act" else "propose_only"
 
     def with_command_decision(self, command: str, decision: str,
                               catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":

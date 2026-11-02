@@ -3,7 +3,6 @@ from tests.stories.fixtures.state_fixture import StateFixture
 from tests.stories.fixtures.main.supervisor_owner_action import SupervisorOwnerActionSetup
 from tests.in_process import posted
 from tests.test_supervisor_actions import _admitted_maintenance_context, maintenance_request
-from tests.test_supervisor_authority import seeded
 
 
 class SupervisorOwnerTierTwoAction(StateFixture):
@@ -12,12 +11,11 @@ class SupervisorOwnerTierTwoAction(StateFixture):
     parent = SupervisorOwnerActionSetup
 
     def steps(self, story) -> None:
-        fixture = seeded(story.app)
+        fixture = self._owner_action_setup["context"]["fixture"]
         context = _admitted_maintenance_context(
             story.app, story.monkeypatch, fixture, "bounded_write",
             capability_decisions={"plan tell": "may_act"},
         )
-        story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
         operation = {"kind": "plan_tell", "plan_id": context["grant"]["plan_id"],
                      "text": "Review the failed check first"}
         request = maintenance_request(context, [operation], "owner-undo-tier-two-action")

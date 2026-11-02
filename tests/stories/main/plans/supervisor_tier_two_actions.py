@@ -9,7 +9,7 @@ from tests.test_supervisor_actions import maintenance_context, maintenance_reque
 def plan_tell_action(story, mode: str):
     decision = "may_act" if mode == "bounded_write" else "propose_only"
     context = maintenance_context(
-        story.app, story.monkeypatch, mode, capability_decisions={"plan tell": decision},
+        story.app, story.monkeypatch, mode, capability_decisions={"plan tell": decision}, owner_id=1,
     )
     story.closers.append(lambda: context["fixture"].authority.secrets_store.drop(context["fixture"].credentials))
     plan_id = context["grant"]["plan_id"]
