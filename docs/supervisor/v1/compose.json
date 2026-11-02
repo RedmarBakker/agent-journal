@@ -76,7 +76,7 @@
         "provider_egress": {}
       },
       "read_only": true,
-      "tmpfs": ["/tmp"],
+      "tmpfs": ["/tmp", "/home/node/.cache:uid=1000,gid=1000,mode=0700"],
       "cap_drop": ["ALL"],
       "security_opt": ["no-new-privileges:true"],
       "healthcheck": {
