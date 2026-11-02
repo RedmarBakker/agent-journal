@@ -18,8 +18,11 @@
 #include "live_smoke_settings.h"
 
 #ifndef SMOKE_RUN_SECONDS
-#define SMOKE_RUN_SECONDS 105
+#define SMOKE_RUN_SECONDS 300
 #endif
+
+#define RECONCILE_TIMEOUT_SECONDS 45
+#define GATEWAY_HEALTH_TIMEOUT_SECONDS 2
 
 #define ENV_FILE "docs/supervisor/v1/live-smoke.env"
 #define COMPOSE_FILE "docs/supervisor/v1/compose.json"
@@ -204,6 +207,9 @@ static int valid_profile(const char *config_path) {
     static const char *required_gateway_image[] = {
         "agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",
     };
+    static const char *required_gateway_health[] = {
+        "fetch('http://127.0.0.1:18789/healthz')",
+    };
     static const char *required_gateway_package[] = {
         "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5",
         "apt-get install -y --no-install-recommends python3",
@@ -341,6 +347,7 @@ static int valid_profile(const char *config_path) {
     bool valid = compact
         && gateway_service && backup_service
         && contains_all(compose, required_gateway_image, sizeof(required_gateway_image) / sizeof(required_gateway_image[0]))
+        && contains_all(compose, required_gateway_health, sizeof(required_gateway_health) / sizeof(required_gateway_health[0]))
         && contains_all(compose, required_writer_volume, sizeof(required_writer_volume) / sizeof(required_writer_volume[0]))
         && contains_all(gateway_entrypoint, required_gateway_entrypoint, sizeof(required_gateway_entrypoint) / sizeof(required_gateway_entrypoint[0]))
         && contains_all(supervisor_handler, required_supervisor_handler, sizeof(required_supervisor_handler) / sizeof(required_supervisor_handler[0]))
@@ -523,7 +530,44 @@ static int wait_for(pid_t child, int seconds, const char *receipt_path) {
     return stop_child(child, stop_requested ? 128 : 124);
 }
 
-typedef enum { COMPOSE_READY, COMPOSE_UP, COMPOSE_DOWN } ComposeAction;
+typedef enum { COMPOSE_READY, COMPOSE_UP, COMPOSE_DOWN, COMPOSE_GATEWAY_HEALTH, COMPOSE_RECONCILE } ComposeAction;
+
+static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout);
+
+static int wait_for_smoke(pid_t child, int seconds, const char *receipt_path, const char *secret_directory, const char *gateway_state) {
+    struct timespec interval = {.tv_sec = 0, .tv_nsec = 100000000};
+    struct timespec started;
+    clock_gettime(CLOCK_MONOTONIC, &started);
+    time_t last_gateway_probe = 0;
+    bool reconcile_started = false;
+    int status = 0;
+    while (!stop_requested) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        time_t deadline = started.tv_sec + seconds;
+        if (now.tv_sec > deadline || (now.tv_sec == deadline && now.tv_nsec >= started.tv_nsec)) break;
+        if (receipt_path && receipt_complete(receipt_path)) return stop_child(child, 0);
+        pid_t result = waitpid(child, &status, WNOHANG);
+        if (result == child) {
+            if (!WIFEXITED(status)) return 128;
+            if (WEXITSTATUS(status) == 0 && receipt_path) return 2;
+            return WEXITSTATUS(status);
+        }
+        if (result < 0 && errno != EINTR) return 127;
+        if (!reconcile_started && now.tv_sec > last_gateway_probe) {
+            last_gateway_probe = now.tv_sec;
+            int gateway_ready = compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state, GATEWAY_HEALTH_TIMEOUT_SECONDS);
+            if (gateway_ready == 127) return stop_child(child, gateway_ready);
+            if (gateway_ready == 0) {
+                reconcile_started = true;
+                int reconcile = compose(COMPOSE_RECONCILE, secret_directory, gateway_state, RECONCILE_TIMEOUT_SECONDS);
+                if (reconcile != 0) return stop_child(child, reconcile);
+            }
+        }
+        nanosleep(&interval, NULL);
+    }
+    return stop_child(child, stop_requested ? 128 : 124);
+}
 
 static int compose(ComposeAction action, const char *secret_directory, const char *gateway_state, int timeout) {
     char *up_arguments[] = {
@@ -542,7 +586,21 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
         "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T",
         "--user", "10003:10003", "writer", "/usr/local/bin/supervisor-codex-ready", NULL,
     };
-    char **arguments = action == COMPOSE_DOWN ? down_arguments : action == COMPOSE_READY ? ready_arguments : up_arguments;
+    char *gateway_health_arguments[] = {
+        "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
+        "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T", "gateway",
+        "node", "-e", "fetch('http://127.0.0.1:18789/healthz').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))", NULL,
+    };
+    char *reconcile_arguments[] = {
+        "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
+        "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T", "gateway",
+        "/opt/journal-supervisor/bin/journal-supervisor-bridge", "reconcile", NULL,
+    };
+    char **arguments = up_arguments;
+    if (action == COMPOSE_DOWN) arguments = down_arguments;
+    else if (action == COMPOSE_READY) arguments = ready_arguments;
+    else if (action == COMPOSE_GATEWAY_HEALTH) arguments = gateway_health_arguments;
+    else if (action == COMPOSE_RECONCILE) arguments = reconcile_arguments;
     pid_t child = fork();
     if (child < 0) return 127;
     if (child == 0) {
@@ -560,6 +618,7 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
     char receipt_path[MAX_PATH_BYTES];
     const char *wait_path = NULL;
     if (action == COMPOSE_UP && path_join(receipt_path, sizeof(receipt_path), gateway_state, "journal-supervisor-transport/bridge-state.json")) wait_path = receipt_path;
+    if (action == COMPOSE_UP) return wait_for_smoke(child, timeout, wait_path, secret_directory, gateway_state);
     return wait_for(child, timeout, wait_path);
 }
 

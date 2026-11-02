@@ -60,12 +60,39 @@ int main(int argc, char **argv) {
     if (!secret_path) return 15;
     fputs(secret_dir, secret_path);
     fclose(secret_path);
-    int is_up = 0, is_ready = 0;
-    for (int index = 1; index < argc; index++) if (strcmp(argv[index], "up") == 0) is_up = 1;
-    for (int index = 1; index < argc; index++) if (strcmp(argv[index], "/usr/local/bin/supervisor-codex-ready") == 0) is_ready = 1;
+    int is_up = 0, is_ready = 0, is_gateway_health = 0, is_reconcile = 0;
+    for (int index = 1; index < argc; index++) {
+        if (strcmp(argv[index], "up") == 0) is_up = 1;
+        if (strcmp(argv[index], "/usr/local/bin/supervisor-codex-ready") == 0) is_ready = 1;
+        if (strstr(argv[index], "healthz")) is_gateway_health = 1;
+        if (strcmp(argv[index], "/opt/journal-supervisor/bin/journal-supervisor-bridge") == 0 && index + 1 < argc && strcmp(argv[index + 1], "reconcile") == 0) is_reconcile = 1;
+    }
     if (is_ready) {
         snprintf(path, sizeof(path), "%s/codex-login-missing", home);
         if (access(path, F_OK) == 0) return 21;
+        return 0;
+    }
+    if (is_gateway_health) {
+        snprintf(path, sizeof(path), "%s/gateway-ready", home);
+        if (access(path, F_OK) != 0) return 23;
+        snprintf(path, sizeof(path), "%s/gateway-health-passed", home);
+        FILE *ready = fopen(path, "w");
+        if (!ready) return 24;
+        fclose(ready);
+        return 0;
+    }
+    if (is_reconcile) {
+        snprintf(path, sizeof(path), "%s/gateway-health-passed", home);
+        if (access(path, F_OK) != 0) return 25;
+        const char *gateway_state = getenv("GATEWAY_STATE_PATH");
+        if (!gateway_state) return 16;
+        snprintf(path, sizeof(path), "%s/journal-supervisor-transport", gateway_state);
+        if (mkdir(path, 0700) != 0) return 17;
+        snprintf(path, sizeof(path), "%s/journal-supervisor-transport/bridge-state.json", gateway_state);
+        FILE *state = fopen(path, "w");
+        if (!state) return 18;
+        fputs("{\"last_admission\":\"verified\",\"usage_settlement\":\"settled\",\"receipt\":{\"status\":\"applied\",\"verification\":\"verified\"},\"metering\":{\"provider_requests\":1}}", state);
+        fclose(state);
         return 0;
     }
     if (is_up) {
@@ -82,18 +109,13 @@ int main(int argc, char **argv) {
         fclose(seen);
         snprintf(path, sizeof(path), "%s/slow-up", home);
         if (is_up && access(path, F_OK) == 0) sleep(5);
-        if (is_up && access(path, F_OK) != 0) {
-            const char *gateway_state = getenv("GATEWAY_STATE_PATH");
-            if (!gateway_state) return 16;
-            snprintf(path, sizeof(path), "%s/journal-supervisor-transport", gateway_state);
-            if (mkdir(path, 0700) != 0) return 17;
-            snprintf(path, sizeof(path), "%s/journal-supervisor-transport/bridge-state.json", gateway_state);
-            FILE *state = fopen(path, "w");
-            if (!state) return 18;
-            fputs("{\"last_admission\":\"verified\",\"usage_settlement\":\"settled\",\"receipt\":{\"status\":\"applied\",\"verification\":\"verified\"},\"metering\":{\"provider_requests\":1}}", state);
-            fclose(state);
-            for (;;) pause();
-        }
+        snprintf(path, sizeof(path), "%s/gateway-starts-slow", home);
+        if (access(path, F_OK) == 0) sleep(1);
+        snprintf(path, sizeof(path), "%s/gateway-ready", home);
+        FILE *ready = fopen(path, "w");
+        if (!ready) return 19;
+        fclose(ready);
+        for (;;) pause();
     }
     puts("synthetic provider key is not part of this line");
     return 0;
@@ -101,7 +123,7 @@ int main(int argc, char **argv) {
 '''
     )
     compiled = subprocess.run(
-        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", "-DSMOKE_RUN_SECONDS=1", str(SOURCE), "-o", str(executable)],
+        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-D_XOPEN_SOURCE=700", "-DSMOKE_RUN_SECONDS=3", str(SOURCE), "-o", str(executable)],
         capture_output=True,
         text=True,
     )
@@ -134,7 +156,8 @@ def staging_root(tmp_path):
         '"writer_supervisor_tls_cert": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert",'
         '"writer_supervisor_tls_key": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key",'
         '"writer_supervisor_tls_ca": "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_ca",'
-        '"gateway": {"secrets":[]},"backup": {"secrets":[]}},'
+        "\"gateway\":{\"secrets\":[],\"healthcheck\":{\"test\":[\"CMD\",\"node\",\"-e\",\"fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"]}},"
+        '"backup": {"secrets":[]}},'
         '"image":"agent-journal-supervisor-gateway:${PROFILE_REVISION:?set PROFILE_REVISION to the reviewed source commit}",'
         '"volumes":{"codex_driver_state": {}},"secrets":{}}\n'
     )
@@ -252,6 +275,7 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     work, secrets, home = staging_root(tmp_path)
     docker_path = fake_docker(tmp_path, home, docker_stub)
     key = b"sk-ant-test-fixed-smoke-key-123456789\n"
+    (home / "gateway-starts-slow").touch()
 
     result = run_launcher(executable, work, home, docker_path, key)
 
@@ -261,7 +285,6 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert not (secrets / "supervisor_anthropic_api_key").exists()
     assert not Path((home / "secret-path").read_text()).exists()
     calls = (home / "docker-calls").read_text().splitlines()
-    assert len(calls) == 3
     assert "--project-name journal-supervisor-smoke" in calls[0]
     assert f"--env-file {ENV_FILE}" in calls[0]
     assert f"-f {COMPOSE}" in calls[0]
@@ -269,8 +292,15 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert "exec -T --user 10003:10003 writer /usr/local/bin/supervisor-codex-ready" in calls[0]
     assert " up " in f" {calls[1]} " and "gateway" in calls[1] and "writer" in calls[1]
     assert "--no-build --pull never" in calls[1]
-    assert "down --timeout 3 --remove-orphans" in calls[2]
-    assert "-v" not in calls[2]
+    health_indexes = [index for index, call in enumerate(calls) if "healthz" in call]
+    reconcile_indexes = [index for index, call in enumerate(calls) if "/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call]
+    down_indexes = [index for index, call in enumerate(calls) if "down --timeout 3 --remove-orphans" in call]
+    assert len(reconcile_indexes) == 1
+    assert health_indexes and calls[health_indexes[-1]].find("gateway") >= 0
+    assert down_indexes and 1 < health_indexes[-1] < reconcile_indexes[0] < down_indexes[0]
+    assert (home / "gateway-health-passed").exists()
+    assert "exec -T gateway /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in calls[reconcile_indexes[0]]
+    assert "-v" not in calls[down_indexes[0]]
     assert key.decode().strip() not in " ".join(calls)
     assert "--message" not in " ".join(calls) and "--session" not in " ".join(calls)
 
@@ -367,9 +397,12 @@ def test_launcher_stops_and_removes_the_staged_runtime_after_its_fixed_deadline(
 
     assert time.monotonic() - started < 4
     assert result.returncode != 0
-    assert len((home / "docker-calls").read_text().splitlines()) == 3
+    calls = (home / "docker-calls").read_text().splitlines()
+    assert any("healthz" in call for call in calls)
+    assert not any("/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call for call in calls)
+    assert "down --timeout 3 --remove-orphans" in calls[-1]
     assert not Path((home / "secret-path").read_text()).exists()
-    assert "#define SMOKE_RUN_SECONDS 105" in SOURCE.read_text()
+    assert "#define SMOKE_RUN_SECONDS 300" in SOURCE.read_text()
 
 
 def test_launcher_refuses_when_writer_tls_material_is_missing(compiled_launcher, tmp_path):
