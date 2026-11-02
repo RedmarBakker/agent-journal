@@ -1319,12 +1319,12 @@ def test_two_tenant_replay_restore_and_injection_boundaries(tmp_path, monkeypatc
         foreign_client = SupervisorHttpClient(JsonHttpConnection(base_b, token_a))
         with pytest.raises(AuthorizationError) as refused:
             foreign_client.admit("timer", None)
-        assert refused.value.cause == "the supervisor service credential is invalid or revoked"
+        assert refused.value.cause == "a supervisor service credential is required"
         unauthorized_state = StateStore(tmp_path / "unauthorized_bridge_state")
         result = SupervisorBridge(foreign_client, unauthorized_state).reconcile("timer")
         snapshot = unauthorized_state.snapshot()
         assert result.reason == "service_unauthorized"
-        assert snapshot["last_error"] == "service_unauthorized: the supervisor service credential is invalid or revoked"
+        assert snapshot["last_error"] == "service_unauthorized: a supervisor service credential is required"
         assert token_a not in json.dumps(snapshot)
         with pytest.raises(AuthorizationError):
             foreign_client.settle_usage(RunReference.from_run(RUN), {
