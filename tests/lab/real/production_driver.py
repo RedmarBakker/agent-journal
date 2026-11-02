@@ -30,7 +30,9 @@ class ProductionDriver:
         self.checkout, self.organization_repository = checkout, organization_repository
         self.watchdog = watchdog
         self.journal_port, self.rig_port, self.cap_port, self.proxy_port = self.ports(4)
-        read_paths = [Path(sys.executable).resolve().parent, Path(sys.prefix).resolve()]
+        virtual_environment = Path(sys.prefix).resolve()
+        read_paths = [Path(sys.executable).resolve().parent, virtual_environment,
+                      (virtual_environment / "bin").resolve(), Path(sys.base_prefix).resolve()]
         read_paths.extend(Path(path).resolve() for path in sys.path
                           if path and "site-packages" in path and Path(path).exists())
         for program in (str(spec["provider"]), "rig"):

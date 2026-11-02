@@ -1,3 +1,4 @@
+# Host integration tests spawn isolated stand-ins and need macOS sandbox-exec.
 import json
 import os
 from pathlib import Path
@@ -281,3 +282,31 @@ def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
     assert not external.exists()
     assert inside.read_text(encoding="utf-8").removesuffix("\n") == "denied"
     assert boundary.observe("run-1").escaped_writes == 0
+
+
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
+                    reason="production filesystem isolation uses macOS sandbox-exec")
+def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
+    root = tmp_path / "private-run"
+    paths = IsolatedJournal.paths(root)
+    for name in ("root", "project", "private_home", "runtime", "tmp"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    driver = ProductionDriver("run-1", {"provider": "claude"}, None, tmp_path, tmp_path,
+                              ProductionWatchdog())
+    virtual_environment = Path(sys.prefix).resolve()
+    python_framework = Path(sys.base_prefix).resolve()
+
+    driver.boundary.verify("run-1", paths)
+    policy = driver.boundary.profile.read_text(encoding="utf-8")
+    environment = {"HOME": str(paths["private_home"]), "TMPDIR": str(paths["tmp"]),
+                   "PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    completed = subprocess.run(
+        driver.boundary.wrap([sys.executable, "-c", "import sys; print(sys.prefix)"]),
+        cwd=paths["project"], env=environment, capture_output=True, text=True, timeout=10, check=False,
+    )
+
+    assert f'(allow file-read* (literal {json.dumps(str(virtual_environment / "bin"))}))' in policy
+    assert f'(allow file-read* (subpath {json.dumps(str(python_framework))}))' in policy
+    assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
+    assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
+    assert completed.stdout.strip() == sys.prefix

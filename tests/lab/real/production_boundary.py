@@ -68,6 +68,7 @@ class ProductionBoundary:
                 Path("/System"), Path("/Library"), Path("/usr"), Path("/bin"), Path("/sbin"),
                 Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"),
             )),
+            *(f'(allow file-read* (literal {json.dumps(str(path.resolve()))}))' for path in read_paths),
             *(f'(allow file-read* (subpath {json.dumps(str(path.resolve()))}))' for path in read_paths),
             '(allow file-read* (literal "/"))',
             f'(allow file-read* (subpath {json.dumps(str(root))}))',
