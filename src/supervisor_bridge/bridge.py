@@ -20,6 +20,7 @@ from supervisor_bridge.transport import (
     OpenClawHookClient,
     ReceiptNotFound,
     RetryableTransportError,
+    ServiceRefusal,
     SupervisorHttpClient,
     TransportError,
 )
@@ -85,6 +86,9 @@ class SupervisorBridge:
         except RetryableTransportError as error:
             self.state.record_failure("service_unavailable", True, error.cause)
             return ReconcileResult("failed", "service_unavailable")
+        except ServiceRefusal as error:
+            self.state.record_failure("service_rejected", False, error.cause)
+            return ReconcileResult("failed", "service_rejected")
         except TransportError:
             self.state.record_failure("service_rejected", False)
             return ReconcileResult("failed", "service_rejected")
@@ -226,6 +230,9 @@ class SupervisorBridge:
             raise
         except RetryableTransportError as error:
             self.state.record_failure("service_unavailable", True, error.cause)
+            raise
+        except ServiceRefusal as error:
+            self.state.record_failure("service_rejected", False, error.cause)
             raise
         except ReceiptNotFound:
             raise

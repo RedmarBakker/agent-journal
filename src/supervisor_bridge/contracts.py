@@ -21,6 +21,11 @@ OPENCLAW_TOOL_NAMES = (
 )
 METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840"
 METERED_PROVIDER_API_KEY_PLACEHOLDER = "journal-supervisor-metered-proxy-placeholder"
+SUPERVISOR_HOOK_MESSAGE_TEMPLATE = (
+    "Handle this admitted journal supervisor run. Call journal_supervisor.observe for the supplied run_ref, "
+    "then use only its journal evidence. If justified, apply at most one bounded maintenance action. "
+    "Read journal_supervisor.receipt after applying and finish. Run reference: {{run_ref}}"
+)
 RUN_KEYS = frozenset({
     "run_id",
     "episode_id",
@@ -276,7 +281,7 @@ def tool_input_schemas(schema: dict | None = None) -> dict[str, dict]:
                 "run_ref": run_ref,
                 "cursor": inline_schema(request_properties["cursor"], definitions),
             },
-            "required": ["run_ref", "cursor"],
+            "required": ["run_ref"],
             "additionalProperties": False,
         },
         TOOL_NAMES[1]: {
@@ -366,6 +371,21 @@ def validate_pinned_fixture(fixture: dict) -> None:
             "path": "/hooks",
             "allowedAgentIds": ["supervisor"],
             "allowRequestSessionKey": False,
+            "mappings": [{
+                "id": "journal-supervisor",
+                "match": {"path": "journal-supervisor"},
+                "action": "agent",
+                "wakeMode": "now",
+                "name": "Journal plan maintenance",
+                "agentId": "supervisor",
+                "sessionMode": "isolated",
+                "messageTemplate": SUPERVISOR_HOOK_MESSAGE_TEMPLATE,
+                "deliver": False,
+                "allowUnsafeExternalContent": True,
+                "model": "anthropic/claude-sonnet-5",
+                "thinking": "high",
+                "timeoutSeconds": 180,
+            }],
         },
         "mcp": {"servers": {"journal": {
             "enabled": False,
@@ -401,17 +421,18 @@ def validate_pinned_fixture(fixture: dict) -> None:
     if fixture.get("cron_add_params") != expected_job:
         raise ContractError("complete cron.add command differs from the pinned bounded fixture")
     expected_hook = {
-        "message": "Resolve only the journal-issued run reference example-run using journal_supervisor.observe; evidence and authority come from journal.",
-        "name": "Journal supervision admission",
-        "agentId": "supervisor",
-        "sessionMode": "isolated",
-        "deliver": False,
-        "thinking": "high",
-        "model": "anthropic/claude-sonnet-5",
-        "timeoutSeconds": 180,
+        "run_ref": {
+            "run_id": "example-run",
+            "episode_id": "example-episode",
+            "pending_action_id": "example-action",
+            "grant_id": "example-grant",
+            "grant_version": 1,
+            "installation_epoch": 1,
+            "fence": 1,
+        },
     }
     if fixture.get("hook_agent_request") != expected_hook:
-        raise ContractError("complete private hook request differs from the pinned reference-only fixture")
+        raise ContractError("complete private hook request differs from the pinned run-reference fixture")
     if fixture.get("hook_headers_without_secrets") != {
         "Content-Type": "application/json",
         "Idempotency-Key": "example-run",

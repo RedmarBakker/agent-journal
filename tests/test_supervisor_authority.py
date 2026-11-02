@@ -491,11 +491,16 @@ def test_live_smoke_admits_one_turn_from_an_open_unheld_task_after_its_bound_che
     assert grant["limits"]["max_turns_per_day"] == 1
 
 
-def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, authority_fixture):
+def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, authority_fixture, tmp_path):
     from journal.events.rows.check_completed import CheckCompleted
     from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
     from journal.http.server import Server
     from journal.support.time_source import TimeSource
+    from supervisor_bridge.bridge import SupervisorBridge
+    from supervisor_bridge.contracts import RunReference, TOOL_NAMES
+    from supervisor_bridge.mcp import McpServer
+    from supervisor_bridge.state import StateStore
+    from supervisor_bridge.transport import JsonHttpConnection, SupervisorHttpClient
 
     fixture = authority_fixture
     grant, token, principal = admitted(fixture, "bounded_write")
@@ -517,7 +522,7 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
 
     server = app.container.call(Server)
     server.start()
-    caller_scope_headers = {"X-Journal-Env": fixture.owner_environment.name, "X-Journal-Tenant": "owner:untrusted"}
+    caller_scope_headers = {"X-Journal-Env": fixture.driver_environment.name, "X-Journal-Tenant": "owner:untrusted"}
     other_tenant = None
     try:
         status, admitted_body = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
@@ -527,15 +532,21 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
         run = admitted_body["run"]
         assert run["grant_id"] == grant["grant_id"] and run["grant_version"] == grant["grant_version"]
 
-        status, observed_body = _post_supervisor_http(server.port, "/_supervisor/v1/observe", {
-            "protocol_version": 1,
-            "run_id": run["run_id"],
-            "installation_epoch": run["installation_epoch"],
-            "fence": run["fence"],
-            "cursor": None,
-        }, token, caller_scope_headers)
-        assert status == 200, observed_body
+        state = StateStore(tmp_path / "bridge")
+        state.record_admitted(RunReference.from_run(run))
+        mcp = McpServer(SupervisorBridge(
+            SupervisorHttpClient(JsonHttpConnection(f"http://127.0.0.1:{server.port}", token)), state,
+        ))
+        observed = mcp.handle({
+            "jsonrpc": "2.0", "id": "observe", "method": "tools/call",
+            "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RunReference.from_run(run).to_dict()}},
+        })["result"]
+        assert observed["isError"] is False, observed
+        observed_body = json.loads(observed["content"][0]["text"])
+        assert observed_body["run"]["fence"] == run["fence"]
         snapshot = observed_body["snapshot"]
+        assert snapshot["grant"]["scope"]["tenant_id"] == principal.scope["tenant_id"]
+        assert snapshot["grant"]["scope"]["environment_id"] == principal.scope["environment_id"]
         evidence = observed_body["page"]["observations"][0]
 
         with app.container.get(Scope).environment(PROJECT):

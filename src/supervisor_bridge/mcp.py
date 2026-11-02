@@ -4,13 +4,17 @@ from typing import TextIO
 
 from supervisor_bridge.bridge import SupervisorBridge
 from supervisor_bridge.contracts import ContractError, TOOL_NAMES, tool_input_schemas
+from supervisor_bridge.transport import AuthorizationError, RetryableTransportError, ServiceRefusal
 
 
 PROTOCOL_VERSIONS = frozenset({"2024-11-05", "2025-03-26", "2025-06-18"})
 LATEST_PROTOCOL_VERSION = "2025-06-18"
 MAX_FRAME_BYTES = 65536
 TOOL_DESCRIPTIONS = {
-    TOOL_NAMES[0]: "Read the admitted journal snapshot and its bounded observation page.",
+    TOOL_NAMES[0]: (
+        "Read the admitted journal snapshot and bounded observation page. "
+        "Omit cursor on the first read; use next_cursor to continue."
+    ),
     TOOL_NAMES[1]: "Submit only typed maintenance operations under the admitted journal fence.",
     TOOL_NAMES[2]: "Read the canonical journal receipt for the admitted action.",
 }
@@ -76,11 +80,12 @@ class McpServer:
         arguments = params["arguments"]
         try:
             if name == TOOL_NAMES[0]:
-                if not isinstance(arguments, dict) or set(arguments) != {"run_ref", "cursor"}:
-                    raise ContractError("observe requires only the current run_ref and page cursor")
+                if not isinstance(arguments, dict) or set(arguments) not in ({"run_ref"}, {"run_ref", "cursor"}):
+                    raise ContractError("observe requires only the current run_ref and optional page cursor")
                 run = self.bridge.require_active(arguments.get("run_ref") if isinstance(arguments, dict) else None)
                 expected_cursor = self.cursors.get(run.run_id, self.bridge.state.observation_cursor())
-                if arguments.get("cursor") != expected_cursor:
+                supplied_cursor = arguments.get("cursor")
+                if supplied_cursor is not None and supplied_cursor != expected_cursor:
                     raise ContractError("cursor is not the current journal page cursor")
                 result = self.bridge.observe(arguments["run_ref"], expected_cursor)
                 self.cursors[run.run_id] = result["page"]["next_cursor"]
@@ -97,18 +102,30 @@ class McpServer:
                 "id": request_id,
                 "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, separators=(",", ":"))}], "isError": False},
             }
-        except (ContractError, KeyError, TypeError, ValueError):
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {"content": [{"type": "text", "text": "The journal supervisor request was rejected."}], "isError": True},
-            }
+        except (AuthorizationError, ServiceRefusal) as error:
+            return self.tool_failure(request_id, "refused", error.cause)
+        except RetryableTransportError as error:
+            return self.tool_failure(request_id, "unavailable", error.cause)
+        except ContractError as error:
+            return self.tool_failure(request_id, "rejected", str(error))
+        except (KeyError, TypeError, ValueError):
+            return self.tool_failure(request_id, "rejected", "tool arguments do not match the fixed contract")
         except Exception:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": {"content": [{"type": "text", "text": "The journal supervisor service is unavailable."}], "isError": True},
             }
+
+    @staticmethod
+    def tool_failure(request_id: object, category: str, reason: str) -> dict:
+        clean = " ".join("".join(character if character.isprintable() else " " for character in reason).split())[:240]
+        text = f"The journal supervisor request was {category}: {clean}."
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {"content": [{"type": "text", "text": text}], "isError": True},
+        }
 
     def acknowledge_cursor(self, receipt: dict) -> None:
         if receipt.get("verification") not in {"verified", "superseded", "not_applied"}:

@@ -389,7 +389,7 @@ def test_offline_gateway_reconciliation_recovers_missed_events(tmp_path):
     server = McpServer(bridge)
     observed = server.handle({
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF, "cursor": "journal-cursor-7"}},
+        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF}},
     })
     response = json.loads(observed["result"]["content"][0]["text"])
 
@@ -398,20 +398,56 @@ def test_offline_gateway_reconciliation_recovers_missed_events(tmp_path):
     assert journal.calls[1][1]["cursor"] is None
     assert journal.calls[2][0] == "observe"
     assert journal.calls[2][1]["cursor"] == "journal-cursor-7"
+    assert observed["result"]["isError"] is False
     assert response["page"]["observations"] == [observation]
     assert state.observation_cursor() == "journal-cursor-7"
 
 
-def test_reference_only_hook_cannot_override_agent_session_or_scope():
+@pytest.mark.parametrize("status", [400, 403])
+def test_mcp_tool_returns_the_bounded_writer_refusal_without_its_credential(tmp_path, status):
+    token = "service-credential-must-stay-private"
+    refusal = f"supervisor run is not current; {token} " + "x" * 400
+    connection = JsonHttpConnection("https://writer", token)
+
+    class RefusingWriter:
+        def open(self, request, timeout):
+            raise HTTPError(request.full_url, status, "Forbidden", {}, BytesIO(
+                json.dumps({"error": refusal}).encode(),
+            ))
+
+    connection.opener = RefusingWriter()
+    state = StateStore(tmp_path)
+    state.record_admitted(RunReference.from_run(RUN))
+    server = McpServer(SupervisorBridge(SupervisorHttpClient(connection), state))
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": TOOL_NAMES[0], "arguments": {"run_ref": RUN_REF}},
+    })["result"]
+    message = result["content"][0]["text"]
+
+    assert result["isError"] is True
+    assert "supervisor run is not current" in message
+    assert token not in message
+    assert len(message) < 300
+
+
+def test_supervisor_hook_uses_a_fixed_trusted_mapping_and_only_a_run_reference():
     run = RunReference.from_run(RUN)
     body, headers = hook_request(run)
 
-    assert set(body) == {"message", "name", "agentId", "sessionMode", "deliver", "thinking", "model", "timeoutSeconds"}
-    assert body["agentId"] == "supervisor"
-    assert body["sessionMode"] == "isolated" and body["deliver"] is False
-    assert body["model"] == "anthropic/claude-sonnet-5" and body["thinking"] == "high"
-    assert "sessionKey" not in body and "sessionId" not in body
-    assert json.dumps(run.to_dict(), sort_keys=True, separators=(",", ":")) in body["message"]
+    assert set(body) == {"run_ref"}
+    assert body["run_ref"] == run.to_dict()
+    assert headers["Idempotency-Key"] == run.run_id
+    assert headers["Content-Type"] == "application/json"
+    fixture = json.loads(FIXTURE_PATH.read_text())
+    mapping = fixture["openclaw_config"]["hooks"]["mappings"][0]
+    assert mapping["match"] == {"path": "journal-supervisor"}
+    assert mapping["agentId"] == "supervisor"
+    assert mapping["action"] == "agent" and mapping["sessionMode"] == "isolated"
+    assert mapping["allowUnsafeExternalContent"] is True
+    assert "{{run_ref}}" in mapping["messageTemplate"]
+    assert "one bounded maintenance action" in mapping["messageTemplate"]
     assert headers == {"Content-Type": "application/json", "Idempotency-Key": "run-1"}
 
 
@@ -527,12 +563,10 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
     assert receipt_request.full_url == "http://127.0.0.1:9134/_supervisor/v1/receipt"
     assert json.loads(receipt_request.data) == {"protocol_version": 1, "action_id": "action-1"}
     assert service_timeout == usage_timeout == apply_timeout == receipt_timeout == hook_timeout == 20
-    assert hook_request_sent.full_url == "http://localhost:18789/hooks/agent"
+    assert hook_request_sent.full_url == "http://localhost:18789/hooks/journal-supervisor"
     assert hook_request_sent.get_header("Authorization") == "Bearer openclaw-hook-token"
     assert hook_request_sent.get_header("Idempotency-key") == "run-1"
-    assert set(json.loads(hook_request_sent.data)) == {
-        "message", "name", "agentId", "sessionMode", "deliver", "thinking", "model", "timeoutSeconds"
-    }
+    assert json.loads(hook_request_sent.data) == {"run_ref": run.to_dict()}
 
 
 def test_pinned_command_and_tool_config_match_contract(tmp_path):
@@ -544,6 +578,8 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     supervisor = fixture["openclaw_config"]["agents"]["entries"]["supervisor"]
 
     assert tuple(schemas) == TOOL_NAMES
+    assert schemas[TOOL_NAMES[0]]["required"] == ["run_ref"]
+    assert "cursor" in schemas[TOOL_NAMES[0]]["properties"]
     assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
     assert PINNED_OPENCLAW_VERSION == "2026.10.8"
     assert PINNED_OPENCLAW_COMMIT.startswith("dc2523e")
@@ -578,6 +614,7 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     server = McpServer(SupervisorBridge(StubJournal(), StateStore(tmp_path)))
     listed = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert [tool["name"] for tool in listed["result"]["tools"]] == list(TOOL_NAMES)
+    assert "Omit cursor on the first read" in listed["result"]["tools"][0]["description"]
 
     expanded = json.loads(json.dumps(fixture))
     expanded["openclaw_config"]["agents"]["entries"]["supervisor"]["tools"]["allow"].append("shell")

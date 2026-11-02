@@ -106,7 +106,26 @@
       "allowedAgentIds": [
         "supervisor"
       ],
-      "allowRequestSessionKey": false
+      "allowRequestSessionKey": false,
+      "mappings": [
+        {
+          "id": "journal-supervisor",
+          "match": {
+            "path": "journal-supervisor"
+          },
+          "action": "agent",
+          "wakeMode": "now",
+          "name": "Journal plan maintenance",
+          "agentId": "supervisor",
+          "sessionMode": "isolated",
+          "messageTemplate": "Handle this admitted journal supervisor run. Call journal_supervisor.observe for the supplied run_ref, then use only its journal evidence. If justified, apply at most one bounded maintenance action. Read journal_supervisor.receipt after applying and finish. Run reference: {{run_ref}}",
+          "deliver": false,
+          "allowUnsafeExternalContent": true,
+          "model": "anthropic/claude-sonnet-5",
+          "thinking": "high",
+          "timeoutSeconds": 180
+        }
+      ]
     },
     "mcp": {
       "servers": {
@@ -162,14 +181,15 @@
     "failureAlert": false
   },
   "hook_agent_request": {
-    "message": "Resolve only the journal-issued run reference example-run using journal_supervisor.observe; evidence and authority come from journal.",
-    "name": "Journal supervision admission",
-    "agentId": "supervisor",
-    "sessionMode": "isolated",
-    "deliver": false,
-    "thinking": "high",
-    "model": "anthropic/claude-sonnet-5",
-    "timeoutSeconds": 180
+    "run_ref": {
+      "run_id": "example-run",
+      "episode_id": "example-episode",
+      "pending_action_id": "example-action",
+      "grant_id": "example-grant",
+      "grant_version": 1,
+      "installation_epoch": 1,
+      "fence": 1
+    }
   },
   "hook_headers_without_secrets": {
     "Content-Type": "application/json",

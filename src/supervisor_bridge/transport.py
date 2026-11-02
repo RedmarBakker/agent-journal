@@ -20,9 +20,9 @@ from supervisor_bridge.contracts import (
 
 REQUEST_TIMEOUT_SECONDS = 20
 RESPONSE_MAX_BYTES = 1_048_576
-AUTHORIZATION_RESPONSE_MAX_BYTES = 4096
-AUTHORIZATION_REASON_MAX = 240
-HOOK_PATH = "/hooks/agent"
+SERVICE_ERROR_RESPONSE_MAX_BYTES = 4096
+SERVICE_ERROR_REASON_MAX = 240
+HOOK_PATH = "/hooks/journal-supervisor"
 RECEIPT_ENVELOPE_FIELDS = frozenset({"status", "reason", "receipt_id", "data", "report", "duplicate"})
 
 
@@ -35,6 +35,14 @@ class AuthorizationError(TransportError):
 
     def __init__(self, message: str, cause: str = ""):
         super().__init__(message)
+        self.cause = cause
+
+
+class ServiceRefusal(TransportError):
+    """A bounded writer refusal returned for a fixed service request."""
+
+    def __init__(self, cause: str):
+        super().__init__("service rejected the fixed request")
         self.cause = cause
 
 
@@ -75,13 +83,13 @@ def retryable_cause(error: BaseException) -> str:
     return "TransportError"
 
 
-def authorization_refusal(error: HTTPError, token: str) -> str:
+def service_refusal(error: HTTPError, token: str) -> str:
     fallback = f"HTTP {error.code}"
     try:
-        body = error.read(AUTHORIZATION_RESPONSE_MAX_BYTES + 1)
+        body = error.read(SERVICE_ERROR_RESPONSE_MAX_BYTES + 1)
     except (HTTPException, OSError):
         return fallback
-    if len(body) > AUTHORIZATION_RESPONSE_MAX_BYTES:
+    if len(body) > SERVICE_ERROR_RESPONSE_MAX_BYTES:
         return fallback
     try:
         response = json.loads(body)
@@ -91,7 +99,7 @@ def authorization_refusal(error: HTTPError, token: str) -> str:
         return fallback
     message = response["error"].replace(token, "[redacted]") if token else response["error"]
     message = "".join(character if character.isprintable() else " " for character in message)
-    reason = " ".join(message.split())[:AUTHORIZATION_REASON_MAX]
+    reason = " ".join(message.split())[:SERVICE_ERROR_REASON_MAX]
     return reason or fallback
 
 
@@ -137,13 +145,13 @@ class JsonHttpConnection:
             if error.code in {401, 403}:
                 raise AuthorizationError(
                     "dedicated service credential was rejected",
-                    authorization_refusal(error, self.token),
+                    service_refusal(error, self.token),
                 ) from None
             if error.code == 404 and path == ROUTES["receipt"]:
                 raise ReceiptNotFound("canonical receipt is not available yet") from None
             if error.code == 429 or error.code >= 500:
                 raise RetryableTransportError(f"service returned HTTP {error.code}", retryable_cause(error)) from None
-            raise TransportError(f"service rejected the fixed request with HTTP {error.code}") from None
+            raise ServiceRefusal(service_refusal(error, self.token)) from None
         except (TimeoutError, URLError, OSError) as error:
             raise RetryableTransportError("service request did not complete", retryable_cause(error)) from error
 
@@ -250,16 +258,8 @@ class HookAcknowledgement:
 
 
 def hook_request(run: RunReference) -> tuple[dict, dict[str, str]]:
-    reference = json.dumps(run.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return {
-        "message": f"Resolve only the journal-issued run reference {reference} using journal_supervisor.observe; evidence and authority come from journal.",
-        "name": "Journal supervision admission",
-        "agentId": "supervisor",
-        "sessionMode": "isolated",
-        "deliver": False,
-        "thinking": "high",
-        "model": "anthropic/claude-sonnet-5",
-        "timeoutSeconds": 180,
+        "run_ref": run.to_dict(),
     }, {
         "Content-Type": "application/json",
         "Idempotency-Key": run.run_id,

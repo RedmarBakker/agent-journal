@@ -932,6 +932,16 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert fixture["tools"]["wildcards"] is False
     assert len(fixture["tools"]["allowlist"]) == 3
     assert fixture["secret_values_in_fixture"] is False
+    mapping = contract_fixture["openclaw_config"]["hooks"]["mappings"]
+    assert len(mapping) == 1
+    assert mapping[0]["match"] == {"path": "journal-supervisor"}
+    assert mapping[0]["action"] == "agent" and mapping[0]["sessionMode"] == "isolated"
+    assert mapping[0]["agentId"] == "supervisor"
+    assert mapping[0]["deliver"] is False
+    assert mapping[0]["allowUnsafeExternalContent"] is True
+    assert "{{run_ref}}" in mapping[0]["messageTemplate"]
+    assert "journal_supervisor.observe" in mapping[0]["messageTemplate"]
+    assert "journal_supervisor.receipt" in mapping[0]["messageTemplate"]
 
     entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
     assert ". /opt/journal-supervisor/bin/journal-supervisor-environment" in entrypoint
