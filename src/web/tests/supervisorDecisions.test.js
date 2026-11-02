@@ -115,14 +115,16 @@ test("the owner sees complete wake-up history, filters it, undoes tier one actio
     expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Receipt 911");
     expect(page.querySelector('[data-history-row="301"] .history-action').textContent).toContain("Checks");
     expect(page.querySelector('[data-history-row="301"] .history-tier').textContent).toBe("Tier 1");
-    expect(page.querySelector('[data-history-row="301"] button').textContent).toBe("Undo");
-    expect(page.querySelector('[data-history-row="299"] button')).toBeNull();
+    const undo = [...page.querySelectorAll('[data-history-row="301"] button')]
+        .find((button) => button.textContent.trim() === "Undo");
+    expect(undo).toBeDefined();
+    expect(page.querySelector('[data-history-row="299"] .history-action button')).toBeNull();
     expect(page.querySelector('[data-history-row="300"]').textContent).toContain("Skipped as quiet: 4 wake-ups");
     expect(page.querySelector('[data-history-row="301"]').textContent).toContain("$0.07");
     expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Event: Failed check");
     expect(page.querySelector('[data-history-row="301"]').textContent).toContain("Pricing for add-ons");
 
-    page.querySelector('[data-history-row="301"] button').click();
+    undo.click();
     await vi.waitFor(() => expect(api.supervisorUndo).toHaveBeenCalledWith(31, 911));
 
     page.querySelector('[aria-label="Load 100 older rows"]').click();
@@ -202,6 +204,7 @@ test("the owner saves feedback for a decision and turns its correction into a ru
     api.supervisorFeedback.mockResolvedValue({feedback: {useful: true, comment: "Good result.", correction: "Inspect before changing the interval.", rule_id: null}});
     const page = await openPage();
     await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-useful]')).not.toBeNull());
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] .history-action button')).not.toBeNull());
 
     page.querySelector('[data-history-row="79"] [data-feedback-useful]').click();
     await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-save]').disabled).toBe(false));
@@ -216,6 +219,7 @@ test("the owner saves feedback for a decision and turns its correction into a ru
     await vi.waitFor(() => expect(api.supervisorFeedback).toHaveBeenCalledWith(79, {
         useful: true, comment: "Good result.", correction: "Inspect before changing the interval.",
     }));
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-rule]')).not.toBeNull());
     page.querySelector('[data-history-row="79"] [data-feedback-rule]').click();
     await vi.waitFor(() => expect(api.supervisorFeedbackRule).toHaveBeenCalledWith(79));
     await vi.waitFor(() => expect(page.textContent).toContain("Correction added as a rule."));
