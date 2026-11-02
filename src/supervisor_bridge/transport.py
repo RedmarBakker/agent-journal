@@ -90,7 +90,7 @@ def authorization_refusal(error: HTTPError, token: str) -> str:
     if not isinstance(response, dict) or not isinstance(response.get("error"), str):
         return fallback
     message = response["error"].replace(token, "[redacted]") if token else response["error"]
-    message = " ".join(character if character.isprintable() else " " for character in message)
+    message = "".join(character if character.isprintable() else " " for character in message)
     reason = " ".join(message.split())[:AUTHORIZATION_REASON_MAX]
     return reason or fallback
 
