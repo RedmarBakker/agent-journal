@@ -8,6 +8,7 @@ from journal.models.agent import Agent
 from journal.models.environment import Environment
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
+from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 from journal.support.hook import Hook
 from journal.support.researcher_session import ResearcherSession
@@ -44,6 +45,8 @@ class HookSeats:
         if researchers:
             return replace(attributed, agent_row=researchers[-1])
         rows = self.agents.session_rows(attributed.session)
+        if rows and attributed.session_role == AgentRole.MAIN:
+            return replace(attributed, agent_row=self.sessions.caller_agent(attributed, attributed.session, self.scope.id))
         if rows:
             return replace(attributed, agent_row=rows[0])
         return self.helper_seated(attributed) if attributed.session_role.is_helper() else attributed

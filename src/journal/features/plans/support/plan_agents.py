@@ -121,6 +121,7 @@ class PlanAgents:
             environment = self.places.visible(environment, source_environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", source_environment_id, actor, "plan")
             agent = self.agent(plan)
             if plan.mode == PlanMode.ORGANIZATION:
+                self.retire_leftover_coordinators(environment.row_id, agent.row_id if agent else 0, actor)
                 if agent and self.staffing.is_running(plan, agent.provider):
                     return
             elif self.places.is_running(environment):
@@ -128,7 +129,6 @@ class PlanAgents:
             self.bindings.bind(plan, environment.row_id, actor)
             agent = agent or self.prepared(plan, environment, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
-                self.retire_leftover_coordinators(environment.row_id, agent.row_id, actor)
                 self.commits.add(lambda: self.start_organization_plan(plan, environment, agent, actor))
             else:
                 try:
