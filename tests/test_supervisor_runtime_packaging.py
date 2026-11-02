@@ -372,7 +372,7 @@ def test_proposal_case_harness_resets_only_the_project_and_collects_writer_rows(
     assert "down --volumes" not in stage
     assert all("/data/home" not in line for line in stage.splitlines() if "rm -rf" in line)
     assert "seed-project.sh" in stage and "setup-live-smoke.sh" in stage
-    assert "compose cp \"$SEED_DIR/case-seed.json\" writer:/run/journal-proposal-case-seed.json" in stage
+    assert "cat > /run/journal-proposal-case-seed.json' < \"$SEED_DIR/case-seed.json\"" in stage
     assert "JOURNAL_SUPERVISOR_CASE_ID" in setup and "/usr/local/bin/supervisor-live-setup" in setup
     assert "load_seed(CASE_SEED_FILE, case_id)" in setup_program
     assert "proposal-evaluation-cases-v1.json" not in dockerfile

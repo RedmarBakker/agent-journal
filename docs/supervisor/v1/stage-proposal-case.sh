@@ -91,7 +91,7 @@ TENANT_PROJECT=journal-supervisor-smoke PROJECT_EXPORT="$PROJECT_EXPORT" \
     "$ROOT/docs/supervisor/v1/seed-project.sh"
 
 compose up -d writer
-compose cp "$SEED_DIR/case-seed.json" writer:/run/journal-proposal-case-seed.json
+compose exec -T --user journal writer sh -c 'umask 077; cat > /run/journal-proposal-case-seed.json' < "$SEED_DIR/case-seed.json"
 compose exec --detach --user 10001:10001 --env JOURNAL_ROOT=/data/project \
     --env JOURNAL_PORT=8421 --env CODEX_HOME=/data/home/.codex -T writer \
     /data/project/.journal/bin/journal codex --env main --yes --no-open
