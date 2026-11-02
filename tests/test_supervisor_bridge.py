@@ -919,7 +919,7 @@ def test_eight_provider_requests_cover_four_counted_model_responses(tmp_path):
     usage = state.snapshot()["metering"]
     assert usage["provider_requests"] == 8
     assert usage["status"] == "capped"
-    assert [path for path, _payload in provider.requests] == [
+    assert [path for path, _payload, _accept in provider.requests] == [
         "/v1/messages/count_tokens", "/v1/messages",
     ] * 4
 
