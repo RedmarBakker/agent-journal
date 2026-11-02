@@ -4,6 +4,7 @@ from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from tests.stories.fixtures.main.supervisor_grant_capabilities import configure_grant_capabilities
 from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
 
 
@@ -64,6 +65,9 @@ class SupervisorGrantUnwatchedPlan(SupervisorGrantCliRole):
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
+        configure_grant_capabilities(story, self.supervisor_authority, story.grants.first, {
+            "plan priorities": {"on": True, "mode": "act"},
+        })
         environment = story.app.container.get(Environments).lookup(self.supervisor_environment)
         plans = story.app.container.get(Plans)
         scope = story.app.container.get(Scope)

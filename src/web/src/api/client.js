@@ -187,7 +187,10 @@ export class ApiClient {
 
     supervisorProposal(planId, receiptId, decision) {
         if (!["accept", "decline"].includes(decision)) return Promise.reject(new Error("the proposal decision is invalid"));
-        return this.post(this.here(`/plans/${planId}/supervisor/receipts/${receiptId}/${decision}`), {});
+        if (decision === "accept") {
+            return this.post(this.here(`/plans/${planId}/supervisor/receipts/${receiptId}/accept`), {});
+        }
+        return this.post(this.here(`/plans/${planId}/supervisor/receipts/${receiptId}/decline`), {});
     }
 
     supervisorUndo(planId, receiptId) {

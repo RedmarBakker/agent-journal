@@ -1,5 +1,6 @@
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.supervisor_grant_cli_act import SupervisorGrantCliAct
 from tests.stories.fixtures.main.supervisor_grant_cli_role import (
     SupervisorGrantCliProposalOnly,
     SupervisorGrantCliAlias,
@@ -8,7 +9,7 @@ from tests.stories.fixtures.main.supervisor_grant_cli_role import (
 )
 
 
-@story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
+@story(SupervisorGrantCliAct, subject=AgentRole.SUPERVISOR)
 def test_a_supervisor_runs_a_switched_on_tier_one_verb_as_its_own_actor(story):
     result = story.supervisor_runs_command(story.agents.subject, "task create 'supervisor follow-up'")
     result.expect_command_passed()
