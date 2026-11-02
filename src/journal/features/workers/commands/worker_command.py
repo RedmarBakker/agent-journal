@@ -189,14 +189,19 @@ class WorkerCommand(Command):
         if role and args.task:
             task = self.tasks.find(args.task)
             instance = self.role_task_instance(role, task, caller)
-            if instance and instance.state == WorkerState.UNFINISHED and self.tasks.holder(task) == Ref.build(instance):
-                self.runner.prepare(instance)
-                instance = self.workers.find(instance.row_id)
-                return self.resend_role_job(instance, task, args, caller)
-            role_task = task
             if instance:
                 self.runner.prepare(instance)
                 instance = self.workers.find(instance.row_id)
+                current_task = self.tasks.holder_task(Ref.build(instance))
+                if instance.state == WorkerState.UNFINISHED and current_task:
+                    if current_task.id == task.id:
+                        return self.resend_role_job(instance, task, args, caller)
+                    self.queue(
+                        Namespace(n=instance.id, tasks=[task.id], first=False), caller,
+                    )
+                    return self.resend_role_job(instance, current_task, args, caller)
+            role_task = task
+            if instance:
                 return self.queue(Namespace(n=instance.id, tasks=[role_task.id], first=False), caller)
         output = [worker for worker in self.workers.busy_workers() if self.worker_uses_place(worker)]
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
