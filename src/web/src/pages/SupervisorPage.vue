@@ -1,10 +1,11 @@
 <script setup>
-import {computed, onMounted, ref, watch} from "vue";
+import {computed, ref, watch} from "vue";
 import {api} from "../api/client.js";
 import Segmented from "../kit/Segmented.vue";
 import {PAGES} from "../domain/navigation.js";
 import {onPhone} from "../platform/phone.js";
 import {href, route} from "../route.js";
+import SupervisorControlPage from "./SupervisorControlPage.vue";
 
 const PERIODS = [
     {key: "today", label: "Today"},
@@ -94,7 +95,9 @@ watch([subpage, period, planId, area], () => {
     if (subpage.value === "dashboard") loadRecords();
 }, {immediate: true});
 
-onMounted(loadPlans);
+watch(subpage, () => {
+    if (subpage.value === "dashboard") loadPlans();
+}, {immediate: true});
 </script>
 
 <template>
@@ -206,6 +209,7 @@ onMounted(loadPlans);
                 </section>
             </template>
         </template>
+        <SupervisorControlPage v-else-if="subpage === 'control'" />
         <section v-else class="supervisor-not-built" aria-label="Supervisor sub-page">
             <h2>{{ children.find((child) => child.key === subpage)?.title }}</h2>
             <p><span class="not-built-yet" title="Not built yet">Not built yet</span></p>

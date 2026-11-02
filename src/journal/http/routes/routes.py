@@ -123,6 +123,7 @@ class Routes:
         router.get(f"{API}/organization", organization.index)
         router.get(f"{API}/home", get(HomeDashboardController).index)
         router.get(f"{API}/supervisor/records", get(SupervisorController).read_records)
+        router.get(f"{API}/supervisor/control", get(SupervisorController).read_control)
         router.get(f"{API}/organization/roles/{{domain}}/{{role}}", organization.role_contract)
         router.post(f"{API}/organization/reload", organization.reload)
         self.listed(router, "domain_counts", get(DomainCountController))

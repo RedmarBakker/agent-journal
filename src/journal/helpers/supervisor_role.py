@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 from journal.console.command import Command
+from journal.features.supervisor.support.supervisor_capabilities import CAPABILITY_CATALOGUE
 from journal.helpers.main_role import MainRole
 from journal.models.alias import Alias
 from journal.models.supervisor_grant import SupervisorGrant
@@ -13,11 +14,6 @@ class SupervisorRole(MainRole):
 
     role: ClassVar[AgentRole] = AgentRole.SUPERVISOR
     READ_VERBS: ClassVar[frozenset[str]] = frozenset({"show", "list", "read", "overview", "health"})
-    COMMAND_AREAS: ClassVar[dict[str, str]] = {
-        "task create": "plans-and-tasks",
-        "plan priorities": "plans-and-tasks",
-        "check edit": "checks",
-    }
 
     @classmethod
     def runs_alias(cls, alias: Alias) -> bool:
@@ -40,21 +36,20 @@ class SupervisorRole(MainRole):
         if verb in cls.READ_VERBS or command.noun == "search" and verb == "find":
             return ""
         capabilities = dict((name, (enabled, mode)) for name, enabled, mode in grant.capabilities)
-        selectors = cls.selectors(command, verb)
-        settings = [capabilities[selector] for selector in selectors if selector in capabilities]
-        if not settings or any(not enabled for enabled, _mode in settings):
+        capability = f"{command.noun} {verb}"
+        catalogue_entry = CAPABILITY_CATALOGUE.get(capability)
+        setting = capabilities.get(capability)
+        if catalogue_entry is None or setting is None or not setting[0]:
             return "the capability is switched off"
-        if any(mode != "act" for _enabled, mode in settings):
+        area = catalogue_entry[0]
+        area_setting = capabilities.get(f"area:{area}")
+        if area_setting is not None and not area_setting[0]:
+            return "the capability is switched off"
+        if setting[1] != "act":
             return "the capability is set to propose"
         if command.noun == "plan" and verb == "priorities":
             return cls.plan_scope_refusal(grant, args)
         return ""
-
-    @classmethod
-    def selectors(cls, command: type[Command], verb: str) -> tuple[str, ...]:
-        capability = f"{command.noun} {verb}"
-        area = cls.COMMAND_AREAS.get(capability)
-        return (capability, f"area:{area}") if area else (capability,)
 
     @staticmethod
     def plan_scope_refusal(grant: SupervisorGrant, args) -> str:

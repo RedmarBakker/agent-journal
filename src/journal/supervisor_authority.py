@@ -11,6 +11,9 @@ from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_bindings import ENDED_LINK, PlanBindings
 from journal.features.plans.support.plan_owners import PlanOwners
+from journal.features.supervisor.support.supervisor_capabilities import (
+    CAPABILITY_CATALOGUE, control_areas, control_decisions,
+)
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.entry import Entry
@@ -21,7 +24,9 @@ from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.template import Template
-from journal.models.supervisor_grant import BUDGET_FIELDS, MAX_INPUT_TOKENS_PER_TURN, SupervisorGrant
+from journal.models.supervisor_grant import (
+    BUDGET_FIELDS, MAX_INPUT_TOKENS_PER_TURN, VERSION_ONE_CAPABILITIES, SupervisorGrant,
+)
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
@@ -90,6 +95,28 @@ class SupervisorAuthority:
             return "off"
         return "on"
 
+    def owner_control(self, actor: Actor, environment_id: int) -> dict[str, Any]:
+        entry = next((row for row in self._latest_entries()
+                      if row.data.get("driver_environment_id") == environment_id), None)
+        if entry is None:
+            raise SupervisorFailure(403, "supervisor request is not authorized")
+        grant = self._public_grant(entry)
+        owner_id = self._owner(actor, self._plan(grant["plan_id"]))
+        if owner_id != grant["owner_user_id"]:
+            raise SupervisorFailure(403, "supervisor request is not authorized")
+        version_two = self._grant_v2(entry, grant)
+        installation = self._latest_installation(grant["scope"]["tenant_id"])
+        return {
+            "grant_id": grant["grant_id"],
+            "grant_version": grant["grant_version"],
+            "status": self.owner_status(environment_id),
+            "grant": version_two,
+            "areas": control_areas(version_two["capabilities"]),
+            "needs_decision": control_decisions(version_two["capabilities"]),
+            "replacement_enrollment": self._replacement_enrollment(entry, grant, version_two),
+            "restore_review": self._restore_review_data(installation),
+        }
+
     def enrollment_context(self, plan_id: int, check_ids: tuple[int, ...] = (), template_id: str = "") -> dict[str, Any]:
         plan = self._plan(plan_id)
         context = self._eligible(plan, self.owners.number(plan))
@@ -142,7 +169,7 @@ class SupervisorAuthority:
                 plan = self._plan(current["plan_id"])
                 owner_id = self._owner(actor, plan)
                 if current["grant_version"] != request["expected_grant_version"]:
-                    raise SupervisorFailure(409, "the supervisor grant changed; read it again before changing it")
+                    raise SupervisorFailure(409, "The settings changed since you opened them; reload.")
                 if current["revoked"] or current["mode"] == "disabled":
                     raise SupervisorFailure(409, "the supervisor grant is already revoked")
 
@@ -158,6 +185,8 @@ class SupervisorAuthority:
                     grant = self._turn_off(entry, current, next_version, actor)
                 elif kind == "on":
                     grant = self._turn_on(entry, current, owner_id, next_version, actor)
+                elif kind == "configure":
+                    grant = self._configure(entry, current, request["change"]["grant"], next_version, actor)
                 else:
                     old_name = entry.data.get("_credential_name", "")
                     replacement = self._enrollment(request["change"]["enrollment"])
@@ -180,7 +209,7 @@ class SupervisorAuthority:
                     token = secrets.token_urlsafe(32)
                     rotated_name = self._credential_name(grant["grant_id"], next_version)
                     self.secrets_store.put(rotated_name, token)
-                    self._record_grant(grant, token, rotated_name, context, actor)
+                    self._record_replacement_grant(entry, grant, token, rotated_name, context, actor)
                     if installation and installation.data.get("restore_review_required") is True:
                         self._record_owner_review(installation, grant, owner_id, actor)
         except BaseException:
@@ -190,6 +219,85 @@ class SupervisorAuthority:
         if old_name:
             self.secrets_store.drop([old_name])
         return grant, token
+
+    def _configure(self, entry: Entry, current: dict[str, Any], value: object, version: int, actor: Actor) -> dict[str, Any]:
+        try:
+            version_two = SupervisorGrant.parsed(value, CAPABILITY_CATALOGUE).data()
+        except ValueError as invalid:
+            raise SupervisorFailure(400, str(invalid)) from invalid
+        original = self._grant_v2(entry, current)
+        if (version_two["owner_user_id"] != current["owner_user_id"]
+                or version_two["environment_id"] != current["driver_environment_id"]):
+            raise SupervisorFailure(403, "supervisor request is not authorized")
+        if (version_two["paused"] != original.get("paused", False)
+                or version_two["revoked"] != original.get("revoked", current["revoked"])
+                or version_two["valid_until_ms"] != original["valid_until_ms"]):
+            raise SupervisorFailure(400, "turn the supervisor off or replace its grant to change its status or expiry")
+        self._watched_plans(version_two["watched_plans"], current["driver_environment_id"], current["owner_user_id"])
+        capabilities = dict(version_two["capabilities"])
+        for capability in VERSION_ONE_CAPABILITIES.values():
+            capabilities.setdefault(capability, {"on": False, "mode": "act"})
+        version_two["capabilities"] = capabilities
+        grant = {**current, "grant_version": version, "limits": version_two["limits"]}
+        prior = {**entry.data, "grant_v2": version_two}
+        self._append_grant(grant, entry.data.get("_credential_sha256", ""),
+                           entry.data.get("_credential_name", ""), prior, actor)
+        return grant
+
+    def _watched_plans(self, watched: str | list[int], environment_id: int, owner_id: int) -> None:
+        if watched == "all":
+            return
+        for plan_id in watched:
+            plan = self._plan(plan_id)
+            if plan.environment_id != environment_id or self.owners.number(plan) != owner_id:
+                raise SupervisorFailure(403, "the watched plans must belong to the environment owner")
+
+    def _record_replacement_grant(self, entry: Entry, grant: dict[str, Any], token: str,
+                                  credential_name: str, context: dict[str, Any], actor: Actor) -> None:
+        previous = self._grant_v2(entry, self._public_grant(entry))
+        version_two = {
+            **previous,
+            "owner_user_id": grant["owner_user_id"],
+            "environment_id": grant["driver_environment_id"],
+            "limits": grant["limits"],
+            "valid_until_ms": grant["valid_until_ms"],
+            "paused": False,
+            "revoked": False,
+        }
+        prior = {
+            "grant_v2": version_two,
+            "_expected_plan_revision": context["plan_revision"],
+            "_expected_binding_revision": context["binding_revision"],
+        }
+        self._append_grant(grant, hashlib.sha256(token.encode("utf-8")).hexdigest(), credential_name, prior, actor)
+
+    def _replacement_enrollment(self, entry: Entry, grant: dict[str, Any], version_two: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "protocol_version": 1,
+            "plan_id": grant["plan_id"],
+            "current_phase": grant["current_phase"],
+            "expected_plan_revision": entry.data.get("_expected_plan_revision", ""),
+            "expected_binding_revision": entry.data.get("_expected_binding_revision", ""),
+            "checks": grant["checks"],
+            "diagnostic_template_id": grant["diagnostic_template_id"],
+            "diagnostic_template_revision": grant["diagnostic_template_revision"],
+            "capabilities": grant["capabilities"],
+            "limits": version_two["limits"],
+            "mode": grant["mode"],
+            "valid_until_ms": version_two["valid_until_ms"],
+        }
+
+    @staticmethod
+    def _restore_review_data(installation: Entry | None) -> dict[str, Any] | None:
+        if installation is None or installation.data.get("restore_review_required") is not True:
+            return None
+        data = installation.data
+        return {
+            "epoch": data.get("epoch"),
+            "evidence_watermark_ms": data.get("evidence_watermark_ms"),
+            "evidence_rpo_gap_ms": data.get("evidence_rpo_gap_ms"),
+            "accept_unavailable_evidence": data.get("evidence_watermark_ms") is None or data.get("evidence_rpo_gap_ms") is None,
+        }
 
     def _turn_off(self, entry: Entry, current: dict[str, Any], version: int, actor: Actor) -> dict[str, Any]:
         grant_v2 = self._grant_v2(entry, current)
@@ -985,10 +1093,12 @@ class SupervisorAuthority:
         grant_id = cls._string(body["grant_id"], 256)
         cls._integer(body["expected_grant_version"], 1)
         change = body["change"]
-        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on"):
+        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on", "configure"):
             raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
         if change["kind"] in ("revoke", "off", "on"):
             change = cls._object(change, {"kind"})
+        elif change["kind"] == "configure":
+            change = cls._object(change, {"kind", "grant"})
         else:
             if not isinstance(change, dict) or set(change) not in ({"kind", "enrollment"}, {"kind", "enrollment", "restore_review"}):
                 raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")

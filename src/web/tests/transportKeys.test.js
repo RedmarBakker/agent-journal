@@ -55,6 +55,17 @@ test("Supervisor record reads send the selected period, plan and area", async ()
     expect(sent).toEqual(["/journal/supervisor/records?period=today&plan_id=4&area=checks"]);
 });
 
+test("Supervisor Control reads the owner route and changes use the unscoped grant route", async () => {
+    const {sent} = answering();
+    const {api} = await import("../src/api/client.js");
+    vi.spyOn(api, "env").mockReturnValue("main");
+
+    api.supervisorControl();
+    api.supervisorChange({protocol_version: 1});
+
+    expect(sent).toEqual(["/journal/supervisor/control", "/_supervisor/v1/enrollment/change"]);
+});
+
 test("an answer the journal sent without readable JSON is refused, so a poll keeps what it had", async () => {
     const {answered} = await import("../src/api/transport.js");
     await expect(answered(new Response("<html>", {status: 200}), "200 OK")).rejects.toThrow("could not be read");

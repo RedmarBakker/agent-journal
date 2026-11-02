@@ -156,6 +156,16 @@ export class ApiClient {
         return this.get(path, `supervisor.records:${period}:${planId}:${area}`);
     }
 
+    supervisorControl() {
+        return this.get(this.here("/supervisor/control"), "supervisor.control");
+    }
+
+    supervisorChange(body) {
+        return this.here("/_supervisor/v1/enrollment/change") === NO_ENV
+            ? Promise.reject(new Error(NO_ENV))
+            : transport.request("POST", `${this.base}/_supervisor/v1/enrollment/change`, body, 0, this.headers());
+    }
+
     organizationRole(domain, role) {
         return this.get(this.here(`/organization/roles/${encoded(domain)}/${encoded(role)}`));
     }

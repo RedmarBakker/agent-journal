@@ -35,6 +35,14 @@ class SupervisorController:
         return Response(200, {**answer, "status": self.authority.owner_status(self.scope.id)},
                         {"Cache-Control": "no-store"})
 
+    def read_control(self, request: Request) -> Response:
+        try:
+            answer = self.authority.owner_control(request.actor, self.scope.id)
+        except SupervisorFailure as denied:
+            message = "Only the owner can change the supervisor." if denied.status == 403 else str(denied)
+            return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
+        return Response(200, answer, {"Cache-Control": "no-store"})
+
     def enroll(self, request: Request) -> Response:
         try:
             grant, token = self.authority.enroll(request.actor, request.body)
@@ -46,7 +54,8 @@ class SupervisorController:
         try:
             grant, token = self.authority.change(request.actor, request.body)
         except SupervisorFailure as denied:
-            return Response(denied.status, {"error": str(denied)})
+            message = "Only the owner can change the supervisor." if denied.status == 403 else str(denied)
+            return Response(denied.status, {"error": message})
         headers = {"Cache-Control": "no-store"}
         if token:
             headers["X-Journal-Supervisor-Token"] = token

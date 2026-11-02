@@ -66,11 +66,23 @@ def test_a_version_one_grant_migrates_to_one_version_two_environment_grant():
     ), "the three version 1 capabilities convert to their catalogue commands with the same mode"
 
 
-def test_a_grant_refuses_a_capability_mode_above_its_safety_tier():
+def test_an_owner_can_allow_a_tier_three_capability_to_act():
     value = grant_data(capabilities={"plan approve": {"on": True, "mode": "act"}})
 
-    with pytest.raises(ValueError, match="tier"):
-        SupervisorGrant.parsed(value, CATALOGUE)
+    grant = SupervisorGrant.parsed(value, CATALOGUE)
+
+    assert grant.data() == value, "a tier three action can act only after the owner explicitly sets its grant mode"
+
+
+def test_an_area_switch_does_not_choose_the_mode_of_each_verb():
+    value = grant_data(capabilities={
+        "area:plans-and-tasks": {"on": True, "mode": "act"},
+        "task create": {"on": True, "mode": "propose"},
+    })
+
+    grant = SupervisorGrant.parsed(value, CATALOGUE)
+
+    assert grant.data() == value, "an area switch may be on while each verb keeps its own safety tier and mode"
 
 
 def test_a_grant_refuses_unknown_or_never_capabilities_when_enabled():

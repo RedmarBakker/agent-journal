@@ -99,7 +99,7 @@ class SupervisorGrant:
     @classmethod
     def _capabilities(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[tuple[str, bool, str], ...]:
         result = []
-        for selector, enabled, mode in cls._capability_settings(value):
+        for selector, enabled, _mode in cls._capability_settings(value):
             matches = cls._matches(selector, catalogue)
             if not matches:
                 if isinstance(selector, str) and selector.startswith("area:"):
@@ -107,7 +107,7 @@ class SupervisorGrant:
                 raise ValueError("the supervisor grant capability is not in the catalogue")
             if enabled:
                 tiers = [tier for _area, tier in matches]
-                if "never" in tiers or mode == "act" and 3 in tiers:
+                if "never" in tiers:
                     raise ValueError("the supervisor grant capability mode exceeds its safety tier")
                 if any(tier not in (1, 2, 3) for tier in tiers):
                     raise ValueError("the supervisor grant capability has an unknown safety tier")

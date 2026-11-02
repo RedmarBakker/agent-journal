@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import Any
 
+from journal.features.supervisor.support.supervisor_capabilities import AREA_KEYS
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
@@ -16,11 +17,7 @@ OPERATION_AREAS = {
     "plan_priorities": "plans-and-tasks",
     "check_interval": "checks",
 }
-AREAS = frozenset({
-    *OPERATION_AREAS.values(), "dependencies-and-blocks", "sequences", "rules-and-reminders", "triggers",
-    "workers-and-reviewers", "messages-and-organization", "documents-reports-and-collections",
-    "settings-and-modes", "plugins-mcp-and-updates", "secrets", "git-and-sharing",
-})
+AREAS = frozenset(AREA_KEYS)
 
 
 class SupervisorRecordReader:
