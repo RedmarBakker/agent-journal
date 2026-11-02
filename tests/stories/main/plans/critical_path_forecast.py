@@ -5,6 +5,7 @@ from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
+from tests.stories.fixtures.main.report_sized_plan_with_dependent_task import ReportSizedPlanWithDependentTask
 
 
 @story(ReportSizedPlan, subject=AgentRole.MAIN)
@@ -66,16 +67,10 @@ def test_a_plan_forecast_names_an_unresolved_cross_plan_delivery_gate(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, subject=AgentRole.MAIN)
+@story(ReportSizedPlanWithDependentTask, subject=AgentRole.MAIN)
 def test_a_plan_builder_is_told_about_a_truly_independent_task(story):
     prerequisite = story.tasks.first
-    dependent = story.agent_runs(
-        story.agents.subject,
-        f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --domain development "
-        f"--size 5 --phase 1 --after {prerequisite} --reason 'deployment uses the built artifact'",
-    )
-    dependent.expect_command_passed()
-    dependent_id = story.created_number("task")
+    dependent_id = story.tasks.second
     independent = story.agent_runs(
         story.agents.subject,
         f"plan add {story.plans.first} 'notify' --brief 'the release notice is published' "

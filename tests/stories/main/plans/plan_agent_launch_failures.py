@@ -1,4 +1,3 @@
-from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.support.agent_environments import AgentEnvironments
@@ -7,12 +6,11 @@ from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from journal.support.worktree_failure import WorktreeFailure
 from journal.supervisor_link import SupervisorLink
-from tests.stories.builder.story_marks import setting, story
-from tests.stories.fixtures.main.plan_approved import PlanApproved
+from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.plan_agent_plan_started import PlanAgentPlanStarted
 
 
-@setting(PlansOptions.PLAN_AGENTS, True)
-@story(PlanApproved, subject=AgentRole.MAIN)
+@story(PlanAgentPlanStarted, subject=AgentRole.MAIN)
 def test_a_failed_plan_agent_launch_is_reported_and_can_be_retried(story):
     running = set()
     attempts = 0

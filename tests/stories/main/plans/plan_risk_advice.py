@@ -7,6 +7,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 from tests.stories.fixtures.main.report_sized_plan import ReportSizedPlan
+from tests.stories.fixtures.main.report_sized_plan_with_dependent_task import ReportSizedPlanWithDependentTask
 from tests.stories.fixtures.main.solo_report_sized_plan import SoloReportSizedPlan
 from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 
@@ -80,12 +81,10 @@ def test_an_owner_paused_plan_stays_paused_when_the_agent_ticks(story):
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(ReportSizedPlan, subject=AgentRole.MAIN)
+@story(ReportSizedPlanWithDependentTask, subject=AgentRole.MAIN)
 def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependency(story):
     prerequisite = story.tasks.first
-    second = story.agent_runs(story.agents.subject, f"plan add {story.plans.first} 'deploy' --brief 'the artifact is deployed' --size 5 --phase 1 --after {prerequisite} --reason 'deployment uses the built artifact'")
-    second.expect_command_passed()
-    dependent = story.created_number("task")
+    dependent = story.tasks.second
     story.agent_runs(story.agents.subject, f"plan ready {story.plans.first}")
     story.user_approves_plan(story.plans.first)
     story.agent_runs(story.agents.subject, f"plan start {story.plans.first}")

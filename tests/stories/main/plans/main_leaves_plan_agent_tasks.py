@@ -1,12 +1,12 @@
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
+from tests.stories.fixtures.main.plan_agent_plan_started import PlanAgentPlanStarted
 from tests.stories.fixtures.main.solo_plan_agent_started import SoloPlanAgentStarted
 
 
@@ -20,13 +20,8 @@ def test_a_main_agent_does_not_take_a_plan_task_while_its_plan_agent_runs(story)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
 
-@setting(PlansOptions.PLAN_AGENTS, True)
-@story(PlanApproved, subject=AgentRole.MAIN)
+@story(PlanAgentPlanStarted, subject=AgentRole.MAIN)
 def test_a_main_agent_does_not_take_a_plan_task_while_its_plan_agent_launches(story):
-    story.monkeypatch.setattr(AgentEnvironments, "launched", lambda places, environment, agent, repositories=None: None)
-    result = story.agent_runs(story.agents.main, f"plan start {story.plans.first}")
-    result.expect_command_passed()
-
     story.agent_stops(story.agents.main)
 
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
