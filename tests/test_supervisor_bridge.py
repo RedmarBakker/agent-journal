@@ -956,18 +956,28 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
 
     assert proof.is_verified(run) is True
     assert NoAggregateBudgetProof().is_verified(run) is False
-    assert fixture["openclaw_config"]["models"]["providers"]["anthropic"]["api"] == "anthropic-messages"
+    config = fixture["openclaw_config"]
+    provider = config["models"]["providers"]["anthropic"]
+    assert "auth" not in config
+    assert set(provider) == {"baseUrl", "auth", "api", "apiKey", "agentRuntime", "maxTokens", "timeoutSeconds"}
+    assert provider["api"] == "anthropic-messages"
+    assert provider["apiKey"] == "journal-supervisor-metered-proxy-placeholder"
     assert fixture["openclaw_config"]["agents"]["entries"]["supervisor"]["model"] == {
         "primary": "anthropic/claude-sonnet-5", "fallbacks": []
     }
     assert fixture["openclaw_config"]["agents"]["entries"]["supervisor"]["thinkingDefault"] == "high"
 
-    fixture["openclaw_config"]["models"]["providers"]["anthropic"]["baseUrl"] = "https://api.anthropic.com"
-    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    provider["baseUrl"] = "https://api.anthropic.com"
+    config_path.write_text(json.dumps(config))
     assert proof.is_verified(run) is False
 
-    fixture["openclaw_config"]["models"]["providers"]["anthropic"]["baseUrl"] = METERED_PROVIDER_BASE_URL
-    config_path.write_text(json.dumps(fixture["openclaw_config"]))
+    provider["baseUrl"] = METERED_PROVIDER_BASE_URL
+    provider["apiKey"] = "a-real-provider-secret-must-not-be-configured"
+    config_path.write_text(json.dumps(config))
+    assert proof.is_verified(run) is False
+
+    provider["apiKey"] = "journal-supervisor-metered-proxy-placeholder"
+    config_path.write_text(json.dumps(config))
     offline = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: False)
     assert offline.is_verified(run) is False
 

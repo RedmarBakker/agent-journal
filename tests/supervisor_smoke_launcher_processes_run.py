@@ -203,7 +203,7 @@ def staging_root(tmp_path):
     )
     config = work / "docs/supervisor/v1/openclaw-live.json"
     config.write_text(json.dumps({
-        "models": {"providers": {"anthropic": {"baseUrl": "http://127.0.0.1:17840", "api": "anthropic-messages", "maxTokens": 8000}}},
+        "models": {"providers": {"anthropic": {"baseUrl": "http://127.0.0.1:17840", "auth": "api-key", "api": "anthropic-messages", "apiKey": "journal-supervisor-metered-proxy-placeholder", "agentRuntime": {"id": "openclaw"}, "maxTokens": 8000, "timeoutSeconds": 180}}},
         "gateway": {"mode": "local", "bind": "lan", "auth": {"mode": "token"}},
         "plugins": {"enabled": True, "allow": ["anthropic"], "deny": ["memory-core"], "entries": {"memory-core": {"enabled": False, "config": {"dreaming": {"enabled": False}}}}},
         "agents": {"entries": {"supervisor": {"model": {"primary": "anthropic/claude-sonnet-5", "fallbacks": []}, "modelPolicy": {"allow": ["anthropic/claude-sonnet-5"]}, "thinkingDefault": "high", "models": {"anthropic/claude-sonnet-5": {"agentRuntime": {"id": "openclaw"}}}}}, "defaults": {"model": {"primary": "anthropic/claude-sonnet-5"}}},

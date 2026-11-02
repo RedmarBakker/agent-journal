@@ -875,9 +875,11 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
         "base_url": "http://127.0.0.1:17840",
         "api": "anthropic-messages",
         "auth": "api-key",
-        "profile": "anthropic:supervisor-api",
+        "api_key_placeholder": "journal-supervisor-metered-proxy-placeholder",
         "credential_file": "/run/secrets/supervisor_anthropic_api_key",
     }
+    assert "auth" not in contract_fixture["openclaw_config"]
+    assert contract_fixture["openclaw_config"]["models"]["providers"]["anthropic"]["apiKey"] == "journal-supervisor-metered-proxy-placeholder"
     assert fixture["agent"]["fallbacks"] == []
     assert fixture["hooks"]["enabled"] is False
     assert fixture["network"] == {"bind": "lan", "port": 18789, "host_published": False}
@@ -896,6 +898,7 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert '"writer_supervisor_tls_key"' in launcher
     assert '"writer_supervisor_tls_ca"' in launcher
     assert r'\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}' in launcher
+    assert r'\"apiKey\":\"journal-supervisor-metered-proxy-placeholder\"' in launcher
     assert r'\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}' in launcher
     assert r'\"plugins\":{\"enabled\":true,\"allow\":[\"anthropic\"],\"deny\":[\"memory-core\"]' in launcher
     assert r'\"dreaming\":{\"enabled\":false}' in launcher
