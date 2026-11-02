@@ -52,7 +52,8 @@ class HookSeats:
             return replace(attributed, agent_row=researchers[-1])
         if attributed.organization_seat == PLAN and attributed.session_role == AgentRole.MAIN:
             agent = self.plan_agents.seat_agent(attributed.organization_rig)
-            return replace(attributed, agent_row=agent)
+            if agent is not None:
+                return replace(attributed, agent_row=agent)
         rows = self.agents.session_rows(attributed.session)
         if rows and attributed.session_role == AgentRole.MAIN:
             return replace(attributed, agent_row=self.sessions.caller_agent(attributed, attributed.session, self.scope.id))
