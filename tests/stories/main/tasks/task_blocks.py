@@ -96,11 +96,15 @@ def test_a_plan_wait_is_named_in_show_list_and_the_viewer_row(story):
 
 
 @story(StartedTask, subject=AgentRole.MAIN)
-def test_the_started_task_itself_can_be_blocked_and_unblocking_takes_it_up_again(story):
-    story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waits on the designer'").expect_command_passed()
+def test_an_agent_blocking_its_started_task_releases_it_after_unblock(story):
+    blocked = story.agent_runs(story.agents.subject, f"task block {story.tasks.started} 'waits on the designer'")
+    blocked.expect_command_passed()
     story.expect_task(story.tasks.started, state=TaskState.BLOCKED)
-    story.agent_runs(story.agents.subject, f"task unblock {story.tasks.started}")
+    story.expect_task_unheld(story.tasks.started)
+    unblocked = story.agent_runs(story.agents.subject, f"task unblock {story.tasks.started}")
+    unblocked.expect_command_passed()
     story.expect_task(story.tasks.started, state=TaskState.OPEN)
+    story.expect_task_unheld(story.tasks.started)
     story.expect_stack(story.agents.subject, Ready)
 
 

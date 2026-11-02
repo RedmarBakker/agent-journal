@@ -285,7 +285,7 @@ class TaskCommand(Command):
         self.check.refuse()
         task = self.tasks.find(args.n)
         self.waits.validate(task, args.on)
-        task = self.tasks.save(task.blocked(args.why, self._time()), caller.actor)
+        task = self.tasks.block(task, args.why, self._time(), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         print(f"task {task.row_id} blocked, waiting on: {self.tasks.reason(task)}")
         return 0

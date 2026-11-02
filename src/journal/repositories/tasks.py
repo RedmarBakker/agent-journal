@@ -7,6 +7,7 @@ from journal.db.query import Query
 from journal.features.estimates.estimates_options import EstimatesOptions, wip_limit
 from journal.events.bus import Bus
 from journal.events.rows.released_tasks import ReleasedTasks
+from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
 from journal.models.agent import Agent
 from journal.models.check import Check
@@ -355,12 +356,19 @@ class Tasks(ScopedRepository[Task]):
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
         with self.writing():
             self.assign_holder(started, holder, actor)
-            if holder is not None and holder.type == Agent.table():
-                agent = next(iter(self.agents.global_matching(id=holder.id)), None)
-                if agent is None:
-                    raise MissingRow(self.agents.table, holder.id)
-                started = started.with_events(tuple(replace(event, session=agent.session) if isinstance(event, TaskStarted) else event for event in started.events))
+            started = self.addressed_event(started, holder, TaskStarted)
             return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
+
+    def addressed_event(self, task: Task, holder: Ref | None, event_type: type) -> Task:
+        if holder is None or holder.type != Agent.table():
+            return task
+        agent = next(iter(self.agents.global_matching(id=holder.id)), None)
+        if agent is None:
+            raise MissingRow(self.agents.table, holder.id)
+        return task.with_events(tuple(
+            replace(event, session=agent.session) if isinstance(event, event_type) else event
+            for event in task.events
+        ))
 
     def assign_holder(self, started: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None:
@@ -443,6 +451,13 @@ class Tasks(ScopedRepository[Task]):
             return
         for link in self.links.all_matching(source=holder, target=Ref.build(task), link_type=CURRENT_TASK_LINK):
             self.links.delete(link, actor)
+
+    def block(self, task: Task, reason: str, time: datetime, actor: Actor) -> Task:
+        with self.writing():
+            holder = self.holder(task)
+            self.drop_holder(task, holder, actor)
+            blocked = self.addressed_event(task.blocked(reason, time), holder, TaskClosed)
+            return self.save(blocked, actor)
 
     def is_free(self, task: Task) -> bool:
         return (task.is_open() and not task.delegated) or (task.is_started() and self.holder(task) is None)

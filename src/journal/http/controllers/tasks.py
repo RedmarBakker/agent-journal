@@ -140,7 +140,7 @@ class TaskController(Controller[Task]):
         self.waits.refuse_unnamed(reason, enabled, deadline)
         task = self.repository.find(request.number("id"))
         self.waits.validate(task, enabled)
-        task = self.repository.save(task.blocked(reason, self.time()), request.actor)
+        task = self.repository.block(task, reason, self.time(), request.actor)
         self.waits.linked(task, enabled, deadline, request.body.get("every", 2), request.actor)
         return Response.json(self.shown(task))
 
