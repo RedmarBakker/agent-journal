@@ -37,7 +37,6 @@
     "agents": {
       "entries": {
         "supervisor": {
-          "default": true,
           "name": "Journal plan maintenance",
           "runtime": {
             "type": "embedded"
@@ -70,6 +69,9 @@
         }
       },
       "defaults": {
+        "model": {
+          "primary": "anthropic/claude-sonnet-5"
+        },
         "timeoutSeconds": 180,
         "maxConcurrent": 1,
         "skills": [],

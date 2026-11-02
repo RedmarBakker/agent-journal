@@ -27,6 +27,8 @@ from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
 from supervisor_bridge.contracts import (
     FIXTURE_PATH,
     OPENCLAW_TOOL_NAMES,
+    PINNED_OPENCLAW_COMMIT,
+    PINNED_OPENCLAW_VERSION,
     TOOL_NAMES,
     ContractError,
     RunReference,
@@ -504,8 +506,15 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     fixture = json.loads(FIXTURE_PATH.read_text())
     validate_pinned_fixture(fixture)
     schemas = tool_input_schemas(load_contract_schema())
+    supervisor = fixture["openclaw_config"]["agents"]["entries"]["supervisor"]
 
     assert tuple(schemas) == TOOL_NAMES
+    assert PINNED_OPENCLAW_VERSION == "2026.10.8"
+    assert PINNED_OPENCLAW_COMMIT.startswith("dc2523e")
+    assert "default" not in supervisor
+    assert fixture["openclaw_config"]["agents"]["defaults"]["model"] == {
+        "primary": "anthropic/claude-sonnet-5"
+    }
     assert fixture["cron_add_params"]["payload"]["argv"] == [
         "/opt/journal-supervisor/bin/journal-supervisor-bridge", "reconcile"
     ]
@@ -523,6 +532,16 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
     expanded["openclaw_config"]["agents"]["entries"]["supervisor"]["tools"]["allow"].append("shell")
     with pytest.raises(ContractError):
         validate_pinned_fixture(expanded)
+
+    legacy_default = json.loads(json.dumps(fixture))
+    legacy_default["openclaw_config"]["agents"]["entries"]["supervisor"]["default"] = True
+    with pytest.raises(ContractError):
+        validate_pinned_fixture(legacy_default)
+
+    implicit_model = json.loads(json.dumps(fixture))
+    implicit_model["openclaw_config"]["agents"]["defaults"].pop("model")
+    with pytest.raises(ContractError):
+        validate_pinned_fixture(implicit_model)
 
 
 def test_unverified_aggregate_budget_never_invokes_hook(tmp_path):

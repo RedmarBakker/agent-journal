@@ -195,6 +195,7 @@ static int valid_profile(const char *config_path) {
         "\"hooks\":{\"enabled\":true",
         "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true",
         "\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-bridge\"",
+        "\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}",
         "journal__journal_supervisor-observe",
         "journal__journal_supervisor-apply_maintenance",
         "journal__journal_supervisor-receipt",
@@ -352,6 +353,7 @@ static int valid_profile(const char *config_path) {
         && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
+        && !strstr(compact, "\"default\":")
         && all_values_equal(compact, "api", "\"anthropic-messages\"")
         && all_values_equal(compact, "maxTokens", "8000")
         && all_values_equal(compact, "primary", "\"anthropic/claude-sonnet-5\"")

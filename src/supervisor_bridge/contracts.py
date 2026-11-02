@@ -334,7 +334,6 @@ def validate_pinned_fixture(fixture: dict) -> None:
         }}},
         "agents": {
             "entries": {"supervisor": {
-                "default": True,
                 "name": "Journal plan maintenance",
                 "runtime": {"type": "embedded"},
                 "model": {"primary": "anthropic/claude-sonnet-5", "fallbacks": []},
@@ -344,6 +343,7 @@ def validate_pinned_fixture(fixture: dict) -> None:
                 "tools": {"allow": expected_tool_names},
             }},
             "defaults": {
+                "model": {"primary": "anthropic/claude-sonnet-5"},
                 "timeoutSeconds": 180,
                 "maxConcurrent": 1,
                 "skills": [],

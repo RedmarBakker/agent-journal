@@ -742,12 +742,15 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
 
 def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     fixture = read_json(PROFILE / "gateway-policy.fixture.json")
+    contract_fixture = read_json(PROFILE / "fixtures.json")
     compose = read_json(PROFILE / "compose.json")
 
     assert fixture["is_openclaw_config"] is False
     assert compose["services"]["gateway"]["image"] == fixture["runtime"]["image"]
     assert fixture["runtime"]["base_image"] == "ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5"
     assert fixture["runtime"]["version"] == "v2026.10.8"
+    assert contract_fixture["openclaw_pin"]["version"] == fixture["runtime"]["version"].removeprefix("v")
+    assert contract_fixture["openclaw_pin"]["commit"] == fixture["runtime"]["source_commit"]
     assert fixture["agent"]["model"] == "anthropic/claude-sonnet-5"
     assert fixture["agent"]["thinking_default"] == "high"
     assert fixture["provider"] == {
@@ -778,6 +781,8 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert '"writer_supervisor_tls_cert"' in launcher
     assert '"writer_supervisor_tls_key"' in launcher
     assert '"writer_supervisor_tls_ca"' in launcher
+    assert r'\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}' in launcher
+    assert '!strstr(compact, "\\\"default\\\":")' in launcher
 
 
 def test_gateway_admission_url_targets_the_private_writer_network():
