@@ -17,6 +17,7 @@ from journal.support.secret_values import SecretValues
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 TEMPORARY_HOME_VARIABLES = ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "DOCKER_CONFIG")
 LONGEST_SECONDS = 120
+PROGRAM_TIMEOUT_SECONDS = {"journal-supervisor-smoke": 360}
 
 
 class SecretRun:
@@ -38,12 +39,13 @@ class SecretRun:
         name_index = {f.name: values[f.variable] for f in fields}
         value = PLACEHOLDER.sub(lambda rows: name_index.get(rows[1], rows[0]), template) if template else next((values[f.variable] for f in fields if f.hidden), "")
         mask = OutputMask({values[f.variable]: f.variable for f in fields if f.hidden})
+        timeout = PROGRAM_TIMEOUT_SECONDS.get(command[0], LONGEST_SECONDS)
         runs = self.values.path.parent / "runs"
         runs.mkdir(mode=0o700, exist_ok=True)
         home = tempfile.mkdtemp(prefix="run-", dir=runs)
         try:
             environ = {"PATH": self.search_path(), "LANG": os.environ.get("LANG", "C.UTF-8"), **dict.fromkeys(TEMPORARY_HOME_VARIABLES, home), **({f.variable: values[f.variable] for f in fields} if as_variables else {})}
-            finished = subprocess.run([program, *command[1:]], input=f"{value}\n".encode(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environ, cwd=self.config.root, timeout=LONGEST_SECONDS)
+            finished = subprocess.run([program, *command[1:]], input=f"{value}\n".encode(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environ, cwd=self.config.root, timeout=timeout)
             return finished.returncode, mask.masked(finished.stdout)
         finally:
             shutil.rmtree(home, ignore_errors=True)

@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -14,6 +15,8 @@ from supervisor_bridge.metering import (
 )
 from supervisor_bridge.state import DEFAULT_STATE_DIR, StateStore
 from supervisor_bridge.transport import JsonHttpConnection, OpenClawHookClient, SupervisorHttpClient, TransportError
+
+PROXY_STARTUP_SECONDS = 10
 
 
 def state_directory() -> Path:
@@ -39,16 +42,17 @@ def hook_client() -> OpenClawHookClient | None:
 
 
 def run(command: list[str]) -> int:
+    if command == ["proxy"]:
+        state = StateStore(state_directory())
+        proxy = MeteringProxy(state, AnthropicProviderTransport(os.environ.get("ANTHROPIC_API_KEY", "")))
+        MeteringProxyServer(proxy).serve()
+        return 0
+    if command == ["wait-for-proxy"]:
+        return wait_for_proxy()
     if command == ["mcp"]:
         state = StateStore(state_directory())
         bridge = SupervisorBridge(service_client(), state, NoAggregateBudgetProof())
-        proxy = MeteringProxy(state, AnthropicProviderTransport(os.environ.get("ANTHROPIC_API_KEY", "")))
-        server = MeteringProxyServer(proxy)
-        server.start()
-        try:
-            McpServer(bridge).serve()
-        finally:
-            server.close()
+        McpServer(bridge).serve()
         return 0
     if command == ["reconcile"]:
         state = StateStore(state_directory())
@@ -63,8 +67,18 @@ def run(command: list[str]) -> int:
         result = bridge.reconcile("timer")
         print(json.dumps(result.to_dict(), separators=(",", ":")))
         return 0 if result.status in {"skipped", "blocked", "admitted", "hook_acknowledged"} else 1
-    print("journal-supervisor-bridge accepts only mcp or reconcile", file=sys.stderr)
+    print("journal-supervisor-bridge accepts only proxy, wait-for-proxy, mcp or reconcile", file=sys.stderr)
     return 2
+
+
+def wait_for_proxy() -> int:
+    deadline = time.monotonic() + PROXY_STARTUP_SECONDS
+    while time.monotonic() < deadline:
+        if MeteredAggregateBudgetProof.proxy_is_healthy():
+            return 0
+        time.sleep(0.1)
+    print("the loopback metering proxy did not become ready", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

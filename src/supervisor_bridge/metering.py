@@ -379,6 +379,12 @@ class MeteringProxyServer:
     def start(self) -> None:
         self.thread.start()
 
+    def serve(self) -> None:
+        try:
+            self.server.serve_forever()
+        finally:
+            self.server.server_close()
+
     def close(self) -> None:
         self.server.shutdown()
         self.server.server_close()

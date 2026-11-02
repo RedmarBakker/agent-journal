@@ -2,6 +2,7 @@
 
 import ast
 import json
+import re
 import stat
 from pathlib import Path
 
@@ -789,7 +790,13 @@ def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
     environment_script = ". /opt/journal-supervisor/bin/journal-supervisor-environment"
     assert environment_script in entrypoint
     assert environment_script in reconcile
-    assert "exec node dist/index.js gateway run --port" in entrypoint
+    assert '/opt/journal-supervisor/bin/journal-supervisor-bridge proxy &' in entrypoint
+    assert '/opt/journal-supervisor/bin/journal-supervisor-bridge wait-for-proxy' in entrypoint
+    assert 'node dist/index.js gateway run --port "${OPENCLAW_GATEWAY_PORT:-18789}" &' in entrypoint
+    assert entrypoint.index(environment_script) < entrypoint.index("journal-supervisor-bridge proxy &")
+    assert entrypoint.index("journal-supervisor-bridge proxy &") < entrypoint.index("journal-supervisor-bridge wait-for-proxy")
+    assert entrypoint.index("journal-supervisor-bridge wait-for-proxy") < entrypoint.index("node dist/index.js gateway run")
+    assert "trap stop_children EXIT" in entrypoint
     assert "exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in reconcile
     assert "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)" in environment
     assert "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)" in environment
@@ -799,6 +806,34 @@ def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
     assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH" in environment
     assert "--env" not in reconcile
     assert "JOURNAL_SUPERVISOR_STATE_DIR=" not in entrypoint and "JOURNAL_SUPERVISOR_STATE_DIR=" not in reconcile
+
+
+def test_mcp_server_uses_the_proxy_started_by_the_gateway_entrypoint():
+    main = (ROOT / "src" / "supervisor_bridge" / "__main__.py").read_text()
+    mcp = main.split('if command == ["mcp"]:', 1)[1].split('if command == ["reconcile"]:', 1)[0]
+
+    assert 'if command == ["proxy"]:' in main
+    assert 'MeteringProxyServer(proxy).serve()' in main
+    assert 'if command == ["wait-for-proxy"]:' in main
+    assert 'MeteredAggregateBudgetProof.proxy_is_healthy()' in main
+    assert 'McpServer(bridge).serve()' in mcp
+    assert 'MeteringProxy(' not in mcp and 'MeteringProxyServer(' not in mcp
+
+
+def test_smoke_launcher_fits_inside_its_fixed_secret_program_allowance():
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
+    secret_run = (ROOT / "src" / "journal" / "features" / "secrets" / "support" / "secret_run.py").read_text()
+    longest = int(re.search(r"^LONGEST_SECONDS = (\d+)$", secret_run, re.MULTILINE).group(1))
+    timeout = int(re.search(r'PROGRAM_TIMEOUT_SECONDS = \{"journal-supervisor-smoke": (\d+)\}', secret_run).group(1))
+    ready = int(re.search(r"^#define CODEX_READY_TIMEOUT_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
+    smoke = int(re.search(r"^#define SMOKE_RUN_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
+    stop = int(re.search(r"^#define STOP_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
+
+    assert longest == 120
+    assert ready + smoke + stop + 5 < timeout
+    assert timeout == 360
+    assert "timeout = PROGRAM_TIMEOUT_SECONDS.get(command[0], LONGEST_SECONDS)" in secret_run
+    assert "timeout=timeout" in secret_run
 
 
 def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():

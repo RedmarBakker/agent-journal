@@ -39,6 +39,7 @@ from supervisor_bridge.contracts import (
     validate_pinned_fixture,
     validate_operation,
 )
+from supervisor_bridge import __main__ as supervisor_main
 from supervisor_bridge.__main__ import service_client
 from supervisor_bridge.hints import HintSpool
 from supervisor_bridge.mcp import McpServer
@@ -973,6 +974,61 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
     config_path.write_text(json.dumps(fixture["openclaw_config"]))
     concurrent = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: True)
     assert concurrent.is_verified(run) is False
+
+
+def test_proxy_command_runs_the_gateway_metering_server(monkeypatch, tmp_path):
+    state, provider, proxy = object(), object(), object()
+    served = []
+
+    class Server:
+        def __init__(self, received):
+            assert received is proxy
+
+        def serve(self):
+            served.append(True)
+
+    monkeypatch.setattr(supervisor_main, "state_directory", lambda: tmp_path)
+    monkeypatch.setattr(supervisor_main, "StateStore", lambda _directory: state)
+    monkeypatch.setattr(supervisor_main, "AnthropicProviderTransport", lambda key: provider if key == "provider-key" else None)
+    monkeypatch.setattr(supervisor_main, "MeteringProxy", lambda received_state, received_provider: proxy if (received_state, received_provider) == (state, provider) else None)
+    monkeypatch.setattr(supervisor_main, "MeteringProxyServer", Server)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "provider-key")
+
+    assert supervisor_main.run(["proxy"]) == 0
+    assert served == [True]
+
+
+def test_gateway_waits_for_proxy_health_before_starting_openclaw(monkeypatch):
+    health = iter((False, True))
+    sleeps = []
+    monkeypatch.setattr(MeteredAggregateBudgetProof, "proxy_is_healthy", lambda: next(health))
+    monkeypatch.setattr(supervisor_main.time, "sleep", sleeps.append)
+
+    assert supervisor_main.run(["wait-for-proxy"]) == 0
+    assert sleeps == [0.1]
+
+
+def test_mcp_command_uses_the_gateway_proxy_without_starting_another(monkeypatch, tmp_path):
+    state, bridge = object(), object()
+    served = []
+
+    class Mcp:
+        def __init__(self, received):
+            assert received is bridge
+
+        def serve(self):
+            served.append(True)
+
+    monkeypatch.setattr(supervisor_main, "state_directory", lambda: tmp_path)
+    monkeypatch.setattr(supervisor_main, "StateStore", lambda _directory: state)
+    monkeypatch.setattr(supervisor_main, "service_client", lambda: object())
+    monkeypatch.setattr(supervisor_main, "SupervisorBridge", lambda *args: bridge)
+    monkeypatch.setattr(supervisor_main, "McpServer", Mcp)
+    monkeypatch.setattr(supervisor_main, "MeteringProxy", lambda *_args: pytest.fail("MCP must use the gateway proxy"))
+    monkeypatch.setattr(supervisor_main, "MeteringProxyServer", lambda *_args: pytest.fail("MCP must not start its own proxy"))
+
+    assert supervisor_main.run(["mcp"]) == 0
+    assert served == [True]
 
 
 def test_reconcile_invokes_hook_only_with_live_metered_proxy(tmp_path):

@@ -23,6 +23,7 @@
 
 #define RECONCILE_TIMEOUT_SECONDS 45
 #define GATEWAY_HEALTH_TIMEOUT_SECONDS 2
+#define CODEX_READY_TIMEOUT_SECONDS 30
 
 #define ENV_FILE "docs/supervisor/v1/live-smoke.env"
 #define COMPOSE_FILE "docs/supervisor/v1/compose.json"
@@ -745,7 +746,7 @@ int main(int argc, char **argv) {
     sigemptyset(&action.sa_mask);
     sigaction(SIGINT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
-    int codex_ready = compose(COMPOSE_READY, directory, gateway_state, 30);
+    int codex_ready = compose(COMPOSE_READY, directory, gateway_state, CODEX_READY_TIMEOUT_SECONDS);
     if (codex_ready != 0) {
         remove_secrets(directory);
         puts("supervisor smoke refused to start without the staged Codex device login");
