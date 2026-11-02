@@ -25,7 +25,7 @@ def test_a_solo_plan_commits_and_automatically_merges_its_inner_repository_edit(
     story.git_in(root, "add", ".gitignore")
     story.git_in(root, "commit", "-q", "-m", "ignore the inner repository")
     story.user_rewrites_the_brief(story.tasks.first, "Edit agentic-organization/ARCHITECTURE.md.")
-    monkeypatch.setattr(AgentLauncher, "launched", lambda launcher, environment, arguments: 0)
+    monkeypatch.setattr(AgentLauncher, "launched", lambda launcher, environment, arguments, worktree=None: 0)
     plan = story.plans.first
     story.agent_runs(story.agents.main, f"plan start {plan}")
     environment, session = f"plan-{plan}", "plan-inner-repository-session"

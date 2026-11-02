@@ -520,6 +520,7 @@ def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope(
     assert "with scope.environment(main.row_id):\n        owner_agent = agents.environment_main_agent(main.row_id)" in runtime
     assert "with scope.environment(main.row_id):\n        plan = plans.find(plan_id)\n        phases = plans.plan_phases(plan)\n        tasks = plans.plan_tasks(plan)" in resume
     assert "with scope.environment(environment_id):\n            plan = plans.find(plan_id)" in wait
+    assert wait.index("while time.monotonic() < deadline:") < wait.index("app.container.get(Connection).cache.cleared()") < wait.index("agent = plan_agents.agent(plan)")
     assert '"env": "main"' in command
 
 
@@ -537,7 +538,7 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "phases[0].title == PHASE_TITLE" in signature
     assert "smoke_tasks_match(tasks)" in signature
     assert "task.title == TASK_TITLE" in smoke_tasks and "task.brief == TASK_BRIEF" in smoke_tasks
-    assert "TaskState.BLOCKED, TaskState.OPEN" in smoke_tasks
+    assert "task.state == TaskState.OPEN and task.supervisor_reserved" in smoke_tasks
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
     assert "if authority.has_enrollment_grant():" in resume
     assert "def has_enrollment_grant(self) -> bool:" in authority

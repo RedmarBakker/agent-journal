@@ -214,6 +214,7 @@ def run_bound_check(check_id):
 def wait_for_codex_plan(app, plan_id, environment_id):
     deadline = time.monotonic() + WAIT_SECONDS
     while time.monotonic() < deadline:
+        app.container.get(Connection).cache.cleared()
         scope = app.container.get(Scope)
         plans = app.container.get(Plans)
         plan_agents = app.container.get(PlanAgents)
