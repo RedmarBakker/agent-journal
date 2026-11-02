@@ -92,6 +92,7 @@ def test_an_open_critical_prerequisite_is_advised_without_changing_the_dependenc
     result.expect_agent_told_words(story.agents.subject, EstimatesNudges.CRITICAL_PREREQUISITE, f"task {prerequisite}")
     story.expect_task(prerequisite, state=TaskState.STARTED, size=3)
     story.expect_task(dependent, state=TaskState.OPEN, size=5)
+    story.expect_task(story.tasks.third, state=TaskState.OPEN, size=2)
     story.expect_stack(story.agents.subject, Ready, FollowingPlan)
 
 
