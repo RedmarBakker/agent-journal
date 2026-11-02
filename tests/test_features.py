@@ -4217,12 +4217,17 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     app.container.get(ListenerQueue).drain()
     silent_events, worker_events = echo_heard(app, "silent"), echo_heard(app, "asks")
     from journal.repositories.plugins import Plugins
+    from journal.repositories.agents import Agents
     plugins = app.container.get(Plugins)
+    session_rows = [
+        (row.row_id, row.environment_id, row.role)
+        for row in app.container.get(Agents).global_matching(session="s1")
+    ]
     queue = app.container.get(ListenerQueue)
     assert silent_events == ["file_edited"], (
         f"main edit on attempt {attempt + 1} reaches the plugin that hears every role; "
         f"the worker-only plugin heard {worker_events}, the silent plugin fault was {plugins.lookup('silent').last_fault!r}, "
-        f"and the relay queue skipped {queue.skipped} items"
+        f"the main session rows were {session_rows}, and the relay queue skipped {queue.skipped} items"
     )
     assert worker_events == ["file_edited", "file_edited"], (
         f"main edit on attempt {attempt + 1} also reaches the plugin that hears workers"
@@ -4241,6 +4246,30 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
         app.container.get(Agents).save(Agent(environment_id=1, session="s1:a1", provider="claude", state="researching", role=AgentRole.SUBAGENT), Actor.system())
     read = ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))
     assert relay.helper_role(ToolStarting(agent=agent_row(app), call=read).placed(Agent(environment_id=1, session="rv", provider="claude", role=AgentRole.REVIEWER), None, 1.0)) == AgentRole.REVIEWER and relay.helper_role(ToolStarting(agent=agent_row(app), call=read).placed(Agent(environment_id=1, session="s1:a1", provider="claude", role=AgentRole.SUBAGENT), None, 1.0)) == AgentRole.SUBAGENT, "a reviewer's and a subagent's events are known as theirs, never the main agent's"
+
+
+def test_a_file_edit_uses_the_agent_in_its_environment_when_sessions_repeat(app: App):
+    from journal.events.agent.file_edited import FileEdited
+    from journal.events.models.created import Created
+    from journal.features.plugins.listeners.plugin_row_relay import PluginRowRelay
+    from journal.models.agent import Agent
+    from journal.models.edit import Edit
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    from journal.support.agent_role import AgentRole
+    other = app.container.get(Environments).lookup("other")
+    agents = app.container.get(Agents)
+    agents.save(Agent(environment_id=other.row_id, session="shared-session", role=AgentRole.WORKER), Actor.system())
+    main = agents.save(Agent(environment_id=MAIN, session="shared-session", role=AgentRole.MAIN), Actor.system())
+    edit = Edit(environment_id=MAIN, session="shared-session", path="a.py")
+
+    notified = app.container.get(PluginRowRelay).notified(Created(model=edit, actor=Actor.agent("shared-session")))
+
+    assert (
+        isinstance(notified, FileEdited)
+        and notified.agent.row_id == main.row_id
+        and notified.agent.role == AgentRole.MAIN
+    ), "a same-named session in another environment cannot change who made this edit"
 
 
 def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugin_holds_the_edit_or_only_hears_it(app: App):

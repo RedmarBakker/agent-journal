@@ -120,6 +120,10 @@ class Agents(ScopedRepository[Agent]):
     def session_rows(self, session: str) -> list[Agent]:
         return self.selected_globally(self.session_query(session))
 
+    def session_row_in(self, environment_id: int, session: str) -> Agent | None:
+        rows = self.selected_globally(self.query().filter(environment_id=environment_id, session=session).order("id").limit(1))
+        return rows[0] if rows else None
+
     def environment_main_agent(self, environment_id: int) -> Agent | None:
         rows = self.selected_globally(self.query().filter(environment_id=environment_id, role=AgentRole.MAIN).order_descending("updated_at").limit(1))
         return rows[0] if rows else None

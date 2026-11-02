@@ -27,5 +27,5 @@ class PluginRowRelay(Listener[ModelEvent]):
     def notified(self, event: ModelEvent) -> ModelEvent | FileEdited:
         if not isinstance(event, Created) or not isinstance(event.model, Edit):
             return event
-        editors = self.agents.session_rows(event.model.session)
-        return FileEdited.build(event.model, editors[0]) if editors else event
+        editor = self.agents.session_row_in(event.model.environment_id, event.model.session)
+        return FileEdited.build(event.model, editor) if editor else event
