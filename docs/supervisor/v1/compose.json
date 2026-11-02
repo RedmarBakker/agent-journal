@@ -75,6 +75,7 @@
         "gateway_link": {"ipv4_address": "10.76.20.20"},
         "provider_egress": {}
       },
+      "extra_hosts": ["writer:10.76.20.10"],
       "read_only": true,
       "tmpfs": ["/tmp", "/home/node/.cache:uid=1000,gid=1000,mode=0700"],
       "cap_drop": ["ALL"],

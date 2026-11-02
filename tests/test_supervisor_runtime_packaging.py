@@ -399,6 +399,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "no-new-privileges:true" in writer["security_opt"]
     assert writer["tmpfs"] == ["/tmp", "/run:mode=1777"]
     assert gateway["tmpfs"] == ["/tmp", "/home/node/.cache:uid=1000,gid=1000,mode=0700"]
+    assert gateway["extra_hosts"] == ["writer:10.76.20.10"]
     assert "codex_driver_state:/var/lib/journal-codex" in writer["volumes"]
     assert "codex_driver_state" in compose["volumes"]
     assert "codex_driver_state" not in " ".join(gateway["volumes"] + backup["volumes"])
