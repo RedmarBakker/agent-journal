@@ -16,9 +16,10 @@ class ScenarioLoader:
             self.command(["plan", "phase", str(plan_id), phase["title"], "--when", phase["complete_when"]])
             phase_numbers[phase["id"]] = number
             for task in phase["tasks"]:
-                task_ids[task["id"]] = self.row_id(self.command([
-                    "plan", "add", str(plan_id), task["title"], "--brief", task["brief"], "--phase", str(number),
-                ]), "task")
+                words = ["plan", "add", str(plan_id), task["title"], "--brief", task["brief"], "--phase", str(number)]
+                if mode is PlanMode.ORGANIZATION:
+                    words.extend(["--domain", task["domain"]])
+                task_ids[task["id"]] = self.row_id(self.command(words), "task")
         if mode is not None:
             self.command(["plan", "mode", str(plan_id), mode.value])
         self.command(["plan", "ready", str(plan_id)])

@@ -21,6 +21,15 @@ from tests.lab.real.provider_proxy import ProviderProxy
 from tests.lab.real.run_caps import RunCaps
 from tests.lab.real.run_record import RunRecord
 from tests.lab.real.run_record_store import RunRecordStore
+from tests.lab.lab_scenario import LabScenario
+
+
+PINNED_BATCH_JOURNAL_COMMIT = "74d5a705f258e5ea8241c4f65125ed100b23d14e"
+BATCH_SCENARIOS = (
+    ("software_company", "production_incident", "claude"),
+    ("accountancy_firm", "payroll_tax_change", "codex"),
+    ("dental_practice", "patient_records_breach", "claude"),
+)
 
 
 def real_caps(tmp_path, watchdog, **limits):
@@ -349,5 +358,73 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
         assert (paths["project"] / ".journal" / "journal.db").is_file()
         sharing = json.loads((paths["project"] / ".journal" / "sharing.json").read_text(encoding="utf-8"))
         assert sharing["port"] == driver.share_port
+    finally:
+        driver.stop_owned()
+
+
+@pytest.mark.parametrize(("business_type", "scenario_name", "provider"), BATCH_SCENARIOS,
+                         ids=lambda value: str(value))
+@pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
+                    reason="production setup uses macOS sandbox-exec")
+def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
+        tmp_path, business_type, scenario_name, provider):
+    paths = IsolatedJournal.paths(tmp_path / f"{business_type}-{scenario_name}")
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    checkout = Path(__file__).resolve().parents[2]
+    ProductionDriver.git_snapshot(checkout, paths["project"], PINNED_BATCH_JOURNAL_COMMIT)
+    shutil.copy2(checkout / "tests" / "lab" / "scenario_loader.py",
+                 paths["project"] / "tests" / "lab" / "scenario_loader.py")
+
+    stand_ins = paths["runtime"] / "stand-ins"
+    stand_ins.mkdir(mode=0o700)
+    started = paths["runtime"] / "provider-started"
+    executables = {}
+    for name in ("claude", "codex", "rig"):
+        executable = stand_ins / name
+        executable.write_text(
+            f"#!{sys.executable}\nfrom pathlib import Path\n"
+            f"Path({str(started)!r}).write_text('started', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        executable.chmod(0o700)
+        executables[name] = executable
+
+    settings = {
+        "plans.plan_agents": True,
+        "workers.cost_cap_dollars": 0,
+        "workers.default_plan_mode": "organization",
+        "workers.domain_agent_model_tier": "contract",
+        "workers.hub_route_strategy": "containment",
+        "workers.organization_plan_effort": "xhigh",
+        "workers.organization_plan_profile": "organization-plan-review",
+        "workers.seat_cap": 4,
+        "workers.shared_role_queue_order": "plans_in_turn",
+    }
+    manifest = SimpleNamespace(data=lambda: {"design": {"settings": settings}})
+    spec = {"provider": provider, "business_type": business_type, "scenario": scenario_name}
+    driver = ProductionDriver("run-1", spec, manifest, checkout, tmp_path, ProductionWatchdog())
+    driver.executable = lambda name: executables[name]
+    driver.boundary.verify("run-1", paths)
+    shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+
+    try:
+        driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, None)
+        scenario = driver.load_scenario(scenario_name, paths)
+        plan_id = driver.prepare_plan(scenario, paths)
+        shown = driver.command([sys.executable, str(paths["project"] / "src" / "journal.py"),
+                                "plan", "show", plan_id], paths)
+        expected = LabScenario.read(scenario["path"])
+        expected_domains = [task["domain"] for phase in expected.phases for task in phase["tasks"]]
+        actual_domains = [line.partition("domain:")[2].split()[0]
+                          for line in shown.stdout.splitlines() if "domain:" in line]
+
+        assert shown.returncode == 0, shown.stderr
+        assert shown.stdout.splitlines()[0].startswith(f"plan {plan_id} approved:")
+        assert actual_domains == expected_domains
+        assert len(driver.processes) == 1
+        assert not driver.rig_started
+        assert not started.exists()
     finally:
         driver.stop_owned()
