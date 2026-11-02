@@ -1,5 +1,6 @@
 from journal.features.supervisor.support.admissions import DEFAULT_LEASE_SECONDS
 from journal.support.agent_role import AgentRole
+from supervisor_bridge.contracts import RUN_REFERENCE_KEYS
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.supervisor.supervisor_daily_cost import SupervisorDailyCost
 from tests.stories.fixtures.supervisor.supervisor_daily_cost_below_cap import SupervisorDailyCostBelowCap
@@ -18,16 +19,19 @@ def admit_event(story, wakeup_id):
     })
 
 
-def settle_maximal_usage(story, run):
+def settle_maximal_usage(story, wake):
+    run = wake.viewer_answer["run"]
+    input_tokens = story.fixture.max_input_tokens_per_turn
+    output_tokens = story.fixture.max_output_tokens_per_turn
     return story.supervisor_posts("/_supervisor/v1/usage", {
         "protocol_version": 1,
-        "run_ref": run,
+        "run_ref": {key: run[key] for key in RUN_REFERENCE_KEYS},
         "usage": {
             "input_tokens": 0,
-            "output_tokens": 1000,
-            "cache_creation_input_tokens": 1000,
+            "output_tokens": output_tokens,
+            "cache_creation_input_tokens": input_tokens,
             "cache_read_input_tokens": 0,
-            "total_input_tokens": 1000,
+            "total_input_tokens": input_tokens,
             "provider_requests": 1,
             "provider_retries": 0,
         },
@@ -54,7 +58,7 @@ def test_wakes_after_settled_cost_reaches_the_daily_cap_wait_for_the_next_day(st
     first.expect_viewer_passed()
     first.expect_viewer_part(("status",), "admitted")
 
-    settled = settle_maximal_usage(story, first.viewer_answer["run"])
+    settled = settle_maximal_usage(story, first)
     settled.expect_viewer_passed()
     settled.expect_viewer_part(("status",), "settled")
     settled.expect_viewer_part(("usage_status",), "known")
@@ -86,7 +90,7 @@ def test_a_settled_cost_below_the_daily_cap_leaves_room_for_another_wake(story):
     first.expect_viewer_passed()
     first.expect_viewer_part(("status",), "admitted")
 
-    settled = settle_maximal_usage(story, first.viewer_answer["run"])
+    settled = settle_maximal_usage(story, first)
     settled.expect_viewer_passed()
     settled.expect_viewer_part(("usage_status",), "known")
 

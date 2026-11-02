@@ -85,6 +85,15 @@ def test_supervisor_usage_cost_prices_each_token_bucket_in_microdollars():
     assert supervisor_usage_cost_microusd(usage) == 17
 
 
+def test_supervisor_usage_cost_includes_each_pinned_model_input_rate():
+    assert supervisor_usage_cost_microusd({
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 1_000,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 1_000,
+    }) == 14_000
+
+
 @pytest.fixture(scope="module")
 def boot():
     def booted(root, patch):

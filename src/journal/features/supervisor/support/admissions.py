@@ -18,8 +18,11 @@ MAX_INTENT_BYTES = 32_000
 MAX_IDENTIFIER_BYTES = 256
 MAX_OBSERVATION_AGE = 600
 DEFAULT_LEASE_SECONDS = 300
-MONEY_UNIT = Decimal("0.000001")
 MILLION = Decimal("1000000")
+SUPERVISOR_INPUT_RATE_PER_MILLION = Decimal("2")
+SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION = Decimal("4")
+SUPERVISOR_CACHE_READ_RATE_PER_MILLION = Decimal("0.2")
+SUPERVISOR_OUTPUT_RATE_PER_MILLION = Decimal("10")
 TERMINAL_RUN_STATES = ("complete", "conflicted", "rejected")
 SUPERVISOR_INPUT_RATE_PER_MILLION = Decimal("2")
 SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION = Decimal("4")
@@ -71,8 +74,28 @@ def decimal_amount(value: object) -> Decimal | None:
 
 
 def cost(input_tokens: int, output_tokens: int, input_rate: Decimal, output_rate: Decimal) -> Decimal:
-    total = (Decimal(input_tokens) * input_rate + Decimal(output_tokens) * output_rate) / MILLION
-    return total.quantize(MONEY_UNIT, rounding=ROUND_CEILING)
+    return Decimal(cost_microusd((input_tokens, input_rate), (output_tokens, output_rate))) / MILLION
+
+
+def cost_microusd(*token_rates: tuple[int, Decimal]) -> int:
+    total = sum((Decimal(tokens) * rate for tokens, rate in token_rates), Decimal(0))
+    return int(total.quantize(Decimal("1"), rounding=ROUND_CEILING))
+
+
+def supervisor_usage_cost_microusd(usage: Mapping[str, int]) -> int:
+    return cost_microusd(
+        (usage["input_tokens"], SUPERVISOR_INPUT_RATE_PER_MILLION),
+        (usage["cache_creation_input_tokens"], SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION),
+        (usage["cache_read_input_tokens"], SUPERVISOR_CACHE_READ_RATE_PER_MILLION),
+        (usage["output_tokens"], SUPERVISOR_OUTPUT_RATE_PER_MILLION),
+    )
+
+
+def supervisor_run_reservation_microusd(input_tokens: int, output_tokens: int) -> int:
+    return cost_microusd(
+        (input_tokens, SUPERVISOR_CACHE_CREATION_RATE_PER_MILLION),
+        (output_tokens, SUPERVISOR_OUTPUT_RATE_PER_MILLION),
+    )
 
 
 def supervisor_usage_cost_microusd(usage: Mapping[str, int]) -> int:
