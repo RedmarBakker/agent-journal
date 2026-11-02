@@ -26,6 +26,8 @@ const feedbackStatus = ref({});
 const savingFeedback = ref("");
 const makingRule = ref("");
 let read = 0;
+let historyLoad = Promise.resolve();
+let historyRefresh = Promise.resolve();
 
 const hasHistory = computed(() => history.value.length > 0);
 
@@ -96,24 +98,32 @@ function readHistory(historyBefore) {
     });
 }
 
-async function loadHistory() {
+function trackHistoryRefresh(pending) {
+    historyRefresh = Promise.all([historyRefresh, pending]).then(() => undefined);
+    return pending;
+}
+
+function loadHistory() {
     const request = ++read;
     loading.value = true;
     problem.value = "";
     history.value = [];
     nextHistoryBefore.value = "";
-    try {
-        const answer = await readHistory("");
-        if (request !== read) return;
-        historyStatus.value = answer.status || "";
-        history.value = (answer.history || []).map(historyRow);
-        areas.value = answer.areas || [];
-        nextHistoryBefore.value = answer.next_before || "";
-    } catch (error) {
-        if (request === read) problem.value = error.message || "The supervisor history could not be read.";
-    } finally {
-        if (request === read) loading.value = false;
-    }
+    historyLoad = (async () => {
+        try {
+            const answer = await readHistory("");
+            if (request !== read) return;
+            historyStatus.value = answer.status || "";
+            history.value = (answer.history || []).map(historyRow);
+            areas.value = answer.areas || [];
+            nextHistoryBefore.value = answer.next_before || "";
+        } catch (error) {
+            if (request === read) problem.value = error.message || "The supervisor history could not be read.";
+        } finally {
+            if (request === read) loading.value = false;
+        }
+    })();
+    return historyLoad;
 }
 
 async function saveFeedback(row) {
@@ -154,6 +164,9 @@ async function makeRule(row) {
 }
 
 async function loadOlder() {
+    if (loadingOlder.value) return;
+    while (undoing.value || decidingProposal.value) await historyRefresh;
+    while (loading.value) await historyLoad;
     if (!nextHistoryBefore.value || loadingOlder.value) return;
     const request = read;
     const cursor = nextHistoryBefore.value;
@@ -167,37 +180,43 @@ async function loadOlder() {
     } catch (error) {
         if (request === read) undoProblem.value = error.message || "Older history could not be read.";
     } finally {
-        if (request === read) loadingOlder.value = false;
+        loadingOlder.value = false;
     }
 }
 
-async function undo(row, action) {
+function undo(row, action) {
     const key = `${row.id}:${action.receipt_id}`;
     undoing.value = key;
     undoProblem.value = "";
-    try {
-        await api.supervisorUndo(row.plan_id, action.receipt_id);
-        await loadHistory();
-    } catch (error) {
-        undoProblem.value = error.message || "The action could not be undone.";
-    } finally {
-        undoing.value = "";
-    }
+    const pending = (async () => {
+        try {
+            await api.supervisorUndo(row.plan_id, action.receipt_id);
+            await loadHistory();
+        } catch (error) {
+            undoProblem.value = error.message || "The action could not be undone.";
+        } finally {
+            undoing.value = "";
+        }
+    })();
+    return trackHistoryRefresh(pending);
 }
 
-async function decideProposal(row, action, decision) {
+function decideProposal(row, action, decision) {
     const key = `${row.id}:${action.receipt_id}`;
     decidingProposal.value = key;
     proposalProblem.value = "";
-    try {
-        await api.supervisorProposal(row.plan_id, action.receipt_id, decision);
-        await refreshSupervisorWaitingCount();
-        await loadHistory();
-    } catch (error) {
-        proposalProblem.value = error.message || "The proposal could not be decided.";
-    } finally {
-        decidingProposal.value = "";
-    }
+    const pending = (async () => {
+        try {
+            await api.supervisorProposal(row.plan_id, action.receipt_id, decision);
+            await refreshSupervisorWaitingCount();
+            await loadHistory();
+        } catch (error) {
+            proposalProblem.value = error.message || "The proposal could not be decided.";
+        } finally {
+            decidingProposal.value = "";
+        }
+    })();
+    return trackHistoryRefresh(pending);
 }
 
 watch([planId, area, tier, result], loadHistory, {immediate: true});
