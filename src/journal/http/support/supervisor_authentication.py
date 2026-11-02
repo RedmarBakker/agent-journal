@@ -38,6 +38,8 @@ class SupervisorRequestAuth:
         if path in SERVICE_PATHS:
             if token_error:
                 return self._refused(403, "the supervisor service credential headers disagree")
+            if not has_token:
+                return self._refused(403, "a supervisor service credential is required")
             try:
                 principal = self.authority.authenticate(token)
             except SupervisorFailure as denied:

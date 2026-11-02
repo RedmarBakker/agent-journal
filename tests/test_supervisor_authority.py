@@ -158,7 +158,7 @@ def test_bad_service_credentials_never_fall_back_to_local_person(app, authority_
     generic = RequestReading.read(RequestReading.head("POST", "/cli", {"Content-Type": "application/json", "X-Journal-Supervisor-Token": "wrong"}), b'{"argv":["settings"]}', identity, auth)
     local_owner = RequestReading.read(RequestReading.head("POST", "/_supervisor/v1/enrollment", {"Content-Type": "application/json"}), b'{"protocol_version":1}', identity, auth)
 
-    assert (missing.auth_error.status, invalid.auth_error.status, generic.auth_error.status) == (401, 403, 403), "service credentials fail before local identity fallback"
+    assert (missing.auth_error.status, invalid.auth_error.status, generic.auth_error.status) == (403, 403, 403), "service credentials fail before local identity fallback"
     assert local_owner.actor.stamp == fixture.owner.stamp and local_owner.body == {"protocol_version": 1}, "owner routes use the local user's identity"
     assert missing.body == invalid.body == generic.body == {}, "rejected requests do not parse or return row/evidence payloads"
     assert all(set(request.auth_error.body) == {"error"} for request in (missing, invalid, generic)), "rejections reveal no grant, row or evidence fields"
