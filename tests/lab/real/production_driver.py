@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from typing import Mapping
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from tests.lab.real.cap_event_server import CapEventServer
@@ -112,8 +113,6 @@ class ProductionDriver:
         cli, rig = self.executable(provider), self.executable("rig")
         if not cli or not rig:
             raise ValueError("the signed-in provider CLI and OpenRig CLI must be installed")
-        for name, interpreter in self.cli_interpreters.items():
-            self.install_executable(paths, name, interpreter)
         self.install_executable(paths, provider, cli)
         self.install_executable(paths, "rig", rig)
         path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, Path("/usr/bin"),
@@ -145,6 +144,7 @@ class ProductionDriver:
 
     def probe_agent_cli(self, paths: Mapping[str, Path]) -> dict[str, str]:
         provider = str(self.spec["provider"])
+        self.install_agent_interpreters(paths)
         result = self.command([str(paths["bin"] / provider), "--version"], paths)
         if result.returncode:
             raise ValueError(result.stderr.strip() or f"{provider} CLI version probe failed")
@@ -152,6 +152,10 @@ class ProductionDriver:
         if not version:
             raise ValueError(f"{provider} CLI version probe returned no version")
         return {"provider": provider, "version": version.splitlines()[0]}
+
+    def install_agent_interpreters(self, paths: Mapping[str, Path]) -> None:
+        for name, interpreter in self.cli_interpreters.items():
+            self.install_executable(paths, name, interpreter)
 
     def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
         setup = self.setup_scenario(scenario, paths)
@@ -161,6 +165,7 @@ class ProductionDriver:
 
     def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], _caps) -> str:
         plan_id = self.prepare_plan(scenario, paths)
+        self.install_agent_interpreters(paths)
         rig = self.executable("rig")
         if not rig:
             raise ValueError("OpenRig CLI is required for an organization-mode run")
@@ -340,6 +345,16 @@ print(plan["plan_id"])
             if process.poll() is not None:
                 raise ValueError("isolated journal server stopped during startup")
             try:
+                try:
+                    with urlopen(f"http://127.0.0.1:{port}/journal/health", timeout=5) as health_response:
+                        health = json.load(health_response)
+                        ready = health.get("phase") == "booted"
+                except HTTPError as health_response:
+                    health = json.load(health_response)
+                    ready = health.get("phase") == "booted"
+                if not ready:
+                    time.sleep(0.2)
+                    continue
                 with urlopen(f"http://127.0.0.1:{port}/journal/identity", timeout=5) as answer:
                     identity = json.load(answer)
                 if identity.get("root") == str((paths["project"] / ".journal").resolve()) and identity.get("pid") == process.pid:
