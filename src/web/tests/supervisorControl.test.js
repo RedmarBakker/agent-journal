@@ -101,6 +101,11 @@ async function openPage() {
     return host;
 }
 
+async function waitForGrantChange(page, callCount) {
+    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(callCount));
+    await vi.waitFor(() => expect(page.querySelector('[aria-label="Wake up every"]').disabled).toBe(false));
+}
+
 test("the owner sees grant settings for all 13 areas and saves every control through the grant route", async () => {
     const page = await openPage();
     await vi.waitFor(() => expect(page.querySelector('[aria-label="Wake up every"]').value).toBe("15"));
@@ -138,45 +143,45 @@ test("the owner saves wake events, plan scope, limits, area switches and verb mo
     const event = [...page.querySelectorAll("label")].find((label) => label.textContent.includes("Stalled task"));
     event.querySelector("input").checked = true;
     event.querySelector("input").dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(1));
+    await waitForGrantChange(page, 1);
     expect(api.supervisorChange.mock.calls[0][0].change.grant.event_wakeups).toContain("stalled_task");
 
     page.querySelector('[aria-label="Turns per day"]').value = "120";
     page.querySelector('[aria-label="Turns per day"]').dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(2));
+    await waitForGrantChange(page, 2);
     expect(api.supervisorChange.mock.calls[1][0].change.grant.limits.max_turns_per_day).toBe(120);
 
     page.querySelector('[aria-label="Enable Plans and tasks"]').checked = false;
     page.querySelector('[aria-label="Enable Plans and tasks"]').dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(3));
+    await waitForGrantChange(page, 3);
     expect(api.supervisorChange.mock.calls[2][0].change.grant.capabilities["area:plans-and-tasks"])
         .toEqual({on: false, mode: "act"});
 
     page.querySelector('[aria-label="Create a task mode"]').value = "propose";
     page.querySelector('[aria-label="Create a task mode"]').dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(4));
+    await waitForGrantChange(page, 4);
     expect(api.supervisorChange.mock.calls[3][0].change.grant.capabilities["task create"].mode).toBe("propose");
 
     [...page.querySelectorAll("button")].find((button) => button.textContent === "Chosen plans").click();
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(5));
+    await waitForGrantChange(page, 5);
     expect(api.supervisorChange.mock.calls[4][0].change.grant.watched_plans).toEqual([]);
 
     const plan = [...page.querySelectorAll("label")].find((label) => label.textContent.includes("Plan 7: Release plan"));
     plan.querySelector("input").checked = true;
     plan.querySelector("input").dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(6));
+    await waitForGrantChange(page, 6);
     expect(api.supervisorChange.mock.calls[5][0].change.grant.watched_plans).toEqual([7]);
 
     page.querySelector('[aria-label="Decision: Approve a plan"]').value = "act";
     page.querySelector('[aria-label="Decision: Approve a plan"]').dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(7));
+    await waitForGrantChange(page, 7);
     expect(api.supervisorChange.mock.calls[6][0].change.grant.capabilities["plan approve"])
         .toEqual({on: true, mode: "act"});
 
     const createTaskOn = page.querySelector('[aria-label="On: Create a task"]');
     createTaskOn.checked = false;
     createTaskOn.dispatchEvent(new Event("change", {bubbles: true}));
-    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(8));
+    await waitForGrantChange(page, 8);
     expect(api.supervisorChange.mock.calls[7][0].change.grant.capabilities["task create"].on).toBe(false);
 });
 
@@ -216,6 +221,7 @@ test("the owner can turn the supervisor off, release a held task, replace the gr
     await vi.waitFor(() => expect(api.supervisorChange.mock.calls.some(([body]) => body.change.kind === "replace")).toBe(true));
     expect(api.supervisorChange.mock.calls.find(([body]) => body.change.kind === "replace")[0].change.enrollment)
         .toEqual(settings().replacement_enrollment);
+    await vi.waitFor(() => expect(page.querySelector(".control-heading button")?.disabled).toBe(false));
 
     [...page.querySelectorAll("button")].find((button) => button.textContent === "Revoke grant").click();
     await vi.waitFor(() => expect(api.supervisorChange.mock.calls.some(([body]) => body.change.kind === "revoke")).toBe(true));
@@ -226,9 +232,10 @@ test("a restored installation must be reviewed before the owner replaces its gra
         epoch: 2, evidence_watermark_ms: null, evidence_rpo_gap_ms: null, accept_unavailable_evidence: true,
     }});
     const page = await openPage();
+    await vi.waitFor(() => expect(page.querySelector(".control-review")).not.toBeNull());
 
     [...page.querySelectorAll("button")].find((button) => button.textContent === "Replace grant").click();
-    expect(page.querySelector('[role="alert"]').textContent).toContain("Review the restored installation");
+    await vi.waitFor(() => expect(page.querySelector('[role="alert"]')?.textContent).toContain("Review the restored installation"));
     expect(api.supervisorChange).not.toHaveBeenCalled();
 
     const review = [...page.querySelectorAll("label")].find((label) => label.textContent.includes("I accept that restoration evidence is unavailable."));

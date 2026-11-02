@@ -263,7 +263,7 @@ onMounted(load);
 </script>
 
 <template>
-    <section class="supervisor-control" data-supervisor-controls aria-labelledby="supervisor-control-title">
+    <section class="supervisor-control" :data-supervisor-controls="!loading && control ? '' : null" aria-labelledby="supervisor-control-title">
         <p v-if="loading" role="status">Loading Supervisor Control.</p>
         <section v-else-if="!control" data-control-denied role="alert" class="control-problem">
             <h2>Control is not available</h2>

@@ -204,6 +204,7 @@ test("the owner saves feedback for a decision and turns its correction into a ru
     await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-useful]')).not.toBeNull());
 
     page.querySelector('[data-history-row="79"] [data-feedback-useful]').click();
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-save]').disabled).toBe(false));
     const comment = page.querySelector('[data-history-row="79"] textarea[aria-label="Comment"]');
     comment.value = "Good result.";
     comment.dispatchEvent(new Event("input", {bubbles: true}));

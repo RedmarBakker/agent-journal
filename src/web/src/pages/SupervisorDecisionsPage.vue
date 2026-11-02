@@ -266,9 +266,9 @@ checkOwner();
                     <span class="history-meta history-plan"><span class="history-meta-label">Plan</span>
                         <span>{{ planTitle(row.plan_id) }}</span>
                     </span>
-                    <span class="history-meta history-result" :data-result="row.result">
+                    <span class="history-meta">
                         <span class="history-meta-label">Result</span>
-                        <span>
+                        <span class="history-result" :data-result="row.result">
                             {{ row.result }}<template v-if="row.quiet_count">: {{ row.quiet_count }} wake-ups</template>
                         </span>
                     </span>
