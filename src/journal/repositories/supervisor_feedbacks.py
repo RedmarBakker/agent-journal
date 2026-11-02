@@ -16,6 +16,7 @@ from journal.support.time_source import TimeSource
 FEEDBACK_ON = "feedback_on"
 ACTION_RECEIPT = "SupervisorActionReceipt"
 WAKEUP = "SupervisorWakeup"
+MAX_FEEDBACK_EXAMPLES = 5
 
 
 class SupervisorFeedbacks(ScopedRepository[SupervisorFeedback]):
@@ -56,6 +57,36 @@ class SupervisorFeedbacks(ScopedRepository[SupervisorFeedback]):
         owner = self._owner(plan_id, actor)
         rows = self.selected(self.query().filter_json("scenario->plan", plan_id).order_descending("id"))
         return {"plan_id": plan_id, "feedback": [self._present(row, plan_id, owner) for row in rows]}
+
+    def examples(self, owner_id: int, plan_id: int, verbs: tuple[str, ...], areas: tuple[str, ...]) -> list[dict]:
+        if not verbs and not areas:
+            return []
+        plans = self.plans.selected_globally(self.plans.query().filter(id=plan_id).limit(1))
+        if not plans:
+            return []
+        base = self.query().filter(
+            environment_id=plans[0].environment_id, creator=Actor.user(owner_id),
+        )
+        exact = self.selected_globally(
+            base.filter_json("scenario->plan", plan_id).filter_listed("scenario->verb", verbs)
+            .order_descending("id").limit(MAX_FEEDBACK_EXAMPLES),
+        ) if verbs else []
+        remaining = MAX_FEEDBACK_EXAMPLES - len(exact)
+        fallback = self.selected_globally(
+            base.filter_listed("scenario->area", areas)
+            .filter_unlisted("id", [row.row_id for row in exact]).order_descending("id").limit(remaining),
+        ) if areas and remaining else []
+        return [self._example(row) for row in (*exact, *fallback) if len(row.comment) <= 1000]
+
+    @staticmethod
+    def _example(row: SupervisorFeedback) -> dict:
+        return {
+            "id": row.row_id,
+            "verdict": row.verdict,
+            "comment": row.comment,
+            "correction": row.correction,
+            "scenario": row.scenario,
+        }
 
     def _feedback(self, body: dict, plan_id: int) -> SupervisorFeedback:
         scenario = body["scenario"]

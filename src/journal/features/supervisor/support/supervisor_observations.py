@@ -18,6 +18,7 @@ from journal.features.supervisor.support.admissions import (
 )
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_episode_qualification import OBSERVATION_ENTRY, SupervisorEpisodeQualification
+from journal.features.supervisor.support.supervisor_operation_commands import OPERATION_COMMANDS
 from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.features.supervisor.support.supervisor_environment_reader import SupervisorEnvironmentReader
 from journal.features.supervisor.support.supervisor_wake_schedule import SupervisorWakeSchedule
@@ -27,6 +28,7 @@ from journal.models.supervisor_grant import EVENT_WAKEUPS
 from journal.repositories.entries import Entries
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
+from journal.repositories.supervisor_feedbacks import SupervisorFeedbacks
 from journal.support.actor import Actor
 from journal.support.masks import Masks
 from journal.support.time_source import TimeSource
@@ -48,7 +50,8 @@ class SupervisorObservations:
                  scope: Scope, masks: Masks, time_source: TimeSource,
                  episode_qualification: SupervisorEpisodeQualification,
                  action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
-                 environment_reader: SupervisorEnvironmentReader, wake_schedule: SupervisorWakeSchedule) -> None:
+                 environment_reader: SupervisorEnvironmentReader, wake_schedule: SupervisorWakeSchedule,
+                 feedback: SupervisorFeedbacks) -> None:
         self.authority, self.entries, self.control_entries = authority, entries, control_entries
         self.scope, self.masks, self.time_source = scope, masks, time_source
         self.episode_qualifier = episode_qualification
@@ -56,6 +59,7 @@ class SupervisorObservations:
         self.wakeups = wakeups
         self.environment_reader = environment_reader
         self.wake_schedule = wake_schedule
+        self.feedback = feedback
 
     def completed(self, check: Check, event: CheckCompleted, started: float, fault: str) -> None:
         self._capture(check, event.check_id, started, event.time, event.passed, event.output, fault, False)
@@ -73,7 +77,7 @@ class SupervisorObservations:
         snapshot = {**snapshot, "environment": environment, "environment_read_id": environment_read_id,
             "episode_qualification": qualification,
             "progress_watermark_ms": qualification["progress_watermark_ms"],
-            "wake": self._wake_context(run)}
+            "wake": self._wake_context(run), "feedback_examples": self._feedback_examples(grant)}
         page = self._page(grant, installation_epoch, request["cursor"])
         return {
             "protocol_version": 1,
@@ -82,6 +86,16 @@ class SupervisorObservations:
             "page": page,
             "server_now_ms": self._now_ms(),
         }
+
+    def _feedback_examples(self, grant: dict[str, Any]) -> list[dict]:
+        commands = [
+            (area, noun, verb)
+            for operation, (area, noun, verb) in OPERATION_COMMANDS.items()
+            if grant["capabilities"].get(operation) is True
+        ]
+        verbs = tuple(dict.fromkeys(f"{noun} {verb}" for _area, noun, verb in commands))
+        areas = tuple(dict.fromkeys(area for area, _noun, _verb in commands))
+        return self.feedback.examples(grant["owner_user_id"], grant["plan_id"], verbs, areas)
 
     def admit(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._admission_request(body)

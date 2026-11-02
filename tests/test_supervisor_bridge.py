@@ -638,6 +638,12 @@ def test_supervisor_hook_uses_a_fixed_trusted_mapping_and_only_a_run_reference()
     assert mapping["allowUnsafeExternalContent"] is True
     assert "{{run_ref}}" in mapping["messageTemplate"]
     assert "one catalogued command" in mapping["messageTemplate"]
+    assert mapping["messageTemplate"] == (
+        "Handle this admitted journal supervisor run. Read the journal snapshot with "
+        "journal_supervisor.observe or a generated catalogue read tool, then use only its evidence. "
+        "If justified, call journal_supervisor.run_or_propose with one catalogued command. "
+        "Read journal_supervisor.receipt after the decision and finish. Run reference: {{run_ref}}"
+    )
     assert headers == {"Content-Type": "application/json", "Idempotency-Key": "run-1"}
 
 
@@ -878,6 +884,121 @@ def test_catalogue_read_tool_returns_the_fenced_observation(tmp_path):
     assert content["command"] == {"area": command[0], "noun": command[1], "verb": command[2]}
     assert content["snapshot"]["grant"]["grant_id"] == RUN["grant_id"]
     assert [call[0] for call in journal.calls] == ["observe"]
+
+
+def test_observation_contains_five_matching_feedback_examples_as_data(app, monkeypatch):
+    from datetime import timedelta
+
+    from journal.models.entry import Entry
+    from journal.models.plan import Plan
+    from journal.repositories.supervisor_entries import SupervisorEntries
+    from journal.repositories.supervisor_feedbacks import SupervisorFeedbacks
+    from tests.test_supervisor_actions import _admitted_maintenance_context
+
+    fixture = authority_seeded(app)
+    context = _admitted_maintenance_context(app, monkeypatch, fixture, "bounded_write")
+    scope = app.container.get(Scope)
+    feedback = app.container.get(SupervisorFeedbacks)
+    control_entries = app.container.get(SupervisorEntries)
+    plans = app.container.get(Plans)
+    try:
+        with scope.environment(fixture.owner_environment.row_id):
+            other_plan = plans.save(Plan(
+                environment_id=fixture.owner_environment.row_id, title="another plan", brief="another plan brief",
+            ), fixture.owner)
+            plan_wakeup = control_entries.recorded(Entry(
+                environment_id=PROJECT,
+                entry_type="SupervisorWakeup",
+                actor=context["principal"].actor,
+                data={
+                    "tenant_id": context["principal"].scope["tenant_id"],
+                    "plan_id": fixture.plan.row_id,
+                    "wakeup_id": "feedback-example-plan-wakeup",
+                },
+                idempotency="test:feedback-example-plan-wakeup",
+            ), context["principal"].actor)
+            other_wakeup = control_entries.recorded(Entry(
+                environment_id=PROJECT,
+                entry_type="SupervisorWakeup",
+                actor=context["principal"].actor,
+                data={
+                    "tenant_id": context["principal"].scope["tenant_id"],
+                    "plan_id": other_plan.row_id,
+                    "wakeup_id": "feedback-example-other-wakeup",
+                },
+                idempotency="test:feedback-example-other-wakeup",
+            ), context["principal"].actor)
+
+            def record(plan_id, wakeup, verb, comment, area="Plans and tasks"):
+                return feedback.create(plan_id, {
+                    "decision_kind": "wakeup",
+                    "decision_id": wakeup.row_id,
+                    "verdict": "Useful",
+                    "comment": comment,
+                    "correction": "Should have done nothing",
+                    "scenario": {
+                        "plan": plan_id,
+                        "area": area,
+                        "verb": verb,
+                        "wake_event": "failed_check",
+                    },
+                }, fixture.owner)
+
+            record(fixture.plan.row_id, plan_wakeup, "plan priorities", "same-plan-oldest")
+            record(fixture.plan.row_id, plan_wakeup, "plan priorities", "same-plan-middle")
+            record(fixture.plan.row_id, plan_wakeup, "plan priorities", "same-plan-newest")
+            record(other_plan.row_id, other_wakeup, "plan add", "same-area-oldest")
+            record(other_plan.row_id, other_wakeup, "plan add", "same-area-middle")
+            record(other_plan.row_id, other_wakeup, "plan add", "same-area-newest")
+            record(other_plan.row_id, other_wakeup, "secret delete", "different-area", "Secrets")
+
+        principal = context["principal"]
+        with scope.environment(PROJECT):
+            run = control_entries.recorded(Entry(
+                environment_id=PROJECT,
+                entry_type="SupervisorRun",
+                actor=principal.actor,
+                data={
+                    "tenant_id": principal.scope["tenant_id"],
+                    "grant_id": context["grant"]["grant_id"],
+                    "grant_version": context["grant"]["grant_version"],
+                    "plan_id": context["grant"]["plan_id"],
+                    "node_id": principal.scope["writer_node_id"],
+                    "episode_id": "feedback-examples-episode",
+                    "run_ref": "feedback-examples-run",
+                    "pending_action_id": "feedback-examples-action",
+                    "installation_epoch": principal.scope["installation_epoch"],
+                    "fence": 2,
+                    "lease_until": (context["time_source"].moment() + timedelta(minutes=5)).isoformat(),
+                    "reservation": {"cost_usd": "0.000001"},
+                    "status": "admitted",
+                },
+                idempotency="test:feedback-examples-run",
+            ), principal.actor)
+
+        observation_service = app.container.get(SupervisorObservations)
+        request = {
+            "protocol_version": 1,
+            "run_id": run.data["run_ref"],
+            "installation_epoch": principal.scope["installation_epoch"],
+            "fence": run.data["fence"],
+            "cursor": None,
+        }
+        with scope.environment(principal.scope["environment_id"]):
+            observation = observation_service.observe(principal, request)
+
+        examples = observation["snapshot"]["feedback_examples"]
+        assert [example["comment"] for example in examples] == [
+            "same-plan-newest", "same-plan-middle", "same-plan-oldest",
+            "same-area-newest", "same-area-middle",
+        ]
+        assert len(examples) == 5
+        assert all(len(example["comment"]) <= 1000 for example in examples)
+        assert all(set(example) == {"id", "verdict", "comment", "correction", "scenario"} for example in examples)
+        _title, brief = diagnostic_task_values(fixture.template)
+        assert all(example["comment"] not in brief for example in examples)
+    finally:
+        fixture.authority.secrets_store.drop(fixture.credentials)
 
 
 def test_unverified_aggregate_budget_never_invokes_hook(tmp_path):
