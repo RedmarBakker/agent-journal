@@ -102,6 +102,10 @@ class SupervisorObservations:
                              request: dict[str, Any]) -> dict[str, Any]:
         interval = self.wake_schedule.interval_minutes(principal)
         wake_at_ms = self._now_ms()
+        now = datetime.fromtimestamp(wake_at_ms / 1000, timezone.utc)
+        _, used_cost = self._daily_runs_and_cost(principal, grant, now)
+        if used_cost is not None and used_cost >= grant["limits"]["max_cost_microusd_per_day"]:
+            return self._skip(grant, request, "budget_exhausted")
         if not self.wake_schedule.is_due(principal, grant, interval, wake_at_ms):
             return self._skipped("scheduled_interval_not_elapsed")
         row_event_marker = self.wake_schedule.row_event_marker(principal)
@@ -371,10 +375,7 @@ class SupervisorObservations:
             return self._skip(grant, request, "unknown_cost")
         now = datetime.fromtimestamp(self.time_source.seconds(), timezone.utc)
         day = now.date().isoformat()
-        daily = self.entries.supervisor_records(
-            "SupervisorRun", last=100, tenant_id=principal.scope["tenant_id"], grant_id=grant["grant_id"], day=day,
-        )
-        used_cost = self._settled_daily_cost(principal, daily)
+        daily, used_cost = self._daily_runs_and_cost(principal, grant, now)
         daily_cost = grant["limits"]["max_cost_microusd_per_day"]
         if used_cost is not None and used_cost >= daily_cost:
             return self._skip(grant, request, "budget_exhausted")
@@ -435,6 +436,14 @@ class SupervisorObservations:
                 return None
             total += cost
         return total
+
+    def _daily_runs_and_cost(self, principal: SupervisorPrincipal, grant: dict[str, Any],
+                             now: datetime) -> tuple[list[Entry], int | None]:
+        runs = self.entries.supervisor_records(
+            "SupervisorRun", last=100, tenant_id=principal.scope["tenant_id"],
+            grant_id=grant["grant_id"], day=now.date().isoformat(),
+        )
+        return runs, self._settled_daily_cost(principal, runs)
 
     def _record_admission(self, principal: SupervisorPrincipal, grant: dict[str, Any], epoch: int, episode_id: str,
                           request: dict[str, Any], evidence: list[Entry], key: str, day: str, fence: int,

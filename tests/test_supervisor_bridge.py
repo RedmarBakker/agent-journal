@@ -1417,6 +1417,7 @@ def test_controlled_loop_reaches_normal_driver_and_canonical_receipt(tmp_path, m
     try:
         grant, token, _principal = authority_admitted(fixture, "bounded_write")
         time_source = app.container.get(TimeSource)
+        time_source.pin(time_source.seconds() + 15 * 60)
         check = app.container.get(Checks).find(fixture.check.row_id)
         observations = app.container.get(SupervisorObservations)
         observed_at = time_source.seconds()

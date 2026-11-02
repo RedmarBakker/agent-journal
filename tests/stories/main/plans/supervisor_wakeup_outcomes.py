@@ -59,17 +59,17 @@ def empty_admission_wakeup(story):
         "wakeup_id": "empty-wakeup-1",
         "kind": "scheduled",
     }
-    for _ in range(2):
-        story.viewer_status, story.viewer_answer = posted(
-            story.app,
-            "/_supervisor/v1/admit",
-            request,
-            {"X-Journal-Supervisor-Token": token},
-        )
-        story.observed("the bridge reports a wake-up with no actionable evidence", None, None)
-        story.last_step.expect_viewer_passed()
-        story.last_step.expect_viewer_part(("status",), "skipped")
-        story.last_step.expect_viewer_part(("reason",), "empty")
+    story.time_travel(minutes=15)
+    story.viewer_status, story.viewer_answer = posted(
+        story.app,
+        "/_supervisor/v1/admit",
+        request,
+        {"X-Journal-Supervisor-Token": token},
+    )
+    story.observed("the bridge reports a wake-up with no actionable evidence", None, None)
+    story.last_step.expect_viewer_passed()
+    story.last_step.expect_viewer_part(("status",), "skipped")
+    story.last_step.expect_viewer_part(("reason",), "empty")
     story.viewer_status, story.viewer_answer = posted(
         story.app,
         "/_supervisor/v1/wakeups",

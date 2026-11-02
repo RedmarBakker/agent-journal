@@ -508,6 +508,7 @@ def test_live_smoke_admits_one_turn_from_an_open_unheld_task_after_its_bound_che
 
     observations = app.container.get(SupervisorObservations)
     time_source = app.container.get(TimeSource)
+    time_source.pin(time_source.seconds() + 15 * 60)
     check = checks.find(fixture.check.row_id)
     observed_at = time_source.seconds()
     observations.completed(check, CheckCompleted(
@@ -549,6 +550,7 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
     grant, token, principal = admitted(fixture, "bounded_write")
     observations = app.container.get(SupervisorObservations)
     time_source = app.container.get(TimeSource)
+    time_source.pin(time_source.seconds() + 15 * 60)
     check = app.container.get(Checks).find(fixture.check.row_id)
     observed_at = time_source.seconds()
     observations.completed(check, CheckCompleted(

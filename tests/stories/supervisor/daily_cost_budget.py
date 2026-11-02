@@ -19,6 +19,16 @@ def admit_event(story, wakeup_id):
     })
 
 
+def admit_timer(story, wakeup_id):
+    return story.supervisor_posts("/_supervisor/v1/admit", {
+        "protocol_version": 1,
+        "source": "timer",
+        "observation_cursor": None,
+        "wakeup_id": wakeup_id,
+        "kind": "scheduled",
+    })
+
+
 def settle_maximal_usage(story, wake):
     run = wake.viewer_answer["run"]
     input_tokens = story.fixture.max_input_tokens_per_turn
@@ -69,13 +79,18 @@ def test_wakes_after_settled_cost_reaches_the_daily_cap_wait_for_the_next_day(st
         capped.expect_viewer_part(("status",), "skipped")
         capped.expect_viewer_part(("reason",), "budget_exhausted")
 
+    capped_timer = admit_timer(story, "daily-cost-capped-timer")
+    capped_timer.expect_viewer_passed()
+    capped_timer.expect_viewer_part(("status",), "skipped")
+    capped_timer.expect_viewer_part(("reason",), "budget_exhausted")
+
     records = daily_records(story)
     records.expect_viewer_passed()
     records.expect_viewer_part(("current", "runs"), 1)
 
     wakeups = wakeup_counts(story)
     wakeups.expect_viewer_passed()
-    wakeups.expect_viewer_part(("counts", "Skipped (budget used up)"), 2)
+    wakeups.expect_viewer_part(("counts", "Skipped (budget used up)"), 3)
 
     story.time_travel(minutes=15)
     next_day = admit_event(story, "daily-cost-next-day")
