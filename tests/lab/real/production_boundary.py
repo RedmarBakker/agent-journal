@@ -57,6 +57,9 @@ class ProductionBoundary:
             f'(allow network-bind (local ip "localhost:{port}"))\n(allow network-inbound (local ip "localhost:{port}"))'
             for port in self.ports
         )
+        read_path_parents = tuple(dict.fromkeys(
+            parent for path in read_paths for parent in path.resolve().parents if parent != Path("/")
+        ))
         return "\n".join((
             "(version 1)",
             "(deny default)",
@@ -68,6 +71,7 @@ class ProductionBoundary:
                 Path("/System"), Path("/Library"), Path("/usr"), Path("/bin"), Path("/sbin"),
                 Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"),
             )),
+            *(f'(allow file-read-metadata (literal {json.dumps(str(path))}))' for path in read_path_parents),
             *(f'(allow file-read* (literal {json.dumps(str(path.resolve()))}))' for path in read_paths),
             *(f'(allow file-read* (subpath {json.dumps(str(path.resolve()))}))' for path in read_paths),
             '(allow file-read* (literal "/"))',

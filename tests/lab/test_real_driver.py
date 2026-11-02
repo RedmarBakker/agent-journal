@@ -307,6 +307,8 @@ def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
 
     assert f'(allow file-read* (literal {json.dumps(str(virtual_environment / "bin"))}))' in policy
     assert f'(allow file-read* (subpath {json.dumps(str(python_framework))}))' in policy
+    assert f'(allow file-read-metadata (literal {json.dumps(str(Path.home()))}))' in policy
+    assert f'(allow file-read* (literal {json.dumps(str(Path.home()))}))' not in policy
     assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
     assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
     assert completed.stdout.strip() == sys.prefix
