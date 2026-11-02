@@ -47,7 +47,8 @@ class SessionAgents:
         return self.created(session, environment_id, provider, Stack((self.states.first(),)), AgentRole.MAIN, started_at)
 
     def persistent_main_agent(self, environment_id: int) -> Agent | None:
-        return next((agent for agent in self.agents.main_scoped(environment_id) if self.states.stack(agent).bottom().keeps_floor()), None)
+        rows = (*self.agents.main_scoped(environment_id), *self.agents.ended_main_scoped(environment_id))
+        return next((agent for agent in rows if self.states.stack(agent).bottom().keeps_floor()), None)
 
     def reused(self, current: Agent, session: str, environment_id: int, provider: str | None, started_at: datetime | None) -> Agent:
         if current.session == session:

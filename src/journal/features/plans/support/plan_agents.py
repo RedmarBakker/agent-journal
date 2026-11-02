@@ -128,6 +128,7 @@ class PlanAgents:
             self.bindings.bind(plan, environment.row_id, actor)
             agent = agent or self.prepared(plan, environment, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
+                self.retire_leftover_coordinators(environment.row_id, agent.row_id, actor)
                 self.commits.add(lambda: self.start_organization_plan(plan, environment, agent, actor))
             else:
                 try:
@@ -152,6 +153,14 @@ class PlanAgents:
         agent = self.places.prepared(environment, LeadingPlan(plan_id=plan.row_id), starter_environment_id, actor)
         self.plans.agent_linked(plan, agent, actor)
         return agent
+
+    def retire_leftover_coordinators(self, environment_id: int, plan_agent_id: int, actor: Actor) -> None:
+        from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+
+        with self.scope.environment(environment_id):
+            for agent in self.agents.main_scoped(environment_id):
+                if agent.row_id != plan_agent_id and agent.state == CoordinatingPlans.name:
+                    self.agents.save(agent.retired(self.time_source.seconds()), actor)
 
     def stopped(self, event: PlanAbandoned | PlanFinished | PlanPostponed) -> None:
         with self.scope.environment(event.environment_id):
