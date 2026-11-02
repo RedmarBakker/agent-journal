@@ -490,9 +490,22 @@
           ]
         },
         "result": {"enum": ["Acted", "Proposed", "Nothing to do", "Skipped as quiet", "Skipped", "Handed to you"]},
-        "skip_reason": {"type": "string", "enum": ["", "quiet", "busy", "evidence stale", "budget used up", "needs owner"]}
+        "skip_reason": {"type": "string", "enum": ["", "empty", "quiet", "busy", "evidence stale", "budget used up", "needs owner"]}
       },
       "required": ["protocol_version", "wakeup_id", "kind", "result", "skip_reason"]
+    },
+    "WakeupReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"const": "recorded"},
+        "wakeup_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "entry_id": {"type": "integer", "minimum": 1},
+        "result": {"enum": ["Acted", "Proposed", "Nothing to do", "Skipped as quiet", "Skipped", "Handed to you"]},
+        "skip_reason": {"type": "string", "enum": ["", "empty", "quiet", "busy", "evidence stale", "budget used up", "needs owner"]},
+        "duplicate": {"type": "boolean"}
+      },
+      "required": ["status", "wakeup_id", "entry_id", "result", "skip_reason", "duplicate"]
     },
     "Run": {
       "type": "object",
@@ -1174,6 +1187,11 @@
           ],
           "maxLength": 256
         },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
         "recorded_at_ms": {
           "type": "integer",
           "minimum": 0
@@ -1243,6 +1261,7 @@
         "actor_id",
         "status",
         "reason",
+        "rationale",
         "recorded_at_ms",
         "observation_ids",
         "affected_refs",
@@ -1581,6 +1600,9 @@
     },
     {
       "$ref": "#/$defs/WakeupRequest"
+    },
+    {
+      "$ref": "#/$defs/WakeupReceipt"
     },
     {
       "$ref": "#/$defs/AdmissionResult"

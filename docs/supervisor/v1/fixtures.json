@@ -310,6 +310,14 @@
       "result": "Skipped",
       "skip_reason": "busy"
     },
+    "WakeupReceipt": {
+      "status": "recorded",
+      "wakeup_id": "empty-wakeup-1",
+      "entry_id": 47,
+      "result": "Nothing to do",
+      "skip_reason": "empty",
+      "duplicate": true
+    },
     "AdmissionResult": {
       "status": "admitted",
       "run": {
@@ -446,6 +454,7 @@
       "actor_id": "journal-supervisor",
       "status": "proposed",
       "reason": "shadow_only",
+      "rationale": "Repeated genuine failure with no existing diagnosing task; synthetic contract example.",
       "recorded_at_ms": 1793404510000,
       "observation_ids": [
         "example-observation-1",

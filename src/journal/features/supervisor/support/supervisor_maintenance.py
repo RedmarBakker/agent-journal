@@ -728,6 +728,7 @@ class SupervisorMaintenance:
             "run_id": run_ref, "grant_id": grant["grant_id"], "grant_version": grant["grant_version"],
             "scope": scope, "fence": request["fence"], "intent_sha256": intent_hash,
             "actor_kind": "plugin", "actor_id": SUPERVISOR_ACTOR, "status": status, "reason": reason,
+            "rationale": request["rationale"],
             "recorded_at_ms": int(self.time_source.seconds() * 1000),
             "observation_ids": request["observation_ids"], "affected_refs": self._unique_refs(affected or []),
             "changes": changes or [], "verification": "pending" if status == "applied" else "not_applied",

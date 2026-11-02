@@ -36,6 +36,8 @@ def wakeup_result(story, kind, result, skip_reason, count_name):
     story.observed("the supervisor retries its wake-up receipt", None, None)
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_part(("duplicate",), True)
+    story.last_step.expect_viewer_part(("result",), result)
+    story.last_step.expect_viewer_part(("skip_reason",), skip_reason)
     result_step = story.user_opens_in(
         fixture["owner_environment"].name,
         f"/journal/plans/{fixture['plan'].row_id}/supervisor/wakeups",
@@ -67,6 +69,24 @@ def empty_admission_wakeup(story):
         story.observed("the bridge reports a wake-up with no actionable evidence", None, None)
         story.last_step.expect_viewer_passed()
         story.last_step.expect_viewer_part(("status",), "skipped")
+        story.last_step.expect_viewer_part(("reason",), "empty")
+    story.viewer_status, story.viewer_answer = posted(
+        story.app,
+        "/_supervisor/v1/wakeups",
+        {
+            "protocol_version": 1,
+            "wakeup_id": "empty-wakeup-1",
+            "kind": "scheduled",
+            "result": "Nothing to do",
+            "skip_reason": "empty",
+        },
+        {"X-Journal-Supervisor-Token": token},
+    )
+    story.observed("the bridge reads its stored no-action result", None, None)
+    story.last_step.expect_viewer_passed()
+    story.last_step.expect_viewer_part(("result",), "Nothing to do")
+    story.last_step.expect_viewer_part(("skip_reason",), "empty")
+    story.last_step.expect_viewer_part(("duplicate",), True)
     result_step = story.user_opens_in(
         fixture["owner_environment"].name,
         f"/journal/plans/{fixture['plan'].row_id}/supervisor/wakeups",
@@ -87,7 +107,7 @@ def test_the_owner_counts_a_proposed_event_wakeup_once(story):
 
 
 @story(NewSession, subject=AgentRole.MAIN)
-def test_the_owner_counts_a_wakeup_with_nothing_to_do_once(story):
+def test_nothing_to_do_keeps_its_reason_and_is_counted_once(story):
     empty_admission_wakeup(story)
 
 

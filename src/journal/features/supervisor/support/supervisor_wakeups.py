@@ -17,10 +17,11 @@ from journal.supervisor_failure import SupervisorFailure
 from journal.supervisor_principal import SupervisorPrincipal
 
 WAKEUP_ENTRY = "SupervisorWakeup"
+NO_ACTION_REASON = "empty"
 RESULT_COUNTS = {
     "Acted": ("Acted", ""),
     "Proposed": ("Proposed", ""),
-    "Nothing to do": ("Nothing to do", ""),
+    "Nothing to do": ("Nothing to do", NO_ACTION_REASON),
     "Skipped as quiet": ("Skipped as quiet", "quiet"),
     "Skipped (busy)": ("Skipped", "busy"),
     "Skipped (evidence stale)": ("Skipped", "evidence stale"),
@@ -47,7 +48,7 @@ class SupervisorWakeups:
 
     def record_skip(self, grant: dict[str, Any], wakeup: dict[str, Any], reason: str) -> dict[str, Any]:
         if reason in {"empty", "empty_work"}:
-            result, skip_reason = "Nothing to do", ""
+            result, skip_reason = "Nothing to do", NO_ACTION_REASON
         elif reason in {"ineligible", "ineligible_work", "ineligible_gate"}:
             result, skip_reason = "Skipped as quiet", "quiet"
         elif reason in {"busy", "overlapping_run"}:
@@ -145,7 +146,10 @@ class SupervisorWakeups:
 
     @staticmethod
     def _answer(row: Entry, duplicate: bool) -> dict[str, Any]:
-        return {"status": "recorded", "wakeup_id": row.data["wakeup_id"], "entry_id": row.row_id, "duplicate": duplicate}
+        return {
+            "status": "recorded", "wakeup_id": row.data["wakeup_id"], "entry_id": row.row_id,
+            "result": row.data["result"], "skip_reason": row.data["skip_reason"], "duplicate": duplicate,
+        }
 
     @staticmethod
     def _request(body: object) -> dict[str, Any]:
@@ -158,7 +162,8 @@ class SupervisorWakeups:
                 or not isinstance(body["skip_reason"], str)):
             raise SupervisorFailure(400, "the supervisor wake-up result is invalid")
         result, reason = body["result"], body["skip_reason"]
-        if (result in {"Acted", "Proposed", "Nothing to do"} and reason
+        if (result in {"Acted", "Proposed"} and reason
+                or result == "Nothing to do" and reason != NO_ACTION_REASON
                 or result == "Skipped as quiet" and reason != "quiet"
                 or result == "Skipped" and reason not in SKIP_REASONS - {"quiet", "needs owner"}
                 or result == "Handed to you" and reason != "needs owner"):

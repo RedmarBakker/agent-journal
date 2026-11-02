@@ -264,7 +264,7 @@ class SupervisorBridge:
         expected = {
             "protocol_version", "action_id", "episode_id", "run_id", "grant_id", "grant_version", "scope", "fence",
             "intent_sha256", "actor_kind", "actor_id", "status", "reason", "recorded_at_ms", "observation_ids",
-            "affected_refs", "changes", "verification", "outcome", "proposed_operations",
+            "rationale", "affected_refs", "changes", "verification", "outcome", "proposed_operations",
         }
         if not isinstance(receipt, dict) or set(receipt) != expected:
             raise ContractError("receipt has an unsupported shape")
@@ -292,6 +292,9 @@ class SupervisorBridge:
             raise ContractError("receipt status is unsupported")
         if receipt["reason"] is not None:
             bounded_text(receipt["reason"], "receipt reason", 0, 256)
+        rationale = bounded_text(receipt["rationale"], "receipt rationale", 1, 2048)
+        if not rationale.strip():
+            raise ContractError("receipt rationale is empty")
         if not isinstance(receipt["observation_ids"], list) or not 1 <= len(receipt["observation_ids"]) <= 20:
             raise ContractError("receipt observation references are outside the contract bounds")
         for observation_id in receipt["observation_ids"]:

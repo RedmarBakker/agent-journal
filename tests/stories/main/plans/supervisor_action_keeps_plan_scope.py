@@ -8,7 +8,7 @@ from tests.test_supervisor_actions import diagnostic_operation, maintenance_cont
 
 
 @story(NewSession, subject=AgentRole.MAIN)
-def test_a_supervisor_action_keeps_its_plan_scope_for_link_listeners(story):
+def test_a_supervisor_action_keeps_its_rationale_and_plan_scope_for_link_listeners(story):
     context = maintenance_context(story.app, story.monkeypatch)
     story.closers.append(lambda: context["fixture"].authority.secrets_store.drop(context["fixture"].credentials))
     request = maintenance_request(context, [diagnostic_operation(context)])
@@ -22,6 +22,7 @@ def test_a_supervisor_action_keeps_its_plan_scope_for_link_listeners(story):
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_shows("status", "applied")
     story.last_step.expect_viewer_part(("data", "verification"), "verified")
+    story.last_step.expect_viewer_part(("data", "rationale"), request["rationale"])
     story.expect_no_faults()
     fixture = context["fixture"]
     story.expect_row_in(

@@ -287,6 +287,7 @@ def make_receipt():
         "actor_id": "journal-supervisor",
         "status": "applied",
         "reason": None,
+        "rationale": "Review the failed check before making this bounded change.",
         "recorded_at_ms": 1793404500000,
         "observation_ids": ["observation-1"],
         "affected_refs": [],
@@ -607,7 +608,7 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
 
 
 def test_wakeup_result_report_uses_the_authenticated_service_route():
-    opener = StubOpener([b'{"status":"recorded","wakeup_id":"wakeup-1","entry_id":25,"duplicate":false}'])
+    opener = StubOpener([b'{"status":"recorded","wakeup_id":"wakeup-1","entry_id":25,"result":"Acted","skip_reason":"","duplicate":false}'])
     connection = JsonHttpConnection("http://127.0.0.1:9134", "journal-service-token")
     connection.opener = opener
 
@@ -615,6 +616,8 @@ def test_wakeup_result_report_uses_the_authenticated_service_route():
 
     request, timeout = opener.requests[0]
     assert result["status"] == "recorded"
+    assert result["result"] == "Acted"
+    assert result["skip_reason"] == ""
     assert request.full_url == "http://127.0.0.1:9134/_supervisor/v1/wakeups"
     assert request.get_header("Authorization") == "Bearer journal-service-token"
     assert json.loads(request.data) == {
