@@ -178,6 +178,14 @@ class StoryChecks:
         assert stack == [state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
+    def expect_agent_is_the_plan_agent(self, agent: StoryAgent, plan_id: int) -> None:
+        plans = self.app.container.get(Plans)
+        plan = plans.global_matching(id=plan_id)[0]
+        with self.app.container.get(Scope).environment(plan.environment_id):
+            agent_id = plans.agent_id(plan)
+        rows = self.app.container.get(Agents).global_matching(session=self.session_of(agent))
+        assert [row.row_id for row in rows] == [agent_id], f"session belongs to {[(row.row_id, row.environment_id, row.state) for row in rows]}, not only Plan agent {agent_id}"
+
     def expect_stack_does_not_hold_task(self, agent: StoryAgent, task_id: int) -> None:
         session = self.session_of(agent)
         stack = self.app.container.get(Agents).session_agent(session).stack

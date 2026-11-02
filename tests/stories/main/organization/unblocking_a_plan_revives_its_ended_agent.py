@@ -20,13 +20,15 @@ def test_unblocking_and_restarting_a_plan_revives_its_ended_agent(story):
     unblocked.expect_command_passed()
     story.expect_plan(plan, state=PlanState.STARTED)
 
-    started = story.agent_runs(owner, f"plan start {plan}")
-    started.expect_command_passed()
     environment = story.app.container.get(Environments).existing(f"plan-{plan}")
     leftover = story.app.container.get(Agents).global_matching(environment_id=environment.row_id, session=NEW_PLAN_SESSION)[0]
     story.expect_row_in(environment.name, "agents", leftover.row_id, {"state": ENDED_STATE})
+    started = story.agent_runs(owner, f"plan start {plan}")
+    started.expect_command_passed()
     story.session_starts_in(f"plan-{plan}", NEW_PLAN_SESSION)
     plan_agent = StoryAgent(AgentRole.MAIN, session=NEW_PLAN_SESSION)
+    story.expect_agent_is_the_plan_agent(plan_agent, plan)
+    story.expect_agent_session_in_environment(plan_agent, f"plan-{plan}")
     story.expect_stack(plan_agent, LeadingPlan)
 
     text = "continue with the engineering task"

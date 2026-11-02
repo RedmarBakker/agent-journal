@@ -4,6 +4,7 @@ from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_closed import PlanClosed
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_postponed import PlanPostponed
+from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_started import PlanStarted
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
@@ -19,6 +20,7 @@ from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.task import Task
+from journal.models.support.ref import Ref
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
@@ -47,8 +49,27 @@ class PlanAgents:
         self.commits = commits
 
     def agent(self, plan: Plan) -> Agent | None:
-        agent_id = self.plans.agent_id(plan)
-        return next(iter(self.agents.global_matching(id=agent_id)), None) if agent_id else None
+        with self.scope.environment(plan.environment_id):
+            agent_id = self.plans.agent_id(plan)
+        if not agent_id:
+            return None
+        linked_agent = next(iter(self.agents.global_matching(id=agent_id)), None)
+        if linked_agent is None:
+            return None
+        plan_environment_id = linked_agent.environment_id
+        with self.scope.environment(plan_environment_id):
+            return self.agents.find(agent_id)
+
+    def seat_agent(self, rig_name: str) -> Agent | None:
+        plans = tuple(
+            plan for plan in self.plans.matching()
+            if plan.mode == PlanMode.ORGANIZATION
+            and plan.state in (PlanState.STARTED, PlanState.DELEGATED)
+            and self.staffing.plan_rig_name(plan) == rig_name
+        )
+        if len(plans) != 1:
+            return None
+        return self.agent(plans[0])
 
     def owns_tasks(self, plan: Plan) -> bool:
         return self.is_on() and plan.state in (
@@ -106,7 +127,7 @@ class PlanAgents:
     def is_on(self) -> bool:
         return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
 
-    def started(self, event: PlanStarted) -> None:
+    def started(self, event: PlanStarted | PlanReopened) -> None:
         self.start_agent(event.plan_id, event.environment_id, Actor.parse(event.actor))
 
     def recover(self, plan: Plan) -> None:
@@ -117,17 +138,13 @@ class PlanAgents:
             if not self.is_on():
                 return
             plan = self.plans.find(plan_id)
-            environment = self.environment(plan)
-            environment = self.places.visible(environment, source_environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", source_environment_id, actor, "plan")
-            agent = self.agent(plan)
+            environment, agent = self.prepared_for_start(plan, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
-                self.retire_leftover_coordinators(environment.row_id, agent.row_id if agent else 0, actor)
-                if agent and self.staffing.is_running(plan, agent.provider):
+                self.retire_leftover_coordinators(environment.row_id, agent.row_id, actor)
+                if self.staffing.is_running(plan, agent.provider):
                     return
             elif self.places.is_running(environment):
                 return
-            self.bindings.bind(plan, environment.row_id, actor)
-            agent = agent or self.prepared(plan, environment, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
                 self.commits.add(lambda: self.start_organization_plan(plan, environment, agent, actor))
             else:
@@ -137,6 +154,17 @@ class PlanAgents:
                     self.attention(plan, f"Plan {plan.id}'s Plan agent did not start: {reason}", {
                         "kind": "plan_attention", "plan": plan.id, "agent_start_failure": True, "reason": str(reason),
                     })
+
+    def prepared_for_start(self, plan: Plan, source_environment_id: int, actor: Actor) -> tuple[Environment, Agent]:
+        agent = self.agent(plan)
+        environment = self.environments.find(agent.environment_id) if agent and agent.environment_id != source_environment_id else None
+        environment = self.places.visible(environment, source_environment_id, actor, "plan") if environment else self.places.made(f"plan-{plan.id}", source_environment_id, actor, "plan")
+        if agent and agent.environment_id != environment.row_id:
+            agent = self.agents.save(agent.with_(environment_id=environment.row_id), actor)
+            if self.bindings.environment_id(plan) == source_environment_id:
+                self.bindings.unbind(Ref.build(plan), actor)
+        self.bindings.bind(plan, environment.row_id, actor)
+        return environment, agent or self.prepared(plan, environment, source_environment_id, actor)
 
     def start_organization_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
         try:

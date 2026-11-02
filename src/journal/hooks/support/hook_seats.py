@@ -1,6 +1,8 @@
 from dataclasses import replace
 
 from journal.engine.support.session_agents import SessionAgents
+from journal.features.organization.support.contracts import PLAN
+from journal.features.plans.support.plan_agents import PlanAgents
 from journal.hooks.support.checker_hooks import CheckerHooks
 from journal.hooks.support.researcher_hooks import ResearcherHooks
 from journal.hooks.support.worker_hooks import WorkerHooks
@@ -17,8 +19,12 @@ from journal.support.researcher_session import ResearcherSession
 class HookSeats:
     """The agent row a hook or a command belongs to, found once at the door: a worker's, a verifier's or a reviewer's bound to its row, a researcher's made for it, else the main agent's, a new session's start taking its row over while a late hook of the session it took over from is turned away; a command from an agent's shell that names no session is the present agent's."""
 
-    def __init__(self, sessions: SessionAgents, workers: WorkerHooks, checkers: CheckerHooks, researchers: ResearcherHooks, agents: Agents, scope: Scope) -> None:
-        self.sessions, self.workers, self.checkers, self.researchers, self.agents, self.scope = sessions, workers, checkers, researchers, agents, scope
+    def __init__(
+        self, sessions: SessionAgents, workers: WorkerHooks, checkers: CheckerHooks, researchers: ResearcherHooks,
+        agents: Agents, scope: Scope, plan_agents: PlanAgents,
+    ) -> None:
+        self.sessions, self.workers, self.checkers, self.researchers = sessions, workers, checkers, researchers
+        self.agents, self.scope, self.plan_agents = agents, scope, plan_agents
 
     def agent(self, hook: Hook, environment: Environment) -> Agent:
         if hook.researcher:
@@ -44,6 +50,9 @@ class HookSeats:
         researchers = self.researcher_rows(attributed) if attributed.subagent else []
         if researchers:
             return replace(attributed, agent_row=researchers[-1])
+        if attributed.organization_seat == PLAN and attributed.session_role == AgentRole.MAIN:
+            agent = self.plan_agents.seat_agent(attributed.organization_rig)
+            return replace(attributed, agent_row=agent)
         rows = self.agents.session_rows(attributed.session)
         if rows and attributed.session_role == AgentRole.MAIN:
             return replace(attributed, agent_row=self.sessions.caller_agent(attributed, attributed.session, self.scope.id))

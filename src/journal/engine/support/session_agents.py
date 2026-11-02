@@ -4,7 +4,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.support.stack import Stack
 from journal.events.rows.worker_agent_created import WorkerAgentCreated
 from journal.engine.states_catalogue import StatesCatalogue
-from journal.models.agent import Agent
+from journal.models.agent import Agent, ENDED_STATE
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.providers.providers import Providers
@@ -28,6 +28,9 @@ class SessionAgents:
         return self.row(session, environment_id, provider, AgentRole.MAIN, self.time_source.moment())
 
     def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
+        current = self.agents.session_row_in(environment_id, session)
+        if current is not None:
+            return current
         return self.row(session, environment_id, caller.provider, caller.session_role)
 
     def helper_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
@@ -51,6 +54,7 @@ class SessionAgents:
         return next((agent for agent in rows if self.states.stack(agent).bottom().keeps_floor()), None)
 
     def reused(self, current: Agent, session: str, environment_id: int, provider: str | None, started_at: datetime | None) -> Agent:
+        self.release_ended_session_rows(current, session, environment_id)
         if current.session == session:
             return self.agents.save(current.session_started(started_at), Actor.system()) if started_at and not current.session_started_at else current
         if started_at and current.session:
@@ -59,6 +63,11 @@ class SessionAgents:
         if started_at:
             changed = changed.session_started(started_at)
         return self.agents.save(changed, Actor.system())
+
+    def release_ended_session_rows(self, current: Agent, session: str, environment_id: int) -> None:
+        for agent in self.agents.global_matching(environment_id=environment_id, session=session, state=ENDED_STATE):
+            if agent.row_id != current.row_id:
+                self.agents.save(agent.with_session("", agent.provider), Actor.system())
 
     def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
         rows = self.session_rows(session)

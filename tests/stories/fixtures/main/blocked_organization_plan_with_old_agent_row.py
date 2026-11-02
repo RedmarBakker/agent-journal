@@ -1,7 +1,6 @@
 from journal.engine.states.ended import Ended
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.agent import Agent
 from journal.models.plan_state import PlanState
@@ -13,22 +12,21 @@ from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_agent import StoryAgent
-from tests.stories.fixtures.main.organization_plan_seat import OrganizationPlanSeat
+from tests.stories.fixtures.main.started_organization_plan import StartedOrganizationPlan
 
 
 BLOCK_REASON = "the Plan agent session ended"
 NEW_PLAN_SESSION = "unblocked-plan-agent-session"
 
 
-class BlockedOrganizationPlanWithOldAgentRow(OrganizationPlanSeat):
+class BlockedOrganizationPlanWithOldAgentRow(StartedOrganizationPlan):
     """A blocked organization plan has an ended Plan agent and an older coordinator row."""
 
-    parent = OrganizationPlanSeat
+    parent = StartedOrganizationPlan
 
     def steps(self, story) -> None:
         plan = self.plans.first
-        main = story.app.container.get(Environments).existing("main")
-        environment = story.app.container.get(AgentEnvironments).made(f"plan-{plan}", main.row_id, Actor.system(), "plan")
+        environment = story.app.container.get(Environments).existing(f"plan-{plan}")
         coordinator = CoordinatingPlans()
         leftover = story.app.container.get(Agents).save(Agent(
             environment_id=environment.row_id,
@@ -40,7 +38,6 @@ class BlockedOrganizationPlanWithOldAgentRow(OrganizationPlanSeat):
             role=AgentRole.MAIN,
         ), Actor.system())
 
-        story.agent_runs(story.agents.main, f"plan start {plan}").expect_command_passed()
         story.agent_runs(story.agents.main, f"plan block {plan} '{BLOCK_REASON}'").expect_command_passed()
 
         plan_row = story.app.container.get(Plans).global_matching(id=plan)[0]

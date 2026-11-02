@@ -32,6 +32,7 @@ from journal.engine.support.state_floor import StateFloor
 from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.states.leading_task import LeadingTask, LeadingTaskWorking
 from journal.features.plans.listeners.plan_agent_start import PlanAgentStart
+from journal.features.plans.listeners.plan_agent_reopen import PlanAgentReopen
 from journal.features.plans.listeners.plan_agent_pause import PlanAgentPause
 from journal.features.plans.listeners.plan_agent_finish import PlanAgentFinish
 from journal.features.plans.listeners.plan_agent_abandon import PlanAgentAbandon
@@ -56,7 +57,7 @@ class Plans(Feature[PlansData]):
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn, CoordinatingPlans, LeadingPlan, LeadingTask, LeadingTaskWorking)
     state_floor = StateFloor(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
     commands = (PlanCommand,)
-    answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION), (ClearPlanWaits, Blocking.NEXT_DECISION), (ReleasePlanWaits, Blocking.NEXT_DECISION), (PlanBlockade, Blocking.NEXT_DECISION), (PlanAgentStart, Blocking.NEXT_DECISION), (PlanAgentClose, Blocking.NEXT_DECISION))
+    answer_listeners = ((SessionStartPlanStart, Blocking.NEXT_DECISION), (PlanDelegation, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION), (ClearPlanWaits, Blocking.NEXT_DECISION), (ReleasePlanWaits, Blocking.NEXT_DECISION), (PlanBlockade, Blocking.NEXT_DECISION), (PlanAgentStart, Blocking.NEXT_DECISION), (PlanAgentReopen, Blocking.NEXT_DECISION), (PlanAgentClose, Blocking.NEXT_DECISION))
     listeners = (AllowedTestRunUse, PlanAgentFocus, StartedPlanFocus, PlanTestingDefault, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
