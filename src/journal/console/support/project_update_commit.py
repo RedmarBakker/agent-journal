@@ -31,7 +31,7 @@ class ProjectUpdateCommit:
         return sorted({path.relative_to(self.config.root).as_posix() for path in files})
 
     def not_ignored(self, paths: list[str]) -> list[str]:
-        result = self.git("check-ignore", "-z", "--", *paths)
+        result = self.git("check-ignore", "-z", "--stdin", given="".join(f"{path}\0" for path in paths))
         if result.returncode not in (0, 1):
             self.answered(result)
         ignored = set(result.stdout.split("\0"))
@@ -41,8 +41,8 @@ class ProjectUpdateCommit:
         result = self.answered(self.git("diff", "--cached", "--no-renames", "--name-only", "-z", "--", *paths))
         return sorted(path for path in result.stdout.split("\0") if path)
 
-    def git(self, *arguments: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", "-C", str(self.config.root), *arguments], capture_output=True, text=True, timeout=GIT_SECONDS)
+    def git(self, *arguments: str, given: str = "") -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(self.config.root), *arguments], input=given, capture_output=True, text=True, timeout=GIT_SECONDS)
 
     @staticmethod
     def answered(result: subprocess.CompletedProcess) -> subprocess.CompletedProcess:

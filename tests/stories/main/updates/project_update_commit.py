@@ -12,7 +12,7 @@ def simulate_git(story, changed=(), repository=True, staged_before=()):
     commits = []
     changed = set(changed)
 
-    def git(_service, *arguments):
+    def git(_service, *arguments, given=""):
         if arguments[:2] == ("rev-parse", "--show-toplevel"):
             return CompletedProcess(arguments, 0 if repository else 128, "project\n" if repository else "", "")
         if arguments[0] == "check-ignore":
