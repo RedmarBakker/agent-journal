@@ -21,6 +21,8 @@ git -C "$RUNTIME_SOURCE" archive --format=tar "$PROFILE_REVISION" -- \
     docs/supervisor/v1/contract.schema.json \
     docs/supervisor/v1/journal-supervisor-bridge \
     docs/supervisor/v1/journal-supervisor-environment.sh \
+    docs/supervisor/v1/journal-supervisor-bridge-environment.sh \
+    docs/supervisor/v1/journal-supervisor-mcp \
     docs/supervisor/v1/journal-supervisor-reconcile > "$BUILD_CONTEXT/runtime.tar"
 tar -xf "$BUILD_CONTEXT/runtime.tar" -C "$BUILD_CONTEXT"
 rm "$BUILD_CONTEXT/runtime.tar"

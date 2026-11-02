@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+JOURNAL_SUPERVISOR_ADMISSION_URL=https://writer:8422
+JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)
+JOURNAL_SUPERVISOR_TLS_CA_FILE=/run/secrets/writer_supervisor_tls_ca
+JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport
+export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR

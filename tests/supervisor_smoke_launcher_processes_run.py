@@ -146,8 +146,6 @@ def staging_root(tmp_path):
         '"JOURNAL_SUPERVISOR_HOST": "10.76.20.10","JOURNAL_SUPERVISOR_PORT": "8422",'
         '"JOURNAL_SUPERVISOR_TLS_CERT_FILE": "/run/secrets/writer_supervisor_tls_cert",'
         '"JOURNAL_SUPERVISOR_TLS_KEY_FILE": "/run/secrets/writer_supervisor_tls_key",'
-        '"JOURNAL_SUPERVISOR_ADMISSION_URL": "https://writer:8422",'
-        '"JOURNAL_SUPERVISOR_TLS_CA_FILE": "/run/secrets/writer_supervisor_tls_ca",'
         '"TENANT_SECRET_SOURCE_DIR": "source", "JOURNAL_CODEX_HOME": "/var/lib/journal-codex",'
         '"JOURNAL_PLAN_DRIVER_SOCKET": "/run/journal-plan-driver.sock"},'
         '"cap_add": ["SETUID", "SETGID", "SETPCAP"],'
@@ -243,9 +241,9 @@ def staging_root(tmp_path):
     )
     (work / "docs/supervisor/v1/journal-supervisor-bridge-environment.sh").write_text(
         "#!/bin/sh\nset -eu\n"
+        "JOURNAL_SUPERVISOR_ADMISSION_URL=https://writer:8422\n"
         "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)\n"
-        ": \"${JOURNAL_SUPERVISOR_ADMISSION_URL:?private journal admission URL is not configured}\"\n"
-        ": \"${JOURNAL_SUPERVISOR_TLS_CA_FILE:?private journal TLS CA file is not configured}\"\n"
+        "JOURNAL_SUPERVISOR_TLS_CA_FILE=/run/secrets/writer_supervisor_tls_ca\n"
         "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport\n"
         "export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR\n"
     )

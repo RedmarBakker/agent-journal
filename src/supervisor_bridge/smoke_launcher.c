@@ -202,7 +202,7 @@ static int valid_profile(const char *config_path) {
         "\"allow\":[\"anthropic/claude-sonnet-5\"]",
         "\"id\":\"openclaw\"",
         "\"hooks\":{\"enabled\":true",
-        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-bridge\",\"args\":[\"mcp\"],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[\"journal_supervisor.observe\",\"journal_supervisor.apply_maintenance\",\"journal_supervisor.receipt\"]}}}}",
+        "\"mcp\":{\"servers\":{\"journal\":{\"enabled\":true,\"transport\":\"stdio\",\"command\":\"/opt/journal-supervisor/bin/journal-supervisor-mcp\",\"args\":[],\"connectionTimeoutMs\":5000,\"requestTimeoutMs\":20000,\"supportsParallelToolCalls\":false,\"toolFilter\":{\"include\":[\"journal_supervisor.observe\",\"journal_supervisor.apply_maintenance\",\"journal_supervisor.receipt\"]}}}}",
         "\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}",
         "journal__journal_supervisor-observe",
         "journal__journal_supervisor-apply_maintenance",
@@ -220,8 +220,10 @@ static int valid_profile(const char *config_path) {
         "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge",
         "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge",
         "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment",
+        "COPY docs/supervisor/v1/journal-supervisor-bridge-environment.sh /opt/journal-supervisor/bin/journal-supervisor-bridge-environment",
+        "COPY docs/supervisor/v1/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-mcp",
         "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile",
-        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile",
+        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-bridge-environment /opt/journal-supervisor/bin/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-reconcile",
     };
     static const char *required_writer_package[] = {
         "npm install -g @openai/codex@0.165.0",
@@ -243,8 +245,6 @@ static int valid_profile(const char *config_path) {
         "\"JOURNAL_SUPERVISOR_TLS_KEY_FILE\": \"/run/secrets/writer_supervisor_tls_key\"",
         "\"ports\": [\"127.0.0.1:18440:8423\"]",
         "\"expose\": [\"8422\"]",
-        "\"JOURNAL_SUPERVISOR_ADMISSION_URL\": \"https://writer:8422\"",
-        "\"JOURNAL_SUPERVISOR_TLS_CA_FILE\": \"/run/secrets/writer_supervisor_tls_ca\"",
         "TENANT_SECRET_SOURCE_DIR",
         "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_cert",
         "${TENANT_SECRET_SOURCE_DIR:?set the root-owned tenant secret source directory}/writer_supervisor_tls_key",
@@ -260,15 +260,12 @@ static int valid_profile(const char *config_path) {
         "node dist/index.js gateway run --port",
     };
     static const char *required_gateway_environment[] = {
+        ". /opt/journal-supervisor/bin/journal-supervisor-bridge-environment",
         "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)",
         "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)",
-        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)",
         "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')",
-        ": \"${JOURNAL_SUPERVISOR_ADMISSION_URL:?private journal admission URL is not configured}\"",
-        ": \"${JOURNAL_SUPERVISOR_TLS_CA_FILE:?private journal TLS CA file is not configured}\"",
-        "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport",
         "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json",
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH",
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN OPENCLAW_CONFIG_PATH",
     };
     static const char *required_gateway_reconcile[] = {
         ". /opt/journal-supervisor/bin/journal-supervisor-environment",

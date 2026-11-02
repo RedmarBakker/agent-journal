@@ -9,8 +9,10 @@ COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge
 COPY docs/supervisor/v1/contract.schema.json /opt/journal-supervisor/docs/supervisor/v1/contract.schema.json
 COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge
 COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment
+COPY docs/supervisor/v1/journal-supervisor-bridge-environment.sh /opt/journal-supervisor/bin/journal-supervisor-bridge-environment
+COPY docs/supervisor/v1/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-mcp
 COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile
 ENV PYTHONPATH=/opt/journal-supervisor/lib
-RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile
+RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-bridge-environment /opt/journal-supervisor/bin/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-reconcile
 
 USER 1000:1000

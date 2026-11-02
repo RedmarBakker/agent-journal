@@ -564,7 +564,7 @@ def test_pinned_command_and_tool_config_match_contract(tmp_path):
         "/opt/journal-supervisor/bin/journal-supervisor-bridge", "reconcile"
     ]
     assert fixture["cron_add_params"]["enabled"] is False
-    assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["args"] == ["mcp"]
+    assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["args"] == []
     assert fixture["openclaw_config"]["mcp"]["servers"]["journal"]["enabled"] is False
     assert list(fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
     assert fixture["openclaw_config"]["tools"]["allow"] == list(OPENCLAW_TOOL_NAMES)

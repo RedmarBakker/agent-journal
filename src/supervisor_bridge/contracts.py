@@ -370,8 +370,8 @@ def validate_pinned_fixture(fixture: dict) -> None:
         "mcp": {"servers": {"journal": {
             "enabled": False,
             "transport": "stdio",
-            "command": "/opt/journal-supervisor/bin/journal-supervisor-bridge",
-            "args": ["mcp"],
+            "command": "/opt/journal-supervisor/bin/journal-supervisor-mcp",
+            "args": [],
             "connectionTimeoutMs": 5000,
             "requestTimeoutMs": 20000,
             "supportsParallelToolCalls": False,

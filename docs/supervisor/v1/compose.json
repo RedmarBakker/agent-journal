@@ -59,9 +59,7 @@
       ],
       "environment": {
         "HOME": "/home/node",
-        "OPENCLAW_GATEWAY_PORT": "18789",
-        "JOURNAL_SUPERVISOR_ADMISSION_URL": "https://writer:8422",
-        "JOURNAL_SUPERVISOR_TLS_CA_FILE": "/run/secrets/writer_supervisor_tls_ca"
+        "OPENCLAW_GATEWAY_PORT": "18789"
       },
       "secrets": [
         {"source": "supervisor_anthropic_api_key", "target": "supervisor_anthropic_api_key"},

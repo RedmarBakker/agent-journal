@@ -795,7 +795,9 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert 'exec /opt/journal-supervisor/bin/journal-supervisor-bridge mcp' in mcp_wrapper
     assert "ANTHROPIC_API_KEY" not in mcp_wrapper
     assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_ADMISSION_URL=https://writer:8422" in bridge_environment
     assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE=/run/secrets/writer_supervisor_tls_ca" in bridge_environment
     assert "JOURNAL_SUPERVISOR_STATE_DIR" in bridge_environment
     assert "ANTHROPIC_API_KEY" not in bridge_environment
 
@@ -944,9 +946,12 @@ def test_gateway_admission_url_targets_the_private_writer_network():
     compose = read_json(PROFILE / "compose.json")
     gateway = compose["services"]["gateway"]
     writer = compose["services"]["writer"]
+    bridge_environment = (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
 
-    assert gateway["environment"]["JOURNAL_SUPERVISOR_ADMISSION_URL"] == "https://writer:8422"
-    assert gateway["environment"]["JOURNAL_SUPERVISOR_TLS_CA_FILE"] == "/run/secrets/writer_supervisor_tls_ca"
+    assert "JOURNAL_SUPERVISOR_ADMISSION_URL" not in gateway["environment"]
+    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" not in gateway["environment"]
+    assert "JOURNAL_SUPERVISOR_ADMISSION_URL=https://writer:8422" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE=/run/secrets/writer_supervisor_tls_ca" in bridge_environment
     assert writer["expose"] == ["8422"]
     assert "gateway_link" in gateway["networks"] and "gateway_link" in writer["networks"]
     assert "journal_management" not in gateway["networks"]
