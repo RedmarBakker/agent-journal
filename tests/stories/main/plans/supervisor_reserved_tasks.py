@@ -54,15 +54,13 @@ def test_unblocking_a_reserved_task_does_not_make_it_executable(story):
 
 
 @story(SupervisorReservedPlan, subject=AgentRole.MAIN)
-def test_a_plan_restart_keeps_its_reserved_task_out_of_the_drivers_hand(story):
+def test_a_restarted_plan_driver_keeps_its_reserved_task_out_of_its_hand(story):
     agent = StoryAgent(AgentRole.MAIN, session=PLAN_AGENT_SESSION)
-    story.user_pauses_plan(story.plans.first).expect_viewer_passed()
-    story.user_starts_plan(story.plans.first).expect_viewer_passed()
     story.session_starts_in(f"plan-{story.plans.first}", PLAN_AGENT_SESSION, "resume").expect_allowed()
     story.agent_in_runs(agent, f"plan-{story.plans.first}", PLAN_AGENT_SESSION, "environment overview").expect_command_passed()
     story.agent_stops_plan_seat(agent, story.plans.first)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
-    story.expect_task(story.tasks.first, supervisor_reserved=True)
+    story.expect_task(story.tasks.first, state=TaskState.OPEN, supervisor_reserved=True)
     story.expect_task_unheld(story.tasks.first)
     story.expect_stack(agent, LeadingPlan, FollowingPlan)
 

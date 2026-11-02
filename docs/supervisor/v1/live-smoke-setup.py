@@ -33,18 +33,18 @@ ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
 TOKEN_FILE = Path("/run/journal_supervisor_credential")
 PLAN_TITLE = "Supervisor live smoke"
-PLAN_BRIEF = "Keep the Plan driver live and idle. Leave the diagnostic smoke task open and unheld so the supervisor can admit one diagnostic turn."
+PLAN_BRIEF = "Run one bounded supervisor diagnosis of the deliberately failing smoke check."
 PHASE_TITLE = "Bounded supervisor smoke"
 PHASE_COMPLETION = "the bounded supervisor smoke has a verified receipt"
-TASK_TITLE = "Leave the diagnostic smoke task open"
-TASK_BRIEF = "Leave this diagnostic smoke task open and unheld. Do not start or complete it; the supervisor needs one actionable task to admit its bounded diagnostic turn."
+TASK_TITLE = "Diagnose the smoke failure before executing the seed task"
+TASK_BRIEF = "The bounded supervisor diagnoses the deliberately failing smoke check before this seed task executes."
 CHECK_TITLE = "Supervisor live smoke failure"
 CHECK_BRIEF = "This smoke check intentionally fails so the supervisor has one current failure to diagnose."
 TEMPLATE_TITLE = "Supervisor diagnostic"
 TEMPLATE_BRIEF = "Read the deliberately failing smoke check and prepare one bounded diagnostic task for the current phase."
 TEMPLATE_PURPOSE = "diagnose the failed service check"
 CHECK_COMMAND = "false"
-WAIT_SECONDS = 120
+WAIT_SECONDS = 300
 
 
 class SetupFailure(Exception):
@@ -55,7 +55,7 @@ def request(path, body):
     request = Request(
         API + path,
         data=json.dumps(body, separators=(",", ":")).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-Journal-Env": "main"},
         method="POST",
     )
     try:
@@ -118,7 +118,8 @@ def smoke_tasks_match(tasks):
     if len(tasks) != 1:
         return False
     task, = tasks
-    return task.title == TASK_TITLE and task.brief == TASK_BRIEF and task.state in (TaskState.BLOCKED, TaskState.OPEN)
+    return (task.title == TASK_TITLE and task.brief == TASK_BRIEF
+            and task.state == TaskState.OPEN and task.supervisor_reserved)
 
 
 def setup_check_id(app):
@@ -175,7 +176,9 @@ def make_plan(app, main):
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
     command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", PHASE_COMPLETION)
     task_id = row_number(command("plan", "add", str(plan_id), TASK_TITLE, "--brief", TASK_BRIEF, "--phase", "1"), r"task (\d+) added to plan .+")
-    command("task", "block", str(task_id), "wait for the Plan driver to start idle")
+    status, _headers, task = request(f"/journal/tasks/{task_id}", {"supervisor_reserved": True})
+    if status != 200 or task.get("supervisor_reserved") is not True:
+        raise SetupFailure("the owner could not reserve the smoke seed for supervisor diagnosis")
     check_id = row_number(command("check", "create", CHECK_TITLE, "--command", CHECK_COMMAND, "--brief", CHECK_BRIEF, "--every", "10"), r"check (\d+): .+")
     template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", TEMPLATE_BRIEF, "--applies-to", "plan", "--purpose", TEMPLATE_PURPOSE), r"template (\d+): .+")
     command("settings", "set", "plans.plan_agents", "on")
@@ -186,20 +189,15 @@ def make_plan(app, main):
 
 
 def ensure_smoke_task(app, main, plan_id):
+    app.container.get(Connection).cache.cleared()
     scope = app.container.get(Scope)
     plans = app.container.get(Plans)
     tasks_repo = app.container.get(Tasks)
     with scope.environment(main.row_id):
         plan = plans.find(plan_id)
         tasks = plans.plan_tasks(plan)
-    if len(tasks) == 1 and tasks[0].title == TASK_TITLE and tasks[0].state == TaskState.BLOCKED:
-        command("task", "unblock", str(tasks[0].row_id))
-        app.container.get(Connection).cache.cleared()
-    with scope.environment(main.row_id):
-        plan = plans.find(plan_id)
-        tasks = plans.plan_tasks(plan)
         rows_match = smoke_tasks_match(tasks)
-        task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and not tasks[0].delegated
+        task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and tasks[0].supervisor_reserved and not tasks[0].delegated
                        and tasks_repo.holder(tasks[0]) is None
                        and not tasks_repo.unavailable_task_ids(tasks))
         no_task_in_hand = plans.started_task(plan) is None

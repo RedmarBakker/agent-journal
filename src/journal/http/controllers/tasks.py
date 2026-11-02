@@ -55,7 +55,9 @@ class TaskController(Controller[Task]):
             raise Rejection("task size must be supplied while composing a plan task")
         if any(name in request.body for name in ("after", "depends_on", "delivery_gate_for")):
             raise Rejection("planned prerequisites and delivery gates must be supplied while composing a plan task")
-        return super().store(request)
+        task = self.repository.model(**self.fields(request.body))
+        self.require_supervisor_reservation(task, request)
+        return Response.json(self.shown(self.repository.save(task, request.actor)), 201)
 
     def shown_page(self, rows: list[Task]) -> list[dict]:
         plans, holders, waits = self.repository.linked(PLAN_LINK, [t.row_id for t in rows]), self.workers.containing({t.row_id for t in rows}), self.repository.open_wait_refs(rows)
@@ -78,9 +80,22 @@ class TaskController(Controller[Task]):
         if any(name in request.body for name in ("after", "depends_on", "delivery_gate_for")):
             raise Rejection("planned prerequisites and delivery gates must use the plan dependency operation")
         row = self.repository.find(request.number("id"))
+        self.require_supervisor_reservation(row, request)
         changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name not in ("title", "brief")})
         rewritten = changed.edited(request.body.get("title", row.title), request.body.get("brief", row.brief), self.time().timestamp())
         return Response.json(self.shown(self.repository.save(rewritten, request.actor)))
+
+    def require_supervisor_reservation(self, task: Task, request: Request) -> None:
+        if "supervisor_reserved" not in request.body:
+            return
+        reserved = request.body["supervisor_reserved"]
+        if type(reserved) is not bool:
+            raise Rejection("supervisor_reserved must be true or false")
+        if not request.actor.is_user():
+            raise Rejection("only the owner can change a task's supervisor reservation")
+        if reserved and (task.started_at is not None or task.state not in (TaskState.OPEN, TaskState.BLOCKED)
+                         or task.delegated or (not task.is_new and self.repository.holder(task) is not None)):
+            raise Rejection("only unstarted, unheld open or blocked tasks can be reserved for supervisor diagnosis")
 
     def size(self, request: Request) -> Response:
         return Response.json(self.task_sizes.show(request.number("id")))

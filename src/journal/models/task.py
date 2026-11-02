@@ -45,6 +45,7 @@ class Task(Scoped, Commentable):
     driver: str = ""
     driver_agent: str = ""
     delegated: bool = False
+    supervisor_reserved: bool = False
     priority_set: bool = False
     tool_uses: int = 0
     size: int | None = None
@@ -68,7 +69,11 @@ class Task(Scoped, Commentable):
         return self.is_closed()
 
     def is_assignable(self) -> bool:
-        return self.is_open() and not self.delegated and bool(self.brief.strip())
+        return self.is_open() and not self.delegated and not self.supervisor_reserved and bool(self.brief.strip())
+
+    def require_execution(self) -> None:
+        if self.supervisor_reserved:
+            raise Rejection(f"task {self.id} is reserved for supervisor diagnosis; ask its owner to clear supervisor_reserved first")
 
     def waiting_reason(self) -> str:
         return self.block_reason
@@ -97,6 +102,7 @@ class Task(Scoped, Commentable):
         return self.plan_started(time, 0)
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
+        self.require_execution()
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
         return self.with_(state=TaskState.STARTED, started_at=self.started_at or time, block_reason="").with_event(event)
 
@@ -111,6 +117,7 @@ class Task(Scoped, Commentable):
         return self.with_(state=TaskState.OPEN, delegated=True, block_reason="").with_event(event)
 
     def worker_started(self, time: datetime) -> "Task":
+        self.require_execution()
         return self.with_(state=TaskState.STARTED, delegated=True, started_at=self.started_at or time, block_reason="")
 
     def released(self, time: float, group: ReleasedTasks | None = None) -> "Task":

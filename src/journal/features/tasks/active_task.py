@@ -53,6 +53,7 @@ class ActiveTask:
         return self.tasks.holder_started(task.started(self.time_source.moment()), holder, actor)
 
     def require_start(self, task: Task) -> None:
+        task.require_execution()
         self.flow.require_start(task)
 
     def blocked_current(self, task: Task, caller: Caller) -> Task | None:

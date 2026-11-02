@@ -16,6 +16,7 @@ from journal.events.rows.plan_work_available import PlanWorkAvailable
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.supervisor.support.supervisor_maintenance import diagnostic_task_values
+from journal.features.supervisor.support.supervisor_episode_qualification import SupervisorEpisodeQualification
 from journal.features.supervisor.support.supervisor_work_available import SupervisorWorkAvailable
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.check import Check
@@ -248,9 +249,12 @@ def work_delivery(app: App, scope: Scope, receipt_id: int):
 
 def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(app: App, normal_driver: Fixture, monkeypatch, driver_processes: DriverProcesses):
     fixture = normal_driver
-    title, brief = diagnostic_task_values(fixture.template)
-    diagnostic = add_phase_task(app, fixture, title, brief)
+    seed = add_phase_task(app, fixture, "Diagnose before executing the seed", "The supervisor diagnoses the failing check first")
+    with app.container.get(Scope).environment(fixture.owner_environment.row_id):
+        app.container.get(Tasks).save(seed.with_(supervisor_reserved=True), fixture.owner)
     context = action_context(app, monkeypatch, fixture)
+    qualification = app.container.get(SupervisorEpisodeQualification).qualify(context["grant"], context["principal"].scope["installation_epoch"])
+    assert qualification["status"] == "actionable_stall", "the reserved open seed satisfies the existing stall rule without an owner gate or busy driver"
     request = maintenance_request(context, [diagnostic_operation(context)])
     announced = []
     original_announce = Announcer.announce
@@ -265,7 +269,11 @@ def test_idle_normal_driver_takes_current_phase_diagnostic_without_owner_prompt(
 
     agent = app.container.get(Agents).unended_agent(fixture.agent.row_id)
     with context["scope"].environment(fixture.owner_environment.row_id):
-        task = app.container.get(Tasks).find(diagnostic.row_id)
+        task_id = next(ref["id"] for ref in receipt["data"]["affected_refs"] if ref["table"] == "tasks")
+        task = app.container.get(Tasks).find(task_id)
+        reserved = app.container.get(Tasks).find(seed.row_id)
+        assert reserved.state == TaskState.OPEN and reserved.supervisor_reserved and app.container.get(Tasks).holder(reserved) is None
+        assert task.supervisor_reserved is False, "the bounded diagnostic is executable work, separate from the reserved seed"
     with context["scope"].environment(fixture.driver_environment.row_id):
         holder = app.container.get(Tasks).task_holder(task.row_id)
     assert receipt["status"] == "applied" and receipt["data"]["verification"] == "verified", "the committed maintenance receipt admits its diagnostic"

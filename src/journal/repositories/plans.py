@@ -288,7 +288,7 @@ class Plans(ScopedRepository[Plan]):
 
     def startable_tasks(self, plan: Plan) -> Query:
         blocked = self.tasks.unavailable_task_ids_for_ids(self.plan_task_ids(plan))
-        return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
+        return self.tasks.query().filter(state=TaskState.OPEN, delegated=False, supervisor_reserved=False).filter_unlisted("id", sorted(blocked)).filter_absent(self.worker_holdings())
 
     def queued_tasks(self, plan: Plan) -> list[Task]:
         queued: list[Task] = []
@@ -301,7 +301,7 @@ class Plans(ScopedRepository[Plan]):
 
     def takeable_tasks(self, plan: Plan) -> Query:
         open_tasks = self.tasks.selected(self.startable_tasks(plan))
-        plan_blocked = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.BLOCKED, delegated=False, block_reason=self.plan_pause_block_reason(plan)))
+        plan_blocked = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.BLOCKED, delegated=False, supervisor_reserved=False, block_reason=self.plan_pause_block_reason(plan)))
         unavailable = self.tasks.unavailable_task_ids(plan_blocked)
         task_ids = [task.row_id for task in open_tasks]
         task_ids.extend(task.row_id for task in plan_blocked if task.row_id not in unavailable)

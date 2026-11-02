@@ -318,6 +318,7 @@ class WorkerCommand(Command):
 
     def assignment(self, n: int, caller: Caller) -> Task:
         task = self.tasks.find(n)
+        task.require_execution()
         for plan in self.plans.unapproved(task):
             plan.task_startable(task.id)
         if self.is_holder(task, caller) or task.is_assignable():

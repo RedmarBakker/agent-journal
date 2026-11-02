@@ -299,10 +299,9 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     assert 'TEMPLATE_BRIEF = "Read the deliberately failing smoke check' in setup
     assert 'CHECK_COMMAND = "false"' in setup
     assert 'This smoke check intentionally fails' in setup
-    assert 'Keep the Plan driver live and idle' in setup
-    assert 'Leave this diagnostic smoke task open and unheld' in setup
-    assert 'command("task", "block"' in setup
-    assert 'command("task", "unblock"' in setup
+    assert '"supervisor_reserved": True' in setup
+    assert 'WAIT_SECONDS = 300' in setup
+    assert '"X-Journal-Env": "main"' in setup
     assert '"max_turns_per_day": 1' in setup
 
     project_command = (ROOT / "src" / "journal" / "support" / "project_command.py").read_text()
@@ -555,15 +554,14 @@ def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollmen
     ensure_task = live_setup_function_source("ensure_smoke_task")
     run_check = live_setup_function_source("run_bound_check")
 
-    assert make_plan.index('command("task", "block"') < make_plan.index('command("plan", "ready"')
+    assert make_plan.index('"supervisor_reserved": True') < make_plan.index('command("plan", "ready"')
     assert main.index("wait_for_codex_plan") < main.index("ensure_smoke_task")
     assert main.index("ensure_smoke_task") < main.index('request("/_supervisor/v1/enrollment"')
     assert main.index('request("/_supervisor/v1/enrollment"') < main.index("run_bound_check(check_id)")
-    assert 'smoke_tasks_match(tasks)' in ensure_task and 'command("task", "unblock"' in ensure_task
-    unblock = ensure_task.index('command("task", "unblock"')
+    assert 'smoke_tasks_match(tasks)' in ensure_task and 'tasks[0].supervisor_reserved' in ensure_task
     refresh = ensure_task.index("app.container.get(Connection).cache.cleared()")
-    reread = ensure_task.index("plan = plans.find(plan_id)", unblock)
-    assert unblock < refresh < reread
+    reread = ensure_task.index("plan = plans.find(plan_id)")
+    assert refresh < reread
     assert 'tasks[0].state == TaskState.OPEN' in ensure_task and 'tasks_repo.holder(tasks[0]) is None' in ensure_task
     assert 'not tasks_repo.unavailable_task_ids(tasks)' in ensure_task and 'not tasks[0].delegated' in ensure_task
     assert 'plans.started_task(plan) is None' in ensure_task
@@ -1034,7 +1032,9 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     assert "deliberately failing `false` smoke check" in runbook
     assert "one current failure episode to diagnose" in runbook
     assert "The real Plan agent starts with no work in hand" in runbook
-    assert "blocks it before plan start" in runbook
+    assert "reserves it for supervisor diagnosis before plan start" in runbook
+    assert "up to 300 seconds" in runbook
+    assert "refuses an explicit start or worker assignment" in runbook
     assert "exactly one open, unheld diagnostic task" in runbook
     assert "runs the bound, deliberately failing `false` smoke check exactly once after enrollment" in runbook
     assert "first writer reconciliation admit one turn" in runbook

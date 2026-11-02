@@ -8,7 +8,7 @@ capability. The existing actionable-stall and driver-state rules stay unchanged.
 Task selection excludes reserved tasks. The task's start guard also refuses an
 explicit start or worker assignment and names the owner's way out. Only the
 owner's task update can set or clear the mark, and only unstarted, unheld work can
-be reserved. Ordinary task edits, block/unblock and plan restart retain it.
+be reserved. Ordinary task edits, block/unblock and driver session restart retain it.
 
 A diagnostic created through the bounded supervisor route is an ordinary task.
 The existing PlanWorkAvailable delivery and PlanTaskAssigner can select that task

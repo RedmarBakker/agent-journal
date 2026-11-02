@@ -137,6 +137,7 @@ class Tasks(ScopedRepository[Task]):
             raise Rejection(f"task {task.id} is unavailable until planned prerequisite {waiting} is accepted; complete or merge it first")
 
     def require_assignment_ready(self, task: Task) -> None:
+        task.require_execution()
         self.require_prerequisites(task)
         waits = self.open_wait_refs([task]).get(task.row_id, [])
         if waits:
@@ -273,7 +274,7 @@ class Tasks(ScopedRepository[Task]):
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
         plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_name_column(self.links.query(), "target")
         planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
-        return self.query().filter(state=state, delegated=False).filter_absent(planned).order_descending("priority").order("id")
+        return self.query().filter(state=state, delegated=False, supervisor_reserved=False).filter_absent(planned).order_descending("priority").order("id")
 
     def completed_count_since(self, start: datetime) -> int:
         return self.counted(self.query().filter(state=TaskState.COMPLETED).filter_greater_equal("completed_at", start))
