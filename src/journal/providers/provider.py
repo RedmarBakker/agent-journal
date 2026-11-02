@@ -340,12 +340,18 @@ class Provider(ABC):
     def unwired(self, path: Path) -> None:
         if not path.is_file():
             return
-        settings = json.loads(path.read_text())
+        prior = path.read_text()
+        saved = self.unwired_text(prior)
+        if saved != prior:
+            path.write_text(saved)
+
+    def unwired_text(self, prior: str) -> str:
+        settings = json.loads(prior or "{}")
         hooks = {type_name: [b for b in blocks if not self.journal_paths(b)] for type_name, blocks in (settings.get("hooks") or {}).items()}
         if hooks == settings.get("hooks", {}):
-            return
+            return prior
         settings["hooks"] = {k: v for k, v in hooks.items() if v}
-        path.write_text(json.dumps({k: v for k, v in settings.items() if v or k != "hooks"}, indent=2) + "\n")
+        return json.dumps({k: v for k, v in settings.items() if v or k != "hooks"}, indent=2) + "\n"
 
     @staticmethod
     def journal_paths(block: dict) -> bool:

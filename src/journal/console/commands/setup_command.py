@@ -71,9 +71,13 @@ class SetupCommand(Command):
             print(f"journal {dispatcher.write()}")
         print(f"ignored {ignored.relative_to(self.config.root)}")
         release = os.environ.get("JOURNAL_UPDATE_REF", "")
-        committed = self.update_commit.commit(update_files, release)
+        managed_text = {law: LawText.installed, imports: self.claude_md_text, ignored: self.ignored_text}
+        for provider in self.providers.all():
+            for counterpart in provider.foreign_settings:
+                managed_text[self.config.root / provider.home / counterpart] = provider.unwired_text
+        committed = self.update_commit.commit(update_files, release, managed_text)
         if committed:
-            print(f"update commit: Update the journal to {release} ({', '.join(committed)})")
+            print(f"update commit: {self.update_commit.message(release)} ({', '.join(committed)})")
         for line in self.restarted():
             print(line)
         return 0
@@ -133,17 +137,29 @@ class SetupCommand(Command):
     def claude_md(self) -> Path:
         path = self.config.root / "CLAUDE.md"
         prior = path.read_text() if path.is_file() else ""
-        if "@AGENTS.md" not in prior:
-            path.write_text((prior.rstrip("\n") + "\n\n" if prior.strip() else "") + "@AGENTS.md\n")
+        saved = self.claude_md_text(prior)
+        if saved != prior:
+            path.write_text(saved)
         return path
+
+    @staticmethod
+    def claude_md_text(prior: str) -> str:
+        if "@AGENTS.md" in prior:
+            return prior
+        return (prior.rstrip("\n") + "\n\n" if prior.strip() else "") + "@AGENTS.md\n"
 
     def ignored(self) -> Path:
         path = self.config.root / ".gitignore"
         prior = path.read_text() if path.is_file() else ""
-        missing = [spellings[0] for spellings in IGNORED_PATHS if not set(spellings) & set(prior.splitlines())]
-        if missing:
-            path.write_text((prior.rstrip("\n") + "\n" if prior.strip() else "") + "".join(f"{entry}\n" for entry in missing))
+        saved = self.ignored_text(prior)
+        if saved != prior:
+            path.write_text(saved)
         return path
+
+    @staticmethod
+    def ignored_text(prior: str) -> str:
+        missing = [spellings[0] for spellings in IGNORED_PATHS if not set(spellings) & set(prior.splitlines())]
+        return (prior.rstrip("\n") + "\n" if prior.strip() else "") + "".join(f"{entry}\n" for entry in missing) if missing else prior
 
     def shim(self) -> Path:
         return ProjectCommand(self.config.root, self.package.parent / "journal.sh").write()
