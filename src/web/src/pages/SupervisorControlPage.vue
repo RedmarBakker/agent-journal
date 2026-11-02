@@ -35,6 +35,7 @@ const saving = ref(false);
 const restoreReviewed = ref(false);
 const grant = computed(() => control.value?.grant);
 const proposals = computed(() => control.value?.proposals || []);
+const rules = computed(() => control.value?.rules || []);
 const areaControls = computed(() => (control.value?.areas || []).map((area) => {
     const verbs = area.verbs.map((verb) => {
         const setting = grant.value.capabilities[verb.capability] || {on: false, mode: verb.mode || "act"};
@@ -236,6 +237,20 @@ async function decideProposal(proposal, decision) {
     }
 }
 
+async function removeRule(rule) {
+    if (saving.value) return;
+    saving.value = true;
+    problem.value = "";
+    try {
+        await api.supervisorRemoveRule(rule.id);
+        await load();
+    } catch (error) {
+        problem.value = error.message || "The rule could not be removed.";
+    } finally {
+        saving.value = false;
+    }
+}
+
 function setTaskPlan(plan) {
     return grant.value.watched_plans !== "all" && grant.value.watched_plans.some((id) => Number(id) === Number(plan.id));
 }
@@ -291,6 +306,16 @@ onMounted(load);
                         <button type="button" data-proposal-decision="decline"
                                 :disabled="!!proposalAction" @click="decideProposal(proposal, 'decline')">Decline</button>
                     </div>
+                </article>
+            </section>
+
+            <section class="control-card" aria-labelledby="control-rules-title" data-supervisor-rules>
+                <h3 id="control-rules-title">Rules from your corrections</h3>
+                <p v-if="!rules.length" class="control-note">No correction rules.</p>
+                <article v-for="rule in rules" :key="rule.id" class="control-rule" :data-supervisor-rule="rule.id">
+                    <p>{{ rule.text }}</p>
+                    <small>{{ rule.reason }}</small>
+                    <button type="button" data-rule-remove :disabled="saving" @click="removeRule(rule)">Remove the rule</button>
                 </article>
             </section>
 
@@ -451,6 +476,9 @@ onMounted(load);
 .control-proposal p, .control-proposal ul { margin: 0; }
 .control-proposal ul { padding-left: 20px; }
 .control-proposal-actions { justify-content: flex-start; }
+.control-rule { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.control-rule p, .control-rule small { margin: 0; }
+.control-rule small { color: var(--text-3); }
 .control-choice-row { justify-content: flex-start; }
 .control-choice-row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .control-plan-list { display: grid; gap: 8px; flex-basis: 100%; }

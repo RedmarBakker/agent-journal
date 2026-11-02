@@ -1,5 +1,6 @@
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
+from journal.repositories.environments import Environments
 from journal.features.tasks.states.ready import Ready
 from journal.support.actor import Actor
 from journal.supervisor_authority import SUPERVISOR_ACTOR
@@ -40,6 +41,8 @@ class SupervisorProposalHistory(SupervisorGrantFixture):
                     "plan_id": plan_id, "wakeup_id": run_ref, "kind": "scheduled",
                     "result": "Proposed", "skip_reason": "",
                 })
+        environment = story.app.container.get(Environments).find(fixture.plan.environment_id).name
+        story.user_opens_in(environment, "/journal/supervisor/records?period=last_7_days").expect_viewer_passed()
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)

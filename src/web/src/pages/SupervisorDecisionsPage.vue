@@ -21,6 +21,10 @@ const undoProblem = ref("");
 const undoing = ref("");
 const proposalProblem = ref("");
 const decidingProposal = ref("");
+const feedbackProblem = ref({});
+const feedbackStatus = ref({});
+const savingFeedback = ref("");
+const makingRule = ref("");
 let read = 0;
 
 const hasHistory = computed(() => history.value.length > 0);
@@ -73,6 +77,15 @@ function checkOwner() {
     );
 }
 
+function feedbackFor(row) {
+    return row.feedback || {useful: null, comment: "", correction: "", rule_id: null};
+}
+
+function historyRow(row) {
+    const feedback = feedbackFor(row);
+    return {...row, feedback, savedCorrection: feedback.correction || ""};
+}
+
 function readHistory(historyBefore) {
     return api.supervisorHistory({
         planId: planId.value,
@@ -93,13 +106,50 @@ async function loadHistory() {
         const answer = await readHistory("");
         if (request !== read) return;
         historyStatus.value = answer.status || "";
-        history.value = answer.history || [];
+        history.value = (answer.history || []).map(historyRow);
         areas.value = answer.areas || [];
         nextHistoryBefore.value = answer.next_before || "";
     } catch (error) {
         if (request === read) problem.value = error.message || "The supervisor history could not be read.";
     } finally {
         if (request === read) loading.value = false;
+    }
+}
+
+async function saveFeedback(row) {
+    if (savingFeedback.value) return;
+    savingFeedback.value = row.id;
+    feedbackProblem.value = {...feedbackProblem.value, [row.id]: ""};
+    feedbackStatus.value = {...feedbackStatus.value, [row.id]: ""};
+    try {
+        const answer = await api.supervisorFeedback(row.id, {
+            useful: row.feedback.useful,
+            comment: row.feedback.comment,
+            correction: row.feedback.correction,
+        });
+        row.feedback = answer.feedback;
+        row.savedCorrection = answer.feedback.correction;
+        feedbackStatus.value = {...feedbackStatus.value, [row.id]: "Feedback saved."};
+    } catch (error) {
+        feedbackProblem.value = {...feedbackProblem.value, [row.id]: error.message || "Feedback could not be saved."};
+    } finally {
+        savingFeedback.value = "";
+    }
+}
+
+async function makeRule(row) {
+    if (makingRule.value) return;
+    makingRule.value = row.id;
+    feedbackProblem.value = {...feedbackProblem.value, [row.id]: ""};
+    feedbackStatus.value = {...feedbackStatus.value, [row.id]: ""};
+    try {
+        const answer = await api.supervisorFeedbackRule(row.id);
+        row.feedback.rule_id = answer.rule.id;
+        feedbackStatus.value = {...feedbackStatus.value, [row.id]: "Correction added as a rule."};
+    } catch (error) {
+        feedbackProblem.value = {...feedbackProblem.value, [row.id]: error.message || "The correction could not be added as a rule."};
+    } finally {
+        makingRule.value = "";
     }
 }
 
@@ -112,7 +162,7 @@ async function loadOlder() {
     try {
         const answer = await readHistory(cursor);
         if (request !== read) return;
-        history.value = [...history.value, ...(answer.history || [])];
+        history.value = [...history.value, ...(answer.history || []).map(historyRow)];
         nextHistoryBefore.value = answer.next_before || "";
     } catch (error) {
         if (request === read) undoProblem.value = error.message || "Older history could not be read.";
@@ -232,6 +282,30 @@ checkOwner();
                     <div><dt>What it chose</dt><dd>{{ row.what_chose }}</dd></div>
                     <div><dt>Why</dt><dd>{{ row.why }}</dd></div>
                 </dl>
+
+                <section class="history-feedback" :data-feedback-for="row.id" aria-label="Feedback">
+                    <div class="history-feedback-choice" aria-label="Was this useful?">
+                        <button type="button" data-feedback-useful :aria-pressed="row.feedback.useful === true"
+                                :disabled="savingFeedback === row.id" @click="row.feedback.useful = true">Useful</button>
+                        <button type="button" data-feedback-not-useful :aria-pressed="row.feedback.useful === false"
+                                :disabled="savingFeedback === row.id" @click="row.feedback.useful = false">Not useful</button>
+                    </div>
+                    <label>Comment
+                        <textarea v-model="row.feedback.comment" aria-label="Comment" maxlength="4000" />
+                    </label>
+                    <label>Correction
+                        <textarea v-model="row.feedback.correction" aria-label="Correction" maxlength="4000" />
+                    </label>
+                    <div class="history-feedback-actions">
+                        <button type="button" data-feedback-save :disabled="savingFeedback === row.id || row.feedback.useful === null"
+                                @click="saveFeedback(row)">{{ savingFeedback === row.id ? "Saving feedback" : "Save feedback" }}</button>
+                        <button v-if="owner && row.feedback.correction.trim() && row.feedback.correction === row.savedCorrection && !row.feedback.rule_id"
+                                type="button" data-feedback-rule :disabled="makingRule === row.id"
+                                @click="makeRule(row)">{{ makingRule === row.id ? "Adding rule" : "Turn this correction into a rule" }}</button>
+                    </div>
+                    <p v-if="feedbackProblem[row.id]" role="alert">{{ feedbackProblem[row.id] }}</p>
+                    <p v-if="feedbackStatus[row.id]" role="status">{{ feedbackStatus[row.id] }}</p>
+                </section>
 
                 <section
                     v-for="action in row.actions"
@@ -435,6 +509,48 @@ checkOwner();
 
 .history-changes dd span {
     color: var(--text-3);
+}
+
+.history-feedback {
+    display: grid;
+    gap: 9px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.history-feedback-choice,
+.history-feedback-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.history-feedback label {
+    display: grid;
+    gap: 5px;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.history-feedback textarea {
+    min-height: 54px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text);
+    resize: vertical;
+}
+
+.history-feedback button {
+    padding: 7px 11px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
 }
 
 .history-receipt,

@@ -79,6 +79,13 @@ class SupervisorRecordReader:
             history, next_before = self._history_page(history_rows, history_cursor)
         return {"areas": sorted(AREAS), "history": history, "next_before": next_before}
 
+    def history_row(self, row_id: int) -> dict[str, Any] | None:
+        plan_ids = self._plan_ids("")
+        with self.scope.environment(PROJECT):
+            runs, receipts = self._records(plan_ids)
+            return next((row for row in self._history_source_rows(plan_ids, runs, receipts)
+                         if row["id"] == row_id), None)
+
     def pending_proposals(self) -> list[dict[str, Any]]:
         plan_ids = self._plan_ids("")
         with self.scope.environment(PROJECT):

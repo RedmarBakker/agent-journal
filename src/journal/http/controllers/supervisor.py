@@ -1,5 +1,6 @@
 from typing import Any, Callable
 
+from journal.features.supervisor.support.supervisor_feedback import SupervisorFeedback
 from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
 from journal.features.supervisor.support.supervisor_record_reader import SupervisorRecordReader
@@ -18,10 +19,10 @@ class SupervisorController:
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations,
                  maintenance: SupervisorMaintenance, wakeups: SupervisorWakeups, scope: Scope,
-                 records: SupervisorRecordReader) -> None:
+                 records: SupervisorRecordReader, feedback: SupervisorFeedback) -> None:
         self.authority, self.observations, self.maintenance = authority, observations, maintenance
         self.wakeups = wakeups
-        self.scope, self.records = scope, records
+        self.scope, self.records, self.feedback = scope, records, feedback
 
     def read_records(self, request: Request) -> Response:
         def read() -> dict[str, Any]:
@@ -34,10 +35,10 @@ class SupervisorController:
         return self._records(request, read)
 
     def read_history(self, request: Request) -> Response:
-        return self._records(request, lambda: self.records.history(
+        return self._records(request, lambda: self.feedback.attach(self.records.history(
             request.text("plan_id"), request.text("area"), request.text("tier"),
             request.text("result"), request.text("before"),
-        ))
+        )))
 
     def read_costs(self, request: Request) -> Response:
         return self._records(request, lambda: {
@@ -58,11 +59,14 @@ class SupervisorController:
     def read_control(self, request: Request) -> Response:
         try:
             answer = self.authority.owner_control(request.actor, self.scope.id)
+            rules = self.feedback.owner_rules(request.actor)
         except SupervisorFailure as denied:
             message = "Only the owner can change the supervisor." if denied.status == 403 else str(denied)
             return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
         proposals = self.records.pending_proposals()
-        return Response(200, {**answer, "proposals": proposals}, {"Cache-Control": "no-store"})
+        return Response(200, {**answer, "proposals": proposals,
+                              "rules": rules},
+                        {"Cache-Control": "no-store"})
 
     def read_proposal_count(self, request: Request) -> Response:
         try:
@@ -125,6 +129,27 @@ class SupervisorController:
 
     def decline_proposal(self, request: Request) -> Response:
         return self._proposal_decision(request, self.maintenance.decline_owner_proposal)
+
+    def save_feedback(self, request: Request) -> Response:
+        try:
+            answer = self.feedback.save(request.number("id"), request.body, request.actor)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)}, {"Cache-Control": "no-store"})
+        return Response(200, answer, {"Cache-Control": "no-store"})
+
+    def make_feedback_rule(self, request: Request) -> Response:
+        try:
+            answer = self.feedback.make_rule(request.number("id"), request.actor)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)}, {"Cache-Control": "no-store"})
+        return Response(201, answer, {"Cache-Control": "no-store"})
+
+    def remove_feedback_rule(self, request: Request) -> Response:
+        try:
+            answer = self.feedback.remove_rule(request.number("id"), request.actor)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)}, {"Cache-Control": "no-store"})
+        return Response(200, answer, {"Cache-Control": "no-store"})
 
     @staticmethod
     def _proposal_decision(request: Request, decide: Callable[[int, int, Actor], dict[str, Any]]) -> Response:

@@ -161,6 +161,18 @@ export class ApiClient {
         return this.get(path, `supervisor.history:${planId}:${area}:${tier}:${result}:${before}`);
     }
 
+    supervisorFeedback(historyId, feedback) {
+        return this.post(this.here(`/supervisor/history/${historyId}/feedback`), feedback);
+    }
+
+    supervisorFeedbackRule(historyId) {
+        return this.post(this.here(`/supervisor/history/${historyId}/feedback/rule`), {});
+    }
+
+    supervisorRemoveRule(ruleId) {
+        return this.post(this.here(`/supervisor/rules/${ruleId}/delete`), {});
+    }
+
     supervisorCosts() {
         return this.get(this.here("/supervisor/costs"), "supervisor.costs");
     }

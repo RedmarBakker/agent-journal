@@ -40,6 +40,7 @@ SUPERVISOR_ENTRY_TYPES = (
     "SupervisorCredential",
     "SupervisorEpisode",
     "SupervisorEnrollment",
+    "SupervisorFeedback",
     "SupervisorGrant",
     "SupervisorInstallation",
     "SupervisorRevocation",

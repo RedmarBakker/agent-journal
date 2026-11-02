@@ -1,7 +1,7 @@
 import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
-const api = {supervisorHistory: vi.fn(), supervisorControl: vi.fn(), supervisorUndo: vi.fn(), supervisorProposal: vi.fn(), list: vi.fn()};
+const api = {supervisorHistory: vi.fn(), supervisorControl: vi.fn(), supervisorUndo: vi.fn(), supervisorProposal: vi.fn(), supervisorFeedback: vi.fn(), supervisorFeedbackRule: vi.fn(), list: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api}));
 
 const {default: SupervisorPage} = await import("../src/pages/SupervisorPage.vue");
@@ -65,6 +65,8 @@ beforeEach(() => {
     api.supervisorControl.mockReset().mockResolvedValue({grant_id: "grant-7"});
     api.supervisorUndo.mockReset().mockResolvedValue({status: "undone"});
     api.supervisorProposal.mockReset().mockResolvedValue({decision: "accepted"});
+    api.supervisorFeedback.mockReset().mockResolvedValue({feedback: {useful: null, comment: "", correction: "", rule_id: null}});
+    api.supervisorFeedbackRule.mockReset().mockResolvedValue({rule: {id: 17, text: "For Plan 31 in Checks: inspect before changing the interval."}});
     api.list.mockReset().mockResolvedValue({rows: [{id: 31, title: "Pricing for add-ons"}]});
 });
 
@@ -193,4 +195,38 @@ test("a refused proposal acceptance shows the route's reason", async () => {
 
     page.querySelector('[data-history-row="80"] button[data-proposal-decision="accept"]').click();
     await vi.waitFor(() => expect(page.querySelector('[role="alert"]').textContent).toContain("The proposal is no longer current."));
+});
+
+test("the owner saves feedback for a decision and turns its correction into a rule", async () => {
+    api.supervisorHistory.mockResolvedValue(response("on", [row(79, {feedback: {useful: null, comment: "", correction: "", rule_id: null}})]));
+    api.supervisorFeedback.mockResolvedValue({feedback: {useful: true, comment: "Good result.", correction: "Inspect before changing the interval.", rule_id: null}});
+    const page = await openPage();
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="79"] [data-feedback-useful]')).not.toBeNull());
+
+    page.querySelector('[data-history-row="79"] [data-feedback-useful]').click();
+    const comment = page.querySelector('[data-history-row="79"] textarea[aria-label="Comment"]');
+    comment.value = "Good result.";
+    comment.dispatchEvent(new Event("input", {bubbles: true}));
+    const correction = page.querySelector('[data-history-row="79"] textarea[aria-label="Correction"]');
+    correction.value = "Inspect before changing the interval.";
+    correction.dispatchEvent(new Event("input", {bubbles: true}));
+    page.querySelector('[data-history-row="79"] [data-feedback-save]').click();
+
+    await vi.waitFor(() => expect(api.supervisorFeedback).toHaveBeenCalledWith(79, {
+        useful: true, comment: "Good result.", correction: "Inspect before changing the interval.",
+    }));
+    page.querySelector('[data-history-row="79"] [data-feedback-rule]').click();
+    await vi.waitFor(() => expect(api.supervisorFeedbackRule).toHaveBeenCalledWith(79));
+    await vi.waitFor(() => expect(page.textContent).toContain("Correction added as a rule."));
+});
+
+test("a non-owner can give feedback but does not get rule controls", async () => {
+    api.supervisorHistory.mockResolvedValue(response("on", [row(78, {feedback: {useful: null, comment: "", correction: "", rule_id: null}})]));
+    api.supervisorControl.mockRejectedValue(new Error("Only the owner can change the supervisor."));
+    const page = await openPage();
+    await vi.waitFor(() => expect(api.supervisorControl).toHaveBeenCalled());
+
+    expect(page.querySelector('[data-history-row="78"] [data-feedback-useful]')).not.toBeNull();
+    expect(page.querySelector('[data-history-row="78"] [data-feedback-not-useful]')).not.toBeNull();
+    expect(page.querySelector('[data-history-row="78"] [data-feedback-rule]')).toBeNull();
 });

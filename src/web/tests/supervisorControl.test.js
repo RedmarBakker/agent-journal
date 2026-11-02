@@ -1,7 +1,7 @@
 import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
-const api = {supervisorControl: vi.fn(), supervisorChange: vi.fn(), supervisorProposal: vi.fn(), list: vi.fn(), change: vi.fn()};
+const api = {supervisorControl: vi.fn(), supervisorChange: vi.fn(), supervisorProposal: vi.fn(), supervisorRemoveRule: vi.fn(), list: vi.fn(), change: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api}));
 
 const {default: SupervisorControlPage} = await import("../src/pages/SupervisorControlPage.vue");
@@ -76,6 +76,7 @@ beforeEach(() => {
     api.supervisorControl.mockReset().mockResolvedValue(settings());
     api.supervisorChange.mockReset().mockResolvedValue({grant_version: 4});
     api.supervisorProposal.mockReset().mockResolvedValue({decision: "accepted"});
+    api.supervisorRemoveRule.mockReset().mockResolvedValue({});
     api.list.mockReset().mockImplementation((table) => Promise.resolve({rows: table === "plans"
         ? [{id: 7, title: "Release plan"}]
         : [{id: 21, title: "Held task", plan_id: 7, supervisor_reserved: true}]}));
@@ -254,4 +255,18 @@ test("a stale grant revision displays the grant route's conflict text", async ()
     interval.value = "30";
     interval.dispatchEvent(new Event("change", {bubbles: true}));
     await vi.waitFor(() => expect(page.querySelector('[role="alert"]').textContent).toContain("The settings changed since you opened them; reload."));
+});
+
+test("Control lists narrowing rules and removes them through the owner route", async () => {
+    const rule = {id: 47, text: "For Plan 7 in Checks: inspect before changing the interval.", reason: "A supervisor correction."};
+    api.supervisorControl.mockReset()
+        .mockResolvedValueOnce({...settings(), rules: [rule]})
+        .mockResolvedValueOnce({...settings(), rules: []});
+    const page = await openPage();
+    await vi.waitFor(() => expect(page.textContent).toContain(rule.text));
+    expect(page.querySelector('[data-supervisor-rule="47"] [data-rule-remove]').textContent).toBe("Remove the rule");
+
+    page.querySelector('[data-supervisor-rule="47"] [data-rule-remove]').click();
+    await vi.waitFor(() => expect(api.supervisorRemoveRule).toHaveBeenCalledWith(47));
+    await vi.waitFor(() => expect(page.querySelector('[data-supervisor-rule="47"]')).toBeNull());
 });
