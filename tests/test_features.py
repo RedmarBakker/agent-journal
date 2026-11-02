@@ -4216,8 +4216,13 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     hook(app, "PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
     app.container.get(ListenerQueue).drain()
     silent_events, worker_events = echo_heard(app, "silent"), echo_heard(app, "asks")
+    from journal.repositories.plugins import Plugins
+    plugins = app.container.get(Plugins)
+    queue = app.container.get(ListenerQueue)
     assert silent_events == ["file_edited"], (
-        f"main edit on attempt {attempt + 1} reaches the plugin that hears every role"
+        f"main edit on attempt {attempt + 1} reaches the plugin that hears every role; "
+        f"the worker-only plugin heard {worker_events}, the silent plugin fault was {plugins.lookup('silent').last_fault!r}, "
+        f"and the relay queue skipped {queue.skipped} items"
     )
     assert worker_events == ["file_edited", "file_edited"], (
         f"main edit on attempt {attempt + 1} also reaches the plugin that hears workers"
@@ -4226,7 +4231,6 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     from journal.features.plugins.support.plugin_relay import PluginRelay
     from journal.models.agent import Agent
     from journal.repositories.agents import Agents
-    from journal.repositories.plugins import Plugins
     from journal.support.agent_role import AgentRole
     from journal.features.registry import Registry
     plugins, relay = app.container.get(Plugins), app.container.get(PluginRelay)

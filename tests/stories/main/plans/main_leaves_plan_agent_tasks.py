@@ -90,7 +90,7 @@ def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent
 
     idle_main = StoryAgent(AgentRole.MAIN, session="s2")
     story.second_session_starts("s2").expect_allowed(idle_main)
-    story.expect_stack(idle_main, CoordinatingPlans)
+    story.expect_stack(idle_main, CoordinatingPlans, FollowingPlan)
     story.user_did(f"/journal/tasks/{task}/unblock", {}, "user reopens the Plan agent task").expect_viewer_passed()
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(task, state=TaskState.OPEN)
@@ -99,5 +99,5 @@ def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent
     story.agent_stops(idle_main).expect_allowed(idle_main)
     story.expect_task(task, state=TaskState.OPEN)
     story.expect_task_unheld(task)
-    story.expect_stack(idle_main, CoordinatingPlans)
+    story.expect_stack(idle_main, CoordinatingPlans, FollowingPlan)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
