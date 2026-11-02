@@ -180,11 +180,9 @@ def resume_plan(app, main, plan_id, seed=None):
         plan = plans.find(plan_id)
         phases = plans.plan_phases(plan)
         tasks = plans.plan_tasks(plan)
-    if seed is None:
-        matches = setup_plan_matches(plan, phases, tasks)
-    else:
-        matches = setup_plan_matches(plan, phases, tasks, seed)
-    if not matches:
+    if seed is None and not setup_plan_matches(plan, phases, tasks):
+        raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
+    if seed is not None and not setup_plan_matches(plan, phases, tasks, seed):
         raise SetupFailure("a supervisor live smoke plan already exists; revoke and reset this staging installation")
     authority = app.container.get(SupervisorAuthority)
     if authority.has_enrollment_grant():
