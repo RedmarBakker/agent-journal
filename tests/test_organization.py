@@ -2522,8 +2522,13 @@ def test_a_dispatched_role_seat_starts_clocks_in_and_returns_its_clockout_to_its
     def add_member(rig, pod, fragment, root):
         seat_changes.append(("add", rig, pod, fragment.name))
 
-    def session(_member, _native_session=""):
-        return SeatSession(4320 + len(launches), f"role-session-{len(launches)}", "running", 10) if launch_state["started"] else None
+    def session(member, native_session=""):
+        if not launch_state["started"] or member.target != launches[-1][0].target:
+            return None
+        session_id = f"role-session-{len(launches)}"
+        if native_session and native_session != session_id:
+            return None
+        return SeatSession(4320 + len(launches), session_id, "running", 10)
 
     def send(member, prompt):
         sent.append((member, prompt))
