@@ -288,6 +288,11 @@ class StoryChecks:
         rows = get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]
         assert len(rows) == count, f"{len(rows)} {table} through the API, not {count}"
 
+    def expect_row_count_in(self, environment: str, table: str, count: int) -> None:
+        headers = {**MAIN, "X-Journal-Env": environment}
+        rows = get_answer(self.app, f"/journal/{table}", headers)[1]["rows"]
+        assert len(rows) == count, f"{len(rows)} {table} in {environment}, not {count}"
+
     def expect_organization_handoff_count(self, plan_id: int, count: int) -> None:
         self.settle()
         plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]

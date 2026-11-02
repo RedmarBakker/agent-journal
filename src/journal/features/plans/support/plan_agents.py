@@ -1,4 +1,5 @@
 from journal.config import Config
+from journal.db.commit_queue import CommitQueue
 from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_closed import PlanClosed
 from journal.events.rows.plan_finished import PlanFinished
@@ -36,13 +37,14 @@ from journal.support.worktree_failure import WorktreeFailure
 class PlanAgents:
     """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation, the environment made by whoever started the plan and seen as the plan's own environment is, shared with its team or private, set again at each start; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
-    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource, scope: Scope, messages: Messages) -> None:
+    def __init__(self, config: Config, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows, staffing: RigStaffing, usage: UsageLedger, time_source: TimeSource, scope: Scope, messages: Messages, commits: CommitQueue) -> None:
         self.config, self.inner_repositories = config, InnerRepositories(config.root)
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
         self.places, self.settings, self.staffing = places, settings, staffing
         self.usage, self.time_source = usage, time_source
         self.scope = scope
         self.messages = messages
+        self.commits = commits
 
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
@@ -126,10 +128,7 @@ class PlanAgents:
             self.bindings.bind(plan, environment.row_id, actor)
             agent = agent or self.prepared(plan, environment, source_environment_id, actor)
             if plan.mode == PlanMode.ORGANIZATION:
-                try:
-                    self.staffing.start_plan(plan, environment, agent, actor)
-                except Rejection as reason:
-                    self.attention(plan, f"Plan {plan.id} needs OpenRig attention: {reason}", {"kind": "plan_attention", "plan": plan.id})
+                self.commits.add(lambda: self.start_organization_plan(plan, environment, agent, actor))
             else:
                 try:
                     self.places.launched(environment, agent, self.repository_folders(plan))
@@ -137,6 +136,12 @@ class PlanAgents:
                     self.attention(plan, f"Plan {plan.id}'s Plan agent did not start: {reason}", {
                         "kind": "plan_attention", "plan": plan.id, "agent_start_failure": True, "reason": str(reason),
                     })
+
+    def start_organization_plan(self, plan: Plan, environment: Environment, agent: Agent, actor: Actor) -> None:
+        try:
+            self.staffing.start_plan(plan, environment, agent, actor)
+        except Rejection as reason:
+            self.attention(plan, f"Plan {plan.id} needs OpenRig attention: {reason}", {"kind": "plan_attention", "plan": plan.id})
 
     def attention(self, plan: Plan, text: str, data: dict) -> None:
         self.messages.save(Message(environment_id=plan.environment_id, author=Author.SYSTEM, text=text, data=data), Actor.system())

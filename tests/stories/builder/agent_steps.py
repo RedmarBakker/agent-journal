@@ -5,6 +5,7 @@ import shutil
 import re
 import shlex
 import subprocess
+import threading
 from datetime import datetime, timezone
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -48,7 +49,7 @@ from journal.repositories.agents import Agents
 from journal.support.researcher_session import ResearcherSession
 from journal.console.support.outcome import Outcome
 from tests.full_project import MAIN
-from tests.in_process import get_answer, posted
+from tests.in_process import get_answer, posted, posted_without_listener_drain
 from tests.agent_hooks import pass_time, story_seconds
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
@@ -88,6 +89,70 @@ class AgentSteps:
         session = str(self.simulated_seats().sessions[member.target]["sessionId"])
         self.replace_main_session(session, self.provider, environment.name)
         return self.plan_seat_hook(environment.name, session, "SessionStart", "the Plan seat starts a session", source="startup")
+
+    def agent_starts_an_organization_plan_with_its_session(self, agent: StoryAgent, plan: int) -> StepResult:
+        original_start = SeatRuntime.start_rig
+        response = {}
+        selected = threading.Event()
+
+        def start_rig(_runtime, spec):
+            original_start(_runtime, spec)
+            rig = spec.parent.name
+            target = f"{PLAN_POD}-{PLAN_AGENT}@{rig}"
+            session = str(self.simulated_seats().sessions[target]["sessionId"])
+            environment = self.simulated_seats().member_environment(rig, PLAN_POD, PLAN_AGENT)["JOURNAL_ENV"]
+            environment_id = self.app.container.get(Environments).existing(environment).row_id
+            self.session_environments[session] = environment
+            save_agent = Agents.save
+
+            def signal_session_row(agents, row, actor):
+                if row.session == session and row.environment_id == environment_id:
+                    selected.set()
+                return save_agent(agents, row, actor)
+
+            self.monkeypatch.setattr(Agents, "save", signal_session_row)
+
+            def start_session():
+                try:
+                    response["status"], response["answer"] = posted_without_listener_drain(
+                        self.app,
+                        f"/hooks/{self.provider}",
+                        {"hook_event_name": "SessionStart", "session_id": session, "source": "startup"},
+                        {"X-Journal-Env": environment},
+                    )
+                except Exception as error:
+                    response["error"] = error
+
+            session_start = threading.Thread(target=start_session, name="organization-plan-session", daemon=True)
+            self.organization_plan_session_thread = session_start
+            self.organization_plan_session = session
+            self.organization_plan_session_environment = environment
+            self.organization_plan_session_response = response
+            session_start.start()
+            if not selected.wait(5):
+                if "error" in response:
+                    raise response["error"]
+                if "status" in response:
+                    raise RuntimeError(f"the organization Plan session hook returned {response['status']}: {response['answer']}")
+                raise RuntimeError("the organization Plan session did not select an agent row")
+
+        self.monkeypatch.setattr(SeatRuntime, "start_rig", start_rig)
+        return self.agent_runs(agent, f"plan start {plan}")
+
+    def organization_plan_session_started(self) -> StepResult:
+        session_start = self.organization_plan_session_thread
+        session_start.join(5)
+        if session_start.is_alive():
+            raise RuntimeError("the organization Plan session did not finish its start hook")
+        response = self.organization_plan_session_response
+        if "error" in response:
+            raise response["error"]
+        return self.hook_observed(
+            "the organization Plan agent starts its session",
+            response["status"],
+            response["answer"],
+            self.organization_plan_session_environment,
+        )
 
     def agent_stops_plan_seat(self, agent: StoryAgent, plan: int) -> StepResult:
         environment = self.app.container.get(Environments).existing(f"plan-{plan}")

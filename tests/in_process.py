@@ -35,10 +35,21 @@ def file_answer(app, path: str, headers: dict) -> tuple[int, dict]:
 
 
 def routed(app, method: str, path: str, raw: bytes, headers: dict):
-    head = RequestReading.head(method, path, {"Content-Type": "application/json", **headers})
-    request = RequestReading.read(head, raw, app.container.get(Identity), app.container.get(SupervisorRequestAuth))
     deferred = app.container.get(ListenerQueue)
     deferred.drain()
-    answer = app.container.get(Router).route(request)
+    answer = routed_without_listener_drain(app, method, path, raw, headers)
     deferred.drain()
     return answer
+
+
+def posted_without_listener_drain(app, path: str, body: dict, headers: dict) -> tuple[int, dict]:
+    answer = routed_without_listener_drain(app, "POST", path, json.dumps(body).encode(), headers)
+    return answer.status, json.loads(JsonOut.encoded(answer.body))
+
+
+def routed_without_listener_drain(app, method: str, path: str, raw: bytes, headers: dict):
+    head = RequestReading.head(method, path, {"Content-Type": "application/json", **headers})
+    request = RequestReading.read(
+        head, raw, app.container.get(Identity), app.container.get(SupervisorRequestAuth)
+    )
+    return app.container.get(Router).route(request)
