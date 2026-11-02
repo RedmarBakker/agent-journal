@@ -256,7 +256,7 @@ static int valid_profile(const char *config_path) {
     };
     static const char *required_gateway_entrypoint[] = {
         ". /opt/journal-supervisor/bin/journal-supervisor-environment",
-        "exec node dist/index.js gateway run --port",
+        "node dist/index.js gateway run --port",
     };
     static const char *required_gateway_environment[] = {
         "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)",

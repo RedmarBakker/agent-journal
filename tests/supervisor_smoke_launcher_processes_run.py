@@ -232,11 +232,7 @@ def staging_root(tmp_path):
     for name in EXTERNAL_SECRET_FILES:
         (secrets / name).write_text(f"staged-{name}\n")
         (secrets / name).chmod(0o600)
-    (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text(
-        "#!/bin/sh\nset -eu\n"
-        ". /opt/journal-supervisor/bin/journal-supervisor-environment\n"
-        "exec node dist/index.js gateway run --port \"${OPENCLAW_GATEWAY_PORT:-18789}\"\n"
-    )
+    (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text((ROOT / "docs/supervisor/v1/gateway-entrypoint.sh").read_text())
     (work / "docs/supervisor/v1/journal-supervisor-environment.sh").write_text(
         "#!/bin/sh\nset -eu\n"
         "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)\n"
