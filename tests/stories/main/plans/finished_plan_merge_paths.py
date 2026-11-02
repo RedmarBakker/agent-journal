@@ -13,6 +13,7 @@ from journal.support.workspace_worktree import WorkspaceWorktree
 from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_agent_worktree_project import PlanAgentWorktreeProject
+from tests.stories.fixtures.main.solo_plan_with_first_task_complete import SoloPlanWithFirstTaskComplete
 from tests.stories.fixtures.main.started_solo_plan_branch import PLAN_AGENT_SESSION, StartedSoloPlanBranch
 
 
@@ -80,25 +81,24 @@ def test_a_finished_plan_merges_past_updated_journal_files(story):
     story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
-@story(StartedSoloPlanBranch, subject=AgentRole.MAIN)
+@story(SoloPlanWithFirstTaskComplete, subject=AgentRole.MAIN)
 def test_a_finished_plan_stops_its_running_agent_before_merging(story):
     plan = story.plans.first
     environment, session = f"plan-{plan}", PLAN_AGENT_SESSION
     plan_environment = story.app.container.get(Environments).existing(environment)
-    supervisor = story.app.container.get(SupervisorLink)
     running = True
 
-    def agent_is_running(environment_id: int) -> bool:
+    def agent_is_running(_link: SupervisorLink, environment_id: int) -> bool:
         return environment_id == plan_environment.row_id and running
 
-    def stop_agent(_environment_id: int) -> None:
+    def stop_agent(_link: SupervisorLink, _environment_id: int) -> None:
         nonlocal running
         running = False
 
-    story.monkeypatch.setattr(supervisor, "runs", agent_is_running)
-    story.monkeypatch.setattr(supervisor, "stop", stop_agent)
+    story.monkeypatch.setattr(SupervisorLink, "runs", agent_is_running)
+    story.monkeypatch.setattr(SupervisorLink, "stop", stop_agent)
     story.observed("the Plan agent's supervisor is running", None, None)
-    complete_plan_tasks(story, environment, session, (story.tasks.second, story.tasks.first))
+    complete_plan_tasks(story, environment, session, (story.tasks.second,))
 
     notice = (
         f"Plan {plan} branch merge failed: plan {plan}'s Plan agent is still running: wait for it to stop before merging. "
@@ -114,7 +114,7 @@ def test_a_finished_plan_stops_its_running_agent_before_merging(story):
     story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
-@story(StartedSoloPlanBranch, subject=AgentRole.MAIN)
+@story(SoloPlanWithFirstTaskComplete, subject=AgentRole.MAIN)
 def test_a_finished_plan_conflict_is_explained_in_both_chats(story):
     root, plan = story.app.config.root, story.plans.first
     environment, session = f"plan-{plan}", PLAN_AGENT_SESSION
@@ -122,7 +122,7 @@ def test_a_finished_plan_conflict_is_explained_in_both_chats(story):
     change.write_text("the project version\n")
     story.git_in(root, "add", change.name)
     story.git_in(root, "commit", "-q", "-m", "project change")
-    complete_plan_tasks(story, environment, session, (story.tasks.first, story.tasks.second))
+    complete_plan_tasks(story, environment, session, (story.tasks.second,))
 
     notice = (
         f"Plan {plan} branch merge failed: plan {plan}'s work was not merged: conflict in PLAN-AGENT-SMOKE.md in the project. "
