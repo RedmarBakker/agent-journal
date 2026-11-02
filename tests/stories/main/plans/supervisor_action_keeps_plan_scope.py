@@ -24,5 +24,10 @@ def test_a_supervisor_action_keeps_its_plan_scope_for_link_listeners(story):
     story.last_step.expect_viewer_part(("data", "verification"), "verified")
     story.expect_no_faults()
     fixture = context["fixture"]
-    story.expect_row_in(fixture.owner_environment.name, "plans", fixture.plan.row_id, state=PlanState.STARTED)
+    story.expect_row_in(
+        fixture.owner_environment.name,
+        "plans",
+        fixture.plan.row_id,
+        {"state": PlanState.STARTED},
+    )
     story.expect_stack(story.agents.subject, Ready)
