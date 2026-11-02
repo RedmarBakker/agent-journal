@@ -17,8 +17,6 @@ def prepare_owner_action(story):
     environment_name = fixture.owner_environment.name
     operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
     request = maintenance_request(context, [operation], "owner-undo-action")
-    opened = story.user_opens_in(environment_name, "/journal/plans")
-    opened.expect_viewer_passed()
     return {
         "context": context,
         "plan_id": plan_id,
@@ -30,17 +28,20 @@ def prepare_owner_action(story):
 
 
 def seed_owner_action(story, setup, tier):
-    story.monkeypatch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
     context, plan_id = setup["context"], setup["plan_id"]
-    story.viewer_status, story.viewer_answer = posted(
-        story.app,
-        "/_supervisor/v1/apply",
-        setup["request"],
-        {"X-Journal-Supervisor-Token": context["token"]},
-    )
+    with story.monkeypatch.context() as patch:
+        patch.setitem(CAPABILITY_CATALOGUE["Plans and tasks"]["plan"], "priorities", tier)
+        story.viewer_status, story.viewer_answer = posted(
+            story.app,
+            "/_supervisor/v1/apply",
+            setup["request"],
+            {"X-Journal-Supervisor-Token": context["token"]},
+        )
     story.observed(f"the supervisor records a {tier} plan priorities action", None, None)
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_part(("data", "command_receipts", 0, "tier"), tier)
+    opened = story.user_opens_in(setup["environment_name"], "/journal/plans")
+    opened.expect_viewer_passed()
     return {
         **setup,
         "receipt_id": story.viewer_answer["receipt_id"],
