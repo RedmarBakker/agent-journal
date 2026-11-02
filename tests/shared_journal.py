@@ -87,7 +87,7 @@ class SharedJournal:
         folders, files = self.tree()
         for path in files:
             if path not in self.files and not self.is_database(path):
-                os.unlink(path)
+                Path(path).unlink(missing_ok=True)
         for path in sorted(folders - self.folders, reverse=True):
             if os.path.islink(path):
                 os.unlink(path)
@@ -98,6 +98,8 @@ class SharedJournal:
         for path, content in self.files.items():
             if self.stamp(path) != self.stamps[path]:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
+                if os.path.exists(path) and not os.access(path, os.W_OK):
+                    os.unlink(path)
                 Path(path).write_bytes(content)
                 self.stamps[path] = self.stamp(path)
 
