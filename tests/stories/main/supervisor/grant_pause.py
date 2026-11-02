@@ -2,7 +2,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.supervisor_grant_gate_closed import SupervisorGrantGateClosed
-from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
+from tests.stories.fixtures.main.supervisor_grant_paused import SupervisorGrantPaused
 
 
 def grant_change(story, version: int, kind: str) -> dict:
@@ -14,26 +14,21 @@ def grant_change(story, version: int, kind: str) -> dict:
     }
 
 
-@story(SupervisorGrantOwner, subject=AgentRole.MAIN)
+@story(SupervisorGrantPaused, subject=AgentRole.MAIN)
 def test_an_owner_pauses_the_grant_and_a_wake_does_nothing(story):
-    result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 1, "off"))
-    result.expect_viewer_passed()
-    result.expect_viewer_part(("grant_version",), 2)
-    story.expect_supervisor_grant_state(story.grants.first, paused=True, revoked=False)
-
     wake = story.supervisor_posts("/_supervisor/v1/admit", {
         "protocol_version": 1, "source": "timer", "observation_cursor": None,
     })
     wake.expect_viewer_refused("supervisor grant is paused")
     action = story.supervisor_posts("/_supervisor/v1/apply", {})
     action.expect_viewer_refused("supervisor grant is paused")
+    story.expect_supervisor_grant_state(story.grants.first, paused=True, revoked=False)
     story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(SupervisorGrantOwner, subject=AgentRole.MAIN)
+@story(SupervisorGrantPaused, subject=AgentRole.MAIN)
 def test_an_owner_turns_the_paused_grant_on_and_wakes_resume(story):
-    story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 1, "off"))
     result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 2, "on"))
     result.expect_viewer_passed()
     result.expect_viewer_part(("grant_version",), 3)
@@ -49,7 +44,6 @@ def test_an_owner_turns_the_paused_grant_on_and_wakes_resume(story):
 
 @story(SupervisorGrantGateClosed, subject=AgentRole.MAIN)
 def test_an_owner_cannot_turn_on_the_grant_while_the_installation_gate_is_closed(story):
-    story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 1, "off"))
     result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 2, "on"))
     result.expect_viewer_refused("installation gate is closed")
     story.expect_supervisor_grant_state(story.grants.first, paused=True, revoked=False)
@@ -57,9 +51,8 @@ def test_an_owner_cannot_turn_on_the_grant_while_the_installation_gate_is_closed
     story.expect_stack(story.agents.subject, Ready)
 
 
-@story(SupervisorGrantOwner, subject=AgentRole.MAIN)
+@story(SupervisorGrantPaused, subject=AgentRole.MAIN)
 def test_revoking_a_paused_grant_still_ends_it_for_good(story):
-    story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 1, "off"))
     result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 2, "revoke"))
     result.expect_viewer_passed()
     story.expect_supervisor_grant_state(story.grants.first, paused=True, revoked=True)

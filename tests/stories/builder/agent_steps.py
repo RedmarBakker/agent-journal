@@ -236,7 +236,8 @@ class AgentSteps:
                         {**MAIN, "Content-Type": "application/octet-stream", "X-Journal-Env": caller.environment})
         text = b"".join(answer.blocks).decode()
         printed, code = text.rsplit("__journal_exit ", 1)
-        return self.record_command(f"the supervisor runs {' '.join(arguments[:2])}", Outcome(int(code.splitlines()[0]), printed))
+        credential = "using an invalid grant credential" if grant_credential is not None and grant_credential != agent.grant_credential else "using its grant credential"
+        return self.record_command(f"the supervisor runs {' '.join(arguments[:2])} {credential}", Outcome(int(code.splitlines()[0]), printed))
 
     def supervisor_calls_grant_route(self, agent: StoryAgent, route: str, body: dict) -> StepResult:
         caller = self.caller_of(agent)
@@ -244,7 +245,8 @@ class AgentSteps:
             self.app, route, body,
             {**MAIN, "X-Journal-Supervisor-Token": agent.grant_credential},
         )
-        return self.observed(f"the supervisor calls {route.rsplit('/', 1)[-1]}", None, None, caller.environment)
+        action = body.get("change", {}).get("kind", "enroll")
+        return self.observed(f"the supervisor requests grant {action}", None, None, caller.environment)
 
     def agent_runs_from_organization_seat(self, agent: StoryAgent, seat: str, line: str) -> StepResult:
         arguments = shlex.split(line)

@@ -8,6 +8,7 @@ from dataclasses import replace
 
 from journal.features.library.support.library_account import LIBRARIES_FOLDER, LibraryAccount
 from journal.http.server import Server
+from journal.http.support.json_out import JsonOut
 from journal.support.caller import Caller
 from journal.support.option import Option
 from sync_server.team_server import TeamServer
@@ -293,7 +294,16 @@ class UserSteps:
 
     def user_presses(self, path: str, body: dict) -> StepResult:
         self.viewer_status, self.viewer_answer = posted(self.app, path, body, MAIN)
-        return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)}", None, None)
+        action = body.get("change", {}).get("kind", "")
+        detail = f" to {action}" if action else ""
+        return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)}{detail}", None, None)
+
+    def user_presses_with_headers(self, path: str, body: dict) -> StepResult:
+        answer = routed(self.app, "POST", path, json.dumps(body).encode(), MAIN)
+        self.viewer_status = answer.status
+        self.viewer_answer = {"headers": answer.headers, "body": json.loads(JsonOut.encoded(answer.body))}
+        mode = body.get("change", {}).get("enrollment", {}).get("mode", "")
+        return self.observed(f"user replaces the supervisor grant with {mode}", None, None)
 
     def card_number(self, key: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == key)
