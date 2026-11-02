@@ -239,6 +239,24 @@ def test_the_inbox_announces_where_the_screen_is_mirrored(tmp_path: Path):
         inbox.close()
 
 
+def test_a_shared_plan_driver_inbox_uses_only_its_configured_group(tmp_path: Path):
+    import stat
+
+    folder = tmp_path / "plan-supervisors"
+    folder.mkdir()
+    folder.chmod(0o2770)
+    inbox = Inbox(folder / "plan-12.sock", tmp_path / "driver-runtime" / "inboxes" / "plan-12", os.getgid())
+    inbox.open()
+    try:
+        folder_mode = stat.S_IMODE(folder.stat().st_mode)
+        socket_stat = inbox.path.stat()
+        socket_mode = stat.S_IMODE(socket_stat.st_mode)
+        assert folder_mode == 0o2770 and folder.stat().st_gid == os.getgid()
+        assert socket_mode == 0o660 and socket_stat.st_gid == os.getgid() and socket_stat.st_uid == os.getuid()
+    finally:
+        inbox.close()
+
+
 def test_the_launch_writes_what_the_supervisor_starts_and_a_bad_launch_file_is_refused(tmp_path: Path, capsys):
     from supervisor.__main__ import main
     launch = Launch.parse(["claude", "--env", "spike", "--no-journal"], tmp_path)

@@ -31,6 +31,7 @@ from journal.config import Config
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.support.private_folder import PrivateFolder
+from journal.support.supervisor_socket import PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP, SupervisorSocket
 
 ENVIRONMENT = "--env"
 SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "confirmed", "--no-open": "browser_off", "--no-journal": "journal_off"}
@@ -288,7 +289,7 @@ class Launch:
                 self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
                 self.provider.folder_trusted(self.root, folder)
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, **self.health_numbers(), "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
-        return {
+        launch_file = {
             "launch": launch,
             "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
             "services": [] if self.journal_off else [journal],
@@ -298,12 +299,21 @@ class Launch:
             "screen": str(self.runtime / "screens" / f"{choice.environment}.out"),
             "band": {"left": "agent-journal", "middle": f"{self.root.name} · {choice.environment}", "right": "journal starting…"},
         }
+        if self.is_plan_driver:
+            launch_file["socket_group"] = PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP
+        return launch_file
 
     def boot_watch(self) -> dict:
         backup_path = self.runtime.parent / "last_good"
         return {"notice": str(self.runtime / BOOT_NOTICE), "keep_source": str(self.package), "keep_copy": str(backup_path), "fallback_command": [sys.executable, str(backup_path / "journal.py"), "serve"], "seconds_file": str(self.runtime / BOOT_SECONDS)}
 
     def socket(self, environment: str) -> Path:
+        if self.is_plan_driver:
+            expected = SupervisorSocket.plan_driver_path(environment)
+            assigned = Path(os.environ["JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET"])
+            if assigned != expected:
+                raise ValueError("the Plan driver's supervisor socket must match the broker-assigned path")
+            return assigned
         key = hashlib.sha1(str(self.root.resolve()).encode()).hexdigest()[:12]
         slug = re.sub(r"[^A-Za-z0-9_-]", "-", environment)[:16]
         name_key = hashlib.sha1(environment.encode()).hexdigest()[:7]

@@ -27,6 +27,7 @@
         "persistence": "plain docker compose down preserves the named volume; do not use down --volumes",
         "permissions": "the Dockerfile pre-creates /var/lib/journal-codex as uid/gid 10003 mode 0700 so a new named volume keeps that owner; auth.json is uid/gid 10003 mode 0600; Gateway and backup do not mount it",
         "launch_adapter": "the writer starts a fixed Unix-socket launcher as root with only SETUID, SETGID and SETPCAP; it accepts requests only from the designated journal server PID and uid10001, and only starts numbered Codex Plan environments",
+        "supervisor_socket": "AgentLauncher registers each Plan environment in the server-owned .journal/runtime/inboxes; /run/journal-plan-driver-supervisors/plan-<n>.sock is uid10003 gid10031 mode 0660 inside a root:10031 mode 2770 setgid directory, accessible only to journal uid 10001 and Plan driver uid 10003",
         "identity_limit": "the package launches the Plan process as uid/gid 10003 with no capabilities, no-new-privileges, a read-only container root and an ACL limited to its Plan worktree; dedicated-VM B10 process and write probes remain pending"
       },
       "owner_api": "the journal CLI and hooks use the owner API on 127.0.0.1:8421; the host tunnel targets a second owner listener bound only to journal_management at 10.76.10.10:8423",

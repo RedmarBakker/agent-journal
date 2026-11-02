@@ -1,5 +1,6 @@
 import json
 import socket
+import stat
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,10 +13,10 @@ WAIT_SECONDS = 2.0
 
 
 class Inbox:
-    """A unix socket the journal asks through, one per supervisor: a request is a line of JSON and its answer one line back. The socket lives in a folder only its user can open; while it is open, the announce file names it and the protocol it speaks."""
+    """A Unix socket the journal asks through, one per supervisor: private sockets belong to their user, while a shared setgid folder gives its group access to one socket."""
 
-    def __init__(self, path: Path, announced_at: Path) -> None:
-        self.path, self.announced_at = path, announced_at
+    def __init__(self, path: Path, announced_at: Path, shared_group: int | None = None) -> None:
+        self.path, self.announced_at, self.shared_group = path, announced_at, shared_group
         self._socket: socket.socket | None = None
 
     @property
@@ -29,16 +30,27 @@ class Inbox:
         self.announce({"screen": str(screen)})
 
     def announce(self, fields: dict[str, str]) -> None:
-        self.path.parent.mkdir(mode=0o700, exist_ok=True)
-        self.path.parent.chmod(0o700)
+        if self.shared_group is None:
+            self.path.parent.mkdir(mode=0o700, exist_ok=True)
+            self.path.parent.chmod(0o700)
+        else:
+            self.shared_folder()
         self.path.unlink(missing_ok=True)
         self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._socket.bind(str(self.path))
-        self.path.chmod(0o600)
+        self.path.chmod(0o660 if self.shared_group is not None else 0o600)
+        if self.shared_group is not None and self.path.stat().st_gid != self.shared_group:
+            self.close()
+            raise PermissionError("the Plan supervisor socket did not inherit its shared group")
         self._socket.listen(8)
         self._socket.setblocking(False)
         self.announced_at.parent.mkdir(parents=True, exist_ok=True)
         self.announced_at.write_text(json.dumps({"socket": str(self.path), "protocol": PROTOCOL, **fields}))
+
+    def shared_folder(self) -> None:
+        folder = self.path.parent.stat()
+        if folder.st_gid != self.shared_group or stat.S_IMODE(folder.st_mode) != 0o2770:
+            raise PermissionError("the shared supervisor socket folder must have its configured group and mode 2770")
 
     def answer(self, handle: Callable[[Request], Reply]) -> None:
         while True:

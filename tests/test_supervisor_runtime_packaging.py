@@ -444,6 +444,35 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert "uid/gid 10003" in runbook and "B10 remains false" in runbook
 
 
+def test_plan_driver_socket_uses_a_server_and_driver_only_group():
+    manifest = read_json(PROFILE / "manifest.json")
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
+    entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
+    driver = (ROOT / "docker" / "supervisor-codex-plan-launcher.py").read_text()
+    inbox = (ROOT / "src" / "supervisor" / "inbox.py").read_text()
+    launch_file = (ROOT / "src" / "supervisor" / "launch_file.py").read_text()
+    agent_launcher = (ROOT / "src" / "journal" / "engine" / "agent_launcher.py").read_text()
+    launch = (ROOT / "src" / "journal" / "launcher" / "launch.py").read_text()
+    socket_source = (ROOT / "src" / "journal" / "support" / "supervisor_socket.py").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+
+    assert "groupadd --gid 10031 plan-supervisor-socket" in dockerfile
+    assert "usermod --append --groups plan-supervisor-socket journal" in dockerfile
+    assert "setpriv --reuid 0 --regid plan-supervisor-socket --clear-groups mkdir -m 2770 -p /run/journal-plan-driver-supervisors" in entrypoint
+    assert 'stat -c %g /run/journal-plan-driver-supervisors' in entrypoint and 'stat -c %a /run/journal-plan-driver-supervisors' in entrypoint
+    assert "SUPERVISOR_SOCKET_GID = 10031" in driver and "os.setgroups([SUPERVISOR_SOCKET_GID])" in driver
+    assert '"supervisor_socket": str(supervisor_socket)' in agent_launcher
+    assert '"protocol": 1' in agent_launcher and '"runtime" / "inboxes" / environment' in agent_launcher
+    assert "JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET" in driver
+    assert 'PLAN_DRIVER_SUPERVISOR_SOCKET_DIRECTORY = Path("/run/journal-plan-driver-supervisors")' in socket_source
+    assert "PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP = 10031" in socket_source
+    assert "shared_group" in inbox and "0o2770" in inbox and "0o660" in inbox
+    assert 'Inbox(Path(self.data["socket"]), Path(self.data["announce"]), self.data.get("socket_group"))' in launch_file
+    assert "PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP" in launch and '"socket_group"' in launch
+    assert manifest["topology"][0]["codex_driver"]["supervisor_socket"].startswith("/run/journal-plan-driver-supervisors/")
+    assert "root:10031 mode 2770" in runbook and "journal uid 10001 and Plan driver uid 10003" in runbook
+
+
 def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
     setup = (PROFILE / "live-smoke-setup.py").read_text()
     host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
@@ -499,6 +528,7 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     from journal.providers.codex import Codex
     from journal.providers.provider import HOOK_SCRIPT
     from journal.support.choice import Choice
+    from journal.support.supervisor_socket import PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP, SupervisorSocket
 
     project = tmp_path / "project"
     project.mkdir()
@@ -510,9 +540,11 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     driver_home = tmp_path / "driver-home"
     driver_home.mkdir()
     launch_files = []
+    launch_data = []
 
     def run_supervisor(command, **kwargs):
         launch_files.append(Path(command[-1]))
+        launch_data.append(json.loads(Path(command[-1]).read_text()))
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(launch_module.os, "getuid", lambda: 10003)
@@ -520,6 +552,7 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     monkeypatch.setenv("HOME", str(driver_home))
     monkeypatch.setenv("CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
     monkeypatch.setattr(launch_module.Launch, "choice", lambda self: Choice("plan-1"))
     monkeypatch.setattr(launch_module.Launch, "start_refusal", lambda self, choice: "")
     monkeypatch.setattr(launch_module.Launch, "health_numbers", lambda self: {})
@@ -534,6 +567,8 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     assert launch.run() == 0
     assert (driver_home / "journal-runtime" / "supervisor.log").is_file()
     assert launch_files == [driver_home / "journal-runtime" / "launches" / "plan-1.json"]
+    assert launch_data[0]["socket"] == str(SupervisorSocket.plan_driver_path("plan-1"))
+    assert launch_data[0]["socket_group"] == PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP
     assert not (project / ".journal" / "runtime").exists()
     assert not (project / ".journal").exists()
 
@@ -546,6 +581,7 @@ def test_plan_driver_codex_config_trusts_only_its_worktree_and_journal_hooks_bef
     from journal.providers.codex import Codex
     from journal.providers.support.status_line import StatusLine
     from journal.support.choice import Choice
+    from journal.support.supervisor_socket import SupervisorSocket
 
     project = tmp_path / "project"
     worktree = project / ".claude" / "worktrees" / "plan-1"
@@ -565,6 +601,7 @@ def test_plan_driver_codex_config_trusts_only_its_worktree_and_journal_hooks_bef
     monkeypatch.setenv("HOME", str(driver_home))
     monkeypatch.setenv("CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
     monkeypatch.setattr(launch_module.Menu, "journal", lambda self, *args: "")
 
     def command_after_config(self, choice, status):

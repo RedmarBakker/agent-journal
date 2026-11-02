@@ -10,9 +10,11 @@ RUN apt-get update \
 # The journal server and the pinned Plan driver use separate identities.
 RUN groupadd --gid 10001 journal \
     && groupadd --gid 10003 codex-driver \
+    && groupadd --gid 10031 plan-supervisor-socket \
     && useradd --uid 10001 --gid journal --home-dir /data/home --no-create-home --shell /bin/sh journal \
     && useradd --uid 10002 --gid journal --home-dir /data/gateway --no-create-home --shell /usr/sbin/nologin gateway \
     && useradd --uid 10003 --gid codex-driver --home-dir /var/lib/journal-codex --no-create-home --shell /usr/sbin/nologin codex-driver \
+    && usermod --append --groups plan-supervisor-socket journal \
     && mkdir -p /data/home /data/project /data/secrets /data/gateway /data/vault /var/lib/journal-codex \
     && chown journal:journal /data/home /data/project /data/secrets \
     && chown gateway:journal /data/gateway /data/vault \

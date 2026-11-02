@@ -66,6 +66,10 @@ def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments
 
 
 def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from journal.support.supervisor_socket import SupervisorSocket
+
     socket_path = Path("/tmp") / f"jpd-{uuid4().hex}.sock"
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
@@ -103,13 +107,19 @@ def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatc
     listener.join(timeout=2)
     server.close()
     socket_path.unlink(missing_ok=True)
+    link = object.__new__(SupervisorLink)
+    link.config = launcher.config
+    link.environments = SimpleNamespace(find=lambda _environment_id: SimpleNamespace(name="plan-12"))
+    announcement = link.announced(12)
     assert not listener.is_alive()
     assert pid == 4321
+    assert announcement and announcement.socket == str(SupervisorSocket.plan_driver_path("plan-12")) and announcement.protocol == 1
     assert received == [{
         "environment": "plan-12",
         "root": str(tmp_path.resolve()),
         "worktree": str(worktree.resolve()),
         "port": str(launcher.config.port),
+        "supervisor_socket": str(SupervisorSocket.plan_driver_path("plan-12")),
         "resume": ["--resume", "session-12"],
     }]
 

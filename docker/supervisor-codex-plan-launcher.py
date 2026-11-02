@@ -15,6 +15,8 @@ DRIVER_UID = 10003
 DRIVER_GID = 10003
 JOURNAL_UID = 10001
 JOURNAL_GID = 10001
+SUPERVISOR_SOCKET_GID = 10031
+SUPERVISOR_SOCKET_DIRECTORY = Path("/run/journal-plan-driver-supervisors")
 CODEX_HOME = "/var/lib/journal-codex"
 PROGRAM = "/opt/agent-journal/src/journal.py"
 SERVER_PID_FILE = "/run/journal-plan-driver-server.pid"
@@ -56,7 +58,7 @@ def request_received(connection: socket.socket) -> tuple[dict, int]:
     return request, file_descriptors[0]
 
 
-def plan_worktree(root: Path, request: dict) -> tuple[str, Path, str]:
+def plan_worktree(root: Path, request: dict) -> tuple[str, Path, str, str]:
     environment = request.get("environment")
     if not isinstance(environment, str) or not re.fullmatch(r"plan-[1-9][0-9]*", environment):
         raise ValueError("only a numbered Plan environment can use the Codex driver")
@@ -73,10 +75,13 @@ def plan_worktree(root: Path, request: dict) -> tuple[str, Path, str]:
     port = request.get("port")
     if not isinstance(port, str) or not port.isdigit() or not 1 <= int(port) <= 65535:
         raise ValueError("the Plan driver needs the designated journal port")
+    supervisor_socket = request.get("supervisor_socket")
+    if supervisor_socket != str(SUPERVISOR_SOCKET_DIRECTORY / f"{environment}.sock"):
+        raise ValueError("the Plan driver's supervisor socket must use its assigned shared path")
     resume = request.get("resume", [])
     if not isinstance(resume, list) or len(resume) > 8 or any(not isinstance(value, str) or "\x00" in value or len(value) > 4096 for value in resume):
         raise ValueError("the Plan driver's resume arguments are invalid")
-    return environment, worktree, port
+    return environment, worktree, port, supervisor_socket
 
 
 def restricted_identity() -> None:
@@ -90,7 +95,7 @@ def restricted_identity() -> None:
             raise OSError(error, "could not drop the Plan driver's capability bounding set")
     if libc.prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) == -1:
         raise OSError(ctypes.get_errno(), "could not clear the Plan driver's ambient capabilities")
-    os.setgroups([])
+    os.setgroups([SUPERVISOR_SOCKET_GID])
     os.setgid(DRIVER_GID)
     os.setuid(DRIVER_UID)
     header = ctypes.create_string_buffer(struct.pack("II", 0x20080522, 0))
@@ -100,13 +105,14 @@ def restricted_identity() -> None:
 
 
 def launched(connection: socket.socket, request: dict, log_fd: int, root: Path) -> None:
-    environment, worktree, port = plan_worktree(root, request)
+    environment, worktree, port, supervisor_socket = plan_worktree(root, request)
     resume = request.get("resume", [])
     command = [sys.executable, PROGRAM, "codex", "--env", environment, "--worktree", environment, "--yes", "--no-open", "--no-journal", "--skip", "--", *resume]
     child_environment = {
         "CODEX_HOME": CODEX_HOME,
         "HOME": CODEX_HOME,
         "JOURNAL_CODEX_HOME": CODEX_HOME,
+        "JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET": supervisor_socket,
         "JOURNAL_ROOT": str(root),
         "JOURNAL_PORT": port,
         "PATH": "/usr/local/bin:/usr/bin:/bin",

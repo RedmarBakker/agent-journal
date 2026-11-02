@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from journal.config import Config
+from journal.support.supervisor_socket import SupervisorSocket
 from journal.support.workspace_worktree import WorkspaceWorktree
 
 # the launch switches of an agent nobody sits at: no questions, no browser, no journal of its own
@@ -45,23 +46,48 @@ class AgentLauncher:
         prefix = ["codex", "--env", environment, "--worktree", environment, *DETACHED, "--skip", "--"]
         if arguments[:len(prefix)] != prefix:
             raise ValueError("the restricted Plan driver only accepts the fixed Codex plan command")
+        supervisor_socket = SupervisorSocket.plan_driver_path(environment)
+        announcement, previous, registered = self.register_plan_supervisor(environment, supervisor_socket)
         request = json.dumps({
             "environment": environment,
             "root": str(self.config.root.resolve()),
             "worktree": str(worktree.resolve()),
             "port": port,
+            "supervisor_socket": str(supervisor_socket),
             "resume": arguments[len(prefix):],
         }).encode()
-        with log.open("ab") as output, socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-            connection.connect(os.environ["JOURNAL_PLAN_DRIVER_SOCKET"])
-            sent = connection.sendmsg([request], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [output.fileno()]))])
-            if sent < len(request):
-                connection.sendall(request[sent:])
-            connection.shutdown(socket.SHUT_WR)
-            response = json.loads(connection.recv(4096))
-        if "error" in response:
-            raise RuntimeError(f"the restricted Plan driver refused to start: {response['error']}")
-        return int(response["pid"])
+        try:
+            with log.open("ab") as output, socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.connect(os.environ["JOURNAL_PLAN_DRIVER_SOCKET"])
+                sent = connection.sendmsg([request], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [output.fileno()]))])
+                if sent < len(request):
+                    connection.sendall(request[sent:])
+                connection.shutdown(socket.SHUT_WR)
+                response = json.loads(connection.recv(4096))
+            if "error" in response:
+                raise RuntimeError(f"the restricted Plan driver refused to start: {response['error']}")
+            return int(response["pid"])
+        except BaseException:
+            self.restore_plan_supervisor(announcement, previous, registered)
+            raise
+
+    def register_plan_supervisor(self, environment: str, supervisor_socket: Path) -> tuple[Path, str, str]:
+        announcement = self.config.home / "runtime" / "inboxes" / environment
+        announcement.parent.mkdir(parents=True, exist_ok=True)
+        previous = announcement.read_text() if announcement.is_file() else ""
+        registered = json.dumps({"socket": str(supervisor_socket), "protocol": 1})
+        announcement.write_text(registered)
+        announcement.chmod(0o600)
+        return announcement, previous, registered
+
+    @staticmethod
+    def restore_plan_supervisor(announcement: Path, previous: str, registered: str) -> None:
+        if not announcement.is_file() or announcement.read_text() != registered:
+            return
+        if previous:
+            announcement.write_text(previous)
+        else:
+            announcement.unlink()
 
     def plan_worktree_permissions(self, worktree: Path | None) -> None:
         if worktree is None:
