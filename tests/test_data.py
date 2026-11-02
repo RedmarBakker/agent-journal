@@ -114,6 +114,33 @@ def test_every_model_event_is_heard_in_order_with_its_actor(connection, bus, sco
         tasks.find(task.id)
 
 
+def test_a_queued_model_listener_only_runs_after_its_write_commits(connection, tmp_path):
+    from journal.db.commit_queue import CommitQueue
+    from journal.events.queued_bus import QueuedBus
+    from journal.support.fault_log import FaultLog
+    from journal.support.listener_queue import ListenerQueue
+
+    deferred, heard = ListenerQueue(FaultLog(Config(tmp_path))), Heard()
+    bus = QueuedBus(deferred, CommitQueue(connection))
+    bus.listen(ModelEvent, heard)
+    event = Created(model=Task(environment_id=1, title="not rolled back"), actor=USER)
+
+    with pytest.raises(RuntimeError):
+        with connection.transaction():
+            bus.dispatch(event)
+            assert deferred.depth() == 0, "a background listener is held until the write commits"
+            raise RuntimeError("roll back the row")
+    assert deferred.depth() == 0, "a rolled back row leaves no queued listener"
+    assert heard.events == [], "a rolled back row is never sent to a background listener"
+
+    with connection.transaction():
+        bus.dispatch(event)
+        assert deferred.depth() == 0, "a committed row's listener still waits inside its transaction"
+    assert deferred.depth() == 1, "the listener is queued by the commit"
+    deferred.drain()
+    assert heard.events == [event], "the listener receives the committed event once"
+
+
 def test_a_refusing_listener_stops_the_write(connection, bus, scope):
     bus.listen(Creating, SayNo())
     tasks = tasks_of(connection, bus, scope)

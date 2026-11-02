@@ -4193,7 +4193,8 @@ def test_a_codex_main_agents_patch_counts_as_a_code_edit(app: App):
     assert row.code_edits == 1, "the main agent's Codex patch is counted with its code edits"
 
 
-def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one_that_does_not(app: App):
+@pytest.mark.parametrize("attempt", range(20))
+def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one_that_does_not(app: App, attempt: int):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     from journal.support.listener_queue import ListenerQueue
@@ -4214,7 +4215,13 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     hook(app, "PreToolUse", tool_name="Edit", tool_input=edit)
     hook(app, "PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
     app.container.get(ListenerQueue).drain()
-    assert echo_heard(app, "silent") == ["file_edited"] and echo_heard(app, "asks") == ["file_edited", "file_edited"], "the main agent's edit reaches both, as before"
+    silent_events, worker_events = echo_heard(app, "silent"), echo_heard(app, "asks")
+    assert silent_events == ["file_edited"], (
+        f"main edit on attempt {attempt + 1} reaches the plugin that hears every role"
+    )
+    assert worker_events == ["file_edited", "file_edited"], (
+        f"main edit on attempt {attempt + 1} also reaches the plugin that hears workers"
+    )
     from journal.events.agent.tool_starting import ToolStarting
     from journal.features.plugins.support.plugin_relay import PluginRelay
     from journal.models.agent import Agent
