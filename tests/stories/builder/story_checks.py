@@ -167,6 +167,17 @@ class StoryChecks:
         assert stack == [state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
+    def expect_state_data(self, agent: StoryAgent, state: type, **fields) -> None:
+        session = self.session_of(agent)
+        environment = self.session_environments.get(session, "main")
+        headers = {**MAIN, "X-Journal-Env": environment}
+        agents = [row for row in get_answer(self.app, "/journal/agents", headers)[1]["rows"] if row.get("session") == session]
+        row = max(agents, key=lambda agent_row: agent_row["id"]) if agents else None
+        stack = self.api_row("agents", row["id"], headers)["stack"] if row else []
+        state_data = next((item["data"] for item in stack if item["state"] == state.name), {})
+        actual = {name: state_data.get(name) for name in fields}
+        assert actual == fields, f"the {state.name} floor of {session} in {environment} holds {actual}, not {fields}"
+
     def expect_hosted_session_count(self, count: int) -> None:
         actual = len(self.hosted_login_state["sessions"])
         assert actual == count, f"hosted login kept {actual} sessions after login; expected {count}"

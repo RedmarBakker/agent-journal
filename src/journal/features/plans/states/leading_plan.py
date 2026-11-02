@@ -21,6 +21,9 @@ class LeadingPlan(PlansReady):
     def keeps_floor(cls) -> bool:
         return True
 
+    def reset_states(self, _states) -> tuple["LeadingPlan", ...]:
+        return (self.restored({"plan_id": self.plan_id}),)
+
     def subject(self) -> str:
         return f"plan {self.plan_id}"
 
