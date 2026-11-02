@@ -21,6 +21,7 @@ from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.template import Template
+from journal.models.supervisor_grant import BUDGET_FIELDS, MAX_INPUT_TOKENS_PER_TURN, SupervisorGrant
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
@@ -46,12 +47,6 @@ GRANT_FIELDS = frozenset({
     "valid_until_ms", "revoked",
 })
 CAPABILITY_FIELDS = frozenset({"diagnostic_task", "plan_priorities", "check_interval", "sequence", "phrase_nudge", "project_reminder"})
-MAX_INPUT_TOKENS_PER_TURN = 80_000
-BUDGET_FIELDS = frozenset({
-    "max_turns_per_day", "max_input_tokens_per_turn", "max_output_tokens_per_turn",
-    "max_provider_requests_per_turn", "max_turn_seconds", "max_cost_microusd_per_day",
-    "max_bundles_per_project_day", "max_bundles_per_episode_day", "max_new_diagnostics_per_episode",
-})
 CHECK_FIELDS = frozenset({"check_id", "command_sha256", "baseline_interval_minutes", "minimum_interval_minutes", "expected_revision"})
 RESERVED_OPERATIONS = frozenset({
     "approve", "approvals", "approve_plan", "start", "start_plan", "resume", "resume_plan", "pause", "checkpoint",
@@ -109,6 +104,8 @@ class SupervisorAuthority:
                 owner_id = self._owner(actor, plan)
                 context = self._eligible(plan, owner_id)
                 self._expected_context(request, context)
+                if self._environment_entry(context["driver_environment_id"]):
+                    raise SupervisorFailure(409, "the environment already has a supervisor grant; replace its current revision")
                 grant = self._grant(request, plan, context, owner_id, grant_id, 1)
                 credential_attempted = True
                 self.secrets_store.put(credential_name, token)
@@ -141,7 +138,9 @@ class SupervisorAuthority:
                 old_name = entry.data.get("_credential_name", "")
                 if request["change"]["kind"] == "revoke":
                     grant = {**current, "grant_version": next_version, "mode": "disabled", "revoked": True}
-                    self._append_grant(grant, "", "", entry.data, actor)
+                    stored = entry.data.get("grant_v2")
+                    grant_v2 = {**stored, "revoked": True} if isinstance(stored, dict) else SupervisorGrant.from_version_one(current).with_revoked().data()
+                    self._append_grant(grant, "", "", {**entry.data, "grant_v2": grant_v2}, actor)
                 else:
                     replacement = self._enrollment(request["change"]["enrollment"])
                     if replacement["valid_until_ms"] <= self._now_ms():
@@ -152,6 +151,8 @@ class SupervisorAuthority:
                         raise SupervisorFailure(403, "supervisor request is not authorized")
                     context = self._eligible(replacement_plan, replacement_owner)
                     self._expected_context(replacement, context)
+                    if context["driver_environment_id"] != current["driver_environment_id"]:
+                        raise SupervisorFailure(409, "a supervisor grant cannot move to another environment")
                     grant = self._grant(replacement, replacement_plan, context, owner_id, current["grant_id"], next_version)
                     installation = self._latest_installation(current["scope"]["tenant_id"])
                     if installation and installation.data.get("restore_review_required") is True:
@@ -674,6 +675,7 @@ class SupervisorAuthority:
     def _record_grant(self, grant: dict[str, Any], token: str, credential_name: str, context: dict[str, Any], actor: Actor) -> None:
         data = {
             **grant,
+            "grant_v2": SupervisorGrant.from_version_one(grant).data(),
             "_credential_sha256": hashlib.sha256(token.encode("utf-8")).hexdigest(),
             "_credential_name": credential_name,
             "_expected_plan_revision": context["plan_revision"],
@@ -682,8 +684,12 @@ class SupervisorAuthority:
         self._append_grant(grant, data["_credential_sha256"], credential_name, data, actor)
 
     def _append_grant(self, grant: dict[str, Any], digest: str, credential_name: str, prior_data: dict[str, Any], actor: Actor) -> None:
+        grant_v2 = prior_data.get("grant_v2")
+        if not isinstance(grant_v2, dict):
+            grant_v2 = SupervisorGrant.from_version_one(grant).data()
         data = {
             **grant,
+            "grant_v2": grant_v2,
             "_credential_sha256": digest,
             "_credential_name": credential_name,
             "_expected_plan_revision": prior_data.get("_expected_plan_revision", ""),
@@ -703,15 +709,23 @@ class SupervisorAuthority:
 
     def _latest_entries(self) -> list[Entry]:
         rows = self.entries.selected_globally(self.entries.query().filter(entry_type=GRANT_ENTRY).order("id"))
-        latest: dict[str, Entry] = {}
+        latest: dict[int, Entry] = {}
         for entry in rows:
             grant_id = entry.data.get("grant_id")
-            if not isinstance(grant_id, str) or not grant_id:
+            environment_id = entry.data.get("driver_environment_id")
+            if not isinstance(grant_id, str) or not grant_id or type(environment_id) is not int:
                 continue
-            previous = latest.get(grant_id)
-            if previous is None or (entry.data.get("grant_version", 0), entry.row_id) > (previous.data.get("grant_version", 0), previous.row_id):
-                latest[grant_id] = entry
+            previous = latest.get(environment_id)
+            if previous is None or entry.row_id > previous.row_id:
+                latest[environment_id] = entry
         return list(latest.values())
+
+    def _environment_entry(self, environment_id: int) -> Entry | None:
+        entry = next((row for row in self._latest_entries()
+                      if row.data.get("driver_environment_id") == environment_id), None)
+        if entry is None or entry.data.get("revoked") is True or entry.data.get("valid_until_ms", 0) <= self._now_ms():
+            return None
+        return entry
 
     def _principal(self, grant: dict[str, Any]) -> SupervisorPrincipal:
         return SupervisorPrincipal(grant["grant_id"], grant["grant_version"], grant["owner_user_id"], grant["scope"], Actor.plugin(SUPERVISOR_ACTOR))

@@ -50,6 +50,10 @@ class StoryRows:
         return self.fixture.readers
 
     @property
+    def grants(self) -> FixtureRows:
+        return self.fixture.grants
+
+    @property
     def outputs(self) -> FixtureRows:
         return self.fixture.outputs
 

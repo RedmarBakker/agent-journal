@@ -257,6 +257,37 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture):
     assert fixture.authority.secrets_store.values() == secrets_before, "unowned enrollment cannot change credential storage"
 
 
+def test_an_environment_has_one_current_supervisor_grant(app, authority_fixture):
+    fixture = authority_fixture
+    grant, _token, _principal = admitted(fixture)
+    before = grant_rows(app.container.get(Entries))
+
+    with pytest.raises(SupervisorFailure) as denied:
+        fixture.authority.enroll(fixture.owner, enrollment(fixture))
+
+    assert denied.value.status == 409, "a second grant for the same driver environment must replace the current revision"
+    assert grant_rows(app.container.get(Entries)) == before, "a duplicate environment grant writes no row"
+
+
+def test_enrollment_stores_the_version_two_environment_grant(app, authority_fixture):
+    fixture = authority_fixture
+    grant, _token, _principal = admitted(fixture, "shadow")
+
+    entry = fixture.authority._latest_entry(grant["grant_id"])
+    stored = entry.data["grant_v2"]
+
+    assert stored["environment_id"] == fixture.driver_environment.row_id, "the migrated grant is scoped to its supervisor environment"
+    assert stored["watched_plans"] == [fixture.plan.row_id], "the version 1 plan becomes the watched-plan list"
+    assert stored["capabilities"] == {
+        "check edit": {"on": True, "mode": "propose"},
+        "plan priorities": {"on": True, "mode": "propose"},
+        "task create": {"on": True, "mode": "propose"},
+    }, "the version 1 capabilities convert with their original mode"
+    assert stored["wake_interval_minutes"] == 15 and stored["event_wakeups"] == ["failed_check"], "migration stores scheduled and event wake settings"
+    assert stored["limits"] == grant["limits"] and "daily_cost_usd" not in stored["limits"], "migration keeps the one daily cost limit"
+    assert stored["valid_until_ms"] == grant["valid_until_ms"] and stored["revoked"] is False, "migration preserves grant lifetime and state"
+
+
 def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):
     fixture = authority_fixture
     body = enrollment(fixture, "bounded_write")
