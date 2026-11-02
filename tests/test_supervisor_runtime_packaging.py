@@ -761,6 +761,8 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     script = (PROFILE / "build-gateway.sh").read_text()
     dockerfile = (PROFILE / "Dockerfile.gateway").read_text()
     wrapper = (PROFILE / "journal-supervisor-bridge").read_text()
+    mcp_wrapper = (PROFILE / "journal-supervisor-mcp").read_text()
+    bridge_environment = (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
 
     assert "RUNTIME_SOURCE HEAD must equal PROFILE_REVISION" in script
     assert "status --porcelain --untracked-files=all" in script
@@ -771,6 +773,8 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "docs/supervisor/v1/contract.schema.json" in script
     assert "COPY docs/supervisor/v1/contract.schema.json /opt/journal-supervisor/docs/supervisor/v1/contract.schema.json" in dockerfile
     assert "docs/supervisor/v1/journal-supervisor-environment.sh" in script
+    assert "docs/supervisor/v1/journal-supervisor-bridge-environment.sh" in script
+    assert "docs/supervisor/v1/journal-supervisor-mcp" in script
     assert "docs/supervisor/v1/journal-supervisor-reconcile" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
     assert '--tag "agent-journal-supervisor-gateway:$PROFILE_REVISION"' in script
@@ -780,16 +784,26 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge" in dockerfile
     assert "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge" in dockerfile
     assert "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment" in dockerfile
+    assert "COPY docs/supervisor/v1/journal-supervisor-bridge-environment.sh /opt/journal-supervisor/bin/journal-supervisor-bridge-environment" in dockerfile
+    assert "COPY docs/supervisor/v1/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-mcp" in dockerfile
     assert "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile" in dockerfile
-    assert "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile" in dockerfile
+    assert "journal-supervisor-mcp" in dockerfile.split("RUN chmod 0555 ", 1)[1]
     assert "ENV PYTHONPATH=/opt/journal-supervisor/lib" in dockerfile
     assert "USER 1000:1000" in dockerfile
     assert 'exec python3 -m supervisor_bridge "$@"' in wrapper
+    assert '. /opt/journal-supervisor/bin/journal-supervisor-bridge-environment' in mcp_wrapper
+    assert 'exec /opt/journal-supervisor/bin/journal-supervisor-bridge mcp' in mcp_wrapper
+    assert "ANTHROPIC_API_KEY" not in mcp_wrapper
+    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_TLS_CA_FILE" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_STATE_DIR" in bridge_environment
+    assert "ANTHROPIC_API_KEY" not in bridge_environment
 
 
 def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
     entrypoint = (PROFILE / "gateway-entrypoint.sh").read_text()
     environment = (PROFILE / "journal-supervisor-environment.sh").read_text()
+    bridge_environment = (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
     reconcile = (PROFILE / "journal-supervisor-reconcile").read_text()
 
     environment_script = ". /opt/journal-supervisor/bin/journal-supervisor-environment"
@@ -805,10 +819,12 @@ def test_gateway_entrypoint_and_reconcile_share_one_secret_environment():
     assert "exec /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in reconcile
     assert "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)" in environment
     assert "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)" in environment
-    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in environment
-    assert "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport" in environment
+    assert "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)" in bridge_environment
+    assert "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport" in bridge_environment
     assert "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json" in environment
-    assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH" in environment
+    assert "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN OPENCLAW_CONFIG_PATH" in environment
+    assert ". /opt/journal-supervisor/bin/journal-supervisor-bridge-environment" in environment
+    assert "export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR" in bridge_environment
     assert "--env" not in reconcile
     assert "JOURNAL_SUPERVISOR_STATE_DIR=" not in entrypoint and "JOURNAL_SUPERVISOR_STATE_DIR=" not in reconcile
 
@@ -870,6 +886,10 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     }
     assert list(contract_fixture["openclaw_config"]["mcp"]["servers"]) == ["journal"]
     assert contract_fixture["openclaw_config"]["mcp"]["servers"]["journal"]["enabled"] is False
+    assert contract_fixture["openclaw_config"]["mcp"]["servers"]["journal"]["command"] == (
+        "/opt/journal-supervisor/bin/journal-supervisor-mcp"
+    )
+    assert contract_fixture["openclaw_config"]["mcp"]["servers"]["journal"]["args"] == []
     assert "OPENCLAW_GATEWAY_TOKEN" not in json.dumps(contract_fixture)
     assert fixture["agent"]["model"] == "anthropic/claude-sonnet-5"
     assert fixture["agent"]["thinking_default"] == "high"
@@ -891,6 +911,8 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert "OpenClaw sends the non-secret placeholder to the loopback proxy" in contract
     assert "its `apiKey` is exactly `journal-supervisor-metered-proxy-placeholder`" in runbook
     assert "The real provider key belongs only in the mounted proxy secret" in runbook
+    assert "journal-supervisor-mcp" in contract and "args: []" in contract
+    assert "journal-supervisor-mcp" in runbook and "args` is empty" in runbook
     assert fixture["agent"]["fallbacks"] == []
     assert fixture["hooks"]["enabled"] is False
     assert fixture["network"] == {"bind": "lan", "port": 18789, "host_published": False}

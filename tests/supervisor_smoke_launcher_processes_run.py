@@ -198,8 +198,10 @@ def staging_root(tmp_path):
         "COPY src/supervisor_bridge /opt/journal-supervisor/lib/supervisor_bridge\n"
         "COPY docs/supervisor/v1/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-bridge\n"
         "COPY docs/supervisor/v1/journal-supervisor-environment.sh /opt/journal-supervisor/bin/journal-supervisor-environment\n"
+        "COPY docs/supervisor/v1/journal-supervisor-bridge-environment.sh /opt/journal-supervisor/bin/journal-supervisor-bridge-environment\n"
+        "COPY docs/supervisor/v1/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-mcp\n"
         "COPY docs/supervisor/v1/journal-supervisor-reconcile /opt/journal-supervisor/bin/journal-supervisor-reconcile\n"
-        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-reconcile\n"
+        "RUN chmod 0555 /opt/journal-supervisor/bin/journal-supervisor-bridge /opt/journal-supervisor/bin/journal-supervisor-environment /opt/journal-supervisor/bin/journal-supervisor-bridge-environment /opt/journal-supervisor/bin/journal-supervisor-mcp /opt/journal-supervisor/bin/journal-supervisor-reconcile\n"
     )
     config = work / "docs/supervisor/v1/openclaw-live.json"
     config.write_text(json.dumps({
@@ -216,7 +218,7 @@ def staging_root(tmp_path):
         "plugins": {"enabled": True, "allow": ["anthropic"], "deny": ["memory-core"], "entries": {"memory-core": {"enabled": False, "config": {"dreaming": {"enabled": False}}}}},
         "agents": {"entries": {"supervisor": {"model": {"primary": "anthropic/claude-sonnet-5", "fallbacks": []}, "modelPolicy": {"allow": ["anthropic/claude-sonnet-5"]}, "thinkingDefault": "high", "models": {"anthropic/claude-sonnet-5": {"agentRuntime": {"id": "openclaw"}}}}}, "defaults": {"model": {"primary": "anthropic/claude-sonnet-5"}}},
         "hooks": {"enabled": True, "allowedAgentIds": ["supervisor"], "allowRequestSessionKey": False},
-        "mcp": {"servers": {"journal": {"enabled": True, "transport": "stdio", "command": "/opt/journal-supervisor/bin/journal-supervisor-bridge", "args": ["mcp"], "connectionTimeoutMs": 5000, "requestTimeoutMs": 20000, "supportsParallelToolCalls": False, "toolFilter": {"include": ["journal_supervisor.observe", "journal_supervisor.apply_maintenance", "journal_supervisor.receipt"]}}}},
+        "mcp": {"servers": {"journal": {"enabled": True, "transport": "stdio", "command": "/opt/journal-supervisor/bin/journal-supervisor-mcp", "args": [], "connectionTimeoutMs": 5000, "requestTimeoutMs": 20000, "supportsParallelToolCalls": False, "toolFilter": {"include": ["journal_supervisor.observe", "journal_supervisor.apply_maintenance", "journal_supervisor.receipt"]}}}},
         "cron_add_params": {"name": "journal-supervisor-reconcile-v1", "agentId": "supervisor", "schedule": {"everyMs": 300000}, "sessionTarget": "isolated", "wakeMode": "now", "delivery": {"mode": "none"}},
         "hook_agent_request": {"deliver": False, "thinking": "high", "model": "anthropic/claude-sonnet-5", "timeoutSeconds": 180},
         "tools": {"allow": ["journal__journal_supervisor-observe", "journal__journal_supervisor-apply_maintenance", "journal__journal_supervisor-receipt"]},
@@ -232,15 +234,25 @@ def staging_root(tmp_path):
     (work / "docs/supervisor/v1/gateway-entrypoint.sh").write_text((ROOT / "docs/supervisor/v1/gateway-entrypoint.sh").read_text())
     (work / "docs/supervisor/v1/journal-supervisor-environment.sh").write_text(
         "#!/bin/sh\nset -eu\n"
+        ". /opt/journal-supervisor/bin/journal-supervisor-bridge-environment\n"
         "ANTHROPIC_API_KEY=$(cat /run/secrets/supervisor_anthropic_api_key)\n"
         "OPENCLAW_HOOK_TOKEN=$(cat /run/secrets/openclaw_hook_token)\n"
-        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)\n"
         "OPENCLAW_GATEWAY_TOKEN=$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')\n"
+        "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json\n"
+        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN OPENCLAW_CONFIG_PATH\n"
+    )
+    (work / "docs/supervisor/v1/journal-supervisor-bridge-environment.sh").write_text(
+        "#!/bin/sh\nset -eu\n"
+        "JOURNAL_SUPERVISOR_ADMISSION_TOKEN=$(cat /run/secrets/journal_supervisor_credential)\n"
         ": \"${JOURNAL_SUPERVISOR_ADMISSION_URL:?private journal admission URL is not configured}\"\n"
         ": \"${JOURNAL_SUPERVISOR_TLS_CA_FILE:?private journal TLS CA file is not configured}\"\n"
         "JOURNAL_SUPERVISOR_STATE_DIR=/home/node/.openclaw/journal-supervisor-transport\n"
-        "OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json\n"
-        "export ANTHROPIC_API_KEY OPENCLAW_HOOK_TOKEN OPENCLAW_GATEWAY_TOKEN JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR OPENCLAW_CONFIG_PATH\n"
+        "export JOURNAL_SUPERVISOR_ADMISSION_URL JOURNAL_SUPERVISOR_ADMISSION_TOKEN JOURNAL_SUPERVISOR_TLS_CA_FILE JOURNAL_SUPERVISOR_STATE_DIR\n"
+    )
+    (work / "docs/supervisor/v1/journal-supervisor-mcp").write_text(
+        "#!/bin/sh\nset -eu\n"
+        ". /opt/journal-supervisor/bin/journal-supervisor-bridge-environment\n"
+        "exec /opt/journal-supervisor/bin/journal-supervisor-bridge mcp\n"
     )
     (work / "docs/supervisor/v1/journal-supervisor-reconcile").write_text(
         "#!/bin/sh\nset -eu\n"
