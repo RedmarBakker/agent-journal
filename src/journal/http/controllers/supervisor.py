@@ -60,6 +60,8 @@ class SupervisorController:
                         {"Cache-Control": "no-store"})
 
     def read_control(self, request: Request) -> Response:
+        if not request.actor.is_user():
+            return Response(403, {"error": "Only the plan owner can change the supervisor."}, {"Cache-Control": "no-store"})
         try:
             answer = self.authority.owner_control(request.actor, self.scope.id)
             rules = self.feedback.owner_rules(request.actor)

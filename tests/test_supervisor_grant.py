@@ -12,6 +12,7 @@ CATALOGUE = {
     "check create": ("checks", 1),
     "check remove": ("checks", 3),
     "secret delete": ("secrets", "never"),
+    "grant change": ("Its own grant", "never"),
 }
 
 
@@ -67,12 +68,13 @@ def test_a_version_one_grant_migrates_to_one_version_two_environment_grant():
     ), "the three version 1 capabilities convert to their catalogue commands with the same mode"
 
 
-def test_an_owner_can_allow_a_tier_three_capability_to_act():
+def test_a_grant_allows_an_owner_decision_to_act_on_a_tier_three_verb():
     value = grant_data(capabilities={"plan approve": {"on": True, "mode": "act"}})
 
     grant = SupervisorGrant.parsed(value, CATALOGUE)
 
     assert grant.data() == value, "a tier three action can act only after the owner explicitly sets its grant mode"
+    assert grant.tier_three_decision("plan approve", CATALOGUE) == "may_act"
 
 
 def test_an_area_switch_does_not_choose_the_mode_of_each_verb():
@@ -84,6 +86,22 @@ def test_an_area_switch_does_not_choose_the_mode_of_each_verb():
     grant = SupervisorGrant.parsed(value, CATALOGUE)
 
     assert grant.data() == value, "an area switch may be on while each verb keeps its own safety tier and mode"
+
+
+def test_a_tier_three_verb_defaults_to_propose_only_even_when_its_area_is_set_to_act():
+    grant = SupervisorGrant.parsed(grant_data(), CATALOGUE)
+    area_act = grant_data(capabilities={"area:plans-and-tasks": {"on": True, "mode": "act"}})
+    grant_with_area_act = SupervisorGrant.parsed(area_act, CATALOGUE)
+
+    assert grant.tier_three_decision("plan approve", CATALOGUE) == "propose_only"
+    assert grant_with_area_act.tier_three_decision("plan approve", CATALOGUE) == "propose_only"
+
+
+def test_a_grant_refuses_to_assign_a_decision_to_a_never_command():
+    grant = SupervisorGrant.parsed(grant_data(), CATALOGUE)
+
+    with pytest.raises(ValueError, match="Never"):
+        grant.with_tier_three_decision("grant change", "may_act", CATALOGUE)
 
 
 def test_a_grant_refuses_unknown_or_never_capabilities_when_enabled():

@@ -8,5 +8,5 @@ def configure_grant_capabilities(story, authority, grant_id, changes: dict) -> N
         "grant_id": grant_id,
         "expected_grant_version": grant["grant_version"],
         "change": {"kind": "configure", "grant": {**version_two, "capabilities": capabilities}},
-    })
+    }, f"the owner configures {', '.join(changes)}")
     result.expect_viewer_passed()

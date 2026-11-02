@@ -400,9 +400,27 @@ CAPABILITY_CATALOGUE = {
 }
 
 
+def catalogue_entries() -> tuple[tuple[str, str, str, str], ...]:
+    return tuple(
+        (area, noun, verb, tier)
+        for area, nouns in CAPABILITY_CATALOGUE.items()
+        for noun, verbs in nouns.items()
+        for verb, tier in verbs.items()
+    )
+
+
+def tier_for_command(noun: str, verb: str) -> str | None:
+    return next((tier for _area, command, action, tier in catalogue_entries()
+                 if command == noun and action == verb), None)
+
+
 def capability_entry(noun: str, verb: str) -> tuple[str, str] | None:
-    for area, commands in CAPABILITY_CATALOGUE.items():
-        verbs = commands.get(noun)
-        if verbs is not None and verb in verbs:
-            return area, verbs[verb]
-    return None
+    return next(((area, tier) for area, command, action, tier in catalogue_entries()
+                 if command == noun and action == verb), None)
+
+
+def command_catalogue() -> dict[str, tuple[str, str]]:
+    return {
+        f"{noun} {verb}": (area.lower().replace(",", "").replace(" ", "-"), tier)
+        for area, noun, verb, tier in catalogue_entries()
+    }

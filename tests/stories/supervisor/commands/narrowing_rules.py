@@ -1,5 +1,6 @@
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.supervisor_grant_cli_act import SupervisorGrantCliAct
 from tests.stories.fixtures.main.supervisor_grant_cli_role import SupervisorGrantCliProposalOnly, SupervisorGrantCliRole
 
 
@@ -17,12 +18,12 @@ def widening_rule_is_refused(story, version: int, rule: dict) -> None:
     refused.expect_viewer_refused("narrowing")
 
 
-@story(SupervisorGrantCliRole, subject=AgentRole.SUPERVISOR)
+@story(SupervisorGrantCliAct, subject=AgentRole.SUPERVISOR)
 def test_an_owner_can_require_a_supervisor_verb_to_be_proposed_and_remove_that_rule(story):
     rule = {"command": "task create", "effect": "propose"}
-    added = change_rule(story, 2, "add", rule)
+    added = change_rule(story, 3, "add", rule)
     added.expect_viewer_passed()
-    added.expect_viewer_part(("grant_version",), 3)
+    added.expect_viewer_part(("grant_version",), 4)
     added.expect_viewer_part(("narrowing_rules", 0, "effect"), "propose")
 
     refused = story.supervisor_runs_command(story.agents.subject, "task create 'proposed follow-up'")
@@ -30,8 +31,9 @@ def test_an_owner_can_require_a_supervisor_verb_to_be_proposed_and_remove_that_r
     refused.expect_command_text("the owner requires this verb to be proposed")
     story.expect_row_count_in(story.supervisor_environment, "tasks", 1)
 
-    removed = change_rule(story, 3, "remove", rule)
+    removed = change_rule(story, 4, "remove", rule)
     removed.expect_viewer_passed()
+    removed.expect_viewer_part(("grant_version",), 5)
     removed.expect_viewer_part(("narrowing_rules",), [])
     applied = story.supervisor_runs_command(story.agents.subject, "task create 'allowed follow-up'")
     applied.expect_command_passed()

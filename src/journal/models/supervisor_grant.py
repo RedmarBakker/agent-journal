@@ -105,6 +105,37 @@ class SupervisorGrant:
                                self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
                                self.paused, True, self.rules)
 
+    def tier_three_decision(self, command: str, catalogue: Mapping[str, tuple[str, int | str]]) -> str:
+        entry = catalogue.get(command)
+        if entry is None:
+            raise ValueError("the supervisor command is not in the catalogue")
+        _area, tier = entry
+        if tier == "never":
+            raise ValueError("a command marked Never cannot have an owner decision")
+        if tier not in (3, "tier 3"):
+            raise ValueError("only tier 3 commands can have an owner decision")
+        setting = next(((enabled, mode) for name, enabled, mode in self.capabilities if name == command), None)
+        if setting is None:
+            return "propose_only"
+        enabled, mode = setting
+        return "not_allowed" if not enabled else "may_act" if mode == "act" else "propose_only"
+
+    def with_tier_three_decision(self, command: str, decision: str,
+                                 catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
+        if decision not in ("not_allowed", "propose_only", "may_act"):
+            raise ValueError("the supervisor decision must be Not allowed, Propose only or May act")
+        current = self.tier_three_decision(command, catalogue)
+        if current == decision:
+            return self
+        capabilities = {name: (enabled, mode) for name, enabled, mode in self.capabilities}
+        capabilities[command] = (decision != "not_allowed", "act" if decision == "may_act" else "propose")
+        return SupervisorGrant(
+            self.owner_user_id, self.environment_id, self.watched_plans,
+            tuple((name, enabled, mode) for name, (enabled, mode) in sorted(capabilities.items())),
+            self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
+            self.paused, self.revoked, self.rules,
+        )
+
     def rule_for(self, command: str, row_id: int | None) -> SupervisorNarrowingRule | None:
         denied = next((rule for rule in self.rules if rule.command == command
                        and rule.effect == "never" and (row_id is None or rule.row_id == row_id)), None)
@@ -162,7 +193,8 @@ class SupervisorGrant:
                     raise ValueError("the supervisor grant area is not in the catalogue")
                 raise ValueError("the supervisor grant capability is not in the catalogue")
             if enabled:
-                tiers = [tier for _area, tier in matches]
+                all_tiers = [cls._tier_number(tier) for _area, tier in matches]
+                tiers = [tier for tier in all_tiers if tier != "read"]
                 if "never" in tiers:
                     raise ValueError("the supervisor grant capability mode exceeds its safety tier")
                 if any(tier not in (1, 2, 3) for tier in tiers):
@@ -196,6 +228,10 @@ class SupervisorGrant:
             return [entry for entry in catalogue.values() if entry[0] == area]
         entry = catalogue.get(selector)
         return [entry] if entry is not None else []
+
+    @staticmethod
+    def _tier_number(tier: int | str) -> int | str:
+        return {"tier 1": 1, "tier 2": 2, "tier 3": 3}.get(tier, tier)
 
     @staticmethod
     def _plans(value: object) -> str | tuple[int, ...]:

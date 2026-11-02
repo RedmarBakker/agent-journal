@@ -370,25 +370,31 @@ class SupervisorMaintenance:
             commands = receipt.data.get("command_receipts")
             if not self._tier_one(receipt, commands):
                 raise SupervisorFailure(409, "only a tier 1 action can be undone")
-            principal = self.authority._principal(grant)
-            grant, context = self.authority.action_context(principal)
             baseline = self.entries.supervisor_records(
                 "SupervisorActionReport", last=1, receipt_id=receipt.row_id, report_kind="baseline",
             )
-            if (context.get("conflict_reason") or not baseline
-                    or context["current_phase"]["phase_id"] != baseline[0].data.get("phase_id")):
-                raise SupervisorFailure(409, "the action rows changed since this receipt")
             changes = receipt.data.get("changes", [])
             if not changes:
                 raise SupervisorFailure(409, "the receipt has no reversible changes")
-            for change in changes:
-                field = change.get("field")
-                if field in {"priorities", "interval"}:
-                    if self._rollback_conflict(grant, context, change):
-                        raise SupervisorFailure(409, "the action rows changed since this receipt")
-                elif field not in {"plan_link", "phase_link"}:
-                    raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
             with self.scope.environment(plan.environment_id):
+                current_plan = self.plans.find(plan_id)
+                phases = self.plans.phase_states(current_plan)
+                phase_number = current_plan.current_phase(phases)
+                phase = next((item for item in phases if item.number == phase_number), None)
+                if (not baseline or phase is None
+                        or phase.phase.row_id != baseline[0].data.get("phase_id")):
+                    raise SupervisorFailure(409, "the action rows changed since this receipt")
+                context = {
+                    "plan": current_plan,
+                    "current_phase": {"phase_id": phase.phase.row_id, "number": phase_number},
+                }
+                for change in changes:
+                    field = change.get("field")
+                    if field in {"priorities", "interval"}:
+                        if self._rollback_conflict(grant, context, change):
+                            raise SupervisorFailure(409, "the action rows changed since this receipt")
+                    elif field not in {"plan_link", "phase_link"}:
+                        raise SupervisorFailure(409, "the receipt has no reversible tier 1 changes")
                 created_rows = self._created_rows(commands)
                 results = [
                     self._rollback_change(grant, context, change, actor)
@@ -523,16 +529,24 @@ class SupervisorMaintenance:
             return {"ref": ref, "field": field, "status": "owner_edit_preserved", "reason": reason}
         if field == "priorities":
             plan = context["plan"]
-            restored = plan.prioritised(change["before_value"] or "", context["current_phase"]["number"], self.time_source.seconds())
-            with self.scope.environment(plan.environment_id):
-                self.plans.save(restored, actor)
+            self._run_owner_undo_command(
+                ["plan", "priorities", change["before_value"], "--plan", str(ref["id"])],
+                plan.environment_id,
+            )
             return {"ref": ref, "field": field, "status": "rolled_back"}
         if field == "interval":
-            check = self._check(ref["id"])
-            before_interval = change["before_value"]
-            self.checks.save(check.with_(interval=float(before_interval)), actor)
+            self._run_owner_undo_command(
+                ["check", "edit", str(ref["id"]), "--every", str(change["before_value"])],
+                grant["driver_environment_id"],
+            )
             return {"ref": ref, "field": field, "status": "rolled_back"}
         return {"ref": ref, "field": field, "status": "diagnostic_preserved"}
+
+    def _run_owner_undo_command(self, argv: list[str], environment_id: int) -> None:
+        environment = self.environments.find(environment_id)
+        outcome = self.console.run(argv, Caller.user(environment.name))
+        if outcome.code:
+            raise SupervisorFailure(409, outcome.error or "the owner could not restore the action's before values")
 
     def _rollback_conflict(self, grant: dict[str, Any], context: dict[str, Any], change: dict[str, Any]) -> str:
         ref, field = change["ref"], change["field"]

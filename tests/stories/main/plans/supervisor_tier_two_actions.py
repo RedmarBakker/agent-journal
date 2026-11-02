@@ -28,6 +28,10 @@ def test_a_tier_two_plan_tell_on_act_runs_and_records_its_receipt(story):
     story.expect_row_in(context["fixture"].driver_environment.name, "messages", message_id, {
         "text": "Review the failed health check.",
     })
+    history = story.user_opens_in(
+        context["fixture"].owner_environment.name, "/journal/supervisor/records?period=today",
+    )
+    history.expect_viewer_passed()
     story.expect_no_faults()
     story.expect_stack(story.agents.subject, Ready)
 

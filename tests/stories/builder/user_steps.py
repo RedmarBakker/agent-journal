@@ -304,15 +304,17 @@ class UserSteps:
         assert self.viewer_status < 300, f"the viewer's message to {environment} was refused: {self.viewer_answer}"
         return self.observed(f"the user sends a message in {environment}", None, None)
 
-    def user_presses_in(self, environment: str, path: str, body: dict) -> StepResult:
+    def user_presses_in(self, environment: str, path: str, body: dict, description: str = "") -> StepResult:
         self.viewer_status, self.viewer_answer = posted(self.app, path, body, {"X-Journal-Env": environment})
-        return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)} in {environment}", None, None)
+        action = description or f"user presses {re.sub(r'/\d+', '/{n}', path)} in {environment}"
+        return self.observed(action, None, None)
 
-    def user_presses(self, path: str, body: dict) -> StepResult:
+    def user_presses(self, path: str, body: dict, description: str = "") -> StepResult:
         self.viewer_status, self.viewer_answer = posted(self.app, path, body, MAIN)
         action = body.get("change", {}).get("kind", "")
         detail = f" to {action}" if action else ""
-        return self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)}{detail}", None, None)
+        step = description or f"user presses {re.sub(r'/\d+', '/{n}', path)}{detail}"
+        return self.observed(step, None, None)
 
     def user_presses_with_headers(self, path: str, body: dict) -> StepResult:
         answer = routed(self.app, "POST", path, json.dumps(body).encode(), MAIN)

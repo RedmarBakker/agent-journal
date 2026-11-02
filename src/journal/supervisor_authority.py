@@ -11,7 +11,7 @@ from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_bindings import ENDED_LINK, PlanBindings
 from journal.features.plans.support.plan_owners import PlanOwners
-from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
+from journal.features.supervisor.capability_catalogue import catalogue_entries, command_catalogue as current_command_catalogue
 from journal.features.supervisor.support.supervisor_capabilities import control_areas, control_decisions
 from journal.models.agent import Agent
 from journal.models.check import Check
@@ -121,6 +121,21 @@ class SupervisorAuthority:
             "needs_decision": control_decisions(version_two["capabilities"]),
             "replacement_enrollment": self._replacement_enrollment(entry, grant, version_two),
             "restore_review": self._restore_review_data(installation),
+            **self._control_decisions(SupervisorGrant.stored(version_two)),
+        }
+
+    def control_settings(self, actor: Actor, environment_id: int) -> dict[str, Any]:
+        entry = next((row for row in self._latest_entries()
+                      if row.data.get("driver_environment_id") == environment_id), None)
+        if entry is None:
+            raise SupervisorFailure(404, "there is no supervisor grant in this environment")
+        grant = self._public_grant(entry)
+        self._owner(actor, self._plan(grant["plan_id"]))
+        permissions = SupervisorGrant.stored(self._grant_v2(entry, grant))
+        return {
+            "grant_id": grant["grant_id"],
+            "grant_version": grant["grant_version"],
+            **self._control_decisions(permissions),
         }
 
     def enrollment_context(self, plan_id: int, check_ids: tuple[int, ...] = (), template_id: str = "") -> dict[str, Any]:
@@ -207,6 +222,20 @@ class SupervisorAuthority:
                         {**entry.data, "grant_v2": narrowed.data()}, actor,
                     )
                     grant = {**grant, "narrowing_rules": [saved.data() for saved in narrowed.rules]}
+                elif kind == "decision":
+                    grant_v2 = SupervisorGrant.stored(self._grant_v2(entry, current))
+                    try:
+                        decided = grant_v2.with_tier_three_decision(
+                            request["change"]["command"], request["change"]["decision"], self._command_catalogue(),
+                        )
+                    except ValueError as refused:
+                        raise SupervisorFailure(400, str(refused)) from refused
+                    grant = {**current, "grant_version": next_version}
+                    self._append_grant(
+                        grant, entry.data.get("_credential_sha256", ""), entry.data.get("_credential_name", ""),
+                        {**entry.data, "grant_v2": decided.data()}, actor,
+                    )
+                    grant = {**grant, **self._control_decisions(decided)}
                 else:
                     old_name = entry.data.get("_credential_name", "")
                     replacement = self._enrollment(request["change"]["enrollment"])
@@ -924,11 +953,24 @@ class SupervisorAuthority:
 
     @staticmethod
     def _command_catalogue() -> dict[str, tuple[str, int | str]]:
+        return current_command_catalogue()
+
+    @classmethod
+    def _control_decisions(cls, grant: SupervisorGrant) -> dict[str, list[dict[str, str]]]:
+        catalogue = cls._command_catalogue()
+        entries = catalogue_entries()
         return {
-            f"{noun} {verb}": (area, int(tier.removeprefix("tier ")) if tier.startswith("tier ") else tier)
-            for area, nouns in CAPABILITY_CATALOGUE.items()
-            for noun, verbs in nouns.items()
-            for verb, tier in verbs.items()
+            "tier_three_decisions": [
+                {
+                    "area": area, "noun": noun, "verb": verb, "command": f"{noun} {verb}",
+                    "decision": grant.tier_three_decision(f"{noun} {verb}", catalogue),
+                }
+                for area, noun, verb, tier in entries if tier == "tier 3"
+            ],
+            "never_allowed": [
+                {"area": area, "noun": noun, "verb": verb, "command": f"{noun} {verb}", "decision": "never"}
+                for area, noun, verb, tier in entries if tier == "never"
+            ],
         }
 
     def _latest_entry(self, grant_id: str) -> Entry | None:
@@ -1163,7 +1205,7 @@ class SupervisorAuthority:
         grant_id = cls._string(body["grant_id"], 256)
         cls._integer(body["expected_grant_version"], 1)
         change = body["change"]
-        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on", "configure", "rule"):
+        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on", "configure", "rule", "decision"):
             raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
         if change["kind"] in ("revoke", "off", "on"):
             change = cls._object(change, {"kind"})
@@ -1173,6 +1215,13 @@ class SupervisorAuthority:
             change = cls._object(change, {"kind", "action", "rule"})
             if change["action"] not in ("add", "remove"):
                 raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
+        elif change["kind"] == "decision":
+            change = cls._object(change, {"kind", "command", "decision"})
+            command = cls._string(change["command"], 256)
+            decision = change["decision"]
+            if decision not in ("not_allowed", "propose_only", "may_act"):
+                raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
+            change = {**change, "command": command}
         else:
             if not isinstance(change, dict) or set(change) not in ({"kind", "enrollment"}, {"kind", "enrollment", "restore_review"}):
                 raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")

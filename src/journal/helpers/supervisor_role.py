@@ -1,7 +1,7 @@
 from typing import ClassVar
 
 from journal.console.command import Command
-from journal.features.supervisor.capability_catalogue import capability_entry
+from journal.features.supervisor.capability_catalogue import capability_entry, command_catalogue, tier_for_command
 from journal.helpers.main_role import MainRole
 from journal.models.alias import Alias
 from journal.models.supervisor_grant import SupervisorGrant
@@ -43,24 +43,30 @@ class SupervisorRole(MainRole):
         capabilities = dict((name, (enabled, mode)) for name, enabled, mode in grant.capabilities)
         capability = f"{command.noun} {verb}"
         catalogue_entry = capability_entry(command.noun, verb)
-        if catalogue_entry is None:
+        tier = tier_for_command(command.noun, verb)
+        if catalogue_entry is None or tier is None:
             return "the capability is switched off"
-        area, tier = catalogue_entry
+        area, _ = catalogue_entry
         if tier == "read":
             return ""
         if tier == "never":
             return "the capability is never allowed"
-        setting = capabilities.get(capability)
-        if setting is None and tier == "tier 3":
-            setting = (True, "propose")
-        if setting is None or not setting[0]:
-            return "the capability is switched off"
         area_key = area.lower().replace(",", "").replace(" ", "-")
         area_setting = capabilities.get(f"area:{area_key}")
         if area_setting is not None and not area_setting[0]:
             return "the capability is switched off"
-        if setting[1] != "act":
-            return "the capability is set to propose"
+        if tier == "tier 3":
+            decision = grant.tier_three_decision(capability, command_catalogue())
+            if decision == "not_allowed":
+                return "the capability is switched off"
+            if decision == "propose_only":
+                return "the owner requires this verb to be proposed"
+        else:
+            setting = capabilities.get(capability, area_setting)
+            if setting is None or not setting[0]:
+                return "the capability is switched off"
+            if setting[1] != "act":
+                return "the capability is set to propose"
         if command.noun == "plan" and verb in {"priorities", "tell"}:
             return cls.plan_scope_refusal(grant, args)
         return ""

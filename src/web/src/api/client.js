@@ -203,6 +203,15 @@ export class ApiClient {
             : transport.request("POST", `${this.base}/_supervisor/v1/enrollment/change`, body, 0, this.headers());
     }
 
+    saveSupervisorDecision(grantId, grantVersion, command, decision) {
+        return transport.request("POST", `${this.base}/_supervisor/v1/enrollment/change`, {
+            protocol_version: 1,
+            grant_id: grantId,
+            expected_grant_version: grantVersion,
+            change: {kind: "decision", command, decision},
+        }, 0, this.headers());
+    }
+
     organizationRole(domain, role) {
         return this.get(this.here(`/organization/roles/${encoded(domain)}/${encoded(role)}`));
     }

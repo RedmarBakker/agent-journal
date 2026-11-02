@@ -137,6 +137,22 @@ test("the owner sees grant settings for all 13 areas and saves every control thr
     });
 });
 
+test("the owner can show every tier 3 decision", async () => {
+    const decisions = ["Approve a plan", "Cancel a plan", "Add an alias", "Add a rule", "Create a trigger", "Create a plugin"]
+        .map((title, index) => ({capability: `command ${index}`, title, area: "Plans and tasks", tier: 3}));
+    api.supervisorControl.mockResolvedValue({...settings(), needs_decision: decisions});
+    const page = await openPage();
+
+    const details = page.querySelector(".control-decision details");
+    const summary = details.querySelector("summary");
+    expect(summary.textContent).toBe("Show all 6 tier 3 verbs");
+    summary.click();
+
+    expect(details.open).toBe(true);
+    expect(details.querySelectorAll("li")).toHaveLength(6);
+    for (const decision of decisions) expect(details.textContent).toContain(decision.title);
+});
+
 test("the owner saves wake events, plan scope, limits, area switches and verb modes as grant revisions", async () => {
     const page = await openPage();
 
