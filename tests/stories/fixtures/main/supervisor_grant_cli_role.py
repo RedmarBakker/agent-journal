@@ -15,12 +15,12 @@ class SupervisorGrantCliRole(SupervisorGrantOwner):
     parent = SupervisorGrantOwner
 
     def steps(self, story) -> None:
-        self.grants.replacement = enrollment(self.supervisor_seed, "bounded_write")
+        self.supervisor_replacement = enrollment(self.supervisor_seed, "bounded_write")
         grant, token = self.supervisor_authority.change(self.supervisor_owner, {
             "protocol_version": 1,
             "grant_id": story.grants.first,
             "expected_grant_version": 1,
-            "change": {"kind": "replace", "enrollment": story.grants.replacement},
+            "change": {"kind": "replace", "enrollment": self.supervisor_replacement},
         })
         self.supervisor_credential = token
         authority = self.supervisor_authority
@@ -39,7 +39,7 @@ class SupervisorGrantCliProposalOnly(SupervisorGrantCliRole):
 
     def steps(self, story) -> None:
         enrollment = {
-            **story.grants.replacement,
+            **self.supervisor_replacement,
             "mode": "shadow",
         }
         grant, token = self.supervisor_authority.change(self.supervisor_owner, {
@@ -94,6 +94,7 @@ class SupervisorGrantMutationAttempt(SupervisorGrantCliRole):
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
+        self.grants.replacement = self.supervisor_replacement
         self.supervisor_entry_id_before = story.app.container.get(Entries).global_last_id()
         self.supervisor_secrets_before = self.supervisor_authority.secrets_store.values()
 

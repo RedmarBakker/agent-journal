@@ -628,6 +628,12 @@ class StoryChecks:
         grant = authority.revalidate(principal)
         assert grant["plan_id"] == plan_id, f"the supervisor grant covers plan {grant['plan_id']}, not plan {plan_id}"
 
+    def expect_supervisor_grant_stays_with_plan(self, grant_id: str, plan_id: int) -> None:
+        authority = self.app.container.get(SupervisorAuthority)
+        entry = authority._latest_entry(grant_id)
+        grant = authority._public_grant(entry) if entry else {}
+        assert grant.get("plan_id") == plan_id, f"the supervisor grant covers plan {grant.get('plan_id')}, not plan {plan_id}"
+
     def expect_supervisor_grant_state(self, grant_id: str, paused: bool, revoked: bool) -> None:
         entry = self.app.container.get(SupervisorAuthority)._latest_entry(grant_id)
         grant = entry.data.get("grant_v2", {}) if entry else {}

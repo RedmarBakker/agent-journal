@@ -18,5 +18,5 @@ def test_an_owner_replaces_a_grant_and_a_stale_revision_is_refused(story):
 
     result = story.user_presses("/_supervisor/v1/enrollment/change", replacement)
     result.expect_viewer_refused("grant changed")
-    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)

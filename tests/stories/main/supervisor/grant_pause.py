@@ -27,7 +27,7 @@ def test_an_owner_pauses_the_grant_and_a_wake_does_nothing(story):
     wake.expect_viewer_refused("supervisor grant is paused")
     action = story.supervisor_posts("/_supervisor/v1/apply", {})
     action.expect_viewer_refused("supervisor grant is paused")
-    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -43,7 +43,7 @@ def test_an_owner_turns_the_paused_grant_on_and_wakes_resume(story):
         "protocol_version": 1, "source": "timer", "observation_cursor": None,
     })
     wake.expect_viewer_text("skipped")
-    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -53,7 +53,7 @@ def test_an_owner_cannot_turn_on_the_grant_while_the_installation_gate_is_closed
     result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 2, "on"))
     result.expect_viewer_refused("installation gate is closed")
     story.expect_supervisor_grant_state(story.grants.first, paused=True, revoked=False)
-    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
 
 
@@ -66,5 +66,5 @@ def test_revoking_a_paused_grant_still_ends_it_for_good(story):
 
     result = story.user_presses("/_supervisor/v1/enrollment/change", grant_change(story, 3, "on"))
     result.expect_viewer_refused("already revoked")
-    story.expect_supervisor_grant_covers_plan(story.agents.supervisor, story.plans.first)
+    story.expect_supervisor_grant_stays_with_plan(story.grants.first, story.plans.first)
     story.expect_stack(story.agents.subject, Ready)
