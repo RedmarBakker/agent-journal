@@ -35,7 +35,10 @@ class SupervisorController:
         ))
 
     def read_costs(self, request: Request) -> Response:
-        return self._records(request, self.records.costs)
+        return self._records(request, lambda: {
+            **self.records.costs(),
+            **self.authority.cost_settings(self.scope.id),
+        })
 
     def _records(self, request: Request, read: Callable[[], dict[str, Any]]) -> Response:
         if not request.actor.is_user():

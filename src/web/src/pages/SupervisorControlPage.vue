@@ -1,6 +1,7 @@
 <script setup>
 import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
+import {supervisorGrantChange} from "./supervisorGrantChange.js";
 
 const WAKE_EVENTS = [
     ["failed_check", "Failed check"],
@@ -87,21 +88,14 @@ async function load() {
     }
 }
 
-function grantChange(change) {
-    return {
-        protocol_version: 1,
-        grant_id: control.value.grant_id,
-        expected_grant_version: control.value.grant_version,
-        change,
-    };
-}
-
 async function saveGrant(next) {
     if (saving.value) return;
     saving.value = true;
     problem.value = "";
     try {
-        const result = await api.supervisorChange(grantChange({kind: "configure", grant: next}));
+        const result = await api.supervisorChange(
+            supervisorGrantChange(control.value, {kind: "configure", grant: next}),
+        );
         control.value.grant_version = result.grant_version;
         control.value.grant = next;
     } catch (error) {
@@ -184,7 +178,7 @@ async function changeGrant(change) {
     saving.value = true;
     problem.value = "";
     try {
-        await api.supervisorChange(grantChange(change));
+        await api.supervisorChange(supervisorGrantChange(control.value, change));
         restoreReviewed.value = false;
         await load();
     } catch (error) {

@@ -1,26 +1,55 @@
 <script setup>
 import {computed, ref} from "vue";
 import {api} from "../api/client.js";
+import {href} from "../route.js";
+import {supervisorGrantChange} from "./supervisorGrantChange.js";
 
 const costs = ref(null);
 const problem = ref("");
+const capProblem = ref("");
 const loading = ref(true);
-const dailyCap = ref(null);
-const selectedInterval = ref(null);
+const control = ref(null);
+const capInput = ref("");
+const savingCap = ref(false);
 const PERIODS = [
     {key: "today", title: "Today"},
     {key: "week", title: "This week"},
     {key: "month", title: "This month"},
 ];
 const INTERVALS = [15, 30, 60];
+const controlHref = `${href.page("supervisor")}?sub=control`;
 
 const periods = computed(() => costs.value?.periods || {});
 const week = computed(() => periods.value.week || {});
 const active = computed(() => Boolean(periods.value.month?.runs || periods.value.month?.wakeups));
+const dailyCapMicrousd = computed(() => costs.value?.daily_cost_cap_microusd ?? null);
+const dailyCap = computed(() => dailyCapMicrousd.value === null
+    ? null
+    : Number(dailyCapMicrousd.value) / 1_000_000);
+const selectedInterval = computed(() => Number(costs.value?.wake_interval_minutes) || null);
+const capInputMicrousd = computed(() => {
+    const dollars = Number(capInput.value);
+    const cents = Math.round(dollars * 100);
+    if (!Number.isFinite(dollars) || dollars <= 0 || Math.abs(dollars * 100 - cents) > 0.000001) return null;
+    return cents * 10_000;
+});
+const canSaveCap = computed(() => Boolean(
+    control.value && capInputMicrousd.value !== null
+    && capInputMicrousd.value !== dailyCapMicrousd.value && !savingCap.value,
+));
 const trend = computed(() => costs.value?.daily_trend || []);
 const wakeups = computed(() => costs.value?.wakeups_per_day || []);
 const knownRunCost = computed(() => costs.value?.averages?.per_wakeup?.usd);
 const runShare = computed(() => week.value.wakeups ? week.value.runs / week.value.wakeups : 0);
+const capEstimates = computed(() => INTERVALS.map((minutes) => {
+    const turns = 1440 / minutes;
+    return {minutes, turns, microusd: turns * 70_000};
+}));
+const selectedEstimateIsOverCap = computed(() => {
+    const estimate = capEstimates.value.find((item) => item.minutes === selectedInterval.value);
+    return Boolean(estimate && capInputMicrousd.value !== null
+        && estimate.microusd > capInputMicrousd.value);
+});
 const trendScale = computed(() => Math.max(
     dailyCap.value || 0,
     ...trend.value.map((day) => Number(day.known_usd) || 0),
@@ -119,7 +148,12 @@ function intervalEstimate(value) {
 
 async function loadCosts() {
     try {
-        costs.value = await api.supervisorCosts();
+        const answer = await api.supervisorCosts();
+        costs.value = answer;
+        capInput.value = answer.daily_cost_cap_microusd === null
+            || answer.daily_cost_cap_microusd === undefined
+            ? ""
+            : (Number(answer.daily_cost_cap_microusd) / 1_000_000).toFixed(2);
     } catch (error) {
         problem.value = error.message || "Cost records could not be read.";
     } finally {
@@ -129,13 +163,41 @@ async function loadCosts() {
 
 async function loadControl() {
     try {
-        const control = await api.supervisorControl();
-        const limit = control.grant?.limits?.max_cost_microusd_per_day;
-        dailyCap.value = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) / 1000000 : null;
-        selectedInterval.value = Number(control.grant?.wake_interval_minutes) || null;
+        control.value = await api.supervisorControl();
+        const grant = control.value.grant;
+        const limit = Number(grant.limits.max_cost_microusd_per_day);
+        costs.value = {
+            ...costs.value,
+            daily_cost_cap_microusd: limit,
+            wake_interval_minutes: grant.wake_interval_minutes,
+        };
+        capInput.value = (limit / 1_000_000).toFixed(2);
     } catch {
-        dailyCap.value = null;
-        selectedInterval.value = null;
+        control.value = null;
+    }
+}
+
+async function saveCap() {
+    if (!control.value || capInputMicrousd.value === null || !canSaveCap.value) return;
+    const nextGrant = {
+        ...control.value.grant,
+        limits: {
+            ...control.value.grant.limits,
+            max_cost_microusd_per_day: capInputMicrousd.value,
+        },
+    };
+    savingCap.value = true;
+    capProblem.value = "";
+    try {
+        const result = await api.supervisorChange(supervisorGrantChange(
+            control.value, {kind: "configure", grant: nextGrant},
+        ));
+        control.value = {...control.value, grant_version: result.grant_version, grant: nextGrant};
+        costs.value = {...costs.value, daily_cost_cap_microusd: capInputMicrousd.value};
+    } catch (error) {
+        capProblem.value = error.message || "The daily cost cap could not be saved.";
+    } finally {
+        savingCap.value = false;
     }
 }
 
@@ -157,8 +219,60 @@ loadControl();
             <strong>The supervisor is off.</strong> Recorded costs remain available.
         </p>
         <p v-if="loading" class="cost-loading" role="status">Loading cost records.</p>
-        <p v-else-if="!problem && !active" class="cost-empty" role="status">No cost recorded.</p>
         <template v-else-if="!problem && costs">
+            <section v-if="dailyCap !== null" class="cost-card cost-cap" data-cost-cap aria-labelledby="cost-cap-title">
+                <header class="cost-cap-heading">
+                    <h3 id="cost-cap-title">Daily cost cap</h3>
+                    <div class="cost-cap-input">
+                        <label for="daily-cost-cap">Spend no more than</label>
+                        <span aria-hidden="true">$</span>
+                        <input
+                            id="daily-cost-cap"
+                            v-model="capInput"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            aria-label="Daily cost cap in USD"
+                            :readonly="!control"
+                        />
+                        <span>a day</span>
+                        <button
+                            v-if="control"
+                            type="button"
+                            data-save-cap
+                            :disabled="!canSaveCap"
+                            @click="saveCap"
+                        >{{ savingCap ? "Saving…" : "Save the cap" }}</button>
+                    </div>
+                </header>
+                <p v-if="capProblem" class="cost-problem" role="alert">{{ capProblem }}</p>
+                <h4>Estimate per interval</h4>
+                <p class="cost-estimate-note">
+                    At about 7 US cents a turn, before quiet wake-ups are skipped. Event wake-ups add turns.
+                </p>
+                <div class="cost-cap-estimates">
+                    <div
+                        v-for="item in capEstimates"
+                        :key="item.minutes"
+                        class="cost-cap-estimate"
+                        :data-selected-interval="selectedInterval === item.minutes ? item.minutes : undefined"
+                    >
+                        <strong>Every {{ item.minutes === 60 ? "hour" : `${item.minutes} minutes` }}</strong>
+                        <span>{{ item.turns }} turns, about {{ money(item.microusd / 1_000_000) }} a day</span>
+                        <span v-if="selectedInterval === item.minutes" class="cost-selected">Selected</span>
+                    </div>
+                </div>
+                <p v-if="selectedEstimateIsOverCap" class="cost-warning" role="alert" data-cost-cap-warning>
+                    Every {{ selectedInterval === 60 ? "hour" : `${selectedInterval} minutes` }}
+                    the estimate is above the daily cost cap.
+                    When the cap is reached, wake-ups are skipped as budget used up until the next day.
+                </p>
+                <p class="cost-control-link">
+                    The interval itself is set on Control. <a data-control-link :href="controlHref">Open Control</a>
+                </p>
+            </section>
+            <p v-if="!active" class="cost-empty" role="status">No cost recorded.</p>
+            <template v-else>
             <section class="cost-periods" aria-label="Cost against the daily cap">
                 <article
                     v-for="period in PERIODS"
@@ -292,6 +406,7 @@ loadControl();
                     <span>Today</span>
                 </p>
             </section>
+            </template>
         </template>
     </section>
 </template>
@@ -342,6 +457,94 @@ loadControl();
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--surface);
+}
+
+.cost-cap-heading,
+.cost-cap-input,
+.cost-cap-estimates {
+    display: flex;
+    gap: 10px;
+}
+
+.cost-cap-heading {
+    flex-direction: column;
+}
+
+.cost-cap-input {
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.cost-cap-input input {
+    width: 104px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.cost-cap-input input[readonly] {
+    background: var(--surface-2);
+}
+
+.cost-cap-input button {
+    padding: 7px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+    font: inherit;
+    cursor: pointer;
+}
+
+.cost-cap-input button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.cost-cap h4 {
+    margin: 14px 0 0;
+    font-size: 13px;
+}
+
+.cost-estimate-note,
+.cost-control-link {
+    margin: 5px 0 0;
+}
+
+.cost-cap-estimates {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 8px;
+}
+
+.cost-cap-estimate {
+    display: grid;
+    gap: 5px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.cost-cap-estimate[data-selected-interval] {
+    border-color: var(--accent);
+}
+
+.cost-cap-estimate span,
+.cost-cap-estimate strong {
+    font-size: 12px;
+}
+
+.cost-selected {
+    color: var(--accent);
+}
+
+.cost-warning {
+    padding: 9px 11px;
+    border-left: 3px solid var(--warn);
+    background: var(--surface-2);
 }
 
 .cost-period-heading,
@@ -528,6 +731,10 @@ loadControl();
 @media (max-width: 720px) {
     .cost-periods,
     .cost-lists {
+        grid-template-columns: 1fr;
+    }
+
+    .cost-cap-estimates {
         grid-template-columns: 1fr;
     }
 

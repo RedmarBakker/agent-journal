@@ -1,13 +1,15 @@
 import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
-const api = {supervisorCosts: vi.fn(), supervisorControl: vi.fn()};
+const api = {supervisorCosts: vi.fn(), supervisorControl: vi.fn(), supervisorChange: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api}));
 
 const {default: SupervisorPage} = await import("../src/pages/SupervisorPage.vue");
 
 const fullCosts = {
     status: "on",
+    daily_cost_cap_microusd: 5000000,
+    wake_interval_minutes: 15,
     periods: {
         today: {days: 1, known_usd: "0.40", unknown_runs: 1, runs: 2, known_runs: 1, wakeups: 3},
         week: {days: 7, known_usd: "0.60", unknown_runs: 1, runs: 4, known_runs: 3, wakeups: 6},
@@ -39,6 +41,8 @@ const fullCosts = {
 
 const emptyCosts = {
     status: "never_set_up",
+    daily_cost_cap_microusd: null,
+    wake_interval_minutes: null,
     periods: Object.fromEntries(["today", "week", "month"].map((key) => [key, {
         days: key === "today" ? 1 : key === "week" ? 7 : 30,
         known_usd: "0.00", unknown_runs: 0, runs: 0, known_runs: 0, wakeups: 0,
@@ -72,16 +76,26 @@ const unknownCosts = {
     })),
 };
 
+const ownerControl = () => ({
+    grant_id: "grant-7",
+    grant_version: 3,
+    grant: {
+        wake_interval_minutes: 15,
+        watched_plans: [24],
+        event_wakeups: ["failed_check"],
+        capabilities: {"task create": {on: true, mode: "act"}},
+        limits: {max_cost_microusd_per_day: 5000000, max_turns_per_day: 120},
+    },
+});
+
 let app = null;
 let host = null;
 
 beforeEach(() => {
     location.hash = "#/supervisor?sub=cost";
     api.supervisorCosts.mockReset().mockResolvedValue(fullCosts);
-    api.supervisorControl.mockReset().mockResolvedValue({grant: {
-        wake_interval_minutes: 15,
-        limits: {max_cost_microusd_per_day: 5000000},
-    }});
+    api.supervisorControl.mockReset().mockResolvedValue(ownerControl());
+    api.supervisorChange.mockReset().mockResolvedValue({grant_version: 4});
 });
 
 afterEach(() => {
@@ -125,6 +139,59 @@ test("the owner sees cost limits, averages, plan and area totals, intervals, qui
     expect(page.querySelectorAll("[data-trend-day]")).toHaveLength(30);
     expect(page.querySelector("[data-cost-cap-line]")).not.toBeNull();
     expect(api.supervisorControl).toHaveBeenCalled();
+});
+
+test("the owner saves only the daily cost cap through the grant route", async () => {
+    const page = await openPage();
+    const input = page.querySelector('[aria-label="Daily cost cap in USD"]');
+    await vi.waitFor(() => expect(input?.value).toBe("5.00"));
+    await vi.waitFor(() => expect(input.readOnly).toBe(false));
+
+    input.value = "6.25";
+    input.dispatchEvent(new Event("input", {bubbles: true}));
+    await vi.waitFor(() => expect(page.querySelector('[data-save-cap]').disabled).toBe(false));
+    page.querySelector('[data-save-cap]').click();
+    await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalled());
+
+    expect(api.supervisorChange).toHaveBeenCalledWith({
+        protocol_version: 1,
+        grant_id: "grant-7",
+        expected_grant_version: 3,
+        change: {kind: "configure", grant: {
+            ...ownerControl().grant,
+            limits: {...ownerControl().grant.limits, max_cost_microusd_per_day: 6250000},
+        }},
+    });
+    await vi.waitFor(() => expect(input.value).toBe("6.25"));
+    expect(page.querySelector('[data-control-link]').getAttribute("href")).toBe("#/supervisor?sub=control");
+});
+
+test("a non-owner can read the cap but cannot edit or save it", async () => {
+    api.supervisorControl.mockRejectedValue(new Error("Only the owner can change the supervisor."));
+    const page = await openPage();
+    const input = page.querySelector('[aria-label="Daily cost cap in USD"]');
+    await vi.waitFor(() => expect(api.supervisorControl).toHaveBeenCalled());
+    await expect(api.supervisorControl.mock.results[0].value)
+        .rejects.toThrow("Only the owner can change the supervisor.");
+
+    expect(input.readOnly).toBe(true);
+    expect(input.value).toBe("5.00");
+    expect(page.querySelector('[data-save-cap]')).toBeNull();
+    expect(api.supervisorChange).not.toHaveBeenCalled();
+});
+
+test("the selected interval warns when its estimate is above the daily cap", async () => {
+    const page = await openPage();
+
+    expect(page.textContent).toContain("At about 7 US cents a turn");
+    expect(page.textContent).toContain("96 turns, about $6.72 a day");
+    expect(page.textContent).toContain("Every 15 minutes the estimate is above the daily cost cap.");
+    expect(page.querySelector('[data-selected-interval="15"]')).not.toBeNull();
+
+    const cap = page.querySelector('[aria-label="Daily cost cap in USD"]');
+    cap.value = "7.00";
+    cap.dispatchEvent(new Event("input", {bubbles: true}));
+    await vi.waitFor(() => expect(page.querySelector('[data-cost-cap-warning]')).toBeNull());
 });
 
 test("an empty cost history says no cost has been recorded", async () => {

@@ -94,6 +94,16 @@ class SupervisorAuthority:
             return "off"
         return "on"
 
+    def cost_settings(self, environment_id: int) -> dict[str, int | None]:
+        entry = self._owner_environment_entry(environment_id)
+        if entry is None:
+            return {"daily_cost_cap_microusd": None, "wake_interval_minutes": None}
+        grant = self._grant_v2(entry, self._public_grant(entry))
+        return {
+            "daily_cost_cap_microusd": grant["limits"]["max_cost_microusd_per_day"],
+            "wake_interval_minutes": grant["wake_interval_minutes"],
+        }
+
     def owner_control(self, actor: Actor, environment_id: int) -> dict[str, Any]:
         entry = self._owner_environment_entry(environment_id)
         if entry is None:
