@@ -768,6 +768,8 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "src/supervisor_bridge" in script
     assert "docs/supervisor/v1/Dockerfile.gateway" in script
     assert "docs/supervisor/v1/journal-supervisor-bridge" in script
+    assert "docs/supervisor/v1/contract.schema.json" in script
+    assert "COPY docs/supervisor/v1/contract.schema.json /opt/journal-supervisor/docs/supervisor/v1/contract.schema.json" in dockerfile
     assert "docs/supervisor/v1/journal-supervisor-environment.sh" in script
     assert "docs/supervisor/v1/journal-supervisor-reconcile" in script
     assert 'tar -xf "$BUILD_CONTEXT/runtime.tar"' in script
