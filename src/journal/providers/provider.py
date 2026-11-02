@@ -330,6 +330,9 @@ class Provider(ABC):
     def folder_trusted(self, root: Path, folder: Path) -> None:
         return
 
+    def headless_folder_trusted(self, root: Path, folder: Path) -> None:
+        self.folder_trusted(root, folder)
+
     def has_journal_hooks(self, path: Path) -> bool:
         settings = json.loads(path.read_text()) if path.is_file() else {}
         return any(self.journal_paths(block) for blocks in (settings.get("hooks") or {}).values() for block in blocks)

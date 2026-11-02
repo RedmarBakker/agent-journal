@@ -279,7 +279,7 @@ class Launch:
         if self.is_plan_driver:
             folder = self.driver_worktree(choice)
             Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, f"worktree-{folder.name}")
-            self.provider.folder_trusted(self.root, folder)
+            self.provider.headless_folder_trusted(self.root, folder)
         else:
             worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
             folder = worktree.created() if self.is_worktree_launch(worktree) else self.root

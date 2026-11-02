@@ -134,17 +134,21 @@ class Codex(Provider):
                                        if value.get("matcher", "") == matcher and [handler.get("command") for handler in value.get("hooks", [])] == commands), None)
                 group_index = existing_index if existing_index is not None else len(present) + group_offset
                 for handler_index, handler in enumerate(group.get("hooks", [])):
-                    normalized = {"type": "command", "command": handler["command"], "async": handler.get("async") is True}
-                    for name in ("timeout", "statusMessage", "additionalContextLimit"):
-                        if handler.get(name) is not None:
-                            normalized[name] = handler[name]
-                    identity = {"event_name": self.state_name(event), "hooks": [normalized]}
-                    if "matcher" in group and event not in MATCHERLESS_HOOKS:
-                        identity["matcher"] = matcher
-                    canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                    digest = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-                    records.append((f"{source}:{self.state_name(event)}:{group_index}:{handler_index}", digest))
+                    records.append(self.hook_trust_record(event, group, handler, group_index, handler_index, source))
         return tuple(records)
+
+    @staticmethod
+    def hook_trust_record(event: HookType | str, group: dict, handler: dict, group_index: int, handler_index: int, source: str) -> tuple[str, str]:
+        normalized = {"type": "command", "command": handler["command"], "async": handler.get("async") is True}
+        for name in ("timeout", "statusMessage", "additionalContextLimit"):
+            if handler.get(name) is not None:
+                normalized[name] = handler[name]
+        identity = {"event_name": Codex.state_name(event), "hooks": [normalized]}
+        if "matcher" in group and event not in MATCHERLESS_HOOKS:
+            identity["matcher"] = group["matcher"]
+        canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        digest = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return f"{source}:{Codex.state_name(event)}:{group_index}:{handler_index}", digest
 
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         hooks = self.wire_hooks(root, script, command)
@@ -157,6 +161,52 @@ class Codex(Provider):
         added = {target + key.removeprefix(source): state for key, state in states.items() if key.startswith(source) and target + key.removeprefix(source) not in states}
         if added:
             settings.write_text(settings.read_text().rstrip("\n") + "\n\n" + "\n".join(self.state_table(key, state) for key, state in added.items()))
+
+    def headless_folder_trusted(self, root: Path, folder: Path) -> None:
+        project = folder.resolve()
+        hooks_file = project / self.home / self.settings_file
+        hooks = json.loads(hooks_file.read_text()).get("hooks") or {}
+        records = []
+        for event, groups in hooks.items():
+            for group_index, group in enumerate(groups):
+                for handler_index, handler in enumerate(group.get("hooks", [])):
+                    if self.journal_paths(handler):
+                        records.append(self.hook_trust_record(event, group, handler, group_index, handler_index, str(hooks_file)))
+        if not records:
+            raise ValueError("the Plan driver's worktree has no journal hooks to trust")
+        self.folder_trusted(root, folder)
+        settings = self.config_folder() / "config.toml"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        text = settings.read_text() if settings.is_file() else ""
+        text = self.config_value(text, "", "check_for_update_on_startup", "false")
+        text = self.config_value(text, f"projects.{json.dumps(str(project))}", "trust_level", json.dumps("trusted"))
+        for key, digest in records:
+            section = f"hooks.state.{json.dumps(key)}"
+            text = self.config_value(text, section, "enabled", "true")
+            text = self.config_value(text, section, "trusted_hash", json.dumps(digest))
+        tomllib.loads(text)
+        settings.write_text(text)
+
+    @staticmethod
+    def config_value(text: str, section: str, name: str, value: str) -> str:
+        lines = text.splitlines()
+        header = f"[{section}]" if section else ""
+        start = next((index for index, line in enumerate(lines) if line.strip() == header), -1) if section else 0
+        if section and start == -1:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(header)
+            start = len(lines) - 1
+        end = next((index for index in range(start + 1 if section else 0, len(lines)) if re.match(r"^\s*\[", lines[index])), len(lines))
+        first = start + 1 if section else 0
+        setting = re.compile(rf"^\s*{re.escape(name)}\s*=")
+        found = next((index for index in range(first, end) if setting.match(lines[index])), None)
+        line = f"{name} = {value}"
+        if found is None:
+            lines.insert(end, line)
+        else:
+            lines[found] = line
+        return "\n".join(lines).rstrip() + "\n"
 
     @staticmethod
     def state_table(key: str, state: dict) -> str:

@@ -531,6 +531,63 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     assert not (project / ".journal").exists()
 
 
+def test_plan_driver_codex_config_trusts_only_its_worktree_and_journal_hooks_before_command(tmp_path, monkeypatch):
+    import json
+    import tomllib
+
+    import journal.launcher.launch as launch_module
+    from journal.providers.codex import Codex
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+
+    project = tmp_path / "project"
+    worktree = project / ".claude" / "worktrees" / "plan-1"
+    worktree.mkdir(parents=True)
+    driver_home = tmp_path / "driver-home"
+    driver_home.mkdir()
+    hooks_file = worktree / ".codex" / "hooks.json"
+    hooks_file.parent.mkdir()
+    hooks = Codex().hook_block("sh /opt/agent-journal/src/journal/hooks/hook.sh")
+    first_event = next(iter(hooks))
+    hooks[first_event][0]["hooks"].append({"type": "command", "command": "/opt/customer/custom-hook"})
+    hooks_file.write_text(json.dumps({"hooks": hooks}))
+    config = driver_home / "config.toml"
+    config.write_text('model = "gpt-6-luna"\n')
+
+    monkeypatch.setattr(launch_module.os, "getuid", lambda: 10003)
+    monkeypatch.setenv("HOME", str(driver_home))
+    monkeypatch.setenv("CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setattr(launch_module.Menu, "journal", lambda self, *args: "")
+
+    def command_after_config(self, choice, status):
+        settings = tomllib.loads(config.read_text())
+        assert settings["check_for_update_on_startup"] is False
+        assert settings["model"] == "gpt-6-luna"
+        assert settings["projects"] == {str(worktree.resolve()): {"trust_level": "trusted"}}
+        states = settings["hooks"]["state"]
+        journal_handlers = {
+            (event, group_index, handler_index)
+            for event, groups in hooks.items()
+            for group_index, group in enumerate(groups)
+            for handler_index, handler in enumerate(group["hooks"])
+            if Codex.journal_paths(handler)
+        }
+        expected_keys = {
+            f"{worktree.resolve()}/.codex/hooks.json:{Codex.state_name(event)}:{group_index}:{handler_index}"
+            for event, group_index, handler_index in journal_handlers
+        }
+        assert set(states) == expected_keys
+        assert all(state["enabled"] and state["trusted_hash"].startswith("sha256:") for state in states.values())
+        return ["codex", "--headless"]
+
+    monkeypatch.setattr(launch_module.Launch, "agent_command", command_after_config)
+    launch = launch_module.Launch.parse(["codex", "--env", "plan-1", "--worktree", "plan-1"], project)
+    result = launch.launch_file(Choice("plan-1"), StatusLine(project))
+
+    assert result["front"]["command"] == ["codex", "--headless"]
+
+
 def test_codex_home_volume_is_precreated_for_uid10003_and_login_refuses_wrong_owner():
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
     login = (ROOT / "docker" / "supervisor-codex-login").read_text()
