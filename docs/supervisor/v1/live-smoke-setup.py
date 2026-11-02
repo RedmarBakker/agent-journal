@@ -12,6 +12,7 @@ sys.path.insert(0, "/opt/agent-journal/src")
 
 from journal.app import App
 from journal.config import Config
+from journal.db.connection import Connection
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
@@ -193,6 +194,7 @@ def ensure_smoke_task(app, main, plan_id):
         tasks = plans.plan_tasks(plan)
     if len(tasks) == 1 and tasks[0].title == TASK_TITLE and tasks[0].state == TaskState.BLOCKED:
         command("task", "unblock", str(tasks[0].row_id))
+        app.container.get(Connection).cache.cleared()
     with scope.environment(main.row_id):
         plan = plans.find(plan_id)
         tasks = plans.plan_tasks(plan)

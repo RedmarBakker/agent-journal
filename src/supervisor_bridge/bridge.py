@@ -79,8 +79,8 @@ class SupervisorBridge:
             raise ContractError("reconcile source is not enabled")
         try:
             admission = self.client.admit(source, self.state.observation_cursor())
-        except AuthorizationError:
-            self.state.record_failure("service_unauthorized", False)
+        except AuthorizationError as error:
+            self.state.record_failure("service_unauthorized", False, error.cause)
             return ReconcileResult("failed", "service_unauthorized")
         except RetryableTransportError as error:
             self.state.record_failure("service_unavailable", True, error.cause)
@@ -221,8 +221,8 @@ class SupervisorBridge:
     def call_service(self, call, *arguments):
         try:
             return call(*arguments)
-        except AuthorizationError:
-            self.state.record_failure("service_unauthorized", False)
+        except AuthorizationError as error:
+            self.state.record_failure("service_unauthorized", False, error.cause)
             raise
         except RetryableTransportError as error:
             self.state.record_failure("service_unavailable", True, error.cause)

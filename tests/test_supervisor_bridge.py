@@ -1,5 +1,6 @@
 import importlib.util
 import json
+from io import BytesIO
 from pathlib import Path
 from shutil import copytree
 from types import SimpleNamespace
@@ -976,6 +977,26 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
     assert concurrent.is_verified(run) is False
 
 
+@pytest.mark.parametrize("status", [401, 403])
+def test_authorization_refusal_is_bounded_and_redacts_the_service_token(status):
+    token = "writer-credential-value"
+    message = f"writer refused credential {token}: " + "x" * 400
+    response = json.dumps({"error": message}).encode()
+    connection = JsonHttpConnection("https://writer", token)
+
+    class RefusingWriter:
+        def open(self, request, timeout):
+            raise HTTPError(request.full_url, status, "Forbidden", {}, BytesIO(response))
+
+    connection.opener = RefusingWriter()
+    with pytest.raises(AuthorizationError) as refused:
+        connection.post("/_supervisor/v1/admit", {})
+
+    assert refused.value.cause.startswith("writer refused credential [redacted]:")
+    assert len(refused.value.cause) == 240
+    assert token not in refused.value.cause
+
+
 def test_proxy_command_runs_the_gateway_metering_server(monkeypatch, tmp_path):
     state, provider, proxy = object(), object(), object()
     served = []
@@ -1296,8 +1317,15 @@ def test_two_tenant_replay_restore_and_injection_boundaries(tmp_path, monkeypatc
         entries_b = app_b.container.get(Entries)
         before_b = entries_b.global_last_id()
         foreign_client = SupervisorHttpClient(JsonHttpConnection(base_b, token_a))
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(AuthorizationError) as refused:
             foreign_client.admit("timer", None)
+        assert refused.value.cause == "the supervisor service credential is invalid or revoked"
+        unauthorized_state = StateStore(tmp_path / "unauthorized_bridge_state")
+        result = SupervisorBridge(foreign_client, unauthorized_state).reconcile("timer")
+        snapshot = unauthorized_state.snapshot()
+        assert result.reason == "service_unauthorized"
+        assert snapshot["last_error"] == "service_unauthorized: the supervisor service credential is invalid or revoked"
+        assert token_a not in json.dumps(snapshot)
         with pytest.raises(AuthorizationError):
             foreign_client.settle_usage(RunReference.from_run(RUN), {
                 "input_tokens": 1, "output_tokens": 1, "cache_creation_input_tokens": 0,

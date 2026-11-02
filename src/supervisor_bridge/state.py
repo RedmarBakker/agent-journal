@@ -71,7 +71,7 @@ class StateStore:
         if kind not in {"service_unavailable", "service_unauthorized", "service_rejected", "hook_unavailable", "hook_unauthorized", "state_conflict"}:
             raise ContractError("unsupported bridge failure")
         if cause:
-            bounded_text(cause, "transport failure cause", 1, 16)
+            bounded_text(cause, "transport failure cause", 1, 256)
         def change(state: dict) -> None:
             state["health"] = "down"
             state["last_error"] = f"{kind}: {cause}" if cause else kind

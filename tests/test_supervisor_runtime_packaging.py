@@ -560,6 +560,10 @@ def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollmen
     assert main.index("ensure_smoke_task") < main.index('request("/_supervisor/v1/enrollment"')
     assert main.index('request("/_supervisor/v1/enrollment"') < main.index("run_bound_check(check_id)")
     assert 'smoke_tasks_match(tasks)' in ensure_task and 'command("task", "unblock"' in ensure_task
+    unblock = ensure_task.index('command("task", "unblock"')
+    refresh = ensure_task.index("app.container.get(Connection).cache.cleared()")
+    reread = ensure_task.index("plan = plans.find(plan_id)", unblock)
+    assert unblock < refresh < reread
     assert 'tasks[0].state == TaskState.OPEN' in ensure_task and 'tasks_repo.holder(tasks[0]) is None' in ensure_task
     assert 'not tasks_repo.unavailable_task_ids(tasks)' in ensure_task and 'not tasks[0].delegated' in ensure_task
     assert 'plans.started_task(plan) is None' in ensure_task

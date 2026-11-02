@@ -102,7 +102,13 @@ class AgentLauncher:
             if details.st_uid != os.geteuid():
                 raise PermissionError(f"the Plan driver cannot traverse {folder}")
             subprocess.run(["setfacl", "-m", "u:10003:--x", "--", str(folder)], check=True)
-        subprocess.run(["find", str(worktree), "(", "-type", "d", "-o", "-type", "f", ")", "-exec", "setfacl", "-m", "u:10003:rwX", "--", "{}", "+"], check=True)
+        subprocess.run(
+            [
+                "find", str(worktree), "(", "-type", "d", "-o", "-type", "f", ")",
+                "!", "-uid", "10003", "-exec", "setfacl", "-m", "u:10003:rwX", "--", "{}", "+",
+            ],
+            check=True,
+        )
         subprocess.run(["setfacl", "-m", "d:u:10003:rwx", "--", str(worktree)], check=True)
 
     def launch_environment(self, environment: str, port: str) -> dict[str, str]:

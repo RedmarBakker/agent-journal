@@ -2,6 +2,7 @@ import json
 import re
 import ssl
 from dataclasses import dataclass
+from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
@@ -19,6 +20,8 @@ from supervisor_bridge.contracts import (
 
 REQUEST_TIMEOUT_SECONDS = 20
 RESPONSE_MAX_BYTES = 1_048_576
+AUTHORIZATION_RESPONSE_MAX_BYTES = 4096
+AUTHORIZATION_REASON_MAX = 240
 HOOK_PATH = "/hooks/agent"
 RECEIPT_ENVELOPE_FIELDS = frozenset({"status", "reason", "receipt_id", "data", "report", "duplicate"})
 
@@ -29,6 +32,10 @@ class TransportError(RuntimeError):
 
 class AuthorizationError(TransportError):
     """A dedicated service credential was rejected."""
+
+    def __init__(self, message: str, cause: str = ""):
+        super().__init__(message)
+        self.cause = cause
 
 
 class RetryableTransportError(TransportError):
@@ -66,6 +73,26 @@ def retryable_cause(error: BaseException) -> str:
     if isinstance(error, OSError):
         return "OSError"
     return "TransportError"
+
+
+def authorization_refusal(error: HTTPError, token: str) -> str:
+    fallback = f"HTTP {error.code}"
+    try:
+        body = error.read(AUTHORIZATION_RESPONSE_MAX_BYTES + 1)
+    except (HTTPException, OSError):
+        return fallback
+    if len(body) > AUTHORIZATION_RESPONSE_MAX_BYTES:
+        return fallback
+    try:
+        response = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return fallback
+    if not isinstance(response, dict) or not isinstance(response.get("error"), str):
+        return fallback
+    message = response["error"].replace(token, "[redacted]") if token else response["error"]
+    message = " ".join(character if character.isprintable() else " " for character in message)
+    reason = " ".join(message.split())[:AUTHORIZATION_REASON_MAX]
+    return reason or fallback
 
 
 class ReceiptNotFound(TransportError):
@@ -108,7 +135,10 @@ class JsonHttpConnection:
                 return self.response_object(response.read(RESPONSE_MAX_BYTES + 1))
         except HTTPError as error:
             if error.code in {401, 403}:
-                raise AuthorizationError("dedicated service credential was rejected") from None
+                raise AuthorizationError(
+                    "dedicated service credential was rejected",
+                    authorization_refusal(error, self.token),
+                ) from None
             if error.code == 404 and path == ROUTES["receipt"]:
                 raise ReceiptNotFound("canonical receipt is not available yet") from None
             if error.code == 429 or error.code >= 500:

@@ -65,6 +65,25 @@ def test_plan_launcher_uses_the_persistent_codex_home_only_for_plan_environments
     assert "CODEX_HOME" not in task
 
 
+def test_plan_worktree_permissions_skip_files_owned_by_the_driver(monkeypatch, tmp_path):
+    import journal.engine.agent_launcher as launcher_module
+
+    calls = []
+    monkeypatch.setattr(launcher_module.subprocess, "run", lambda command, **_kwargs: calls.append(command))
+    root = tmp_path / "project"
+    worktree = root / ".claude" / "worktrees" / "plan-1"
+    worktree.mkdir(parents=True)
+
+    AgentLauncher(Config(root)).plan_worktree_permissions(worktree)
+
+    recursive = next(command for command in calls if command[0] == "find")
+    assert recursive == [
+        "find", str(worktree), "(", "-type", "d", "-o", "-type", "f", ")",
+        "!", "-uid", "10003", "-exec", "setfacl", "-m", "u:10003:rwX", "--", "{}", "+",
+    ]
+    assert ["setfacl", "-m", "d:u:10003:rwx", "--", str(worktree)] in calls
+
+
 def test_restricted_plan_launcher_sends_only_the_fixed_driver_request(monkeypatch, tmp_path):
     from types import SimpleNamespace
 
