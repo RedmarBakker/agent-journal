@@ -1,5 +1,9 @@
+import io
+import shlex
 from typing import Any
 
+from journal.console.console import Console
+from journal.console.support.captured_stream import CapturedStream
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
 from journal.features.supervisor.support.admissions import (
     action_receipt_key,
@@ -7,6 +11,7 @@ from journal.features.supervisor.support.admissions import (
     canonical,
     digest,
     supervisor_key,
+    supervisor_usage_cost_microusd,
 )
 from journal.features.supervisor.support.supervisor_action_reports import SupervisorActionReports
 from journal.features.supervisor.support.supervisor_command_changes import SupervisorCommandChanges
@@ -22,12 +27,18 @@ from journal.models.task import Task
 from journal.models.template import Template
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
+from journal.repositories.environments import Environments
 from journal.repositories.links import Links
 from journal.repositories.plans import Plans
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.support.actor_type import ActorType
+from journal.support.caller import Caller
+from journal.support.agent_role import AgentRole
+from journal.support.missing_row import MissingRow
+from journal.support.rejection import Rejection
 from journal.support.time_source import TimeSource
 from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
@@ -59,7 +70,8 @@ class SupervisorMaintenance:
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
                  scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable,
                  action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
-                 command_changes: SupervisorCommandChanges) -> None:
+                 command_changes: SupervisorCommandChanges, console: Console,
+                 environments: Environments) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
@@ -67,14 +79,15 @@ class SupervisorMaintenance:
         self.action_reports = action_reports
         self.wakeups = wakeups
         self.command_changes = command_changes
+        self.console, self.environments = console, environments
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
         self._service_actor(principal)
-        self._apply_request(principal, request)
+        outcome = self._apply_request(principal, request)
         receipt = self.reconcile_receipt(principal, request["action_id"])
         self.wakeups.record_run(principal, request["run_id"], receipt["status"])
-        return receipt
+        return {**receipt, **({"proposal_id": outcome["proposal_id"]} if "proposal_id" in outcome else {})}
 
     def settle_usage(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._usage_settlement_request(body)
@@ -92,15 +105,18 @@ class SupervisorMaintenance:
                 raise SupervisorFailure(403, "metered usage is not for the current fenced run")
             usage = request["usage"]
             limits = grant["limits"]
+            cost_microusd = supervisor_usage_cost_microusd(usage)
             overrun = (
                 usage["total_input_tokens"] > limits["max_input_tokens_per_turn"]
                 or usage["output_tokens"] > limits["max_output_tokens_per_turn"]
                 or usage["provider_requests"] > limits["max_provider_requests_per_turn"]
+                or cost_microusd > run.data["reserved_cost_microusd"]
             )
             tenant_id = principal.scope["tenant_id"]
             data = {
                 "tenant_id": tenant_id, "run_ref": run.data["run_ref"], "fence": run.data["fence"],
-                **usage, "overrun": overrun,
+                **usage, "cost_microusd": cost_microusd,
+                "cost_usd": str(Decimal(cost_microusd) / Decimal(1_000_000)), "overrun": overrun,
             }
             intent = canonical(data)
             if intent is None:
@@ -150,7 +166,7 @@ class SupervisorMaintenance:
             if reason := self._evidence_reason(grant, request, evidence):
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "rejected", reason)
             if grant["mode"] == "shadow":
-                return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "proposed", None)
+                return self._proposal_receipt(grant, request, run, epoch, intent_hash, context)
             before = self._before_values(context, request)
             before_context = self.authority.observation_context(grant)
             affected, diagnostic, created, command_changes = self._apply(grant, context, request)
@@ -179,6 +195,95 @@ class SupervisorMaintenance:
 
     def receipt(self, principal: SupervisorPrincipal, action_id: str) -> dict[str, Any]:
         return self.reconcile_receipt(principal, action_id)
+
+    def accept_proposal(self, actor: Actor, proposal_id: int) -> dict[str, Any]:
+        return self._decide_proposal(actor, proposal_id, "accepted")
+
+    def decline_proposal(self, actor: Actor, proposal_id: int) -> dict[str, Any]:
+        return self._decide_proposal(actor, proposal_id, "declined")
+
+    def _decide_proposal(self, actor: Actor, proposal_id: int, status: str) -> dict[str, Any]:
+        if actor.actor_type != ActorType.USER:
+            raise SupervisorFailure(403, "only the owner can decide a supervisor proposal")
+        owner_environment_id = self.scope.id
+        with self.scope.environment(PROJECT), self.entries.writing():
+            proposal = self._proposal(proposal_id, owner_environment_id)
+            if self._proposal_decisions(proposal):
+                raise SupervisorFailure(409, "the supervisor proposal is closed")
+            principal = self._proposal_principal(proposal, actor)
+            grant, context = self.authority.action_context(principal)
+            request = {
+                "expected_revisions": proposal.data["expected_revisions"],
+                "operations": proposal.data["proposed_operations"],
+            }
+            if context.get("conflict_reason") or self._revision_reason(grant, context, request):
+                raise SupervisorFailure(409, "the supervisor proposal is stale because its rows changed")
+            execution = self._perform_proposal(proposal, owner_environment_id) if status == "accepted" else {
+                "exit_code": None, "output": "",
+            }
+            decision = self._record_proposal_decision(proposal, actor, status, execution)
+        return {
+            "status": status, "proposal_id": proposal.row_id, "receipt_id": decision.row_id,
+            "command": proposal.data["command"], "output": execution["output"],
+        }
+
+    def _proposal(self, proposal_id: int, owner_environment_id: int) -> Entry:
+        rows = self.entries.selected_globally(
+            self.entries.query().filter(id=proposal_id, entry_type="SupervisorProposalReceipt").limit(1),
+        )
+        if not rows:
+            raise SupervisorFailure(404, "the supervisor proposal is unavailable")
+        proposal = rows[0]
+        if proposal.data.get("scope", {}).get("environment_id") != owner_environment_id:
+            raise SupervisorFailure(404, "the supervisor proposal is unavailable")
+        return proposal
+
+    def _proposal_decisions(self, proposal: Entry) -> list[Entry]:
+        with self.scope.environment(PROJECT):
+            return self.entries.supervisor_records(
+                "SupervisorProposalDecision", last=1, tenant_id=proposal.data["scope"]["tenant_id"],
+                grant_id=proposal.data["grant_id"], proposal_id=proposal.row_id,
+            )
+
+    @staticmethod
+    def _proposal_principal(proposal: Entry, actor: Actor) -> SupervisorPrincipal:
+        return SupervisorPrincipal(
+            proposal.data["grant_id"], proposal.data["grant_version"], actor.number(),
+            proposal.data["scope"], Actor.plugin(SUPERVISOR_ACTOR),
+        )
+
+    def _perform_proposal(self, proposal: Entry, environment_id: int) -> dict[str, Any]:
+        environment = self.environments.find(environment_id)
+        caller = Caller.user(environment.name)
+        output, error = io.StringIO(), io.StringIO()
+        try:
+            with self.scope.environment(environment_id), self.scope.entered(caller.origin(environment_id)):
+                with CapturedStream.capture(output, error):
+                    for command in proposal.data["commands"]:
+                        if self._perform_command(command, caller) != 0:
+                            raise SupervisorFailure(409, "the proposed command did not complete successfully")
+        except (MissingRow, Rejection) as refused:
+            raise SupervisorFailure(409, f"the proposed command was refused: {refused}") from refused
+        return {"exit_code": 0, "output": output.getvalue() + error.getvalue()}
+
+    def _perform_command(self, command: str, caller: Caller) -> int:
+        arguments = self.console.parser(AgentRole.MAIN).parse_args(shlex.split(command))
+        return self.console.perform(arguments, caller)
+
+    def _record_proposal_decision(self, proposal: Entry, actor: Actor, status: str,
+                                  execution: dict[str, Any]) -> Entry:
+        data = {
+            "tenant_id": proposal.data["scope"]["tenant_id"], "grant_id": proposal.data["grant_id"],
+            "grant_version": proposal.data["grant_version"], "plan_id": proposal.data["plan_id"],
+            "proposal_id": proposal.row_id, "status": status, "command": proposal.data["command"],
+            "wake_up": proposal.data["wake_up"], "rationale": proposal.data["rationale"],
+            "exit_code": execution["exit_code"], "output": execution["output"],
+            "actor": actor.stamp, "recorded_at_ms": int(self.time_source.seconds() * 1000),
+        }
+        return self.control_entries.recorded(Entry(
+            environment_id=PROJECT, entry_type="SupervisorProposalDecision", actor=actor, data=data,
+            idempotency=f"supervisor:proposal-decision:{proposal.row_id}",
+        ), actor)
 
     def rollback(self, principal: SupervisorPrincipal, receipt_id: int) -> dict[str, Any]:
         self._service_actor(principal)
@@ -616,7 +721,8 @@ class SupervisorMaintenance:
                 enrolled = next((item for item in grant["checks"] if item["check_id"] == operation["check_id"]), None)
                 if enrolled is None:
                     return "check_not_enrolled"
-                check = self._check(operation["check_id"])
+                with self.scope.environment(context["plan"].environment_id):
+                    check = self._check(operation["check_id"])
                 interval = operation["interval_minutes"]
                 if (not enrolled["minimum_interval_minutes"] <= interval <= enrolled["baseline_interval_minutes"]
                         or interval >= int(check.interval)):
@@ -794,8 +900,45 @@ class SupervisorMaintenance:
                  intent_hash: str, status: str, reason: str | None,
                  affected: list[dict[str, Any]] | None = None, changes: list[dict[str, Any]] | None = None,
                  command_changes: list[list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+        data = self._receipt_data(
+            grant, request, run_ref, epoch, intent_hash, status, reason, affected, changes, command_changes,
+        )
+        return self._record_receipt(request, data, intent_hash, reason)
+
+    def _proposal_receipt(self, grant: dict[str, Any], request: dict[str, Any], run: Entry, epoch: int,
+                          intent_hash: str, context: dict[str, Any]) -> dict[str, Any]:
+        run_ref = run.data["run_ref"]
+        data = self._receipt_data(grant, request, run_ref, epoch, intent_hash, "proposed", None, [], [])
+        commands = self._proposal_commands(grant, request, context)
+        data.update({
+            "command": "\n".join(commands), "commands": commands,
+            "wake_up": {"run_id": run_ref, "source": run.data.get("source", "")},
+            "rationale": request["rationale"], "expected_revisions": request["expected_revisions"],
+        })
+        receipt = self._record_receipt(request, data, intent_hash, None)
+        proposal_data = {
+            "tenant_id": grant["scope"]["tenant_id"], "grant_id": grant["grant_id"],
+            "grant_version": grant["grant_version"], "plan_id": grant["plan_id"],
+            "scope": grant["scope"], "action_receipt_id": receipt["receipt_id"],
+            "action_id": request["action_id"], "run_id": run_ref, "status": "open",
+            "command": data["command"], "commands": commands, "wake_up": data["wake_up"],
+            "rationale": request["rationale"], "expected_revisions": request["expected_revisions"],
+            "proposed_operations": request["operations"],
+            "recorded_at_ms": data["recorded_at_ms"],
+        }
+        proposal = self.control_entries.recorded(Entry(
+            environment_id=PROJECT, entry_type="SupervisorProposalReceipt", actor=Actor.plugin(SUPERVISOR_ACTOR),
+            data=proposal_data,
+            idempotency=supervisor_key("proposal-receipt", grant["scope"]["tenant_id"], request["action_id"]),
+        ), Actor.plugin(SUPERVISOR_ACTOR))
+        return {**receipt, "proposal_id": proposal.row_id}
+
+    def _receipt_data(self, grant: dict[str, Any], request: dict[str, Any], run_ref: str, epoch: int,
+                      intent_hash: str, status: str, reason: str | None,
+                      affected: list[dict[str, Any]] | None, changes: list[dict[str, Any]] | None,
+                      command_changes: list[list[dict[str, Any]]] | None = None) -> dict[str, Any]:
         scope = {**grant["scope"], "installation_epoch": epoch}
-        data = {
+        return {
             "protocol_version": 1, "action_id": request["action_id"], "episode_id": request["episode_id"],
             "run_id": run_ref, "grant_id": grant["grant_id"], "grant_version": grant["grant_version"],
             "scope": scope, "fence": request["fence"], "intent_sha256": intent_hash,
@@ -807,6 +950,10 @@ class SupervisorMaintenance:
             "outcome": "unmeasured", "proposed_operations": request["operations"],
             "command_receipts": self._command_receipts(grant, request, run_ref, status, reason, command_changes),
         }
+
+    def _record_receipt(self, request: dict[str, Any], data: dict[str, Any],
+                        intent_hash: str, reason: str | None) -> dict[str, Any]:
+        scope = data["scope"]
         key = action_receipt_key(scope["tenant_id"], request["action_id"])
         if reason == "action_id_reused":
             key = action_reuse_key(scope["tenant_id"], request["action_id"], intent_hash)
@@ -814,7 +961,27 @@ class SupervisorMaintenance:
             environment_id=PROJECT, entry_type="SupervisorActionReceipt", actor=Actor.plugin(SUPERVISOR_ACTOR),
             data=data, idempotency=key,
         ), Actor.plugin(SUPERVISOR_ACTOR))
-        return {"status": status, "reason": reason, "receipt_id": row.row_id, "data": row.data, "duplicate": False}
+        return {"status": data["status"], "reason": reason, "receipt_id": row.row_id,
+                "data": row.data, "duplicate": False}
+
+    def _proposal_commands(self, grant: dict[str, Any], request: dict[str, Any],
+                           context: dict[str, Any]) -> list[str]:
+        commands = []
+        for operation in request["operations"]:
+            if operation["kind"] == "plan_priorities":
+                arguments = ["plan", "priorities", operation["text"], "--plan", str(operation["plan_id"])]
+            elif operation["kind"] == "check_interval":
+                arguments = ["check", "edit", str(operation["check_id"]), "--every", str(operation["interval_minutes"])]
+            else:
+                template = self.authority.diagnostic_template(grant)
+                title, brief = diagnostic_task_values(template)
+                phase_number = context["current_phase"]["number"]
+                arguments = [
+                    "plan", "add", str(operation["plan_id"]), title, "--brief", brief,
+                    "--phase", str(phase_number),
+                ]
+            commands.append(shlex.join(arguments))
+        return commands
 
     def _command_receipts(self, grant: dict[str, Any], request: dict[str, Any], run_ref: str,
                           status: str, reason: str | None,
@@ -852,7 +1019,15 @@ class SupervisorMaintenance:
 
     def _prior(self, prior: Entry, intent_hash: str, grant: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         if prior.data.get("intent_sha256") == intent_hash:
-            return {"status": prior.data["status"], "receipt_id": prior.row_id, "data": prior.data, "duplicate": True}
+            result = {"status": prior.data["status"], "receipt_id": prior.row_id, "data": prior.data, "duplicate": True}
+            if prior.data.get("status") == "proposed":
+                with self.scope.environment(PROJECT):
+                    proposals = self.entries.supervisor_records(
+                        "SupervisorProposalReceipt", last=1, action_receipt_id=prior.row_id,
+                    )
+                if proposals:
+                    result["proposal_id"] = proposals[0].row_id
+            return result
         return self._receipt(grant, request, request["run_id"], request["installation_epoch"], intent_hash, "rejected", "action_id_reused")
 
     def _unique_refs(self, refs: list[dict[str, Any]]) -> list[dict[str, Any]]:

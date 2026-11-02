@@ -76,6 +76,20 @@ class SupervisorController:
             return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
         return Response(200, {"count": len(self.records.pending_proposals())}, {"Cache-Control": "no-store"})
 
+    def accept_proposal(self, request: Request) -> Response:
+        return self._proposal_decision(request, self.maintenance.accept_proposal)
+
+    def decline_proposal(self, request: Request) -> Response:
+        return self._proposal_decision(request, self.maintenance.decline_proposal)
+
+    @staticmethod
+    def _proposal_decision(request: Request, operation: Callable[[Any, int], dict[str, Any]]) -> Response:
+        try:
+            answer = operation(request.actor, request.number("id"))
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)})
+        return Response(200, answer, {"Cache-Control": "no-store"})
+
     def enroll(self, request: Request) -> Response:
         try:
             grant, token = self.authority.enroll(request.actor, request.body)

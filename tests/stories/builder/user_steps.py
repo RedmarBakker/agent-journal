@@ -108,6 +108,13 @@ class UserSteps:
         arguments = shlex.split(line)
         return self.record_command(f"user types {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.user("main")))
 
+    def user_types_in(self, environment: str, line: str) -> StepResult:
+        arguments = shlex.split(line)
+        return self.record_command(
+            f"user types {' '.join(arguments[:2])} in {environment}",
+            self.app.console().run(arguments, Caller.user(environment)),
+        )
+
     def project_text(self, path: str) -> str:
         return (self.app.config.root / path).read_text()
 

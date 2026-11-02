@@ -46,23 +46,31 @@ class SupervisorRecordReader:
         before_id = self._before_id(before)
         current, previous = self._windows(period, self.time_source.moment())
         with self.scope.environment(PROJECT):
-            runs, receipts = self._records(plan_ids)
+            runs, receipts, proposals, decisions = self._records(plan_ids)
             verified = self._verified_receipts(receipts)
         current_receipts = [receipt for receipt in receipts if self._within(receipt.created_at, current)
                             and self._receipt_matches_area(receipt, area)]
         previous_receipts = [receipt for receipt in receipts if self._within(receipt.created_at, previous)
                              and self._receipt_matches_area(receipt, area)]
+        current_decisions = [decision for decision in decisions if self._within(decision.created_at, current)
+                             and self._decision_matches_area(decision, proposals, area)]
+        previous_decisions = [decision for decision in decisions if self._within(decision.created_at, previous)
+                              and self._decision_matches_area(decision, proposals, area)]
         current_runs = [run for run in runs if self._within(run.created_at, current)
                         and self._run_matches_area(run, current_receipts, area)]
         previous_runs = [run for run in runs if self._within(run.created_at, previous)
                          and self._run_matches_area(run, previous_receipts, area)]
-        record_rows = self._record_rows(current_runs, current_receipts, verified)
+        current_proposals = [proposal for proposal in proposals if self._within(proposal.created_at, current)
+                             and self._receipt_matches_area(proposal, area)]
+        record_rows = self._record_rows(
+            current_runs, current_receipts, current_proposals, current_decisions, decisions, verified,
+        )
         remaining = [row for row in record_rows if before_id is None or row["id"] < before_id]
         page = remaining[:PAGE_SIZE]
         return {
             "areas": sorted(AREAS),
-            "current": self._summary(current_runs, current_receipts, verified),
-            "previous": self._summary(previous_runs, previous_receipts, verified),
+            "current": self._summary(current_runs, current_receipts, current_decisions, verified),
+            "previous": self._summary(previous_runs, previous_receipts, previous_decisions, verified),
             "records": page,
             "next_before": page[-1]["id"] if len(remaining) > PAGE_SIZE else None,
         }
@@ -607,9 +615,10 @@ class SupervisorRecordReader:
         current_end = now + timedelta(microseconds=1)
         return (current_start, current_end), (previous_start, current_start)
 
-    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry]]:
+    def _records(self, plan_ids: list[int]) -> tuple[list[Entry], list[Entry], list[Entry], list[Entry]]:
         runs = [run for plan_id in plan_ids for run in self._entries("SupervisorRun", plan_id=plan_id)]
         receipts = []
+        proposals = []
         for run in runs:
             run_ref = run.data.get("run_ref")
             tenant_id, grant_id = run.data.get("tenant_id"), run.data.get("grant_id")
@@ -617,7 +626,23 @@ class SupervisorRecordReader:
                 continue
             candidates = self._entries("SupervisorActionReceipt", grant_id=grant_id, run_id=run_ref)
             receipts.extend(receipt for receipt in candidates if self._receipt_tenant(receipt) == tenant_id)
-        return runs, list({receipt.row_id: receipt for receipt in receipts}.values())
+            proposals.extend(self._entries("SupervisorProposalReceipt", tenant_id=tenant_id,
+                                           grant_id=grant_id, run_id=run_ref))
+        receipts = list({receipt.row_id: receipt for receipt in receipts}.values())
+        proposals = list({proposal.row_id: proposal for proposal in proposals}.values())
+        grant_scopes = {
+            (run.data["tenant_id"], run.data["grant_id"])
+            for run in runs
+            if isinstance(run.data.get("tenant_id"), str) and isinstance(run.data.get("grant_id"), str)
+        }
+        proposal_ids = {proposal.row_id for proposal in proposals}
+        decisions = [
+            decision
+            for tenant_id, grant_id in grant_scopes
+            for decision in self._entries("SupervisorProposalDecision", tenant_id=tenant_id, grant_id=grant_id)
+        ]
+        decisions = [decision for decision in decisions if decision.data.get("proposal_id") in proposal_ids]
+        return runs, receipts, proposals, decisions
 
     def _verified_receipts(self, receipts: list[Entry]) -> set[int]:
         return {
@@ -666,6 +691,10 @@ class SupervisorRecordReader:
     def _receipt_matches_area(self, receipt: Entry, area: str) -> bool:
         return not area or any(OPERATION_AREAS.get(kind) == area for kind in self._operation_kinds(receipt))
 
+    def _decision_matches_area(self, decision: Entry, proposals: list[Entry], area: str) -> bool:
+        proposal = next((item for item in proposals if item.row_id == decision.data.get("proposal_id")), None)
+        return not area or bool(proposal and self._receipt_matches_area(proposal, area))
+
     @staticmethod
     def _operation_kinds(receipt: Entry) -> list[str]:
         operations = receipt.data.get("proposed_operations", [])
@@ -678,14 +707,18 @@ class SupervisorRecordReader:
     def _within(moment: datetime, window: tuple[datetime, datetime]) -> bool:
         return window[0] <= moment < window[1]
 
-    def _summary(self, runs: list[Entry], receipts: list[Entry], verified: set[int]) -> dict[str, Any]:
+    def _summary(self, runs: list[Entry], receipts: list[Entry], decisions: list[Entry],
+                 verified: set[int]) -> dict[str, Any]:
         statuses = {status: 0 for status in RECEIPT_STATUSES}
         statuses.update(Counter(str(receipt.data.get("status", "unknown")) for receipt in receipts))
+        proposals = Counter(str(decision.data.get("status", "unknown")) for decision in decisions)
         return {"runs": len(runs), "receipts": statuses,
+                "proposals": {"accepted": proposals["accepted"], "declined": proposals["declined"]},
                 "verified_receipts": sum(receipt.row_id in verified for receipt in receipts)}
 
     @staticmethod
-    def _record_rows(runs: list[Entry], receipts: list[Entry], verified: set[int]) -> list[dict[str, Any]]:
+    def _record_rows(runs: list[Entry], receipts: list[Entry], proposals: list[Entry], decisions: list[Entry],
+                     all_decisions: list[Entry], verified: set[int]) -> list[dict[str, Any]]:
         plans_by_run = {
             (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")): run.data.get("plan_id")
             for run in runs
@@ -705,5 +738,27 @@ class SupervisorRecordReader:
              "verification": "verified" if receipt.row_id in verified else "unverified",
              "operations": receipt.data.get("proposed_operations", [])}
             for receipt in receipts
+        )
+        decisions_by_proposal = {
+            decision.data.get("proposal_id"): decision.data.get("status") for decision in all_decisions
+        }
+        rows.extend(
+            {"id": proposal.row_id, "kind": "proposal", "created_at": proposal.created_at.isoformat(),
+             "proposal_id": proposal.row_id, "action_id": proposal.data.get("action_id"),
+             "run_id": proposal.data.get("run_id"), "plan_id": proposal.data.get("plan_id"),
+             "status": decisions_by_proposal.get(proposal.row_id, proposal.data.get("status")),
+             "command": proposal.data.get("command"), "wake_up": proposal.data.get("wake_up"),
+             "rationale": proposal.data.get("rationale"),
+             "operations": proposal.data.get("proposed_operations", [])}
+            for proposal in proposals
+        )
+        plans_by_proposal = {proposal.row_id: proposal.data.get("plan_id") for proposal in proposals}
+        rows.extend(
+            {"id": decision.row_id, "kind": "proposal_decision", "created_at": decision.created_at.isoformat(),
+             "proposal_id": decision.data.get("proposal_id"), "plan_id": plans_by_proposal.get(decision.data.get("proposal_id")),
+             "status": decision.data.get("status"), "command": decision.data.get("command"),
+             "wake_up": decision.data.get("wake_up"), "rationale": decision.data.get("rationale"),
+             "exit_code": decision.data.get("exit_code")}
+            for decision in decisions
         )
         return sorted(rows, key=lambda row: row["id"], reverse=True)
