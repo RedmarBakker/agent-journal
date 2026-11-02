@@ -9,7 +9,7 @@ class SupervisorGrantGateClosed(StateFixture):
     parent = SupervisorGrantOwner
 
     def steps(self, story) -> None:
-        story.supervisor_authority.restore_installation(story.supervisor_owner, story.grants.first)
+        self.supervisor_authority.restore_installation(self.supervisor_owner, story.grants.first)
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)

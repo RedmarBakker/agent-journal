@@ -84,7 +84,8 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
     @property
     def agents(self) -> StoryAgents:
         plugin_token = self.app.container.get(PluginTokens).build(SUPERVISOR_ACTOR) if self.scope == AgentRole.SUPERVISOR else ""
-        return StoryAgents(self.scope, self.fixture, self.supervisor_credential, plugin_token)
+        credential = getattr(self.fixture, "supervisor_credential", self.supervisor_credential)
+        return StoryAgents(self.scope, self.fixture, credential, plugin_token)
 
     def posted_hook(self, agent: StoryAgent, type_name: str, **body) -> tuple[int, object]:
         return self.session_posted_hook(self.hook_session_of(agent), self.headers_of(agent), type_name, {**self.hook_fields_of(agent), **body})
@@ -235,7 +236,7 @@ class Story(AgentSteps, UserSteps, LauncherSteps, WorkerSteps, ReviewerSteps, Ti
         grant = authority.revalidate(principal)
         if principal.actor != agent.actor or agent.actor != Actor.plugin(SUPERVISOR_ACTOR):
             raise AssertionError("the supervisor story subject must carry its plugin actor and current grant credential")
-        environment = self.app.container.get(Environments).global_matching(id=grant["driver_environment_id"])[0]
+        environment = self.app.container.get(Environments).find(grant["driver_environment_id"])
         permissions = authority.command_grant(agent.grant_credential, environment.row_id)
         return Caller.supervisor(environment.name, agent.actor.id, permissions)
 

@@ -13,9 +13,9 @@ class SupervisorGrantOwner(StateFixture):
         fixture = seeded(story.app, owner_id=1)
         story.monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
         grant, token, _principal = admitted(fixture, "shadow")
-        story.supervisor_credential = token
-        story.supervisor_authority = fixture.authority
-        story.supervisor_owner = fixture.owner
+        self.supervisor_credential = token
+        self.supervisor_authority = fixture.authority
+        self.supervisor_owner = fixture.owner
         self.plans.first = fixture.plan.row_id
         self.grants.first = grant["grant_id"]
         self.grants.replacement = enrollment(fixture, "bounded_write")

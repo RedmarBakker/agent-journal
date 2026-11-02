@@ -13,7 +13,7 @@ class VersionOneGrant(StateFixture):
         context = maintenance_context(story.app, story.monkeypatch, "shadow")
         fixture = context["fixture"]
         self.plans.first = fixture.plan.row_id
-        story.supervisor_credential = context["token"]
+        self.supervisor_credential = context["token"]
         story.closers.append(lambda: fixture.authority.secrets_store.drop(fixture.credentials))
         result = story.user_opens_in(fixture.owner_environment.name, "/journal/plans")
         result.expect_viewer_passed()

@@ -23,7 +23,7 @@ class SupervisorRecords(StateFixture):
     def steps(self, story) -> None:
         plan = story.app.container.get(Plans).global_matching(id=story.plans.first)[0]
         authority = story.app.container.get(SupervisorAuthority)
-        principal = authority.authenticate(story.supervisor_credential)
+        principal = authority.authenticate(self.supervisor_credential)
         foreign_environment = story.app.container.get(Environments).made(f"supervisor-private-{plan.row_id}", Actor.user(2))
         with story.app.container.get(Scope).environment(foreign_environment.row_id):
             foreign = story.app.container.get(Plans).save(

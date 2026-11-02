@@ -15,17 +15,17 @@ class SupervisorGrantCliRole(StateFixture):
     parent = SupervisorGrantOwner
 
     def steps(self, story) -> None:
-        grant, token = story.supervisor_authority.change(story.supervisor_owner, {
+        grant, token = self.supervisor_authority.change(self.supervisor_owner, {
             "protocol_version": 1,
             "grant_id": story.grants.first,
             "expected_grant_version": 1,
             "change": {"kind": "replace", "enrollment": story.grants.replacement},
         })
-        story.supervisor_credential = token
-        authority = story.supervisor_authority
+        self.supervisor_credential = token
+        authority = self.supervisor_authority
         credential = authority._credential_name(grant["grant_id"], grant["grant_version"])
         story.closers.append(lambda: authority.secrets_store.drop([credential]))
-        story.supervisor_environment = story.caller_of(story.agents.subject).environment
+        self.supervisor_environment = story.app.container.get(Environments).find(grant["driver_environment_id"]).name
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)
@@ -41,14 +41,14 @@ class SupervisorGrantCliReadOnly(StateFixture):
             **story.grants.replacement,
             "capabilities": {name: False for name in story.grants.replacement["capabilities"]},
         }
-        grant, token = story.supervisor_authority.change(story.supervisor_owner, {
+        grant, token = self.supervisor_authority.change(self.supervisor_owner, {
             "protocol_version": 1,
             "grant_id": story.grants.first,
             "expected_grant_version": 2,
             "change": {"kind": "replace", "enrollment": enrollment},
         })
-        story.supervisor_credential = token
-        authority = story.supervisor_authority
+        self.supervisor_credential = token
+        authority = self.supervisor_authority
         credential = authority._credential_name(grant["grant_id"], grant["grant_version"])
         story.closers.append(lambda: authority.secrets_store.drop([credential]))
 
@@ -62,11 +62,11 @@ class SupervisorGrantUnwatchedPlan(StateFixture):
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
-        environment = story.app.container.get(Environments).lookup(story.supervisor_environment)
+        environment = story.app.container.get(Environments).lookup(self.supervisor_environment)
         plans = story.app.container.get(Plans)
         scope = story.app.container.get(Scope)
         with scope.environment(environment.row_id):
-            plan = plans.save(Plan(environment_id=environment.row_id, title="unwatched plan", state=PlanState.STARTED), story.supervisor_owner)
+            plan = plans.save(Plan(environment_id=environment.row_id, title="unwatched plan", state=PlanState.STARTED), self.supervisor_owner)
         self.plans.second = plan.row_id
 
     def expected(self, story) -> None:
@@ -93,8 +93,8 @@ class SupervisorGrantMutationAttempt(StateFixture):
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
-        story.supervisor_entry_id_before = story.app.container.get(Entries).global_last_id()
-        story.supervisor_secrets_before = story.supervisor_authority.secrets_store.values()
+        self.supervisor_entry_id_before = story.app.container.get(Entries).global_last_id()
+        self.supervisor_secrets_before = self.supervisor_authority.secrets_store.values()
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)

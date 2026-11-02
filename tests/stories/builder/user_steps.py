@@ -242,7 +242,7 @@ class UserSteps:
 
     def supervisor_posts(self, route: str, body: dict) -> StepResult:
         self.viewer_status, self.viewer_answer = posted(
-            self.app, route, body, {"X-Journal-Supervisor-Token": self.supervisor_credential},
+            self.app, route, body, {"X-Journal-Supervisor-Token": self.agents.supervisor.grant_credential},
         )
         return self.observed(f"the supervisor posts to {route}", None, None)
 

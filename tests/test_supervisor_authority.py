@@ -142,7 +142,17 @@ def enrollment(fixture: Fixture, mode: str = "shadow") -> dict:
 
 
 def admitted(fixture: Fixture, mode: str = "shadow"):
-    grant, token = fixture.authority.enroll(fixture.owner, enrollment(fixture, mode))
+    request = enrollment(fixture, mode)
+    current = fixture.authority._environment_entry(fixture.driver_environment.row_id)
+    if current:
+        grant, token = fixture.authority.change(fixture.owner, {
+            "protocol_version": 1,
+            "grant_id": current.data["grant_id"],
+            "expected_grant_version": current.data["grant_version"],
+            "change": {"kind": "replace", "enrollment": request},
+        })
+    else:
+        grant, token = fixture.authority.enroll(fixture.owner, request)
     fixture.credentials.append(fixture.authority._credential_name(grant["grant_id"], grant["grant_version"]))
     return grant, token, fixture.authority.authenticate(token)
 

@@ -12,7 +12,9 @@ class FixtureCopies:
 
     def reached(self, story, fixture: type[StateFixture]) -> StateFixture:
         copy = self.copies.get((fixture, story.provider))
-        return copy.restore(story) if copy is not None else self.seeded(story, fixture)
+        reached = copy.restore(story) if copy is not None else self.seeded(story, fixture)
+        reached.restore_on(story)
+        return reached
 
     def seeded(self, story, fixture: type[StateFixture]) -> StateFixture:
         reached = fixture()

@@ -21,12 +21,23 @@ class StateFixture:
     def inherits(self, parent: "StateFixture") -> None:
         for rows, parent_rows in zip(self.kinds(), parent.kinds()):
             rows.inherits(parent_rows)
+        for name, value in vars(parent).items():
+            if name not in ROW_KINDS:
+                setattr(self, name, value)
 
     def copied(self) -> "StateFixture":
         copy = type(self)()
         for kind in ROW_KINDS:
             setattr(copy, kind, getattr(self, kind).copied())
+        for name, value in vars(self).items():
+            if name not in ROW_KINDS:
+                setattr(copy, name, value)
         return copy
+
+    def restore_on(self, story) -> None:
+        for name, value in vars(self).items():
+            if name not in ROW_KINDS:
+                setattr(story, name, value)
 
     def unused_rows(self) -> list[str]:
         return [name for rows in self.kinds() for name in rows.unused()]
