@@ -20,8 +20,8 @@
     "base_url": "http://127.0.0.1:17840",
     "api": "anthropic-messages",
     "auth": "api-key",
-    "profile": "anthropic:supervisor-api",
-    "credential_file": "/run/secrets/supervisor_anthropic_api_key"
+    "api_key_placeholder": "journal-supervisor-metered-proxy-placeholder",
+    "proxy_credential_file": "/run/secrets/supervisor_anthropic_api_key"
   },
   "tools": {
     "mcp_server": "journal",

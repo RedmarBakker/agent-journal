@@ -876,10 +876,19 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
         "api": "anthropic-messages",
         "auth": "api-key",
         "api_key_placeholder": "journal-supervisor-metered-proxy-placeholder",
-        "credential_file": "/run/secrets/supervisor_anthropic_api_key",
+        "proxy_credential_file": "/run/secrets/supervisor_anthropic_api_key",
     }
     assert "auth" not in contract_fixture["openclaw_config"]
-    assert contract_fixture["openclaw_config"]["models"]["providers"]["anthropic"]["apiKey"] == "journal-supervisor-metered-proxy-placeholder"
+    openclaw_config = json.dumps(contract_fixture["openclaw_config"])
+    assert contract_fixture["openclaw_config"]["models"]["providers"]["anthropic"]["apiKey"] == (
+        "journal-supervisor-metered-proxy-placeholder"
+    )
+    assert "/run/secrets/supervisor_anthropic_api_key" not in openclaw_config
+    contract = (PROFILE / "contract.md").read_text()
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+    assert "OpenClaw sends the non-secret placeholder to the loopback proxy" in contract
+    assert "its `apiKey` is exactly `journal-supervisor-metered-proxy-placeholder`" in runbook
+    assert "The real provider key belongs only in the mounted proxy secret" in runbook
     assert fixture["agent"]["fallbacks"] == []
     assert fixture["hooks"]["enabled"] is False
     assert fixture["network"] == {"bind": "lan", "port": 18789, "host_published": False}
@@ -899,6 +908,8 @@ def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
     assert '"writer_supervisor_tls_ca"' in launcher
     assert r'\"defaults\":{\"model\":{\"primary\":\"anthropic/claude-sonnet-5\"}' in launcher
     assert r'\"apiKey\":\"journal-supervisor-metered-proxy-placeholder\"' in launcher
+    assert r'!strstr(compact, "\"profiles\":")' in launcher
+    assert r'!strstr(compact, "\"order\":")' in launcher
     assert r'\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}' in launcher
     assert r'\"plugins\":{\"enabled\":true,\"allow\":[\"anthropic\"],\"deny\":[\"memory-core\"]' in launcher
     assert r'\"dreaming\":{\"enabled\":false}' in launcher

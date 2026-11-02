@@ -20,6 +20,7 @@ OPENCLAW_TOOL_NAMES = (
     "journal__journal_supervisor-receipt",
 )
 METERED_PROVIDER_BASE_URL = "http://127.0.0.1:17840"
+METERED_PROVIDER_API_KEY_PLACEHOLDER = "journal-supervisor-metered-proxy-placeholder"
 RUN_KEYS = frozenset({
     "run_id",
     "episode_id",
@@ -320,14 +321,11 @@ def validate_pinned_fixture(fixture: dict) -> None:
         raise ContractError("fixture is not pinned to the reviewed OpenClaw release")
     expected_tool_names = list(OPENCLAW_TOOL_NAMES)
     expected_config = {
-        "auth": {
-            "profiles": {"anthropic:supervisor-api": {"provider": "anthropic", "mode": "api_key"}},
-            "order": {"anthropic": ["anthropic:supervisor-api"]},
-        },
         "models": {"providers": {"anthropic": {
             "baseUrl": METERED_PROVIDER_BASE_URL,
             "auth": "api-key",
             "api": "anthropic-messages",
+            "apiKey": METERED_PROVIDER_API_KEY_PLACEHOLDER,
             "agentRuntime": {"id": "openclaw"},
             "maxTokens": 8000,
             "timeoutSeconds": 180,

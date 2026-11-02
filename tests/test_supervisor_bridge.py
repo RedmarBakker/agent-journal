@@ -28,6 +28,7 @@ from journal.support.time_source import TimeSource
 from supervisor_bridge.bridge import NoAggregateBudgetProof, SupervisorBridge
 from supervisor_bridge.contracts import (
     FIXTURE_PATH,
+    METERED_PROVIDER_API_KEY_PLACEHOLDER,
     OPENCLAW_TOOL_NAMES,
     PINNED_OPENCLAW_COMMIT,
     PINNED_OPENCLAW_VERSION,
@@ -959,9 +960,11 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
     config = fixture["openclaw_config"]
     provider = config["models"]["providers"]["anthropic"]
     assert "auth" not in config
-    assert set(provider) == {"baseUrl", "auth", "api", "apiKey", "agentRuntime", "maxTokens", "timeoutSeconds"}
+    assert set(provider) == {
+        "baseUrl", "auth", "api", "apiKey", "agentRuntime", "maxTokens", "timeoutSeconds"
+    }
     assert provider["api"] == "anthropic-messages"
-    assert provider["apiKey"] == "journal-supervisor-metered-proxy-placeholder"
+    assert provider["apiKey"] == METERED_PROVIDER_API_KEY_PLACEHOLDER
     assert fixture["openclaw_config"]["agents"]["entries"]["supervisor"]["model"] == {
         "primary": "anthropic/claude-sonnet-5", "fallbacks": []
     }
@@ -976,7 +979,12 @@ def test_metered_budget_gate_requires_the_live_proxy_and_pinned_route(tmp_path):
     config_path.write_text(json.dumps(config))
     assert proof.is_verified(run) is False
 
-    provider["apiKey"] = "journal-supervisor-metered-proxy-placeholder"
+    provider["apiKey"] = METERED_PROVIDER_API_KEY_PLACEHOLDER
+    config["auth"] = {"order": {"anthropic": ["anthropic:supervisor-api"]}}
+    config_path.write_text(json.dumps(config))
+    assert proof.is_verified(run) is False
+
+    del config["auth"]
     config_path.write_text(json.dumps(config))
     offline = MeteredAggregateBudgetProof(state, config_path, health_probe=lambda: False)
     assert offline.is_verified(run) is False

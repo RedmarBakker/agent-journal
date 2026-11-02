@@ -9,7 +9,12 @@ from typing import Callable, Protocol
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from supervisor_bridge.contracts import ContractError, METERED_PROVIDER_BASE_URL, RunReference
+from supervisor_bridge.contracts import (
+    ContractError,
+    METERED_PROVIDER_API_KEY_PLACEHOLDER,
+    METERED_PROVIDER_BASE_URL,
+    RunReference,
+)
 from supervisor_bridge.state import StateError, StateStore
 
 
@@ -336,11 +341,15 @@ class MeteredAggregateBudgetProof:
         entries = config["agents"]["entries"]
         defaults = config["agents"]["defaults"]
         return (
-            set(provider) == {"anthropic"}
-            and set(provider["anthropic"]) == {"baseUrl", "auth", "api", "agentRuntime", "maxTokens", "timeoutSeconds"}
+            "auth" not in config
+            and set(provider) == {"anthropic"}
+            and set(provider["anthropic"]) == {
+                "baseUrl", "auth", "api", "apiKey", "agentRuntime", "maxTokens", "timeoutSeconds"
+            }
             and provider["anthropic"]["baseUrl"] == METERED_PROVIDER_BASE_URL
             and provider["anthropic"]["api"] == "anthropic-messages"
             and provider["anthropic"]["auth"] == "api-key"
+            and provider["anthropic"]["apiKey"] == METERED_PROVIDER_API_KEY_PLACEHOLDER
             and provider["anthropic"]["agentRuntime"] == {"id": "openclaw"}
             and provider["anthropic"]["maxTokens"] == 8000
             and provider["anthropic"]["timeoutSeconds"] == 180

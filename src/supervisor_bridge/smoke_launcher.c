@@ -194,6 +194,7 @@ static bool contains_all(const char *text, const char *const *needles, size_t co
 
 static int valid_profile(const char *config_path) {
     static const char *required_config[] = {
+        "\"apiKey\":\"journal-supervisor-metered-proxy-placeholder\"",
         "\"gateway\":{\"mode\":\"local\",\"bind\":\"lan\",\"auth\":{\"mode\":\"token\"}}",
         "\"plugins\":{\"enabled\":true,\"allow\":[\"anthropic\"],\"deny\":[\"memory-core\"],\"entries\":{\"memory-core\":{\"enabled\":false,\"config\":{\"dreaming\":{\"enabled\":false}}}}}",
         "\"allowRequestSessionKey\":false",
@@ -399,6 +400,8 @@ static int valid_profile(const char *config_path) {
         && contains_all(writer_setup, required_setup, sizeof(required_setup) / sizeof(required_setup[0]))
         && contains_all(gateway_package, required_gateway_package, sizeof(required_gateway_package) / sizeof(required_gateway_package[0]))
         && contains_all(compact, required_config, sizeof(required_config) / sizeof(required_config[0]))
+        && !strstr(compact, "\"profiles\":")
+        && !strstr(compact, "\"order\":")
         && !strstr(compact, "\"default\":")
         && all_values_equal(compact, "api", "\"anthropic-messages\"")
         && all_values_equal(compact, "maxTokens", "8000")

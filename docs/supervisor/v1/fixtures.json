@@ -1,31 +1,19 @@
 {
   "contract_version": 1,
   "status": "INERT DOCUMENTATION FIXTURES; reviewed against source by inspection only, not executed or schema-validator tested.",
-  "warning": "Synthetic IDs/times/revisions/hashes and monetary values confer no authority. Command/job/MCP/hook enable flags are false. Config has no provider key or real hook token. Input/request ceilings and example 1-dollar daily cap are illustrative proposed grant inputs, not established runtime enforcement or an approved customer budget.",
+  "warning": "Synthetic IDs/times/revisions/hashes and monetary values confer no authority. Command/job/MCP/hook enable flags are false. Config has only a fixed non-secret provider-key placeholder, no real provider key or real hook token. Input/request ceilings and example 1-dollar daily cap are illustrative proposed grant inputs, not established runtime enforcement or an approved customer budget.",
   "openclaw_pin": {
     "version": "2026.10.8",
     "commit": "dc2523e5a5c7a309517fd7fa834add938231d526"
   },
   "openclaw_config": {
-    "auth": {
-      "profiles": {
-        "anthropic:supervisor-api": {
-          "provider": "anthropic",
-          "mode": "api_key"
-        }
-      },
-      "order": {
-        "anthropic": [
-          "anthropic:supervisor-api"
-        ]
-      }
-    },
     "models": {
       "providers": {
         "anthropic": {
           "baseUrl": "http://127.0.0.1:17840",
           "auth": "api-key",
           "api": "anthropic-messages",
+          "apiKey": "journal-supervisor-metered-proxy-placeholder",
           "agentRuntime": {
             "id": "openclaw"
           },
