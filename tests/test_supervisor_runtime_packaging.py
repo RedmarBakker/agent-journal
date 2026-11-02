@@ -587,6 +587,7 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     assert launch_data[0]["front"]["env"]["JOURNAL_ROOT"] == str(project)
     assert launch_data[0]["front"]["env"]["JOURNAL_ENV"] == "plan-1"
     assert launch_data[0]["front"]["env"]["JOURNAL_LAUNCH"] == launch_data[0]["launch"]
+    assert launch_data[0]["front"]["command"][-1] == "you lead plan 1 in this worktree; work its tasks here"
     assert str(project / ".journal") not in launch_data[0]["front"]["env"]["PATH"]
     hooks = json.loads(hooks_file.read_text())["hooks"]
     commands = [

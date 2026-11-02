@@ -159,8 +159,11 @@ def test_launch_parses_flags_and_builds_the_commands(tmp_path: Path):
     assert launch.agent_command(Choice("spike", "s-1", True), status) == ["claude", "--settings", status.settings(), "--model", "x"], "the resume goes in the launch file apart"
     assert launch.agent_command(Choice("spike", "", True, prompt_flags=True), status) == ["claude", "--dangerously-skip-permissions", "--settings", status.settings(), "--model", "x"]
     codex = Launch.parse(["codex"], tmp_path)
-    assert codex.agent_command(Choice("spike", "", True), status) == ["codex", "--no-daemon", "-c", "sandbox_workspace_write.network_access=true"], "Codex keeps this launch's environment and reaches its journal's server"
-    assert codex.agent_command(Choice("spike", "", True, prompt_flags=True), status) == ["codex", "--no-daemon", "--dangerously-bypass-approvals-and-sandbox"]
+    assert codex.agent_command(Choice("spike", "", True), status) == ["codex", "--no-daemon", "-c", "sandbox_workspace_write.network_access=true", "the journal is ready on spike"], "a new Codex session starts with its journal opening line"
+    assert codex.agent_command(Choice("spike", "", True, prompt_flags=True), status) == ["codex", "--no-daemon", "--dangerously-bypass-approvals-and-sandbox", "the journal is ready on spike"]
+    assert codex.agent_command(Choice("spike", "thread-1", True), status) == ["codex", "--no-daemon", "-c", "sandbox_workspace_write.network_access=true"], "a resumed conversation keeps its existing first prompt"
+    plan_resume = Launch.parse(["codex", "--env", "plan-2", "--", "resume", "thread-2"], tmp_path)
+    assert plan_resume.agent_command(Choice("plan-2", "", True, prompt_flags=True), status) == ["codex", "--no-daemon", "--dangerously-bypass-approvals-and-sandbox", "resume", "thread-2"]
     environ = launch.environ(Choice("spike", "", True), "launch-1")
     assert environ["AGENT_JOURNAL_ACTIVE"] == "1" and environ["JOURNAL_ENV"] == "spike", "the journal's own hooks always run"
     assert environ["JOURNAL_LAUNCH"] == "launch-1" and environ["CLAUDE_CODE_SHELL_PREFIX"].endswith("hooks/run.sh"), "the launch is named in the agent's environment, and Claude's shell runs through the journal"

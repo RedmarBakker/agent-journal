@@ -10,6 +10,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterator
 
+from journal.features.briefing.briefing_nudges import BriefingNudges
+from journal.features.plans.plans_nudges import PlansNudges
 from journal.support.hook_type import HookType
 from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.codex_row import CodexRow
@@ -313,7 +315,25 @@ class Codex(Provider):
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
         skipped = [flag for flag in self.prompt_flags if choice.prompt_flags and flag not in args]
-        return [self.program, "--no-daemon", *skipped, *([] if choice.prompt_flags else self.network_access), *args]
+        prompt = self.initial_prompt(choice, args)
+        prompt_argument = [prompt] if prompt else []
+        return [
+            self.program, "--no-daemon", *skipped, *([] if choice.prompt_flags else self.network_access),
+            *args, *prompt_argument,
+        ]
+
+    @staticmethod
+    def initial_prompt(choice: Choice, args: tuple[str, ...]) -> str:
+        resuming = choice.resume or any(
+            arg in ("resume", "--resume", "-r", "--continue") or arg.startswith("--resume=")
+            for arg in args
+        )
+        if resuming:
+            return ""
+        plan = re.fullmatch(r"plan-(\d+)", choice.environment)
+        if plan:
+            return PlansNudges.LEADING_PLAN.create(n=plan[1]).rendered()
+        return BriefingNudges.JOURNAL_READY.create(env=choice.environment).rendered()
 
     def launch_environment(self, runner: Path) -> dict[str, str]:
         return {}
