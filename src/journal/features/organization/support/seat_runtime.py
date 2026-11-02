@@ -151,7 +151,8 @@ class SeatRuntime:
             return ""
         for address in self.roster(rig):
             member = self.member(rig, address.pod, address.member, provider)
-            if member.organization_seat and self.session(member, session):
+            live = self.session(member) if member.organization_seat else None
+            if live is not None and live.session == session:
                 return member.organization_seat
         return ""
 

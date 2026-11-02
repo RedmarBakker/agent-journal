@@ -157,6 +157,14 @@ class StoryChecks:
         lines = [f"{JOURNAL_PREFIX} {nudge.rendered()}" for nudge in nudges]
         assert typed == lines, f"the terminal was to be typed {lines} since the story or its fixture began, and only that; typed {typed}"
 
+    def expect_supervisor_received(self, agent: StoryAgent, nudge: Nudge, count: int = 1, **values) -> None:
+        row = self.app.container.get(Agents).session_agent(self.session_of(agent))
+        environment = self.app.container.get(Environments).find(row.environment_id).name
+        supervisor = self.protocol_supervisor
+        line = f"{JOURNAL_PREFIX} {nudge.create(**values).rendered()}"
+        assert supervisor.environment == environment, f"the supervisor belongs to {supervisor.environment}, not {environment}"
+        assert supervisor.accepted.count(line) == count, f"the {agent.role} supervisor was to receive {line!r} {count} times: {supervisor.accepted}"
+
     def expect_agent_told(self, agent: StoryAgent, nudge: Nudge, **values) -> None:
         session = self.session_of(agent)
         lines = self.log.environment_lines(self.session_environments.get(session, "main"))
