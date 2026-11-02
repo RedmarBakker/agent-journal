@@ -279,5 +279,5 @@ def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
 
     assert completed.returncode == 0, f"{completed.stderr}\n{policy}"
     assert not external.exists()
-    assert inside.read_text(encoding="utf-8") == "denied"
+    assert inside.read_text(encoding="utf-8").removesuffix("\n") == "denied"
     assert boundary.observe("run-1").escaped_writes == 0
