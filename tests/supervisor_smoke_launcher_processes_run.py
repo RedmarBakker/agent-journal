@@ -192,9 +192,15 @@ def staging_root(tmp_path):
     )
     (work / "docs/supervisor/v1/live-smoke-setup.py").write_text(
         "if len(sys.argv) != 1\n/_supervisor/v1/enrollment\nPlanMode.SOLO\nSupervisorLink\n"
+        'TASK_TITLE = "Leave the diagnostic smoke task open"\n'
+        "Keep the Plan driver live and idle\n"
+        "Leave this diagnostic smoke task open and unheld\n"
+        "command(\"task\", \"block\"\ncommand(\"task\", \"unblock\"\n"
         'CHECK_COMMAND = "false"\nThis smoke check intentionally fails\n'
+        '"max_turns_per_day": 1\n'
         '"max_input_tokens_per_turn": 24000\n"max_output_tokens_per_turn": 8000\n'
         '"max_provider_requests_per_turn": 8\n"mode": "bounded_write"\n'
+        "def ensure_smoke_task(\ncommand(\"check\", \"run\", str(check_id), expected_code=1)\n"
     )
     (work / "docs/supervisor/v1/Dockerfile.gateway").write_text(
         "FROM ghcr.io/openclaw/openclaw@sha256:82b6ce63048e75ca749dbc250e872ee21f4b1c098fc6bff94636e357bcb64bf5\n"

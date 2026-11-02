@@ -323,12 +323,20 @@ static int valid_profile(const char *config_path) {
         "/_supervisor/v1/enrollment",
         "PlanMode.SOLO",
         "SupervisorLink",
+        "TASK_TITLE = \"Leave the diagnostic smoke task open\"",
+        "Keep the Plan driver live and idle",
+        "Leave this diagnostic smoke task open and unheld",
+        "command(\"task\", \"block\"",
+        "command(\"task\", \"unblock\"",
         "CHECK_COMMAND = \"false\"",
         "This smoke check intentionally fails",
+        "\"max_turns_per_day\": 1",
         "\"max_input_tokens_per_turn\": 24000",
         "\"max_output_tokens_per_turn\": 8000",
         "\"max_provider_requests_per_turn\": 8",
         "\"mode\": \"bounded_write\"",
+        "def ensure_smoke_task(",
+        "command(\"check\", \"run\", str(check_id), expected_code=1)",
     };
     char *compose = NULL, *writer_package = NULL, *writer_entrypoint = NULL, *writer_setup = NULL;
     char *login_command = NULL, *ready_command = NULL;

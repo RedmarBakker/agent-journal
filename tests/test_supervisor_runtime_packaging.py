@@ -298,6 +298,11 @@ def test_writer_image_archives_and_copies_every_runtime_script():
     assert 'TEMPLATE_BRIEF = "Read the deliberately failing smoke check' in setup
     assert 'CHECK_COMMAND = "false"' in setup
     assert 'This smoke check intentionally fails' in setup
+    assert 'Keep the Plan driver live and idle' in setup
+    assert 'Leave this diagnostic smoke task open and unheld' in setup
+    assert 'command("task", "block"' in setup
+    assert 'command("task", "unblock"' in setup
+    assert '"max_turns_per_day": 1' in setup
 
     project_command = (ROOT / "src" / "journal" / "support" / "project_command.py").read_text()
     installed_parts = ("journal", "supervisor", "sync_server", "journal.py", "journal.sh")
@@ -520,6 +525,7 @@ def test_live_setup_reads_plan_and_child_rows_inside_the_main_environment_scope(
 
 def test_live_setup_resumes_only_its_started_unenrolled_plan():
     signature = live_setup_function_source("setup_plan_matches")
+    smoke_tasks = live_setup_function_source("smoke_tasks_match")
     resume = live_setup_function_source("resume_plan")
     require_runtime = live_setup_function_source("require_runtime")
     make_plan = live_setup_function_source("make_plan")
@@ -529,7 +535,9 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert "plan.state == PlanState.STARTED" in signature
     assert "plan.mode == PlanMode.SOLO" in signature and "plan.mode_chosen" in signature
     assert "phases[0].title == PHASE_TITLE" in signature
-    assert "tasks[0].title == TASK_TITLE" in signature and "tasks[0].brief == TASK_BRIEF" in signature
+    assert "smoke_tasks_match(tasks)" in signature
+    assert "task.title == TASK_TITLE" in smoke_tasks and "task.brief == TASK_BRIEF" in smoke_tasks
+    assert "TaskState.BLOCKED, TaskState.OPEN" in smoke_tasks
     assert "if not setup_plan_matches(plan, phases, tasks):" in resume
     assert "if authority.has_enrollment_grant():" in resume
     assert "def has_enrollment_grant(self) -> bool:" in authority
@@ -537,6 +545,28 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
     assert 'if TOKEN_FILE.exists():' in require_runtime
     assert "if plan_id := existing_plan_id(existing):\n        return resume_plan(app, main, plan_id)" in make_plan
     assert "return plan_id, setup_check_id(app), setup_template_id(app)" in resume
+
+
+def test_live_setup_leaves_one_open_task_and_records_its_failure_after_enrollment():
+    make_plan = live_setup_function_source("make_plan")
+    main = live_setup_function_source("main")
+    command = live_setup_function_source("command")
+    ensure_task = live_setup_function_source("ensure_smoke_task")
+    run_check = live_setup_function_source("run_bound_check")
+
+    assert make_plan.index('command("task", "block"') < make_plan.index('command("plan", "ready"')
+    assert main.index("wait_for_codex_plan") < main.index("ensure_smoke_task")
+    assert main.index("ensure_smoke_task") < main.index('request("/_supervisor/v1/enrollment"')
+    assert main.index('request("/_supervisor/v1/enrollment"') < main.index("run_bound_check(check_id)")
+    assert 'smoke_tasks_match(tasks)' in ensure_task and 'command("task", "unblock"' in ensure_task
+    assert 'tasks[0].state == TaskState.OPEN' in ensure_task and 'tasks_repo.holder(tasks[0]) is None' in ensure_task
+    assert 'not tasks_repo.unavailable_task_ids(tasks)' in ensure_task and 'not tasks[0].delegated' in ensure_task
+    assert 'plans.started_task(plan) is None' in ensure_task
+    assert 'command("check", "run", str(check_id), expected_code=1)' in run_check
+    assert 'output.startswith(f"check {check_id} failed:")' in run_check
+    assert main.index("run_bound_check(check_id)") < main.index("write_token(token)")
+    assert main.count("run_bound_check(check_id)") == 1
+    assert "answer.get(\"code\") != expected_code" in command
 
 
 def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):
@@ -957,6 +987,11 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     assert "developer laptop" in runbook
     assert "deliberately failing `false` smoke check" in runbook
     assert "one current failure episode to diagnose" in runbook
+    assert "The real Plan agent starts with no work in hand" in runbook
+    assert "blocks it before plan start" in runbook
+    assert "exactly one open, unheld diagnostic task" in runbook
+    assert "runs the bound `false` check exactly once after enrollment" in runbook
+    assert "first writer reconciliation admit one turn" in runbook
     assert "Cold-reboot the disposable VM" in runbook
     assert "No OpenRig fleet or build worker launcher" in runbook
     assert "build-gateway.sh" in runbook
@@ -964,4 +999,6 @@ def test_runbook_declares_recovery_targets_and_live_staging_probes():
     staging_report = (PROFILE / "STAGING-REPORT.md").read_text()
     assert "build-gateway.sh" in staging_report
     assert "this worker did not run Docker or build the image" in staging_report
+    assert "one open, unheld diagnostic task" in staging_report
+    assert "first Gateway reconciliation" in staging_report
     assert "kill switch" in runbook

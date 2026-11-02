@@ -15,12 +15,14 @@ from journal.config import Config
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
+from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
 from journal.repositories.templates import Templates
 from journal.repositories.workers import Workers
 from journal.supervisor_authority import SupervisorAuthority
@@ -30,11 +32,11 @@ ROOT = Path("/data/project")
 API = "http://127.0.0.1:8421"
 TOKEN_FILE = Path("/run/journal_supervisor_credential")
 PLAN_TITLE = "Supervisor live smoke"
-PLAN_BRIEF = "Run one bounded supervisor smoke with the owner-started Codex Plan driver"
+PLAN_BRIEF = "Keep the Plan driver live and idle. Leave the diagnostic smoke task open and unheld so the supervisor can admit one diagnostic turn."
 PHASE_TITLE = "Bounded supervisor smoke"
 PHASE_COMPLETION = "the bounded supervisor smoke has a verified receipt"
-TASK_TITLE = "Confirm the owner started Plan driver"
-TASK_BRIEF = "Confirm the real Codex Plan driver is running in this writer installation"
+TASK_TITLE = "Leave the diagnostic smoke task open"
+TASK_BRIEF = "Leave this diagnostic smoke task open and unheld. Do not start or complete it; the supervisor needs one actionable task to admit its bounded diagnostic turn."
 CHECK_TITLE = "Supervisor live smoke failure"
 CHECK_BRIEF = "This smoke check intentionally fails so the supervisor has one current failure to diagnose."
 TEMPLATE_TITLE = "Supervisor diagnostic"
@@ -62,9 +64,9 @@ def request(path, body):
         raise SetupFailure("the staged journal did not accept the fixed setup request") from error
 
 
-def command(*argv):
+def command(*argv, expected_code=0):
     status, _headers, answer = request("/cli", {"argv": list(argv), "env": "main", "provider": "codex", "agent": False})
-    if status != 200 or not isinstance(answer, dict) or answer.get("code") != 0:
+    if status != 200 or not isinstance(answer, dict) or answer.get("code") != expected_code:
         raise SetupFailure("the owner CLI refused a fixed supervisor setup command")
     return answer.get("text", "").strip()
 
@@ -107,10 +109,15 @@ def setup_plan_matches(plan, phases, tasks):
         and len(phases) == 1
         and phases[0].title == PHASE_TITLE
         and phases[0].completion_rule == PHASE_COMPLETION
-        and len(tasks) == 1
-        and tasks[0].title == TASK_TITLE
-        and tasks[0].brief == TASK_BRIEF
+        and smoke_tasks_match(tasks)
     )
+
+
+def smoke_tasks_match(tasks):
+    if len(tasks) != 1:
+        return False
+    task, = tasks
+    return task.title == TASK_TITLE and task.brief == TASK_BRIEF and task.state in (TaskState.BLOCKED, TaskState.OPEN)
 
 
 def setup_check_id(app):
@@ -166,7 +173,8 @@ def make_plan(app, main):
     plan_id = row_number(command("plan", "create", PLAN_TITLE, "--brief", PLAN_BRIEF), r"plan (\d+) draft")
     command("plan", "mode", str(plan_id), PlanMode.SOLO.value)
     command("plan", "phase", str(plan_id), PHASE_TITLE, "--when", PHASE_COMPLETION)
-    command("plan", "add", str(plan_id), TASK_TITLE, "--brief", TASK_BRIEF, "--phase", "1")
+    task_id = row_number(command("plan", "add", str(plan_id), TASK_TITLE, "--brief", TASK_BRIEF, "--phase", "1"), r"task (\d+) added to plan .+")
+    command("task", "block", str(task_id), "wait for the Plan driver to start idle")
     check_id = row_number(command("check", "create", CHECK_TITLE, "--command", CHECK_COMMAND, "--brief", CHECK_BRIEF, "--every", "10"), r"check (\d+): .+")
     template_id = row_number(command("template", "create", TEMPLATE_TITLE, "--brief", TEMPLATE_BRIEF, "--applies-to", "plan", "--purpose", TEMPLATE_PURPOSE), r"template (\d+): .+")
     command("settings", "set", "plans.plan_agents", "on")
@@ -174,6 +182,33 @@ def make_plan(app, main):
     command("plan", "approve", str(plan_id))
     command("plan", "start", str(plan_id))
     return plan_id, check_id, template_id
+
+
+def ensure_smoke_task(app, main, plan_id):
+    scope = app.container.get(Scope)
+    plans = app.container.get(Plans)
+    tasks_repo = app.container.get(Tasks)
+    with scope.environment(main.row_id):
+        plan = plans.find(plan_id)
+        tasks = plans.plan_tasks(plan)
+    if len(tasks) == 1 and tasks[0].title == TASK_TITLE and tasks[0].state == TaskState.BLOCKED:
+        command("task", "unblock", str(tasks[0].row_id))
+    with scope.environment(main.row_id):
+        plan = plans.find(plan_id)
+        tasks = plans.plan_tasks(plan)
+        rows_match = smoke_tasks_match(tasks)
+        task_unheld = (len(tasks) == 1 and tasks[0].state == TaskState.OPEN and not tasks[0].delegated
+                       and tasks_repo.holder(tasks[0]) is None
+                       and not tasks_repo.unavailable_task_ids(tasks))
+        no_task_in_hand = plans.started_task(plan) is None
+    if not rows_match or not task_unheld or not no_task_in_hand:
+        raise SetupFailure("the live Plan driver must stay idle with one open, unheld diagnostic task")
+
+
+def run_bound_check(check_id):
+    output = command("check", "run", str(check_id), expected_code=1)
+    if not output.startswith(f"check {check_id} failed:"):
+        raise SetupFailure("the enrolled smoke check did not fail as designed")
 
 
 def wait_for_codex_plan(app, plan_id, environment_id):
@@ -263,6 +298,7 @@ def main():
     main = require_runtime(app)
     plan_id, check_id, template_id = make_plan(app, main)
     wait_for_codex_plan(app, plan_id, main.row_id)
+    ensure_smoke_task(app, main, plan_id)
     status, headers, answer = request("/_supervisor/v1/enrollment", enrollment(app, plan_id, check_id, template_id))
     token = headers.get("X-Journal-Supervisor-Token", "")
     grant_id = answer.get("grant_id", "") if isinstance(answer, dict) else ""
@@ -271,6 +307,9 @@ def main():
             revoke(grant_id)
         raise SetupFailure("the staged journal refused fixed local-owner enrollment")
     try:
+        ensure_smoke_task(app, main, plan_id)
+        run_bound_check(check_id)
+        ensure_smoke_task(app, main, plan_id)
         write_token(token)
     except (OSError, SetupFailure) as error:
         revoke(grant_id)

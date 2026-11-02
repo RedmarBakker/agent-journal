@@ -408,6 +408,56 @@ def test_generic_entry_writes_cannot_forge_grants_or_receipts(app, authority_fix
     assert [row.row_id for row in preserved] == [receipt.row_id], "trim retains protected receipt kinds outside the current explicit type list"
 
 
+def test_live_smoke_admits_one_turn_from_an_open_unheld_task_after_its_bound_check_fails(app, authority_fixture):
+    from journal.events.rows.check_completed import CheckCompleted
+    from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+    from journal.support.time_source import TimeSource
+
+    fixture = authority_fixture
+    checks = app.container.get(Checks)
+    check = checks.find(fixture.check.row_id)
+    fixture.check = checks.save(check.edited(
+        "Supervisor live smoke failure",
+        "This smoke check intentionally fails so the supervisor has one current failure to diagnose.",
+        "false",
+        10,
+    ), fixture.owner)
+    body = enrollment(fixture, "bounded_write")
+    body["limits"]["max_turns_per_day"] = 1
+    grant, token = fixture.authority.enroll(fixture.owner, body)
+    fixture.credentials.append(fixture.authority._credential_name(grant["grant_id"], grant["grant_version"]))
+    principal = fixture.authority.authenticate(token)
+    tasks = app.container.get(Tasks)
+    assert fixture.plan.state == PlanState.STARTED and fixture.task.state == TaskState.OPEN
+    assert tasks.holder(fixture.task) is None, "the live Plan driver leaves the smoke task unheld"
+    assert app.container.get(Plans).started_task(fixture.plan) is None, "the live Plan driver starts with no task in hand"
+
+    observations = app.container.get(SupervisorObservations)
+    time_source = app.container.get(TimeSource)
+    check = checks.find(fixture.check.row_id)
+    observed_at = time_source.seconds()
+    observations.completed(check, CheckCompleted(
+        environment_id=fixture.owner_environment.row_id,
+        time=observed_at,
+        check_id=check.row_id,
+        title=check.title,
+        passed=False,
+        output="the bound smoke check failed as designed",
+        prior_failure=False,
+        wait_target=False,
+        failure_reported_at=0,
+    ), observed_at - 1, "")
+
+    admission = observations.admit(principal, {
+        "protocol_version": 1,
+        "source": "timer",
+        "observation_cursor": None,
+    })
+
+    assert admission["status"] == "admitted", admission
+    assert grant["limits"]["max_turns_per_day"] == 1
+
+
 def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, authority_fixture):
     from journal.events.rows.check_completed import CheckCompleted
     from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
