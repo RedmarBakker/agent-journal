@@ -1,5 +1,6 @@
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from journal.features.supervisor.support.supervisor_capabilities import (
@@ -78,6 +79,18 @@ class SupervisorRecordReader:
             history, next_before = self._history_page(history_rows, history_cursor)
         return {"areas": sorted(AREAS), "history": history, "next_before": next_before}
 
+    def costs(self) -> dict[str, Any]:
+        now = self.time_source.moment()
+        plan_ids = self._plan_ids("")
+        plan_titles = {plan_id: self.plans.find(plan_id).title for plan_id in plan_ids}
+        with self.scope.environment(PROJECT):
+            runs, receipts = self._records(plan_ids)
+            rows = self._history_source_rows(plan_ids, runs, receipts)
+            outcomes = [report for receipt in receipts for report in self._entries(
+                "SupervisorActionReport", receipt_id=receipt.row_id, report_kind="outcome",
+            )]
+        return self._cost_summary(now, rows, plan_titles, outcomes)
+
     @staticmethod
     def _tier(tier: str) -> int | None:
         if not tier:
@@ -102,6 +115,12 @@ class SupervisorRecordReader:
 
     def _history_rows(self, plan_ids: list[int], runs: list[Entry], receipts: list[Entry], area: str,
                       tier: int | None, result: str) -> list[dict[str, Any]]:
+        rows = self._history_source_rows(plan_ids, runs, receipts)
+        rows = [row for row in rows if self._history_matches(row, area, tier, result)]
+        return self._fold_quiet(rows)
+
+    def _history_source_rows(self, plan_ids: list[int], runs: list[Entry],
+                             receipts: list[Entry]) -> list[dict[str, Any]]:
         wakeups = [row for plan_id in plan_ids for row in self._entries(WAKEUP_ENTRY, plan_id=plan_id)]
         observations = [row for plan_id in plan_ids for row in self._entries(OBSERVATION_ENTRY, plan_id=plan_id)]
         tenants = {str(run.data.get("tenant_id")) for run in runs if run.data.get("tenant_id")}
@@ -130,8 +149,7 @@ class SupervisorRecordReader:
             self._history_row(None, run, receipts, observation_by_id, usage_by_run, undone_receipts)
             for run in runs if run.row_id not in paired_runs
         )
-        rows = [row for row in rows if self._history_matches(row, area, tier, result)]
-        return self._fold_quiet(rows)
+        return rows
 
     def _history_row(self, wakeup: Entry | None, run: Entry | None, receipts: list[Entry],
                      observations: dict[tuple[object, object], Entry], usage: dict[tuple[object, object], Entry],
@@ -162,6 +180,9 @@ class SupervisorRecordReader:
             "why": self._why(receipt_rows, wakeup_data),
             "cost": self._cost(run, usage),
             "actions": actions,
+            "_has_run": run is not None,
+            "_has_wakeup": wakeup is not None,
+            "_moment": moment,
             "_sort_ms": self._created_ms(moment),
             "_sort_id": wakeup.row_id if wakeup else run.row_id,
         }
@@ -344,6 +365,164 @@ class SupervisorRecordReader:
             newest = page[-1]
             next_before = f"{newest['_sort_ms']}:{newest['_sort_id']}"
         return [{key: value for key, value in row.items() if not key.startswith("_")} for row in page], next_before
+
+    def _cost_summary(self, now: datetime, rows: list[dict[str, Any]], plan_titles: dict[int, str],
+                      outcomes: list[Entry]) -> dict[str, Any]:
+        useful_receipts = {row.data.get("receipt_id") for row in outcomes
+                           if row.data.get("outcome") == "useful_evidence"}
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week = now - timedelta(days=7)
+        month = now - timedelta(days=30)
+        periods = {
+            "today": self._cost_period(rows, today, now + timedelta(microseconds=1), useful_receipts, 1),
+            "week": self._cost_period(rows, week, now + timedelta(microseconds=1), useful_receipts, 7),
+            "month": self._cost_period(rows, month, now + timedelta(microseconds=1), useful_receipts, 30),
+        }
+        week_rows = self._cost_run_rows(rows, week, now + timedelta(microseconds=1))
+        average_cost = Decimal(periods["week"]["known_usd"])
+        average_run = self._average(average_cost, periods["week"]["known_runs"])
+        quiet_count = sum(row["result"] == "Skipped as quiet" for row in rows
+                          if row["_has_wakeup"] and week <= row["_moment"] <= now)
+        savings = self._amount(Decimal(average_run) * quiet_count) if average_run is not None else None
+        return {
+            "periods": periods,
+            "averages": {
+                "per_wakeup": {"usd": average_run, "known_runs": periods["week"]["known_runs"],
+                               "unknown_runs": periods["week"]["unknown_runs"]},
+                "per_action": {"usd": self._average(average_cost, periods["week"]["known_actions"]),
+                               "known_actions": periods["week"]["known_actions"],
+                               "unknown_runs": periods["week"]["unknown_runs"]},
+                "per_useful_result": {
+                    "usd": self._average(Decimal(periods["week"]["useful_known_usd"]),
+                                         periods["week"]["known_useful_results"]),
+                    "known_results": periods["week"]["known_useful_results"],
+                    "unknown_results": periods["week"]["unknown_useful_results"],
+                },
+            },
+            "per_plan": self._cost_by_plan(week_rows, plan_titles),
+            "per_area": self._cost_by_area(week_rows),
+            "quiet_savings": {"quiet_wakeups": quiet_count, "estimated_usd": savings},
+            "wakeups_per_day": self._wakeups_per_day(rows, now.date()),
+            "daily_trend": self._daily_trend(rows, now.date()),
+        }
+
+    def _cost_period(self, rows: list[dict[str, Any]], start: datetime, end: datetime,
+                     useful_receipts: set[object], days: int) -> dict[str, Any]:
+        wakeups = [row for row in rows if (row["_has_wakeup"] or row["_has_run"])
+                   and start <= row["_moment"] < end]
+        runs = [row for row in wakeups if row["_has_run"]]
+        known = [row for row in runs if row["cost"]["status"] != "unknown"]
+        unknown = [row for row in runs if row["cost"]["status"] == "unknown"]
+        known_cost = sum((Decimal(row["cost"]["usd"]) for row in known), Decimal(0))
+        known_action_count = sum(len(row["actions"]) for row in known)
+        known_useful = self._useful_receipt_ids(known, useful_receipts)
+        unknown_useful = self._useful_receipt_ids(unknown, useful_receipts)
+        useful_cost = sum((Decimal(row["cost"]["usd"]) for row in known
+                           if any(action["receipt_id"] in known_useful for action in row["actions"])), Decimal(0))
+        return {
+            "days": days,
+            "known_usd": self._amount(known_cost),
+            "unknown_runs": len(unknown),
+            "runs": len(runs),
+            "known_runs": len(known),
+            "wakeups": len(wakeups),
+            "known_actions": known_action_count,
+            "known_useful_results": len(known_useful),
+            "unknown_useful_results": len(unknown_useful),
+            "useful_known_usd": self._amount(useful_cost),
+        }
+
+    @staticmethod
+    def _useful_receipt_ids(rows: list[dict[str, Any]], useful_receipts: set[object]) -> set[object]:
+        return {action["receipt_id"] for row in rows for action in row["actions"]
+                if action["receipt_id"] in useful_receipts}
+
+    @staticmethod
+    def _cost_run_rows(rows: list[dict[str, Any]], start: datetime, end: datetime) -> list[dict[str, Any]]:
+        return [row for row in rows if row["_has_run"] and start <= row["_moment"] < end]
+
+    def _cost_by_plan(self, rows: list[dict[str, Any]], plan_titles: dict[int, str]) -> list[dict[str, Any]]:
+        totals: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            plan_id = row["plan_id"]
+            total = totals.setdefault(plan_id, {"known": Decimal(0), "unknown": 0})
+            if row["cost"]["status"] == "unknown":
+                total["unknown"] += 1
+            else:
+                total["known"] += Decimal(row["cost"]["usd"])
+        return [
+            {"plan_id": plan_id, "title": plan_titles[plan_id], "known_usd": self._amount(total["known"]),
+             "unknown_runs": total["unknown"]}
+            for plan_id, total in sorted(totals.items(), key=lambda item: (-item[1]["known"], item[0]))
+        ]
+
+    def _cost_by_area(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        totals: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            actions = row["actions"] or [{"area_key": "whole-environment", "area": "Whole environment"}]
+            if row["cost"]["status"] == "unknown":
+                for action in {item["area_key"]: item for item in actions}.values():
+                    total = totals.setdefault(action["area_key"], {
+                        "title": action["area"], "known": Decimal(0), "unknown": 0,
+                    })
+                    total["unknown"] += 1
+                continue
+            share = Decimal(row["cost"]["usd"]) / len(actions)
+            for action in actions:
+                total = totals.setdefault(action["area_key"], {
+                    "title": action["area"], "known": Decimal(0), "unknown": 0,
+                })
+                total["known"] += share
+        return [
+            {"area_key": area, "title": total["title"], "known_usd": self._amount(total["known"]),
+             "unknown_runs": total["unknown"]}
+            for area, total in sorted(totals.items(), key=lambda item: (-item[1]["known"], item[0]))
+        ]
+
+    def _wakeups_per_day(self, rows: list[dict[str, Any]], today: date) -> list[dict[str, Any]]:
+        counts: dict[date, dict[str, int]] = {}
+        for row in rows:
+            if not row["_has_wakeup"] and not row["_has_run"]:
+                continue
+            day = row["_moment"].date()
+            if today - timedelta(days=6) <= day <= today:
+                count = counts.setdefault(day, {"total": 0, "quiet": 0})
+                count["total"] += 1
+                count["quiet"] += row["result"] == "Skipped as quiet"
+        return [
+            {"date": (today - timedelta(days=offset)).isoformat(),
+             **counts.get(today - timedelta(days=offset), {"total": 0, "quiet": 0})}
+            for offset in range(6, -1, -1)
+        ]
+
+    def _daily_trend(self, rows: list[dict[str, Any]], today: date) -> list[dict[str, Any]]:
+        totals: dict[date, dict[str, Any]] = {}
+        for row in rows:
+            if not row["_has_run"]:
+                continue
+            day = row["_moment"].date()
+            if today - timedelta(days=29) <= day <= today:
+                total = totals.setdefault(day, {"known": Decimal(0), "unknown": 0})
+                if row["cost"]["status"] == "unknown":
+                    total["unknown"] += 1
+                else:
+                    total["known"] += Decimal(row["cost"]["usd"])
+        trend = []
+        for offset in range(29, -1, -1):
+            day = today - timedelta(days=offset)
+            total = totals.get(day, {"known": Decimal(0), "unknown": 0})
+            trend.append({"date": day.isoformat(),
+                          "known_usd": None if total["unknown"] else self._amount(total["known"]),
+                          "unknown_runs": total["unknown"]})
+        return trend
+
+    @staticmethod
+    def _amount(amount: Decimal) -> str:
+        return format(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), ".2f")
+
+    @classmethod
+    def _average(cls, amount: Decimal, count: int) -> str | None:
+        return cls._amount(amount / count) if count else None
 
     def _plan_ids(self, plan: str) -> list[int]:
         if not plan:

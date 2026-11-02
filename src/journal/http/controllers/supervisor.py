@@ -34,6 +34,9 @@ class SupervisorController:
             request.text("result"), request.text("before"),
         ))
 
+    def read_costs(self, request: Request) -> Response:
+        return self._records(request, self.records.costs)
+
     def _records(self, request: Request, read: Callable[[], dict[str, Any]]) -> Response:
         if not request.actor.is_user():
             return Response(403, {"error": "supervisor records are available to people in the current environment"})

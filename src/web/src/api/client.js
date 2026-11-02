@@ -161,6 +161,10 @@ export class ApiClient {
         return this.get(path, `supervisor.history:${planId}:${area}:${tier}:${result}:${before}`);
     }
 
+    supervisorCosts() {
+        return this.get(this.here("/supervisor/costs"), "supervisor.costs");
+    }
+
     supervisorControl() {
         return this.get(this.here("/supervisor/control"), "supervisor.control");
     }
