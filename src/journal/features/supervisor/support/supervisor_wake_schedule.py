@@ -101,7 +101,7 @@ class SupervisorWakeSchedule:
         rows = self.entries.selected_globally(
             self.entries.query()
             .filter(entry_type="SupervisorGrant", environment_id=grant["driver_environment_id"])
-            .filter_json("data->tenant_id", principal.scope["tenant_id"])
+            .filter_json("data->scope->tenant_id", principal.scope["tenant_id"])
             .filter_json("data->grant_id", grant["grant_id"])
             .order_descending("id")
             .limit(1),
