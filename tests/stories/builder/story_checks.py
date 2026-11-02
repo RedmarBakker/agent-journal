@@ -338,6 +338,13 @@ class StoryChecks:
         assert any(row_plan.id == plan_id and row_task.id == task_id for _, row_plan, row_task in handoffs), \
             f"plan {plan_id} task {task_id} is not unread in {target}'s inbox: {handoffs}"
 
+    def expect_organization_handoffs_read(self, plan_id: int, target: str) -> None:
+        self.settle()
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        with self.app.container.get(Scope).environment(plan.environment_id):
+            unread = self.app.container.get(OrganizationHandoffs).unread_in_plan(plan, target)
+        assert not unread, f"plan {plan_id} still has unread handoffs in {target}'s inbox"
+
     def expect_plan_rig(self, plan_id: int, name: str) -> None:
         self.settle()
         with self.app.container.get(Scope).environment(1):

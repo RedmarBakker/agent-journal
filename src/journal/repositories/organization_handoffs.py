@@ -108,8 +108,11 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                 if (parent := self.tasks.part_of_task(self.tasks.find(task_id))) is not None
             )
             latest: dict[int, OrganizationHandoff] = {}
-            for ref in self.links.typed_sources(plan, PLAN_HANDOFF, OrganizationHandoff.table()):
-                row = self.find(ref.id)
+            references = self.links.typed_sources(plan, PLAN_HANDOFF, OrganizationHandoff.table())
+            rows = self.selected_globally(self.query().filter_listed("id", [ref.id for ref in references]))
+            for row in rows:
+                if Ref.build(plan) not in self.links.targets(row, PLAN_HANDOFF):
+                    continue
                 if not row.target.startswith("domain:"):
                     continue
                 task_refs = self.links.targets(row, TASK_HANDOFF)
@@ -119,7 +122,8 @@ class OrganizationHandoffs(ScopedRepository[OrganizationHandoff]):
                         latest[task_id] = row
             for row in latest.values():
                 if row.read_at is not None:
-                    self.save(row.unread(), actor)
+                    with self.scope.environment(row.environment_id):
+                        self.save(row.unread(), actor)
 
     def unread_in_plan(self, plan: Plan, target: str) -> bool:
         plan_ref = Ref.build(plan)
