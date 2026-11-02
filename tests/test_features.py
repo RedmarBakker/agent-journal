@@ -5210,15 +5210,6 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     assert aliases.matching(name="judge") == [] and not (app.config.readers / "verdicts.pattern").exists(), "the plugin's alias and reader go with it"
 
 
-def test_the_shim_runs_an_aliases_line_typed_at_a_terminal(app: App):
-    import subprocess
-    assert app.console().run(["alias", "add", "hello", "echo hi from"], USER).code == 0
-    environ = {**os.environ, "JOURNAL_ROOT": str(app.config.root), "JOURNAL_ENV": "main"}
-    (app.config.home / "port").write_text(str(app.server().port))
-    typed = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "hello", "the terminal"], env=environ, capture_output=True, text=True, timeout=10)
-    assert typed.returncode == 0 and typed.stdout == "hi from the terminal\n", typed.stdout + typed.stderr
-
-
 def test_the_viewers_plugin_install_names_the_aliases_it_skipped(app: App, tmp_path):
     folder = tmp_path / "judging"
     folder.mkdir()

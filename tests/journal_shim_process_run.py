@@ -1,10 +1,15 @@
-# Runs the journal shim as a process against a server that breaks off, so it is not in the default run: python3 -m pytest -q tests/journal_shim_process_run.py
+# Runs the journal shim as a process for server and terminal cases, so it is not in the default run: python3 -m pytest -q tests/journal_shim_process_run.py
 """The journal command lets the package run a command itself only when no server could be reached, never after a server took it."""
+import os
 import shutil
 import socket
 import subprocess
 import threading
 from pathlib import Path
+
+import pytest
+
+from tests.test_cli import MAIN, app
 
 SOURCE = Path(__file__).resolve().parent.parent / "src"
 
@@ -77,3 +82,66 @@ def test_a_line_the_server_streams_reaches_the_shims_output_before_the_command_e
     arrived = time.monotonic() - began
     process.wait(timeout=10)
     assert first.startswith("step 1/5") and arrived < 2, f"the step arrived after {arrived:.1f} s"
+
+
+def test_a_workers_shim_never_runs_the_package_when_no_server_answers(app):
+    environ = {key: value for key, value in os.environ.items() if key != "JOURNAL_SESSION"}
+    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_ACTOR="worker:1", JOURNAL_ACTOR_TOKEN="tok")
+    (app.config.home / "port").unlink(missing_ok=True)
+    outcome = subprocess.run(["sh", str(SOURCE / "journal.sh"), "task", "list"], env=environ, capture_output=True, text=True, timeout=10)
+    assert outcome.returncode == 1 and "restarting" in outcome.stderr, "a worker's command waits for the server that can check its token"
+
+
+@pytest.mark.parametrize("online", [False, True])
+def test_the_shim_attributes_a_codex_command_with_and_without_a_server(app, online):
+    from journal.models.agent import Agent
+    from journal.providers.claude import Claude
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
+    from journal.support.actor import Actor
+
+    agents = app.container.get(Agents)
+    development = app.container.get(Environments).lookup("development")
+    with app.container.get(Scope).environment(development.id):
+        agents.save(Agent(session="codex-session", environment_id=development.id, provider="codex", is_overview_read=False), Actor.system())
+    environ = {key: value for key, value in os.environ.items() if key not in ("JOURNAL_SESSION", "CODEX_SANDBOX", *Claude.inherited_markers)}
+    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="development", JOURNAL_PORT="0", CODEX_THREAD_ID="codex-session", CODEX_CI="1")
+    server = app.server()
+    if online:
+        server.start()
+    try:
+        outcome = subprocess.run(["sh", str(SOURCE / "journal.sh"), "environment", "overview"], env=environ, capture_output=True, text=True, timeout=10)
+        assert outcome.returncode == 0, outcome.stderr
+        with app.container.get(Scope).environment(development.id):
+            assert agents.session_agent("codex-session").is_overview_read
+    finally:
+        server.stop()
+
+
+def test_a_command_the_server_fails_on_prints_the_fault_and_exits_non_zero(app, tmp_path):
+    from journal.providers.claude import Claude
+
+    environ = {key: value for key, value in os.environ.items() if key not in ("JOURNAL_SESSION", "CODEX_SANDBOX", *Claude.inherited_markers)}
+    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_PORT="0")
+    server = app.server()
+    server.start()
+    try:
+        missing = tmp_path / "gone.md"
+        outcome = subprocess.run(["sh", str(SOURCE / "journal.sh"), "doc", "create", "Notes", "--abstract", "The notes", "--file", str(missing)], env=environ, capture_output=True, text=True, timeout=10)
+        assert outcome.returncode == 1 and "gone.md" in outcome.stderr, "a fault is printed with what it names, never a silent success"
+    finally:
+        server.stop()
+
+
+def test_the_shim_runs_an_aliases_line_typed_at_a_terminal(app):
+    assert app.console().run(["alias", "add", "hello", "echo hi from"], MAIN).code == 0
+    server = app.server()
+    server.start()
+    try:
+        environ = {**os.environ, "JOURNAL_ROOT": str(app.config.root), "JOURNAL_ENV": "main"}
+        (app.config.home / "port").write_text(str(server.port))
+        typed = subprocess.run(["sh", str(SOURCE / "journal.sh"), "hello", "the terminal"], env=environ, capture_output=True, text=True, timeout=10)
+        assert typed.returncode == 0 and typed.stdout == "hi from the terminal\n", typed.stdout + typed.stderr
+    finally:
+        server.stop()

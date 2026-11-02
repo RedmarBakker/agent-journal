@@ -1,4 +1,4 @@
-"""Phase two: journal task create, start, log, done and list run against a real .journal/journal.db through the console, from the terminal and through the server."""
+"""Phase two: journal task create, start, log, done and list run against a real .journal/journal.db through the console and server."""
 
 from pathlib import Path
 
@@ -65,42 +65,6 @@ def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks
     assert providers.caller({"JOURNAL_ACTOR": "verifier:4", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.verifier("main", 4, None, "claude"), "one actor variable names a worker or a verifier by its stamp"
     variables = providers.caller_variables({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "t1", "JOURNAL_LAUNCH": "l1"})
     assert CallerVariables.parsed(variables.body(), "claude") == variables, "what the shim posts reads back as the variables it posted"
-
-
-def test_a_workers_shim_never_runs_the_package_when_no_server_answers(app: App):
-    import os
-    import subprocess
-    environ = {key: value for key, value in os.environ.items() if key != "JOURNAL_SESSION"}
-    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_ACTOR="worker:1", JOURNAL_ACTOR_TOKEN="tok")
-    (app.config.home / "port").unlink(missing_ok=True)
-    outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "task", "list"], env=environ, capture_output=True, text=True, timeout=10)
-    assert outcome.returncode == 1 and "restarting" in outcome.stderr, "a worker's command waits for the server that can check its token"
-
-
-@pytest.mark.parametrize("online", [False, True])
-def test_the_shim_attributes_a_codex_command_with_and_without_a_server(app: App, online):
-    import os
-    import subprocess
-    from journal.models.agent import Agent
-    from journal.providers.claude import Claude
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    agents = app.container.get(Agents)
-    development = app.container.get(Environments).lookup("development")
-    with app.container.get(Scope).environment(development.id):
-        agents.save(Agent(session="codex-session", environment_id=development.id, provider="codex", is_overview_read=False), Actor.system())
-    environ = {key: value for key, value in os.environ.items() if key not in ("JOURNAL_SESSION", "CODEX_SANDBOX", *Claude.inherited_markers)}
-    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="development", JOURNAL_PORT="0", CODEX_THREAD_ID="codex-session", CODEX_CI="1")
-    server = app.server()
-    if online:
-        server.start()
-    try:
-        outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "environment", "overview"], env=environ, capture_output=True, text=True, timeout=10)
-        assert outcome.returncode == 0, outcome.stderr
-        with app.container.get(Scope).environment(development.id):
-            assert agents.session_agent("codex-session").is_overview_read
-    finally:
-        server.stop()
 
 
 def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists(app: App, monkeypatch, tmp_path):
@@ -360,22 +324,6 @@ def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_an
 
 
 
-
-
-def test_a_command_the_server_fails_on_prints_the_fault_and_exits_non_zero(app: App, tmp_path):
-    import os
-    import subprocess
-    from journal.providers.claude import Claude
-    environ = {key: value for key, value in os.environ.items() if key not in ("JOURNAL_SESSION", "CODEX_SANDBOX", *Claude.inherited_markers)}
-    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_PORT="0")
-    server = app.server()
-    server.start()
-    try:
-        missing = tmp_path / "gone.md"
-        outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "doc", "create", "Notes", "--abstract", "The notes", "--file", str(missing)], env=environ, capture_output=True, text=True, timeout=10)
-        assert outcome.returncode == 1 and "gone.md" in outcome.stderr, "a fault is printed with what it names, never a silent success"
-    finally:
-        server.stop()
 
 
 def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_register_the_runner(tmp_path, capsys):
