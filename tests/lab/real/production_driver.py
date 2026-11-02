@@ -137,7 +137,7 @@ class ProductionDriver:
             "HTTPS_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "HTTP_PROXY": f"http://127.0.0.1:{self.proxy_port}",
             "NO_PROXY": "localhost,127.0.0.1",
-            "TMUX_TMPDIR": str(self.boundary.tmux_tmpdir),
+            "TMUX_TMPDIR": str(paths["tmp"].resolve()),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": str(paths["runtime"] / "gitconfig"),
             "GIT_ALLOW_PROTOCOL": "file",
@@ -166,12 +166,15 @@ class ProductionDriver:
         return str(setup["plan_id"])
 
     def preflight_tmux(self, paths: Mapping[str, Path]) -> str:
+        temporary_directory = Path(self.env["TMUX_TMPDIR"]).resolve()
+        if (temporary_directory != paths["tmp"].resolve()
+                or temporary_directory != self.boundary.tmux_tmpdir.resolve()
+                or not self.boundary.tmux_directory_is_valid()):
+            raise ValueError("tmux must use the run's private short temporary directory")
         socket_path = self.boundary.tmux_socket_path
         if len(os.fsencode(str(socket_path))) >= TMUX_SOCKET_PATH_LIMIT:
             raise ValueError(f"private tmux socket path exceeds the {TMUX_SOCKET_PATH_LIMIT}-byte Unix socket limit")
-        if not self.boundary.tmux_link_is_valid():
-            raise ValueError("private tmux socket directory is not linked to the isolated run")
-        result = self.command([str(paths["bin"] / "tmux"), "list-sessions"], paths)
+        result = self.command([str(paths["bin"] / "tmux"), "-S", str(socket_path), "list-sessions"], paths)
         detail = (result.stderr or result.stdout).strip()
         if result.returncode == 0:
             return "ready"

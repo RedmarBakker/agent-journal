@@ -124,10 +124,13 @@ def test_pinned_source_snapshot_has_the_approved_commit_and_no_remote(tmp_path):
                     reason="production filesystem isolation uses macOS sandbox-exec")
 def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
     root = tmp_path / "private-run"
+    boundary = ProductionBoundary("run-1", (32001,),
+                                  (Path(sys.executable).resolve().parent, Path(sys.prefix).resolve()))
     paths = {name: root / folder for name, folder in (
         ("root", ""), ("project", "project"), ("private_home", "home"),
         ("runtime", "runtime"), ("tmp", "tmp"),
     )}
+    paths["tmp"] = boundary.tmux_tmpdir
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True, mode=0o700)
     external = tmp_path / "user-project-write.txt"
@@ -139,8 +142,6 @@ def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
         "echo denied > \"$2\"\n",
         encoding="utf-8",
     )
-    boundary = ProductionBoundary("run-1", (32001,),
-                                  (Path(sys.executable).resolve().parent, Path(sys.prefix).resolve()))
     boundary.verify("run-1", paths)
     policy = boundary.profile.read_text(encoding="utf-8")
     assert "network-outbound)" not in policy
@@ -164,11 +165,11 @@ def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
                     reason="production filesystem isolation uses macOS sandbox-exec")
 def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
     root = tmp_path / "private-run"
-    paths = IsolatedJournal.paths(root)
-    for name in ("root", "project", "private_home", "runtime", "tmp"):
-        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     driver = ProductionDriver("run-1", {"provider": "claude"}, None, tmp_path, tmp_path,
                               ProductionWatchdog())
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "tmp"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     virtual_environment = Path(sys.prefix).resolve()
     python_framework = Path(sys.base_prefix).resolve()
 
@@ -199,14 +200,8 @@ def test_production_interpreter_starts_under_its_real_boundary(tmp_path):
                     reason="Node CLI probe uses macOS sandbox-exec and the installed Node interpreter")
 def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, monkeypatch):
     root = tmp_path / "private-run"
-    paths = IsolatedJournal.paths(root)
-    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
-                 "xdg_config", "xdg_cache", "bin"):
-        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     source = Path(__file__).resolve().parents[2]
-    (paths["project"] / "src").mkdir()
-    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
-    cli_directory = paths["project"] / "agent-clis"
+    cli_directory = tmp_path / "agent-clis"
     cli_directory.mkdir()
     provider = cli_directory / "claude"
     provider.write_text(
@@ -228,6 +223,12 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     manifest = SimpleNamespace(data=lambda: {"design": {"settings": {}}})
     driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
                               ProductionWatchdog())
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     driver.boundary.verify("run-1", paths)
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
     driver.env = driver.child_environment(paths, driver.journal_port)
@@ -249,13 +250,7 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
                     reason="tmux socket isolation uses macOS sandbox-exec")
 def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_boundary(
         tmp_path, monkeypatch):
-    paths = IsolatedJournal.paths(tmp_path / "private-run")
-    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
-                 "xdg_config", "xdg_cache", "bin"):
-        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
-    (paths["project"] / "src").mkdir()
-    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
-    stand_ins = paths["runtime"] / "stand-ins"
+    stand_ins = tmp_path / "stand-ins"
     stand_ins.mkdir(mode=0o700)
     provider = stand_ins / "claude"
     provider.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -266,9 +261,15 @@ def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_bound
     tmux = stand_ins / "tmux"
     tmux.write_text(
         "#!/bin/sh\n"
-        "[ \"$1\" = list-sessions ] || exit 8\n"
-        "[ -d \"$TMUX_TMPDIR\" ] || exit 9\n"
-        "if printf 'escaped\\n' > \"$OUTSIDE\" 2>/dev/null; then exit 10; fi\n"
+        "[ \"$1\" = -S ] && [ \"$3\" = list-sessions ] || exit 8\n"
+        "physical_tmp=$(cd \"$TMUX_TMPDIR\" && pwd -P) || exit 9\n"
+        "expected=\"$physical_tmp/tmux-$(id -u)/default\"\n"
+        "[ \"$2\" = \"$expected\" ] || exit 10\n"
+        f"socket_bytes=$(printf '%s' \"$2\" | wc -c | tr -d ' ')\n"
+        f"[ \"$socket_bytes\" -lt {TMUX_SOCKET_PATH_LIMIT} ] || exit 11\n"
+        "printf '%s\\n' \"$@\" > \"$TMUX_TMPDIR/preflight-argv\"\n"
+        "printf '%s\\n' \"$expected\" > \"$TMUX_TMPDIR/socket-path\"\n"
+        "if printf 'escaped\\n' > \"$OUTSIDE\" 2>/dev/null; then exit 12; fi\n"
         "printf 'preflight ran\\n' > \"$TMUX_TMPDIR/preflight-marker\"\n",
         encoding="utf-8",
     )
@@ -277,6 +278,12 @@ def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_bound
     monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
     driver = ProductionDriver("run-1", {"provider": "claude"}, None, tmp_path, tmp_path,
                               ProductionWatchdog())
+    paths = IsolatedJournal.paths(tmp_path / "private-run", driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     driver.boundary.verify("run-1", paths)
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
     driver.env = driver.child_environment(paths, driver.journal_port)
@@ -288,11 +295,26 @@ def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_bound
 
         assert result == "ready"
         assert len(os.fsencode(str(driver.boundary.tmux_socket_path))) < TMUX_SOCKET_PATH_LIMIT
-        assert driver.boundary.tmux_tmpdir.resolve() == (paths["runtime"] / "tmux").resolve()
-        assert (paths["runtime"] / "tmux" / "preflight-marker").read_text(encoding="utf-8") == "preflight ran\n"
+        assert driver.boundary.tmux_tmpdir == paths["tmp"]
+        assert not paths["tmp"].is_symlink()
+        assert (paths["tmp"] / "socket-path").read_text(encoding="utf-8").strip() == str(
+            driver.boundary.tmux_socket_path
+        )
+        assert (paths["tmp"] / "preflight-argv").read_text(encoding="utf-8") == (
+            f"-S\n{driver.boundary.tmux_socket_path}\nlist-sessions\n"
+        )
+        assert (paths["tmp"] / "preflight-marker").read_text(encoding="utf-8") == "preflight ran\n"
         assert not outside.exists()
         policy = driver.boundary.profile.read_text(encoding="utf-8")
         assert '(allow file-read* (literal "/private/var/select/sh"))' in policy
+        runtime_tmux = paths["runtime"] / "tmux"
+        runtime_tmux.mkdir()
+        driver.env["TMUX_TMPDIR"] = str(runtime_tmux)
+        with pytest.raises(ValueError, match="private short temporary directory"):
+            driver.preflight_tmux(paths)
+        assert (paths["tmp"] / "preflight-argv").read_text(encoding="utf-8") == (
+            f"-S\n{driver.boundary.tmux_socket_path}\nlist-sessions\n"
+        )
     finally:
         assert driver.stop_owned()
     assert not driver.boundary.tmux_mount.exists()
@@ -302,12 +324,7 @@ def test_tmux_preflight_uses_a_short_run_scoped_socket_path_under_the_real_bound
                     reason="production filesystem isolation uses macOS sandbox-exec")
 def test_production_journal_server_answers_health_under_its_real_boundary(tmp_path, monkeypatch):
     root = tmp_path / "private-run"
-    paths = IsolatedJournal.paths(root)
-    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
-                 "xdg_config", "xdg_cache", "bin"):
-        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     checkout = Path(__file__).resolve().parents[2]
-    shutil.copytree(checkout / "src", paths["project"] / "src")
     cli_bin = tmp_path / "stand-in-clis"
     cli_bin.mkdir(mode=0o700)
     provider = cli_bin / "claude"
@@ -330,6 +347,11 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
     driver = ProductionDriver("run-1", {"provider": "claude"}, None, checkout, tmp_path,
                               ProductionWatchdog())
     assert driver.cli_interpreters == {"node": node.resolve()}
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    shutil.copytree(checkout / "src", paths["project"] / "src")
     driver.boundary.verify("run-1", paths)
     policy = driver.boundary.profile.read_text(encoding="utf-8")
     assert f'(allow network-bind (local ip "localhost:{driver.share_port}"))' in policy
@@ -353,26 +375,8 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
                     reason="production setup uses macOS sandbox-exec")
 def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         tmp_path, business_type, scenario_name, provider):
-    paths = IsolatedJournal.paths(tmp_path / f"{business_type}-{scenario_name}")
-    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
-                 "xdg_config", "xdg_cache", "bin"):
-        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    root = tmp_path / f"{business_type}-{scenario_name}"
     checkout = Path(__file__).resolve().parents[2]
-
-    stand_ins = paths["runtime"] / "stand-ins"
-    stand_ins.mkdir(mode=0o700)
-    started = paths["runtime"] / "provider-started"
-    executables = {}
-    for name in ("claude", "codex", "rig", "tmux"):
-        executable = stand_ins / name
-        executable.write_text(
-            f"#!{sys.executable}\nfrom pathlib import Path\n"
-            f"Path({str(started)!r}).write_text('started', encoding='utf-8')\n",
-            encoding="utf-8",
-        )
-        executable.chmod(0o700)
-        executables[name] = executable
-
     settings = {
         "plans.plan_agents": True,
         "workers.cost_cap_dollars": 0,
@@ -392,6 +396,23 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
     }
     organization_repository = ProductionDriver.default_organization_repository(checkout)
     driver = ProductionDriver("run-1", spec, manifest, checkout, organization_repository, ProductionWatchdog())
+    paths = IsolatedJournal.paths(root, driver.boundary.tmux_tmpdir)
+    for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
+                 "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
+    stand_ins = paths["runtime"] / "stand-ins"
+    stand_ins.mkdir(mode=0o700)
+    started = paths["runtime"] / "provider-started"
+    executables = {}
+    for name in ("claude", "codex", "rig", "tmux"):
+        executable = stand_ins / name
+        executable.write_text(
+            f"#!{sys.executable}\nfrom pathlib import Path\n"
+            f"Path({str(started)!r}).write_text('started', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        executable.chmod(0o700)
+        executables[name] = executable
     driver.executable = lambda name: executables[name]
     driver.boundary.verify("run-1", paths)
     snapshot = driver.materialize_project(spec, paths)

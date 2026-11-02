@@ -47,18 +47,26 @@ class IsolatedJournal:
             self.private_directory(roots)
             self.private_directory(root.parent)
             root.mkdir(mode=0o700)
-            paths = self.paths(root)
+            temporary_directory = getattr(boundary, "tmux_tmpdir", None)
+            paths = self.paths(root, temporary_directory)
             if subscription_provider and provider_config:
                 paths[f"provider_config_{subscription_provider}"] = provider_config
             for name in ("project", "private_home", "runtime", "evidence", "tmp", "xdg_config", "xdg_cache", "bin"):
+                if name == "tmp" and paths[name] != root / "tmp":
+                    self.validate_temporary_directory(root, paths[name])
+                    self.private_directory(paths[name])
+                    continue
                 paths[name].mkdir(mode=0o700)
             try:
                 if boundary is None or not hasattr(boundary, "verify"):
                     raise ValueError("OS-enforced isolation boundary is unavailable; real run refused")
                 evidence = boundary.verify(run_id, paths)
+                self.private_directory(paths["tmp"])
                 self.validate_start_boundary(evidence, paths, run_id)
                 self.write_evidence(paths, "isolation-start.json", evidence)
             except Exception as error:
+                if boundary is not None and hasattr(boundary, "close"):
+                    boundary.close()
                 self.setup_failed(paths, run_id, str(error))
                 raise
             return paths
@@ -223,10 +231,16 @@ class IsolatedJournal:
         return first == second or first.is_relative_to(second) or second.is_relative_to(first)
 
     @staticmethod
-    def paths(root: Path) -> dict[str, Path]:
+    def paths(root: Path, temporary_directory: Path | None = None) -> dict[str, Path]:
         return {"root": root, "project": root / "project", "private_home": root / "home", "runtime": root / "runtime",
-                "evidence": root / "evidence", "tmp": root / "tmp", "xdg_config": root / "home" / "config",
+                "evidence": root / "evidence", "tmp": temporary_directory or root / "tmp", "xdg_config": root / "home" / "config",
                 "xdg_cache": root / "home" / "cache", "bin": root / "home" / "bin"}
+
+    def validate_temporary_directory(self, root: Path, temporary_directory: Path) -> None:
+        if (not temporary_directory.is_absolute() or temporary_directory.parent != Path("/private/tmp")
+                or not re.fullmatch(r"jl-[0-9a-f]{12}", temporary_directory.name)):
+            raise ValueError("run temporary directory must be its private short macOS temp folder")
+        self.outside_protected(temporary_directory.resolve(strict=False))
 
     @staticmethod
     def name(value: str) -> None:

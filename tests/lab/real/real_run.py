@@ -170,7 +170,7 @@ class RealRun:
         if not paths:
             root = self.journal.run_root(manifest.batch_id, run_id)
             if root.exists():
-                paths = self.journal.paths(root)
+                paths = self.journal.paths(root, getattr(boundary, "tmux_tmpdir", None))
         isolation = None
         if paths and (paths["evidence"] / "isolation-start.json").is_file():
             try:

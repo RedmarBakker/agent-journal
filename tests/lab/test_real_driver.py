@@ -4,6 +4,8 @@ from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from tests.lab.real.isolated_journal import IsolatedJournal
 from tests.lab.real.production_boundary import ProductionBoundary, TMUX_SOCKET_PATH_LIMIT
 from tests.lab.real import production_driver as production_driver_module
@@ -60,6 +62,7 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     manifest = SimpleNamespace(digest="manifest-digest", data=lambda: {"design": {"settings": {}}})
     driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
                               ProductionWatchdog())
+    paths["tmp"] = driver.boundary.tmux_tmpdir
     IsolatedJournal.install_journal_shim(paths, driver.journal_port)
 
     environment = driver.child_environment(paths, driver.journal_port)
@@ -104,6 +107,7 @@ def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatc
     manifest = SimpleNamespace(digest="manifest-digest", data=lambda: {"design": {"settings": {}}})
     driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
                               ProductionWatchdog())
+    paths["tmp"] = driver.boundary.tmux_tmpdir
     shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
 
     environment = driver.child_environment(paths, driver.journal_port)
@@ -113,6 +117,8 @@ def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatc
     assert str(host_bin.resolve()) not in {str(entry) for entry in path}
     assert provider_bin.resolve() in path and rig_bin.resolve() in path and tmux_bin.resolve() in path
     assert path[0] / "journal" == shim
+    assert environment["TMUX_TMPDIR"] == str(paths["tmp"].resolve())
+    assert len(os.fsencode(str(driver.boundary.tmux_socket_path))) < TMUX_SOCKET_PATH_LIMIT
     assert (paths["bin"] / "claude").resolve() == provider
     assert (paths["bin"] / "rig").resolve() == rig
     assert (paths["bin"] / "tmux").resolve() == tmux
@@ -165,6 +171,22 @@ def test_tmux_socket_path_stays_below_the_unix_socket_limit():
     assert len(os.fsencode(str(boundary.tmux_socket_path))) < TMUX_SOCKET_PATH_LIMIT
     assert boundary.tmux_socket_path.is_relative_to(boundary.tmux_mount)
     assert other_run.tmux_mount != boundary.tmux_mount
+
+
+def test_tmux_preflight_rejects_the_long_runtime_socket_directory_before_a_tmux_call(
+        tmp_path, monkeypatch):
+    driver = ProductionDriver("run-1", {"provider": "claude"}, None, tmp_path, tmp_path,
+                              ProductionWatchdog())
+    paths = IsolatedJournal.paths(tmp_path / "private-run", driver.boundary.tmux_tmpdir)
+    driver.env = {"TMUX_TMPDIR": str(paths["runtime"] / "tmux")}
+
+    def unexpected_tmux_call(*_args):
+        raise AssertionError("tmux must not receive the long runtime socket directory")
+
+    monkeypatch.setattr(driver, "command", unexpected_tmux_call)
+
+    with pytest.raises(ValueError, match="private short temporary directory"):
+        driver.preflight_tmux(paths)
 
 
 def test_wait_identity_keeps_polling_a_journal_that_is_still_booting(tmp_path, monkeypatch):

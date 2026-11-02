@@ -4,6 +4,7 @@ import os
 import platform
 import secrets
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 from typing import Mapping
@@ -34,8 +35,7 @@ class ProductionBoundary:
         self.root: Path | None = None
         self.sandbox = Path(shutil.which("sandbox-exec") or "")
         self.tmux_mount = Path("/private/tmp") / f"jl-{secrets.token_hex(6)}"
-        self.tmux_tmpdir = self.tmux_mount / "socket"
-        self.tmux_target: Path | None = None
+        self.tmux_tmpdir = self.tmux_mount
 
     @property
     def tmux_socket_path(self) -> Path:
@@ -49,7 +49,9 @@ class ProductionBoundary:
         if any(type(port) is not int or not 1 <= port <= 65535 for port in self.ports):
             raise ValueError("run isolation ports must be valid loopback ports")
         self.root = paths["root"].resolve()
-        self.prepare_tmux_directory(paths)
+        if paths["tmp"] != self.tmux_tmpdir:
+            raise ValueError("run temporary directory and tmux socket directory must be the same short private path")
+        self.verify_tmux_directory(paths)
         self.profile = paths["runtime"] / "run-boundary.sb"
         private_reads = tuple(path for key, path in paths.items() if key.startswith("provider_config_"))
         try:
@@ -74,37 +76,26 @@ class ProductionBoundary:
         root = Path(paths["root"]).resolve()
         profile_digest = hashlib.sha256(self.profile.read_bytes()).hexdigest() if self.profile else "unverified"
         writable = tuple(sorted(str(Path(paths[key]).resolve()) for key in ("project", "private_home", "runtime", "tmp"))) if "project" in paths else tuple(
-            sorted(str(root / name) for name in ("project", "home", "runtime", "tmp"))
+            tuple(sorted([*(str(root / name) for name in ("project", "home", "runtime")),
+                          str(self.tmux_tmpdir)]))
         )
         return IsolationEvidence(self.run_id, str(root), writable, f"seatbelt:{self.run_id}", profile_digest,
                                  True, True, True, True)
 
-    def prepare_tmux_directory(self, paths: Mapping[str, Path]) -> None:
-        target = paths["runtime"] / "tmux"
-        target.mkdir(mode=0o700, exist_ok=True)
-        resolved_target = target.resolve()
-        if not resolved_target.is_relative_to(self.root):
-            raise ValueError("tmux socket storage must stay inside the isolated run root")
-        self.tmux_mount.mkdir(mode=0o700)
-        try:
-            self.tmux_tmpdir.symlink_to(resolved_target, target_is_directory=True)
-        except OSError:
-            self.tmux_mount.rmdir()
-            raise
-        self.tmux_target = resolved_target
+    def verify_tmux_directory(self, paths: Mapping[str, Path]) -> None:
+        if paths["tmp"] != self.tmux_tmpdir or not self.tmux_directory_is_valid():
+            raise ValueError("tmux socket storage must be this run's private short temp directory")
 
-    def tmux_link_is_valid(self) -> bool:
-        return (self.tmux_target is not None and self.tmux_tmpdir.is_symlink()
-                and self.tmux_tmpdir.resolve() == self.tmux_target)
+    def tmux_directory_is_valid(self) -> bool:
+        return (self.tmux_tmpdir.parent == Path("/private/tmp") and not self.tmux_tmpdir.is_symlink()
+                and self.tmux_tmpdir.is_dir() and stat.S_IMODE(self.tmux_tmpdir.stat().st_mode) & 0o077 == 0)
 
     def close(self) -> bool:
         if not self.tmux_mount.exists():
             return True
-        if not self.tmux_link_is_valid():
+        if not self.tmux_tmpdir.is_dir() or self.tmux_tmpdir.is_symlink():
             return False
-        self.tmux_tmpdir.unlink()
-        self.tmux_mount.rmdir()
-        self.tmux_target = None
+        shutil.rmtree(self.tmux_tmpdir)
         return True
 
     def policy(self, root: Path, read_paths: tuple[Path, ...]) -> str:
