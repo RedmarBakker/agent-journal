@@ -409,6 +409,8 @@ class Tasks(ScopedRepository[Task]):
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
         with self.writing():
             if not self.is_free(task):
+                if self.worker_assignment(task) is not None:
+                    raise Rejection(self.delegated_refusal(task))
                 raise Rejection(f"task {task.id} is {task.state}: only an open task, or one in your hands, goes in a worker's queue")
             self.require_assignment_ready(task)
             self.require_worker_assignment_room(task, worker)
