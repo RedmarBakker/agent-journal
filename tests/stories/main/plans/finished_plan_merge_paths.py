@@ -1,12 +1,16 @@
 from pathlib import Path
 
+from journal.engine.states.ended import Ended
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
+from journal.features.plans.states.leading_plan import LeadingPlan
 from journal.features.plans.plans_options import PlansOptions
 from journal.models.plan_state import PlanState
 from journal.repositories.environments import Environments
+from journal.supervisor_link import SupervisorLink
 from journal.support.agent_role import AgentRole
 from journal.support.worktree import Worktree
 from journal.support.workspace_worktree import WorkspaceWorktree
+from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_agent_worktree_project import PlanAgentWorktreeProject
 from tests.stories.fixtures.main.started_solo_plan_branch import PLAN_AGENT_SESSION, StartedSoloPlanBranch
@@ -73,6 +77,40 @@ def test_a_finished_plan_merges_past_updated_journal_files(story):
     story.expect_plan(plan, state=PlanState.FINISHED)
     story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
     story.expect_no_project_file(f".claude/worktrees/plan-{plan}")
+    story.expect_stack(story.agents.subject, CoordinatingPlans)
+
+
+@story(StartedSoloPlanBranch, subject=AgentRole.MAIN)
+def test_a_finished_plan_stops_its_running_agent_before_merging(story):
+    plan = story.plans.first
+    environment, session = f"plan-{plan}", PLAN_AGENT_SESSION
+    plan_environment = story.app.container.get(Environments).existing(environment)
+    supervisor = story.app.container.get(SupervisorLink)
+    running = True
+
+    def agent_is_running(environment_id: int) -> bool:
+        return environment_id == plan_environment.row_id and running
+
+    def stop_agent(_environment_id: int) -> None:
+        nonlocal running
+        running = False
+
+    story.monkeypatch.setattr(supervisor, "runs", agent_is_running)
+    story.monkeypatch.setattr(supervisor, "stop", stop_agent)
+    story.observed("the Plan agent's supervisor is running", None, None)
+    complete_plan_tasks(story, environment, session, (story.tasks.second, story.tasks.first))
+
+    notice = (
+        f"Plan {plan} branch merge failed: plan {plan}'s Plan agent is still running: wait for it to stop before merging. "
+        f"Review the named files in the plan worktree and main, resolve the issue, then run `journal plan merge {plan}` in main."
+    )
+    result = story.user_opens_in("main", "/journal/messages")
+    result.expect_viewer_passed()
+    result.expect_viewer_rows_not_holding("rows", "text", notice)
+    story.expect_plan(plan, state=PlanState.FINISHED)
+    story.expect_project_file_is("PLAN-AGENT-SMOKE.md", "completed solo plan change\n")
+    story.expect_no_project_file(f".claude/worktrees/{environment}")
+    story.expect_stack(StoryAgent(AgentRole.MAIN, session=session), LeadingPlan, Ended)
     story.expect_stack(story.agents.subject, CoordinatingPlans)
 
 
