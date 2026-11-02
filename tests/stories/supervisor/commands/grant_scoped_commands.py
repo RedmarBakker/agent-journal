@@ -5,8 +5,8 @@ from tests.stories.fixtures.main.supervisor_grant_cli_role import (
     SupervisorGrantCliProposalOnly,
     SupervisorGrantCliAlias,
     SupervisorGrantCliRole,
-    SupervisorGrantUnwatchedPlan,
 )
+from tests.stories.fixtures.main.supervisor_grant_unwatched_plan import SupervisorGrantUnwatchedPlan
 
 
 @story(SupervisorGrantCliAct, subject=AgentRole.SUPERVISOR)
