@@ -1036,7 +1036,7 @@ def test_the_agent_reads_the_load_with_the_turns_sets_the_budget_as_the_settings
     started, gates, results = [], {n: threading.Event() for n in range(101, 106)}, {}
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             number = int(Path(request.cwd).name.removeprefix("wt"))
             started.append(number)
             gates[number].wait(10)
@@ -1121,7 +1121,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     started, gates, results, refused = [], {n: threading.Event() for n in (1, 2, 3)}, {}, []
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             started.append(request.cwd)
             number = int(Path(request.cwd).name.removeprefix("wt"))
             gates[number].wait(10)
@@ -1229,11 +1229,12 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     monkeypatch.setattr(OutputFiles, "stop", lambda self, reason: (stops.append((self.folder.name, reason)), gates[int(self.folder.name.removeprefix("run"))].set()))
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             number = int(Path(request.cwd).name.removeprefix("wt"))
             started.append(number)
             with scope.environment(1):
                 row = outputs.save(CommandOutput(chain=f"run{number}", command=request.line, folder=str(tmp_path / f"run{number}"), ran_in=request.cwd), Actor.system())
+                on_output(row.row_id)
                 gates.setdefault(number, threading.Event()).wait(10)
                 outputs.save(outputs.find(row.row_id).with_(ended=True), Actor.system())
             yield f"FAILED tests/test_{number}.py::test_it\n".encode()
@@ -1320,7 +1321,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
             return row
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             lines.append((request.line, Path(request.cwd).name))
             gates.setdefault(request.line, threading.Event()).wait(10)
             if "nope" in request.line:
@@ -1401,7 +1402,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             return row
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             lines.append(request.line)
             going.append(1)
             most[0] = max(most[0], len(going))
@@ -1441,7 +1442,7 @@ def test_a_worker_without_a_worktree_has_its_tests_run_in_the_checkout_it_works_
             return row
 
     class Runner:
-        def run(self, request, caller, environment):
+        def run(self, request, caller, environment, *, on_output=None):
             folders.append(request.cwd)
             yield b"1 passed in 0.1s\n__journal_exit 0\n"
 

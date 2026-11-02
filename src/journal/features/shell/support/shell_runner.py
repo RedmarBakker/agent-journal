@@ -1,6 +1,7 @@
 import queue
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Iterator
 
@@ -69,14 +70,14 @@ class ShellRunner:
         self._active_lock = threading.Lock()
         self._active: dict[threading.Thread, OutputFiles] = {}
 
-    def run(self, posted: ShellRequest, unseated: Caller, environment: int) -> Iterator[bytes]:
+    def run(self, posted: ShellRequest, unseated: Caller, environment: int, *, on_output: Callable[[int], None] | None = None) -> Iterator[bytes]:
         with self.scope.environment(environment):
             caller = self.seats.caller_seated(unseated)
         line = self.aliases.expanded(posted.line)
         if SleepLoop.matches(line):
             yield self.loop_waited(SleepLoop.parsed(line), caller, environment)
             return
-        yield from self.chain_run(replace(posted, line=line), posted, caller, environment)
+        yield from self.chain_run(replace(posted, line=line), posted, caller, environment, on_output)
 
     def loop_waited(self, loop: SleepLoop, caller: Caller, environment: int) -> bytes:
         with self.scope.environment(environment):
@@ -84,7 +85,7 @@ class ShellRunner:
             notes = self.send_notes(caller, environment, [ShellNudges.SLEEP_LOOP_WAIT.create(title=loop.title, script=loop.script)])
         return f"{wait_text}{notes}{EXIT} 0\n".encode()
 
-    def chain_run(self, request: ShellRequest, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+    def chain_run(self, request: ShellRequest, posted: ShellRequest, caller: Caller, environment: int, on_output: Callable[[int], None] | None = None) -> Iterator[bytes]:
         timer = self.recorder.begin(time.time())
         began = time.perf_counter()
         try:
@@ -93,6 +94,8 @@ class ShellRunner:
                 folder = self.split_folder(request.line)
                 if not cap.is_whole() and not cap.is_direct():
                     self.recorded(folder, posted.line, caller, request.cwd)
+                    if on_output is not None:
+                        on_output(folder.number())
         except BaseException:
             self.recorder.discarded(timer)
             raise

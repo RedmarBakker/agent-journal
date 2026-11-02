@@ -3,6 +3,7 @@ import re
 import shlex
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from journal.features.shell.support.output_files import OutputFiles
@@ -12,6 +13,7 @@ from journal.features.shell.support.shell_runner import EXIT, ShellRunner
 from journal.features.workers.support.test_run_result import TestRunResult
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.workers_options import WorkersOptions
+from journal.models.test_outcome import TestOutcome
 from journal.models.test_turn import TestTurn
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.models.test_turn_state import TestTurnState
@@ -81,12 +83,10 @@ class TestTurns:
         if not self.waited(turn):
             raise Rejection("your test run was taken back before it ran: clock out again")
         self.turns.save(self.turns.find(turn.id).with_run_event(self.time_source.seconds()), Actor.system())
-        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, self.time_source.seconds()))
+        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn,))
         limit.start()
         try:
-            output, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id)
-            if output is not None:
-                self.turns.save(self.turns.find(turn.id).with_(output=output.row_id), Actor.system())
+            _, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id, lambda number: self.output_started(turn, number))
             self.recorded(turn, TestRunResult.printed(text, self.readers.reading(turn.command)))
         finally:
             limit.cancel()
@@ -98,10 +98,16 @@ class TestTurns:
         code = output.status if output is not None else self.exit_code(text)
         return code, "\n".join([line for line in text.splitlines() if not line.startswith(EXIT)][-LAST_LINES:])
 
-    def whole_run(self, line: str, folder: str, caller: Caller, environment: int):
-        started = self.time_source.seconds()
-        text = b"".join(self.runner.run(ShellRequest(line=line, cwd=folder, shell="bash", environment=dict(os.environ)), caller, environment)).decode(errors="replace")
-        output = next((row for row in self.outputs.folder_runs(folder) if row.creation_time.timestamp() >= started), None)
+    def whole_run(self, line: str, folder: str, caller: Caller, environment: int, on_output: Callable[[int], None] | None = None):
+        numbers = []
+
+        def started(number: int) -> None:
+            numbers.append(number)
+            if on_output is not None:
+                on_output(number)
+
+        text = b"".join(self.runner.run(ShellRequest(line=line, cwd=folder, shell="bash", environment=dict(os.environ)), caller, environment, on_output=started)).decode(errors="replace")
+        output = next(iter(self.outputs.matching(id=numbers[0])), None) if numbers else None
         moved = output is not None and not output.ended
         while output is not None and not output.ended:
             time.sleep(POLL_SECONDS)
@@ -136,15 +142,15 @@ class TestTurns:
 
     def run_turn(self, turn: TestTurn, caller: Caller, environment: int) -> str:
         started = self.time_source.seconds()
-        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, started))
+        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn,))
         limit.start()
         try:
-            text = b"".join(self.runner.run(ShellRequest(line=turn.command, cwd=turn.folder, shell="bash", environment=dict(os.environ)), caller, environment)).decode(errors="replace")
+            text = b"".join(self.runner.run(ShellRequest(line=turn.command, cwd=turn.folder, shell="bash", environment=dict(os.environ)), caller, environment, on_output=lambda number: self.output_started(turn, number))).decode(errors="replace")
         except Exception:
             limit.cancel()
             self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
             raise
-        output = self.run_output(turn, started)
+        output = self.run_output(turn)
         moved = output is not None and not output.ended
         output = self.foreground_output(output, started) if moved else output
         later = self.turns.find(turn.id)
@@ -173,17 +179,26 @@ class TestTurns:
         return "\n".join(lines)
 
     def recorded(self, turn: TestTurn, summary: TestRunResult) -> None:
-        later = self.turns.find(turn.id)
-        self.turns.save(later.passed_run() if summary.is_passed() else later.failed_run(summary.failed), Actor.system())
-        worker = self.workers.find(turn.worker)
-        self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, self.time_source.seconds()), Actor.system())
+        with self.lock:
+            later = self.turns.find(turn.id)
+            if later.outcome != TestOutcome.UNKNOWN:
+                return
+            self.turns.save(later.passed_run() if summary.is_passed() else later.failed_run(summary.failed), Actor.system())
+            worker = self.workers.find(turn.worker)
+            self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, self.time_source.seconds()), Actor.system())
 
-    def run_output(self, turn: TestTurn, started: float):
-        return next((row for row in self.outputs.folder_runs(turn.folder) if row.creation_time.timestamp() >= started), None)
+    def output_started(self, turn: TestTurn, number: int) -> None:
+        self.turns.save(self.turns.find(turn.id).with_(output=number), Actor.system())
 
-    def stopped(self, turn: TestTurn, started: float) -> None:
+    def run_output(self, turn: TestTurn):
+        return next(iter(self.outputs.matching(id=self.turns.find(turn.id).output)), None)
+
+    def stopped(self, turn: TestTurn) -> None:
         with self.scope.environment(turn.environment_id):
-            output = self.run_output(turn, started)
+            later = self.turns.find(turn.id)
+            if later.state != TestTurnState.RUNNING:
+                return
+            output = self.run_output(later)
             if output is None or output.ended:
                 return
             self.timed_out.add(turn.id)
