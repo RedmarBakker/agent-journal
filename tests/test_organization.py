@@ -13,7 +13,9 @@ import tomllib
 
 import pytest
 
+
 from journal.config import Config
+from journal.support.supervisor_reply import SupervisorReply
 from journal.engine.agent_launcher import AgentLauncher
 from journal.engine.support.settings import Settings
 from journal.events.agent.line_delivered import LineDelivered
@@ -959,7 +961,7 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     from journal.support.caller import Caller
     from tests.test_features import hook
     started = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: SupervisorReply(True))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
@@ -2111,7 +2113,7 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
     from journal.support.caller import Caller
     from tests.test_features import hook
     started = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: SupervisorReply(True))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
@@ -2391,7 +2393,7 @@ def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_an
     from journal.support.caller import Caller
     from tests.test_features import hook
     started = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: SupervisorReply(True))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture, organization = loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", True)
@@ -2641,7 +2643,7 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
     from tests.user_settings import user_set
     started = []
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: SupervisorReply(True))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
     fixture = OrganizationFixture(tmp_path / "organization").write()
     fixture.role("alpha", "steward", cardinality="journal", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
@@ -3096,3 +3098,16 @@ def test_existing_organization_rigs_keep_their_legacy_names(app, tmp_path):
         assert staffing.plan_rig_name(plan) == f"plan-{plan.id}"
         assert staffing.shared_rig_name(1) == "organization-1"
         assert app.container.get(OrganizationHub).plan_for_rig(rig.name) == plan
+
+
+def test_an_unsent_line_stays_queued_without_being_marked_typed(app):
+    from journal.supervisor_link import SupervisorLink
+    from journal.support.typed_lines import TypedLines
+
+    line = "the plan has work waiting"
+    app.container.get(SupervisorLink).type(1, line)
+    typed = app.container.get(TypedLines)
+    assert typed.waiting_count(1) == 0
+    assert not typed.contains(1, line)
+    assert not typed.is_working(1)
+    assert typed.pending_instructions(1) == [line]

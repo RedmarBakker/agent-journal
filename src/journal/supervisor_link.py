@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import time
+from journal.features.organization.support.seat_line_delivery import SeatLineDelivery
 from journal.models.environment import Environment
 from pathlib import Path
 
@@ -29,11 +30,12 @@ AGENT, JOURNAL, SUPERVISOR = "agent", "journal", "supervisor"
 
 
 class SupervisorLink:
-    """The journal's end of each supervisor's inbox: a request is a line of JSON, its answer a line back, or, to a supervisor that takes datagrams, a datagram with no reply read. A supervisor announces its inbox under the runtime folder by its environment's name while it runs; an environment with none announced receives nothing. Every line typed starts with the marker, so the agent can tell the journal from the user."""
+    """The journal's terminal delivery: a live organization seat receives lines by its native session, other agents through their supervisor's announced inbox. Unsent lines remain queued; typed lines start with the journal marker."""
 
-    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows, time_source: TimeSource) -> None:
+    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows, time_source: TimeSource, seats: SeatLineDelivery) -> None:
         self.time_source = time_source
         self.config, self.environments, self.typed, self.settings = config, environments, keystrokes, settings
+        self.seats = seats
         self._chosen_at: dict[int, float] = {}
         self._viewer_keyed_at: dict[int, float] = {}
 
@@ -51,7 +53,12 @@ class SupervisorLink:
     def wake(self, environment_id: int, first: QueuedLine) -> None:
         self.typed.typed(environment_id, first.line)
         self.typed.work(environment_id)
-        self._send(environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds})
+        sent = False
+        try:
+            sent = self._send(environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds}).success
+        finally:
+            if not sent:
+                self.typed.unsent(first)
 
     def is_busy(self, environment_id: int) -> bool:
         return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.typed.is_working(environment_id)
@@ -223,6 +230,10 @@ class SupervisorLink:
         return SupervisorAnnouncement.parsed(json.loads(text)) if text.startswith("{") else SupervisorAnnouncement(text, OldSupervisor.screen(self.config.home, path.name))
 
     def _send(self, environment_id: int, verb: str, fields: dict) -> SupervisorReply:
+        if verb == "type" and fields.get("name") == AGENT:
+            delivered = self.seats.send(environment_id, fields["line"])
+            if delivered is not None:
+                return delivered
         announced = self.announced(environment_id)
         if announced is None:
             return SupervisorReply(False, NO_SUPERVISOR)

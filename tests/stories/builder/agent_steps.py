@@ -1,4 +1,5 @@
 from journal.support.typed_lines import JOURNAL_PREFIX
+from journal.supervisor_link import SupervisorLink
 from tests.stories.builder.story_agent import StoryAgent
 import json
 import shutil
@@ -79,6 +80,10 @@ class AgentSteps:
 
     def agent_starts_a_session(self, agent: StoryAgent) -> StepResult:
         return self.hooked(agent, "agent starts a session", "SessionStart", source="startup")
+
+    def agent_uses_its_live_delivery(self, agent: StoryAgent) -> StepResult:
+        self.monkeypatch.setattr(SupervisorLink, "_send", self.supervisor_send)
+        return self.observed(f"the {agent.role} receives lines through its live transport", None, None)
 
     def agent_resumes_the_session(self, agent: StoryAgent) -> StepResult:
         return self.hooked(agent, "agent resumes its session", "SessionStart", source="resume")

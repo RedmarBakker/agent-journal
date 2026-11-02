@@ -884,7 +884,7 @@ def test_an_integration_is_a_suggested_mcp_server_installed_and_removed_with_the
     from journal.support.keys import Keys
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}) or SupervisorReply(True))
     monkeypatch.setattr(app.container.get(Keys), "path", tmp_path / "keys.json")
     from journal.features.mcp.support.health_report import HealthReport
     from journal.features.mcp.support.server_catalogue import ServerCatalogue

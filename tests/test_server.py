@@ -19,6 +19,7 @@ from journal.http.threading_server import ThreadingServer
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
+from journal.support.supervisor_reply import SupervisorReply
 from journal.features.organization.support.approval_action import ApprovalAction
 from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.support.actor import Actor
@@ -634,7 +635,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
     from journal.repositories.setting_rows import SettingRows
     from journal.supervisor_link import SupervisorLink
     keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]) or SupervisorReply(True))
     app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()

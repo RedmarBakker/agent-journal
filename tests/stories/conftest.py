@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from journal.supervisor_link import SupervisorLink
 
 from tests.agent_hooks import typing_capture, pinned_clock
 from tests.stories.builder.coverage_gaps import CoverageGaps
@@ -118,6 +119,7 @@ def copies(request):
 @pytest.fixture
 def story(app, monkeypatch, request, copies):
     home_inside_the_story_folder(app.config.root, monkeypatch)
+    supervisor_send = SupervisorLink._send
     typed: list[str] = []
     typing_capture(app, monkeypatch, typed)
     pinned_clock(app, monkeypatch)
@@ -125,6 +127,7 @@ def story(app, monkeypatch, request, copies):
     reads.watch(monkeypatch)
     program = request.node.get_closest_marker(PROVIDER_MARK)
     played = Story(app, program.args[0] if program else VoidProvider, reads, copies, monkeypatch)
+    played.supervisor_send = supervisor_send
     played.typed = typed
     for mark in request.node.iter_markers(START_MARK):
         played.reach(mark.args[0])

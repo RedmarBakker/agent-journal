@@ -100,6 +100,12 @@ class TypedLines:
         self._waiting.append(TypedLine(environment_id, line, moment))
         self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment)]
 
+    def unsent(self, line: QueuedLine) -> None:
+        self._waiting = [typed for typed in self._waiting if (typed.environment_id, typed.line) != (line.environment_id, line.line)]
+        self._recent = [typed for typed in self._recent if (typed.environment_id, typed.line) != (line.environment_id, line.line)]
+        self.rest(line.environment_id)
+        self._held.insert(0, line)
+
     def contains(self, environment_id: int, prompt: str) -> bool:
         return any(t.matches_prompt(environment_id, prompt) for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(self.time_source.seconds()))
 

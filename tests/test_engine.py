@@ -22,6 +22,7 @@ shell = lambda line: Claude().call("Bash", {"command": line}, frozenset(), CLASS
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
+from journal.support.supervisor_reply import SupervisorReply
 from journal.support.moment import Moment
 from journal.support.caller import Caller
 from journal.engine.hook_answer import HookAnswer
@@ -259,7 +260,7 @@ def test_a_typed_line_goes_out_on_one_line(app: App, monkeypatch):
     """One with breaks would arrive as pasted text that never matches it, and be typed again."""
     from journal.supervisor_link import SupervisorLink
     transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields))
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields) or SupervisorReply(True))
     app.container.get(SupervisorLink).type(1, "the command finished: cat <<EOF\nx\nEOF")
     batch_waited(app)
     assert transmitted[-1]["line"] == "[journal] the command finished: cat <<EOF x EOF"

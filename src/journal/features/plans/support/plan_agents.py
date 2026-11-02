@@ -62,7 +62,7 @@ class PlanAgents:
 
     def seat_agent(self, rig_name: str) -> Agent | None:
         plans = tuple(
-            plan for plan in self.plans.matching()
+            plan for plan in self.plans.global_matching()
             if plan.mode == PlanMode.ORGANIZATION
             and plan.state in (PlanState.STARTED, PlanState.DELEGATED)
             and self.staffing.plan_rig_name(plan) == rig_name
