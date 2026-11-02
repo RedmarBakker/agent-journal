@@ -49,6 +49,27 @@ class RunRealBatch:
                 raise ValueError("batch watchdog stop was not confirmed")
         return tuple(records)
 
+    def setup_only(self, manifest: Manifest, receipt, actor: Actor,
+                   setup_home: Path) -> tuple[int, tuple[Path, ...]]:
+        data = manifest.data()
+        run_ids = self.approved_runs(manifest, receipt, actor, data)
+        setup_journal = IsolatedJournal(
+            setup_home.expanduser(), self.journal.checkout,
+            (*self.journal.protected_paths[1:], self.journal.lab_home),
+        )
+        if any(setup_journal.run_root(manifest.batch_id, run_id).exists() for run_id in run_ids):
+            raise ValueError("setup-only home already contains run roots; choose a fresh --setup-home")
+        results = []
+        for run_id in run_ids:
+            spec = RealRun.run_spec(data, run_id)
+            driver = self.driver_factory(run_id, spec)
+            boundary = self.boundary_factory(run_id)
+            results.append(RealRun(setup_journal, self.approvals, driver, self.records).setup_only(
+                manifest, receipt, actor, run_id, boundary,
+            ))
+        status = 1 if any(not succeeded for succeeded, _path in results) else 0
+        return status, tuple(path for _succeeded, path in results)
+
     def record_path(self, batch_id: str, run_id: str) -> Path:
         root = self.journal.run_root(batch_id, run_id)
         if root.exists():
@@ -75,6 +96,13 @@ class RunRealBatch:
         return self.ledger.parent / "records" / run_id / "evidence"
 
     def preflight(self, manifest: Manifest, receipt, actor: Actor, data: dict[str, object]) -> tuple[str, ...]:
+        run_ids = self.approved_runs(manifest, receipt, actor, data)
+        for run_id in run_ids:
+            if self.journal.run_root(manifest.batch_id, run_id).exists() or self.fallback_evidence(run_id).exists():
+                raise ValueError(f"run {run_id} already has an isolated root; an approved batch cannot be replayed")
+        return run_ids
+
+    def approved_runs(self, manifest: Manifest, receipt, actor: Actor, data: dict[str, object]) -> tuple[str, ...]:
         if receipt is None:
             raise ValueError("the owner batch approval receipt is missing")
         self.approvals.validate_caps(data)
@@ -86,6 +114,4 @@ class RunRealBatch:
             if not isinstance(attempts, list) or attempts != [1]:
                 raise ValueError("a real batch run must select one first attempt before execution")
             self.approvals.verify(manifest, receipt, run_id, actor, self.wall_clock())
-            if self.journal.run_root(manifest.batch_id, run_id).exists() or self.fallback_evidence(run_id).exists():
-                raise ValueError(f"run {run_id} already has an isolated root; an approved batch cannot be replayed")
         return run_ids

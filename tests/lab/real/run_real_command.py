@@ -15,13 +15,7 @@ from tests.lab.real.run_real_batch import RunRealBatch
 
 def execute(manifest_path: Path, receipt_path: Path, key_path: Path, runner_specification: str,
             resolve_runner: Callable[[str], Callable]) -> tuple[int, tuple[Path, ...]]:
-    manifest = read_manifest(manifest_path)
-    receipt = read_receipt(receipt_path)
-    key = read_key(key_path)
-    approvals = BatchApproval(receipt.owner_id, key)
-    data = manifest.data()
-    for run_id in approvals.run_ids(data):
-        approvals.verify(manifest, receipt, run_id, Actor.user(receipt.owner_id), time.time())
+    manifest, receipt, approvals = approved_batch(manifest_path, receipt_path, key_path)
     runner_factory = resolve_runner(runner_specification)
     service = runner_factory(manifest, approvals, manifest_path.parent)
     if not isinstance(service, RunRealBatch):
@@ -31,6 +25,29 @@ def execute(manifest_path: Path, receipt_path: Path, key_path: Path, runner_spec
     paths = tuple(service.record_path(manifest.batch_id, record.run_id)
                   for record in records)
     return (1 if any(record.terminal_reason != "completed" for record in records) else 0), paths
+
+
+def execute_setup_only(manifest_path: Path, receipt_path: Path, key_path: Path, runner_specification: str,
+                       setup_home: Path, resolve_runner: Callable[[str], Callable]) -> tuple[int, tuple[Path, ...]]:
+    manifest, receipt, approvals = approved_batch(manifest_path, receipt_path, key_path)
+    runner_factory = resolve_runner(runner_specification)
+    service = runner_factory(manifest, approvals, manifest_path.parent)
+    if not isinstance(service, RunRealBatch):
+        raise ValueError("the real-run adapter must return a RunRealBatch")
+    service.approvals = approvals
+    return service.setup_only(manifest, receipt, Actor.user(receipt.owner_id), setup_home)
+
+
+def approved_batch(manifest_path: Path, receipt_path: Path,
+                   key_path: Path) -> tuple[Manifest, ApprovalReceipt, BatchApproval]:
+    manifest = read_manifest(manifest_path)
+    receipt = read_receipt(receipt_path)
+    key = read_key(key_path)
+    approvals = BatchApproval(receipt.owner_id, key)
+    data = manifest.data()
+    for run_id in approvals.run_ids(data):
+        approvals.verify(manifest, receipt, run_id, Actor.user(receipt.owner_id), time.time())
+    return manifest, receipt, approvals
 
 
 def read_manifest(path: Path) -> Manifest:

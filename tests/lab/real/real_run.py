@@ -62,13 +62,8 @@ class RealRun:
         challenge = secrets.token_hex(32)
         journal_pid = None
         try:
-            snapshot = self.driver.materialize_project(spec, paths)
-            port = self.snapshot_port(snapshot, spec)
-            shim = self.journal.install_journal_shim(paths, port)
-            identity = self.driver.start_journal(paths, shim, run_id, launch_id, challenge, port, caps)
-            IsolatedJournal.verify_identity(identity, paths["root"], run_id, launch_id, challenge, port)
+            _snapshot, identity, scenario = self.prepare_journal(spec, paths, run_id, launch_id, challenge, caps)
             journal_pid = identity["pid"]
-            scenario = self.driver.load_scenario(spec["scenario"], paths)
             before = tuple(self.driver.outside_worktree_changes(paths))
             plan_id = self.driver.start_plan(scenario, paths, caps)
             terminal_reason = self.driver.wait_for_end_or_cap(run_id, plan_id, caps)
@@ -101,6 +96,18 @@ class RealRun:
                          isolation_verified=journal_pid is not None and isolation is not None and isolation.escaped_writes == 0)
         return self.persist_record(manifest, run_id, record, paths)
 
+    def prepare_journal(self, spec: Mapping[str, object], paths: Mapping[str, Path], run_id: str,
+                        launch_id: str, challenge: str, caps) -> tuple[
+                            Mapping[str, object], Mapping[str, object], object,
+                        ]:
+        snapshot = self.driver.materialize_project(spec, paths)
+        port = self.snapshot_port(snapshot, spec)
+        shim = self.journal.install_journal_shim(paths, port)
+        identity = self.driver.start_journal(paths, shim, run_id, launch_id, challenge, port, caps)
+        IsolatedJournal.verify_identity(identity, paths["root"], run_id, launch_id, challenge, port)
+        scenario = self.driver.load_scenario(spec["scenario"], paths)
+        return snapshot, identity, scenario
+
     def completed_record(self, manifest: Manifest, spec: Mapping[str, object], run_id: str, attempt: int,
                          start: float, started_at: str, terminal_reason: str, plan_id: object,
                          before: tuple[str, ...], paths: Mapping[str, object], fault: str,
@@ -123,6 +130,65 @@ class RealRun:
                        started_at=record.started_at or started_at, ended_at=datetime.now(timezone.utc).isoformat(),
                        plan_commits_reached_main=reached_main, outside_worktree_changes=outside,
                        evidence=(*record.evidence, *((fault,) if fault else ())))
+
+    def setup_only(self, manifest: Manifest, receipt, actor: Actor, run_id: str,
+                   boundary: object | None) -> tuple[bool, Path]:
+        start = monotonic()
+        data = manifest.data()
+        spec: Mapping[str, object] = {}
+        paths: Mapping[str, Path] = {}
+        setup: dict[str, object] = {}
+        fault = ""
+        try:
+            spec = self.run_spec(data, run_id)
+            self.approvals.verify(manifest, receipt, run_id, actor, datetime.now(timezone.utc).timestamp())
+            subscription_provider = spec["provider"] if data.get("billing_mode", "metered") == "subscription" else None
+            paths = self.journal.prepare(manifest.batch_id, run_id, boundary, subscription_provider)
+            launch_id, challenge = secrets.token_hex(16), secrets.token_hex(32)
+            snapshot, identity, scenario = self.prepare_journal(spec, paths, run_id, launch_id, challenge, None)
+            port = identity["port"]
+            plan_id = self.driver.prepare_plan(scenario, paths)
+            setup = {
+                "run_id": run_id,
+                "status": "ready",
+                "journal_commit": snapshot["journal_commit"],
+                "organization_commit": snapshot["organization_commit"],
+                "scenario": spec["scenario"],
+                "journal_pid": identity["pid"],
+                "journal_port": port,
+                "plan_id": plan_id,
+                "agent_started": False,
+                "provider_started": False,
+            }
+        except Exception as error:
+            fault = str(error)
+
+        if not paths:
+            root = self.journal.run_root(manifest.batch_id, run_id)
+            if root.exists():
+                paths = self.journal.paths(root)
+        isolation = None
+        if paths and (paths["evidence"] / "isolation-start.json").is_file():
+            try:
+                isolation = self.journal.observe_boundary(boundary, run_id, paths)
+                if isolation.escaped_writes:
+                    fault = self.add_fault(fault, f"isolation observer recorded {isolation.escaped_writes} escaped writes")
+            except Exception as error:
+                fault = self.add_fault(fault, f"isolation observer did not confirm setup: {error}")
+        if self.stop_owned(run_id) is not True:
+            fault = self.add_fault(fault, "setup-only could not confirm its owned journal process stopped")
+        if fault:
+            if paths:
+                failure = paths["evidence"] / "setup-failed.json"
+                if not failure.exists():
+                    self.journal.setup_failed(paths, run_id, fault)
+                return False, failure
+            raise ValueError(fault)
+        if isolation is None:
+            raise ValueError("setup-only isolation evidence is missing")
+        setup["isolation_observation"] = isolation.to_document()
+        setup["setup_seconds"] = max(0.0, monotonic() - start)
+        return True, self.journal.write_document(paths, "setup-only.json", setup)
 
     def persist_record(self, manifest: Manifest, run_id: str, record: RunRecord,
                        paths: Mapping[str, object]) -> RunRecord:

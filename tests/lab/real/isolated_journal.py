@@ -165,15 +165,20 @@ class IsolatedJournal:
 
     @staticmethod
     def write_evidence(paths: Mapping[str, Path], name: str, evidence: IsolationEvidence) -> None:
+        IsolatedJournal.write_document(paths, name, evidence.to_document())
+
+    @staticmethod
+    def write_document(paths: Mapping[str, Path], name: str, document: Mapping[str, object]) -> Path:
         path = paths["evidence"] / name
         if path.is_symlink():
-            raise ValueError("isolation evidence cannot replace a symlink")
+            raise ValueError("run evidence cannot replace a symlink")
         descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as target:
-            json.dump(evidence.to_document(), target, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            json.dump(document, target, sort_keys=True, separators=(",", ":"), allow_nan=False)
             target.write("\n")
             target.flush()
             os.fsync(target.fileno())
+        return path
 
     @staticmethod
     def verify_identity(identity: Mapping[str, object], root: Path, run_id: str, launch_id: str,

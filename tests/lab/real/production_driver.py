@@ -34,8 +34,8 @@ class ProductionDriver:
         read_paths.extend(Path(path).resolve() for path in sys.path
                           if path and "site-packages" in path and Path(path).exists())
         for program in (str(spec["provider"]), "rig"):
-            if executable := shutil.which(program):
-                read_paths.append(Path(executable).resolve().parent)
+            if executable := self.executable(program):
+                read_paths.append(executable.parent)
         self.boundary = ProductionBoundary(run_id, (self.journal_port, self.rig_port, self.cap_port, self.proxy_port),
                                            tuple(dict.fromkeys(read_paths)))
         self.processes: list[subprocess.Popen] = []
@@ -45,6 +45,7 @@ class ProductionDriver:
         self.paths: Mapping[str, Path] = {}
         self.env: dict[str, str] = {}
         self.caps = None
+        self.rig_started = False
         self.token = secrets.token_urlsafe(32)
         self.stopped = False
         self.watchdog.register(self)
@@ -61,11 +62,12 @@ class ProductionDriver:
     def start_journal(self, paths: Mapping[str, Path], _shim: Path, run_id: str, launch_id: str,
                       challenge: str, port: int, caps) -> dict[str, object]:
         self.caps = caps
-        self.event_server = CapEventServer(caps, self.token, self.cap_port)
-        if self.event_server.start() != self.cap_port:
-            raise ValueError("run cap event server did not bind its reserved port")
-        self.proxy = ProviderProxy(self.proxy_port)
-        self.proxy.start()
+        if caps is not None:
+            self.event_server = CapEventServer(caps, self.token, self.cap_port)
+            if self.event_server.start() != self.cap_port:
+                raise ValueError("run cap event server did not bind its reserved port")
+            self.proxy = ProviderProxy(self.proxy_port)
+            self.proxy.start()
         self.env = self.child_environment(paths, port)
         stdout = (paths["runtime"] / "journal.stdout.log").open("ab")
         stderr = (paths["runtime"] / "journal.stderr.log").open("ab")
@@ -84,10 +86,12 @@ class ProductionDriver:
 
     def child_environment(self, paths: Mapping[str, Path], port: int) -> dict[str, str]:
         provider = str(self.spec["provider"])
-        cli, rig = shutil.which(provider), shutil.which("rig")
+        cli, rig = self.executable(provider), self.executable("rig")
         if not cli or not rig:
             raise ValueError("the signed-in provider CLI and OpenRig CLI must be installed")
-        path_entries = tuple(dict.fromkeys((Path(cli).parent, Path(rig).parent, Path("/usr/bin"),
+        self.install_executable(paths, provider, cli)
+        self.install_executable(paths, "rig", rig)
+        path_entries = tuple(dict.fromkeys((cli.parent, rig.parent, Path("/usr/bin"),
                                             Path("/bin"), Path("/opt/homebrew/bin"))))
         env = IsolatedJournal(paths["root"], self.checkout).child_environment(
             paths, os.environ, ("PATH", "LANG", "LC_ALL", "TERM"), (), port,
@@ -114,32 +118,27 @@ class ProductionDriver:
         })
         return env
 
-    def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], _caps) -> str:
+    def prepare_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> str:
         setup = self.setup_scenario(scenario, paths)
         (paths["runtime"] / "openrig").mkdir(mode=0o700, exist_ok=True)
         (paths["runtime"] / "tmux").mkdir(mode=0o700, exist_ok=True)
-        rig = shutil.which("rig")
+        return str(setup["plan_id"])
+
+    def start_plan(self, scenario: Mapping[str, object], paths: Mapping[str, Path], _caps) -> str:
+        plan_id = self.prepare_plan(scenario, paths)
+        rig = self.executable("rig")
         if not rig:
             raise ValueError("OpenRig CLI is required for an organization-mode run")
-        self.env.update({
-            "TMUX_TMPDIR": str(paths["runtime"] / "tmux"),
-            "HTTPS_PROXY": f"http://127.0.0.1:{self.proxy_port}",
-            "HTTP_PROXY": f"http://127.0.0.1:{self.proxy_port}",
-            "NO_PROXY": "localhost,127.0.0.1",
-            "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": str(paths["runtime"] / "gitconfig"),
-            "GIT_ALLOW_PROTOCOL": "file",
-            "GIT_TERMINAL_PROMPT": "0",
-        })
-        start = self.command([rig, "daemon", "start", "--host", "127.0.0.1", "--port", str(self.rig_port),
+        start = self.command([str(rig), "daemon", "start", "--host", "127.0.0.1", "--port", str(self.rig_port),
                               "--db", str(paths["runtime"] / "openrig.db"), "--no-kernel"], paths)
         if start.returncode:
             raise ValueError(start.stderr.strip() or "private OpenRig daemon did not start")
+        self.rig_started = True
         journal = [sys.executable, str(paths["project"] / "src" / "journal.py")]
-        started = self.command([*journal, "plan", "start", str(setup["plan_id"])], paths)
+        started = self.command([*journal, "plan", "start", plan_id], paths)
         if started.returncode:
             raise ValueError(started.stderr.strip() or "journal refused to start the approved plan")
-        return str(setup["plan_id"])
+        return plan_id
 
     def wait_for_end_or_cap(self, _run_id: str, plan_id: str, caps) -> str:
         while True:
@@ -186,12 +185,13 @@ class ProductionDriver:
         if self.proxy:
             self.proxy.close()
             self.proxy = None
-        rig = shutil.which("rig")
+        rig = self.executable("rig") if self.rig_started else None
         if rig and self.env.get("OPENRIG_HOME"):
-            stopped = subprocess.run(self.boundary.wrap([rig, "daemon", "stop"]), env=self.env,
+            stopped = subprocess.run(self.boundary.wrap([str(rig), "daemon", "stop"]), env=self.env,
                                      cwd=self.paths.get("project"), stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL, timeout=10, check=False)
             confirmed = stopped.returncode == 0
+            self.rig_started = not confirmed
         for process in self.processes:
             if process.poll() is not None:
                 continue
@@ -337,13 +337,45 @@ print(plan["plan_id"])
             raise ValueError("isolated repository has no checked-out commit")
         return result.stdout.strip()
 
+    @staticmethod
+    def executable(program: str) -> Path | None:
+        selected = shutil.which(program)
+        return Path(selected).resolve() if selected else None
+
+    @staticmethod
+    def install_executable(paths: Mapping[str, Path], name: str, executable: Path) -> Path:
+        link = paths["bin"] / name
+        if link.exists() or link.is_symlink():
+            raise ValueError(f"isolated executable already exists: {name}")
+        link.symlink_to(executable)
+        return link
+
+    @staticmethod
+    def default_organization_repository(checkout: Path) -> Path:
+        repository = checkout.resolve()
+        worktree_git_file = repository / ".git"
+        if worktree_git_file.is_file():
+            reference = worktree_git_file.read_text(encoding="utf-8").strip()
+            if reference.startswith("gitdir: "):
+                git_directory = Path(reference.removeprefix("gitdir: "))
+                if not git_directory.is_absolute():
+                    git_directory = repository / git_directory
+                git_directory = git_directory.resolve()
+                common_directory = git_directory / "commondir"
+                if common_directory.is_file():
+                    common_reference = Path(common_directory.read_text(encoding="utf-8").strip())
+                    if not common_reference.is_absolute():
+                        common_reference = git_directory / common_reference
+                    common_directory = common_reference.resolve()
+                    if common_directory.name == ".git":
+                        repository = common_directory.parent
+        return repository.parent / "agentic-organization-journal"
+
 
 def build(manifest, approvals, batch_home: Path) -> RunRealBatch:
     checkout = Path(__file__).resolve().parents[3]
-    organization_repository = Path(os.environ.get(
-        "JOURNAL_LAB_ORGANIZATION_REPOSITORY",
-        str(checkout.parents[2].parent / "agentic-organization-journal"),
-    )).expanduser().resolve()
+    organization_repository = Path(os.environ.get("JOURNAL_LAB_ORGANIZATION_REPOSITORY") or
+                                    ProductionDriver.default_organization_repository(checkout)).expanduser().resolve()
     journal = IsolatedJournal(batch_home, checkout, (organization_repository, Path.home() / ".journal"))
     watchdog = ProductionWatchdog()
     drivers: dict[str, ProductionDriver] = {}

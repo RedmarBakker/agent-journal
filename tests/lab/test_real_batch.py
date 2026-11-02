@@ -124,7 +124,8 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
     def driver_factory(run_id, spec):
         driver = SimpleNamespace(run_id=run_id, spec=spec, process=None, session_id=f"session-{run_id}", caps=None,
-                                 deadline=None, timer=None, event_server=None, cap_token="stand-in-cap-token")
+                                 deadline=None, timer=None, event_server=None, cap_token="stand-in-cap-token",
+                                 plan_started=False, plan_prepared=False)
         drivers[run_id] = driver
         factory_calls.append(run_id)
 
@@ -143,6 +144,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
                     "host": "127.0.0.1", "port": port, "authenticated": True}
 
         def start_plan(_scenario, paths, caps):
+            driver.plan_started = True
             if not driver.spec.get("simulate_live_hook_cap"):
                 caps.start_session(driver.session_id)
             child = journal.child_environment(
@@ -172,6 +174,10 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
                 driver.timer = threading.Timer(max(0.001, driver.deadline - time.monotonic()), expire)
                 driver.timer.start()
+            return f"plan-{driver.run_id}"
+
+        def prepare_plan(_scenario, _paths):
+            driver.plan_prepared = True
             return f"plan-{driver.run_id}"
 
         def wait_for_end_or_cap(current_run_id, _plan_id, caps):
@@ -214,6 +220,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         driver.start_journal = start_journal
         driver.load_scenario = lambda _scenario, _paths: spec
         driver.start_plan = start_plan
+        driver.prepare_plan = prepare_plan
         driver.wait_for_end_or_cap = wait_for_end_or_cap
         driver.stop_owned = lambda current_run_id: stop(current_run_id, "run finished")
         driver.read_record = read_record
@@ -223,19 +230,23 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
         return driver
 
     def boundary_factory(run_id):
-        return SimpleNamespace(
-            verify=lambda current_run_id, paths: isolation_boundary(current_run_id, paths),
-            observe=lambda current_run_id: isolation_boundary(
-                current_run_id, journal.paths(batch_folder / "roots" / manifest.batch_id / current_run_id)
-            ),
-        )
+        state = {}
+
+        def verify(current_run_id, paths):
+            state["paths"] = paths
+            return isolation_boundary(current_run_id, paths)
+
+        def observe(current_run_id):
+            return isolation_boundary(current_run_id, state["paths"])
+
+        return SimpleNamespace(verify=verify, observe=observe)
 
     approval, _receipt = owner_receipt(manifest)
     service = RunRealBatch(
         approval, journal, driver_factory, boundary_factory,
         RunRecordStore(), batch_folder / "run-caps.json", watchdog, clock=time.monotonic,
     )
-    return service, batch_folder, factory_calls, profiles
+    return service, batch_folder, factory_calls, profiles, drivers
 
 
 def cli_runner_factory(manifest, approvals, lab_home):
@@ -248,6 +259,15 @@ def cli_runner_factory(manifest, approvals, lab_home):
 
 
 def run_real_cli(service, batch_folder, manifest, receipt, receipt_missing=False):
+    return main(real_run_arguments(service, batch_folder, manifest, receipt, receipt_missing))
+
+
+def run_real_setup_cli(service, batch_folder, manifest, receipt, setup_home):
+    arguments = real_run_arguments(service, batch_folder, manifest, receipt)
+    return main([*arguments, "--setup-only", "--setup-home", str(setup_home)])
+
+
+def real_run_arguments(service, batch_folder, manifest, receipt, receipt_missing=False):
     global ACTIVE_RUNNER_SERVICE, RUNNER_FACTORY_CALLS
     ACTIVE_RUNNER_SERVICE = service
     RUNNER_FACTORY_CALLS = 0
@@ -273,10 +293,10 @@ def run_real_cli(service, batch_folder, manifest, receipt, receipt_missing=False
     key_path = batch_folder / "owner.key"
     key_path.write_bytes(OWNER_KEY)
     key_path.chmod(0o600)
-    return main([
+    return [
         "run-real", "--manifest", str(manifest_path), "--receipt", str(receipt_path),
         "--owner-key", str(key_path), "--runner", "tests.lab.test_real_batch:cli_runner_factory",
-    ])
+    ]
 
 
 def test_run_real_runs_three_approved_runs_in_isolated_roots_and_records_each_provider_cli(tmp_path, monkeypatch, capsys):
@@ -294,7 +314,7 @@ def test_run_real_runs_three_approved_runs_in_isolated_roots_and_records_each_pr
         encoding="utf-8",
     )
     manifest = batch_manifest()
-    service, batch_folder, factory_calls, profiles = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    service, batch_folder, factory_calls, profiles, _drivers = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
     _approval, receipt = owner_receipt(manifest)
 
     assert run_real_cli(service, batch_folder, manifest, receipt) == 0
@@ -331,7 +351,7 @@ def test_run_real_stops_and_records_a_run_that_exceeds_its_turn_or_time_cap(tmp_
     data = manifest.data()
     data["runs"][0][f"simulate_{cap}_cap"] = True
     manifest = Manifest.build(manifest.batch_id, data)
-    service, batch_folder, _factory_calls, _profiles = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    service, batch_folder, _factory_calls, _profiles, _drivers = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
     _approval, receipt = owner_receipt(manifest)
 
     assert run_real_cli(service, batch_folder, manifest, receipt) == 1
@@ -363,7 +383,7 @@ def test_run_real_records_a_cap_reached_by_live_stand_in_cli_hooks(tmp_path, mon
     data = manifest.data()
     data["runs"][0]["simulate_live_hook_cap"] = True
     manifest = Manifest.build(manifest.batch_id, data)
-    service, batch_folder, _factory_calls, _profiles = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    service, batch_folder, _factory_calls, _profiles, _drivers = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
     _approval, receipt = owner_receipt(manifest)
 
     assert run_real_cli(service, batch_folder, manifest, receipt) == 1
@@ -377,12 +397,46 @@ def test_run_real_records_a_cap_reached_by_live_stand_in_cli_hooks(tmp_path, mon
     assert ledger["runs"]["run-1"]["finished"] is True
 
 
+def test_run_real_setup_only_prepares_every_root_without_starting_an_agent_or_provider(tmp_path, monkeypatch, capsys):
+    provider_started = tmp_path / "provider-started"
+    stand_in = tmp_path / "stand-in-provider.py"
+    stand_in.write_text(
+        "from pathlib import Path\n"
+        f"Path({str(provider_started)!r}).write_text('started')\n",
+        encoding="utf-8",
+    )
+    manifest = batch_manifest()
+    service, batch_folder, factory_calls, _profiles, drivers = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    _approval, receipt = owner_receipt(manifest)
+    setup_home = tmp_path / "setup-only"
+
+    assert run_real_setup_cli(service, batch_folder, manifest, receipt, setup_home) == 0
+
+    evidence_files = tuple(Path(line) for line in capsys.readouterr().out.splitlines())
+    assert factory_calls == ["run-1", "run-2", "run-3"]
+    assert len(evidence_files) == 3
+    assert all(path.is_relative_to(setup_home.resolve()) for path in evidence_files)
+    assert not provider_started.exists()
+    assert not (batch_folder / "run-caps.json").exists()
+    assert not (batch_folder / "roots").exists()
+    for evidence_file in evidence_files:
+        setup = json.loads(evidence_file.read_text(encoding="utf-8"))
+        driver = drivers[setup["run_id"]]
+        assert setup["status"] == "ready"
+        assert setup["agent_started"] is False and setup["provider_started"] is False
+        assert setup["journal_commit"] == JOURNAL_COMMIT and setup["organization_commit"] == ORGANIZATION_COMMIT
+        assert (evidence_file.parent / "isolation-start.json").is_file()
+        assert (evidence_file.parent / "isolation-observation.json").is_file()
+        assert driver.plan_prepared is True and driver.plan_started is False
+        assert driver.process is None and driver.event_server is None
+
+
 @pytest.mark.parametrize("receipt_state", ("missing", "expired"))
 def test_run_real_refuses_a_missing_or_expired_receipt_before_any_provider_starts(tmp_path, monkeypatch, capsys, receipt_state):
     stand_in = tmp_path / "stand-in-provider.py"
     stand_in.write_text("raise SystemExit('provider must not start')\n", encoding="utf-8")
     manifest = batch_manifest(run_count=1)
-    service, batch_folder, factory_calls, _profiles = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
+    service, batch_folder, factory_calls, _profiles, _drivers = isolated_batch(tmp_path, monkeypatch, manifest, stand_in)
     _approval, receipt = owner_receipt(manifest)
     provided = None if receipt_state == "missing" else ApprovalReceipt(
         receipt.batch_id, receipt.manifest_digest, receipt.run_ids, receipt.resources_digest,

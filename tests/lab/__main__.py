@@ -10,6 +10,7 @@ from tests.lab.batch_runner import BatchRunner
 from tests.lab.drift_report import DriftReport
 from tests.lab.first_trial_simulation import run as run_first_trial_simulation
 from tests.lab.real.run_real_command import execute as run_real_batch
+from tests.lab.real.run_real_command import execute_setup_only as run_real_setup_only
 
 
 VERBS = ("organizations", "simulate", "simulate-first-trials", "regression", "compare", "plan-real", "approve", "run-real", "calibrate", "report")
@@ -37,6 +38,8 @@ def parser() -> argparse.ArgumentParser:
             subcommand.add_argument("--receipt", type=Path, required=True, help="owner-signed batch approval receipt")
             subcommand.add_argument("--owner-key", type=Path, required=True, help="private owner signing-key file")
             subcommand.add_argument("--runner", required=True, help="real-run adapter factory as module:function")
+            subcommand.add_argument("--setup-only", action="store_true", help="build and verify isolated roots without starting agents")
+            subcommand.add_argument("--setup-home", type=Path, help="private evidence directory outside the approved batch folder")
     return command
 
 
@@ -53,13 +56,23 @@ def main(arguments: list[str]) -> int:
         return 0
     if options.verb == "run-real":
         try:
-            status, records = run_real_batch(
-                options.manifest,
-                options.receipt,
-                options.owner_key,
-                options.runner,
-                runner,
-            )
+            if options.setup_only:
+                if options.setup_home is None:
+                    raise ValueError("--setup-home is required with --setup-only")
+                status, records = run_real_setup_only(
+                    options.manifest, options.receipt, options.owner_key,
+                    options.runner, options.setup_home, runner,
+                )
+            else:
+                if options.setup_home is not None:
+                    raise ValueError("--setup-home requires --setup-only")
+                status, records = run_real_batch(
+                    options.manifest,
+                    options.receipt,
+                    options.owner_key,
+                    options.runner,
+                    runner,
+                )
         except (ImportError, OSError, ValueError, TypeError, KeyError, AttributeError) as failure:
             print(str(failure), file=sys.stderr)
             return 2

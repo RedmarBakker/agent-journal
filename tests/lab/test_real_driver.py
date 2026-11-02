@@ -115,6 +115,22 @@ def test_pinned_source_snapshot_has_the_approved_commit_and_no_remote(tmp_path):
     assert not remotes.strip()
 
 
+def test_default_organization_repository_is_the_main_checkout_sibling_from_a_worktree(tmp_path):
+    checkout = tmp_path / "agent-journal"
+    checkout.mkdir()
+    (checkout / ".git").mkdir()
+    worktree = checkout / ".journal" / "worktrees" / "worker"
+    worktree.mkdir(parents=True)
+    worktree_git = checkout / ".git" / "worktrees" / "worker"
+    worktree_git.mkdir(parents=True)
+    (worktree_git / "commondir").write_text("../..\n", encoding="utf-8")
+    relative_git_dir = os.path.relpath(worktree_git, worktree)
+    (worktree / ".git").write_text(f"gitdir: {relative_git_dir}\n", encoding="utf-8")
+
+    assert ProductionDriver.default_organization_repository(checkout) == tmp_path / "agentic-organization-journal"
+    assert ProductionDriver.default_organization_repository(worktree) == tmp_path / "agentic-organization-journal"
+
+
 def test_production_environment_uses_signed_in_cli_profile_without_copying_api_keys(tmp_path, monkeypatch):
     root = tmp_path / "run"
     root.mkdir(mode=0o700)
@@ -147,6 +163,50 @@ def test_production_environment_uses_signed_in_cli_profile_without_copying_api_k
     assert environment["HOME"] == str(paths["private_home"].resolve())
     assert "ANTHROPIC_API_KEY" not in environment
     assert "OPENAI_API_KEY" not in environment
+
+
+def test_production_path_resolves_cli_symlinks_and_keeps_private_journal_dispatcher_first(tmp_path, monkeypatch):
+    root = tmp_path / "run"
+    root.mkdir(mode=0o700)
+    paths = IsolatedJournal.paths(root)
+    for name in ("project", "private_home", "runtime", "evidence", "tmp", "xdg_config", "xdg_cache", "bin"):
+        paths[name].mkdir(mode=0o700)
+    source = tmp_path / "checkout"
+    source.mkdir()
+    (paths["project"] / "src").mkdir()
+    (paths["project"] / "src" / "journal.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    host_bin = tmp_path / "host-bin"
+    provider_bin = tmp_path / "provider-bin"
+    rig_bin = tmp_path / "rig-bin"
+    for directory in (host_bin, provider_bin, rig_bin):
+        directory.mkdir()
+    global_dispatcher = host_bin / "journal"
+    global_dispatcher.write_text("#!/bin/sh\n", encoding="utf-8")
+    global_dispatcher.chmod(0o700)
+    provider = provider_bin / "claude"
+    rig = rig_bin / "rig"
+    for binary in (provider, rig):
+        binary.write_text("#!/bin/sh\n", encoding="utf-8")
+        binary.chmod(0o700)
+    (host_bin / "claude").symlink_to(provider)
+    (host_bin / "rig").symlink_to(rig)
+    monkeypatch.setattr("tests.lab.real.production_driver.shutil.which",
+                        lambda name: str(host_bin / name) if name in {"claude", "rig"} else None)
+    manifest = SimpleNamespace(digest="manifest-digest", data=lambda: {"design": {"settings": {}}})
+    driver = ProductionDriver("run-1", {"provider": "claude"}, manifest, source, source,
+                              ProductionWatchdog())
+    shim = IsolatedJournal.install_journal_shim(paths, driver.journal_port)
+
+    environment = driver.child_environment(paths, driver.journal_port)
+    path = tuple(Path(entry) for entry in environment["PATH"].split(os.pathsep))
+
+    assert path[0] == paths["bin"].resolve()
+    assert str(host_bin.resolve()) not in {str(entry) for entry in path}
+    assert provider_bin.resolve() in path and rig_bin.resolve() in path
+    assert path[0] / "journal" == shim
+    assert (paths["bin"] / "claude").resolve() == provider
+    assert (paths["bin"] / "rig").resolve() == rig
+    assert not any((entry / "journal").exists() for entry in path[1:])
 
 
 def test_production_driver_installs_cap_events_in_the_pinned_hook(tmp_path):
