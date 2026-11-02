@@ -1,3 +1,5 @@
+import contextvars
+
 from journal.db.commit_queue import CommitQueue
 from journal.events.bus import Bus
 from journal.events.event import Event
@@ -22,5 +24,8 @@ class QueuedBus(Bus):
 
     def queued_dispatch(self, event: Event) -> list[object]:
         for listener in self.background_listeners(type(event)):
-            self.commits.add(lambda listener=listener: self.queue.add(lambda: listener.handle(event)))
+            context = contextvars.copy_context()
+            self.commits.add(lambda listener=listener, event=event, context=context: context.run(
+                self.queue.add, lambda: listener.handle(event)
+            ))
         return [listener.handle(event) for listener in self.answer_listeners(type(event))]
