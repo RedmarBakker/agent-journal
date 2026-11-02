@@ -492,14 +492,21 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
 
 
 def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):
+    import json
     from types import SimpleNamespace
 
     import journal.launcher.launch as launch_module
+    from journal.providers.codex import Codex
+    from journal.providers.provider import HOOK_SCRIPT
     from journal.support.choice import Choice
 
     project = tmp_path / "project"
     project.mkdir()
-    (project / ".claude" / "worktrees" / "plan-1").mkdir(parents=True)
+    worktree = project / ".claude" / "worktrees" / "plan-1"
+    worktree.mkdir(parents=True)
+    hooks_file = worktree / ".codex" / "hooks.json"
+    hooks_file.parent.mkdir()
+    hooks_file.write_text(json.dumps({"hooks": Codex().hook_block(f"sh {HOOK_SCRIPT}")}))
     driver_home = tmp_path / "driver-home"
     driver_home.mkdir()
     launch_files = []
