@@ -1,9 +1,8 @@
 from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
-from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class SupervisorGrantGateClosed(StateFixture):
+class SupervisorGrantGateClosed(SupervisorGrantOwner):
     """The owner's supervisor installation is awaiting its restore review."""
 
     parent = SupervisorGrantOwner

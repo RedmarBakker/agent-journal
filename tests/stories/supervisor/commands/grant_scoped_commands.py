@@ -1,7 +1,7 @@
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.supervisor_grant_cli_role import (
-    SupervisorGrantCliReadOnly,
+    SupervisorGrantCliProposalOnly,
     SupervisorGrantCliAlias,
     SupervisorGrantCliRole,
     SupervisorGrantUnwatchedPlan,
@@ -16,11 +16,11 @@ def test_a_supervisor_runs_a_switched_on_tier_one_verb_as_its_own_actor(story):
     story.expect_stack(story.agents.subject)
 
 
-@story(SupervisorGrantCliReadOnly, subject=AgentRole.SUPERVISOR)
-def test_a_supervisor_cannot_run_a_switched_off_verb(story):
+@story(SupervisorGrantCliProposalOnly, subject=AgentRole.SUPERVISOR)
+def test_a_supervisor_cannot_run_a_propose_only_verb(story):
     result = story.supervisor_runs_command(story.agents.subject, "task create 'unapproved follow-up'")
     result.expect_command_refused()
-    result.expect_command_text("may not run journal task create")
+    result.expect_command_text("the capability is set to propose")
     story.expect_row_count_in(story.supervisor_environment, "tasks", 0)
     story.expect_stack(story.agents.subject)
 
@@ -43,8 +43,8 @@ def test_a_supervisor_cli_call_with_the_wrong_grant_credential_is_refused(story)
     story.expect_stack(story.agents.subject)
 
 
-@story(SupervisorGrantCliReadOnly, subject=AgentRole.SUPERVISOR)
-def test_a_supervisor_read_verb_runs_when_every_writing_capability_is_off(story):
+@story(SupervisorGrantCliProposalOnly, subject=AgentRole.SUPERVISOR)
+def test_a_supervisor_reads_with_a_propose_only_grant(story):
     result = story.supervisor_runs_command(story.agents.subject, "task list")
     result.expect_command_passed()
     story.expect_stack(story.agents.subject)

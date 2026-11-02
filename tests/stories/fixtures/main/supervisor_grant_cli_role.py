@@ -6,10 +6,9 @@ from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from tests.stories.fixtures.main.supervisor_grant_owner import SupervisorGrantOwner
-from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class SupervisorGrantCliRole(StateFixture):
+class SupervisorGrantCliRole(SupervisorGrantOwner):
     """The supervisor has an active bounded-write grant for its plan."""
 
     parent = SupervisorGrantOwner
@@ -31,15 +30,15 @@ class SupervisorGrantCliRole(StateFixture):
         story.expect_stack(story.agents.main, Ready)
 
 
-class SupervisorGrantCliReadOnly(StateFixture):
-    """The supervisor has a grant with every writing capability switched off."""
+class SupervisorGrantCliProposalOnly(SupervisorGrantCliRole):
+    """The supervisor grant can propose but cannot apply changes."""
 
     parent = SupervisorGrantCliRole
 
     def steps(self, story) -> None:
         enrollment = {
             **story.grants.replacement,
-            "capabilities": {name: False for name in story.grants.replacement["capabilities"]},
+            "mode": "shadow",
         }
         grant, token = self.supervisor_authority.change(self.supervisor_owner, {
             "protocol_version": 1,
@@ -56,7 +55,7 @@ class SupervisorGrantCliReadOnly(StateFixture):
         story.expect_stack(story.agents.main, Ready)
 
 
-class SupervisorGrantUnwatchedPlan(StateFixture):
+class SupervisorGrantUnwatchedPlan(SupervisorGrantCliRole):
     """The supervisor has another started plan outside its watched plan list."""
 
     parent = SupervisorGrantCliRole
@@ -73,7 +72,7 @@ class SupervisorGrantUnwatchedPlan(StateFixture):
         story.expect_stack(story.agents.main, Ready)
 
 
-class SupervisorGrantCliAlias(StateFixture):
+class SupervisorGrantCliAlias(SupervisorGrantCliRole):
     """The user has made an alias whose command is outside the supervisor grant."""
 
     parent = SupervisorGrantCliRole
@@ -87,7 +86,7 @@ class SupervisorGrantCliAlias(StateFixture):
         story.expect_stack(story.agents.main, Ready)
 
 
-class SupervisorGrantMutationAttempt(StateFixture):
+class SupervisorGrantMutationAttempt(SupervisorGrantCliRole):
     """The supervisor's active grant and stored credential are recorded before a grant mutation request."""
 
     parent = SupervisorGrantCliRole

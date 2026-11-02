@@ -11,11 +11,10 @@ from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 from journal.supervisor_authority import SUPERVISOR_ACTOR, SupervisorAuthority
 from tests.agent_hooks import story_seconds
-from tests.stories.fixtures.state_fixture import StateFixture
 from tests.stories.fixtures.supervisor.version_one_grant import VersionOneGrant
 
 
-class SupervisorRecords(StateFixture):
+class SupervisorRecords(VersionOneGrant):
     """A version 1 supervisor has runs and receipts in current and previous periods."""
 
     parent = VersionOneGrant

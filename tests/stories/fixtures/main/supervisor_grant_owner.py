@@ -1,17 +1,17 @@
 from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.main.new_session import NewSession
-from tests.stories.fixtures.state_fixture import StateFixture
+from tests.stories.fixtures.supervisor.supervisor_grant_fixture import SupervisorGrantFixture
 from tests.test_supervisor_authority import admitted, enrollment, seeded
 
 
-class SupervisorGrantOwner(StateFixture):
+class SupervisorGrantOwner(SupervisorGrantFixture):
     """The user owns a supervisor grant for a plan in their environment."""
 
     parent = NewSession
 
     def steps(self, story) -> None:
+        self.restore_on(story)
         fixture = seeded(story.app, owner_id=1)
-        story.monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
         grant, token, _principal = admitted(fixture, "shadow")
         self.supervisor_credential = token
         self.supervisor_authority = fixture.authority

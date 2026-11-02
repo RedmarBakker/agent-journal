@@ -418,6 +418,7 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text()
     driver_launcher = (ROOT / "docker" / "supervisor-codex-plan-launcher.py").read_text()
     agent_launcher = (ROOT / "src" / "journal" / "engine" / "agent_launcher.py").read_text()
+    grant_model = (ROOT / "src" / "journal" / "models" / "supervisor_grant.py").read_text()
     setup = (PROFILE / "live-smoke-setup.py").read_text()
     host_setup = (PROFILE / "setup-live-smoke.sh").read_text()
     login = (ROOT / "docker" / "supervisor-codex-login").read_text()
@@ -474,13 +475,12 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     contract = read_json(PROFILE / "contract.schema.json")
     budget_limits = contract["$defs"]["BudgetLimits"]["properties"]
     input_limit = budget_limits["max_input_tokens_per_turn"]
-    authority = (ROOT / "src" / "journal" / "supervisor_authority.py").read_text()
     assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
     assert [field for field in budget_limits if "cost" in field] == ["max_cost_microusd_per_day"]
     assert budget_limits["max_cost_microusd_per_day"]["description"] == (
         "The grant's only daily cost cap, expressed in micro-USD."
     )
-    assert "MAX_INPUT_TOKENS_PER_TURN = 80_000" in authority
+    assert "MAX_INPUT_TOKENS_PER_TURN = 80_000" in grant_model
     assert "80,000 input tokens" in (PROFILE / "STAGING-REPORT.md").read_text()
     assert "$0.40 per run" in (PROFILE / "STAGING-REPORT.md").read_text()
     assert "active_workers = workers.global_matching(state=WorkerState.DISPATCHED)" in setup and "if active_workers:" in setup
