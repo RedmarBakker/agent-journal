@@ -471,11 +471,15 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert '"max_provider_requests_per_turn": 8' in setup
     assert '"max_turns_per_day": 1' in setup
     assert '"max_cost_microusd_per_day": 1000000' in setup
-    input_limit = read_json(PROFILE / "contract.schema.json")["$defs"]["BudgetLimits"]["properties"][
-        "max_input_tokens_per_turn"
-    ]
+    contract = read_json(PROFILE / "contract.schema.json")
+    budget_limits = contract["$defs"]["BudgetLimits"]["properties"]
+    input_limit = budget_limits["max_input_tokens_per_turn"]
     authority = (ROOT / "src" / "journal" / "supervisor_authority.py").read_text()
     assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
+    assert [field for field in budget_limits if "cost" in field] == ["max_cost_microusd_per_day"]
+    assert budget_limits["max_cost_microusd_per_day"]["description"] == (
+        "The grant's only daily cost cap, expressed in micro-USD."
+    )
     assert "MAX_INPUT_TOKENS_PER_TURN = 80_000" in authority
     assert "80,000 input tokens" in (PROFILE / "STAGING-REPORT.md").read_text()
     assert "$0.40 per run" in (PROFILE / "STAGING-REPORT.md").read_text()

@@ -371,13 +371,14 @@ def test_shadow_records_only_proposal_receipts_without_domain_writes(shadow_main
     assert receipts_after[0].data["status"] == "proposed"
 
 
-def supervisor_journal(connection, bus, scope, budget=None, prices=None):
+def supervisor_journal(
+    connection, bus, scope, budget=None, prices=None, max_cost_microusd_per_day=1_000_000,
+):
     entries = Entries(connection, bus, scope, TimeSource())
     clock = [NOW]
     tenant_id, grant_id = "tenant-a", "grant-a"
     credential_hash = sha256(TOKEN.encode()).hexdigest()
     saved_budget = budget or {
-        "daily_cost_usd": "1.00",
         "daily_turns": 12,
         "daily_input_tokens": 288000,
         "daily_output_tokens": 96000,
@@ -405,6 +406,7 @@ def supervisor_journal(connection, bus, scope, budget=None, prices=None):
         "phase_revision": 3,
         "model": MODEL,
         "allowed_actions": ["plan.priorities"],
+        "limits": {"max_cost_microusd_per_day": max_cost_microusd_per_day},
         "budget": saved_budget,
     }
     actor = Actor.user(1)
@@ -551,7 +553,6 @@ def test_revocation_or_stale_fence_prevents_apply(connection, bus, scope, change
 
 def test_budget_is_reserved_before_model_and_unknown_usage_blocks(connection, bus, scope):
     budget = {
-        "daily_cost_usd": "0.020",
         "daily_turns": 6,
         "daily_input_tokens": 144000,
         "daily_output_tokens": 48000,
@@ -559,7 +560,11 @@ def test_budget_is_reserved_before_model_and_unknown_usage_blocks(connection, bu
         "output_tokens_per_turn": 8000,
         "max_retries": 2,
     }
-    admissions, entries, _, clock, _, _ = supervisor_journal(connection, bus, scope, budget=budget)
+    admissions, entries, _, clock, grant, _ = supervisor_journal(
+        connection, bus, scope, budget=budget, max_cost_microusd_per_day=20_000,
+    )
+    assert grant["limits"]["max_cost_microusd_per_day"] == 20_000
+    assert "daily_cost_usd" not in grant["budget"]
     installation, run = claim_run(admissions)
     assert run["status"] == "admitted"
     assert run["data"]["reservation"] == {"cost_usd": "0.012000", "turns": 3, "input_tokens": 72000, "output_tokens": 24000, "input_rate_per_million": "0.10", "output_rate_per_million": "0.20", "max_retries": 2}

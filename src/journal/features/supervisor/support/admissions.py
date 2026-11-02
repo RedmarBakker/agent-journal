@@ -512,12 +512,19 @@ class SupervisorAdmissions:
         budget = grant.get("budget")
         if not isinstance(budget, Mapping):
             return False
-        daily_cost = positive_decimal(budget.get("daily_cost_usd"))
+        limits = grant.get("limits")
+        if not isinstance(limits, Mapping):
+            return False
+        daily_cost_microusd = integer(limits.get("max_cost_microusd_per_day"))
         daily_turns = integer(budget.get("daily_turns"))
         daily_input = integer(budget.get("daily_input_tokens"))
         daily_output = integer(budget.get("daily_output_tokens"))
-        if daily_cost is None or daily_turns is None or daily_turns > MAX_DAILY_RUNS or not daily_input or not daily_output:
+        if (
+            daily_cost_microusd is None or daily_cost_microusd < 1 or daily_turns is None
+            or daily_turns > MAX_DAILY_RUNS or not daily_input or not daily_output
+        ):
             return False
+        daily_cost = Decimal(daily_cost_microusd) / MILLION
         runs = self.entries.supervisor_records("SupervisorRun", last=MAX_DAILY_RUNS, tenant_id=tenant_id, day=day)
         if len(runs) >= MAX_DAILY_RUNS:
             return False

@@ -209,7 +209,8 @@
         },
         "max_cost_microusd_per_day": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "The grant's only daily cost cap, expressed in micro-USD."
         },
         "max_bundles_per_project_day": {
           "type": "integer",
