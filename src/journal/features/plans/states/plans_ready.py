@@ -4,6 +4,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
+from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.states.ready import Ready
@@ -46,3 +47,9 @@ class PlansReady(Ready):
         if event.task_id and event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         return self.push(self.approved_plan_state(event.plan_id, event.task_id, event.time))
+
+    def on_plan_reopened(self, event: PlanReopened, settings: Settings) -> Transition:
+        started = event.data.part(PlansPart).started
+        if started is None or started.plan_id != event.plan_id:
+            return self.none()
+        return self.push(self.approved_plan_state(event.plan_id, started.started_task, event.time))

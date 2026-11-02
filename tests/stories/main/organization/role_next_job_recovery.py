@@ -35,5 +35,5 @@ def test_a_role_with_an_ended_run_restarts_before_its_next_queued_task(story):
     story.expect_task(current_task, state=TaskState.STARTED, delegated=True)
     story.expect_task(next_task, state=TaskState.OPEN, delegated=True)
     story.expect_worker(worker, state=WorkerState.READY)
-    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan, awaiting_state(story))
     story.expect_stack(worker, Void, WorkingTask)
+    story.expect_stack(story.agents.subject, LeadingPlan, FollowingPlan, awaiting_state(story))

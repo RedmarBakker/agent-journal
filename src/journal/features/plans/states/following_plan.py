@@ -12,6 +12,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_postponed import PlanPostponed
+from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
@@ -48,6 +49,14 @@ class FollowingPlan(PlanWork):
         if event.plan_id == self.plan_id:
             return super().on_plan_started(event, settings)
         return self.swap(self.plan_state(plan_id=event.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
+
+    def on_plan_reopened(self, event: PlanReopened, settings: Settings) -> Transition:
+        if event.plan_id == self.plan_id:
+            return self.none()
+        started = event.data.part(PlansPart).started
+        if started is None or started.plan_id != event.plan_id:
+            return self.none()
+        return self.swap(self.approved_plan_state(event.plan_id, started.started_task, event.time))
 
     def label(self) -> str:
         return super().label() if self.task_id else f"plan {self.plan_id}, with no task in hand"

@@ -1,13 +1,15 @@
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
+from tests.stories.builder.story_agent import StoryAgent
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.plan_agent_plan_started import PlanAgentPlanStarted
-from tests.stories.fixtures.main.solo_plan_agent_started import SoloPlanAgentStarted
+from tests.stories.fixtures.main.solo_plan_agent_started import PLAN_AGENT_SESSION, SoloPlanAgentStarted
 
 
 @story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
@@ -65,4 +67,31 @@ def test_a_main_agent_cannot_complete_a_plan_agents_task(story):
     story.expect_task(story.tasks.first, state=TaskState.OPEN)
     story.expect_task_unheld(story.tasks.first)
     story.expect_plan(story.plans.first, state=PlanState.STARTED)
+    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
+
+
+@setting(TasksOptions.AUTO, True)
+@story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
+def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent_runs(story):
+    plan, task = story.plans.first, story.tasks.first
+    story.user_blocks_task(task, "the owner is waiting on a decision").expect_viewer_passed()
+    story.expect_plan(plan, state=PlanState.BLOCKED)
+
+    plan_agent = StoryAgent(AgentRole.MAIN, session=PLAN_AGENT_SESSION)
+    status = story.agent_in_runs(plan_agent, f"plan-{plan}", PLAN_AGENT_SESSION, f"plan show {plan}")
+    status.expect_command_passed()
+    status.expect_command_text(f"Plan agent: environment plan-{plan}, running")
+
+    idle_main = StoryAgent(AgentRole.MAIN, session="s2")
+    story.second_session_starts("s2").expect_allowed(idle_main)
+    story.expect_stack(idle_main, CoordinatingPlans)
+    story.user_did(f"/journal/tasks/{task}/unblock", {}, "user reopens the Plan agent task").expect_viewer_passed()
+    story.expect_plan(plan, state=PlanState.STARTED)
+    story.expect_task(task, state=TaskState.OPEN)
+    story.expect_task_unheld(task)
+
+    story.agent_stops(idle_main).expect_allowed(idle_main)
+    story.expect_task(task, state=TaskState.OPEN)
+    story.expect_task_unheld(task)
+    story.expect_stack(idle_main, CoordinatingPlans)
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
