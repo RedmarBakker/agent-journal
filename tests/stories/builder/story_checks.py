@@ -178,6 +178,13 @@ class StoryChecks:
         assert stack == [state.name for state in states], f"the stack of the {agent.role} in {environment} session {session} is {stack}; told {[line.key for line in self.said]}"
         self.stack_checked_at = len(self.path)
 
+    def expect_stack_does_not_hold_task(self, agent: StoryAgent, task_id: int) -> None:
+        session = self.session_of(agent)
+        stack = self.app.container.get(Agents).session_agent(session).stack
+        holding = [state["state"] for state in stack if state.get("data", {}).get("task_id") == task_id]
+        assert not holding, f"the {agent.role} session {session} holds task {task_id} in {holding}"
+        self.stack_checked_at = len(self.path)
+
     def expect_state_data(self, agent: StoryAgent, state: type, **fields) -> None:
         session = self.session_of(agent)
         environment = self.session_environments.get(session, "main")

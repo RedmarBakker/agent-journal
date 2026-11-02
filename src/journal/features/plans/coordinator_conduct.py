@@ -28,5 +28,5 @@ class CoordinatorConduct(Conduct):
 
 
 def plan_lines(data: FeatureData, moment: float) -> tuple[Nudge, ...]:
-    started = data.part(PlansPart).started_plans
+    started = tuple(plan for plan in data.part(PlansPart).started_plans if not plan.agent_running)
     return (WorkersNudges.STARTED_PLANS.create(plans="; ".join(plan.line(moment) for plan in started)),) if started else ()

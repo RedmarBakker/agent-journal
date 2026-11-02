@@ -3,6 +3,7 @@ from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
@@ -90,16 +91,15 @@ def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent
 
     idle_main = StoryAgent(AgentRole.MAIN, session="s2")
     story.second_session_starts("s2").expect_allowed(idle_main)
-    story.expect_stack(idle_main, CoordinatingPlans, FollowingPlan)
     story.agent_runs(idle_main, "environment overview").expect_command_passed()
     story.user_did(f"/journal/tasks/{task}/unblock", {}, "user reopens the Plan agent task").expect_viewer_passed()
     story.expect_plan(plan, state=PlanState.STARTED)
     story.expect_task(task, state=TaskState.OPEN)
     story.expect_task_unheld(task)
-    story.expect_state_data(idle_main, FollowingPlan, plan_id=plan, task_id=0)
 
-    story.agent_stops(idle_main).expect_allowed(idle_main)
+    stopped = story.agent_stops(idle_main)
+    stopped.expect_allowed(idle_main)
+    stopped.expect_agent_not_told(idle_main, WorkersNudges.STARTED_PLANS)
     story.expect_task(task, state=TaskState.OPEN)
     story.expect_task_unheld(task)
-    story.expect_stack(idle_main, CoordinatingPlans, FollowingPlan)
-    story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
+    story.expect_stack_does_not_hold_task(idle_main, task)

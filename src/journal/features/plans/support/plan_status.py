@@ -6,7 +6,7 @@ from journal.support.timeout import Timeout
 
 @dataclass(frozen=True)
 class PlanStatus:
-    """A started plan as the main agent reads it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, when it last moved, and how many of its tasks are blocked."""
+    """A started plan as the main agent reads it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, when it last moved, how many tasks are blocked, and whether its Plan agent runs."""
 
     plan_id: int
     title: str
@@ -17,6 +17,7 @@ class PlanStatus:
     unassigned: int
     moved_at: float
     blocked: int = 0
+    agent_running: bool = False
 
     def line(self, current_time: float) -> str:
         phase = f"phase {self.phase} of {self.phases}, " if self.phases else ""
