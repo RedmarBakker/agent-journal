@@ -16,6 +16,7 @@ class SupervisorGrantOwner(SupervisorGrantFixture):
         self.supervisor_credential = token
         self.supervisor_authority = fixture.authority
         self.supervisor_owner = fixture.owner
+        self.supervisor_owner_environment = fixture.owner_environment.name
         self.supervisor_replacement = enrollment(fixture, "bounded_write")
         self.plans.first = fixture.plan.row_id
         self.grants.first = grant["grant_id"]

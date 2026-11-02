@@ -9,7 +9,6 @@ class SupervisorGrantAreaControl(SupervisorGrantCliRole):
     verb_enabled = False
 
     def steps(self, story) -> None:
-        super().steps(story)
         entry = self.supervisor_authority._latest_entry(story.grants.first)
         grant = self.supervisor_authority._public_grant(entry)
         version_two = self.supervisor_authority._grant_v2(entry, grant)

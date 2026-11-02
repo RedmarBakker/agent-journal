@@ -99,7 +99,7 @@ class SupervisorGrant:
     @classmethod
     def _capabilities(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[tuple[str, bool, str], ...]:
         result = []
-        for selector, enabled, _mode in cls._capability_settings(value):
+        for selector, enabled, mode in cls._capability_settings(value):
             matches = cls._matches(selector, catalogue)
             if not matches:
                 if isinstance(selector, str) and selector.startswith("area:"):

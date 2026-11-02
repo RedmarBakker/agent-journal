@@ -10,7 +10,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
     result.expect_command_text("capability is switched off")
     story.expect_row_count_in(story.supervisor_environment, "tasks", 1)
 
-    result = story.user_opens_in("main", "/journal/supervisor/control")
+    result = story.user_opens_in(story.supervisor_owner_environment, "/journal/supervisor/control")
     result.expect_viewer_passed()
     grant = story.viewer_answer["grant"]
     capabilities = {
@@ -18,7 +18,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
         "area:plans-and-tasks": {"on": True, "mode": "propose"},
         "task create": {"on": True, "mode": "act"},
     }
-    result = story.user_presses("/_supervisor/v1/enrollment/change", {
+    result = story.user_presses_in(story.supervisor_owner_environment, "/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
         "expected_grant_version": story.viewer_answer["grant_version"],
@@ -30,7 +30,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
     result.expect_command_passed()
     story.expect_row_count_in(story.supervisor_environment, "tasks", 2)
 
-    result = story.user_opens_in("main", "/journal/supervisor/control")
+    result = story.user_opens_in(story.supervisor_owner_environment, "/journal/supervisor/control")
     result.expect_viewer_passed()
     grant = story.viewer_answer["grant"]
     capabilities = {
@@ -38,7 +38,7 @@ def test_an_area_and_its_verb_each_have_to_be_enabled_for_the_supervisor_to_act(
         "area:plans-and-tasks": {"on": False, "mode": "propose"},
         "task create": {"on": True, "mode": "act"},
     }
-    result = story.user_presses("/_supervisor/v1/enrollment/change", {
+    result = story.user_presses_in(story.supervisor_owner_environment, "/_supervisor/v1/enrollment/change", {
         "protocol_version": 1,
         "grant_id": story.grants.first,
         "expected_grant_version": story.viewer_answer["grant_version"],

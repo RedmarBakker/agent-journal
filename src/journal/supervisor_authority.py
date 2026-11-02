@@ -84,8 +84,7 @@ class SupervisorAuthority:
         return bool(self._latest_entries())
 
     def owner_status(self, environment_id: int) -> str:
-        entry = next((row for row in self._latest_entries()
-                      if row.data.get("driver_environment_id") == environment_id), None)
+        entry = self._owner_environment_entry(environment_id)
         if entry is None:
             return "never_set_up"
         grant = self._public_grant(entry)
@@ -96,8 +95,7 @@ class SupervisorAuthority:
         return "on"
 
     def owner_control(self, actor: Actor, environment_id: int) -> dict[str, Any]:
-        entry = next((row for row in self._latest_entries()
-                      if row.data.get("driver_environment_id") == environment_id), None)
+        entry = self._owner_environment_entry(environment_id)
         if entry is None:
             raise SupervisorFailure(403, "supervisor request is not authorized")
         grant = self._public_grant(entry)
@@ -882,6 +880,11 @@ class SupervisorAuthority:
             if previous is None or entry.row_id > previous.row_id:
                 latest[environment_id] = entry
         return list(latest.values())
+
+    def _owner_environment_entry(self, environment_id: int) -> Entry | None:
+        entries = [entry for entry in self._latest_entries()
+                   if self._plan(entry.data["plan_id"]).environment_id == environment_id]
+        return max(entries, key=lambda entry: entry.row_id) if entries else None
 
     def _environment_entry(self, environment_id: int) -> Entry | None:
         entry = next((row for row in self._latest_entries()
