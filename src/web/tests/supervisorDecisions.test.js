@@ -1,7 +1,7 @@
 import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
-const api = {supervisorHistory: vi.fn(), supervisorControl: vi.fn(), supervisorUndo: vi.fn(), list: vi.fn()};
+const api = {supervisorHistory: vi.fn(), supervisorControl: vi.fn(), supervisorUndo: vi.fn(), supervisorProposal: vi.fn(), list: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api}));
 
 const {default: SupervisorPage} = await import("../src/pages/SupervisorPage.vue");
@@ -64,6 +64,7 @@ beforeEach(() => {
     api.supervisorHistory.mockReset().mockResolvedValue(response("on", fullHistory, "1234:202"));
     api.supervisorControl.mockReset().mockResolvedValue({grant_id: "grant-7"});
     api.supervisorUndo.mockReset().mockResolvedValue({status: "undone"});
+    api.supervisorProposal.mockReset().mockResolvedValue({decision: "accepted"});
     api.list.mockReset().mockResolvedValue({rows: [{id: 31, title: "Pricing for add-ons"}]});
 });
 
@@ -160,4 +161,36 @@ test("history remains readable while the supervisor is off", async () => {
     expect(page.textContent).toContain("The supervisor is off. History stays readable.");
     expect(page.querySelector('[data-history-row="82"]')).not.toBeNull();
     expect(page.querySelector('[data-history-row="82"] .history-result').textContent).toBe("Acted");
+});
+
+test("the owner accepts a proposal and it disappears from the available actions", async () => {
+    const firstAction = action(2, {status: "proposed", receipt_status: "proposed", undo_available: false});
+    const secondAction = action(2, {
+        title: "Set plan priorities", area: "Plans and tasks", status: "proposed", receipt_status: "proposed",
+        undo_available: false,
+    });
+    const proposed = row(81, {result: "Proposed", actions: [firstAction, secondAction]});
+    api.supervisorHistory.mockResolvedValueOnce(response("on", [proposed]))
+        .mockResolvedValueOnce(response("on", [{...proposed, actions: proposed.actions.map((action) => ({...action, proposal_decision: "accepted"}))}]));
+    const page = await openPage();
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="81"] button[data-proposal-decision="accept"]')).not.toBeNull());
+    expect(page.querySelector('[data-history-row="81"] button[data-proposal-decision="decline"]')).not.toBeNull();
+    expect(page.querySelectorAll('[data-history-row="81"] button[data-proposal-decision="accept"]')).toHaveLength(1);
+
+    page.querySelector('[data-history-row="81"] button[data-proposal-decision="accept"]').click();
+    await vi.waitFor(() => expect(api.supervisorProposal).toHaveBeenCalledWith(31, 911, "accept"));
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="81"] button[data-proposal-decision="accept"]')).toBeNull());
+    expect(page.querySelector('[data-history-row="81"]').textContent).toContain("Accepted");
+});
+
+test("a refused proposal acceptance shows the route's reason", async () => {
+    api.supervisorHistory.mockResolvedValue(response("on", [row(80, {
+        result: "Proposed", actions: [action(2, {status: "proposed", receipt_status: "proposed", undo_available: false})],
+    })]));
+    api.supervisorProposal.mockRejectedValue(new Error("The proposal is no longer current."));
+    const page = await openPage();
+    await vi.waitFor(() => expect(page.querySelector('[data-history-row="80"] button[data-proposal-decision="accept"]')).not.toBeNull());
+
+    page.querySelector('[data-history-row="80"] button[data-proposal-decision="accept"]').click();
+    await vi.waitFor(() => expect(page.querySelector('[role="alert"]').textContent).toContain("The proposal is no longer current."));
 });

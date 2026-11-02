@@ -79,6 +79,35 @@ class SupervisorRecordReader:
             history, next_before = self._history_page(history_rows, history_cursor)
         return {"areas": sorted(AREAS), "history": history, "next_before": next_before}
 
+    def pending_proposals(self) -> list[dict[str, Any]]:
+        plan_ids = self._plan_ids("")
+        with self.scope.environment(PROJECT):
+            runs, receipts = self._records(plan_ids)
+            decisions = self._proposal_decisions(plan_ids)
+        plans_by_run = {
+            (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref")): run
+            for run in runs
+        }
+        pending = []
+        for receipt in receipts:
+            if receipt.data.get("status") != "proposed" or receipt.row_id in decisions:
+                continue
+            tenant_id = self._receipt_tenant(receipt)
+            run = plans_by_run.get((tenant_id, receipt.data.get("grant_id"),
+                                    receipt.data.get("run_id")))
+            plan_id = run.data.get("plan_id") if run else None
+            if type(plan_id) is not int:
+                continue
+            pending.append({
+                "receipt_id": receipt.row_id,
+                "plan_id": plan_id,
+                "plan_title": self.plans.find(plan_id).title,
+                "created_at": receipt.created_at.isoformat(),
+                "rationale": receipt.data.get("rationale", ""),
+                "actions": self._actions(receipt, set(), decisions),
+            })
+        return sorted(pending, key=lambda proposal: (proposal["created_at"], proposal["receipt_id"]), reverse=True)
+
     def costs(self) -> dict[str, Any]:
         now = self.time_source.moment()
         plan_ids = self._plan_ids("")
@@ -128,6 +157,7 @@ class SupervisorRecordReader:
         undo_reports = [row for plan_id in plan_ids for row in self._entries(
             "SupervisorActionReport", plan_id=plan_id, report_kind="owner_undo",
         )]
+        proposal_decisions = self._proposal_decisions(plan_ids)
         observation_by_id = {
             (row.data.get("tenant_id"), row.data.get("observation_id")): row for row in observations
         }
@@ -144,21 +174,23 @@ class SupervisorRecordReader:
             run = runs_by_wakeup.get((wakeup.data.get("tenant_id"), wakeup.data.get("wakeup_id")))
             if run:
                 paired_runs.add(run.row_id)
-            rows.append(self._history_row(wakeup, run, receipts, observation_by_id, usage_by_run, undone_receipts))
+            rows.append(self._history_row(
+                wakeup, run, receipts, observation_by_id, usage_by_run, undone_receipts, proposal_decisions,
+            ))
         rows.extend(
-            self._history_row(None, run, receipts, observation_by_id, usage_by_run, undone_receipts)
+            self._history_row(None, run, receipts, observation_by_id, usage_by_run, undone_receipts, proposal_decisions)
             for run in runs if run.row_id not in paired_runs
         )
         return rows
 
     def _history_row(self, wakeup: Entry | None, run: Entry | None, receipts: list[Entry],
                      observations: dict[tuple[object, object], Entry], usage: dict[tuple[object, object], Entry],
-                     undone_receipts: set[object]) -> dict[str, Any]:
+                     undone_receipts: set[object], proposal_decisions: dict[int, str]) -> dict[str, Any]:
         receipt_rows = self._for_run(run, receipts) if run else []
         actions = [
             action
             for receipt in receipt_rows
-            for action in self._actions(receipt, undone_receipts)
+            for action in self._actions(receipt, undone_receipts, proposal_decisions)
         ]
         run_data = run.data if run else {}
         wakeup_data = wakeup.data if wakeup else {}
@@ -187,20 +219,21 @@ class SupervisorRecordReader:
             "_sort_id": wakeup.row_id if wakeup else run.row_id,
         }
 
-    def _actions(self, receipt: Entry, undone_receipts: set[object]) -> list[dict[str, Any]]:
+    def _actions(self, receipt: Entry, undone_receipts: set[object],
+                 proposal_decisions: dict[int, str]) -> list[dict[str, Any]]:
         data = receipt.data
         operations = data.get("proposed_operations", [])
         commands = data.get("command_receipts", [])
         if not isinstance(operations, list):
             return []
         return [
-            self._action(receipt, operation, index, commands, undone_receipts)
+            self._action(receipt, operation, index, commands, undone_receipts, proposal_decisions)
             for index, operation in enumerate(operations)
             if isinstance(operation, dict) and operation.get("kind") in OPERATION_COMMANDS
         ]
 
     def _action(self, receipt: Entry, operation: dict[str, Any], index: int, commands: object,
-                undone_receipts: set[object]) -> dict[str, Any]:
+                undone_receipts: set[object], proposal_decisions: dict[int, str]) -> dict[str, Any]:
         area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
         capability = f"{noun} {verb}"
         area_key, capability_tier = CAPABILITY_CATALOGUE.get(capability, (AREA_KEYS_BY_TITLE.get(area), 3))
@@ -222,6 +255,7 @@ class SupervisorRecordReader:
             "status": status,
             "receipt_id": receipt.row_id,
             "receipt_status": receipt.data.get("status", "unknown"),
+            "proposal_decision": proposal_decisions.get(receipt.row_id),
             "reason": receipt.data.get("reason"),
             "changes": changes,
             "undo_available": reversible and receipt.row_id not in undone_receipts,
@@ -574,8 +608,8 @@ class SupervisorRecordReader:
             tenant_id, grant_id = run.data.get("tenant_id"), run.data.get("grant_id")
             if not isinstance(run_ref, str) or not isinstance(tenant_id, str) or not isinstance(grant_id, str):
                 continue
-            receipts.extend(self._entries("SupervisorActionReceipt", tenant_id=tenant_id,
-                                          grant_id=grant_id, run_id=run_ref))
+            candidates = self._entries("SupervisorActionReceipt", grant_id=grant_id, run_id=run_ref)
+            receipts.extend(receipt for receipt in candidates if self._receipt_tenant(receipt) == tenant_id)
         return runs, list({receipt.row_id: receipt for receipt in receipts}.values())
 
     def _verified_receipts(self, receipts: list[Entry]) -> set[int]:
@@ -584,6 +618,16 @@ class SupervisorRecordReader:
             if receipt.data.get("status") == "applied" and any(report.data.get("verification") == "verified"
                    for report in self._entries("SupervisorActionReport", receipt_id=receipt.row_id,
                                                 report_kind="verification"))
+        }
+
+    def _proposal_decisions(self, plan_ids: list[int]) -> dict[int, str]:
+        reports = [report for plan_id in plan_ids for report in self._entries(
+            "SupervisorActionReport", plan_id=plan_id, report_kind="proposal_decision",
+        )]
+        return {
+            report.data["receipt_id"]: report.data["decision"]
+            for report in reports
+            if type(report.data.get("receipt_id")) is int and report.data.get("decision") in {"accepted", "declined"}
         }
 
     def _entries(self, entry_type: str, **filters) -> list[Entry]:
@@ -604,8 +648,13 @@ class SupervisorRecordReader:
     def _for_run(run: Entry, receipts: list[Entry]) -> list[Entry]:
         key = (run.data.get("tenant_id"), run.data.get("grant_id"), run.data.get("run_ref"))
         return [receipt for receipt in receipts
-                if (receipt.data.get("tenant_id"), receipt.data.get("grant_id"),
+                if (SupervisorRecordReader._receipt_tenant(receipt), receipt.data.get("grant_id"),
                     receipt.data.get("run_id")) == key]
+
+    @staticmethod
+    def _receipt_tenant(receipt: Entry) -> object:
+        scope = receipt.data.get("scope")
+        return scope.get("tenant_id") if isinstance(scope, dict) else receipt.data.get("tenant_id")
 
     def _receipt_matches_area(self, receipt: Entry, area: str) -> bool:
         return not area or any(OPERATION_AREAS.get(kind) == area for kind in self._operation_kinds(receipt))

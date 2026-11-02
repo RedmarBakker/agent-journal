@@ -1,6 +1,7 @@
 <script setup>
 import {computed, ref, watch} from "vue";
 import {api} from "../api/client.js";
+import {refreshSupervisorWaitingCount} from "../composables/navigation.js";
 
 const RESULTS = ["Acted", "Proposed", "Nothing to do", "Skipped as quiet", "Skipped", "Handed to you", "In progress"];
 const history = ref([]);
@@ -18,6 +19,8 @@ const owner = ref(false);
 const problem = ref("");
 const undoProblem = ref("");
 const undoing = ref("");
+const proposalProblem = ref("");
+const decidingProposal = ref("");
 let read = 0;
 
 const hasHistory = computed(() => history.value.length > 0);
@@ -49,6 +52,10 @@ function cost(value) {
 function changeValue(value) {
     if (value === null || value === undefined) return "None";
     return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+function firstActionForReceipt(row, action) {
+    return row.actions.find((item) => item.receipt_id === action.receipt_id) === action;
 }
 
 async function loadPlans() {
@@ -128,6 +135,21 @@ async function undo(row, action) {
     }
 }
 
+async function decideProposal(row, action, decision) {
+    const key = `${row.id}:${action.receipt_id}`;
+    decidingProposal.value = key;
+    proposalProblem.value = "";
+    try {
+        await api.supervisorProposal(row.plan_id, action.receipt_id, decision);
+        await refreshSupervisorWaitingCount();
+        await loadHistory();
+    } catch (error) {
+        proposalProblem.value = error.message || "The proposal could not be decided.";
+    } finally {
+        decidingProposal.value = "";
+    }
+}
+
 watch([planId, area, tier, result], loadHistory, {immediate: true});
 loadPlans();
 checkOwner();
@@ -144,6 +166,7 @@ checkOwner();
 
         <p v-if="problem" class="history-problem" role="alert" data-history-fault>{{ problem }}</p>
         <p v-if="undoProblem" class="history-problem" role="alert">{{ undoProblem }}</p>
+        <p v-if="proposalProblem" class="history-problem" role="alert">{{ proposalProblem }}</p>
         <p v-if="!problem && historyStatus === 'off'" class="history-off" role="status">
             <strong>The supervisor is off.</strong> History stays readable.
         </p>
@@ -228,6 +251,18 @@ checkOwner();
                         </div>
                     </dl>
                     <div class="history-receipt">Receipt {{ action.receipt_id }} · {{ action.receipt_status }}</div>
+                    <p v-if="action.proposal_decision && firstActionForReceipt(row, action)" class="history-proposal-result">
+                        {{ action.proposal_decision === "accepted" ? "Accepted" : "Declined" }}
+                    </p>
+                    <div v-if="owner && action.receipt_status === 'proposed' && !action.proposal_decision && firstActionForReceipt(row, action)"
+                         class="history-proposal-actions">
+                        <button type="button" data-proposal-decision="accept"
+                                :disabled="decidingProposal === `${row.id}:${action.receipt_id}`"
+                                @click="decideProposal(row, action, 'accept')">Accept</button>
+                        <button type="button" data-proposal-decision="decline"
+                                :disabled="decidingProposal === `${row.id}:${action.receipt_id}`"
+                                @click="decideProposal(row, action, 'decline')">Decline</button>
+                    </div>
                     <button
                         v-if="owner && action.tier === 1 && action.receipt_status === 'applied'"
                         type="button"
@@ -406,6 +441,16 @@ checkOwner();
 .history-undone {
     color: var(--text-3);
     font-size: 12px;
+}
+
+.history-proposal-result {
+    margin: 0;
+    color: var(--text-3);
+}
+
+.history-proposal-actions {
+    display: flex;
+    gap: 8px;
 }
 
 .history-action button,

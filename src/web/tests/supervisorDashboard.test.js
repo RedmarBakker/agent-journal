@@ -16,6 +16,7 @@ const records = (status, current, previous) => ({
     current,
     previous,
     records: [],
+    waiting_proposals: 3,
     next_before: null,
     areas: ["checks", "plans-and-tasks"],
 });
@@ -65,7 +66,7 @@ test("the Dashboard reads owner records and compares built action counts with th
     expect(page.querySelector('[data-action="applied"] .stat-comparison').textContent).toContain("3 more than before (4)");
     expect(page.querySelector('[data-stat="wake-ups"] .not-built-yet').textContent).toBe("Not built yet");
     expect(page.querySelector('[data-stat="today-cost"] .not-built-yet').textContent).toBe("Not built yet");
-    expect(page.querySelector('[data-stat="waiting"] .not-built-yet').textContent).toBe("Not built yet");
+    expect(page.querySelector('[data-stat="waiting"] .summary-value').textContent).toBe("3");
 });
 
 test("the period, plan and area filters are read from the owner route", async () => {

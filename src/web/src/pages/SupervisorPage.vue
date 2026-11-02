@@ -36,6 +36,10 @@ let read = 0;
 const records = computed(() => answer.value);
 const current = computed(() => records.value?.current);
 const previous = computed(() => records.value?.previous);
+const waitingProposalLabel = computed(() => {
+    const count = records.value?.waiting_proposals ?? 0;
+    return `${count} ${count === 1 ? "proposal" : "proposals"} waiting for you.`;
+});
 const actionStats = computed(() => [
     ...ACTIONS.map(([key, title]) => ({
         key,
@@ -147,8 +151,8 @@ watch(subpage, () => {
                     </article>
                     <article class="supervisor-summary-card" data-stat="waiting">
                         <span class="summary-label">Waiting for you</span>
-                        <strong class="summary-value"><span class="not-built-yet" title="Not built yet">Not built yet</span></strong>
-                        <p>Waiting records are not built yet.</p>
+                        <strong class="summary-value">{{ records.waiting_proposals }}</strong>
+                        <p>{{ waitingProposalLabel }}</p>
                         <a :href="subpageHref('decisions')">Open Decisions and actions</a>
                     </article>
                 </section>

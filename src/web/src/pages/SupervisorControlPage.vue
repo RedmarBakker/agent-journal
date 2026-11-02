@@ -1,6 +1,7 @@
 <script setup>
 import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
+import {refreshSupervisorWaitingCount} from "../composables/navigation.js";
 import {supervisorGrantChange} from "./supervisorGrantChange.js";
 
 const WAKE_EVENTS = [
@@ -28,9 +29,12 @@ const heldTasks = ref([]);
 const loading = ref(true);
 const problem = ref("");
 const relatedProblem = ref("");
+const proposalProblem = ref("");
+const proposalAction = ref("");
 const saving = ref(false);
 const restoreReviewed = ref(false);
 const grant = computed(() => control.value?.grant);
+const proposals = computed(() => control.value?.proposals || []);
 const areaControls = computed(() => (control.value?.areas || []).map((area) => {
     const verbs = area.verbs.map((verb) => {
         const setting = grant.value.capabilities[verb.capability] || {on: false, mode: verb.mode || "act"};
@@ -217,6 +221,21 @@ async function releaseTask(task) {
     }
 }
 
+async function decideProposal(proposal, decision) {
+    if (proposalAction.value) return;
+    proposalAction.value = `${proposal.receipt_id}:${decision}`;
+    proposalProblem.value = "";
+    try {
+        await api.supervisorProposal(proposal.plan_id, proposal.receipt_id, decision);
+        await refreshSupervisorWaitingCount();
+        await load();
+    } catch (error) {
+        proposalProblem.value = error.message || "The proposal could not be decided.";
+    } finally {
+        proposalAction.value = "";
+    }
+}
+
 function setTaskPlan(plan) {
     return grant.value.watched_plans !== "all" && grant.value.watched_plans.some((id) => Number(id) === Number(plan.id));
 }
@@ -249,6 +268,31 @@ onMounted(load);
             <p v-if="problem" role="alert" class="control-problem">{{ problem }}</p>
             <p v-if="relatedProblem" role="status" class="control-note">{{ relatedProblem }}</p>
             <p class="control-status" :data-status="control.status">Supervisor {{ control.status }}</p>
+
+            <section class="control-card" aria-labelledby="control-proposals-title" data-waiting-proposals>
+                <h3 id="control-proposals-title">Waiting for you <span>{{ proposals.length }}</span></h3>
+                <p v-if="proposalProblem" role="alert" class="control-problem">{{ proposalProblem }}</p>
+                <p v-if="!proposals.length" class="control-note">No proposals are waiting for you.</p>
+                <article v-for="proposal in proposals" :key="proposal.receipt_id" class="control-proposal"
+                         :data-proposal="proposal.receipt_id">
+                    <header>
+                        <strong>{{ proposal.plan_title }}</strong>
+                        <time :datetime="proposal.created_at">{{ date(proposal.created_at) }}</time>
+                    </header>
+                    <p>{{ proposal.rationale }}</p>
+                    <ul>
+                        <li v-for="action in proposal.actions" :key="action.title">
+                            {{ action.title }} · {{ action.area }} · Tier {{ action.tier }}
+                        </li>
+                    </ul>
+                    <div class="control-proposal-actions">
+                        <button type="button" data-proposal-decision="accept"
+                                :disabled="!!proposalAction" @click="decideProposal(proposal, 'accept')">Accept</button>
+                        <button type="button" data-proposal-decision="decline"
+                                :disabled="!!proposalAction" @click="decideProposal(proposal, 'decline')">Decline</button>
+                    </div>
+                </article>
+            </section>
 
             <section class="control-card" aria-labelledby="control-wakeup-title">
                 <h3 id="control-wakeup-title">When it wakes up</h3>
@@ -401,6 +445,12 @@ onMounted(load);
 .control-card select, .control-card input[type="number"] { min-height: 34px; border: 1px solid var(--border); border-radius: 7px; background: var(--background); color: var(--text); padding: 5px 9px; }
 .control-card fieldset { border: 0; border-top: 1px solid var(--border); padding: 12px 0 0; display: flex; flex-wrap: wrap; gap: 12px 20px; }
 .control-card legend { padding-right: 8px; font-weight: 600; }
+.control-proposal { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.control-proposal header, .control-proposal-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.control-proposal time { color: var(--text-3); font-size: 12px; }
+.control-proposal p, .control-proposal ul { margin: 0; }
+.control-proposal ul { padding-left: 20px; }
+.control-proposal-actions { justify-content: flex-start; }
 .control-choice-row { justify-content: flex-start; }
 .control-choice-row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .control-plan-list { display: grid; gap: 8px; flex-basis: 100%; }

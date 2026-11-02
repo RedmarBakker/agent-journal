@@ -115,6 +115,21 @@ class SupervisorActionReports:
             "recorded_at_ms": int(self.time_source.seconds() * 1000), "fields": fields,
         }, f"supervisor:action-owner-undo:{receipt.row_id}", actor)
 
+    def record_proposal_decision(self, receipt: Entry, plan_id: int, actor: Actor, decision: str) -> Entry:
+        data = receipt.data
+        return self._record({
+            "tenant_id": data.get("scope", {}).get("tenant_id", data.get("tenant_id")),
+            "owner_id": actor.number(), "grant_id": data["grant_id"],
+            "grant_version": data["grant_version"], "plan_id": plan_id,
+            "action_id": data["action_id"], "receipt_id": receipt.row_id,
+            "report_kind": "proposal_decision", "decision": decision,
+            "recorded_at_ms": int(self.time_source.seconds() * 1000),
+        }, f"supervisor:proposal-decision:{receipt.row_id}", actor)
+
+    def proposal_decision(self, receipt: Entry) -> Entry | None:
+        rows = self._reports(receipt, "proposal_decision")
+        return rows[0] if rows else None
+
     def owner_undo_counts(self, plan_id: int, actor: Actor) -> dict[str, Any]:
         plan = self.authority._plan(plan_id)
         self.authority._owner(actor, plan)

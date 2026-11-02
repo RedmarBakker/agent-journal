@@ -1,7 +1,7 @@
 import {createApp, h} from "vue";
 import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
-const api = {supervisorControl: vi.fn(), supervisorChange: vi.fn(), list: vi.fn(), change: vi.fn()};
+const api = {supervisorControl: vi.fn(), supervisorChange: vi.fn(), supervisorProposal: vi.fn(), list: vi.fn(), change: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api}));
 
 const {default: SupervisorControlPage} = await import("../src/pages/SupervisorControlPage.vue");
@@ -55,11 +55,27 @@ const settings = () => ({
     needs_decision: [{capability: "plan approve", title: "Approve a plan", area: "Plans and tasks", tier: 3}],
     replacement_enrollment: {protocol_version: 1},
     restore_review: null,
+    proposals: [{
+        receipt_id: 911,
+        plan_id: 7,
+        plan_title: "Release plan",
+        created_at: "2026-11-02T12:00:00Z",
+        rationale: "The check has failed repeatedly.",
+        actions: [{title: "Edit check", area: "Checks", tier: 2}],
+    }, {
+        receipt_id: 912,
+        plan_id: 7,
+        plan_title: "Release plan",
+        created_at: "2026-11-02T11:00:00Z",
+        rationale: "The plan could use a higher priority.",
+        actions: [{title: "Set plan priorities", area: "Plans and tasks", tier: 2}],
+    }],
 });
 
 beforeEach(() => {
     api.supervisorControl.mockReset().mockResolvedValue(settings());
     api.supervisorChange.mockReset().mockResolvedValue({grant_version: 4});
+    api.supervisorProposal.mockReset().mockResolvedValue({decision: "accepted"});
     api.list.mockReset().mockImplementation((table) => Promise.resolve({rows: table === "plans"
         ? [{id: 7, title: "Release plan"}]
         : [{id: 21, title: "Held task", plan_id: 7, supervisor_reserved: true}]}));
@@ -161,6 +177,26 @@ test("the owner saves wake events, plan scope, limits, area switches and verb mo
     createTaskOn.dispatchEvent(new Event("change", {bubbles: true}));
     await vi.waitFor(() => expect(api.supervisorChange).toHaveBeenCalledTimes(8));
     expect(api.supervisorChange.mock.calls[7][0].change.grant.capabilities["task create"].on).toBe(false);
+});
+
+test("Control shows waiting proposals and removes an accepted proposal", async () => {
+    api.supervisorControl.mockReset()
+        .mockResolvedValueOnce(settings())
+        .mockResolvedValueOnce({...settings(), proposals: [settings().proposals[1]]})
+        .mockResolvedValueOnce({...settings(), proposals: []});
+    const page = await openPage();
+
+    expect(page.textContent).toContain("Waiting for you");
+    expect(page.textContent).toContain("The check has failed repeatedly.");
+    expect(page.querySelector('[data-proposal="911"] button[data-proposal-decision="accept"]')).not.toBeNull();
+    page.querySelector('[data-proposal="911"] button[data-proposal-decision="accept"]').click();
+
+    await vi.waitFor(() => expect(api.supervisorProposal).toHaveBeenCalledWith(7, 911, "accept"));
+    await vi.waitFor(() => expect(page.querySelector('[data-proposal="911"]')).toBeNull());
+
+    page.querySelector('[data-proposal="912"] button[data-proposal-decision="decline"]').click();
+    await vi.waitFor(() => expect(api.supervisorProposal).toHaveBeenCalledWith(7, 912, "decline"));
+    await vi.waitFor(() => expect(page.querySelector('[data-proposal="912"]')).toBeNull());
 });
 
 test("the owner can turn the supervisor off, release a held task, replace the grant and revoke it", async () => {

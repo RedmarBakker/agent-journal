@@ -6,6 +6,7 @@ from journal.features.supervisor.support.supervisor_record_reader import Supervi
 from journal.features.supervisor.support.supervisor_wakeups import SupervisorWakeups
 from journal.http.support.request import Request
 from journal.repositories.scope import Scope
+from journal.support.actor import Actor
 from journal.support.response import Response
 from journal.supervisor_authority import SupervisorAuthority
 from journal.supervisor_failure import SupervisorFailure
@@ -23,10 +24,14 @@ class SupervisorController:
         self.scope, self.records = scope, records
 
     def read_records(self, request: Request) -> Response:
-        return self._records(request, lambda: self.records.read(
-            request.text("period") or "last_7_days", request.text("plan_id"),
-            request.text("area"), request.text("before"),
-        ))
+        def read() -> dict[str, Any]:
+            answer = self.records.read(
+                request.text("period") or "last_7_days", request.text("plan_id"),
+                request.text("area"), request.text("before"),
+            )
+            return {**answer, "waiting_proposals": len(self.records.pending_proposals())}
+
+        return self._records(request, read)
 
     def read_history(self, request: Request) -> Response:
         return self._records(request, lambda: self.records.history(
@@ -56,7 +61,16 @@ class SupervisorController:
         except SupervisorFailure as denied:
             message = "Only the owner can change the supervisor." if denied.status == 403 else str(denied)
             return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
-        return Response(200, answer, {"Cache-Control": "no-store"})
+        proposals = self.records.pending_proposals()
+        return Response(200, {**answer, "proposals": proposals}, {"Cache-Control": "no-store"})
+
+    def read_proposal_count(self, request: Request) -> Response:
+        try:
+            self.authority.owner_control(request.actor, self.scope.id)
+        except SupervisorFailure as denied:
+            message = "Only the owner can see proposals." if denied.status == 403 else str(denied)
+            return Response(denied.status, {"error": message}, {"Cache-Control": "no-store"})
+        return Response(200, {"count": len(self.records.pending_proposals())}, {"Cache-Control": "no-store"})
 
     def enroll(self, request: Request) -> Response:
         try:
@@ -105,6 +119,20 @@ class SupervisorController:
         except SupervisorFailure as denied:
             return Response(denied.status, {"error": str(denied)})
         return Response.json(answer)
+
+    def accept_proposal(self, request: Request) -> Response:
+        return self._proposal_decision(request, self.maintenance.accept_owner_proposal)
+
+    def decline_proposal(self, request: Request) -> Response:
+        return self._proposal_decision(request, self.maintenance.decline_owner_proposal)
+
+    @staticmethod
+    def _proposal_decision(request: Request, decide: Callable[[int, int, Actor], dict[str, Any]]) -> Response:
+        try:
+            answer = decide(request.number("id"), request.number("receipt_id"), request.actor)
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)}, {"Cache-Control": "no-store"})
+        return Response(200, answer, {"Cache-Control": "no-store"})
 
     def read_owner_undos(self, request: Request) -> Response:
         try:

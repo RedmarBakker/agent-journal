@@ -169,6 +169,15 @@ export class ApiClient {
         return this.get(this.here("/supervisor/control"), "supervisor.control");
     }
 
+    supervisorProposalCount() {
+        return this.get(this.here("/supervisor/proposals/count"), "supervisor.proposals.count");
+    }
+
+    supervisorProposal(planId, receiptId, decision) {
+        if (!["accept", "decline"].includes(decision)) return Promise.reject(new Error("the proposal decision is invalid"));
+        return this.post(this.here(`/plans/${planId}/supervisor/receipts/${receiptId}/${decision}`), {});
+    }
+
     supervisorUndo(planId, receiptId) {
         return this.post(this.here(`/plans/${planId}/supervisor/receipts/${receiptId}/undo`), {});
     }

@@ -1,9 +1,11 @@
 import {onPhone} from "../platform/phone.js";
 import {recordCount, unreadByUser} from "../domain/records.js";
 import {tables} from "../domain/tables.js";
-import {computed} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import {PAGES, RESOURCE_GROUPS, SIDEBAR, pluralTitle} from "../domain/navigation.js";
 import {useSharedNow} from "./now.js";
+import {api} from "../api/client.js";
+import {route} from "../route.js";
 
 const countOf = (t, now) => {
     if (t.name === "approvals") return unreadByUser(t.name, now).length;
@@ -11,6 +13,17 @@ const countOf = (t, now) => {
 };
 // what a link's count counts, where its number alone would mislead: the tasks counted are those outside a plan, whose own are on its bar
 const COUNT_TITLES = {tasks: "open tasks outside a plan", approvals: "approvals waiting"};
+const supervisorWaitingCount = ref(0);
+let supervisorCountRead = null;
+
+export function refreshSupervisorWaitingCount() {
+    if (supervisorCountRead) return supervisorCountRead;
+    supervisorCountRead = Promise.resolve().then(() => api.supervisorProposalCount())
+        .then((answer) => (supervisorWaitingCount.value = answer.count || 0))
+        .catch(() => (supervisorWaitingCount.value = 0))
+        .finally(() => (supervisorCountRead = null));
+    return supervisorCountRead;
+}
 
 const typeLink = (t, now) => {
     const count = countOf(t, now);
@@ -30,11 +43,18 @@ const typeLink = (t, now) => {
 // the pages that set how the journal runs: the desk's alone, since a phone changes none of it
 const CONFIGURING = ["plugins", "mcp", "profiles", "secrets", "team", "settings"];
 
-const pageLink = (key) => ({key, page: key, count: 0, hot: false, ...PAGES[key]});
+const pageLink = (key) => {
+    const link = {key, page: key, count: 0, hot: false, ...PAGES[key]};
+    return key === "supervisor"
+        ? {...link, count: supervisorWaitingCount.value, countTitle: "proposals waiting for the owner", hot: supervisorWaitingCount.value > 0}
+        : link;
+};
 const deskLinks = (keys) => keys.filter((key) => !(onPhone && CONFIGURING.includes(key))).map(pageLink);
 
 export function useNavigation() {
     const now = useSharedNow();
+    onMounted(() => void refreshSupervisorWaitingCount());
+    watch(() => route.value.env, () => void refreshSupervisorWaitingCount());
     const link = (t) => typeLink(t, t.name === "approvals" ? now.value : undefined);
     const listed = computed(() => tables.value.filter((t) => t.in_sidebar));
     const sidebar = computed(() => listed.value.filter((t) => t.listed_under === SIDEBAR).map((t) => ({...link(t), scope: t.scope})));

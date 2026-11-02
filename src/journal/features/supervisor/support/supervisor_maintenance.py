@@ -293,6 +293,48 @@ class SupervisorMaintenance:
     def owner_undo_counts(self, plan_id: int, actor: Actor) -> dict[str, Any]:
         return self.action_reports.owner_undo_counts(plan_id, actor)
 
+    def accept_owner_proposal(self, plan_id: int, receipt_id: int, actor: Actor) -> dict[str, Any]:
+        return self._decide_owner_proposal(plan_id, receipt_id, actor, "accepted")
+
+    def decline_owner_proposal(self, plan_id: int, receipt_id: int, actor: Actor) -> dict[str, Any]:
+        return self._decide_owner_proposal(plan_id, receipt_id, actor, "declined")
+
+    def _decide_owner_proposal(self, plan_id: int, receipt_id: int, actor: Actor,
+                               decision: str) -> dict[str, Any]:
+        with self.scope.environment(PROJECT), self.entries.writing():
+            plan = self.authority._plan(plan_id)
+            owner_id = self.authority._owner(actor, plan)
+            rows = self.entries.selected(self.entries.query().filter(
+                id=receipt_id, entry_type="SupervisorActionReceipt",
+            ).limit(1))
+            if not rows:
+                raise SupervisorFailure(403, "supervisor proposal is not available")
+            receipt = rows[0]
+            data = receipt.data
+            tenant_id = data.get("scope", {}).get("tenant_id", data.get("tenant_id"))
+            grant_entry = self.authority._latest_entry(data.get("grant_id", ""))
+            if grant_entry is None:
+                raise SupervisorFailure(403, "supervisor proposal is not available")
+            grant = self.authority._public_grant(grant_entry)
+            if tenant_id != f"owner:{owner_id}" or grant.get("owner_user_id") != owner_id:
+                raise SupervisorFailure(403, "supervisor proposal is not available")
+            if grant.get("plan_id") != plan_id:
+                raise SupervisorFailure(403, "supervisor proposal is not available")
+            if decision == "accepted" and grant.get("grant_version") != data.get("grant_version"):
+                raise SupervisorFailure(409, "the proposal is no longer current")
+            runs = self.entries.supervisor_records(
+                "SupervisorRun", last=100, tenant_id=tenant_id, grant_id=grant["grant_id"],
+                run_ref=data.get("run_id"),
+            )
+            if not runs or runs[0].data.get("plan_id") != plan_id:
+                raise SupervisorFailure(403, "supervisor proposal is not available")
+            if data.get("status") != "proposed":
+                raise SupervisorFailure(409, "only a pending proposal can be decided")
+            if self.action_reports.proposal_decision(receipt):
+                raise SupervisorFailure(409, "proposal already decided")
+            report = self.action_reports.record_proposal_decision(receipt, plan_id, actor, decision)
+        return {"decision": decision, "receipt_id": receipt_id, "report_id": report.row_id}
+
     def _tier_one(self, receipt: Entry, commands: object) -> bool:
         operations = receipt.data.get("proposed_operations")
         if (not isinstance(operations, list) or not operations
