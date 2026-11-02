@@ -436,11 +436,19 @@ def test_codex_plan_driver_is_pinned_device_auth_and_uses_the_owner_plan_lifecyc
     assert '"plan", "ready"' in setup and '"plan", "approve"' in setup and '"plan", "start"' in setup
     assert "SupervisorLink" in setup and "plan_agents.is_running(environment)" in setup
     assert '"/_supervisor/v1/enrollment"' in setup
-    assert '"max_input_tokens_per_turn": 24000' in setup
+    assert '"max_input_tokens_per_turn": 80000' in setup
     assert '"max_output_tokens_per_turn": 8000' in setup
     assert '"max_provider_requests_per_turn": 8' in setup
     assert '"max_turns_per_day": 1' in setup
     assert '"max_cost_microusd_per_day": 1000000' in setup
+    input_limit = read_json(PROFILE / "contract.schema.json")["$defs"]["BudgetLimits"]["properties"][
+        "max_input_tokens_per_turn"
+    ]
+    authority = (ROOT / "src" / "journal" / "supervisor_authority.py").read_text()
+    assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
+    assert "MAX_INPUT_TOKENS_PER_TURN = 80_000" in authority
+    assert "80,000 input tokens" in (PROFILE / "STAGING-REPORT.md").read_text()
+    assert "$0.40 per run" in (PROFILE / "STAGING-REPORT.md").read_text()
     assert "active_workers = workers.global_matching(state=WorkerState.DISPATCHED)" in setup and "if active_workers:" in setup
     assert '"mode": "bounded_write"' in setup
     assert '"/run/journal_supervisor_credential"' in setup

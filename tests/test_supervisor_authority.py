@@ -41,7 +41,13 @@ from journal.repositories.templates import Templates
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
-from journal.supervisor_authority import GRANT_ENTRY, GRANT_FIELDS, RESERVED_OPERATIONS, SupervisorAuthority
+from journal.supervisor_authority import (
+    GRANT_ENTRY,
+    GRANT_FIELDS,
+    MAX_INPUT_TOKENS_PER_TURN,
+    RESERVED_OPERATIONS,
+    SupervisorAuthority,
+)
 from journal.supervisor_failure import SupervisorFailure
 from tests.suite_app import SuiteApp
 
@@ -191,6 +197,7 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture):
     assert grant_rows(entries) == before, "a colleague, agent or plugin cannot create a grant"
     assert fixture.authority.secrets_store.values() == secrets_before, "rejected owner enrollment does not alter stored credentials"
 
+
     auth = app.container.get(SupervisorRequestAuth)
     identity = app.container.get(Identity)
 
@@ -248,6 +255,27 @@ def test_only_actual_owner_can_enroll_or_revoke(app, authority_fixture):
         fixture.authority.enroll(fixture.owner, body)
     assert unowned.value.status == 403 and grant_rows(entries) == before_unowned, "a plan without a user creator cannot be enrolled"
     assert fixture.authority.secrets_store.values() == secrets_before, "unowned enrollment cannot change credential storage"
+
+
+def test_enrollment_enforces_the_eighty_thousand_input_token_bound(app, authority_fixture):
+    fixture = authority_fixture
+    body = enrollment(fixture, "bounded_write")
+    body["limits"]["max_input_tokens_per_turn"] = MAX_INPUT_TOKENS_PER_TURN + 1
+    entries = app.container.get(Entries)
+    before = grant_rows(entries)
+    secrets_before = fixture.authority.secrets_store.values()
+
+    with pytest.raises(SupervisorFailure) as refused:
+        fixture.authority.enroll(fixture.owner, body)
+
+    assert refused.value.status == 400
+    assert grant_rows(entries) == before
+    assert fixture.authority.secrets_store.values() == secrets_before
+
+    body["limits"]["max_input_tokens_per_turn"] = MAX_INPUT_TOKENS_PER_TURN
+    grant, _token = fixture.authority.enroll(fixture.owner, body)
+    fixture.credentials.append(fixture.authority._credential_name(grant["grant_id"], grant["grant_version"]))
+    assert grant["limits"]["max_input_tokens_per_turn"] == MAX_INPUT_TOKENS_PER_TURN
 
 
 def test_scope_is_derived_from_credential(app, authority_fixture):

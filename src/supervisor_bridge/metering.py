@@ -27,6 +27,12 @@ MODEL_REFERENCE = f"anthropic/{MODEL_ID}"
 MAX_PROVIDER_ATTEMPTS = 2
 MAX_PROXY_REQUEST_BYTES = 1_048_576
 MAX_PROVIDER_RESPONSE_BYTES = 8_388_608
+ANTHROPIC_ERROR_TYPES = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    403: "permission_error",
+    429: "rate_limit_error",
+}
 INPUT_COUNT_FIELDS = frozenset({
     "model", "messages", "system", "tools", "tool_choice", "thinking", "output_config",
     "context_management", "mcp_servers",
@@ -56,7 +62,7 @@ def grant_token_limits(snapshot: object, run: RunReference) -> dict:
 class MeteringError(RuntimeError):
     """A provider request cannot continue within the admitted run's grant."""
 
-    def __init__(self, message: str, status_code: int = 429):
+    def __init__(self, message: str, status_code: int = 403):
         super().__init__(message)
         self.status_code = status_code
 
@@ -179,12 +185,11 @@ class MeteringProxy:
         if self.state.snapshot()["budget_gate"] != "verified" or metering["limits"] is None:
             raise MeteringError("the active run has no verified grant limits", 403)
         if metering["status"] == "capped":
-            if (
-                StateStore.total_input_tokens(metering) >= metering["limits"]["max_input_tokens_per_turn"]
-                or metering["output_tokens"] >= metering["limits"]["max_output_tokens_per_turn"]
-            ):
-                raise MeteringError("token cap reached")
-            raise MeteringError("provider request cap reached")
+            if StateStore.total_input_tokens(metering) >= metering["limits"]["max_input_tokens_per_turn"]:
+                raise MeteringError("supervisor turn ended at its input token cap")
+            if metering["output_tokens"] >= metering["limits"]["max_output_tokens_per_turn"]:
+                raise MeteringError("supervisor turn ended at its output token cap")
+            raise MeteringError("supervisor turn ended at its provider request cap")
         if metering["status"] not in {"ready", "known"}:
             raise MeteringError("the active run's provider budget is closed")
         if metering["pending_request"] is not None:
@@ -428,7 +433,11 @@ class MeteringProxyServer:
                     self.send_error(400)
                     return
                 except MeteringError as error:
-                    self.send_error(error.status_code, str(error))
+                    error_type = ANTHROPIC_ERROR_TYPES.get(error.status_code, "api_error")
+                    self.send_value(error.status_code, {
+                        "type": "error",
+                        "error": {"type": error_type, "message": str(error)},
+                    })
                     return
                 self.send_response(response.status)
                 self.send_header("Content-Type", response.content_type)

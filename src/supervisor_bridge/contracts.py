@@ -8,7 +8,7 @@ from pathlib import Path
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
-CONTRACT_SCHEMA_SHA256 = "6b4b0e7cdce82633a2fafcae918b87bd1001226d26e45348cfe3fbe0802bc211"
+CONTRACT_SCHEMA_SHA256 = "ec26e9ee57f913f47528a6922cbd9b5303007573c14296a41a38a33ac1284db5"
 TOOL_NAMES = (
     "journal_supervisor.observe",
     "journal_supervisor.apply_maintenance",

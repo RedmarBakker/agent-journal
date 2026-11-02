@@ -330,7 +330,7 @@ static int valid_profile(const char *config_path) {
         "CHECK_COMMAND = \"false\"",
         "This smoke check intentionally fails",
         "\"max_turns_per_day\": 1",
-        "\"max_input_tokens_per_turn\": 24000",
+        "\"max_input_tokens_per_turn\": 80000",
         "\"max_output_tokens_per_turn\": 8000",
         "\"max_provider_requests_per_turn\": 8",
         "\"mode\": \"bounded_write\"",

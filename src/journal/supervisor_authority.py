@@ -46,6 +46,7 @@ GRANT_FIELDS = frozenset({
     "valid_until_ms", "revoked",
 })
 CAPABILITY_FIELDS = frozenset({"diagnostic_task", "plan_priorities", "check_interval", "sequence", "phrase_nudge", "project_reminder"})
+MAX_INPUT_TOKENS_PER_TURN = 80_000
 BUDGET_FIELDS = frozenset({
     "max_turns_per_day", "max_input_tokens_per_turn", "max_output_tokens_per_turn",
     "max_provider_requests_per_turn", "max_turn_seconds", "max_cost_microusd_per_day",
@@ -897,7 +898,8 @@ class SupervisorAuthority:
             raise SupervisorFailure(400, "the enrollment request asks for an unsupported supervisor capability")
         limits = cls._object(body["limits"], BUDGET_FIELDS)
         for key, amount in limits.items():
-            cls._integer(amount, 1)
+            maximum = MAX_INPUT_TOKENS_PER_TURN if key == "max_input_tokens_per_turn" else None
+            cls._integer(amount, 1, maximum)
         if limits["max_new_diagnostics_per_episode"] != 1:
             raise SupervisorFailure(400, "the enrollment request does not match supervisor protocol version 1")
         if body["mode"] not in ("shadow", "bounded_write"):

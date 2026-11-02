@@ -538,10 +538,13 @@ def test_private_adapters_use_only_fixed_authenticated_routes():
 def test_pinned_command_and_tool_config_match_contract(tmp_path):
     fixture = json.loads(FIXTURE_PATH.read_text())
     validate_pinned_fixture(fixture)
-    schemas = tool_input_schemas(load_contract_schema())
+    contract_schema = load_contract_schema()
+    schemas = tool_input_schemas(contract_schema)
+    input_limit = contract_schema["$defs"]["BudgetLimits"]["properties"]["max_input_tokens_per_turn"]
     supervisor = fixture["openclaw_config"]["agents"]["entries"]["supervisor"]
 
     assert tuple(schemas) == TOOL_NAMES
+    assert input_limit == {"type": "integer", "minimum": 1, "maximum": 80000}
     assert PINNED_OPENCLAW_VERSION == "2026.10.8"
     assert PINNED_OPENCLAW_COMMIT.startswith("dc2523e")
     assert "default" not in supervisor
@@ -743,13 +746,74 @@ def test_tool_loop_stops_at_the_grant_token_caps(tmp_path):
 
     assert first.status == 200 and second.status == 200
     assert second_body_max_tokens(provider.requests) == 5
-    with pytest.raises(MeteringError, match="token cap"):
+    with pytest.raises(MeteringError, match="token cap") as refused:
         proxy.forward(model_request())
+    assert refused.value.status_code == 403
     assert len(provider.requests) == 4
     usage = state.snapshot()["metering"]
     assert (usage["input_tokens"], usage["output_tokens"]) == (5, 8)
     assert (usage["cache_creation_input_tokens"], usage["cache_read_input_tokens"]) == (2, 1)
     assert usage["status"] == "capped"
+
+
+def test_four_live_sized_generations_fit_under_the_eighty_thousand_input_cap(tmp_path):
+    state = metered_state(tmp_path, max_input=80000, max_output=8000, max_requests=8)
+    responses = [
+        response
+        for _ in range(4)
+        for response in (
+            provider_input_tokens(16144),
+            provider_response(4, 612, 8605, 7535),
+        )
+    ]
+    proxy = MeteringProxy(state, StubProvider(responses))
+
+    replies = [proxy.forward(model_request(max_tokens=1000)) for _ in range(4)]
+    usage = state.snapshot()["metering"]
+    total_input = (
+        usage["input_tokens"]
+        + usage["cache_creation_input_tokens"]
+        + usage["cache_read_input_tokens"]
+    )
+
+    assert [reply.status for reply in replies] == [200, 200, 200, 200]
+    assert total_input == 64576
+    assert total_input < 80000
+    assert usage["output_tokens"] == 2448
+    assert usage["provider_requests"] == 8
+    assert usage["status"] == "capped"
+
+
+def test_a_capped_turn_returns_a_non_retryable_anthropic_error(tmp_path):
+    state = metered_state(tmp_path, max_input=4, max_output=8, max_requests=8)
+    provider = StubProvider([provider_input_tokens(4), provider_response(4, 1)])
+    proxy = MeteringProxy(state, provider)
+    assert proxy.forward(model_request()).status == 200
+    server = MeteringProxyServer(proxy, port=0)
+    server.start()
+
+    try:
+        request = Request(
+            f"http://127.0.0.1:{server.server.server_port}/v1/messages",
+            data=json.dumps(model_request()).encode(),
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(HTTPError) as refused:
+            urlopen(request, timeout=2)
+
+        assert refused.value.code == 403
+        assert refused.value.headers.get_content_type() == "application/json"
+        assert json.loads(refused.value.read()) == {
+            "type": "error",
+            "error": {
+                "type": "permission_error",
+                "message": "supervisor turn ended at its input token cap",
+            },
+        }
+        assert len(provider.requests) == 2
+    finally:
+        server.close()
 
 
 def test_anthropic_transport_pins_messages_host_and_api_key_headers(monkeypatch):
