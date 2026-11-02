@@ -374,8 +374,8 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         paths[name].mkdir(parents=True, exist_ok=True, mode=0o700)
     checkout = Path(__file__).resolve().parents[2]
     ProductionDriver.git_snapshot(checkout, paths["project"], PINNED_BATCH_JOURNAL_COMMIT)
-    shutil.copy2(checkout / "tests" / "lab" / "scenario_loader.py",
-                 paths["project"] / "tests" / "lab" / "scenario_loader.py")
+    pinned_loader = paths["project"] / "tests" / "lab" / "scenario_loader.py"
+    assert "--domain" not in pinned_loader.read_text(encoding="utf-8")
 
     stand_ins = paths["runtime"] / "stand-ins"
     stand_ins.mkdir(mode=0o700)
@@ -413,6 +413,8 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, None)
         scenario = driver.load_scenario(scenario_name, paths)
         plan_id = driver.prepare_plan(scenario, paths)
+        harness_loader = paths["runtime"] / "driver-harness" / "tests" / "lab" / "scenario_loader.py"
+        checkout_loader = checkout / "tests" / "lab" / "scenario_loader.py"
         shown = driver.command([sys.executable, str(paths["project"] / "src" / "journal.py"),
                                 "plan", "show", plan_id], paths)
         expected = LabScenario.read(scenario["path"])
@@ -423,6 +425,7 @@ def test_every_batch_scenario_loads_as_an_organization_plan_before_agents_start(
         assert shown.returncode == 0, shown.stderr
         assert shown.stdout.splitlines()[0].startswith(f"plan {plan_id} approved:")
         assert actual_domains == expected_domains
+        assert harness_loader.read_bytes() == checkout_loader.read_bytes()
         assert len(driver.processes) == 1
         assert not driver.rig_started
         assert not started.exists()

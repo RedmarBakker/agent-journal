@@ -227,11 +227,12 @@ class ProductionDriver:
                               capture_output=True, text=True, timeout=60, check=False)
 
     def setup_scenario(self, scenario: Mapping[str, object], paths: Mapping[str, Path]) -> dict[str, object]:
+        harness = self.stage_lab_harness(paths)
         script = '''import json, sys
 from pathlib import Path
-project, scenario_path, organization = map(Path, sys.argv[1:4])
-settings = json.loads(sys.argv[4])
-sys.path[:0] = [str(project / "src"), str(project)]
+project, harness, scenario_path, organization = map(Path, sys.argv[1:5])
+settings = json.loads(sys.argv[5])
+sys.path[:0] = [str(project / "src"), str(harness), str(project)]
 from journal.app import App
 from journal.config import Config
 from journal.models.plan_mode import PlanMode
@@ -260,7 +261,7 @@ print(plan["plan_id"])
             raise ValueError("approved manifest design settings must be a table")
         encoded_settings = json.dumps(dict(settings), separators=(",", ":"))
         result = subprocess.run(self.boundary.wrap([sys.executable, "-c", script,
-                                 str(paths["project"]), str(scenario["path"]),
+                                 str(paths["project"]), str(harness), str(scenario["path"]),
                                  str(paths["runtime"] / "organization"), encoded_settings]),
                                 cwd=paths["project"], env=self.env, capture_output=True,
                                 text=True, timeout=60, check=False)
@@ -270,6 +271,16 @@ print(plan["plan_id"])
         if not plan_id.isdecimal():
             raise ValueError("pinned journal did not return an approved plan id")
         return {"plan_id": int(plan_id)}
+
+    def stage_lab_harness(self, paths: Mapping[str, Path]) -> Path:
+        harness = paths["runtime"] / "driver-harness"
+        tests = harness / "tests"
+        tests.mkdir(mode=0o700, parents=True)
+        source = self.checkout / "tests"
+        shutil.copytree(source / "lab", tests / "lab", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        for name in ("__init__.py", "in_process.py", "user_settings.py"):
+            shutil.copy2(source / name, tests / name)
+        return harness
 
     def install_cap_hook(self, project: Path, paths: Mapping[str, Path]) -> None:
         path = project / "src" / "journal" / "hooks" / "hook.sh"
