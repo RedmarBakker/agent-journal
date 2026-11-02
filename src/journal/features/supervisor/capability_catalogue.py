@@ -398,3 +398,11 @@ CAPABILITY_CATALOGUE = {
         "grant": {"enrollment": "never", "change": "never", "revoke": "never", "edit": "never"},
     },
 }
+
+
+def capability_entry(noun: str, verb: str) -> tuple[str, str] | None:
+    for area, commands in CAPABILITY_CATALOGUE.items():
+        verbs = commands.get(noun)
+        if verbs is not None and verb in verbs:
+            return area, verbs[verb]
+    return None

@@ -1,7 +1,7 @@
 from typing import ClassVar
 
 from journal.console.command import Command
-from journal.features.supervisor.support.supervisor_capabilities import CAPABILITY_CATALOGUE
+from journal.features.supervisor.capability_catalogue import capability_entry
 from journal.helpers.main_role import MainRole
 from journal.models.alias import Alias
 from journal.models.supervisor_grant import SupervisorGrant
@@ -35,28 +35,49 @@ class SupervisorRole(MainRole):
             return "its current grant is unavailable"
         if verb in cls.READ_VERBS or command.noun == "search" and verb == "find":
             return ""
+        rule = grant.rule_for(f"{command.noun} {verb}", cls.row_id(command, args))
+        if rule is not None:
+            if rule.effect == "never":
+                return "the owner refuses this verb on the named row"
+            return "the owner requires this verb to be proposed"
         capabilities = dict((name, (enabled, mode)) for name, enabled, mode in grant.capabilities)
         capability = f"{command.noun} {verb}"
-        catalogue_entry = CAPABILITY_CATALOGUE.get(capability)
-        setting = capabilities.get(capability)
-        if catalogue_entry is None or setting is None or not setting[0]:
+        catalogue_entry = capability_entry(command.noun, verb)
+        if catalogue_entry is None:
             return "the capability is switched off"
-        area = catalogue_entry[0]
-        area_setting = capabilities.get(f"area:{area}")
+        area, tier = catalogue_entry
+        if tier == "read":
+            return ""
+        if tier == "never":
+            return "the capability is never allowed"
+        setting = capabilities.get(capability)
+        if setting is None and tier == "tier 3":
+            setting = (True, "propose")
+        if setting is None or not setting[0]:
+            return "the capability is switched off"
+        area_key = area.lower().replace(",", "").replace(" ", "-")
+        area_setting = capabilities.get(f"area:{area_key}")
         if area_setting is not None and not area_setting[0]:
             return "the capability is switched off"
         if setting[1] != "act":
             return "the capability is set to propose"
-        if command.noun == "plan" and verb == "priorities":
+        if command.noun == "plan" and verb in {"priorities", "tell"}:
             return cls.plan_scope_refusal(grant, args)
         return ""
+
+    @staticmethod
+    def row_id(command: type[Command], args) -> int | None:
+        argument = "plan" if command.noun == "plan" and hasattr(args, "plan") else "n"
+        value = getattr(args, argument, None)
+        return value if type(value) is int else None
 
     @staticmethod
     def plan_scope_refusal(grant: SupervisorGrant, args) -> str:
         if grant.watched_plans == "all":
             return ""
-        if args.plan is None:
+        plan_id = getattr(args, "plan", None) or getattr(args, "n", None)
+        if plan_id is None:
             return "name a watched plan with --plan"
-        if args.plan not in grant.watched_plans:
-            return f"plan {args.plan} is an unwatched plan"
+        if plan_id not in grant.watched_plans:
+            return f"plan {plan_id} is an unwatched plan"
         return ""

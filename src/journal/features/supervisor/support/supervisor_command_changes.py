@@ -19,7 +19,7 @@ from journal.supervisor_authority import SUPERVISOR_ACTOR
 
 
 class SupervisorCommandChanges(Listener[ModelEvent]):
-    TABLES: ClassVar[frozenset[str]] = frozenset({"plans", "phases", "tasks", "checks", "links"})
+    TABLES: ClassVar[frozenset[str]] = frozenset({"plans", "phases", "tasks", "checks", "links", "messages"})
 
     def __init__(self, bus: Bus) -> None:
         self._changes: ContextVar[list[dict[str, Any]] | None] = ContextVar("supervisor_command_changes", default=None)

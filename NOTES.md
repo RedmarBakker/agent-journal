@@ -2156,3 +2156,7 @@ Story files written before implementation:
 - `tests/stories/main/estimates/owner_gates.py`: default-off rollout, record/report behavior, owner-only enforce transition and setup, legacy work, missing readiness facts, forecasts that cannot clear an owner pause/checkpoint, and reserved owner actions.
 
 The expected red run for these stories is recorded by task 148. No implementation code or live Settings data was changed while specifying them.
+
+## Supervisor version 2 contract (plan 6)
+
+The version 2 supervisor grant is environment-scoped, with watched plans, command decisions, wakeups, limits and owner-only changes. `features/supervisor/capability_catalogue.py` is the command-tier source; Tier 3 decisions default to Propose and the Control page exposes every Tier 3 verb under Show all. Read commands remain allowed, Never commands stay refused, and narrowing rules cannot widen a grant. Applied actions have readback receipts, owners can undo unchanged Tier 1 actions through the command funnel, and Propose decisions remain pending for the owner. Owner feedback contributes up to five matching examples as wake data. The v1 one-plan grant maps to the environment grant through its compatibility path. Journal behavior is implemented; live deployment, operator migration and a live smoke run remain open.

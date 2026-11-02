@@ -51,9 +51,9 @@ def boot():
     return lambda root, patch: SuiteApp(Config(root, port=0))
 
 
-def maintenance_context(app, monkeypatch, mode="bounded_write"):
-    fixture = authority_seeded(app, owner_id=uuid4().int % 1_000_000 + 100)
-    return _admitted_maintenance_context(app, monkeypatch, fixture, mode)
+def maintenance_context(app, monkeypatch, mode="bounded_write", rules=None, command_modes=None, owner_id=None):
+    fixture = authority_seeded(app, owner_id=owner_id or uuid4().int % 1_000_000 + 100)
+    return _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules, command_modes)
 
 
 def maintenance_context_with_existing_diagnostic(app, monkeypatch):
@@ -85,9 +85,31 @@ def maintenance_context_with_held_diagnostic(app, monkeypatch):
     return context
 
 
-def _admitted_maintenance_context(app, monkeypatch, fixture, mode):
+def _admitted_maintenance_context(app, monkeypatch, fixture, mode, rules=None, command_modes=None):
     monkeypatch.setattr(type(fixture.authority.agents), "is_running", lambda _self, _environment: True)
     grant, token, principal = authority_admitted(fixture, mode)
+    for rule in rules or ():
+        grant, _token = fixture.authority.change(fixture.owner, {
+            "protocol_version": 1,
+            "grant_id": grant["grant_id"],
+            "expected_grant_version": grant["grant_version"],
+            "change": {"kind": "rule", "action": "add", "rule": rule},
+        })
+        principal = fixture.authority.authenticate(token)
+    if command_modes:
+        control = fixture.authority.owner_control(fixture.owner, fixture.owner_environment.row_id)
+        grant_value = control["grant"]
+        capabilities = {
+            **grant_value["capabilities"],
+            **{command: {"on": True, "mode": decision} for command, decision in command_modes.items()},
+        }
+        grant, _token = fixture.authority.change(fixture.owner, {
+            "protocol_version": 1,
+            "grant_id": grant["grant_id"],
+            "expected_grant_version": control["grant_version"],
+            "change": {"kind": "configure", "grant": {**grant_value, "capabilities": capabilities}},
+        })
+        principal = fixture.authority.authenticate(token)
     entries = app.container.get(Entries)
     control_entries = app.container.get(SupervisorEntries)
     scope = app.container.get(Scope)

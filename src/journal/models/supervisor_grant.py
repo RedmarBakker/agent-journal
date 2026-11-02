@@ -1,6 +1,8 @@
 from dataclasses import dataclass, replace
 from typing import Mapping
 
+from journal.models.supervisor_narrowing_rule import SupervisorNarrowingRule
+
 BUDGET_FIELDS = frozenset({
     "max_turns_per_day", "max_input_tokens_per_turn", "max_output_tokens_per_turn",
     "max_provider_requests_per_turn", "max_turn_seconds", "max_cost_microusd_per_day",
@@ -29,26 +31,31 @@ class SupervisorGrant:
     valid_until_ms: int
     paused: bool
     revoked: bool
+    rules: tuple[SupervisorNarrowingRule, ...] = ()
 
     @classmethod
     def parsed(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> "SupervisorGrant":
         data = cls._fields(value)
-        return cls._converted(data, cls._capabilities(data["capabilities"], catalogue))
+        return cls._converted(data, cls._capabilities(data["capabilities"], catalogue), cls._rules(data["rules"], catalogue))
 
     @classmethod
     def stored(cls, value: object) -> "SupervisorGrant":
         data = cls._fields(value)
-        return cls._converted(data, cls._stored_capabilities(data["capabilities"]))
+        return cls._converted(data, cls._stored_capabilities(data["capabilities"]), cls._stored_rules(data["rules"]))
 
     @classmethod
     def _fields(cls, value: object) -> dict:
-        return cls._object(value, {
+        fields = {
             "owner_user_id", "environment_id", "watched_plans", "capabilities", "wake_interval_minutes",
-            "event_wakeups", "limits", "valid_until_ms", "paused", "revoked",
-        })
+            "event_wakeups", "limits", "valid_until_ms", "paused", "revoked", "rules",
+        }
+        if isinstance(value, dict) and set(value) == fields - {"rules"}:
+            return {**value, "rules": []}
+        return cls._object(value, fields)
 
     @classmethod
-    def _converted(cls, data: dict, capabilities: tuple[tuple[str, bool, str], ...]) -> "SupervisorGrant":
+    def _converted(cls, data: dict, capabilities: tuple[tuple[str, bool, str], ...],
+                   rules: tuple[SupervisorNarrowingRule, ...]) -> "SupervisorGrant":
         owner = cls._integer(data["owner_user_id"], 1)
         environment = cls._integer(data["environment_id"], 1)
         plans = cls._plans(data["watched_plans"])
@@ -62,7 +69,8 @@ class SupervisorGrant:
             raise ValueError("the supervisor grant paused field must be on or off")
         if type(data["revoked"]) is not bool:
             raise ValueError("the supervisor grant revoked field must be on or off")
-        return cls(owner, environment, plans, capabilities, interval, events, limits, valid_until, data["paused"], data["revoked"])
+        return cls(owner, environment, plans, capabilities, interval, events, limits, valid_until,
+                   data["paused"], data["revoked"], rules)
 
     @classmethod
     def from_version_one(cls, grant: dict) -> "SupervisorGrant":
@@ -89,12 +97,55 @@ class SupervisorGrant:
             "valid_until_ms": self.valid_until_ms,
             "paused": self.paused,
             "revoked": self.revoked,
+            "rules": [rule.data() for rule in self.rules],
         }
 
     def with_revoked(self) -> "SupervisorGrant":
         return SupervisorGrant(self.owner_user_id, self.environment_id, self.watched_plans, self.capabilities,
                                self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
-                               self.paused, True)
+                               self.paused, True, self.rules)
+
+    def rule_for(self, command: str, row_id: int | None) -> SupervisorNarrowingRule | None:
+        denied = next((rule for rule in self.rules if rule.command == command
+                       and rule.effect == "never" and (row_id is None or rule.row_id == row_id)), None)
+        return denied or next(
+            (rule for rule in self.rules if rule.command == command and rule.effect == "propose"), None,
+        )
+
+    def with_rule(self, rule: SupervisorNarrowingRule) -> "SupervisorGrant":
+        if rule in self.rules:
+            raise ValueError("the supervisor narrowing rule is already saved")
+        rules = tuple(sorted((*self.rules, rule), key=lambda item: (item.command, item.effect, item.row_id or 0)))
+        return SupervisorGrant(self.owner_user_id, self.environment_id, self.watched_plans, self.capabilities,
+                               self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
+                               self.paused, self.revoked, rules)
+
+    def without_rule(self, rule: SupervisorNarrowingRule) -> "SupervisorGrant":
+        if rule not in self.rules:
+            raise ValueError("the supervisor narrowing rule is not saved")
+        rules = tuple(saved for saved in self.rules if saved != rule)
+        return SupervisorGrant(self.owner_user_id, self.environment_id, self.watched_plans, self.capabilities,
+                               self.wake_interval_minutes, self.event_wakeups, self.limits, self.valid_until_ms,
+                               self.paused, self.revoked, rules)
+
+    @classmethod
+    def _rules(cls, value: object, catalogue: Mapping[str, tuple[str, int | str]]) -> tuple[SupervisorNarrowingRule, ...]:
+        if not isinstance(value, list):
+            raise ValueError("the supervisor narrowing rules must be a list")
+        commands = set(catalogue)
+        rules = tuple(SupervisorNarrowingRule.parsed(rule, commands) for rule in value)
+        if len(rules) != len(set(rules)):
+            raise ValueError("the supervisor narrowing rules must be unique")
+        return rules
+
+    @classmethod
+    def _stored_rules(cls, value: object) -> tuple[SupervisorNarrowingRule, ...]:
+        if not isinstance(value, list):
+            raise ValueError("the supervisor narrowing rules must be a list")
+        rules = tuple(SupervisorNarrowingRule.stored(rule) for rule in value)
+        if len(rules) != len(set(rules)):
+            raise ValueError("the supervisor narrowing rules must be unique")
+        return rules
 
     def with_wake_interval(self, minutes: int) -> "SupervisorGrant":
         if type(minutes) is not int or minutes not in (15, 30, 60):

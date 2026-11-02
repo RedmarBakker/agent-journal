@@ -30,6 +30,7 @@ def grant_data(**changes):
         "valid_until_ms": 1000,
         "paused": False,
         "revoked": False,
+        "rules": [],
     }
     data.update(changes)
     return data
@@ -113,6 +114,26 @@ def test_a_grant_requires_one_daily_cost_limit_and_unique_plan_ids():
         SupervisorGrant.parsed(duplicate_cost, CATALOGUE)
     with pytest.raises(ValueError, match="plan"):
         SupervisorGrant.parsed(duplicate_plans, CATALOGUE)
+
+
+def test_a_grant_stores_only_propose_and_named_row_denial_rules():
+    rules = [
+        {"command": "task create", "effect": "propose"},
+        {"command": "task create", "effect": "never", "row_id": 12},
+    ]
+    grant = SupervisorGrant.parsed(grant_data(rules=rules), CATALOGUE)
+
+    assert grant.data()["rules"] == rules
+    assert grant.rule_for("task create", None).effect == "never"
+    assert grant.rule_for("task create", 12).effect == "never"
+    assert grant.rule_for("task create", 13).effect == "propose"
+
+
+def test_a_grant_refuses_a_rule_that_widens_access():
+    widening = grant_data(rules=[{"kind": "capability", "command": "task create", "on": True}])
+
+    with pytest.raises(ValueError, match="narrowing"):
+        SupervisorGrant.parsed(widening, CATALOGUE)
 
 
 def test_a_database_migration_converts_each_version_one_grant_in_a_shared_environment(connection):

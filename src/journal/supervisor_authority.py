@@ -11,9 +11,8 @@ from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_bindings import ENDED_LINK, PlanBindings
 from journal.features.plans.support.plan_owners import PlanOwners
-from journal.features.supervisor.support.supervisor_capabilities import (
-    CAPABILITY_CATALOGUE, control_areas, control_decisions,
-)
+from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
+from journal.features.supervisor.support.supervisor_capabilities import control_areas, control_decisions
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.entry import Entry
@@ -24,9 +23,8 @@ from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.template import Template
-from journal.models.supervisor_grant import (
-    BUDGET_FIELDS, MAX_INPUT_TOKENS_PER_TURN, VERSION_ONE_CAPABILITIES, SupervisorGrant,
-)
+from journal.models.supervisor_grant import BUDGET_FIELDS, MAX_INPUT_TOKENS_PER_TURN, VERSION_ONE_CAPABILITIES, SupervisorGrant
+from journal.models.supervisor_narrowing_rule import SupervisorNarrowingRule
 from journal.repositories.checks import Checks
 from journal.repositories.entries import Entries
 from journal.repositories.links import Links
@@ -195,6 +193,20 @@ class SupervisorAuthority:
                     grant = self._turn_on(entry, current, owner_id, next_version, actor)
                 elif kind == "configure":
                     grant = self._configure(entry, current, request["change"]["grant"], next_version, actor)
+                elif kind == "rule":
+                    grant_v2 = SupervisorGrant.stored(self._grant_v2(entry, current))
+                    try:
+                        rule = SupervisorNarrowingRule.parsed(request["change"]["rule"], self._command_catalogue())
+                        narrowed = grant_v2.with_rule(rule) if request["change"]["action"] == "add" else grant_v2.without_rule(rule)
+                    except ValueError as refused:
+                        status = 409 if "already saved" in str(refused) or "not saved" in str(refused) else 400
+                        raise SupervisorFailure(status, str(refused)) from refused
+                    grant = {**current, "grant_version": next_version}
+                    self._append_grant(
+                        grant, entry.data.get("_credential_sha256", ""), entry.data.get("_credential_name", ""),
+                        {**entry.data, "grant_v2": narrowed.data()}, actor,
+                    )
+                    grant = {**grant, "narrowing_rules": [saved.data() for saved in narrowed.rules]}
                 else:
                     old_name = entry.data.get("_credential_name", "")
                     replacement = self._enrollment(request["change"]["enrollment"])
@@ -230,7 +242,7 @@ class SupervisorAuthority:
 
     def _configure(self, entry: Entry, current: dict[str, Any], value: object, version: int, actor: Actor) -> dict[str, Any]:
         try:
-            version_two = SupervisorGrant.parsed(value, CAPABILITY_CATALOGUE).data()
+            version_two = SupervisorGrant.parsed(value, self._command_catalogue()).data()
         except ValueError as invalid:
             raise SupervisorFailure(400, str(invalid)) from invalid
         original = self._grant_v2(entry, current)
@@ -468,7 +480,9 @@ class SupervisorAuthority:
         with self.scope.environment(plan.environment_id):
             phase_state = next((state for state in self.plans.phase_states(context["plan"])
                 if state.number == context["current_phase"]["number"]), None)
-        return grant, {**context, "current_phase_row": phase_state.phase if phase_state else None}
+        permissions = SupervisorGrant.stored(self._grant_v2(entry, grant))
+        return grant, {**context, "current_phase_row": phase_state.phase if phase_state else None,
+                       "permissions": permissions}
 
     def action_readback(self, principal: SupervisorPrincipal, phase_id: int, binding_revision: str) -> dict[str, Any]:
         _, grant = self._active_grant(principal)
@@ -908,6 +922,15 @@ class SupervisorAuthority:
     def _public_grant(self, entry: Entry) -> dict[str, Any]:
         return {key: entry.data[key] for key in GRANT_FIELDS if key in entry.data}
 
+    @staticmethod
+    def _command_catalogue() -> dict[str, tuple[str, int | str]]:
+        return {
+            f"{noun} {verb}": (area, int(tier.removeprefix("tier ")) if tier.startswith("tier ") else tier)
+            for area, nouns in CAPABILITY_CATALOGUE.items()
+            for noun, verbs in nouns.items()
+            for verb, tier in verbs.items()
+        }
+
     def _latest_entry(self, grant_id: str) -> Entry | None:
         rows = [entry for entry in self._latest_entries() if entry.data.get("grant_id") == grant_id]
         return max(rows, key=lambda row: (row.data.get("grant_version", 0), row.row_id)) if rows else None
@@ -1140,12 +1163,16 @@ class SupervisorAuthority:
         grant_id = cls._string(body["grant_id"], 256)
         cls._integer(body["expected_grant_version"], 1)
         change = body["change"]
-        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on", "configure"):
+        if not isinstance(change, dict) or change.get("kind") not in ("revoke", "replace", "off", "on", "configure", "rule"):
             raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
         if change["kind"] in ("revoke", "off", "on"):
             change = cls._object(change, {"kind"})
         elif change["kind"] == "configure":
             change = cls._object(change, {"kind", "grant"})
+        elif change["kind"] == "rule":
+            change = cls._object(change, {"kind", "action", "rule"})
+            if change["action"] not in ("add", "remove"):
+                raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")
         else:
             if not isinstance(change, dict) or set(change) not in ({"kind", "enrollment"}, {"kind", "enrollment", "restore_review"}):
                 raise SupervisorFailure(400, "the grant change does not match supervisor protocol version 1")

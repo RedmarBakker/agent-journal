@@ -12,7 +12,7 @@ from journal.features.supervisor.support.supervisor_operation_commands import OP
 PINNED_OPENCLAW_VERSION = "2026.10.8"
 PINNED_OPENCLAW_COMMIT = "dc2523e5a5c7a309517fd7fa834add938231d526"
 CONTRACT_VERSION = 1
-CONTRACT_SCHEMA_SHA256 = "dd543f35c79a9932c543a07f837d2f95767bca345321c13667426dc1d4ddd5c1"
+CONTRACT_SCHEMA_SHA256 = "507960926acf3d03435464765ab070c32c32197a8a9c55864865938e3449a11f"
 OBSERVE_TOOL = "journal_supervisor.observe"
 RUN_OR_PROPOSE_TOOL = "journal_supervisor.run_or_propose"
 RECEIPT_TOOL = "journal_supervisor.receipt"
@@ -245,6 +245,7 @@ def validate_operation(value: object) -> None:
     kind = value["kind"]
     schemas = {
         "plan_priorities": frozenset({"kind", "plan_id", "text"}),
+        "plan_tell": frozenset({"kind", "plan_id", "text"}),
         "diagnostic_task": frozenset({"kind", "plan_id", "phase_id", "template_id", "template_revision", "evidence_ids"}),
         "check_interval": frozenset({"kind", "check_id", "interval_minutes"}),
     }
@@ -252,9 +253,9 @@ def validate_operation(value: object) -> None:
     if fields is None:
         raise ContractError("operation kind is not enabled")
     strict_object(value, fields, fields, "operation")
-    if kind == "plan_priorities":
+    if kind in {"plan_priorities", "plan_tell"}:
         positive_integer(value["plan_id"], "plan_id")
-        bounded_text(value["text"], "priorities text", 1, 2048)
+        bounded_text(value["text"], "command text", 1, 2048)
     elif kind == "diagnostic_task":
         positive_integer(value["plan_id"], "plan_id")
         positive_integer(value["phase_id"], "phase_id")

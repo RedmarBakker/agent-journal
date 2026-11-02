@@ -25,12 +25,14 @@ from journal.models.entry import Entry
 from journal.models.phase import Phase
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
+from journal.models.supervisor_grant import SupervisorGrant
 from journal.models.task import Task
 from journal.models.template import Template
 from journal.repositories.checks import Checks
-from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
+from journal.repositories.entries import Entries
 from journal.repositories.links import Links
+from journal.repositories.messages import Messages
 from journal.repositories.plans import Plans
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.supervisor_entries import SupervisorEntries
@@ -49,6 +51,7 @@ from journal.supervisor_principal import SupervisorPrincipal
 READ_ONLY_DIAGNOSTIC = "Inspect the supplied check evidence and report findings only. Do not change files, settings, plans, tasks, assignments, checks, or other journal rows."
 OPERATION_FIELDS = {
     "plan_priorities": frozenset({"kind", "plan_id", "text"}),
+    "plan_tell": frozenset({"kind", "plan_id", "text"}),
     "diagnostic_task": frozenset({"kind", "plan_id", "phase_id", "template_id", "template_revision", "evidence_ids"}),
     "check_interval": frozenset({"kind", "check_id", "interval_minutes"}),
 }
@@ -67,8 +70,8 @@ class SupervisorMaintenance:
                  control_entries: SupervisorEntries, plans: Plans, tasks: Tasks, links: Links, checks: Checks,
                  scope: Scope, time_source: TimeSource, work_available: SupervisorWorkAvailable,
                  action_reports: SupervisorActionReports, wakeups: SupervisorWakeups,
-                 command_changes: SupervisorCommandChanges, console: Console,
-                 environments: Environments) -> None:
+                 command_changes: SupervisorCommandChanges, console: Console, environments: Environments,
+                 messages: Messages) -> None:
         self.authority, self.observations, self.entries = authority, observations, entries
         self.control_entries, self.plans, self.tasks, self.links, self.checks = control_entries, plans, tasks, links, checks
         self.scope, self.time_source = scope, time_source
@@ -76,7 +79,7 @@ class SupervisorMaintenance:
         self.action_reports = action_reports
         self.wakeups = wakeups
         self.command_changes = command_changes
-        self.console, self.environments = console, environments
+        self.console, self.environments, self.messages = console, environments, messages
 
     def apply_maintenance(self, principal: SupervisorPrincipal, body: object) -> dict[str, Any]:
         request = self._request(body)
@@ -156,12 +159,15 @@ class SupervisorMaintenance:
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "conflicted", context["conflict_reason"])
             if reason := self._usage_reason(grant, run):
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "rejected", reason)
-            if reason := self._capability_reason(grant, request["operations"]):
+            if reason := self._capability_reason(grant, context["permissions"], request["operations"]):
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "rejected", reason)
             if reason := self._revision_reason(grant, context, request):
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "conflicted", reason)
             if reason := self._evidence_reason(grant, request, evidence):
                 return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, "rejected", reason)
+            if decision := self._narrowing_decision(context["permissions"], request["operations"]):
+                status, reason = decision
+                return self._receipt(grant, request, run.data["run_ref"], epoch, intent_hash, status, reason)
             if grant["mode"] == "shadow":
                 return self._proposal_receipt(grant, request, run, epoch, intent_hash, context)
             before = self._before_values(context, request)
@@ -169,7 +175,7 @@ class SupervisorMaintenance:
             affected, diagnostic, created, command_changes = self._apply(grant, context, request)
             readback = self.authority.action_readback(principal, grant["current_phase"]["phase_id"], context["binding_revision"])
             after = self.authority.observation_context(grant)
-            self._verify_readback(grant, readback, request, diagnostic, before)
+            self._verify_readback(grant, readback, request, diagnostic, before, command_changes)
             changes = self._changes(before, after, readback, grant, request, diagnostic, created)
             if diagnostic is not None:
                 affected.extend([
@@ -591,7 +597,7 @@ class SupervisorMaintenance:
         kind = value["kind"]
         if kind not in OPERATION_FIELDS or set(value) != OPERATION_FIELDS[kind]:
             raise SupervisorFailure(400, "the supervisor maintenance request is invalid")
-        if kind == "plan_priorities":
+        if kind in {"plan_priorities", "plan_tell"}:
             text = value["text"]
             if (type(value["plan_id"]) is not int or value["plan_id"] < 1 or not isinstance(text, str)
                     or not 1 <= len(text) <= 2048):
@@ -693,16 +699,34 @@ class SupervisorMaintenance:
             raise SupervisorFailure(400, "the metered usage request is invalid")
         return {"run_ref": dict(run_ref), "usage": dict(usage)}
 
-    def _capability_reason(self, grant: dict[str, Any], operations: list[dict[str, Any]]) -> str:
+    def _narrowing_decision(self, grant: SupervisorGrant, operations: list[dict[str, Any]]) -> tuple[str, str] | None:
+        capabilities = {name: (enabled, mode) for name, enabled, mode in grant.capabilities}
+        for operation in operations:
+            _area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
+            command = f"{noun} {verb}"
+            rule = grant.rule_for(command, operation.get("plan_id", operation.get("check_id")))
+            if rule is not None:
+                if rule.effect == "propose":
+                    return "proposed", "the owner requires this verb to be proposed"
+                return "rejected", "the owner refuses this verb on the named row"
+            if capabilities.get(command) == (True, "propose"):
+                return "proposed", "the owner requires this verb to be proposed"
+        return None
+
+    def _capability_reason(self, grant: dict[str, Any], permissions: SupervisorGrant,
+                           operations: list[dict[str, Any]]) -> str:
         if grant["mode"] == "shadow":
             if not self.authority.permits_proposal_receipt(grant):
                 return "grant_not_current"
         elif grant["mode"] != "bounded_write":
             return "grant_mode_disabled"
+        capabilities = {name: enabled for name, enabled, _mode in permissions.capabilities}
         for operation in operations:
-            if grant.get("capabilities", {}).get(operation["kind"]) is not True:
+            area, noun, verb = OPERATION_COMMANDS[operation["kind"]]
+            if not capabilities.get(f"{noun} {verb}", False) or not capabilities.get(f"area:{area}", True):
                 return "capability_not_granted"
-            if grant["mode"] == "bounded_write" and not self.authority.permits_domain_write(grant, operation["kind"]):
+            if (operation["kind"] != "plan_tell" and grant["mode"] == "bounded_write"
+                    and not self.authority.permits_domain_write(grant, operation["kind"])):
                 return "capability_not_granted"
         return ""
 
@@ -740,7 +764,7 @@ class SupervisorMaintenance:
                 title, brief = diagnostic_task_values(template)
                 if "plan" not in template.targets or len(title) > 256 or len(brief) > 2048:
                     return "diagnostic_template_invalid"
-            if operation["kind"] == "plan_priorities" and operation["plan_id"] != grant["plan_id"]:
+            if operation["kind"] in {"plan_priorities", "plan_tell"} and operation["plan_id"] != grant["plan_id"]:
                 return "plan_scope_mismatch"
         return ""
 
@@ -790,6 +814,13 @@ class SupervisorMaintenance:
                     elif operation["kind"] == "diagnostic_task":
                         diagnostic, created = self._diagnostic(grant, plan, phase, actor, request["episode_id"])
                         affected.append({"table": "tasks", "id": diagnostic.row_id})
+                    elif operation["kind"] == "plan_tell":
+                        self._tell_plan(context, operation)
+                        message = next((change for change in changes
+                                        if change.get("ref", {}).get("table") == "messages"), None)
+                        if message is None:
+                            raise SupervisorFailure(409, "the plan tell message did not read back")
+                        affected.append({"table": "messages", "id": message["ref"]["id"]})
                     else:
                         check = self._check(operation["check_id"])
                         interval = operation["interval_minutes"]
@@ -797,6 +828,13 @@ class SupervisorMaintenance:
                         affected.append({"table": "checks", "id": check.row_id})
                 command_changes.append(changes)
         return affected, diagnostic, created, command_changes
+
+    def _tell_plan(self, context: dict[str, Any], operation: dict[str, Any]) -> None:
+        environment = self.environments.find(context["plan"].environment_id)
+        caller = Caller.supervisor(environment.name, SUPERVISOR_ACTOR, context["permissions"])
+        outcome = self.console.run(["plan", "tell", str(operation["plan_id"]), operation["text"]], caller)
+        if outcome.code:
+            raise SupervisorFailure(409, outcome.error.strip() or "the plan could not be told")
 
     def _diagnostic(self, grant: dict[str, Any], plan: Plan, phase: Phase,
                     actor: Actor, episode_id: str) -> tuple[Task, bool]:
@@ -834,7 +872,8 @@ class SupervisorMaintenance:
         return len(created)
 
     def _verify_readback(self, grant: dict[str, Any], context: dict[str, Any], request: dict[str, Any],
-                         diagnostic: Task | None, before: dict[str, Any]) -> None:
+                         diagnostic: Task | None, before: dict[str, Any],
+                         command_changes: list[list[dict[str, Any]]]) -> None:
         if context["current_phase"]["phase_id"] != grant["current_phase"]["phase_id"]:
             raise SupervisorFailure(409, "the current phase changed during supervisor maintenance")
         with self.scope.environment(context["plan"].environment_id):
@@ -850,6 +889,17 @@ class SupervisorMaintenance:
                 if (len(plan_link) != 1 or len(phase_link) != 1 or not eligible_diagnostic(diagnostic, self.tasks)
                         or diagnostic not in self.plans.phase_tasks(context["current_phase_row"])):
                     raise SupervisorFailure(409, "the diagnostic task did not read back in its enrolled current phase")
+        for operation, changes in zip(request["operations"], command_changes):
+            if operation["kind"] != "plan_tell":
+                continue
+            messages = [change["ref"]["id"] for change in changes
+                        if change.get("event") == "created" and change.get("ref", {}).get("table") == "messages"]
+            if len(messages) != 1:
+                raise SupervisorFailure(409, "the plan tell message did not read back")
+            with self.scope.environment(context["environment"].row_id):
+                message = self.messages.find(messages[0])
+                if message.text != operation["text"]:
+                    raise SupervisorFailure(409, "the plan tell message did not read back")
         for operation in request["operations"]:
             if operation["kind"] == "check_interval":
                 prior = before["checks"][operation["check_id"]]

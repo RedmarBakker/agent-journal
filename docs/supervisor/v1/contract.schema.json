@@ -14,6 +14,7 @@
             "phases",
             "tasks",
             "checks",
+            "messages",
             "review_rounds"
           ]
         },
@@ -37,7 +38,8 @@
             "phases",
             "tasks",
             "checks",
-            "links"
+            "links",
+            "messages"
           ]
         },
         "id": {
@@ -961,6 +963,29 @@
         "text"
       ]
     },
+    "PlanTellOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "plan_tell"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "kind",
+        "plan_id",
+        "text"
+      ]
+    },
     "DiagnosticOperation": {
       "type": "object",
       "additionalProperties": false,
@@ -1034,6 +1059,9 @@
       "oneOf": [
         {
           "$ref": "#/$defs/PrioritiesOperation"
+        },
+        {
+          "$ref": "#/$defs/PlanTellOperation"
         },
         {
           "$ref": "#/$defs/DiagnosticOperation"

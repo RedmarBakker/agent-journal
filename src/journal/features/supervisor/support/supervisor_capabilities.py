@@ -1,3 +1,6 @@
+from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE as COMMAND_CATALOGUE
+
+
 AREA_DEFINITIONS = (
     ("plans-and-tasks", "Plans and tasks", (
         ("task create", "Create a task", 1), ("task rename", "Rename a task", 1),
@@ -115,14 +118,27 @@ AREA_DEFINITIONS = (
 
 AREA_KEYS = tuple(area[0] for area in AREA_DEFINITIONS)
 CAPABILITY_CATALOGUE = {
-    capability: (area_key, tier)
-    for area_key, _title, verbs, _displayed, _note in AREA_DEFINITIONS
-    for capability, _label, tier in verbs
+    f"{noun} {verb}": (area.lower().replace(",", "").replace(" ", "-"),
+                        int(tier.removeprefix("tier ")) if tier.startswith("tier ") else tier)
+    for area, nouns in COMMAND_CATALOGUE.items()
+    for noun, verbs in nouns.items()
+    for verb, tier in verbs.items()
+}
+CAPABILITY_LABELS = {
+    capability: label
+    for _key, _title, verbs, _displayed, _note in AREA_DEFINITIONS
+    for capability, label, _tier in verbs
 }
 DECISION_CAPABILITIES = tuple(
-    {"capability": capability, "title": label, "area": title, "tier": tier}
-    for _key, title, verbs, _displayed, _note in AREA_DEFINITIONS
-    for capability, label, tier in verbs if tier == 3
+    {
+        "capability": f"{noun} {verb}",
+        "title": CAPABILITY_LABELS.get(f"{noun} {verb}", f"{verb.replace('-', ' ').title()} {noun}"),
+        "area": area,
+        "tier": 3,
+    }
+    for area, nouns in COMMAND_CATALOGUE.items()
+    for noun, verbs in nouns.items()
+    for verb, tier in verbs.items() if tier == "tier 3"
 )
 
 
@@ -131,10 +147,11 @@ def control_areas(capabilities: dict) -> list[dict]:
     areas = []
     for key, title, verbs, displayed, note in AREA_DEFINITIONS:
         rows = [
-            {"capability": capability, "title": label, "tier": tier,
+            {"capability": capability, "title": label, "tier": CAPABILITY_CATALOGUE[capability][1],
              "enabled": settings.get(capability, {}).get("on", False),
              "mode": settings.get(capability, {}).get("mode", "act")}
-            for capability, label, tier in verbs if capability in displayed
+            for capability, label, _tier in verbs
+            if capability in displayed and capability in CAPABILITY_CATALOGUE
         ]
         master = settings.get(f"area:{key}")
         enabled = master["on"] if master else any(
@@ -144,7 +161,8 @@ def control_areas(capabilities: dict) -> list[dict]:
             "key": key,
             "title": title,
             "enabled": enabled,
-            "capabilities": [capability for capability, _label, _tier in verbs],
+            "capabilities": [capability for capability, _label, _tier in verbs
+                             if capability in CAPABILITY_CATALOGUE],
             "verbs": rows,
             "note": note,
         })

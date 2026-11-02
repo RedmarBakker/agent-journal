@@ -1094,6 +1094,24 @@ def test_run_or_propose_translates_catalogue_command_and_settles_usage(tmp_path)
     }]
 
 
+def test_run_or_propose_translates_a_tier_two_catalogue_command(tmp_path):
+    journal = StubJournal()
+    state = metered_state_with_usage(tmp_path)
+    server = McpServer(SupervisorBridge(journal, state))
+    arguments = action_arguments()
+    arguments.update({"verb": "tell", "arguments": {"plan_id": 1, "text": "Review the failed health check."}})
+
+    result = server.handle({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": RUN_OR_PROPOSE_TOOL, "arguments": arguments},
+    })
+
+    assert result["result"]["isError"] is False
+    assert journal.calls[-1][1]["operations"] == [{
+        "kind": "plan_tell", "plan_id": 1, "text": "Review the failed health check.",
+    }]
+
+
 def test_run_or_propose_returns_journal_selected_proposal(tmp_path):
     journal = ProposalJournal()
     state = metered_state_with_usage(tmp_path)
