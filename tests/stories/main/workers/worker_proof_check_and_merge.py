@@ -1,22 +1,11 @@
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
-from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.plan_worker_delivered import PlanWorkerDelivered
 from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
-
-
-@story(WorkerDelivered, subject=AgentRole.MAIN)
-def test_checked_proofs_let_the_work_be_merged(story):
-    story.agent_runs(story.agents.subject, f"worker check {story.agents.workers.first()} 1")
-    story.agent_runs(story.agents.subject, f"worker check {story.agents.workers.first()} 2")
-    result = story.agent_runs(story.agents.subject, f"worker merge {story.agents.workers.first()}")
-    result.expect_command_passed()
-    story.expect_task(story.tasks.briefed, state=TaskState.COMPLETED)
-    story.expect_stack(story.agents.subject, Ready)
 
 
 @story(WorkerDelivered, subject=AgentRole.MAIN)

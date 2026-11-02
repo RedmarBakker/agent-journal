@@ -357,7 +357,7 @@ class Tasks(ScopedRepository[Task]):
         with self.writing():
             self.assign_holder(started, holder, actor)
             started = self.addressed_event(started, holder, TaskStarted)
-            return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
+            return self.save(started.with_(delegated=holder is not None and holder.type == WORKERS), actor)
 
     def addressed_event(self, task: Task, holder: Ref | None, event_type: type) -> Task:
         if holder is None or holder.type != Agent.table():
@@ -401,6 +401,8 @@ class Tasks(ScopedRepository[Task]):
                 self.links.save(Link(source=holder, target=target, link_type=WORKED_LINK), actor)
             if holder.type == WORKERS and not task.delegated:
                 self.save(task.delegate(self.time_source.moment()), actor)
+            elif holder.type != WORKERS and task.delegated:
+                self.clear_unassigned_delegation(task.id, actor)
             for link in self.links.all_matching(source=holder, target=target, link_type=QUEUED_LINK):
                 self.links.delete(link, actor)
 
@@ -484,8 +486,9 @@ class Tasks(ScopedRepository[Task]):
         self.freed(holder, (CURRENT_TASK_LINK, FINISHED_LINK, QUEUED_LINK), actor)
 
     def finish_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
-        self.release_task(holder, task_id, actor)
-        self.links.save(Link(source=holder, target=Ref("tasks", task_id), link_type=FINISHED_LINK), actor)
+        with self.writing():
+            self.links.save(Link(source=holder, target=Ref("tasks", task_id), link_type=FINISHED_LINK), actor)
+            self.release_task(holder, task_id, actor)
 
     def reopen_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         for current in self.holder_task_ids(holder):
@@ -497,20 +500,29 @@ class Tasks(ScopedRepository[Task]):
     def unfinished(self, holder: Ref, actor: Actor) -> None:
         for link in self.links.all_matching(source=holder, link_type=FINISHED_LINK):
             self.links.delete(link, actor)
+            self.clear_unassigned_delegation(link.target.id, actor)
 
     def finished_task_ids(self, holder: Ref) -> tuple[int, ...]:
         return tuple(link.target.id for link in sorted(self.links.all_matching(source=holder, link_type=FINISHED_LINK), key=lambda link: link.row_id))
 
     def release_task(self, holder: Ref, task_id: int, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), link_type=CURRENT_TASK_LINK):
-            self.links.delete(link, actor)
+        with self.writing():
+            for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), link_type=CURRENT_TASK_LINK):
+                self.links.delete(link, actor)
+            if holder.type == WORKERS:
+                self.clear_unassigned_delegation(task_id, actor)
+
+    def clear_unassigned_delegation(self, task_id: int, actor: Actor) -> None:
+        task = self.find(task_id)
+        if task.delegated and self.worker_assignment(task) is None:
+            self.save(task.with_(delegated=False), actor)
 
     def unqueued_task(self, task: Task, actor: Actor) -> list[Ref]:
         queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
         for link in queue_links:
             self.links.delete(link, actor)
         if queue_links:
-            self.save(task.with_(delegated=False), actor)
+            self.clear_unassigned_delegation(task.id, actor)
         return [link.source for link in queue_links]
 
     def unqueued(self, holder: Ref, actor: Actor) -> None:
@@ -520,7 +532,11 @@ class Tasks(ScopedRepository[Task]):
         freed = []
         for link in (link for type_name in link_types for link in self.links.all_matching(source=holder, link_type=type_name)):
             self.links.delete(link, actor)
-            freed += [task for task in self.matching(id=link.target.id, delegated=True) if not task.state.is_closed()]
+            for task in self.matching(id=link.target.id, delegated=True):
+                if task.state.is_closed():
+                    self.clear_unassigned_delegation(task.id, actor)
+                else:
+                    freed.append(task)
         group = ReleasedTasks(holder.id, tuple(task.row_id for task in freed), self.common_plan(freed))
         for i, task in enumerate(freed):
             self.save(task.released(self.time_source.moment().timestamp(), group if i == 0 else None), actor)

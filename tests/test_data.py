@@ -177,6 +177,31 @@ def test_a_plugin_list_read_started_before_install_does_not_hide_the_new_plugin(
     assert [plugin.name for plugin in main] == ["asks", "silent"] and [plugin.name for plugin in worker] == ["asks"], "each editor role reaches the current recipient list"
 
 
+def test_delegation_lasts_until_the_last_worker_assignment_is_removed(connection, bus, scope):
+    from journal.repositories.tasks import CURRENT_TASK_LINK, FINISHED_LINK, QUEUED_LINK
+
+    tasks = tasks_of(connection, bus, scope)
+    first, second = Ref("workers", 1), Ref("workers", 2)
+    with scope.environment(1):
+        task = tasks.save(Task(title="the parser", state=TaskState.STARTED, delegated=True), USER)
+        tasks.links.save(Link(source=first, target=Ref.build(task), link_type=CURRENT_TASK_LINK), USER)
+        tasks.finish_holder_task(task.id, first, USER)
+        assert tasks.find(task.id).delegated and tasks.worker_assignment(task) == (first, FINISHED_LINK), "finished work waiting for merge still belongs to its worker"
+
+        tasks.save(tasks.find(task.id).completed(TimeSource().moment(), "done"), USER)
+        tasks.release_all(first, USER)
+        closed = tasks.find(task.id)
+        assert closed.state == TaskState.COMPLETED and not closed.delegated and tasks.worker_assignment(closed) is None, "ending a closed task's assignment clears delegation without reopening it"
+
+        queued = tasks.save(Task(title="the footer", delegated=True), USER)
+        tasks.links.save(Link(source=first, target=Ref.build(queued), link_type=QUEUED_LINK), USER)
+        tasks.links.save(Link(source=second, target=Ref.build(queued), link_type=CURRENT_TASK_LINK), USER)
+        tasks.unqueued_task(queued, USER)
+        assert tasks.find(queued.id).delegated, "dropping a queue entry does not clear another worker's current assignment"
+        tasks.release_task(second, queued.id, USER)
+        assert not tasks.find(queued.id).delegated, "the final worker assignment clears delegation"
+
+
 def test_a_refusing_listener_stops_the_write(connection, bus, scope):
     bus.listen(Creating, SayNo())
     tasks = tasks_of(connection, bus, scope)
