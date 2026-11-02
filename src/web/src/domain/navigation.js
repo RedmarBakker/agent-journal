@@ -1,3 +1,5 @@
+import {TABS} from "./settingsCatalog.js";
+
 export const SIDEBAR = "sidebar";
 
 export const PAGES = {
@@ -14,7 +16,7 @@ export const PAGES = {
     team: {title: "Team", icon: "people", text: "Your team's server: its people, devices and the items it shares"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},
     plugins: {title: "Plugins", icon: "plug", text: "Installed plugins, with their dashboards and settings"},
-    settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves"},
+    settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves", children: TABS.map(({key, title}) => ({key, title}))},
 };
 
 export const RESOURCE_GROUPS = [

@@ -25,6 +25,10 @@ const pages = computed(() => pluginPages(rows("plugins")));
 const domains = computed(() => store.organization?.domains || []);
 const liveDomainCounts = computed(domainCounts);
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
+const childrenOf = (link) => link.children || [];
+const isOpenPage = (link) => route.value.page === link.page && childrenOf(link).some((child) => child.key === route.value.sub);
+const subpageHref = (link, child) => `${href.page(link.page)}?sub=${encodeURIComponent(child.key)}`;
+const linkHref = (link) => (childrenOf(link).length ? subpageHref(link, childrenOf(link)[0]) : href.page(link.page));
 const release = computed(() => store.spec.version || "");
 const creating = ref(false);
 onMounted(async () => (creating.value = !(await api.list("environments", {limit: 1})).rows.length));
@@ -84,13 +88,27 @@ function point(e) {
                 <FoldGroup class="group" :label="g.label" :open="!folded[g.key]" @toggle="fold(g.key)">
                     <template v-for="link in g.links" :key="link.key">
                         <a
-                            :class="['item', {on: (route.page || '') === link.page}]"
-                            :href="href.page(link.page)"
+                            :class="['item', {parent: childrenOf(link).length, open: isOpenPage(link), in: isOpenPage(link), on: !childrenOf(link).length && (route.page || '') === link.page}]"
+                            :href="linkHref(link)"
+                            :aria-expanded="childrenOf(link).length ? isOpenPage(link) : undefined"
                         >
                             <Icon :name="link.icon" />
                             <span class="label">{{ link.title }}</span>
-                            <span :class="['count', {hot: link.hot}]" :title="link.countTitle && link.count ? `${link.count} ${link.countTitle}` : null">{{ link.count || "" }}</span>
+                            <span v-if="!isOpenPage(link)" :class="['count', {hot: link.hot}]" :title="link.countTitle && link.count ? `${link.count} ${link.countTitle}` : null">{{ link.count || "" }}</span>
+                            <span v-if="childrenOf(link).length" class="exp" aria-hidden="true"><Icon name="chevronRight" :size="12" /></span>
                         </a>
+                        <div v-if="isOpenPage(link)" class="item-subpages">
+                            <a
+                                v-for="child in childrenOf(link)"
+                                :key="child.key"
+                                :class="['item', 'item-subpage', {on: route.sub === child.key}]"
+                                :href="subpageHref(link, child)"
+                                :aria-current="route.sub === child.key ? 'page' : undefined"
+                            >
+                                <span class="label">{{ child.title }}</span>
+                                <span :class="['count', {hot: child.hot}]" :title="child.countTitle && child.count ? `${child.count} ${child.countTitle}` : null">{{ child.count || "" }}</span>
+                            </a>
+                        </div>
                     </template>
                     <template v-if="g.key === 'project'">
                         <template v-for="page in pages" :key="page.key">
@@ -322,6 +340,46 @@ function point(e) {
     width: 15px;
     height: 15px;
     color: var(--text-3);
+}
+
+.item.parent .exp {
+    display: flex;
+    flex: none;
+    margin-left: 2px;
+    color: var(--text-4);
+    transition: transform 0.15s;
+}
+
+.item.parent > .label {
+    flex: 1;
+    min-width: 0;
+}
+
+.item.parent.open .exp {
+    transform: rotate(90deg);
+}
+
+.item.parent.in {
+    color: var(--text);
+}
+
+.item.parent.in > .ico {
+    color: var(--accent-text);
+}
+
+.item-subpages {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 1px 0 4px 17px;
+    padding-left: 9px;
+    border-left: 1px solid var(--border);
+}
+
+.item-subpage {
+    height: 28px;
+    padding-left: 9px;
+    font-size: 12.5px;
 }
 
 .count {

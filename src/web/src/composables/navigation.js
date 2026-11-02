@@ -20,6 +20,7 @@ const typeLink = (t, now) => {
         title: pluralTitle(t.title),
         icon: t.icon,
         text: t.abstract,
+        children: t.children || [],
         count,
         countTitle: COUNT_TITLES[t.name] || "",
         hot: !!t.needs_attention && !!count,
