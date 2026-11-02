@@ -554,7 +554,8 @@ static int wait_for_smoke(pid_t child, int seconds, const char *receipt_path, co
             return WEXITSTATUS(status);
         }
         if (result < 0 && errno != EINTR) return 127;
-        if (!reconcile_started && now.tv_sec > last_gateway_probe) {
+        if (!reconcile_started && now.tv_sec > last_gateway_probe
+            && now.tv_sec + GATEWAY_HEALTH_TIMEOUT_SECONDS < deadline) {
             last_gateway_probe = now.tv_sec;
             int gateway_ready = compose(COMPOSE_GATEWAY_HEALTH, secret_directory, gateway_state, GATEWAY_HEALTH_TIMEOUT_SECONDS);
             if (gateway_ready == 127) return stop_child(child, gateway_ready);

@@ -290,14 +290,16 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert f"-f {COMPOSE}" in calls[0]
     assert "--profile authorized-staging" in calls[0]
     assert "exec -T --user 10003:10003 writer /usr/local/bin/supervisor-codex-ready" in calls[0]
-    assert " up " in f" {calls[1]} " and "gateway" in calls[1] and "writer" in calls[1]
-    assert "--no-build --pull never" in calls[1]
+    up_indexes = [index for index, call in enumerate(calls) if " up " in f" {call} "]
+    assert len(up_indexes) == 1
+    assert "gateway" in calls[up_indexes[0]] and "writer" in calls[up_indexes[0]]
+    assert "--no-build --pull never" in calls[up_indexes[0]]
     health_indexes = [index for index, call in enumerate(calls) if "healthz" in call]
     reconcile_indexes = [index for index, call in enumerate(calls) if "/opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in call]
     down_indexes = [index for index, call in enumerate(calls) if "down --timeout 3 --remove-orphans" in call]
     assert len(reconcile_indexes) == 1
     assert health_indexes and calls[health_indexes[-1]].find("gateway") >= 0
-    assert down_indexes and 1 < health_indexes[-1] < reconcile_indexes[0] < down_indexes[0]
+    assert down_indexes and up_indexes[0] < health_indexes[-1] < reconcile_indexes[0] < down_indexes[0]
     assert (home / "gateway-health-passed").exists()
     assert "exec -T gateway /opt/journal-supervisor/bin/journal-supervisor-bridge reconcile" in calls[reconcile_indexes[0]]
     assert "-v" not in calls[down_indexes[0]]
