@@ -147,7 +147,7 @@ def staging_root(tmp_path):
         "chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex\n"
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/\n"
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher\n"
-        "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup\n"
+        "COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup\n"
     )
     (work / "docker/entrypoint.sh").write_text(
         "setpriv --reuid 10003 --regid 10003 --clear-groups supervisor-codex-ready\n"
@@ -263,7 +263,7 @@ def test_launcher_starts_one_fixed_pinned_smoke_without_echoing_or_placing_the_k
     assert f"--env-file {ENV_FILE}" in calls[0]
     assert f"-f {COMPOSE}" in calls[0]
     assert "--profile authorized-staging" in calls[0]
-    assert "run --rm --no-deps --user 10003:10003 --entrypoint /usr/local/bin/supervisor-codex-ready writer" in calls[0]
+    assert "exec -T --user 10003:10003 writer /usr/local/bin/supervisor-codex-ready" in calls[0]
     assert " up " in f" {calls[1]} " and "gateway" in calls[1] and "writer" in calls[1]
     assert "--no-build --pull never" in calls[1]
     assert "down --timeout 3 --remove-orphans" in calls[2]

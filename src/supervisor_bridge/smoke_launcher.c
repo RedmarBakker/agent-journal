@@ -216,7 +216,7 @@ static int valid_profile(const char *config_path) {
         "chmod 700 /data/home /data/secrets /data/gateway /data/vault /var/lib/journal-codex",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-login docker/supervisor-codex-ready /usr/local/bin/",
         "COPY --chown=root:root --chmod=755 docker/supervisor-codex-plan-launcher.py /usr/local/bin/supervisor-codex-plan-launcher",
-        "COPY docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
+        "COPY --chown=root:root --chmod=755 docs/supervisor/v1/live-smoke-setup.py /usr/local/bin/supervisor-live-setup",
     };
     static const char *required_writer_volume[] = {
         "\"JOURNAL_HOST\": \"127.0.0.1\"",
@@ -535,8 +535,8 @@ static int compose(ComposeAction action, const char *secret_directory, const cha
     };
     char *ready_arguments[] = {
         "docker", "compose", "--project-name", PROJECT_NAME, "--env-file", ENV_FILE,
-        "-f", COMPOSE_FILE, "--profile", "authorized-staging", "run", "--rm",
-        "--no-deps", "--user", "10003:10003", "--entrypoint", "/usr/local/bin/supervisor-codex-ready", "writer", NULL,
+        "-f", COMPOSE_FILE, "--profile", "authorized-staging", "exec", "-T",
+        "--user", "10003:10003", "writer", "/usr/local/bin/supervisor-codex-ready", NULL,
     };
     char **arguments = action == COMPOSE_DOWN ? down_arguments : action == COMPOSE_READY ? ready_arguments : up_arguments;
     pid_t child = fork();
