@@ -240,6 +240,7 @@ def test_production_boundary_policy_only_allows_run_storage_and_local_provider_p
     policy = boundary.policy(root, ())
 
     assert f'(allow file-write* (subpath "{root}"))' in policy
+    assert '(allow file-read* (literal "/"))' in policy
     assert "(allow file-write*)" not in policy
     assert 'remote ip "localhost:32001"' in policy
     assert 'remote ip "localhost:32002"' in policy
@@ -249,10 +250,6 @@ def test_production_boundary_policy_only_allows_run_storage_and_local_provider_p
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
                     reason="production filesystem isolation uses macOS sandbox-exec")
 def test_stand_in_cli_cannot_write_outside_its_private_run_root(tmp_path):
-    probe = subprocess.run([shutil.which("sandbox-exec"), "-p", "(version 1)(allow default)", "/bin/true"],
-                           capture_output=True, check=False)
-    if probe.returncode != 0:
-        pytest.skip("host process cannot start a nested macOS sandbox")
     root = tmp_path / "private-run"
     paths = {name: root / folder for name, folder in (
         ("root", ""), ("project", "project"), ("private_home", "home"),

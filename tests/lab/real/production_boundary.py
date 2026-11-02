@@ -69,6 +69,7 @@ class ProductionBoundary:
                 Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"),
             )),
             *(f'(allow file-read* (subpath {json.dumps(str(path.resolve()))}))' for path in read_paths),
+            '(allow file-read* (literal "/"))',
             f'(allow file-read* (subpath {json.dumps(str(root))}))',
             f"(allow file-write* (subpath {json.dumps(str(root))}))",
             '(allow file-write* (literal "/dev/null"))',

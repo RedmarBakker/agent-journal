@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import threading
 import time
 from types import SimpleNamespace
 
@@ -110,10 +109,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
     drivers = {}
     active = SimpleNamespace(driver=None)
 
-    def watchdog_arm(owner, deadline):
-        driver = drivers.get(owner)
-        if driver:
-            driver.deadline = deadline
+    def watchdog_arm(_owner, _deadline):
         return True
 
     def watchdog_stop(owner, reason):
@@ -124,7 +120,7 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
 
     def driver_factory(run_id, spec):
         driver = SimpleNamespace(run_id=run_id, spec=spec, process=None, session_id=f"session-{run_id}", caps=None,
-                                 deadline=None, timer=None, event_server=None, cap_token="stand-in-cap-token",
+                                 event_server=None, cap_token="stand-in-cap-token",
                                  plan_started=False, plan_prepared=False)
         drivers[run_id] = driver
         factory_calls.append(run_id)
@@ -165,15 +161,6 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
                                               stderr=subprocess.DEVNULL, start_new_session=True)
             driver.log = log
             driver.paths = paths
-            if driver.spec.get("simulate_time_cap"):
-                def expire():
-                    try:
-                        caps.refuse_at_cap(caps.read(), "run_wall_minutes", "run wall-time cap reached")
-                    except ValueError:
-                        return
-
-                driver.timer = threading.Timer(max(0.001, driver.deadline - time.monotonic()), expire)
-                driver.timer.start()
             return f"plan-{driver.run_id}"
 
         def prepare_plan(_scenario, _paths):
@@ -190,6 +177,8 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
                 caps.settle_request(f"turn-{current_run_id}-1", None, "completed")
                 if driver.spec.get("simulate_turn_cap"):
                     caps.reserve_request(f"turn-{current_run_id}-2", driver.session_id, input_tokens=1, output_tokens=1)
+                if driver.spec.get("simulate_time_cap"):
+                    caps.refuse_at_cap(caps.read(), "run_wall_minutes", "run wall-time cap reached")
                 driver.process.wait(timeout=2)
                 caps.finish_session(driver.session_id)
                 if caps.read().get("cap_reached"):
@@ -201,8 +190,6 @@ def isolated_batch(tmp_path, monkeypatch, manifest, stand_in):
                 return "capped"
 
         def stop(owner, _reason):
-            if driver.timer:
-                driver.timer.cancel()
             if driver.event_server:
                 driver.event_server.close()
                 driver.event_server = None
