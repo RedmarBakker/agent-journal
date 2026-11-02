@@ -45,6 +45,11 @@ class SupervisorRecords(StateFixture):
             self.add_receipts(story, entries, actor, principal, plan.row_id, "current-plan", 2,
                               ("applied",), "diagnostic_task", 0)
         source.pin(now)
+        result = story.user_opens_in(
+            story.app.container.get(Environments).find(plan.environment_id).name,
+            f"/journal/supervisor/records?period=last_7_days&plan_id={plan.row_id}",
+        )
+        result.expect_viewer_passed()
 
     def expected(self, story) -> None:
         story.expect_stack(story.agents.main, Ready)
