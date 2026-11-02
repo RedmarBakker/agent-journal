@@ -996,7 +996,7 @@ def test_gateway_listener_is_tls_and_policy_fixture_denies_owner_ports():
     authentication = (ROOT / "src" / "journal" / "http" / "support" / "supervisor_authentication.py").read_text()
     assert "if path in SERVICE_PATHS" in authentication
     assert "self.authority.authenticate(token)" in authentication
-    assert "TLS_CA_FILE" in (PROFILE / "journal-supervisor-environment.sh").read_text()
+    assert "TLS_CA_FILE" in (PROFILE / "journal-supervisor-bridge-environment.sh").read_text()
     transport = (ROOT / "src" / "supervisor_bridge" / "transport.py").read_text()
     client = (ROOT / "src" / "supervisor_bridge" / "__main__.py").read_text()
     assert "HTTPSHandler(context=ssl.create_default_context(cafile=ca_file))" in transport
