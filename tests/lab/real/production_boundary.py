@@ -4,6 +4,7 @@ import os
 import platform
 import secrets
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Mapping
 
@@ -11,6 +12,16 @@ from tests.lab.real.isolation_evidence import IsolationEvidence
 
 
 TMUX_SOCKET_PATH_LIMIT = 104
+
+
+def developer_tool_paths() -> tuple[Path, ...]:
+    """The selected developer directory, so /usr/bin/git inside the sandbox finds its tools instead of asking macOS to install them."""
+    selected = subprocess.run(["/usr/bin/xcode-select", "-p"], capture_output=True, text=True, check=False).stdout.strip()
+    if not selected:
+        return ()
+    developer = Path(selected).resolve()
+    bundle = next((parent for parent in (developer, *developer.parents) if parent.suffix == ".app"), developer)
+    return (bundle,)
 
 
 class ProductionBoundary:
@@ -116,7 +127,7 @@ class ProductionBoundary:
             "(allow mach-lookup)",
             *(f'(allow file-read* (subpath {json.dumps(str(path))}))' for path in (
                 Path("/System"), Path("/Library"), Path("/usr"), Path("/bin"), Path("/sbin"),
-                Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"),
+                Path("/private/etc"), Path("/opt/homebrew"), Path("/dev"), *developer_tool_paths(),
             )),
             *(f'(allow file-read-metadata (literal {json.dumps(str(path))}))' for path in metadata_paths),
             *(f'(allow file-read* (literal {json.dumps(str(path.resolve()))}))' for path in read_paths),
