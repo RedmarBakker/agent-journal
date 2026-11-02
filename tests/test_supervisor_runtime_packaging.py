@@ -790,7 +790,7 @@ def test_gateway_build_packages_the_bridge_into_the_pinned_openclaw_image():
     assert "journal-supervisor-mcp" in dockerfile.split("RUN chmod 0555 ", 1)[1]
     assert "ENV PYTHONPATH=/opt/journal-supervisor/lib" in dockerfile
     assert "USER 1000:1000" in dockerfile
-    assert 'exec python3 -m supervisor_bridge "$@"' in wrapper
+    assert 'exec env PYTHONPATH=/opt/journal-supervisor/lib python3 -m supervisor_bridge "$@"' in wrapper
     assert '. /opt/journal-supervisor/bin/journal-supervisor-bridge-environment' in mcp_wrapper
     assert 'exec /opt/journal-supervisor/bin/journal-supervisor-bridge mcp' in mcp_wrapper
     assert "ANTHROPIC_API_KEY" not in mcp_wrapper

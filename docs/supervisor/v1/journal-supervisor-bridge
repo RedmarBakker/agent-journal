@@ -1,4 +1,4 @@
 #!/bin/sh
 set -eu
 
-exec python3 -m supervisor_bridge "$@"
+exec env PYTHONPATH=/opt/journal-supervisor/lib python3 -m supervisor_bridge "$@"
