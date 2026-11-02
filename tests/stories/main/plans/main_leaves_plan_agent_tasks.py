@@ -2,7 +2,6 @@ from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
@@ -73,7 +72,6 @@ def test_a_main_agent_cannot_complete_a_plan_agents_task(story):
     story.expect_stack(story.agents.subject, CoordinatingPlans, FollowingPlan)
 
 
-@setting(TasksOptions.AUTO, True)
 @story(SoloPlanAgentStarted, subject=AgentRole.MAIN)
 def test_an_idle_main_session_does_not_take_a_plan_task_reopened_while_its_agent_runs(story):
     plan, task = story.plans.first, story.tasks.first
