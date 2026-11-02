@@ -1,6 +1,7 @@
 # Host integration tests spawn isolated stand-ins and need macOS sandbox-exec.
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 import platform
 import shutil
@@ -15,6 +16,7 @@ import pytest
 from tests.lab.real.cap_event_server import CapEventServer
 from tests.lab.real.isolated_journal import IsolatedJournal
 from tests.lab.real.production_boundary import ProductionBoundary
+from tests.lab.real import production_driver as production_driver_module
 from tests.lab.real.production_driver import ProductionDriver
 from tests.lab.real.production_watchdog import ProductionWatchdog
 from tests.lab.real.provider_proxy import ProviderProxy
@@ -372,9 +374,39 @@ def test_node_agent_cli_version_probe_runs_under_the_real_boundary(tmp_path, mon
     assert f'(allow file-read* (subpath {json.dumps(str(Path.home()))}))' not in policy
 
 
+def test_wait_identity_keeps_polling_a_journal_that_is_still_booting(tmp_path, monkeypatch):
+    elapsed = 0
+    health_phases = []
+
+    def monotonic():
+        nonlocal elapsed
+        current = elapsed
+        elapsed += 15
+        return current
+
+    def open_url(url, timeout):
+        if url.endswith("/health"):
+            phase = "booted" if len(health_phases) == 3 else "booting"
+            health_phases.append(phase)
+            return BytesIO(json.dumps({"phase": phase}).encode())
+        identity = {"root": str((tmp_path / ".journal").resolve()), "pid": 411}
+        return BytesIO(json.dumps(identity).encode())
+
+    monkeypatch.setattr(production_driver_module.time, "monotonic", monotonic)
+    monkeypatch.setattr(production_driver_module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(production_driver_module, "urlopen", open_url)
+    process = SimpleNamespace(pid=411, poll=lambda: None)
+
+    identity = ProductionDriver.wait_identity(object.__new__(ProductionDriver), process,
+                                              {"project": tmp_path}, "run-1", "launch-1", "challenge-1", 8123)
+
+    assert health_phases == ["booting", "booting", "booting", "booted"]
+    assert identity["root"] == str((tmp_path / ".journal").resolve())
+
+
 @pytest.mark.skipif(platform.system() != "Darwin" or shutil.which("sandbox-exec") is None,
                     reason="production filesystem isolation uses macOS sandbox-exec")
-def test_production_journal_server_answers_health_under_its_real_boundary(tmp_path):
+def test_production_journal_server_answers_health_under_its_real_boundary(tmp_path, monkeypatch):
     root = tmp_path / "private-run"
     paths = IsolatedJournal.paths(root)
     for name in ("root", "project", "private_home", "runtime", "evidence", "tmp",
@@ -384,15 +416,23 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
     shutil.copytree(checkout / "src", paths["project"] / "src")
     cli_bin = tmp_path / "stand-in-clis"
     cli_bin.mkdir(mode=0o700)
-    executables = {}
-    for name in ("claude", "rig"):
-        executable = cli_bin / name
-        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        executable.chmod(0o700)
-        executables[name] = executable
+    provider = cli_bin / "claude"
+    provider.write_text("#!/usr/bin/env node\n", encoding="utf-8")
+    provider.chmod(0o700)
+    rig = cli_bin / "rig"
+    rig.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    rig.chmod(0o700)
+    node = cli_bin / "node"
+    node.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    node.chmod(0o700)
+    executables = {"claude": provider, "rig": rig}
+    host_which = shutil.which
+    monkeypatch.setattr(production_driver_module.shutil, "which",
+                        lambda name: str(node) if name == "node" else host_which(name))
+    monkeypatch.setattr(ProductionDriver, "executable", staticmethod(lambda name: executables.get(name)))
     driver = ProductionDriver("run-1", {"provider": "claude"}, None, checkout, tmp_path,
                               ProductionWatchdog())
-    driver.executable = lambda name: executables[name]
+    assert driver.cli_interpreters == {"node": node.resolve()}
     driver.boundary.verify("run-1", paths)
     policy = driver.boundary.profile.read_text(encoding="utf-8")
     assert f'(allow network-bind (local ip "localhost:{driver.share_port}"))' in policy
@@ -400,6 +440,7 @@ def test_production_journal_server_answers_health_under_its_real_boundary(tmp_pa
 
     try:
         driver.start_journal(paths, shim, "run-1", "launch-1", "challenge-1", driver.journal_port, None)
+        assert not (paths["bin"] / "node").exists()
         with urlopen(f"http://127.0.0.1:{driver.journal_port}/journal/health", timeout=3) as response:
             assert response.status == 200
         assert (paths["project"] / ".journal" / "journal.db").is_file()

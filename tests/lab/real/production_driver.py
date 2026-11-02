@@ -22,6 +22,8 @@ from tests.lab.real.run_record import RunRecord
 from tests.lab.real.run_record_store import RunRecordStore
 from tests.lab.real.run_real_batch import RunRealBatch
 
+JOURNAL_STARTUP_SECONDS = 180
+
 
 class ProductionDriver:
     """Run a pinned journal and organization through a private, capped subscription runtime."""
@@ -340,7 +342,7 @@ print(plan["plan_id"])
 
     def wait_identity(self, process: subprocess.Popen, paths: Mapping[str, Path], run_id: str,
                       launch_id: str, challenge: str, port: int) -> dict[str, object]:
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + JOURNAL_STARTUP_SECONDS
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise ValueError("isolated journal server stopped during startup")
