@@ -8,6 +8,7 @@ from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_started import PlanStarted
 from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
+from journal.features.organization.support.seat_runtime import SeatMember
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.support.agent_environments import AgentEnvironments
@@ -51,9 +52,15 @@ class PlanAgents:
     def agent(self, plan: Plan) -> Agent | None:
         with self.scope.environment(plan.environment_id):
             agent_id = self.plans.agent_id(plan)
+            bound_environment_id = self.bindings.environment_id(plan)
         if not agent_id:
             return None
-        linked_agent = next(iter(self.agents.global_matching(id=agent_id)), None)
+        environment = (self.environments.find(bound_environment_id)
+                       if bound_environment_id and bound_environment_id != plan.environment_id
+                       else self.environments.name_row(f"plan-{plan.id}"))
+        if environment is None:
+            return None
+        linked_agent = next(iter(self.agents.global_matching(id=agent_id, environment_id=environment.row_id)), None)
         if linked_agent is None:
             return None
         plan_environment_id = linked_agent.environment_id
@@ -70,6 +77,21 @@ class PlanAgents:
         if len(plans) != 1:
             return None
         return self.agent(plans[0])
+
+    def hook_seat(self, environment: Environment, session: str, provider: str) -> tuple[Agent, SeatMember] | None:
+        number = environment.name.removeprefix("plan-")
+        if environment.generated_for != "plan" or not number.isdigit() or not self.is_on():
+            return None
+        plan = next(iter(self.plans.global_matching(id=int(number))), None)
+        if plan is None or plan.mode != PlanMode.ORGANIZATION or not self.owns_tasks(plan):
+            return None
+        agent = self.agent(plan)
+        if agent is None or agent.environment_id != environment.row_id:
+            return None
+        rig = self.staffing.plan_rig_name(plan)
+        identity = self.staffing.runtime.organization_seat_for_session(rig, provider, session)
+        member = self.staffing.runtime.organization_member(rig, identity, provider) if identity else None
+        return (agent, member) if member is not None else None
 
     def owns_tasks(self, plan: Plan) -> bool:
         return self.is_on() and plan.state in (

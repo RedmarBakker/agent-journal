@@ -67,6 +67,7 @@ def test_a_completed_prerequisite_wakes_the_idle_plan_seat_to_handoff_its_depend
 
     story.session_starts_in(source, WORKTREE_AGENT_SESSION)
     coordinator = StoryAgent(AgentRole.MAIN, session=WORKTREE_AGENT_SESSION)
+    story.agent_in_runs(coordinator, source, WORKTREE_AGENT_SESSION, "environment overview").expect_command_passed()
     result = story.agent_in_runs(story.agents.main, source, WORKTREE_AGENT_SESSION, f"plan mode {plan} organization")
     result.expect_command_passed()
     story.user_presses_in(source, f"/journal/plans/{plan}/approve", {}).expect_viewer_passed()

@@ -107,7 +107,7 @@ WORKER_RUNNER_START = WorkerRunner.start
 
 
 def catch_typed(app: App, monkeypatch, keystrokes: list[str]) -> None:
-    monkeypatch.setattr(app.container.get(SupervisorLink), "type", lambda environment_id, line, following=0.0: keystrokes.append(line))
+    monkeypatch.setattr(app.container.get(SupervisorLink), "type", lambda environment_id, line, following=0.0, *, agent_id=0: keystrokes.append(line))
 
 
 def agent_row(app: App, session: str = "s1", environment_id: int = 1, provider: str = "claude") -> Agent:

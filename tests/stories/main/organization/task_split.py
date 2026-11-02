@@ -252,7 +252,7 @@ def test_the_plan_task_is_completed_when_the_last_part_is_checked_and_merged(sto
         _domain(story), story.plan_rig_name(story.plans.first), "domain:alpha",
         OrganizationNudges.SPLIT_TASK_COMPLETED.create(task=parent).rendered(),
     )
-    story.expect_stack(_domain(story))
+    story.expect_stack(_domain(story), LeadingPlan, Ended)
 
 
 @story(OrganizationTaskPartClockedIn, subject=AgentRole.MAIN)

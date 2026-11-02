@@ -11,5 +11,5 @@ class ConfirmTyped(AgentListener[PromptSubmitted]):
         self.typed, self.supervisor = keystrokes, supervisor
 
     def handle(self, event: PromptSubmitted) -> None:
-        self.typed.confirm(event.environment_id, event.prompt)
+        self.typed.confirm(event.environment_id, event.prompt, event.agent.row_id)
         self.supervisor.release(event.environment_id)

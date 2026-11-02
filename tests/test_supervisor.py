@@ -892,3 +892,26 @@ def test_group_usage_parsed_sums_the_requested_groups():
     from supervisor.group_usage import GroupUsage, KILOBYTE
     listing = "  41  2048  12.5\n  41  1024   1.5\n  77   512  40.0\n"
     assert GroupUsage.parsed(listing, {41, 99}) == {41: GroupUsage(14.0, 3072 * KILOBYTE), 99: GroupUsage(0.0, 0)}, "the asked groups alone, each summed over its processes, a group with no process at nought"
+
+
+def test_lines_queued_for_one_agent_wait_for_that_agents_hook(app):
+    from journal.support.queued_line import QueuedLine
+    from journal.support.typed_lines import TypedLines
+
+    typed = app.container.get(TypedLines)
+    typed.queue(QueuedLine(1, "[journal] read your plan", agent_id=10))
+    assert typed.pending_instructions(1, 20) == []
+    assert typed.pending_instructions(1, 10) == ["read your plan"]
+
+
+def test_only_the_target_agents_prompt_confirms_a_typed_line(app):
+    from journal.support.typed_lines import TypedLines
+
+    typed = app.container.get(TypedLines)
+    typed.typed(1, "[journal] read your plan", 10)
+    assert not typed.confirm(1, "[journal] read your plan", 20)
+    assert typed.is_waiting(1)
+    assert typed.confirm(1, "[journal] read your plan", 10)
+    assert not typed.is_waiting(1)
+
+

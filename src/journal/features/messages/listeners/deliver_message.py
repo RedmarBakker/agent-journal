@@ -24,4 +24,4 @@ class DeliverMessage(Listener[Created]):
             return
         line = self.nudger.deliver(agent, MessagesNudges.arrival(message))
         if line:
-            self.supervisor.type(message.environment_id, line)
+            self.supervisor.type(message.environment_id, line, agent_id=agent.row_id)

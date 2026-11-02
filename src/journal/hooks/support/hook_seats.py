@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from journal.engine.support.session_agents import SessionAgents
 from journal.features.organization.support.contracts import PLAN
+from journal.features.organization.support.seat_agent_rows import SeatAgentRows
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.hooks.support.checker_hooks import CheckerHooks
 from journal.hooks.support.researcher_hooks import ResearcherHooks
@@ -21,10 +22,11 @@ class HookSeats:
 
     def __init__(
         self, sessions: SessionAgents, workers: WorkerHooks, checkers: CheckerHooks, researchers: ResearcherHooks,
-        agents: Agents, scope: Scope, plan_agents: PlanAgents,
+        agents: Agents, scope: Scope, plan_agents: PlanAgents, seat_rows: SeatAgentRows,
     ) -> None:
         self.sessions, self.workers, self.checkers, self.researchers = sessions, workers, checkers, researchers
         self.agents, self.scope, self.plan_agents = agents, scope, plan_agents
+        self.seat_rows = seat_rows
 
     def agent(self, hook: Hook, environment: Environment) -> Agent:
         if hook.researcher:
@@ -33,6 +35,14 @@ class HookSeats:
             return self.workers.bind(hook, environment)
         if hook.is_sent():
             return self.checkers.bind(hook, environment)
+        plan_seat = self.plan_agents.hook_seat(environment, hook.session, hook.provider)
+        if plan_seat is not None:
+            plan_agent, member = plan_seat
+            current = plan_agent if member.organization_seat == PLAN else self.seat_rows.peer(plan_agent, member, hook.session)
+            self.seat_rows.remember(current, member)
+            if hook.is_session_start():
+                return self.sessions.started_row(current, hook.session, hook.provider)
+            return self.sessions.joined_row(current, hook.session, hook.provider)
         if hook.is_session_start():
             return self.sessions.started_agent(hook.session, environment.row_id, hook.provider)
         return self.sessions.agent(hook.session, environment.row_id, hook.provider)

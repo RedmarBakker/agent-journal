@@ -15,7 +15,7 @@ from journal.features.organization.support.rig_seats import DOMAIN_AGENT, PLAN_A
 from journal.features.organization.support.rig_specs import MINIMUM_OPENRIG_VERSION, OWNER_ONLY, RigSpecs
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.seat import Seat
-from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.seat_worker import SeatWorker
 from journal.features.organization.support.role_work_checks import RoleWorkChecks
 from journal.models.agent import Agent
@@ -30,9 +30,12 @@ from journal.repositories.plans import Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
+from journal.support.actor_type import ActorType
 from journal.support.agent_token import AgentToken
 from journal.support.caller import ACTOR
 from journal.support.rejection import Rejection
+
+SEAT_ENVIRONMENT = "organization_seat"
 
 
 class RigStaffing:
@@ -203,7 +206,9 @@ class RigStaffing:
         provider = self.providers.lookup(provider_name)
         domain_seat = self.seats.domain_agent(domain, provider)
         role_seat = self.worker_seat(role, domain, worker, provider)
-        worker_for = lambda seat, rig: self.seat_worker(seat, role_seat, worker, environment, rig)
+        plan_environment = self.environments.name_row(f"plan-{plan.id}") or self.environments.find(plan.environment_id)
+        worker_for = lambda seat, rig: self.seat_worker(seat, role_seat, worker,
+                                                     environment if seat.qualified == role_seat.qualified else plan_environment.name, rig)
         if role.cardinality is Cardinality.JOURNAL:
             rig = self.shared_rig_for(plan, contracts, domain_seat, role_seat, worker_for, cwd)
             return rig, role_seat
@@ -233,6 +238,8 @@ class RigStaffing:
 
     def shared_rig_for(self, plan: Plan, contracts: Contracts, domain_seat: Seat, role_seat: Seat,
                        worker_for: Callable[[Seat, str], SeatWorker], cwd: Path) -> Rig:
+        assigned = worker_for
+        worker_for = lambda seat, rig: self.shared_worker(plan, seat, assigned(seat, rig), rig)
         name = self.shared_rig_name(plan.environment_id)
         matches = self.rigs.global_matching(name=name, environment_id=plan.environment_id)
         if not matches:
@@ -256,6 +263,24 @@ class RigStaffing:
         if not running:
             self.runtime.start_rig(path)
         return rig
+
+    def shared_worker(self, plan: Plan, seat: Seat, assigned: SeatWorker, rig: str) -> SeatWorker:
+        if assigned.actor.actor_type == ActorType.WORKER:
+            return assigned
+        owner = self.environments.find(plan.environment_id)
+        environment = self.environments.made(f"seat-{rig}-{seat.pod}-{seat.member}", Actor.system(), owner.key, SEAT_ENVIRONMENT)
+        return replace(assigned, environment=environment.name)
+
+    def owner_environment(self, member: SeatMember) -> Environment:
+        environment = self.environments.existing(member.environment)
+        if environment.generated_for == SEAT_ENVIRONMENT:
+            owners = self.environments.matching(key=environment.parent_key)
+            if not owners:
+                raise Rejection(f"organization seat {member.organization_seat} has no owner environment")
+            environment = owners[0]
+        if self.shared_rig_name(environment.row_id) != member.rig:
+            raise Rejection(f"organization seat {member.organization_seat} has the wrong owner environment")
+        return environment
 
     def shared_rig_name(self, environment_id: int) -> str:
         for name in (self.names.organization(environment_id), self.names.legacy_organization(environment_id)):
@@ -299,6 +324,7 @@ class RigStaffing:
         pods = spec.setdefault("pods", [])
         pod = next((value for value in pods if value.get("id") == domain_seat.pod), None)
         role_fragment = None
+        domain_fragment = None
         replace_role = False
         expansion = None
         if pod is None:
@@ -322,11 +348,19 @@ class RigStaffing:
             index = next(index for index, member in enumerate(pod["members"]) if member.get("id") == role_seat.member)
             previous = pod["members"][index]
             assigned = worker_for(role_seat, rig.name)
-            if previous.get("env", {}).get(ACTOR) != assigned.actor.stamp:
+            previous_env = previous.get("env", {})
+            if (previous_env.get(ACTOR), previous_env.get("JOURNAL_ENV")) != (assigned.actor.stamp, assigned.environment):
                 fragment, member = self.specs.member_fragment(rig.name, role_seat, cwd, assigned)
                 pod["members"][index] = member
                 role_fragment = fragment
                 replace_role = True
+
+        if not expansion:
+            domain_index = next(index for index, member in enumerate(pod["members"]) if member["id"] == domain_seat.member)
+            assigned_domain = worker_for(domain_seat, rig.name)
+            if pod["members"][domain_index].get("env", {}).get("JOURNAL_ENV") != assigned_domain.environment:
+                domain_fragment, member = self.specs.member_fragment(rig.name, domain_seat, self.config.root, assigned_domain)
+                pod["members"][domain_index] = member
 
         edges = spec.setdefault("edges", [])
         for source, target in links:
@@ -338,7 +372,7 @@ class RigStaffing:
                 edge = self.specs.edge(source.logical_id(), target.logical_id())
                 if edge not in edges:
                     edges.append(edge)
-        if role_fragment:
+        if role_fragment or domain_fragment:
             self.specs.write_pod_fragment(rig.name, pod)
         self.specs.written(path, spec).chmod(OWNER_ONLY)
         if running:
@@ -348,10 +382,17 @@ class RigStaffing:
                 self.runtime.remove_node(rig.name, role_seat.logical_id())
             if role_fragment and not expansion:
                 self.runtime.add(rig.name, domain_seat.pod, role_fragment, self.specs.spec_folder(rig.name))
+            if domain_fragment:
+                self.runtime.remove_node(rig.name, domain_seat.logical_id())
+                self.runtime.add(rig.name, domain_seat.pod, domain_fragment, self.specs.spec_folder(rig.name))
             for source, target in links:
                 self.runtime.edge(rig.name, source.logical_id(), target.logical_id())
             if expansion:
                 self.launch_expanded_seats(rig, (domain_seat, role_seat))
+            if domain_fragment:
+                self.launch_expanded_seats(rig, (domain_seat,))
+            if replace_role and assigned.actor.actor_type == ActorType.AGENT:
+                self.launch_expanded_seats(rig, (role_seat,))
 
     def launch_expanded_seats(self, rig: Rig, seats: tuple[Seat, ...]) -> None:
         for seat in seats:

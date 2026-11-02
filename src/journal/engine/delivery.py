@@ -24,17 +24,17 @@ class Delivery:
     def applied(self, reply: MachineReply, following: float) -> None:
         environment_id = reply.agent.environment_id
         for remark in reply.remarks:
-            self.supervisor.remark(environment_id, remark)
+            self.supervisor.remark(environment_id, remark, agent_id=reply.agent.row_id)
         for line in reply.keystrokes:
-            self.supervisor.type(environment_id, line, following=following)
+            self.supervisor.type(environment_id, line, following=following, agent_id=reply.agent.row_id)
 
-    def lines(self, environment_id: int, lines: str, following: float) -> None:
+    def lines(self, environment_id: int, lines: str, following: float, agent_id: int = 0) -> None:
         for line in lines.split("\n"):
-            self.supervisor.type(environment_id, line, following=following)
+            self.supervisor.type(environment_id, line, following=following, agent_id=agent_id)
 
     def hook_decision(self, event: AgentEvent, answered: Decision) -> Decision:
         if answered.context and not event.has_hook_lines():
-            self.lines(event.environment_id, answered.context, event.typing_delay)
+            self.lines(event.environment_id, answered.context, event.typing_delay, event.agent.row_id)
         decision = self.with_remarks(event, answered.without(event.journal_text()) if event.journal_text() else answered)
         stop_refusal = event.is_turn_end and not decision.allowed
         if event.is_turn_end and not stop_refusal:
@@ -50,13 +50,13 @@ class Delivery:
     def with_remarks(self, event: AgentEvent, decision: Decision) -> Decision:
         if event.is_work or not event.is_remark_carrier() or event.defers_remarks():
             return decision
-        remarks = self.supervisor.pending_remarks(event.environment_id)
+        remarks = self.supervisor.pending_remarks(event.environment_id, event.agent.row_id)
         return replace(self.with_lines(decision, remarks), remarked=True) if remarks else decision
 
     def line_backlog(self, event: AgentEvent) -> str:
         if event.is_remark_carrier():
-            return self.supervisor.pending_lines(event.environment_id)
-        return self.supervisor.pending_instructions(event.environment_id)
+            return self.supervisor.pending_lines(event.environment_id, event.agent.row_id)
+        return self.supervisor.pending_instructions(event.environment_id, event.agent.row_id)
 
     @staticmethod
     def with_lines(decision: Decision, lines: str) -> Decision:

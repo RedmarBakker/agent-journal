@@ -19,4 +19,4 @@ class NudgeLog:
     def type_line(self, agent: Agent, nudge: Nudge) -> None:
         line = self.nudger.deliver(agent, nudge)
         if line:
-            self.supervisor.type(agent.environment_id, line)
+            self.supervisor.type(agent.environment_id, line, agent_id=agent.row_id)

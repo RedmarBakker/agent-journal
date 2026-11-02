@@ -68,6 +68,7 @@ def test_a_running_plan_does_not_repeat_a_read_domain_handoff(story):
         plan_seat, OrganizationNudges.PLAN_TASK_AWAITS_HANDOFF, task=task, domain="alpha",
     )
     story.expect_plan(plan, state=PlanState.STARTED)
+    story.expect_agents_have_distinct_rows(plan_seat, domain)
     story.expect_stack(domain, LeadingPlan, FollowingPlan)
 
 

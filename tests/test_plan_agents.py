@@ -69,7 +69,7 @@ def supervisors(app: App, monkeypatch) -> Supervisors:
         recorded.running.discard(environments.find(environment_id).name)
 
     monkeypatch.setattr(SupervisorLink, "stop", stopped)
-    monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: None)
+    monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0, *, agent_id=0: None)
     return recorded
 
 
@@ -333,7 +333,7 @@ def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, sup
 def test_the_main_agent_runs_two_plans_through_their_plan_agents_without_writing_code(app: App, supervisors: Supervisors, monkeypatch):
     user_set(app, SWITCH, True)
     typed = []
-    monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: typed.append((environment_id, line)))
+    monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0, *, agent_id=0: typed.append((environment_id, line)))
     first, second = started_plan(app, "the floors"), started_plan(app, "the roof")
     console, messages, plans = app.console(), app.container.get(Messages), app.container.get(Plans)
     for plan in (first, second):

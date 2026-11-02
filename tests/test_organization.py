@@ -563,6 +563,7 @@ def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_fi
 
 
 def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_seat(app, tmp_path, monkeypatch):
+    from journal.features.organization.support.rig_seats import DOMAIN_AGENT
     _fixture, organization = loaded(app, tmp_path)
     contracts = organization.reload()
     user_set(app, "workers.openrig_version", "0.7.6")
@@ -583,6 +584,11 @@ def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_
         worker = workers.save(Worker(environment_id=1, name="Ada Lovelace", role="scout", contract=contracts.version,
                                      plan_id=first_plan.id, provider="claude", model="opus"), actor)
         first = runner.member(worker)
+        path = app.config.home / "runtime" / "rigs" / first.rig / "rig.yaml"
+        legacy = json.loads(path.read_text())
+        domain = next(member for pod in legacy["pods"] for member in pod["members"] if member["id"] == DOMAIN_AGENT)
+        domain["env"]["JOURNAL_ENV"] = "main"
+        path.write_text(json.dumps(legacy))
         second = runner.member(workers.save(worker.with_(plan_id=second_plan.id), actor))
         rig_name = app.container.get(RigNames).organization(1)
         spec = json.loads((app.config.home / "runtime" / "rigs" / rig_name / "rig.yaml").read_text())
@@ -590,6 +596,9 @@ def test_journal_roles_from_two_organization_plans_share_one_long_lived_rig_and_
     members = {member["id"] for pod in spec["pods"] for member in pod["members"]}
     assert first.rig == second.rig == rig_name and first.logical_id == second.logical_id == "alpha.scout", "both plans use the same shared Role seat"
     assert len([call for call in calls if call[0] == "up"]) == 1 and members == {"domain-agent", "scout"}, "the shared rig starts once and has no plan-specific Role copy"
+    environments = {member["id"]: member["env"]["JOURNAL_ENV"] for pod in spec["pods"] for member in pod["members"]}
+    assert environments[DOMAIN_AGENT] != "main", "reusing the shared rig repairs the Domain's legacy owner environment"
+    assert environments[first.member] == "main", "the writing Role keeps its worker's environment and identity"
 
 
 def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_then_drops_both_after_merge(app, tmp_path, monkeypatch):

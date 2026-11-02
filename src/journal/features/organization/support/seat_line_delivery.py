@@ -1,28 +1,28 @@
-from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.repositories.agents import Agents
 from journal.repositories.rigs import Rigs
-from journal.repositories.scope import Scope
 from journal.support.supervisor_reply import SupervisorReply
 
 
 class SeatLineDelivery:
-    """Send an environment's lines to its live organization seat by native session."""
+    """Send the target agent's lines to its live organization seat by native session."""
 
-    def __init__(self, agents: Agents, rigs: Rigs, scope: Scope, runtime: SeatRuntime) -> None:
-        self.agents, self.rigs, self.scope, self.runtime = agents, rigs, scope, runtime
+    def __init__(self, agents: Agents, rigs: Rigs, runtime: SeatRuntime) -> None:
+        self.agents, self.rigs, self.runtime = agents, rigs, runtime
 
-    def send(self, environment_id: int, line: str) -> SupervisorReply | None:
-        rigs = self.rigs.global_matching()
-        if not rigs:
+    def send(self, agent_id: int, line: str) -> SupervisorReply | None:
+        seat = self.seat(agent_id)
+        if seat is None:
             return None
-        with self.scope.environment(environment_id):
-            agent = self.agents.current()
-            if agent is None:
-                return None
-            for rig in rigs:
-                identity = self.runtime.organization_seat_for_session(rig.name, agent.provider, agent.session)
-                if identity:
-                    seat = self.runtime.organization_member(rig.name, identity, agent.provider)
-                    self.runtime.send(seat, line)
-                    return SupervisorReply(True)
+        self.runtime.send(seat, line)
+        return SupervisorReply(True)
+
+    def seat(self, agent_id: int) -> SeatMember | None:
+        agent = self.agents.unended_agent(agent_id) if agent_id else None
+        if agent is None:
+            return None
+        for rig in self.rigs.global_matching():
+            identity = self.runtime.organization_seat_for_session(rig.name, agent.provider, agent.session)
+            if identity:
+                return self.runtime.organization_member(rig.name, identity, agent.provider)
         return None

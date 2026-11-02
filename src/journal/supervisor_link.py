@@ -17,6 +17,8 @@ from journal.support.supervisor_process import SupervisorProcess
 from journal.support.supervisor_reply import SupervisorReply
 from journal.support.supervisor_socket import SupervisorSocket
 from journal.repositories.environments import Environments
+from journal.repositories.agents import Agents
+from journal.repositories.scope import Scope
 from journal.support.time_source import TimeSource
 from journal.support.process_usage import ProcessUsage
 
@@ -32,30 +34,41 @@ AGENT, JOURNAL, SUPERVISOR = "agent", "journal", "supervisor"
 class SupervisorLink:
     """The journal's terminal delivery: a live organization seat receives lines by its native session, other agents through their supervisor's announced inbox. Unsent lines remain queued; typed lines start with the journal marker."""
 
-    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows, time_source: TimeSource, seats: SeatLineDelivery) -> None:
+    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows, time_source: TimeSource, seats: SeatLineDelivery, agents: Agents, scope: Scope) -> None:
         self.time_source = time_source
         self.config, self.environments, self.typed, self.settings = config, environments, keystrokes, settings
         self.seats = seats
+        self.agents, self.scope = agents, scope
         self._chosen_at: dict[int, float] = {}
         self._viewer_keyed_at: dict[int, float] = {}
 
-    def type(self, environment_id: int, line: str, following: float = 0.0) -> None:
+    def type(self, environment_id: int, line: str, following: float = 0.0, *, agent_id: int = 0) -> None:
         if self.typed.is_disabled(environment_id):
             return
         flagged = f"{JOURNAL_PREFIX} {' '.join(line.split())}"
-        self.typed.queue(QueuedLine(environment_id, flagged, following, self.time_source.seconds()))
+        self.typed.queue(QueuedLine(environment_id, flagged, following, self.time_source.seconds(), agent_id=self.target(environment_id, agent_id)))
         self.release(environment_id)
 
-    def remark(self, environment_id: int, line: str) -> None:
+    def target(self, environment_id: int, agent_id: int = 0) -> int:
+        if agent_id:
+            return agent_id
+        with self.scope.environment(environment_id):
+            agent = self.agents.current()
+        return agent.row_id if agent else 0
+
+    def remark(self, environment_id: int, line: str, *, agent_id: int = 0) -> None:
         if not self.typed.is_disabled(environment_id):
-            self.typed.queue(QueuedLine(environment_id, f"{JOURNAL_PREFIX} {' '.join(line.split())}", is_remark=True))
+            self.typed.queue(QueuedLine(environment_id, f"{JOURNAL_PREFIX} {' '.join(line.split())}", is_remark=True, agent_id=self.target(environment_id, agent_id)))
 
     def wake(self, environment_id: int, first: QueuedLine) -> None:
-        self.typed.typed(environment_id, first.line)
+        self.typed.typed(environment_id, first.line, first.agent_id)
         self.typed.work(environment_id)
+        self.deliver_line(first)
+
+    def deliver_line(self, first: QueuedLine) -> None:
         sent = False
         try:
-            sent = self._send(environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds}).success
+            sent = self._send(first.environment_id, "type", {"name": AGENT, "line": first.line, "after": first.delay_seconds, "agent_id": first.agent_id}).success
         finally:
             if not sent:
                 self.typed.unsent(first)
@@ -79,14 +92,14 @@ class SupervisorLink:
         self.typed.rest(environment_id)
         self.release(environment_id)
 
-    def pending_lines(self, environment_id: int) -> str:
-        return "\n".join(self.typed.pending_lines(environment_id))
+    def pending_lines(self, environment_id: int, agent_id: int = 0) -> str:
+        return "\n".join(self.typed.pending_lines(environment_id, agent_id))
 
-    def pending_remarks(self, environment_id: int) -> str:
-        return "\n".join(self.typed.pending_remarks(environment_id))
+    def pending_remarks(self, environment_id: int, agent_id: int = 0) -> str:
+        return "\n".join(self.typed.pending_remarks(environment_id, agent_id))
 
-    def pending_instructions(self, environment_id: int) -> str:
-        return "\n".join(self.typed.pending_instructions(environment_id))
+    def pending_instructions(self, environment_id: int, agent_id: int = 0) -> str:
+        return "\n".join(self.typed.pending_instructions(environment_id, agent_id))
 
     def disable(self, environment_id: int) -> None:
         self.typed.disable(environment_id)
@@ -112,22 +125,23 @@ class SupervisorLink:
         if first is not None:
             self.wake(environment_id, first)
 
-    def erase(self, environment_id: int) -> None:
-        self.keys(environment_id, LINE_ERASE * (self.typed.waiting_count(environment_id) + ERASE_MARGIN_LINES))
+    def erase(self, environment_id: int, agent_id: int = 0) -> None:
+        if self.seats.seat(agent_id) is None and self.announced(environment_id) is not None:
+            self.keys(environment_id, LINE_ERASE * (self.typed.waiting_count(environment_id) + ERASE_MARGIN_LINES))
 
-    def retype(self, environment_id: int, flagged: str) -> None:
-        self._send(environment_id, "type", {"name": AGENT, "line": flagged, "after": 0.0})
+    def retype(self, environment_id: int, flagged: str, agent_id: int = 0) -> None:
+        self.deliver_line(QueuedLine(environment_id, flagged, line_at=self.time_source.seconds(), agent_id=agent_id))
 
-    def type_raw(self, environment_id: int, line: str) -> None:
+    def type_raw(self, environment_id: int, line: str, *, agent_id: int = 0) -> None:
         self._viewer_keyed_at[environment_id] = self.time_source.seconds()
-        self._send(environment_id, "type", {"name": AGENT, "line": line, "after": 0.0})
+        self._send(environment_id, "type", {"name": AGENT, "line": line, "after": 0.0, "agent_id": self.target(environment_id, agent_id)})
 
     def keys(self, environment_id: int, keys: str) -> None:
         self._send(environment_id, "keys", {"name": AGENT, "keys": keys})
 
-    def choose(self, environment_id: int, command: str) -> None:
+    def choose(self, environment_id: int, command: str, *, agent_id: int = 0) -> None:
         self._chosen_at[environment_id] = self.time_source.seconds()
-        self._send(environment_id, "type", {"name": AGENT, "line": command, "after": 0.0})
+        self._send(environment_id, "type", {"name": AGENT, "line": command, "after": 0.0, "agent_id": self.target(environment_id, agent_id)})
 
     def last_selection(self, environment_id: int) -> float:
         return self._chosen_at.get(environment_id, 0.0)
@@ -230,8 +244,9 @@ class SupervisorLink:
         return SupervisorAnnouncement.parsed(json.loads(text)) if text.startswith("{") else SupervisorAnnouncement(text, OldSupervisor.screen(self.config.home, path.name))
 
     def _send(self, environment_id: int, verb: str, fields: dict) -> SupervisorReply:
+        agent_id = fields.pop("agent_id", 0)
         if verb == "type" and fields.get("name") == AGENT:
-            delivered = self.seats.send(environment_id, fields["line"])
+            delivered = self.seats.send(agent_id, fields["line"])
             if delivered is not None:
                 return delivered
         announced = self.announced(environment_id)

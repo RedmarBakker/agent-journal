@@ -12,9 +12,10 @@ class TypedLine:
     line: str
     time: float
     tries: int = 1
+    agent_id: int = 0
 
-    def matches_prompt(self, environment_id: int, prompt: str) -> bool:
-        return self.environment_id == environment_id and self.contains(prompt)
+    def matches_prompt(self, environment_id: int, prompt: str, agent_id: int = 0) -> bool:
+        return self.environment_id == environment_id and (not agent_id or self.agent_id in (0, agent_id)) and self.contains(prompt)
 
     def contains(self, prompt: str) -> bool:
         text = " ".join(prompt.split())

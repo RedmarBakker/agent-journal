@@ -375,10 +375,14 @@ class Plans(ScopedRepository[Plan]):
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
     def agent_linked(self, plan: Plan, agent: Agent, actor: Actor) -> Link:
+        for link in self.links.all_matching(source=Ref.build(plan), link_type=PLAN_AGENT_LINK):
+            if link.target != Ref.build(agent):
+                self.links.delete(link, actor)
         return self.links.linked(Ref.build(plan), Ref.build(agent), PLAN_AGENT_LINK, actor)
 
     def agent_id(self, plan: Plan) -> int:
-        return self.target_id(plan, PLAN_AGENT_LINK)
+        targets = self.links.targets(plan, PLAN_AGENT_LINK)
+        return targets[-1].id if targets else 0
 
     def rig_linked(self, plan: Plan, rig: Rig, actor: Actor) -> Link:
         return self.links.linked(Ref.build(plan), Ref.build(rig), RIG_LINK, actor)

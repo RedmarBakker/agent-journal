@@ -24,13 +24,15 @@ class LineRetyping(AgentListener[Ticked]):
         if not self.turn.is_finished(agent):
             return
         for dropped in self.typed.overdue(event.environment_id, event.time - WAIT_LIMIT_SECONDS):
+            if dropped.agent_id and dropped.agent_id != agent.row_id:
+                continue
             if event.time < dropped.time + WAIT_LIMIT_SECONDS * 2 ** (dropped.tries - 1):
                 continue
-            self.supervisor.erase(event.environment_id)
+            self.supervisor.erase(event.environment_id, dropped.agent_id)
             if dropped.tries >= TRY_COUNT:
                 self.typed.abandon(dropped)
                 self.supervisor.release(event.environment_id)
                 self.cards.show(event.environment_id, event.session, f"A message did not reach the agent after {TRY_COUNT} tries over five minutes", dropped.line, shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
             else:
                 repeat = self.typed.retry(dropped, event.time)
-                self.supervisor.retype(event.environment_id, repeat.line)
+                self.supervisor.retype(event.environment_id, repeat.line, repeat.agent_id)

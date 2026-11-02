@@ -7,7 +7,7 @@ from enum import Enum
 
 from journal.engine.nudge import Nudge
 from journal.support.agent_role import AgentRole
-from journal.support.typed_lines import JOURNAL_PREFIX
+from journal.support.typed_lines import JOURNAL_PREFIX, TypedLines
 from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.agents import Agents
@@ -22,7 +22,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.support.fault_log import FaultLog
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers as WorkerRows
-from journal.repositories.plans import Plans
+from journal.repositories.plans import PLAN_AGENT_LINK, Plans
 from journal.repositories.rigs import Rigs
 from journal.repositories.domain_rows import DomainRows
 from journal.features.organization.support.organization import Organization
@@ -191,6 +191,38 @@ class StoryChecks:
             agent_id = plans.agent_id(plan)
         rows = self.app.container.get(Agents).global_matching(session=self.session_of(agent))
         assert [row.row_id for row in rows] == [agent_id], f"session belongs to {[(row.row_id, row.environment_id, row.state) for row in rows]}, not only Plan agent {agent_id}"
+
+    def expect_agents_have_distinct_rows(self, first: StoryAgent, second: StoryAgent) -> None:
+        agents = self.app.container.get(Agents)
+        first_rows = agents.global_matching(session=self.session_of(first))
+        second_rows = agents.global_matching(session=self.session_of(second))
+        assert len(first_rows) == len(second_rows) == 1
+        assert first_rows[0].row_id != second_rows[0].row_id
+
+    def expect_plan_agent_in_its_environment(self, plan_id: int, link_count: int = 1, **fields) -> None:
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        targets = self.app.container.get(Links).targets(plan, PLAN_AGENT_LINK)
+        assert len(targets) == link_count, f"plan {plan_id} has unexpected Plan-agent links {targets}"
+        agent_id = self.app.container.get(Plans).agent_id(plan)
+        agent = self.app.container.get(Agents).global_matching(id=agent_id)[0]
+        environment = self.app.container.get(Environments).existing(f"plan-{plan_id}")
+        assert agent.environment_id == environment.row_id, f"Plan agent {agent.row_id} lives outside {environment.name}"
+        assert {name: getattr(agent, name) for name in fields} == fields
+
+    def expect_seat_has_its_own_environment(self, agent: StoryAgent, seat: str, rig: str) -> None:
+        row = self.app.container.get(Agents).session_agent(self.session_of(agent))
+        environment = self.app.container.get(Environments).existing(self.openrig_organization_seat_environment(seat, rig)["JOURNAL_ENV"])
+        owner = self.app.container.get(Environments).existing("main")
+        assert environment.row_id != owner.row_id, f"{seat} was given the main environment"
+        assert row.environment_id == environment.row_id
+
+    def expect_line_is_unsent(self, agent: StoryAgent, line: str) -> None:
+        row = self.app.container.get(Agents).session_agent(self.session_of(agent))
+        typed = self.app.container.get(TypedLines)
+        assert any(held.environment_id == row.environment_id and held.line == line for held in typed._held), f"the undelivered line {line!r} was not kept in the queue"
+        assert not typed.is_waiting(row.environment_id), "the missing seat's line is still claimed as typed"
+        assert not typed.contains(row.environment_id, line)
+        assert not typed.is_working(row.environment_id)
 
     def expect_stack_does_not_hold_task(self, agent: StoryAgent, task_id: int) -> None:
         session = self.session_of(agent)

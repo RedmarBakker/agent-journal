@@ -55,14 +55,14 @@ class TypedLines:
     def is_working(self, environment_id: int) -> bool:
         return environment_id in self._working_ids
 
-    def pending_lines(self, environment_id: int) -> list[str]:
-        return self.matching_lines(lambda h: h.environment_id == environment_id)
+    def pending_lines(self, environment_id: int, agent_id: int = 0) -> list[str]:
+        return self.matching_lines(lambda h: h.is_for(environment_id, agent_id))
 
-    def pending_remarks(self, environment_id: int) -> list[str]:
-        return self.matching_lines(lambda h: h.environment_id == environment_id and h.is_remark)
+    def pending_remarks(self, environment_id: int, agent_id: int = 0) -> list[str]:
+        return self.matching_lines(lambda h: h.is_for(environment_id, agent_id) and h.is_remark)
 
-    def pending_instructions(self, environment_id: int) -> list[str]:
-        return self.matching_lines(lambda h: h.environment_id == environment_id and not h.is_remark)
+    def pending_instructions(self, environment_id: int, agent_id: int = 0) -> list[str]:
+        return self.matching_lines(lambda h: h.is_for(environment_id, agent_id) and not h.is_remark)
 
     def matching_lines(self, wanted) -> list[str]:
         lines = [h.line.removeprefix(JOURNAL_PREFIX).strip() for h in self._held if wanted(h)]
@@ -85,7 +85,7 @@ class TypedLines:
         return any(t.environment_id == environment_id for t in self._waiting)
 
     def queue(self, line: QueuedLine) -> None:
-        if any(h.environment_id == line.environment_id and h.line == line.line for h in self._held):
+        if any((h.environment_id, h.agent_id, h.line) == (line.environment_id, line.agent_id, line.line) for h in self._held):
             return
         self._held.append(line)
 
@@ -95,22 +95,22 @@ class TypedLines:
             self._held.remove(first)
         return first
 
-    def typed(self, environment_id: int, line: str) -> None:
+    def typed(self, environment_id: int, line: str, agent_id: int = 0) -> None:
         moment = self.time_source.seconds()
-        self._waiting.append(TypedLine(environment_id, line, moment))
-        self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment)]
+        self._waiting.append(TypedLine(environment_id, line, moment, agent_id=agent_id))
+        self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(moment)] + [TypedLine(environment_id, line, moment, agent_id=agent_id)]
 
     def unsent(self, line: QueuedLine) -> None:
-        self._waiting = [typed for typed in self._waiting if (typed.environment_id, typed.line) != (line.environment_id, line.line)]
-        self._recent = [typed for typed in self._recent if (typed.environment_id, typed.line) != (line.environment_id, line.line)]
+        self._waiting = [typed for typed in self._waiting if (typed.environment_id, typed.agent_id, typed.line) != (line.environment_id, line.agent_id, line.line)]
+        self._recent = [typed for typed in self._recent if (typed.environment_id, typed.agent_id, typed.line) != (line.environment_id, line.agent_id, line.line)]
         self.rest(line.environment_id)
         self._held.insert(0, line)
 
     def contains(self, environment_id: int, prompt: str) -> bool:
         return any(t.matches_prompt(environment_id, prompt) for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(self.time_source.seconds()))
 
-    def confirm(self, environment_id: int, prompt: str) -> bool:
-        matches = [t for t in self._waiting if t.matches_prompt(environment_id, prompt)]
+    def confirm(self, environment_id: int, prompt: str, agent_id: int = 0) -> bool:
+        matches = [t for t in self._waiting if t.matches_prompt(environment_id, prompt, agent_id)]
         self._waiting = [t for t in self._waiting if t not in matches]
         return bool(matches)
 
@@ -121,7 +121,7 @@ class TypedLines:
         return [t for t in self._waiting if t.environment_id == environment_id and t.time <= previous]
 
     def retry(self, keystrokes: TypedLine, time: float) -> TypedLine:
-        repeat = TypedLine(keystrokes.environment_id, keystrokes.line, time, keystrokes.tries + 1)
+        repeat = TypedLine(keystrokes.environment_id, keystrokes.line, time, keystrokes.tries + 1, keystrokes.agent_id)
         self._waiting[self._waiting.index(keystrokes)] = repeat
         self._recent = [t for t in self._recent if not Timeout.seconds(RECENT_SECONDS).started(t.time).is_elapsed(time)] + [repeat]
         return repeat

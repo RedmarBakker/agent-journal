@@ -15,7 +15,7 @@ class AgentBarWrites:
         choice = next((c for g in provider.controls["groups"] if g["key"] == action for c in g["choices"] if c["value"] == value), None)
         if choice is None:
             raise Rejection(f"{action} {value} is not a choice the agent bar offers")
-        self.supervisor.choose(agent.environment_id, choice["command"])
+        self.supervisor.choose(agent.environment_id, choice["command"], agent_id=agent.row_id)
 
     def shell(self, agent: Agent, command: str) -> None:
-        self.supervisor.type_raw(agent.environment_id, command)
+        self.supervisor.type_raw(agent.environment_id, command, agent_id=agent.row_id)

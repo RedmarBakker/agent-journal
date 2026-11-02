@@ -11,3 +11,7 @@ class QueuedLine:
     delay_seconds: float = 0.0
     line_at: float = field(default_factory=time.time)
     is_remark: bool = False
+    agent_id: int = 0
+
+    def is_for(self, environment_id: int, agent_id: int = 0) -> bool:
+        return self.environment_id == environment_id and (not agent_id or self.agent_id in (0, agent_id))

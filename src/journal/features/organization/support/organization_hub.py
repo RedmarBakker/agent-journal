@@ -49,12 +49,9 @@ class OrganizationHub:
         refusal = self.routes.refusal_for(source, target)
         if refusal:
             raise Rejection(refusal)
-        if member.rig.startswith("plan-"):
-            plan = self.plan_for_rig(member.rig)
-            with self.scope.environment(plan.environment_id):
-                self.handoff_task(task_id, target, source, member, caller)
-            return
-        self.handoff_task(task_id, target, source, member, caller)
+        task = self.task(task_id)
+        with self.scope.environment(task.environment_id):
+            self.handoff_task(task_id, target, source, member, caller)
 
     def handoff_task(self, task_id: int, target: str, source: str, member: SeatMember, caller: Caller) -> None:
         task = self.tasks.find(task_id)
@@ -215,7 +212,8 @@ class OrganizationHub:
             with self.scope.environment(plan.environment_id):
                 self.print_inbox(seat, self.handoffs.in_plan(self.handoffs_for_inbox(seat), plan), caller)
             return
-        self.print_inbox(seat, self.handoffs_for_inbox(seat), caller)
+        with self.scope.environment(self.staffing.owner_environment(member).row_id):
+            self.print_inbox(seat, self.handoffs_for_inbox(seat), caller)
 
     def handoffs_for_inbox(self, seat: str) -> tuple[tuple[OrganizationHandoff, Plan, Task], ...]:
         return self.handoffs.awaiting_action(seat) if seat.startswith("domain:") else self.handoffs.pending(seat)
@@ -274,6 +272,8 @@ class OrganizationHub:
                     raise Rejection(f"task {task.id} has not been handed to {domain}")
                 return plan
         if rig.startswith("organization-") and source.startswith("role:"):
+            if rig != self.staffing.shared_rig_name(task.environment_id):
+                raise Rejection(f"task {task.id} is not in this organization's rig")
             domain = self.domain(source)
             parent = self.tasks.part_of_task(task)
             if domain not in self.domains.domain_names(task) and domain not in self.domains.domain_names(parent or task):

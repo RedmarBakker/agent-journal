@@ -19,6 +19,8 @@ from journal.events.journal_updated import JournalUpdated
 from journal.events.announcer import Announcer
 from journal.features.organization.support.rig_seats import PLAN_AGENT, PLAN_POD
 from journal.features.organization.support.seat_runtime import SeatRuntime
+from journal.features.organization.support.rig_staffing import RigStaffing
+from journal.repositories.plans import Plans
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.sequences import Sequences
 from journal.repositories.templates import Templates
@@ -296,6 +298,15 @@ class AgentSteps:
         environment = self.openrig_organization_seat_environment(seat, rig).get("JOURNAL_ENV", "")
         self.session_environments[str(session)] = environment
         return StoryAgent(AgentRole.MAIN, session=str(session))
+
+    def shared_rig_name(self, plan_id: int) -> str:
+        plan = self.app.container.get(Plans).global_matching(id=plan_id)[0]
+        return self.app.container.get(RigStaffing).shared_rig_name(plan.environment_id)
+
+    def agent_loses_its_organization_session(self, agent: StoryAgent, seat: str) -> StepResult:
+        member = self.organization_seat_member(seat)
+        self.simulated_seats().sessions.pop(member.target)
+        return self.observed(f"the {agent.role} seat loses its native session", None, None)
 
     def organization_seat_agent_in_plan(self, seat: str, plan: int) -> StoryAgent:
         member = self.app.container.get(SeatRuntime).organization_member(self.plan_rig_name(plan), seat, self.provider)

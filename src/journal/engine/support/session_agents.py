@@ -7,6 +7,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.agent import Agent, ENDED_STATE
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
+from journal.repositories.scope import Scope
 from journal.providers.providers import Providers
 from journal.engine.support.session_takeovers import SessionTakeovers
 from journal.support.actor import Actor
@@ -18,14 +19,32 @@ from journal.support.time_source import TimeSource
 class SessionAgents:
     """The agent row of a session and the state on top of its stack: every row is made here, at rest on the floor of its role, idle for the main agent and the helper's own floor for a worker, a verifier or a reviewer, whether a hook, a command or a listener asks first."""
 
-    def __init__(self, agents: Agents, states: StatesCatalogue, providers: Providers, takeovers: SessionTakeovers, time_source: TimeSource) -> None:
+    def __init__(self, agents: Agents, states: StatesCatalogue, providers: Providers, takeovers: SessionTakeovers, time_source: TimeSource, scope: Scope) -> None:
         self.agents, self.states, self.providers, self.takeovers, self.time_source = agents, states, providers, takeovers, time_source
+        self.scope = scope
 
     def agent(self, session: str, environment_id: int, provider: str | None = None) -> Agent:
         return self.row(session, environment_id, provider, AgentRole.MAIN)
 
     def started_agent(self, session: str, environment_id: int, provider: str | None = None) -> Agent:
         return self.row(session, environment_id, provider, AgentRole.MAIN, self.time_source.moment())
+
+    def started_row(self, current: Agent, session: str, provider: str) -> Agent:
+        return self.joined_row(current, session, provider, self.time_source.moment())
+
+    def peer_row(self, parent: Agent, session: str, provider: str) -> Agent:
+        current = self.agents.session_row_in(parent.environment_id, session)
+        if current is not None and current.row_id != parent.row_id:
+            return current
+        floor = self.states.stack(parent).bottom()
+        return self.created(session, parent.environment_id, provider, Stack((floor,)), AgentRole.MAIN)
+
+    def joined_row(self, current: Agent, session: str, provider: str, started_at: datetime | None = None) -> Agent:
+        for previous in self.agents.session_rows(session):
+            if previous.row_id != current.row_id and previous.role == AgentRole.MAIN:
+                with self.scope.environment(previous.environment_id):
+                    self.agents.save(previous.with_session("", previous.provider), Actor.system())
+        return self.reused(current, session, current.environment_id, provider, started_at)
 
     def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
         current = self.agents.session_row_in(environment_id, session)

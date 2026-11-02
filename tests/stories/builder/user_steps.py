@@ -10,6 +10,8 @@ from journal.features.library.support.library_account import LIBRARIES_FOLDER, L
 from journal.http.server import Server
 from journal.http.support.json_out import JsonOut
 from journal.support.caller import Caller
+from journal.repositories.agents import Agents
+from journal.repositories.environments import Environments
 from journal.support.option import Option
 from sync_server.team_server import TeamServer
 from journal.http.controllers.settings import FEATURES
@@ -29,6 +31,13 @@ class UserSteps:
 
     def user_sends_message(self, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "idempotency": uuid.uuid4().hex})["id"]
+
+    def user_types_to_agent(self, agent: StoryAgent, line: str) -> StepResult:
+        row = self.app.container.get(Agents).session_agent(self.session_of(agent))
+        environment = self.app.container.get(Environments).find(row.environment_id).name
+        self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/agents/{row.row_id}/shell", {"command": line}, {**MAIN, "X-Journal-Env": environment})
+        self.settle()
+        return self.observed("the user types to the selected agent", None, None, environment)
 
     def user_attaches_file(self, message: int, name: str, content: bytes) -> StepResult:
         self.user_uploads(f"/journal/messages/{message}/files", name, content)
