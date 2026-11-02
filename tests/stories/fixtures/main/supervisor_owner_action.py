@@ -1,4 +1,5 @@
 from journal.features.supervisor.capability_catalogue import CAPABILITY_CATALOGUE
+from journal.repositories.scope import PROJECT
 from journal.features.tasks.states.ready import Ready
 from tests.in_process import posted
 from tests.stories.fixtures.main.working_agent import WorkingAgent
@@ -15,8 +16,11 @@ def prepare_owner_action(story):
     with context["scope"].environment(fixture.owner_environment.row_id):
         before = context["maintenance"].plans.find(plan_id).priorities
     environment_name = fixture.owner_environment.name
+    opened = story.user_opens_in(environment_name, "/journal/plans")
+    opened.expect_viewer_passed()
     operation = {"kind": "plan_priorities", "plan_id": plan_id, "text": "Inspect the health check"}
-    request = maintenance_request(context, [operation], "owner-undo-action")
+    with context["scope"].environment(PROJECT):
+        request = maintenance_request(context, [operation], "owner-undo-action")
     return {
         "context": context,
         "plan_id": plan_id,
@@ -40,8 +44,6 @@ def seed_owner_action(story, setup, tier):
     story.observed(f"the supervisor records a {tier} plan priorities action", None, None)
     story.last_step.expect_viewer_passed()
     story.last_step.expect_viewer_part(("data", "command_receipts", 0, "tier"), tier)
-    opened = story.user_opens_in(setup["environment_name"], "/journal/plans")
-    opened.expect_viewer_passed()
     return {
         **setup,
         "receipt_id": story.viewer_answer["receipt_id"],
