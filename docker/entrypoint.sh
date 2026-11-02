@@ -25,7 +25,7 @@ SETUP
 
 if [ -n "${JOURNAL_PLAN_DRIVER_SOCKET:-}" ]; then
     setpriv --reuid 0 --regid plan-supervisor-socket --clear-groups mkdir -m 2770 -p /run/journal-plan-driver-supervisors
-    chmod 2770 /run/journal-plan-driver-supervisors
+    setpriv --reuid 0 --regid plan-supervisor-socket --clear-groups chmod 2770 /run/journal-plan-driver-supervisors
     if [ "$(stat -c %u /run/journal-plan-driver-supervisors)" != "0" ] || [ "$(stat -c %g /run/journal-plan-driver-supervisors)" != "10031" ] || [ "$(stat -c %a /run/journal-plan-driver-supervisors)" != "2770" ]; then
         echo "the Plan supervisor socket folder must be root:10031 mode 2770" >&2
         exit 2
