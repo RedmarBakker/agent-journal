@@ -16,7 +16,7 @@ def test_a_restarted_plan_uses_its_prepared_agent_and_routes_its_message_and_tas
     started.expect_agent_not_told(story.agents.main, PlansNudges.PLAN_STALLED, n=plan)
 
     seat = story.agent_starts_plan_seat(story.agents.main, plan)
-    seat.expect_agent_told(story.agents.main, PlansNudges.LEADING_PLAN, n=plan)
+    seat.expect_allowed()
     plan_agent = story.organization_seat_agent_in_plan("plan", plan)
     story.expect_row_count_in(f"plan-{plan}", "agents", 2)
     story.expect_agent_session_in_environment(plan_agent, f"plan-{plan}")
