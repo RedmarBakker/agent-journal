@@ -12,17 +12,17 @@ from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_agent import StoryAgent
-from tests.stories.fixtures.main.started_organization_plan import StartedOrganizationPlan
+from tests.stories.fixtures.main.organization_plan_with_domain_seats import OrganizationPlanWithDomainSeats
 
 
 BLOCK_REASON = "the Plan agent session ended"
 NEW_PLAN_SESSION = "unblocked-plan-agent-session"
 
 
-class BlockedOrganizationPlanWithOldAgentRow(StartedOrganizationPlan):
+class BlockedOrganizationPlanWithOldAgentRow(OrganizationPlanWithDomainSeats):
     """A blocked organization plan has an ended Plan agent and an older coordinator row."""
 
-    parent = StartedOrganizationPlan
+    parent = OrganizationPlanWithDomainSeats
 
     def steps(self, story) -> None:
         plan = self.plans.first
