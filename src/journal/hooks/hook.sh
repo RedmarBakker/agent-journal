@@ -15,7 +15,13 @@ begun=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
 case "${JOURNAL_ACTOR:-agent}" in agent|worker:*|verifier:*|reviewer:*) ;; *) exit 0 ;; esac
 agent=$1
 root=$2
-port=$(cat "$root/.journal/port" 2>/dev/null)
+if [ -n "${JOURNAL_HOOK_RUNTIME:-}" ]; then
+    runtime=$JOURNAL_HOOK_RUNTIME
+    port=${JOURNAL_PORT:-}
+else
+    runtime=$root/.journal/runtime
+    port=${JOURNAL_PORT:-$(cat "$root/.journal/port" 2>/dev/null)}
+fi
 . "$(dirname "$0")/environment.sh"
 body=$(mktemp)
 sent=$(mktemp)
@@ -25,11 +31,11 @@ firing="$$-$begun"
 if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\|PostToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
 # Every hook that goes to the server first writes its time, whether or not the server takes it: the server's health compares it with
 # the last hook it took, and the supervisor warns an agent whose terminal moves while this file stands still.
-mkdir -p "$root/.journal/runtime/hooks" && date +%s > "$root/.journal/runtime/hooks/$(journal_environment).fired"
+mkdir -p "$runtime/hooks" && date +%s > "$runtime/hooks/$(journal_environment).fired"
 # The agent's own session start writes the version it started on, read by the journal to close the restart notice.
 if grep -q '"hook_event_name": *"SessionStart"' "$sent"; then
-    version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$root/.journal/src/journal/version.py" 2>/dev/null)
-    mkdir -p "$root/.journal/runtime" && printf 'SessionStart %s\n' "$version" > "$root/.journal/runtime/session-version"
+    version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$(dirname "$0")/../version.py" 2>/dev/null)
+    mkdir -p "$runtime" && printf 'SessionStart %s\n' "$version" > "$runtime/session-version"
 fi
 # Every hook gets its answer within its own time or goes on without the journal: a tool waits 5 seconds, the user's prompt 8,
 # a stop 10, a session start 15, which may wait on a boot; the miss is noted in bypass.log for the journal to say once it is back.
@@ -57,7 +63,7 @@ if [ -n "$port" ]; then status=$(post) || status=0; else status=0; fi
 # A hook that went around is said to a Claude agent at once in its hook's answer, where its hook takes one, so it stops to look;
 # in the journal's own repository it is told to start the panic watch as well. A stop takes no line: it would only stop again.
 went_around() {
-    printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$root/.journal/runtime/bypass.log"
+    printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$runtime/bypass.log"
     [ "$agent" = claude ] || return 0
     case "$event" in PreToolUse|PostToolUse|UserPromptSubmit|SessionStart) ;; *) return 0 ;; esac
     line="[journal] The journal did not answer within $ANSWER_SECONDS seconds, so this went through unchecked. Investigate now: curl -s http://127.0.0.1:$port/journal/health should answer 200, and runtime/server.log in .journal says why it does not."

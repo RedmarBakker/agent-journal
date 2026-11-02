@@ -300,8 +300,10 @@ class Provider(ABC):
     def refused(self, hook: Hook, decision: Decision) -> Response:
         return Response(409, {"error": decision.reason})
 
-    def hook_command(self, root: Path) -> str:
-        return f"test -f {shlex.quote(str(HOOK_SCRIPT))} && exec {shlex.join(['sh', str(HOOK_SCRIPT), self.name, str(root)])}; exit 0"
+    def hook_command(self, root: Path, script: Path = HOOK_SCRIPT) -> str:
+        exists = shlex.quote(str(script))
+        command = shlex.join(["sh", str(script), self.name, str(root)])
+        return f"test -f {exists} && exec {command}; exit 0"
 
     @abstractmethod
     def worker_settings_flags(self, path: Path) -> list[str]: ...

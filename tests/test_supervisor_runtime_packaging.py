@@ -453,6 +453,8 @@ def test_plan_driver_socket_uses_a_server_and_driver_only_group():
     launch_file = (ROOT / "src" / "supervisor" / "launch_file.py").read_text()
     agent_launcher = (ROOT / "src" / "journal" / "engine" / "agent_launcher.py").read_text()
     launch = (ROOT / "src" / "journal" / "launcher" / "launch.py").read_text()
+    provider = (ROOT / "src" / "journal" / "providers" / "provider.py").read_text()
+    hook_script = (ROOT / "src" / "journal" / "hooks" / "hook.sh").read_text()
     socket_source = (ROOT / "src" / "journal" / "support" / "supervisor_socket.py").read_text()
     runbook = (PROFILE / "RUNBOOK.md").read_text()
 
@@ -471,6 +473,17 @@ def test_plan_driver_socket_uses_a_server_and_driver_only_group():
     assert "PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP" in launch and '"socket_group"' in launch
     assert "/run/journal-plan-driver-supervisors/plan-<n>.sock" in manifest["topology"][0]["codex_driver"]["supervisor_socket"]
     assert "root:10031 mode 2770" in runbook and "journal uid 10001 and Plan driver uid 10003" in runbook
+    assert 'PLAN_DRIVER_HOOK_SCRIPT = Path("/opt/agent-journal/src/journal/hooks/hook.sh")' in launch
+    assert "self.provider.wire_hooks(folder, PLAN_DRIVER_HOOK_SCRIPT" in launch
+    assert "def hook_command(self, root: Path, script: Path = HOOK_SCRIPT)" in provider
+    driver_hook_environment = (
+        'if [ -n "${JOURNAL_HOOK_RUNTIME:-}" ]; then\n'
+        "    runtime=$JOURNAL_HOOK_RUNTIME\n"
+        "    port=${JOURNAL_PORT:-}\nelse"
+    )
+    assert driver_hook_environment in hook_script
+    assert '"$(dirname "$0")/../version.py"' in hook_script
+    assert "COPY --chown=root:root src /opt/agent-journal/src" in dockerfile
 
 
 def test_live_setup_checks_driver_login_as_uid10003_before_owner_setup():
@@ -522,12 +535,12 @@ def test_live_setup_resumes_only_its_started_unenrolled_plan():
 
 def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypatch):
     import json
+    import tomllib
     from types import SimpleNamespace
 
     import journal.launcher.launch as launch_module
     from journal.providers.codex import Codex
-    from journal.providers.provider import HOOK_SCRIPT
-    from journal.support.choice import Choice
+    from journal.launcher.launch import PLAN_DRIVER_HOOK_SCRIPT
     from journal.support.supervisor_socket import PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP, SupervisorSocket
 
     project = tmp_path / "project"
@@ -535,8 +548,6 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     worktree = project / ".claude" / "worktrees" / "plan-1"
     worktree.mkdir(parents=True)
     hooks_file = worktree / ".codex" / "hooks.json"
-    hooks_file.parent.mkdir()
-    hooks_file.write_text(json.dumps({"hooks": Codex().hook_block(f"sh {HOOK_SCRIPT}")}))
     driver_home = tmp_path / "driver-home"
     driver_home.mkdir()
     launch_files = []
@@ -547,17 +558,19 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
         launch_data.append(json.loads(Path(command[-1]).read_text()))
         return SimpleNamespace(returncode=0)
 
+    def owner_port_read(*args, **kwargs):
+        raise AssertionError("the Plan driver cannot read the owner's journal port")
+
     monkeypatch.setattr(launch_module.os, "getuid", lambda: 10003)
     monkeypatch.delenv("JOURNAL_PLAN_DRIVER_SOCKET", raising=False)
     monkeypatch.setenv("HOME", str(driver_home))
     monkeypatch.setenv("CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_PORT", "8421")
     monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
-    monkeypatch.setattr(launch_module.Launch, "choice", lambda self: Choice("plan-1"))
-    monkeypatch.setattr(launch_module.Launch, "start_refusal", lambda self, choice: "")
-    monkeypatch.setattr(launch_module.Launch, "health_numbers", lambda self: {})
-    monkeypatch.setattr(launch_module.Menu, "journal", lambda self, *args: "")
-    monkeypatch.setattr(launch_module.PageWait, "start", lambda self: None)
+    monkeypatch.setattr(launch_module.Launch, "health_numbers", owner_port_read)
+    monkeypatch.setattr(launch_module.Menu, "journal", owner_port_read)
+    monkeypatch.setattr(launch_module.PageWait, "start", owner_port_read)
     monkeypatch.setattr(launch_module.subprocess, "run", run_supervisor)
 
     launch = launch_module.Launch.parse(
@@ -569,6 +582,25 @@ def test_plan_driver_launch_writes_logs_only_to_its_own_home(tmp_path, monkeypat
     assert launch_files == [driver_home / "journal-runtime" / "launches" / "plan-1.json"]
     assert launch_data[0]["socket"] == str(SupervisorSocket.plan_driver_path("plan-1"))
     assert launch_data[0]["socket_group"] == PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP
+    assert launch_data[0]["front"]["env"]["JOURNAL_PORT"] == "8421"
+    assert launch_data[0]["front"]["env"]["JOURNAL_HOOK_RUNTIME"] == str(driver_home / "journal-runtime")
+    assert launch_data[0]["front"]["env"]["JOURNAL_ROOT"] == str(project)
+    assert launch_data[0]["front"]["env"]["JOURNAL_ENV"] == "plan-1"
+    assert launch_data[0]["front"]["env"]["JOURNAL_LAUNCH"] == launch_data[0]["launch"]
+    assert str(project / ".journal") not in launch_data[0]["front"]["env"]["PATH"]
+    hooks = json.loads(hooks_file.read_text())["hooks"]
+    commands = [
+        handler["command"]
+        for groups in hooks.values()
+        for group in groups
+        for handler in group["hooks"]
+    ]
+    expected_hook = Codex().hook_command(project, PLAN_DRIVER_HOOK_SCRIPT)
+    assert commands and set(commands) == {expected_hook}
+    assert all(str(project / ".journal") not in command for command in commands)
+    trusted = tomllib.loads((driver_home / "config.toml").read_text())["hooks"]["state"]
+    assert trusted and all(key.startswith(f"{hooks_file.resolve()}:") for key in trusted)
+    assert all(state["enabled"] and state["trusted_hash"].startswith("sha256:") for state in trusted.values())
     assert not (project / ".journal" / "runtime").exists()
     assert not (project / ".journal").exists()
 
@@ -601,6 +633,7 @@ def test_plan_driver_codex_config_trusts_only_its_worktree_and_journal_hooks_bef
     monkeypatch.setenv("HOME", str(driver_home))
     monkeypatch.setenv("CODEX_HOME", str(driver_home))
     monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_PORT", "8421")
     monkeypatch.setenv("JOURNAL_PLAN_DRIVER_SUPERVISOR_SOCKET", str(SupervisorSocket.plan_driver_path("plan-1")))
     monkeypatch.setattr(launch_module.Menu, "journal", lambda self, *args: "")
 

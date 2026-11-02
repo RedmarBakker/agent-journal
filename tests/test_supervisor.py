@@ -169,6 +169,27 @@ def test_launch_parses_flags_and_builds_the_commands(tmp_path: Path):
     assert launch.journal_command()[-1] == "serve"
 
 
+def test_plan_driver_hooks_receive_the_broker_port_and_private_runtime(tmp_path: Path, monkeypatch):
+    import journal.launcher.launch as launch_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    driver_home = tmp_path / "codex-home"
+    driver_home.mkdir()
+    monkeypatch.setattr(launch_module.os, "getuid", lambda: 10003)
+    monkeypatch.setenv("HOME", str(driver_home))
+    monkeypatch.setenv("CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_CODEX_HOME", str(driver_home))
+    monkeypatch.setenv("JOURNAL_PORT", "8421")
+
+    launch = Launch.parse(["codex", "--env", "plan-1", "--no-open", "--no-journal"], project)
+    environment = launch.environ(Choice("plan-1"), "launch-1")
+
+    assert environment["JOURNAL_PORT"] == "8421"
+    assert environment["JOURNAL_HOOK_RUNTIME"] == str(driver_home / "journal-runtime")
+    assert str(project / ".journal") not in environment["PATH"]
+
+
 def test_the_launch_puts_the_other_hooks_back_however_the_run_ends(tmp_path: Path):
     from journal.launcher.support.foreign_hooks import ForeignHooks
     path = settings_with_other_hooks(tmp_path)

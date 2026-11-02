@@ -32,6 +32,7 @@ from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.support.private_folder import PrivateFolder
 from journal.support.supervisor_socket import PLAN_DRIVER_SUPERVISOR_SOCKET_GROUP, SupervisorSocket
+from journal.engine.boot_notices import BOOT_NOTICE, BOOT_SECONDS
 
 ENVIRONMENT = "--env"
 SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "confirmed", "--no-open": "browser_off", "--no-journal": "journal_off"}
@@ -42,7 +43,7 @@ RESUMING = ("--resume", "-r")
 # unless the Health and backups settings name other numbers
 JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
 PLAN_DRIVER_UID = 10003
-from journal.engine.boot_notices import BOOT_NOTICE, BOOT_SECONDS
+PLAN_DRIVER_HOOK_SCRIPT = Path("/opt/agent-journal/src/journal/hooks/hook.sh")
 
 # the flags that name a conversation to carry on, whose environment and worktree a bare --worktree then takes
 RESUME_FLAGS = {"--resume", "-r", "--continue", "-c"}
@@ -116,6 +117,10 @@ class Launch:
             os.execv(sys.executable, [sys.executable, *sys.argv])
         worktree = self.worktree or (matched if self.worktree_launch else "")
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed, worktree)
+
+    def driver_choice(self) -> Choice:
+        worktree = bool(self.worktree or self.worktree_launch)
+        return Choice(self.environment, "", self.stashed, self.is_skipping(), worktree)
 
     def unused_name(self, menu: Menu) -> str:
         if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
@@ -192,9 +197,26 @@ class Launch:
         return [sys.executable, str(self.package / "journal.py"), "serve"]
 
     def environ(self, choice: Choice, launch: str) -> dict[str, str]:
-        path = os.pathsep.join([str(self.root / ".journal" / "bin"), os.environ.get("PATH", "")])
+        if self.is_plan_driver:
+            path = os.environ.get("PATH", "")
+        else:
+            path = os.pathsep.join([str(self.root / ".journal" / "bin"), os.environ.get("PATH", "")])
         runner = self.package / "journal" / "hooks" / "run.sh"
-        return {**os.environ, **self.keys(), **self.provider.launch_environment(runner), "PATH": path, "JOURNAL_ROOT": str(self.root), "JOURNAL_ENV": choice.environment, "JOURNAL_LAUNCH": launch, "AGENT_JOURNAL_ACTIVE": "1"}
+        environment = {
+            **os.environ,
+            **self.keys(),
+            **self.provider.launch_environment(runner),
+            "PATH": path,
+            "JOURNAL_ROOT": str(self.root),
+            "JOURNAL_ENV": choice.environment,
+            "JOURNAL_LAUNCH": launch,
+            "AGENT_JOURNAL_ACTIVE": "1",
+        }
+        if self.is_plan_driver:
+            environment["JOURNAL_HOOK_RUNTIME"] = str(self.runtime)
+            if not environment.get("JOURNAL_PORT"):
+                raise ValueError("the Plan driver requires the broker-provided journal port")
+        return environment
 
     def keys(self) -> dict[str, str]:
         path = PrivateFolder(self.root).keys_file()
@@ -210,11 +232,11 @@ class Launch:
                 peers = ForeignHooks(self.root, self.provider)
                 peers.restore()
             prepared = self.prepare_requested_worktree() if not driver else ""
-            choice = self.choice()
+            choice = self.driver_choice() if driver else self.choice()
             launch = self.chosen(choice)
             if not driver and (not prepared or launch.worktree != prepared):
                 launch.prepare_worktree(choice)
-            refusal = launch.start_refusal(choice)
+            refusal = "" if driver else launch.start_refusal(choice)
             if refusal:
                 self.log(f"refused: {refusal}")
                 print(refusal, file=sys.stderr)
@@ -252,7 +274,15 @@ class Launch:
         path.touch(mode=0o600)
         path.chmod(0o600)
         path.write_text(json.dumps(launch))
-        PageWait(self.root / ".journal" / "runtime" / "port", launch["socket"], (launch["band"]["left"], launch["band"]["middle"]), "" if self.browser_off else f"?env={choice.environment}", self.log).start()
+        if not self.is_plan_driver:
+            waiting = PageWait(
+                self.root / ".journal" / "runtime" / "port",
+                launch["socket"],
+                (launch["band"]["left"], launch["band"]["middle"]),
+                "" if self.browser_off else f"?env={choice.environment}",
+                self.log,
+            )
+            waiting.start()
         try:
             return subprocess.run(["sh", str(self.package / "supervisor" / "launcher.sh"), sys.executable, str(path)], cwd=self.root).returncode
         finally:
@@ -279,7 +309,8 @@ class Launch:
         environ = self.environ(choice, launch)
         if self.is_plan_driver:
             folder = self.driver_worktree(choice)
-            Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, f"worktree-{folder.name}")
+            command = self.provider.hook_command(self.root, PLAN_DRIVER_HOOK_SCRIPT)
+            self.provider.wire_hooks(folder, PLAN_DRIVER_HOOK_SCRIPT, command)
             self.provider.headless_folder_trusted(self.root, folder)
         else:
             worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
@@ -288,7 +319,16 @@ class Launch:
                 Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
                 self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
                 self.provider.folder_trusted(self.root, folder)
-        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, **self.health_numbers(), "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
+        health = {} if self.is_plan_driver else self.health_numbers()
+        journal = {
+            "name": "journal",
+            "command": self.journal_command(),
+            "folder": str(self.root),
+            "env": environ,
+            "log": str(self.runtime / "server.log"),
+            "health": {**JOURNAL_HEALTH, **health, "port_file": str(self.runtime.parent / "port")},
+            "boot": self.boot_watch(),
+        }
         launch_file = {
             "launch": launch,
             "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
