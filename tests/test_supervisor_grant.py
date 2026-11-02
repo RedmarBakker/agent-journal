@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from journal.models.supervisor_grant import BUDGET_FIELDS, SupervisorGrant
@@ -98,3 +100,48 @@ def test_a_grant_requires_one_daily_cost_limit_and_unique_plan_ids():
         SupervisorGrant.parsed(duplicate_cost, CATALOGUE)
     with pytest.raises(ValueError, match="plan"):
         SupervisorGrant.parsed(duplicate_plans, CATALOGUE)
+
+
+def test_a_database_migration_converts_each_version_one_grant_in_a_shared_environment(connection):
+    from journal.db.migrations.supervisor_grants_version_two import SupervisorGrantsVersionTwo
+
+    limits = dict.fromkeys(BUDGET_FIELDS, 3)
+    limits["max_new_diagnostics_per_episode"] = 1
+    grants = [
+        {
+            "grant_id": "first", "grant_version": 1, "owner_user_id": 7, "driver_environment_id": 12,
+            "plan_id": 4, "capabilities": {"diagnostic_task": True, "plan_priorities": False,
+                                             "check_interval": True},
+            "mode": "shadow", "limits": limits, "valid_until_ms": 1000, "revoked": False,
+        },
+        {
+            "grant_id": "second", "grant_version": 1, "owner_user_id": 7, "driver_environment_id": 12,
+            "plan_id": 9, "capabilities": {"diagnostic_task": False, "plan_priorities": True,
+                                             "check_interval": True},
+            "mode": "bounded_write", "limits": limits, "valid_until_ms": 2000, "revoked": False,
+        },
+    ]
+    for data in grants:
+        connection.execute(
+            "INSERT INTO entries (environment_id, entry_type, data, idempotency) VALUES (?, ?, ?, ?)",
+            (12, "SupervisorGrant", json.dumps(data), data["grant_id"]),
+        )
+
+    SupervisorGrantsVersionTwo().apply(connection)
+
+    migrated = [json.loads(row["data"]) for row in connection.all(
+        "SELECT data FROM entries WHERE entry_type = 'SupervisorGrant' ORDER BY id"
+    )]
+    assert [grant["grant_v2"]["watched_plans"] for grant in migrated] == [[4], [9]], "each legacy grant keeps its own plan in the shared environment"
+    assert [grant["grant_v2"]["environment_id"] for grant in migrated] == [12, 12], "each grant is bound to its environment"
+    assert migrated[0]["grant_v2"]["capabilities"] == {
+        "task create": {"on": True, "mode": "propose"},
+        "plan priorities": {"on": False, "mode": "propose"},
+        "check edit": {"on": True, "mode": "propose"},
+    }, "the shadow grant maps the three version one capabilities to tier one proposals"
+    assert migrated[1]["grant_v2"]["capabilities"] == {
+        "task create": {"on": False, "mode": "act"},
+        "plan priorities": {"on": True, "mode": "act"},
+        "check edit": {"on": True, "mode": "act"},
+    }, "the bounded write grant keeps its mode on each migrated capability"
+    assert all(grant["grant_v2"]["limits"] == limits for grant in migrated), "the migration preserves every limit, including the daily cost cap"
