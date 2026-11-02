@@ -6,25 +6,26 @@ import tempfile
 from pathlib import Path
 
 from journal.config import Config
-from journal.support.output_mask import OutputMask
+from journal.engine.support.settings import Settings
 from journal.features.secrets.support.programs import Programs
+from journal.features.secrets.secrets_options import SecretsOptions
 from journal.models.secret import Secret
-from journal.support.secret_field import SecretField
-from journal.support.rejection import Rejection
 from journal.repositories.mcp_servers import McpServers
+from journal.repositories.setting_rows import SettingRows
+from journal.support.output_mask import OutputMask
+from journal.support.rejection import Rejection
+from journal.support.secret_field import SecretField
 from journal.support.secret_values import SecretValues
 
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 TEMPORARY_HOME_VARIABLES = ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "DOCKER_CONFIG")
-LONGEST_SECONDS = 120
-PROGRAM_TIMEOUT_SECONDS = {"journal-supervisor-smoke": 360}
 
 
 class SecretRun:
     """A secret given to one program it allows, in the journal's own process: the program found on a search path that excludes the project, run with a throwaway home and nothing of the agent's shell, given the value on its input or in variables, and its output returned with every form of the value masked."""
 
-    def __init__(self, config: Config, values: SecretValues, servers: McpServers) -> None:
-        self.config, self.values, self.servers = config, values, servers
+    def __init__(self, config: Config, values: SecretValues, servers: McpServers, setting_rows: SettingRows) -> None:
+        self.config, self.values, self.servers, self.setting_rows = config, values, servers, setting_rows
 
     def run(self, secret: Secret, command: list[str], template: str, as_variables: bool) -> tuple[int, bytes]:
         program = self.program(secret, command)
@@ -39,7 +40,8 @@ class SecretRun:
         name_index = {f.name: values[f.variable] for f in fields}
         value = PLACEHOLDER.sub(lambda rows: name_index.get(rows[1], rows[0]), template) if template else next((values[f.variable] for f in fields if f.hidden), "")
         mask = OutputMask({values[f.variable]: f.variable for f in fields if f.hidden})
-        timeout = PROGRAM_TIMEOUT_SECONDS.get(command[0], LONGEST_SECONDS)
+        settings = Settings.applied(self.setting_rows, [SecretsOptions.LONGEST_RUN_SECONDS])
+        timeout = settings.integer(SecretsOptions.LONGEST_RUN_SECONDS)
         runs = self.values.path.parent / "runs"
         runs.mkdir(mode=0o700, exist_ok=True)
         home = tempfile.mkdtemp(prefix="run-", dir=runs)

@@ -446,18 +446,13 @@ def test_launcher_counts_reconcile_time_against_the_smoke_deadline(compiled_laun
     assert not (gateway_state / "journal-supervisor-transport/bridge-state.json").exists()
 
 
-def test_launcher_readiness_run_and_shutdown_fit_its_secret_runner_allowance():
+def test_launcher_readiness_run_and_shutdown_fit_360_seconds():
     launcher = SOURCE.read_text()
-    secret_run = (ROOT / "src/journal/features/secrets/support/secret_run.py").read_text()
     ready = int(re.search(r"^#define CODEX_READY_TIMEOUT_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
     smoke = int(re.search(r"^#define SMOKE_RUN_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
     stop = int(re.search(r"^#define STOP_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
-    longest = int(re.search(r"^LONGEST_SECONDS = (\d+)$", secret_run, re.MULTILINE).group(1))
-    allowance = int(re.search(r'PROGRAM_TIMEOUT_SECONDS = \{"journal-supervisor-smoke": (\d+)\}', secret_run).group(1))
 
-    assert longest == 120
-    assert ready + smoke + stop + 5 < allowance
-    assert allowance == 360
+    assert ready + smoke + stop + 5 < 360
 
 
 def test_launcher_refuses_when_writer_tls_material_is_missing(compiled_launcher, tmp_path):

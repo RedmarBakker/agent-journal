@@ -10,6 +10,7 @@ from journal.features.secrets.listeners.secret_purge import SecretPurge
 from journal.features.secrets.seeds.secret_files import SecretFiles
 from journal.features.secrets.secrets_nudges import SecretsNudges
 from journal.features.secrets.secrets_part import SecretsPart
+from journal.features.secrets.secrets_options import SecretsOptions
 
 
 class Secrets(Feature[SecretsData]):
@@ -18,6 +19,7 @@ class Secrets(Feature[SecretsData]):
     help = "A key or a login the agent may use without seeing it: its values live in a file in your home folder, never in the journal, and you fill them in on the Secrets page."
     nudges = (SecretsNudges.PRIVATE_SECRETS, SecretsNudges.SECRET_PROGRAM_GRANT)
     commands = (SecretCommand,)
+    options = (SecretsOptions.LONGEST_RUN_SECONDS,)
     seeds = (SecretFiles,)
     skill = Skill("secrets", 'Use keys and logins without seeing them; load it when a task needs a key, a login or a site you must be logged in to', """
 # Secrets

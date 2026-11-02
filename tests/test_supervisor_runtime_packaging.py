@@ -820,20 +820,27 @@ def test_mcp_server_uses_the_proxy_started_by_the_gateway_entrypoint():
     assert 'MeteringProxy(' not in mcp and 'MeteringProxyServer(' not in mcp
 
 
-def test_smoke_launcher_fits_inside_its_fixed_secret_program_allowance():
-    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
+def test_secret_runner_timeout_is_a_project_setting_and_runbook_names_the_smoke_limit():
+    option = (ROOT / "src" / "journal" / "features" / "secrets" / "secrets_options.py").read_text()
+    feature = (ROOT / "src" / "journal" / "features" / "secrets" / "feature.py").read_text()
     secret_run = (ROOT / "src" / "journal" / "features" / "secrets" / "support" / "secret_run.py").read_text()
-    longest = int(re.search(r"^LONGEST_SECONDS = (\d+)$", secret_run, re.MULTILINE).group(1))
-    timeout = int(re.search(r'PROGRAM_TIMEOUT_SECONDS = \{"journal-supervisor-smoke": (\d+)\}', secret_run).group(1))
+    runbook = (PROFILE / "RUNBOOK.md").read_text()
+
+    assert 'Option("secrets.longest_run_seconds"' in option
+    assert "120, unit=\"seconds\", setter=USER" in option
+    assert "options = (SecretsOptions.LONGEST_RUN_SECONDS,)" in feature
+    assert "Settings.applied(self.setting_rows, [SecretsOptions.LONGEST_RUN_SECONDS])" in secret_run
+    assert "settings.integer(SecretsOptions.LONGEST_RUN_SECONDS)" in secret_run
+    assert "secrets.longest_run_seconds` setting to 360 or more" in runbook
+
+
+def test_smoke_launcher_full_run_fits_the_documented_secret_runner_setting():
+    launcher = (ROOT / "src" / "supervisor_bridge" / "smoke_launcher.c").read_text()
     ready = int(re.search(r"^#define CODEX_READY_TIMEOUT_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
     smoke = int(re.search(r"^#define SMOKE_RUN_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
     stop = int(re.search(r"^#define STOP_SECONDS (\d+)$", launcher, re.MULTILINE).group(1))
 
-    assert longest == 120
-    assert ready + smoke + stop + 5 < timeout
-    assert timeout == 360
-    assert "timeout = PROGRAM_TIMEOUT_SECONDS.get(command[0], LONGEST_SECONDS)" in secret_run
-    assert "timeout=timeout" in secret_run
+    assert ready + smoke + stop + 5 < 360
 
 
 def test_gateway_fixture_is_inert_and_has_a_closed_model_and_tool_route():
