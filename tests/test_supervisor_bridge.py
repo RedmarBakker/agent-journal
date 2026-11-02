@@ -348,6 +348,21 @@ def test_early_scheduled_reconcile_uses_no_model(tmp_path):
     assert hook.calls == []
 
 
+def test_quiet_scheduled_reconcile_is_stored_without_a_model_call_or_cost(tmp_path):
+    journal = StubJournal([{"status": "skipped", "reason": "quiet"}])
+    state = StateStore(tmp_path)
+    hook = StubHook()
+    bridge = SupervisorBridge(journal, state, hook=hook)
+
+    result = bridge.reconcile("timer")
+
+    assert result.status == "skipped" and result.reason == "quiet"
+    assert state.snapshot()["last_admission"] == "quiet"
+    assert state.active_run() is None
+    assert state.snapshot()["metering"]["provider_requests"] == 0
+    assert hook.calls == []
+
+
 def test_hints_and_timer_share_one_admission(tmp_path):
     journal = StubJournal([{"status": "skipped", "reason": "empty"}, {"status": "skipped", "reason": "empty"}])
     bridge = SupervisorBridge(journal, StateStore(tmp_path))

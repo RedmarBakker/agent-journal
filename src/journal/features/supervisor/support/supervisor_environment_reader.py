@@ -67,6 +67,13 @@ class SupervisorEnvironmentReader:
             ), principal.actor)
         return entry.data["what_it_saw"], entry.row_id
 
+    def change_marker(self, principal: SupervisorPrincipal) -> int:
+        permissions = self.authority.observation_permissions(principal)
+        plan_rows, _more_plans = self._plans(permissions)
+        environment_ids = {PROJECT, permissions.environment_id}
+        environment_ids.update(plan.environment_id for plan in plan_rows)
+        return self.entries.latest_row_event_id(tuple(sorted(environment_ids)))
+
     def _plans(self, permissions: SupervisorGrant) -> tuple[list[Plan], bool]:
         query = self.plans.query().order("id")
         if permissions.watched_plans != "all":

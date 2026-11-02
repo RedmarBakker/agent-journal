@@ -95,8 +95,13 @@ class SupervisorObservations:
         wake_at_ms = self._now_ms()
         if not self.wake_schedule.is_due(principal, grant, interval, wake_at_ms):
             return self._skipped("scheduled_interval_not_elapsed")
-        result = self._admit(principal, grant, request)
-        self.wake_schedule.record(principal, grant, interval, wake_at_ms, request["observation_cursor"], result)
+        row_event_marker = self.wake_schedule.row_event_marker(principal)
+        result = self._skipped("quiet") if self.wake_schedule.is_quiet(
+            principal, grant, request["observation_cursor"], row_event_marker,
+        ) else self._admit(principal, grant, request)
+        self.wake_schedule.record(
+            principal, grant, interval, wake_at_ms, request["observation_cursor"], row_event_marker, result,
+        )
         return result
 
     def _admit(self, principal: SupervisorPrincipal, grant: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:

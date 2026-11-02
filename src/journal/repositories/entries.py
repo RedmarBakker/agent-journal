@@ -24,6 +24,8 @@ NUDGE = "nudge"
 CUT_KEY = "cut_from"
 # the entry a row's deletion is recorded as
 DELETED_ENTRY = "deleted"
+ROW_EVENT_TABLES = ("plans", "phases", "tasks", "checks")
+ROW_EVENT_KINDS = ("created", "updated", DELETED_ENTRY)
 # the keys of an entry's data that hold what a tool was given and gave back, what a command printed and the agent's last words, which a read of what the agent did leaves out
 PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "last_assistant_message")
 
@@ -185,6 +187,14 @@ class Entries(ScopedRepository[Entry]):
         for key, value in data.items():
             query = query.filter_json(f"data->{key}", value)
         return self.selected(query.order_descending("id").limit(last))
+
+    def latest_row_event_id(self, environment_ids: tuple[int, ...]) -> int:
+        if not environment_ids:
+            return 0
+        query = self.query().filter_listed("environment_id", environment_ids)
+        query = query.filter_listed("entry_type", ROW_EVENT_KINDS).filter_listed("data->table", ROW_EVENT_TABLES)
+        rows = self.selected_globally(query.order_descending("id").limit(1))
+        return rows[0].row_id if rows else 0
 
     def supervisor_page(self, entry_type: str, last: int, after_id: int = 0, unexpired_after_ms: int | None = None, **data) -> list[Entry]:
         if entry_type not in SUPERVISOR_ENTRY_TYPES or not 1 <= last <= 100 or after_id < 0:

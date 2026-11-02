@@ -63,7 +63,10 @@ class StateStore:
         self.update(change)
 
     def record_skipped(self, reason: str) -> None:
-        if reason not in {"empty", "busy", "ineligible", "stale_evidence", "budget_exhausted", "unknown_cost", "revoked", "needs_owner"}:
+        if reason not in {
+            "empty", "busy", "ineligible", "stale_evidence", "budget_exhausted", "unknown_cost", "revoked",
+            "needs_owner", "scheduled_interval_not_elapsed", "quiet",
+        }:
             raise ContractError("unsupported admission skip reason")
         self.update(lambda state: state.update({"last_admission": reason, "last_error": "", "health": "up"}))
 

@@ -24,6 +24,7 @@ class SupervisorScheduledWake(SupervisorGrantFixture):
         self.supervisor_owner_environment = story.app.container.get(Environments).find(
             fixture["owner_environment"].row_id,
         ).name
+        self.task_id = fixture["task"].row_id
         story.plans.first = grant["plan_id"]
         story.grants.first = grant["grant_id"]
         story.closers.append(lambda: authority.secrets_store.drop(fixture["credentials"]))
