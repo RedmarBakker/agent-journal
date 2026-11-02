@@ -29,6 +29,7 @@ from journal.support.actor import Actor
 from tests.stories.builder.worker_steps import worker_session
 from journal.support.agent_role import AgentRole
 from journal.engine.nudge_registry import NudgeRegistry
+from journal.engine.agent_launcher import AgentLauncher
 from journal.features.faults.support.story_transitions import StoryTransitions
 from journal.features.updates.support.release_check import ReleaseCheck
 from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
@@ -66,11 +67,17 @@ def journal(tmp_path_factory, template_journal: Path) -> SharedJournal:
 
 
 def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """The journal a story runs against: booted as the tests boot it, with scheduled jobs stopped so its clock advances only in story steps, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead; a worker's program is never started either, though a worker on Claude is given its session at launch, as the real launch gives it one."""
+    """The journal a story runs against: its clock advances only in story steps, Plan worktrees are prepared in-process without detached supervisors, helper launches are kept for their hooks to play, and workers are given their sessions without starting their programs."""
     launches: list[dict[str, str]] = []
     launches_ready = threading.Condition()
     original_run = HelperRunner.run
     original_worker_start = WorkerRunner.start
+    original_agent_launch = AgentLauncher.launched
+
+    def capture_agent_launch(launcher, environment, arguments, worktree=None):
+        if launcher.config.root == root:
+            return 0
+        return original_agent_launch(launcher, environment, arguments, worktree)
 
     def capture_launch(runner, helper, command, environ) -> None:
         if runner.config.root == root:
@@ -81,6 +88,7 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
         original_run(runner, helper, command, environ)
 
     patch.setattr(HelperRunner, "run", capture_launch)
+    patch.setattr(AgentLauncher, "launched", capture_agent_launch)
     ReleaseCheckMemory().store(ReleaseCheck(TimeSource().seconds()))
     app = booted(root, patch)
     app.runtime().jobs.stop()
