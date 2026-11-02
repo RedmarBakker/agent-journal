@@ -2,6 +2,7 @@ from typing import Any, Callable
 
 from journal.features.supervisor.support.supervisor_maintenance import SupervisorMaintenance
 from journal.features.supervisor.support.supervisor_observations import SupervisorObservations
+from journal.features.supervisor.support.supervisor_record_reader import SupervisorRecordReader
 from journal.http.support.request import Request
 from journal.repositories.scope import Scope
 from journal.support.response import Response
@@ -11,12 +12,24 @@ from journal.supervisor_principal import SupervisorPrincipal
 
 
 class SupervisorController:
-    """Owner grant management and private supervisor bridge endpoints."""
+    """Owner grant management, supervisor history and private bridge endpoints."""
 
     def __init__(self, authority: SupervisorAuthority, observations: SupervisorObservations,
-                 maintenance: SupervisorMaintenance, scope: Scope) -> None:
+                 maintenance: SupervisorMaintenance, scope: Scope, records: SupervisorRecordReader) -> None:
         self.authority, self.observations, self.maintenance = authority, observations, maintenance
-        self.scope = scope
+        self.scope, self.records = scope, records
+
+    def read_records(self, request: Request) -> Response:
+        if not request.actor.is_user():
+            return Response(403, {"error": "supervisor records are available to people in the current environment"})
+        try:
+            answer = self.records.read(
+                request.text("period") or "last_7_days", request.text("plan_id"),
+                request.text("area"), request.text("before"),
+            )
+        except SupervisorFailure as denied:
+            return Response(denied.status, {"error": str(denied)})
+        return Response(200, answer, {"Cache-Control": "no-store"})
 
     def enroll(self, request: Request) -> Response:
         try:
