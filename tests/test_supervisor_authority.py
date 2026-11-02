@@ -636,6 +636,7 @@ def test_authenticated_bridge_admits_applies_and_reads_receipt_over_http(app, au
 
         other_tenant = seeded(app, 2)
         other_grant, other_token, _ = admitted(other_tenant, "bounded_write")
+        time_source.pin(time_source.seconds() + 15 * 60)
         wrong_admit = _post_supervisor_http(server.port, "/_supervisor/v1/admit", {
             "protocol_version": 1, "source": "timer", "observation_cursor": None,
             "wakeup_id": "wakeup-wrong-tenant", "kind": "scheduled",

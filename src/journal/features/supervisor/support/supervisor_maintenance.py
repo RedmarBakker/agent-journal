@@ -1,5 +1,6 @@
 import io
 import shlex
+from decimal import Decimal
 from typing import Any
 
 from journal.console.console import Console
